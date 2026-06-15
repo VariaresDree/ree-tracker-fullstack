@@ -1,0 +1,317 @@
+@import "tailwindcss";
+
+@theme {
+  /* Dynamic Theme Colors mapping to CSS Variables */
+  --color-bg: var(--bg-primary);
+  --color-surface: var(--bg-surface);
+  --color-surface2: var(--bg-surface2);
+  --color-surface3: var(--bg-surface3);
+  
+  --color-border: var(--border-main);
+  --color-border2: var(--border-light);
+  
+  --color-textMain: var(--text-main);
+  --color-muted: var(--text-muted);
+  --color-muted2: var(--text-muted2);
+  
+  /* Brand & Feedback Colors (Static) */
+  --color-reeBlue: var(--brand-blue, #3b82f6);
+  --color-reeBlue2: var(--brand-blue2, #1d4ed8);
+  --color-reeGreen: var(--brand-green, #22c55e);
+  --color-reeRed: var(--brand-red, #ef4444);
+  --color-reeAmber: var(--brand-amber, #f59e0b);
+  --color-reePurple: var(--brand-purple, #8b5cf6);
+  --color-reeCyan: var(--brand-cyan, #06b6d4);
+  
+  /* Radii */
+  --radius-default: 10px;
+  --radius-sm: 6px;
+
+  /* Typography / Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+/* 1. ORIGINAL / DEEP SPACE (DEFAULT) */
+:root {
+  --bg-primary: #0a0f1e;
+  --bg-surface: #111827;
+  --bg-surface2: #1a2235;
+  --bg-surface3: #1f2d45;
+  --text-main: #f1f5f9;
+  --text-muted: #64748b;
+  --text-muted2: #94a3b8;
+  --border-main: rgba(255, 255, 255, 0.07);
+  --border-light: rgba(255, 255, 255, 0.12);
+}
+
+/* 2. LIGHT MODE (PRC STANDARD) */
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface2: #f1f5f9;
+  --bg-surface3: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-muted2: #64748b;
+  --border-main: rgba(0, 0, 0, 0.05);
+  --border-light: rgba(0, 0, 0, 0.1);
+}
+
+/* 3. MIDNIGHT (OLED PURE BLACK) */
+[data-theme="midnight"] {
+  --bg-primary: #000000;
+  --bg-surface: #09090b;
+  --bg-surface2: #18181b;
+  --bg-surface3: #27272a;
+  --text-main: #fafafa;
+  --text-muted: #71717a;
+  --text-muted2: #a1a1aa;
+  --border-main: rgba(255, 255, 255, 0.05);
+  --border-light: rgba(255, 255, 255, 0.1);
+}
+
+/* 4. PAPER (WARM SEPIA) */
+[data-theme="paper"] {
+  --bg-primary: #fdf6e3;
+  --bg-surface: #fefce8;
+  --bg-surface2: #fef08a;
+  --bg-surface3: #fde047;
+  --text-main: #451a03;
+  --text-muted: #78350f;
+  --text-muted2: #92400e;
+  --border-main: rgba(69, 26, 3, 0.1);
+  --border-light: rgba(69, 26, 3, 0.2);
+}
+
+/* 5. CYBERPUNK (NEON GRIT) */
+[data-theme="cyberpunk"] {
+  --bg-primary: #0f0f15;
+  --bg-surface: #1e1b4b;
+  --bg-surface2: #2e1065;
+  --bg-surface3: #4c1d95;
+  --text-main: #fef08a;
+  --text-muted: #a78bfa;
+  --text-muted2: #c4b5fd;
+  --border-main: #fde04740;
+  --border-light: #2dd4bf60;
+  --brand-blue: #22d3ee;
+  --brand-purple: #f472b6;
+}
+
+/* 6. RETROWAVE (SYNTHWAVE NEON) */
+[data-theme="retrowave"] {
+  --bg-primary: #1e002a;
+  --bg-surface: #3b0764;
+  --bg-surface2: #581c87;
+  --bg-surface3: #7e22ce;
+  --text-main: #fdf4ff;
+  --text-muted: #f472b6;
+  --text-muted2: #fbcfe8;
+  --border-main: rgba(244, 114, 182, 0.2);
+  --border-light: rgba(34, 211, 238, 0.3);
+  --brand-blue: #06b6d4;
+  --brand-amber: #fbbf24;
+}
+
+/* 7. FOREST (DEEP WOODS) */
+[data-theme="forest"] {
+  --bg-primary: #022c22;
+  --bg-surface: #064e3b;
+  --bg-surface2: #065f46;
+  --bg-surface3: #047857;
+  --text-main: #ecfdf5;
+  --text-muted: #6ee7b7;
+  --text-muted2: #a7f3d0;
+  --border-main: rgba(110, 231, 183, 0.15);
+  --border-light: rgba(110, 231, 183, 0.3);
+  --brand-blue: #34d399;
+}
+
+/* 8. OCEAN (ABYSSAL DEEP) */
+[data-theme="ocean"] {
+  --bg-primary: #082f49;
+  --bg-surface: #164e63;
+  --bg-surface2: #0e7490;
+  --bg-surface3: #0891b2;
+  --text-main: #e0f2fe;
+  --text-muted: #7dd3fc;
+  --text-muted2: #bae6fd;
+  --border-main: rgba(125, 211, 252, 0.15);
+  --border-light: rgba(125, 211, 252, 0.3);
+}
+
+/* 9. SAKURA / UME (SOFT CHERRY BLOSSOM) */
+[data-theme="sakura"] {
+  --bg-primary: #fdf2f8;
+  --bg-surface: #fce7f3;
+  --bg-surface2: #fbcfe8;
+  --bg-surface3: #f9a8d4;
+  --text-main: #831843;
+  --text-muted: #be185d;
+  --text-muted2: #db2777;
+  --border-main: rgba(190, 24, 93, 0.1);
+  --border-light: rgba(190, 24, 93, 0.2);
+  --brand-blue: #db2777;
+}
+
+/* 10. TERMINAL (HACKER MATRIX) */
+[data-theme="terminal"] {
+  --bg-primary: #000000;
+  --bg-surface: #000000;
+  --bg-surface2: #052e16;
+  --bg-surface3: #14532d;
+  --text-main: #4ade80;
+  --text-muted: #16a34a;
+  --text-muted2: #22c55e;
+  --border-main: rgba(22, 163, 74, 0.3);
+  --border-light: rgba(34, 197, 94, 0.5);
+  --brand-blue: #22c55e;
+  --brand-purple: #4ade80;
+  --brand-cyan: #16a34a;
+}
+
+/* 11. ORGANS (FLESH & CRIMSON) */
+[data-theme="organs"] {
+  --bg-primary: #450a0a;
+  --bg-surface: #7f1d1d;
+  --bg-surface2: #991b1b;
+  --bg-surface3: #b91c1c;
+  --text-main: #fef2f2;
+  --text-muted: #fca5a5;
+  --text-muted2: #fecaca;
+  --border-main: rgba(252, 165, 165, 0.2);
+  --border-light: rgba(252, 165, 165, 0.4);
+  --brand-blue: #f87171;
+}
+
+/* 12. MATH (BLUEPRINT GRID) */
+[data-theme="math"] {
+  --bg-primary: #1e3a8a;
+  --bg-surface: #1e40af;
+  --bg-surface2: #1d4ed8;
+  --bg-surface3: #2563eb;
+  --text-main: #eff6ff;
+  --text-muted: #93c5fd;
+  --text-muted2: #bfdbfe;
+  --border-main: rgba(255, 255, 255, 0.2);
+  --border-light: rgba(255, 255, 255, 0.4);
+}
+
+/* 13. ELECTRICAL (COPPER & AMBER) */
+[data-theme="electrical"] {
+  --bg-primary: #24140b;
+  --bg-surface: #451a03;
+  --bg-surface2: #78350f;
+  --bg-surface3: #92400e;
+  --text-main: #fef3c7;
+  --text-muted: #fcd34d;
+  --text-muted2: #fde68a;
+  --border-main: rgba(252, 211, 77, 0.15);
+  --border-light: rgba(252, 211, 77, 0.3);
+  --brand-blue: #f59e0b;
+}
+
+
+@layer base {
+  body {
+    @apply bg-bg text-textMain font-sans antialiased transition-colors duration-300;
+    background-image: radial-gradient(var(--border-main) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  
+  /* Override blueprint specific background for Math theme */
+  [data-theme="math"] body {
+      background-image: 
+        linear-gradient(var(--border-main) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border-main) 1px, transparent 1px);
+      background-size: 20px 20px;
+  }
+}
+
+@layer utilities {
+  .page-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .telemetry-spinner {
+    @apply w-6 h-6 border-2 border-reeBlue border-t-transparent rounded-full inline-block;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+}
+
+/* ==========================================================================
+   LATEX & MATH MOBILE SCROLLING FIX
+   ========================================================================== */
+.math-scroll-mobile {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-bottom: 0.5rem; 
+}
+
+.math-scroll-mobile .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+  margin: 0;
+}
+
+/* ==========================================================================
+   UNIVERSAL DEEP DARK SCROLLBARS (For Dashboards, Ledgers, Library)
+   ========================================================================== */
+
+/* Target Webkit browsers (Chrome, Edge, Safari) */
+.math-scroll-mobile::-webkit-scrollbar,
+.scrollable::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar,
+.scrollbar-dark::-webkit-scrollbar {
+  width: 8px;  
+  height: 8px; 
+}
+
+/* The track (background) of the scrollbar */
+.math-scroll-mobile::-webkit-scrollbar-track,
+.scrollable::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track,
+.scrollbar-dark::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5); 
+  border-radius: 8px;
+}
+
+/* The draggable thumb */
+.math-scroll-mobile::-webkit-scrollbar-thumb,
+.scrollable::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.scrollbar-dark::-webkit-scrollbar-thumb {
+  background-color: var(--border-light); 
+  border-radius: 8px;
+  border: 1px solid transparent; 
+  background-clip: content-box;
+}
+
+/* Thumb hover state for better UX */
+.math-scroll-mobile::-webkit-scrollbar-thumb:hover,
+.scrollable::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted); 
+}
+
+/* Standardized Firefox Support */
+.math-scroll-mobile,
+.scrollable,
+.custom-scrollbar,
+.scrollbar-dark {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
+}
