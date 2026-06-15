@@ -41,6 +41,7 @@ export const useAIIngestion = (onIngestSuccess) => {
               subtopic: q.subtopic || genSubtopic, 
               source: useWeb ? 'web' : 'ai', 
               type: q.type || 'calculation', 
+              status: 'quarantined', // <-- SECURITY PIPELINE: Force to Admin Queue
               createdAt: new Date().toISOString() 
           };
           await saveQuestionToBank(payload);
@@ -51,8 +52,8 @@ export const useAIIngestion = (onIngestSuccess) => {
           return updated.slice(-15);
         });
 
-        setGenStatus(`✅ Appended ${newQs.length} new board items!`);
-        toast.success(`${newQs.length} items added.`);
+        setGenStatus(`✅ Generated ${newQs.length} items! Routed to Quarantine Queue.`);
+        toast.success(`${newQs.length} items sent to Quarantine.`);
         if(onIngestSuccess) onIngestSuccess(true);
       } else {
         setGenStatus('❌ Sync Error. Confirm AI network state.');
@@ -161,7 +162,7 @@ export const useAIIngestion = (onIngestSuccess) => {
       if (generatedQuestions.length === 0) return;
       
       setIsCommitting(true);
-      const toastId = toast.loading("Injecting verified flashcards into Global Bank...");
+      const toastId = toast.loading("Injecting verified items into Quarantine Queue...");
       
       try {
           for (const q of generatedQuestions) {
@@ -171,14 +172,14 @@ export const useAIIngestion = (onIngestSuccess) => {
                   subtopic: q.subtopic || genSubtopic, 
                   source: 'AI_Vision_Module', 
                   type: q.type || 'conceptual', 
-                  isFlagged: true, // Forces items into Admin Verification Queue
+                  status: 'quarantined', // <-- SECURITY PIPELINE: Force to Admin Queue
                   createdAt: new Date().toISOString(),
                   uploadedBy: currentUser?.uid || 'system'
               };
               await saveQuestionToBank(payload);
           }
           
-          toast.success(`${generatedQuestions.length} items successfully injected!`, { id: toastId });
+          toast.success(`${generatedQuestions.length} items routed to Admin Quarantine!`, { id: toastId });
           setShowQAModal(false);
           setGeneratedQuestions([]);
           if(onIngestSuccess) onIngestSuccess(true);

@@ -1,20 +1,7 @@
 // src/services/dbQueries.js
 import {
-    doc,
-    getDoc,
-    setDoc,
-    collection,
-    addDoc,
-    getDocs,
-    query,
-    where,
-    orderBy,
-    limit,
-    deleteDoc,
-    writeBatch,
-    startAfter,          
-    getCountFromServer,
-    increment 
+    doc, getDoc, setDoc, collection, addDoc, getDocs, query, where,
+    orderBy, limit, deleteDoc, writeBatch, startAfter, getCountFromServer, increment 
 } from 'firebase/firestore';
 import { db } from '../config/firebaseDb.js';
 
@@ -43,21 +30,46 @@ export const logSRSRecord = async (uid, questionId, payload) => {
 };
 
 // ----------------------------------------------------------------------
-// 2. Question Bank & Review Queue (global)
+// 2. Question Bank & Review Queue (Global & Quarantine)
 // ----------------------------------------------------------------------
 export const saveQuestionToBank = async (questionObject) => {
-    const docRef = await addDoc(collection(db, "questions"), questionObject);
+    // SECURITY UPGRADE: Default manual entries to 'verified', AI passes 'quarantined'
+    const finalQuestion = { status: 'verified', ...questionObject };
+    const docRef = await addDoc(collection(db, "questions"), finalQuestion);
     
+    // Only pad the vault statistics if the question bypassed quarantine
+    if (finalQuestion.status === 'verified') {
+        const statRef = doc(db, "metadata", "vaultStats");
+        const safeSubj = finalQuestion.subject === 'Mathematics' ? 'Math' : finalQuestion.subject;
+        await setDoc(statRef, {
+            [`${safeSubj}_${finalQuestion.subtopic}`]: increment(1),
+            [`${safeSubj}_total`]: increment(1),
+            total: increment(1)
+        }, { merge: true });
+    }
+    return docRef.id;
+};
+
+// --- NEW QUARANTINE PIPELINE ---
+export const fetchQuarantineQueue = async () => {
+    const qQuery = query(collection(db, "questions"), where("status", "==", "quarantined"));
+    const snap = await getDocs(qQuery);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const approveQuarantinedQuestion = async (id, subject, subtopic) => {
+    await setDoc(doc(db, "questions", id), { status: "verified" }, { merge: true });
+
+    // Safely increment stats now that an Admin has verified it
     const statRef = doc(db, "metadata", "vaultStats");
-    const safeSubj = questionObject.subject === 'Mathematics' ? 'Math' : questionObject.subject;
+    const safeSubj = subject === 'Mathematics' ? 'Math' : subject;
     await setDoc(statRef, {
-        [`${safeSubj}_${questionObject.subtopic}`]: increment(1),
+        [`${safeSubj}_${subtopic}`]: increment(1),
         [`${safeSubj}_total`]: increment(1),
         total: increment(1)
     }, { merge: true });
-    
-    return docRef.id;
 };
+// -------------------------------
 
 export const fetchServerStats = async () => {
     const coll = collection(db, "questions");
@@ -76,18 +88,9 @@ export const fetchServerStats = async () => {
 
 export const fetchPaginatedQuestions = async (lastVisibleDoc = null, filterSubject = 'All', filterSubtopic = 'All', limitCount = 50) => {
     let constraints = [orderBy("createdAt", "desc"), limit(limitCount)];
-    
-    if (filterSubject !== 'All') {
-        constraints.unshift(where("subject", "==", filterSubject));
-    }
-
-    if (filterSubtopic !== 'All') {
-        constraints.unshift(where("subtopic", "==", filterSubtopic));
-    }
-
-    if (lastVisibleDoc) {
-        constraints.push(startAfter(lastVisibleDoc));
-    }
+    if (filterSubject !== 'All') constraints.unshift(where("subject", "==", filterSubject));
+    if (filterSubtopic !== 'All') constraints.unshift(where("subtopic", "==", filterSubtopic));
+    if (lastVisibleDoc) constraints.push(startAfter(lastVisibleDoc));
 
     const q = query(collection(db, "questions"), ...constraints);
     const snap = await getDocs(q);
@@ -101,14 +104,8 @@ export const fetchPaginatedQuestions = async (lastVisibleDoc = null, filterSubje
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
     const qRef = collection(db, "questions");
     let constraints = [where("isFlagged", "==", true)];
-    
-    if (filterSubject !== 'All') {
-        constraints.push(where("subject", "==", filterSubject));
-    }
-
-    if (filterSubtopic !== 'All') {
-        constraints.push(where("subtopic", "==", filterSubtopic));
-    }
+    if (filterSubject !== 'All') constraints.push(where("subject", "==", filterSubject));
+    if (filterSubtopic !== 'All') constraints.push(where("subtopic", "==", filterSubtopic));
 
     const qQuery = query(qRef, ...constraints);
     const snap = await getDocs(qQuery);
@@ -121,13 +118,16 @@ export const deleteQuestionFromBank = async (id) => {
         const qData = qSnap.data();
         await deleteDoc(doc(db, "questions", id));
         
-        const statRef = doc(db, "metadata", "vaultStats");
-        const safeSubj = qData.subject === 'Mathematics' ? 'Math' : qData.subject;
-        await setDoc(statRef, {
-            [`${safeSubj}_${qData.subtopic}`]: increment(-1),
-            [`${safeSubj}_total`]: increment(-1),
-            total: increment(-1)
-        }, { merge: true });
+        // Only decrement if it was previously verified
+        if (qData.status !== 'quarantined') {
+            const statRef = doc(db, "metadata", "vaultStats");
+            const safeSubj = qData.subject === 'Mathematics' ? 'Math' : qData.subject;
+            await setDoc(statRef, {
+                [`${safeSubj}_${qData.subtopic}`]: increment(-1),
+                [`${safeSubj}_total`]: increment(-1),
+                total: increment(-1)
+            }, { merge: true });
+        }
     }
 };
 
@@ -175,6 +175,8 @@ export const resyncVaultMetadata = async () => {
     
     allDocs.forEach(d => {
         const data = d.data();
+        if (data.status === 'quarantined') return; // Skip quarantined items in tally
+        
         const subj = data.subject === 'Mathematics' ? 'Math' : data.subject;
         const topicKey = `${subj}_${data.subtopic}`;
         stats[topicKey] = (stats[topicKey] || 0) + 1;
@@ -191,23 +193,14 @@ export const resyncVaultMetadata = async () => {
 // ----------------------------------------------------------------------
 export const saveSimulationRecord = async (uid, simulationData) => {
     if (!uid) throw new Error("User ID required.");
-    const payload = { 
-        ...simulationData, 
-        userId: uid, 
-        createdAt: new Date().toISOString() 
-    };
+    const payload = { ...simulationData, userId: uid, createdAt: new Date().toISOString() };
     const docRef = await addDoc(collection(db, "simulationHistory"), payload);
     return docRef.id;
 };
 
 export const fetchSimulationLedger = async (uid, limitCount = 20) => {
     if (!uid) throw new Error("User ID required.");
-    const q = query(
-        collection(db, "simulationHistory"),
-        where("userId", "==", uid),
-        orderBy("date", "desc"),
-        limit(limitCount)
-    );
+    const q = query(collection(db, "simulationHistory"), where("userId", "==", uid), orderBy("date", "desc"), limit(limitCount));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
@@ -243,25 +236,16 @@ export const migrateSimulationRecords = async (uid) => {
 // ----------------------------------------------------------------------
 export const syncLeaderboardProfile = async (user, stats) => {
     if (!user?.uid || !stats) return;
-    
     const payload = {
-        uid: user.uid,
-        displayName: user.displayName || 'Anonymous Agent',
-        thetaRating: stats?.irt?.theta || 0,
-        streak: stats?.globalStreak || 0,
-        gauntletLevel: stats?.gauntletLevel || 1, // Phase 9: Sync Level Up Tier
-        lastActive: new Date().toISOString()
+        uid: user.uid, displayName: user.displayName || 'Anonymous Agent',
+        thetaRating: stats?.irt?.theta || 0, streak: stats?.globalStreak || 0,
+        gauntletLevel: stats?.gauntletLevel || 1, lastActive: new Date().toISOString()
     };
-    
     await setDoc(doc(db, "leaderboard", user.uid), payload, { merge: true });
 };
 
 export const fetchGlobalLeaderboard = async (limitCount = 50) => {
-    const q = query(
-        collection(db, "leaderboard"), 
-        orderBy("thetaRating", "desc"), 
-        limit(limitCount)
-    );
+    const q = query(collection(db, "leaderboard"), orderBy("thetaRating", "desc"), limit(limitCount));
     const snap = await getDocs(q);
     return snap.docs.map(d => d.data());
 };
@@ -269,15 +253,8 @@ export const fetchGlobalLeaderboard = async (limitCount = 50) => {
 export const fetchPaginatedLeaderboard = async (limitCount = 20, lastVisible = null) => {
     try {
         const leaderboardRef = collection(db, 'leaderboard');
-        let q = query(
-            leaderboardRef,
-            orderBy('thetaRating', 'desc'),
-            limit(limitCount)
-        );
-
-        if (lastVisible) {
-            q = query(q, startAfter(lastVisible));
-        }
+        let q = query(leaderboardRef, orderBy('thetaRating', 'desc'), limit(limitCount));
+        if (lastVisible) q = query(q, startAfter(lastVisible));
 
         const snapshot = await getDocs(q);
         const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
@@ -285,15 +262,11 @@ export const fetchPaginatedLeaderboard = async (limitCount = 20, lastVisible = n
         const agents = snapshot.docs.map(docSnap => {
             const data = docSnap.data();
             return {
-                uid: data.uid || docSnap.id,
-                displayName: data.displayName || 'Unknown Agent',
-                thetaRating: data.thetaRating || 0,
-                streak: data.streak || 0,
-                gauntletLevel: data.gauntletLevel || 1,
-                lastActive: data.lastActive || null
+                uid: data.uid || docSnap.id, displayName: data.displayName || 'Unknown Agent',
+                thetaRating: data.thetaRating || 0, streak: data.streak || 0,
+                gauntletLevel: data.gauntletLevel || 1, lastActive: data.lastActive || null
             };
         });
-
         return { agents, lastDoc };
     } catch (error) {
         console.error("Error fetching paginated leaderboard:", error);
@@ -306,27 +279,15 @@ export const fetchPaginatedLeaderboard = async (limitCount = 20, lastVisible = n
 // ----------------------------------------------------------------------
 export const createMultiplayerBattle = async (host, config, questions, timeLimitSecs) => {
     if (!host?.uid) throw new Error("Must be authenticated to host a battle.");
-    
     const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
     let battleId = generateCode();
-
     let docRef = doc(db, "battles", battleId);
     let snap = await getDoc(docRef);
     while(snap.exists()) {
         battleId = generateCode();
         docRef = doc(db, "battles", battleId);
     }
-    
-    const payload = {
-        hostId: host.uid,
-        hostName: host.displayName || 'Agent',
-        config, 
-        timeLimitSecs,
-        questions, 
-        createdAt: new Date().toISOString(),
-        status: 'active'
-    };
-
+    const payload = { hostId: host.uid, hostName: host.displayName || 'Agent', config, timeLimitSecs, questions, createdAt: new Date().toISOString(), status: 'active' };
     await setDoc(docRef, payload);
     return battleId;
 };
@@ -340,27 +301,13 @@ export const fetchMultiplayerBattle = async (battleId) => {
 
 export const submitBattleScore = async (battleId, user, score, totalQs, timeTakenSecs) => {
     const participantRef = doc(db, "battles", battleId, "participants", user.uid);
-    
-    await setDoc(participantRef, {
-        name: user.displayName || 'Agent',
-        score: score,
-        total: totalQs,
-        timeTaken: timeTakenSecs,
-        submittedAt: new Date().toISOString()
-    });
+    await setDoc(participantRef, { name: user.displayName || 'Agent', score: score, total: totalQs, timeTaken: timeTakenSecs, submittedAt: new Date().toISOString() });
 };
 
 export const syncLiveBattleProgress = async (battleId, user, currentScore, itemsAnswered) => {
     if (!battleId || !user?.uid) return;
-    
     const participantRef = doc(db, "battles", battleId, "participants", user.uid);
-    
-    await setDoc(participantRef, {
-        name: user.displayName || 'Agent',
-        liveScore: currentScore,
-        itemsAnswered: itemsAnswered,
-        lastUpdated: new Date().toISOString()
-    }, { merge: true });
+    await setDoc(participantRef, { name: user.displayName || 'Agent', liveScore: currentScore, itemsAnswered: itemsAnswered, lastUpdated: new Date().toISOString() }, { merge: true });
 };
 
 // ----------------------------------------------------------------------
@@ -395,11 +342,7 @@ export const updateDynamicTOS = async (newTOS) => {
 export const saveBookmark = async (uid, itemData) => {
     if (!uid || !itemData?.id) throw new Error("Missing user ID or Item ID");
     const bookmarkRef = doc(db, 'userData', uid, 'bookmarks', String(itemData.id));
-    
-    await setDoc(bookmarkRef, {
-        ...itemData,
-        bookmarkedAt: new Date().toISOString()
-    });
+    await setDoc(bookmarkRef, { ...itemData, bookmarkedAt: new Date().toISOString() });
 };
 
 export const removeBookmark = async (uid, itemId) => {

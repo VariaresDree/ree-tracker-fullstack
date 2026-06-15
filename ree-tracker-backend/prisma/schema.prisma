@@ -1,0 +1,55 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. The Core User Profile
+model User {
+  id            String   @id // Maps directly to Firebase UID
+  globalStreak  Int      @default(0)
+  thetaRating   Float    @default(0.0)
+  lastActive    DateTime @default(now())
+  
+  sessions      ExamSession[]
+  attempts      QuestionAttempt[]
+}
+
+// 2. The Exam Session (Replaces Firebase simulationHistory)
+model ExamSession {
+  id            String   @id @default(uuid())
+  userId        String
+  mode          String   // e.g., 'subject', 'blended'
+  targetSubject String?
+  score         Int
+  verdict       String
+  timeTakenSecs Int
+  totalQs       Int
+  createdAt     DateTime @default(now())
+
+  user          User              @relation(fields: [userId], references: [id])
+  attempts      QuestionAttempt[]
+}
+
+// 3. The Granular Analytics Core
+model QuestionAttempt {
+  id              String   @id @default(uuid())
+  sessionId       String
+  userId          String
+  questionId      String   // Links to Firebase Question ID
+  subject         String
+  subtopic        String
+  isCorrect       Boolean
+  confidenceLevel String   // 'high', 'med', 'low'
+  timeSpentSecs   Int
+  createdAt       DateTime @default(now())
+
+  session         ExamSession @relation(fields: [sessionId], references: [id])
+  user            User        @relation(fields: [userId], references: [id])
+
+  @@index([userId, subtopic]) // Optimizes queries for the dashboard heatmaps
+}

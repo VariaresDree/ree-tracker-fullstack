@@ -4,6 +4,20 @@ const router = express.Router();
 const { getFirestore } = require('firebase-admin/firestore');
 const { calculateUpdatedStats } = require('../utils/irtMath');
 
+// Initialize Prisma v7 with PostgreSQL Driver Adapter
+const { PrismaClient } = require('@prisma/client');
+const { Pool } = require('pg');
+const { PrismaPg } = require('@prisma/adapter-pg');
+
+// REQUIRED FIX: Supabase completely drops connections that do not use strict SSL.
+// We must enforce ssl: { rejectUnauthorized: false } in the connection pool.
+const pool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } 
+});
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+
 const db = getFirestore();
 
 router.post('/submit', async (req, res) => {
@@ -14,7 +28,7 @@ router.post('/submit', async (req, res) => {
     }
 
     try {
-        // 1. Fetch current user stats securely
+        // --- 1. FIREBASE PROCESSING (Legacy Support) ---
         const userRef = db.collection('userData').doc(uid);
         const userDoc = await userRef.get();
         let bulkStats = userDoc.exists ? userDoc.data() : {};
@@ -25,10 +39,11 @@ router.post('/submit', async (req, res) => {
         const timeSinks = [];
         const highYield = [];
         const blindSpots = [];
+        
+        // Array to hold the pristine data for PostgreSQL
+        const sqlAttemptsPayload = []; 
 
-        // 2. Process each attempt securely against the database
         for (const attempt of attempts) {
-            // SECURITY: Do not trust the client's version of the correct answer!
             const qDoc = await db.collection('questions').doc(attempt.questionId).get();
             if (!qDoc.exists) continue;
             
@@ -36,12 +51,13 @@ router.post('/submit', async (req, res) => {
             const isCorrect = attempt.userAnswer === trueQuestion.answer;
             const timeSecs = attempt.timeSpentSecs || 0;
             const conf = attempt.confidence || 'low';
+            const subtopic = trueQuestion.subtopic || 'Uncategorized';
+            const subject = trueQuestion.subject;
 
-            if (subjTracker[trueQuestion.subject]) {
-                subjTracker[trueQuestion.subject].total += 1;
-                if (isCorrect) subjTracker[trueQuestion.subject].correct += 1;
+            if (subjTracker[subject]) {
+                subjTracker[subject].total += 1;
+                if (isCorrect) subjTracker[subject].correct += 1;
             }
-            
             if (isCorrect) correctOverall++;
 
             if (timeSecs > 180) {
@@ -53,18 +69,23 @@ router.post('/submit', async (req, res) => {
                 blindSpots.push(attempt.questionId);
             }
 
-            // Run IRT Math
-            bulkStats = calculateUpdatedStats(
-                bulkStats, isCorrect, conf, 
-                trueQuestion.subtopic || 'Uncategorized', 
-                trueQuestion.subject, attempt.questionId, timeSecs
-            );
+            bulkStats = calculateUpdatedStats(bulkStats, isCorrect, conf, subtopic, subject, attempt.questionId, timeSecs);
+
+            // Prep data for PostgreSQL
+            sqlAttemptsPayload.push({
+                questionId: attempt.questionId,
+                subject: subject,
+                subtopic: subtopic,
+                isCorrect: isCorrect,
+                confidenceLevel: conf,
+                timeSpentSecs: timeSecs,
+                userId: uid
+            });
         }
 
         const overallPercent = Math.round((correctOverall / totalQs) * 100);
         const timeTakenSecs = Math.max(0, totalExamTime - timeRemaining);
 
-        // 3. Determine Verdict
         let passedOverall = overallPercent >= 70;
         let isConditional = false;
         Object.keys(subjTracker).forEach(s => {
@@ -75,36 +96,59 @@ router.post('/submit', async (req, res) => {
 
         let verdict = passedOverall && !isConditional ? "PASSED" : passedOverall && isConditional ? "CONDITIONAL PASS" : "FAILED";
 
-        // 4. Save telemetry and update user stats in one atomic batch write
+        // Commit to Firebase
         const batch = db.batch();
         batch.set(userRef, bulkStats, { merge: true });
-        
         const historyRef = db.collection('simulationHistory').doc();
         batch.set(historyRef, {
-            userId: uid,
-            date: new Date().toISOString(),
-            score: overallPercent,
-            verdict,
-            timeTaken: timeTakenSecs,
-            totalQs,
-            config
+            userId: uid, date: new Date().toISOString(), score: overallPercent,
+            verdict, timeTaken: timeTakenSecs, totalQs, config
         });
-
         await batch.commit();
 
-        // 5. Send diagnostics back to the React frontend
+        // --- 2. POSTGRESQL TELEMETRY INGESTION (New Architecture) ---
+        try {
+            // Ensure the user exists in PostgreSQL (Upsert)
+            await prisma.user.upsert({
+                where: { id: uid },
+                update: { lastActive: new Date() },
+                create: { id: uid }
+            });
+
+            // Create the Exam Session and nested Attempts in one transaction
+            await prisma.examSession.create({
+                data: {
+                    userId: uid,
+                    mode: config.mode || 'unknown',
+                    targetSubject: config.subject || 'blended',
+                    score: overallPercent,
+                    verdict: verdict,
+                    timeTakenSecs: timeTakenSecs,
+                    totalQs: totalQs,
+                    attempts: {
+                        create: sqlAttemptsPayload.map(att => ({
+                            userId: uid,
+                            questionId: att.questionId,
+                            subject: att.subject,
+                            subtopic: att.subtopic,
+                            isCorrect: att.isCorrect,
+                            confidenceLevel: att.confidenceLevel,
+                            timeSpentSecs: att.timeSpentSecs
+                        }))
+                    }
+                }
+            });
+            console.log(`[SQL-SYNC] Telemetry saved to Postgres for UID: ${uid}`);
+        } catch (sqlError) {
+            console.error("[SQL-SYNC ERROR] Failed to save to Postgres:", sqlError);
+        }
+
+        // 3. Return results to React UI
         res.status(200).json({
             success: true,
             diagnostics: {
-                overallScore: overallPercent,
-                correctCount: correctOverall,
-                totalCount: totalQs,
-                verdict,
-                subjTracker,
-                timeSinks,
-                highYield,
-                blindSpots,
-                timeTaken: timeTakenSecs
+                overallScore: overallPercent, correctCount: correctOverall, totalCount: totalQs,
+                verdict, subjTracker, timeSinks, highYield, blindSpots, timeTaken: timeTakenSecs
             },
             newStats: bulkStats
         });

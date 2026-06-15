@@ -18,50 +18,104 @@ export default function Dashboard() {
   const { currentUser } = useAuth();
   const { stats, checkAndResetDailyQuotas, purgeAnalytics } = useStore();
   
+  const [sqlData, setSqlData] = useState(null);
+  const [isFetchingSQL, setIsFetchingSQL] = useState(true);
+
   const [aiReport, setAiReport] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const [showAiModal, setShowAiModal] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
-  
-  // Centralized Purge State
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
+  // --- 1. FETCH FROM POSTGRESQL BACKEND ---
+  useEffect(() => {
+    const fetchSQLAnalytics = async () => {
+        if (!currentUser?.uid) return;
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const response = await fetch(`${backendUrl}/api/analytics/dashboard/${currentUser.uid}`);
+            
+            if (!response.ok) throw new Error('Failed to fetch from Assessment Core');
+            const json = await response.json();
+            
+            if (json.success) {
+                setSqlData(json.data);
+            }
+        } catch (error) {
+            console.error("SQL Sync Error:", error);
+        } finally {
+            setIsFetchingSQL(false);
+        }
+    };
+
+    fetchSQLAnalytics();
+  }, [currentUser]);
+
+  // --- 2. THE ADAPTER: Merging legacy Firebase with high-speed SQL ---
+  const activeStats = useMemo(() => {
+      if (!stats && !sqlData) return null;
+      if (!sqlData) return stats;
+
+      const mappedMicroTopics = {};
+      if (sqlData.microTopics) {
+          Object.keys(sqlData.microTopics).forEach(key => {
+              mappedMicroTopics[key] = {
+                  attempts: sqlData.microTopics[key].totalAttempts,
+                  correct: sqlData.microTopics[key].correctHits,
+                  subject: sqlData.microTopics[key].subject,
+                  totalTime: sqlData.microTopics[key].totalTimeSecs * 1000 
+              };
+          });
+      }
+
+      return {
+          ...stats,
+          irt: { ...stats?.irt, theta: sqlData.profile.thetaRating || stats?.irt?.theta || 0 },
+          matrix: sqlData.matrix || stats?.matrix,
+          microTopics: mappedMicroTopics
+      };
+  }, [stats, sqlData]);
+
+  // Sync leaderboards
   useEffect(() => {
     checkAndResetDailyQuotas();
-    if (currentUser && stats) {
-        syncLeaderboardProfile(currentUser, stats).catch(err => console.error("Leaderboard sync failed:", err));
+    if (currentUser && activeStats) {
+        syncLeaderboardProfile(currentUser, activeStats).catch(err => console.error("Leaderboard sync failed:", err));
     }
-  }, [checkAndResetDailyQuotas, currentUser, stats]);
+  }, [checkAndResetDailyQuotas, currentUser, activeStats]);
 
-  if (!stats) {
+  // --- FIX: ALL HOOKS MUST BE DECLARED BEFORE THE EARLY RETURN ---
+  const currentTheta = activeStats?.irt?.theta || 0;
+  const readinessScore = useMemo(() => {
+    return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
+  }, [currentTheta]);
+
+  // --- 3. LOADING STATE (The Early Return) ---
+  if (!activeStats || isFetchingSQL) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="text-center">
           <span className="telemetry-spinner inline-block mr-2"></span>
-          <span className="text-muted2 text-sm ml-2">Loading telemetry matrix...</span>
+          <span className="text-muted2 text-sm ml-2">Loading high-speed SQL matrix...</span>
         </div>
       </div>
     );
   }
 
-  const currentTheta = stats.irt?.theta || 0;
-  const readinessScore = useMemo(() => {
-    return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
-  }, [currentTheta]);
-
+  // --- REST OF THE COMPONENT LOGIC ---
   const handleGenerateAIReport = async () => {
     setShowAiModal(false);
     setIsGeneratingAI(true);
     setAiReport('Querying Gemini Core Engine for tactical diagnostics...');
     
-    const topics = stats.microTopics ? Object.entries(stats.microTopics) : [];
+    const topics = activeStats.microTopics ? Object.entries(activeStats.microTopics) : [];
     const weakTopics = topics.filter(([_, data]) => data.correct / data.attempts < 0.5).map(([name]) => name);
     
     try {
-      const report = await generateBoardReadinessReport(stats, readinessScore, weakTopics);
+      const report = await generateBoardReadinessReport(activeStats, readinessScore, weakTopics);
       setAiReport(report);
       toast.success('AI report generated.');
     } catch (error) {
@@ -78,7 +132,7 @@ export default function Dashboard() {
     const toastId = toast.loading("Taking high-res snapshots of telemetry charts...");
     try {
         setTimeout(async () => {
-            await generateDiagnosticReport(currentUser, stats);
+            await generateDiagnosticReport(currentUser, activeStats);
             toast.success("Diagnostic PDF compiled successfully.", { id: toastId });
             setIsGeneratingPDF(false);
         }, 500);
@@ -88,7 +142,6 @@ export default function Dashboard() {
     }
   };
 
-  // Centralized Master Purge Execution
   const executePurge = async () => {
       setIsPurging(true);
       const toastId = toast.loading("Executing Global Purge Sequence...");
@@ -106,17 +159,15 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-[1600px] mx-auto">
       
-      {/* 1. Header is now clean. The redundant button is GONE. */}
       <div className="mb-2 border-b border-border2 pb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-black text-textMain tracking-tight">Tactical Command Center</h1>
-          <p className="text-muted2 mt-1 text-sm">Welcome back, Agent <span className="text-reeCyan font-bold">{currentUser?.displayName || 'Reviewer'}</span>. Your real-time metrics are synced.</p>
+          <p className="text-muted2 mt-1 text-sm">Welcome back, Agent <span className="text-reeCyan font-bold">{currentUser?.displayName || 'Reviewer'}</span>. Your real-time SQL metrics are synced.</p>
         </div>
       </div>
 
-      {/* 2. We pass the robust Purge Trigger directly down to MissionControl */}
       <MissionControl 
-          stats={stats} 
+          stats={activeStats} 
           onExportPDF={() => setShowPdfModal(true)} 
           isGeneratingPDF={isGeneratingPDF} 
           onPurgeRequest={() => setShowPurgeModal(true)} 
@@ -126,7 +177,7 @@ export default function Dashboard() {
         
         <div className="flex flex-col gap-6 h-full min-h-0">
             <div className="shrink-0">
-                <RecommendedModule stats={stats} />
+                <RecommendedModule stats={activeStats} />
             </div>
             
             <div className="p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col flex-1 min-h-0">
@@ -184,7 +235,7 @@ export default function Dashboard() {
                     <span>📈</span> 30-Day Readiness Velocity (θ)
                 </h3>
                 <div className="flex-1 w-full min-h-0 min-w-0">
-                    <ThetaVelocityChart history={stats?.thetaHistory} />
+                    <ThetaVelocityChart history={activeStats?.thetaHistory} />
                 </div>
             </div>
             
@@ -192,12 +243,12 @@ export default function Dashboard() {
                 <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-6 flex items-center gap-2 shrink-0">
                     <span>🧠</span> Confidence vs Accuracy Matrix
                 </h3>
-                <ConfidenceMatrix stats={stats} />
+                <ConfidenceMatrix stats={activeStats} />
             </div>
         </div>
 
         <div className="flex flex-col h-full min-h-0 xl:col-span-1 lg:col-span-2">
-            <HeatmapChart stats={stats} />
+            <HeatmapChart stats={activeStats} />
         </div>
 
       </div>
@@ -235,7 +286,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* DEDICATED PURGE CONFIRMATION MODAL */}
       {showPurgeModal && (
         <div className="fixed inset-0 bg-bg/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={showPurgeModal}>
