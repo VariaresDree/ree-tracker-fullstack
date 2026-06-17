@@ -1,6 +1,9 @@
 // src/routes/analyticsRoutes.js
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middlewares/authMiddleware');
+const analyticsController = require('../controllers/analyticsController');
+const dashboardController = require('../controllers/dashboardController');
 
 // Initialize Prisma v7 (Same as your exam route)
 const { PrismaClient } = require('@prisma/client');
@@ -82,6 +85,20 @@ router.get('/dashboard/:uid', async (req, res) => {
     } catch (error) {
         console.error("[ANALYTICS ERROR]:", error);
         res.status(500).json({ error: 'Failed to aggregate telemetry.' });
+    }
+});
+router.post('/telemetry-bulk', authMiddleware, analyticsController.processBulkTelemetry);
+router.get('/dashboard/:userId', authMiddleware, dashboardController.getDashboardData);
+
+// Global Analytics Purge
+router.delete('/purge', authMiddleware, async (req, res) => {
+    try {
+        await prisma.questionAttempt.deleteMany({ where: { userId: req.user.id } });
+        await prisma.examSession.deleteMany({ where: { userId: req.user.id } });
+        await prisma.user.update({ where: { id: req.user.id }, data: { thetaRating: 0.0, globalStreak: 0 } });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to purge analytics matrix.' });
     }
 });
 

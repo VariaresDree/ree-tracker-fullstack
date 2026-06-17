@@ -1,4 +1,8 @@
-// prisma/schema.prisma
+// ree-tracker-backend/prisma/schema.prisma
+enum Role {
+  USER
+  ADMIN
+}
 
 generator client {
   provider = "prisma-client-js"
@@ -6,50 +10,116 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // The Prisma 7.8.0+ CLI handles the DATABASE_URL internally via prisma.config.ts
 }
 
-// 1. The Core User Profile
 model User {
-  id            String   @id // Maps directly to Firebase UID
+  id            String   @id 
+  role          Role     @default(USER) 
   globalStreak  Int      @default(0)
-  thetaRating   Float    @default(0.0)
+  thetaRating   Float    @default(0.0) 
   lastActive    DateTime @default(now())
+  createdAt     DateTime @default(now())
   
+  // Legacy User Data Fields
+  activityCalendar Json?
+  thetaHistory     Json?
+  matrix           Json?
+  microTopics      Json?
+  blindSpots       String[]
+  
+  // Settings
+  examDate         String?
+  dailyTarget      Int?     @default(50)
+
   sessions      ExamSession[]
   attempts      QuestionAttempt[]
+  bookmarks     Bookmark[]        
 }
 
-// 2. The Exam Session (Replaces Firebase simulationHistory)
 model ExamSession {
-  id            String   @id @default(uuid())
-  userId        String
-  mode          String   // e.g., 'subject', 'blended'
-  targetSubject String?
-  score         Int
-  verdict       String
-  timeTakenSecs Int
-  totalQs       Int
-  createdAt     DateTime @default(now())
+  id             String   @id @default(uuid())
+  userId         String
+  mode           String // 'SIMULATION', 'GAUNTLET', 'ADAPTIVE_QUIZ'
+  targetSubject  String? // 'MATH', 'ESAS', 'EE'
+  score          Int
+  totalQuestions Int
+  timeTakenSecs  Int
+  verdict        String // 'PASSED', 'FAILED'
+  createdAt      DateTime @default(now())
 
-  user          User              @relation(fields: [userId], references: [id])
-  attempts      QuestionAttempt[]
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts QuestionAttempt[]
 }
 
-// 3. The Granular Analytics Core
 model QuestionAttempt {
   id              String   @id @default(uuid())
   sessionId       String
   userId          String
-  questionId      String   // Links to Firebase Question ID
-  subject         String
-  subtopic        String
+  questionId      String // Abstract structural trace matching static bank records
+  subject         String // 'MATH', 'ESAS', 'EE'
+  subtopic        String // e.g., 'Three-Phase Transformers', 'Thermodynamics'
   isCorrect       Boolean
-  confidenceLevel String   // 'high', 'med', 'low'
-  timeSpentSecs   Int
+  confidenceLevel String // 'HIGH', 'MED', 'LOW' -> Maps directly to matrix quadrants
+  timeSpentMs     Int // Tracking speed and response hesitation
   createdAt       DateTime @default(now())
 
-  session         ExamSession @relation(fields: [sessionId], references: [id])
-  user            User        @relation(fields: [userId], references: [id])
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, subtopic]) // Optimizes queries for the dashboard heatmaps
+  @@index([userId, subject, subtopic])
+  @@index([userId, confidenceLevel, isCorrect]) // Accelerates lookups for the "Danger Zone" metric
+}
+
+// Add this to the bottom of schema.prisma
+model Question {
+  id                String   @id @default(uuid())
+  subject           String // 'Mathematics', 'ESAS', 'EE'
+  subtopic          String
+  questionText      String
+  options           String[] // Array of strings for choices
+  correctAnswer     String
+  difficultyTheta   Float    @default(0.0) // IRT difficulty parameter
+  cachedExplanation String?
+  isFlagged         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+
+  bookmarks Bookmark[]
+
+  // Optional: Track attempts specifically for this question to adjust difficulty dynamically over time
+  @@index([subject, subtopic])
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  name      String
+  parentId  String? // 'root' or another folder ID
+  createdAt DateTime @default(now())
+
+  materials Material[]
+}
+
+model Material {
+  id          String   @id @default(uuid())
+  name        String
+  url         String
+  type        String // 'pdf', 'image', etc.
+  storagePath String?
+  folderId    String
+  createdAt   DateTime @default(now())
+
+  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+}
+
+// Add this to the bottom of schema.prisma
+model Bookmark {
+  id         String   @id @default(uuid())
+  userId     String
+  questionId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId]) // A user can only bookmark a specific question once
 }

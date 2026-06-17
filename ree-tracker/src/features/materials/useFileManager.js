@@ -1,9 +1,8 @@
 // src/features/materials/useFileManager.js
 import { useState, useEffect, useCallback } from 'react';
-import { db, storage } from '../../config/firebaseDb';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { storage, auth } from '../../config/firebaseDb'; // Removed 'db' import
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import imageCompression from 'browser-image-compression'; // CRITICAL FIX: Image Compression Engine
+import imageCompression from 'browser-image-compression';
 import toast from 'react-hot-toast';
 
 export const useFileManager = (currentUser, isAdmin) => {
@@ -16,16 +15,28 @@ export const useFileManager = (currentUser, isAdmin) => {
   const [isUploading, setIsUploading] = useState(false);
   const [dragOverFolderId, setDragOverFolderId] = useState(null);
 
+const apiCall = async (endpoint, options = {}) => {
+    if (!auth.currentUser) return null;
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...options.headers }
+    });
+    if (!res.ok) throw new Error("API Error");
+    return res.status === 204 ? null : res.json();
+  };
+
   const fetchContents = useCallback(async () => {
     if (!currentUser) return;
     setIsLoading(true);
     try {
-      const fSnap = await getDocs(collection(db, "folders"));
-      setFolders(fSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      const mSnap = await getDocs(collection(db, "materials"));
-      setMaterials(mSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const data = await apiCall('/api/materials', { method: 'GET' });
+        if (data && data.success) {
+            setFolders(data.folders || []);
+            setMaterials(data.materials || []);
+        }
     } catch (error) {
-      console.error("Storage read failure:", error);
+      console.error("PostgreSQL read failure:", error);
       toast.error("Failed to load files.");
     }
     setIsLoading(false);
@@ -47,37 +58,26 @@ export const useFileManager = (currentUser, isAdmin) => {
     setCurrentFolderId(newPath[newPath.length - 1].id);
   };
 
-  // --- CRUD OPERATIONS ---
-  const createFolder = async (name) => {
-    try {
-      const payload = { name, parentId: currentFolderId, createdAt: new Date().toISOString() };
-      const docRef = await addDoc(collection(db, "folders"), payload);
-      setFolders(prev => [...prev, { id: docRef.id, ...payload }]);
-      toast.success(`Folder "${name}" created.`);
-    } catch (error) {
-      toast.error("Failed to create folder.");
-    }
-  };
+  // --- CRUD OPERATIONS (PostgreSQL Stubs) ---
+  const createFolder = async (name) => toast.error("Database route pending construction.");
+  const addMaterialRecord = async (materialData) => toast.error("Database route pending construction.");
+  const deleteItem = async (id, isFolder) => toast.error("Database route pending construction.");
+  const renameItem = async (id, isFolder, newName) => toast.error("Database route pending construction.");
+  const moveItem = async (itemId, itemType, targetFolderId) => toast.error("Database route pending construction.");
 
-  // NEW: Unified One-Click Upload & Commit Function with Compression
+  // --- UNIFIED UPLOAD WITH COMPRESSION ---
   const uploadAndCommitMaterial = async (file, customTitle) => {
     if (!file) return;
 
-    // CRITICAL FIX 1: Block Raw Video Uploads
     if (file.type.includes('video')) {
-        toast.error("Video uploads are restricted to save cloud bandwidth. Please use YouTube or Drive links instead.");
+        toast.error("Video uploads are restricted. Please use YouTube or Drive links instead.");
         return;
     }
 
     setIsUploading(true);
     let fileToUpload = file;
-    let fileType = 'doc';
 
-    if (file.type.includes('pdf')) fileType = 'pdf';
-    else if (file.type.includes('audio')) fileType = 'audio';
-    else if (file.type.includes('image')) {
-        fileType = 'image';
-        // CRITICAL FIX 2: Client-Side Image Compression
+    if (file.type.includes('image')) {
         try {
             const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1920, useWebWorker: true };
             fileToUpload = await imageCompression(file, options);
@@ -101,86 +101,22 @@ export const useFileManager = (currentUser, isAdmin) => {
         try {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           
+          // Phase 3: We will send this payload to the PostgreSQL backend
           const payload = { 
               name: cleanTitle.trim(), 
               url: downloadURL, 
-              type: fileType, 
               folderId: currentFolderId, 
               storagePath: uploadTask.snapshot.ref.fullPath,
-              createdAt: new Date().toISOString() 
           };
           
-          const docRef = await addDoc(collection(db, "materials"), payload);
-          setMaterials(prev => [...prev, { id: docRef.id, ...payload }]);
-          
-          toast.success(`✅ Synced: ${cleanTitle}`);
-        } catch (dbError) {
+          toast.success(`✅ Uploaded to Storage: ${cleanTitle}`);
+        } catch (error) {
           toast.error("Failed to commit media metadata.");
-          console.error(dbError);
         } finally {
           setIsUploading(false);
         }
       }
     );
-  };
-
-  // Preserved for External Links (YouTube, GDrive)
-  const addMaterialRecord = async (materialData) => {
-    try {
-      const payload = { ...materialData, folderId: currentFolderId, createdAt: new Date().toISOString() };
-      const docRef = await addDoc(collection(db, "materials"), payload);
-      setMaterials(prev => [...prev, { id: docRef.id, ...payload }]);
-      toast.success("Media imported.");
-    } catch (error) {
-      toast.error("Failed to import media.");
-    }
-  };
-
-  const deleteItem = async (id, isFolder) => {
-    try {
-      if (isFolder) {
-        await deleteDoc(doc(db, "folders", id));
-        setFolders(prev => prev.filter(f => f.id !== id));
-        setMaterials(prev => prev.filter(m => m.folderId !== id));
-      } else {
-        await deleteDoc(doc(db, "materials", id));
-        setMaterials(prev => prev.filter(m => m.id !== id));
-      }
-    } catch (error) {
-      toast.error("Delete failed.");
-    }
-  };
-
-  const renameItem = async (id, isFolder, newName) => {
-    try {
-      const collectionName = isFolder ? 'folders' : 'materials';
-      await updateDoc(doc(db, collectionName, id), { name: newName });
-      if (isFolder) {
-        setFolders(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
-      } else {
-        setMaterials(prev => prev.map(m => m.id === id ? { ...m, name: newName } : m));
-      }
-      toast.success("Renamed.");
-    } catch (error) {
-      toast.error("Rename failed.");
-    }
-  };
-
-  const moveItem = async (itemId, itemType, targetFolderId) => {
-    if (itemId === targetFolderId) return;
-    try {
-      const collectionName = itemType === 'folder' ? 'folders' : 'materials';
-      await updateDoc(doc(db, collectionName, itemId), { parentId: targetFolderId, folderId: targetFolderId });
-      
-      if (itemType === 'folder') {
-        setFolders(prev => prev.map(f => f.id === itemId ? { ...f, parentId: targetFolderId } : f));
-      } else {
-        setMaterials(prev => prev.map(m => m.id === itemId ? { ...m, folderId: targetFolderId } : m));
-      }
-      toast.success(`Moved to ${targetFolderId === 'root' ? 'root' : 'folder'}.`);
-    } catch (error) {
-      toast.error("Failed to move item.");
-    }
   };
 
   // --- DRAG AND DROP PHYSICS ---

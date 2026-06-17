@@ -19,25 +19,25 @@ export default function SimulatorDiagnostics({ session, formatTime, setCurrentIn
       <div className="p-8 bg-surface border border-border2 rounded-2xl text-center shadow-2xl relative overflow-hidden">
         <div className={`absolute top-0 left-0 w-full h-2 ${safeVerdictColor.replace('text-', 'bg-')}`}></div>
         <div className="text-[0.65rem] font-black uppercase tracking-widest text-muted mb-2">Terminal Diagnostics Report</div>
-        <div className={`text-7xl font-black mb-2 tracking-tighter ${safeVerdictColor}`}>{diagnostics.overallScore}%</div>
-        <div className={`text-xl font-black tracking-widest mb-8 uppercase ${safeVerdictColor}`}>{diagnostics.verdict}</div>
+        <div className={`text-7xl font-black mb-2 tracking-tighter ${safeVerdictColor}`}>{diagnostics.overallScore || 0}%</div>
+        <div className={`text-xl font-black tracking-widest mb-8 uppercase ${safeVerdictColor}`}>{diagnostics.verdict || 'FAILED'}</div>
         
         <div className="flex flex-wrap justify-center gap-4">
           <div className="bg-bg border border-border2 px-5 py-3 rounded-xl flex flex-col items-center min-w-[120px]">
             <span className="text-[0.6rem] uppercase tracking-widest font-bold text-muted mb-1">Hit Rate</span>
-            <span className="font-mono text-lg font-black text-textMain">{diagnostics.correctCount} / {diagnostics.totalCount}</span>
+            <span className="font-mono text-lg font-black text-textMain">{diagnostics.correctCount || 0} / {diagnostics.totalCount || 0}</span>
           </div>
           <div className="bg-bg border border-border2 px-5 py-3 rounded-xl flex flex-col items-center min-w-[120px]">
             <span className="text-[0.6rem] uppercase tracking-widest font-bold text-muted mb-1">Time Used</span>
-            <span className="font-mono text-lg font-black text-textMain">{formatTime(diagnostics.timeTaken)}</span>
+            <span className="font-mono text-lg font-black text-textMain">{formatTime(diagnostics.timeTaken || 0)}</span>
           </div>
         </div>
       </div>
 
       {/* Subject Breakdown (For Blended Mocks) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {Object.entries(diagnostics.subjTracker).map(([subject, data]) => {
-              if (data.total === 0) return null;
+          {Object.entries(diagnostics.subjTracker || {}).map(([subject, data]) => {
+              if (!data || data.total === 0) return null;
               const acc = Math.round((data.correct / data.total) * 100);
               return (
                   <div key={subject} className="p-5 bg-surface border border-border2 rounded-xl flex flex-col items-center text-center shadow-sm">

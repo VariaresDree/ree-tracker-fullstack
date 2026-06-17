@@ -1,15 +1,12 @@
 // src/features/board-simulator/useSimulatorEngine.js
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../../config/firebaseDb';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { 
   updateQuestionCache,
-  createMultiplayerBattle,
   fetchMultiplayerBattle,
-  submitBattleScore,
   updateQuestionInBank,
-  syncLiveBattleProgress
+  syncLiveBattleProgress,
+  fetchPaginatedQuestions // <-- Comma correctly added here!
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import toast from 'react-hot-toast';
@@ -57,11 +54,6 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const currentAnswersRef = useRef({}); 
   const currentConfidencesRef = useRef({});
 
-  // =========================================================================
-  // FIX: DECOUPLED TIMER LOGIC
-  // =========================================================================
-  
-  // 1. The Clock Tick (No longer tied to currentIndex, eliminating the reset bug)
   useEffect(() => {
     let interval = null;
     if (session.isActive && !session.isFinished) {
@@ -72,46 +64,55 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     return () => clearInterval(interval);
   }, [session.isActive, session.isFinished]);
 
-  // 2. The Time-Out Trigger (Safely executes submit when clock hits 0)
   useEffect(() => {
     if (session.isActive && !session.isFinished && timeRemaining === 0 && totalExamTime.current > 0) {
        submitExam();
     }
   }, [timeRemaining, session.isActive, session.isFinished]);
 
-  // =========================================================================
-
   const buildExamPool = async () => {
       let pool = [];
       let timeLimitSecs = config.timeLimitMins * 60;
 
       if (config.source === 'library') {
-        const qRef = collection(db, "questions");
-        const snap = await getDocs(query(qRef, limit(500)));
-        const allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => q.isFlagged !== true);
+        // --- NEW POSTGRESQL FETCH LOGIC ---
+        const res = await fetchPaginatedQuestions(null, 'All', 'All', 500);
+        const allDocs = (res.items || []).filter(q => q.isFlagged !== true);
+
+        if (allDocs.length === 0) {
+            throw new Error("Your PostgreSQL Library is completely empty! Add questions in the Library tab or use AI Generation.");
+        }
 
         if (config.mode === 'blended') {
           const mPool = allDocs.filter(q => q.subject === 'Mathematics').sort(() => 0.5 - Math.random()).slice(0, 25);
           const esPool = allDocs.filter(q => q.subject === 'ESAS').sort(() => 0.5 - Math.random()).slice(0, 30);
           const eePool = allDocs.filter(q => q.subject === 'EE').sort(() => 0.5 - Math.random()).slice(0, 45);
-          if (mPool.length < 25 || esPool.length < 30 || eePool.length < 45) {
-            throw new Error(`Insufficient library data for a Full Blended Mock.`);
-          }
+          
           pool = [...mPool, ...esPool, ...eePool].sort(() => 0.5 - Math.random());
           if (config.isPrcStandard) timeLimitSecs = 5 * 3600;
         } else {
           const subjectDocs = allDocs.filter(q => q.subject === config.subject);
           const targetCount = config.isPrcStandard ? 100 : config.count;
-          if (subjectDocs.length < targetCount) throw new Error(`Only ${subjectDocs.length} questions available for ${config.subject}.`);
+          
+          if (subjectDocs.length === 0) {
+              throw new Error(`Your Library has no questions for ${config.subject}. Please add some first.`);
+          }
+          
           pool = subjectDocs.sort(() => 0.5 - Math.random()).slice(0, targetCount);
           if (config.isPrcStandard) timeLimitSecs = config.subject === 'EE' ? 6 * 3600 : 4 * 3600;
-          else if (!config.battleMode) timeLimitSecs = config.count * 144;
+          else if (!config.battleMode) timeLimitSecs = pool.length * 144;
         }
       } else {
+        // --- AI GENERATION LOGIC ---
         if (!isOnline) throw new Error("Offline mode: Must use Local Library Vault.");
         if (config.mode === 'blended' || config.isPrcStandard) throw new Error("Full Board Mocks require Local Library Vault.");
+        
         for (let i = 0; i < Math.ceil(config.count / 3); i++) {
-          const subT = dynamicTOS[config.subject][Math.floor(Math.random() * dynamicTOS[config.subject].length)];
+          // Check if dynamicTOS has the subject arrays loaded properly
+          const subjectTopics = dynamicTOS[config.subject];
+          if (!subjectTopics || subjectTopics.length === 0) throw new Error("TOS configuration missing for this subject.");
+          
+          const subT = subjectTopics[Math.floor(Math.random() * subjectTopics.length)];
           const newQs = await generateQuestionsAI(config.subject, subT, false);
           pool = [...pool, ...newQs];
         }
@@ -221,7 +222,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       if (session.battleId) {
           let liveCorrect = 0;
           session.questions.forEach((q, idx) => {
-              if (newAnswers[idx] === q.answer) liveCorrect++;
+              if (newAnswers[idx] === q.correctAnswer) liveCorrect++;
           });
           syncLiveBattleProgress(session.battleId, currentUser, liveCorrect, Object.keys(newAnswers).length)
               .catch(err => console.error("Live sync failed", err));
@@ -270,21 +271,26 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         const finalizedAnswers = currentAnswersRef.current;
         const finalizedConfidences = currentConfidencesRef.current;
 
-        // 1. Construct a lightweight payload (NO MATH OR GRADING DONE HERE)
         const attemptsPayload = session.questions.map((q, idx) => ({
             idx,
             questionId: q.id,
+            subject: q.subject,
+            subtopic: q.subtopic,
             userAnswer: finalizedAnswers[idx],
             confidence: finalizedConfidences[idx] || 'low',
             timeSpentSecs: Math.floor((timeSpentPerQuestion.current[idx] || 0) / 1000),
             isBookmarked: bookmarks.has(idx)
         }));
 
-        // 2. Dispatch to the Backend API securely
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const token = await currentUser.getIdToken();
+
         const response = await fetch(`${backendUrl}/api/exams/submit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` 
+            },
             body: JSON.stringify({
                 uid: currentUser.uid,
                 attempts: attemptsPayload,
@@ -299,10 +305,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             throw new Error(errData.error || "Server rejected telemetry payload.");
         }
 
-        // 3. Receive the graded diagnostics and new stats from the server
         const { diagnostics, newStats } = await response.json();
 
-        // 4. Update Client UI State with Server Results
         setSession(prev => ({ 
             ...prev, 
             isFinished: true, 
@@ -313,9 +317,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         }));
         setCurrentIndex(0);
 
-        // 5. Update Zustand store directly with the server-calculated stats
         useStore.getState().setStats(newStats);
-
         toast.success('Simulation telemetry verified and saved.', { id: loadingToastId });
 
     } catch (err) {

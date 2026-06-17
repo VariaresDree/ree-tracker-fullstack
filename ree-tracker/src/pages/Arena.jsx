@@ -1,8 +1,6 @@
 // src/pages/Arena.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore'; 
-import { db } from '../config/firebaseDb';
 import { fetchMultiplayerBattle, fetchPaginatedLeaderboard } from '../services/dbQueries';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
@@ -64,14 +62,15 @@ export default function Arena() {
   }, [stats?.gauntletLockUntil]);
 
   useEffect(() => {
-    if (activeTab === 'leaderboard' && leaderboard.length === 0) {
+    // SAFE FALLBACK: Checks if leaderboard exists before reading length
+    if (activeTab === 'leaderboard' && (leaderboard || []).length === 0) {
         const loadInitialArena = async () => {
           setIsLoadingRankings(true);
           try {
             const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(20, null);
-            setLeaderboard(agents);
+            setLeaderboard(agents || []);
             setLastDoc(newLastDoc);
-            setHasMore(agents.length === 20);
+            setHasMore((agents || []).length === 20);
           } catch (error) {
             toast.error("Failed to connect to the Global Matrix.");
           }
@@ -79,7 +78,7 @@ export default function Arena() {
         };
         loadInitialArena();
     }
-  }, [activeTab, leaderboard.length]);
+  }, [activeTab, leaderboard]);
 
   const observer = useRef();
   const lastElementRef = useCallback(node => {
@@ -91,9 +90,9 @@ export default function Arena() {
         setIsFetchingMore(true);
         try {
             const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(20, lastDoc);
-            setLeaderboard(prev => [...prev, ...agents]);
+            setLeaderboard(prev => [...(prev || []), ...(agents || [])]);
             setLastDoc(newLastDoc);
-            setHasMore(agents.length === 20);
+            setHasMore((agents || []).length === 20);
         } catch (error) {
             toast.error("Network disruption while fetching rankings.");
         }
@@ -145,10 +144,10 @@ export default function Arena() {
               const m = await fetchPaginatedQuestions(null, 'Mathematics', 'All', 25);
               const e = await fetchPaginatedQuestions(null, 'ESAS', 'All', 30);
               const ee = await fetchPaginatedQuestions(null, 'EE', 'All', 45);
-              pool = [...m.items, ...e.items, ...ee.items];
+              pool = [...(m.items || []), ...(e.items || []), ...(ee.items || [])];
           } else {
               const res = await fetchPaginatedQuestions(null, hostConfig.subject, 'All', hostConfig.mode === 'prc' ? 100 : hostConfig.count);
-              pool = res.items;
+              pool = res.items || [];
           }
 
           if (pool.length === 0) throw new Error("Question pool unavailable.");
@@ -376,15 +375,15 @@ export default function Arena() {
                 <span className="telemetry-spinner !w-8 !h-8 border-reeAmber border-t-transparent"></span>
                 <span className="text-xs font-bold text-muted2 uppercase tracking-widest animate-pulse">Syncing Matrix...</span>
               </div>
-            ) : leaderboard.length === 0 ? (
+            ) : (leaderboard || []).length === 0 ? (
               <div className="flex items-center justify-center h-full text-sm text-muted2 font-mono py-20">
                 No telemetry data available.
               </div>
             ) : (
               <>
-                {leaderboard.map((agent, idx) => {
+                {(leaderboard || []).map((agent, idx) => {
                   const isMe = agent.uid === currentUser?.uid;
-                  const isLastElement = idx === leaderboard.length - 1;
+                  const isLastElement = idx === (leaderboard || []).length - 1;
 
                   return (
                     <div 
@@ -414,10 +413,10 @@ export default function Arena() {
                       </div>
 
                       <div className="col-span-2 text-right">
-                        <span className="text-sm font-black text-reeCyan font-mono">{agent.thetaRating.toFixed(3)}</span>
+                        <span className="text-sm font-black text-reeCyan font-mono">{(agent.thetaRating || 0).toFixed(3)}</span>
                       </div>
                       <div className="col-span-2 text-right">
-                        <span className="text-sm font-bold text-reeGreen">{agent.streak}</span>
+                        <span className="text-sm font-bold text-reeGreen">{agent.streak || 0}</span>
                         <span className="text-xs text-muted ml-1 hidden sm:inline">Days</span>
                       </div>
                     </div>
@@ -430,7 +429,7 @@ export default function Arena() {
                   </div>
                 )}
                 
-                {!hasMore && leaderboard.length > 0 && (
+                {!hasMore && (leaderboard || []).length > 0 && (
                   <div className="text-center py-8">
                      <span className="text-[0.65rem] font-bold text-muted uppercase tracking-widest border-t border-border2 pt-4 px-12">End of Records</span>
                   </div>

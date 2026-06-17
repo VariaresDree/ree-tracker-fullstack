@@ -6,11 +6,11 @@ import { useStore } from '../store/useStore';
 import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
 
-export default function MissionControl({ stats, onExportPDF, isGeneratingPDF, onPurgeRequest }) {
+export default function MissionControl({ onExportPDF, isGeneratingPDF, onPurgeRequest }) {
   const { currentUser } = useAuth();
   
-  // CRITICAL FIX: Pull the explicit reset action from the store
-  const { dailyMath, dailyESAS, dailyEE, resetDailyQuotas } = useStore();
+  // CRITICAL FIX: Extract stats and explicit reset action properly from the store
+  const { stats, resetDailyQuotas } = useStore();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -37,9 +37,10 @@ export default function MissionControl({ stats, onExportPDF, isGeneratingPDF, on
   const esasGoal = Math.floor(totalGoal * 0.30);
   const eeGoal = totalGoal - mathGoal - esasGoal;
 
-  const currentMath = dailyMath || 0;
-  const currentESAS = dailyESAS || 0;
-  const currentEE = dailyEE || 0;
+  // Extracted dynamically from stats object
+  const currentMath = stats?.dailyMath || 0;
+  const currentESAS = stats?.dailyESAS || 0;
+  const currentEE = stats?.dailyEE || 0;
   const totalCompleted = currentMath + currentESAS + currentEE;
 
   const handleSaveConfig = async () => {
@@ -63,7 +64,6 @@ export default function MissionControl({ stats, onExportPDF, isGeneratingPDF, on
   };
 
   const executeDailyReset = () => {
-    // CRITICAL FIX: Executes the explicit store action to reset AND auto-sync to Firestore
     resetDailyQuotas();
     toast.success("Today's quotas have been reset.");
     setShowResetModal(false);

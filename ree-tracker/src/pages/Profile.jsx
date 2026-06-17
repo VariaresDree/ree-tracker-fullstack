@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { updateProfile, deleteUser } from 'firebase/auth';
-import { doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { db } from '../config/firebaseDb';
+// FIRESTORE IMPORTS COMPLETELY REMOVED
 import FocusTrap from '../components/FocusTrap';
 import toast from 'react-hot-toast';
 
@@ -81,49 +80,62 @@ export default function Profile() {
 
   const handleDeleteAccount = async () => {
       if (deleteConfirmText !== 'DELETE') return toast.error("Type DELETE to confirm.");
+      const toastId = toast.loading("Executing permanent matrix purge...");
+      
       try {
-          await deleteDoc(doc(db, "userData", currentUser.uid));
+          // 1. Alert the backend to purge the PostgreSQL user record
+          const token = await currentUser.getIdToken();
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          
+          await fetch(`${backendUrl}/api/user/profile`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+          }).catch(() => console.warn("Backend purge failed or route missing. Proceeding with Auth wipe."));
+
+          // 2. Terminate the Firebase Authentication Identity
           await deleteUser(currentUser);
           resetStore();
-          toast.success("Account successfully purged from the matrix.");
+          toast.success("Account successfully purged from the matrix.", { id: toastId });
       } catch (error) {
           if (error.code === 'auth/requires-recent-login') {
-              toast.error("Security lock: Please log out and log back in to delete your account.");
+              toast.error("Security lock: Please log out and log back in to delete your account.", { id: toastId });
           } else {
-              toast.error(`Purge failed: ${error.message}`);
+              toast.error(`Purge failed: ${error.message}`, { id: toastId });
           }
       }
   };
 
   const handleSync = async (type) => {
       const toastId = toast.loading(`Initiating Cloud ${type}...`);
-      const docRef = doc(db, "userData", currentUser.uid);
       
       try {
           if (type === 'Pull') {
-              const snap = await getDoc(docRef);
-              if (snap.exists()) {
-                  const cloudData = snap.data();
-                  const today = new Date();
-                  const lastActive = cloudData.lastActiveDate ? new Date(cloudData.lastActiveDate) : null;
-                  let currentStreak = cloudData.globalStreak || 0;
-                  
-                  if (lastActive) {
-                      const diffDays = Math.floor((today - lastActive) / (1000 * 60 * 60 * 24));
-                      if (diffDays === 1) currentStreak += 1;
-                      else if (diffDays > 1) currentStreak = 1; 
-                  } else {
-                      currentStreak = 1;
-                  }
+              const token = await currentUser.getIdToken();
+              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+              
+              // Pull directly from our new high-speed PostgreSQL dashboard aggregation
+              const res = await fetch(`${backendUrl}/api/analytics/dashboard/${currentUser.uid}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+              });
 
-                  cloudData.globalStreak = currentStreak;
-                  cloudData.lastActiveDate = today.toISOString();
-                  
-                  setStats(cloudData); 
-                  await setDoc(docRef, { globalStreak: currentStreak, lastActiveDate: today.toISOString() }, { merge: true });
-                  toast.success("Cloud Pull successful. Local state restored.", { id: toastId });
+              if (res.ok) {
+                  const json = await res.json();
+                  if (json.success && json.data) {
+                      // Merge the cloud truth with local frontend UI preferences
+                      const restoredStats = {
+                          ...stats,
+                          irt: { ...stats?.irt, theta: json.data.profile?.thetaRating || 0 },
+                          globalStreak: json.data.profile?.globalStreak || 0,
+                          matrix: json.data.matrix,
+                          cloudTimestamp: Date.now()
+                      };
+                      setStats(restoredStats);
+                      toast.success("Cloud Pull successful. Local state restored.", { id: toastId });
+                  } else {
+                      toast.error("No telemetry found for this agent.", { id: toastId });
+                  }
               } else {
-                  toast.error("No cloud backup found for this agent.", { id: toastId });
+                  toast.error("Backend refused sync request.", { id: toastId });
               }
           }
       } catch (err) {

@@ -1,13 +1,7 @@
 // src/store/useStore.js
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db, auth } from '../config/firebaseDb'; 
-import { fetchDynamicTOS } from '../services/dbQueries';
-import { TOS as fallbackTOS } from '../config/constants';
-import { del } from 'idb-keyval';
-
-let syncTimeout = null;
+import { auth } from '../config/firebaseDb';
 
 export const useStore = create(
   persist(
@@ -17,160 +11,112 @@ export const useStore = create(
       // ==========================================
       stats: null,
       syncStatus: 'synced', 
-      pendingSyncData: null, 
-      
-      setStats: (newStats) => {
-        // Strip out root quotas returned by atomic irtMath to set them correctly
-        const { dailyMath, dailyESAS, dailyEE, lastActiveDate, ...restStats } = newStats;
-        
-        const payload = JSON.parse(JSON.stringify({
-          ...restStats,
-          localTimestamp: Date.now() 
+      syncQueue: [],        
+
+      setStats: (newStats) => set({ stats: newStats }),
+
+      stageAttemptTelemetry: (attemptData) => {
+        const payload = {
+            id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+            questionId: attemptData.questionId,
+            subject: attemptData.subject,
+            subtopic: attemptData.subtopic,
+            isCorrect: attemptData.isCorrect,
+            confidenceLevel: attemptData.confidenceLevel?.toUpperCase() || 'MED', 
+            timeSpentMs: attemptData.timeSpentMs,
+            createdAt: new Date().toISOString()
+        };
+
+        set((state) => ({
+            syncQueue: [...state.syncQueue, payload],
+            syncStatus: 'offline_queued'
         }));
-
-        const rootUpdates = {};
-        if (dailyMath !== undefined) rootUpdates.dailyMath = dailyMath;
-        if (dailyESAS !== undefined) rootUpdates.dailyESAS = dailyESAS;
-        if (dailyEE !== undefined) rootUpdates.dailyEE = dailyEE;
-        if (lastActiveDate !== undefined) rootUpdates.lastActiveDate = lastActiveDate;
-
-        set({ stats: payload, ...rootUpdates });
-        get().triggerAutoSync({ ...payload, ...rootUpdates }); 
       },
 
-      purgeAnalytics: async () => {
-        const state = get();
-        if (!state.stats) return;
+      flushQueueToCloud: async () => {
+        const { syncQueue, syncStatus } = get();
+        if (syncQueue.length === 0 || syncStatus === 'syncing') return;
 
-        const uid = auth.currentUser?.uid;
-        const today = new Date().toISOString().split('T')[0];
+        if (!navigator.onLine) {
+            set({ syncStatus: 'offline_queued' });
+            return;
+        }
 
-        // Ensure every UI element relying on the matrix is explicitly wiped
-        const purgedStats = {
-            ...state.stats,
-            irt: { theta: 0, standardError: 0.5 },
-            history: [],
-            thetaHistory: [],
-            activityCalendar: {},
-            blindSpots: [],
-            timeSinks: [],
-            topicMastery: {},
-            microTopics: {},
-            matrix: { hc: 0, hw: 0, lc: 0, lw: 0 }, 
-            subjectMastery: { Math: {correct:0, total:0}, ESAS: {correct:0, total:0}, EE: {correct:0, total:0} },
-            confidenceTracker: { highCorrect: 0, highWrong: 0, medCorrect: 0, medWrong: 0, lowCorrect: 0, lowWrong: 0 },
-            confidenceMatrix: { highCorrect: 0, highWrong: 0, lowCorrect: 0, lowWrong: 0 },
-            globalStreak: 0,
-            totalAnswered: 0,
-            totalCorrect: 0,
-            gauntletLevel: 1,
-            gauntletLockUntil: null,
-            lastActiveDate: today
-        };
-
-        const rootUpdates = {
-            dailyMath: 0,
-            dailyESAS: 0,
-            dailyEE: 0,
-            lastActiveDate: today
-        };
-
-        set({ 
-            stats: JSON.parse(JSON.stringify(purgedStats)),
-            ...rootUpdates,
-            syncStatus: 'syncing'
-        });
+        set({ syncStatus: 'syncing' });
 
         try {
-            await del('ree_seen_q_ids');
-        } catch (e) {
-            console.warn("IDB memory wipe skipped.", e);
+            const currentUser = auth.currentUser;
+            if (!currentUser) throw new Error("No authenticated session located.");
+
+            const token = await currentUser.getIdToken();
+            const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+            const response = await fetch(`${apiUrl}/api/analytics/telemetry-bulk`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ 
+                    sessionId: get().currentSessionId || (crypto.randomUUID ? crypto.randomUUID() : 'temp-session'),
+                    mode: get().currentSessionMode || 'ADAPTIVE_QUIZ',
+                    targetSubject: get().currentSubject || 'BLENDED',
+                    attempts: syncQueue 
+                })
+            });
+
+            if (!response.ok) throw new Error("Backend synchronization transaction rejected.");
+            
+            const serverResult = await response.json();
+
+            set({
+                syncQueue: [],
+                syncStatus: 'synced',
+                stats: {
+                    ...get().stats,
+                    thetaRating: serverResult.updatedTheta,
+                    cloudTimestamp: Date.now()
+                }
+            });
+        } catch (error) {
+            console.error("[SYNC FATAL ERROR] Processing batch data failed:", error);
+            set({ syncStatus: 'error' });
         }
+      },
 
-        if (uid && navigator.onLine) {
-            try {
-                const docRef = doc(db, 'userData', uid);
-                await updateDoc(docRef, { 
-                    ...purgedStats, 
-                    ...rootUpdates, 
-                    cloudTimestamp: Date.now() 
-                });
-
-                const leaderRef = doc(db, 'leaderboard', uid);
-                await updateDoc(leaderRef, {
-                    thetaRating: 0,
-                    streak: 0,
-                    gauntletLevel: 1,
-                    lastActive: today
-                });
-
-                set({ syncStatus: 'synced', pendingSyncData: null });
-            } catch (error) {
-                console.error("Critical Purge Error:", error);
-                set({ syncStatus: 'error', pendingSyncData: { ...purgedStats, ...rootUpdates } });
-                throw error;
+      // CRITICAL FIX: Ensure Daily Quotas can be reset locally by the UI
+      resetDailyQuotas: () => set((state) => {
+        if (!state.stats) return state;
+        return {
+            stats: {
+                ...state.stats,
+                dailyMath: 0,
+                dailyESAS: 0,
+                dailyEE: 0
             }
-        }
-      },
-
-      triggerAutoSync: (updatedStats) => {
-        set({ syncStatus: 'syncing' });
-        clearTimeout(syncTimeout);
-        
-        syncTimeout = setTimeout(async () => {
-          const uid = auth.currentUser?.uid;
-          if (!uid || !navigator.onLine) {
-            set({ syncStatus: 'offline_queued', pendingSyncData: updatedStats });
-            return;
-          }
-          try {
-            const docRef = doc(db, 'userData', uid);
-            await updateDoc(docRef, { ...updatedStats, cloudTimestamp: Date.now() });
-            set({ syncStatus: 'synced', pendingSyncData: null });
-          } catch (error) {
-            console.error("Auto-sync failed:", error);
-            set({ syncStatus: 'error', pendingSyncData: updatedStats });
-          }
-        }, 3000); 
-      },
-
-      retrySync: () => {
-         const state = get();
-         if (state.pendingSyncData && navigator.onLine) {
-             get().triggerAutoSync(state.pendingSyncData);
-         } else if (navigator.onLine) {
-             set({ syncStatus: 'synced' });
-         }
-      },
-
-      // ==========================================
-      // 2. DAILY QUOTA TRACKING SLICE
-      // ==========================================
-      dailyMath: 0,
-      dailyESAS: 0,
-      dailyEE: 0,
-      lastActiveDate: new Date().toISOString().split('T')[0],
-
-      checkAndResetDailyQuotas: () => set((state) => {
-        const today = new Date().toISOString().split('T')[0];
-        if (state.lastActiveDate !== today) {
-            return { dailyMath: 0, dailyESAS: 0, dailyEE: 0, lastActiveDate: today };
-        }
-        return {};
+        };
       }),
 
-      // CRITICAL FIX: Explicit action that resets AND syncs to Firebase
-      resetDailyQuotas: () => {
-        const today = new Date().toISOString().split('T')[0];
-        const updates = { dailyMath: 0, dailyESAS: 0, dailyEE: 0, lastActiveDate: today };
-        set(updates);
-        
-        const currentStats = get().stats || {};
-        get().triggerAutoSync({ ...currentStats, ...updates });
+      // CRITICAL FIX: Ping PostgreSQL to purge all analytic history securely
+      purgeAnalytics: async () => {
+        try {
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+                const token = await currentUser.getIdToken();
+                const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                await fetch(`${apiUrl}/api/analytics/purge`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            }
+            set({ stats: null, syncQueue: [], syncStatus: 'synced' });
+        } catch (e) {
+            console.error("Purge failed", e);
+        }
       },
 
       // ==========================================
-      // 3. POMODORO PROTOCOL SLICE
+      // 2. POMODORO PROTOCOL SLICE
       // ==========================================
       pomodoro: {
         workDuration: 25,
@@ -216,8 +162,33 @@ export const useStore = create(
       }),
 
       // ==========================================
-      // 4. UI & UX STATE SLICE 
+      // 3. UI & UX STATE SLICE 
       // ==========================================
+      dynamicTOS: {
+        'Mathematics': [
+          'Algebra & Complex Numbers', 'Trigonometry', 'Analytic Geometry', 
+          'Probability & Statistics', 'Calculus 1', 'Calculus 2', 
+          'Engineering Data Analytics', 'Differential Equations', 'Numerical Methods & Analysis'
+        ],
+        'ESAS': [
+          'Chemistry for Engineers', 'Physics for Engineers', 'Computer Programming', 
+          'Microprocessor Systems and Logic Circuits', 'Material Science', 
+          'Environmental Science & Engineering', 'Fluid Mechanics', 
+          'Fundamentals of Deformable Bodies', 'Basic Thermodynamics', 
+          'EE Laws, Codes, & Professional Ethics', 'Engineering Economics', 
+          'Technopreneurship & Project Management'
+        ],
+        'EE': [
+          'Electromagnetism', 'Electric Circuits 1', 'Electric Circuits 2', 
+          'Fundamentals of Electronic Communications', 'Electronics 1 and 2', 
+          'Electrical Apparatus & Devices', 'Industrial Electronics', 
+          'Electrical Machinery 1', 'Electrical Machinery 2', 'Instrumentation & Control', 
+          'Feedback Control Systems', 'Electrical System & Illumination Design', 
+          'Power Plant Engineering', 'Distribution Systems & Substation Design', 
+          'Power System Analysis'
+        ]
+      },
+
       isSidebarOpen: false, 
       isSidebarCollapsed: false, 
       
@@ -236,61 +207,16 @@ export const useStore = create(
           document.documentElement.setAttribute('data-theme', newTheme);
         }
         set({ theme: newTheme });
-      },
-
-      // ==========================================
-      // 5. DYNAMIC TOS SLICE
-      // ==========================================
-      dynamicTOS: fallbackTOS, 
-      
-      initializeTOS: async () => {
-        if (navigator.onLine) {
-          const liveTOS = await fetchDynamicTOS();
-          if (liveTOS) {
-            const { lastUpdated, ...cleanTOS } = liveTOS;
-            if (cleanTOS.Mathematics && !cleanTOS.Mathematics.includes('Vector Analysis')) {
-                cleanTOS.Mathematics.push('Vector Analysis');
-            }
-            set({ dynamicTOS: cleanTOS });
-          }
-        }
-      },
-      
-      setDynamicTOS: (updatedTOS) => set({ dynamicTOS: updatedTOS })
-
+      }
     }),
     {
-      name: 'ree-tracker-storage',
+      name: 'ree-tracker-secure-storage',
       partialize: (state) => ({
+        syncQueue: state.syncQueue,
         stats: state.stats,
-        dailyMath: state.dailyMath,
-        dailyESAS: state.dailyESAS,
-        dailyEE: state.dailyEE,
-        lastActiveDate: state.lastActiveDate,
-        dynamicTOS: state.dynamicTOS, 
-        pomodoro: {
-          workDuration: state.pomodoro.workDuration,
-          breakDuration: state.pomodoro.breakDuration,
-          isWork: state.pomodoro.isWork,
-          timeLeft: state.pomodoro.timeLeft || (state.pomodoro.isWork ? state.pomodoro.workDuration * 60 : state.pomodoro.breakDuration * 60)
-        }
+        pomodoro: state.pomodoro,
+        theme: state.theme
       })
     }
   )
 );
-
-if (typeof window !== 'undefined') {
-    window.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            const state = useStore.getState();
-            if (state.syncStatus === 'syncing' && state.stats && navigator.onLine) {
-                const uid = auth.currentUser?.uid;
-                if (uid) {
-                    const docRef = doc(db, 'userData', uid);
-                    updateDoc(docRef, { ...state.stats, cloudTimestamp: Date.now() })
-                        .catch(err => console.error("Emergency sync failed", err));
-                }
-            }
-        }
-    });
-}

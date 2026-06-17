@@ -16,7 +16,8 @@ import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
-  const { stats, checkAndResetDailyQuotas, purgeAnalytics } = useStore();
+  
+  const { stats, purgeAnalytics } = useStore();
   
   const [sqlData, setSqlData] = useState(null);
   const [isFetchingSQL, setIsFetchingSQL] = useState(true);
@@ -30,7 +31,6 @@ export default function Dashboard() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
-  // --- 1. FETCH FROM POSTGRESQL BACKEND ---
   useEffect(() => {
     const fetchSQLAnalytics = async () => {
         if (!currentUser?.uid) return;
@@ -54,7 +54,6 @@ export default function Dashboard() {
     fetchSQLAnalytics();
   }, [currentUser]);
 
-  // --- 2. THE ADAPTER: Merging legacy Firebase with high-speed SQL ---
   const activeStats = useMemo(() => {
       if (!stats && !sqlData) return null;
       if (!sqlData) return stats;
@@ -73,27 +72,23 @@ export default function Dashboard() {
 
       return {
           ...stats,
-          irt: { ...stats?.irt, theta: sqlData.profile.thetaRating || stats?.irt?.theta || 0 },
+          irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating || stats?.irt?.theta || 0 },
           matrix: sqlData.matrix || stats?.matrix,
           microTopics: mappedMicroTopics
       };
   }, [stats, sqlData]);
 
-  // Sync leaderboards
   useEffect(() => {
-    checkAndResetDailyQuotas();
     if (currentUser && activeStats) {
         syncLeaderboardProfile(currentUser, activeStats).catch(err => console.error("Leaderboard sync failed:", err));
     }
-  }, [checkAndResetDailyQuotas, currentUser, activeStats]);
+  }, [currentUser, activeStats]);
 
-  // --- FIX: ALL HOOKS MUST BE DECLARED BEFORE THE EARLY RETURN ---
   const currentTheta = activeStats?.irt?.theta || 0;
   const readinessScore = useMemo(() => {
     return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
   }, [currentTheta]);
 
-  // --- 3. LOADING STATE (The Early Return) ---
   if (!activeStats || isFetchingSQL) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -105,7 +100,6 @@ export default function Dashboard() {
     );
   }
 
-  // --- REST OF THE COMPONENT LOGIC ---
   const handleGenerateAIReport = async () => {
     setShowAiModal(false);
     setIsGeneratingAI(true);
@@ -230,16 +224,16 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-col gap-6 h-full min-h-0">
-            <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-0 min-w-0 overflow-hidden">
+            <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-[250px] min-w-0 overflow-hidden">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0">
                     <span>📈</span> 30-Day Readiness Velocity (θ)
                 </h3>
-                <div className="flex-1 w-full min-h-0 min-w-0">
+                <div className="flex-1 w-full min-h-[200px] min-w-0">
                     <ThetaVelocityChart history={activeStats?.thetaHistory} />
                 </div>
             </div>
             
-            <div className="shrink-0 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center">
+            <div className="shrink-0 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center min-h-[250px]">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-6 flex items-center gap-2 shrink-0">
                     <span>🧠</span> Confidence vs Accuracy Matrix
                 </h3>
@@ -247,7 +241,7 @@ export default function Dashboard() {
             </div>
         </div>
 
-        <div className="flex flex-col h-full min-h-0 xl:col-span-1 lg:col-span-2">
+        <div className="flex flex-col h-full min-h-[350px] xl:col-span-1 lg:col-span-2">
             <HeatmapChart stats={activeStats} />
         </div>
 

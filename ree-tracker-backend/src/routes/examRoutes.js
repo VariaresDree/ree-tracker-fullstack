@@ -1,16 +1,15 @@
 // src/routes/examRoutes.js
 const express = require('express');
 const router = express.Router();
-const { getFirestore } = require('firebase-admin/firestore');
-const { calculateUpdatedStats } = require('../utils/irtMath');
+const authMiddleware = require('../middlewares/authMiddleware');
+const { calculateUpdatedTheta } = require('../utils/irtMath');
 
 // Initialize Prisma v7 with PostgreSQL Driver Adapter
 const { PrismaClient } = require('@prisma/client');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
-// REQUIRED FIX: Supabase completely drops connections that do not use strict SSL.
-// We must enforce ssl: { rejectUnauthorized: false } in the connection pool.
+// Enforce SSL for Supabase PostgreSQL connections
 const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false } 
@@ -18,144 +17,159 @@ const pool = new Pool({
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-const db = getFirestore();
+// ============================================================================
+// 1. GET QUESTIONS FROM POSTGRESQL BANK
+// ============================================================================
+router.get('/', async (req, res) => {
+    try {
+        const { subject, limit = 50 } = req.query;
+        
+        // Use raw SQL to efficiently pull random questions from the database
+        const questions = await prisma.$queryRawUnsafe(`
+            SELECT id, subject, subtopic, "questionText" as question, options, "cachedExplanation", "difficultyTheta"
+            FROM "Question"
+            WHERE "isFlagged" = false ${subject && subject !== 'All' && subject !== 'Blended' ? `AND subject = '${subject}'` : ''}
+            ORDER BY RANDOM()
+            LIMIT ${parseInt(limit)};
+        `);
+        
+        // Note: We DO NOT send the "correctAnswer" property to the frontend to prevent cheating.
+        return res.status(200).json({ success: true, items: questions });
+    } catch (error) {
+        console.error("[EXAM ENGINE] Fetch Questions Error:", error);
+        return res.status(500).json({ error: 'Failed to fetch question matrix.' });
+    }
+});
 
+// ============================================================================
+// 2. SUBMIT EXAM & PROCESS TELEMETRY
+// ============================================================================
 router.post('/submit', async (req, res) => {
-    const { uid, attempts, config, timeRemaining, totalExamTime } = req.body;
+    // Check for user ID either from JWT middleware (req.user) or body fallback (req.body.uid)
+    const userId = req.user?.id || req.body.uid;
+    const { attempts, config, timeRemaining, totalExamTime } = req.body;
 
-    if (!uid || !attempts) {
-        return res.status(400).json({ error: 'Missing required payload data' });
+    if (!userId || !attempts || attempts.length === 0) {
+        return res.status(400).json({ error: 'Missing required telemetry payload or User ID' });
     }
 
     try {
-        // --- 1. FIREBASE PROCESSING (Legacy Support) ---
-        const userRef = db.collection('userData').doc(uid);
-        const userDoc = await userRef.get();
-        let bulkStats = userDoc.exists ? userDoc.data() : {};
+        const timeTakenSecs = (totalExamTime || 0) - (timeRemaining || 0);
 
-        let correctOverall = 0;
-        const totalQs = attempts.length;
-        let subjTracker = { Mathematics: { total: 0, correct: 0 }, ESAS: { total: 0, correct: 0 }, EE: { total: 0, correct: 0 } };
-        const timeSinks = [];
-        const highYield = [];
-        const blindSpots = [];
-        
-        // Array to hold the pristine data for PostgreSQL
-        const sqlAttemptsPayload = []; 
-
-        for (const attempt of attempts) {
-            const qDoc = await db.collection('questions').doc(attempt.questionId).get();
-            if (!qDoc.exists) continue;
+        // Execute as a secure Database Transaction
+        const result = await prisma.$transaction(async (tx) => {
             
-            const trueQuestion = qDoc.data();
-            const isCorrect = attempt.userAnswer === trueQuestion.answer;
-            const timeSecs = attempt.timeSpentSecs || 0;
-            const conf = attempt.confidence || 'low';
-            const subtopic = trueQuestion.subtopic || 'Uncategorized';
-            const subject = trueQuestion.subject;
-
-            if (subjTracker[subject]) {
-                subjTracker[subject].total += 1;
-                if (isCorrect) subjTracker[subject].correct += 1;
-            }
-            if (isCorrect) correctOverall++;
-
-            if (timeSecs > 180) {
-                if (isCorrect) highYield.push({ idx: attempt.idx, time: timeSecs });
-                else timeSinks.push({ idx: attempt.idx, time: timeSecs });
-            }
-
-            if ((!isCorrect && conf === 'high') || attempt.isBookmarked) {
-                blindSpots.push(attempt.questionId);
-            }
-
-            bulkStats = calculateUpdatedStats(bulkStats, isCorrect, conf, subtopic, subject, attempt.questionId, timeSecs);
-
-            // Prep data for PostgreSQL
-            sqlAttemptsPayload.push({
-                questionId: attempt.questionId,
-                subject: subject,
-                subtopic: subtopic,
-                isCorrect: isCorrect,
-                confidenceLevel: conf,
-                timeSpentSecs: timeSecs,
-                userId: uid
-            });
-        }
-
-        const overallPercent = Math.round((correctOverall / totalQs) * 100);
-        const timeTakenSecs = Math.max(0, totalExamTime - timeRemaining);
-
-        let passedOverall = overallPercent >= 70;
-        let isConditional = false;
-        Object.keys(subjTracker).forEach(s => {
-            const trk = subjTracker[s];
-            if (trk.total > 0 && (trk.correct / trk.total) * 100 < 50) passedOverall = false;
-            else if (trk.total > 0 && (trk.correct / trk.total) * 100 < 70 && overallPercent >= 70) isConditional = true;
-        });
-
-        let verdict = passedOverall && !isConditional ? "PASSED" : passedOverall && isConditional ? "CONDITIONAL PASS" : "FAILED";
-
-        // Commit to Firebase
-        const batch = db.batch();
-        batch.set(userRef, bulkStats, { merge: true });
-        const historyRef = db.collection('simulationHistory').doc();
-        batch.set(historyRef, {
-            userId: uid, date: new Date().toISOString(), score: overallPercent,
-            verdict, timeTaken: timeTakenSecs, totalQs, config
-        });
-        await batch.commit();
-
-        // --- 2. POSTGRESQL TELEMETRY INGESTION (New Architecture) ---
-        try {
-            // Ensure the user exists in PostgreSQL (Upsert)
-            await prisma.user.upsert({
-                where: { id: uid },
-                update: { lastActive: new Date() },
-                create: { id: uid }
+            // 1. Fetch Master Questions from DB to securely check correct answers
+            const questionIds = attempts.map(a => a.questionId).filter(Boolean);
+            const masterQuestions = await tx.question.findMany({
+                where: { id: { in: questionIds } }
             });
 
-            // Create the Exam Session and nested Attempts in one transaction
-            await prisma.examSession.create({
+            // Create a lookup map for performance
+            const questionMap = {};
+            masterQuestions.forEach(q => { questionMap[q.id] = q; });
+
+            let correctCount = 0;
+            const gradedAttempts = [];
+            const telemetryRows = [];
+
+            // 2. Grade each attempt
+            attempts.forEach(attempt => {
+                const masterQ = questionMap[attempt.questionId];
+                
+                // Fallback for custom/AI questions not currently in the SQL bank
+                const isCorrect = masterQ ? (masterQ.correctAnswer === attempt.userAnswer) : attempt.isCorrect;
+                const difficulty = masterQ ? masterQ.difficultyTheta : 0.0;
+                
+                if (isCorrect) correctCount++;
+
+                gradedAttempts.push({ isCorrect, questionDifficulty: difficulty });
+
+                telemetryRows.push({
+                    userId: userId,
+                    questionId: attempt.questionId || 'dynamic-ai-id',
+                    subject: attempt.subject || 'Blended',
+                    subtopic: attempt.subtopic || 'General',
+                    isCorrect: isCorrect,
+                    confidenceLevel: attempt.confidence?.toUpperCase() || 'LOW',
+                    timeSpentMs: (attempt.timeSpentSecs || 0) * 1000
+                });
+            });
+
+            // 3. Create the Exam Session Record
+            const sessionMode = config?.mode === 'blended' ? 'SIMULATION' : 'ADAPTIVE_QUIZ';
+            const verdict = (correctCount / attempts.length) >= 0.70 ? 'PASSED' : 'FAILED';
+            
+            const examSession = await tx.examSession.create({
                 data: {
-                    userId: uid,
-                    mode: config.mode || 'unknown',
-                    targetSubject: config.subject || 'blended',
-                    score: overallPercent,
-                    verdict: verdict,
-                    timeTakenSecs: timeTakenSecs,
-                    totalQs: totalQs,
-                    attempts: {
-                        create: sqlAttemptsPayload.map(att => ({
-                            userId: uid,
-                            questionId: att.questionId,
-                            subject: att.subject,
-                            subtopic: att.subtopic,
-                            isCorrect: att.isCorrect,
-                            confidenceLevel: att.confidenceLevel,
-                            timeSpentSecs: att.timeSpentSecs
-                        }))
-                    }
+                    userId: userId,
+                    mode: sessionMode,
+                    targetSubject: config?.subject || 'Blended',
+                    score: correctCount,
+                    totalQuestions: attempts.length,
+                    timeTakenSecs: timeTakenSecs > 0 ? timeTakenSecs : 0,
+                    verdict: verdict
                 }
             });
-            console.log(`[SQL-SYNC] Telemetry saved to Postgres for UID: ${uid}`);
-        } catch (sqlError) {
-            console.error("[SQL-SYNC ERROR] Failed to save to Postgres:", sqlError);
-        }
 
-        // 3. Return results to React UI
+            // 4. Insert all granular question attempts attached to this session
+            const finalTelemetry = telemetryRows.map(row => ({ ...row, sessionId: examSession.id }));
+            await tx.questionAttempt.createMany({ data: finalTelemetry });
+
+            // 5. Calculate new IRT Theta and Upsert User Profile
+            const userProfile = await tx.user.findUnique({ where: { id: userId } }) || { thetaRating: 0.0 };
+            const newTheta = calculateUpdatedTheta(userProfile.thetaRating, gradedAttempts);
+
+            const updatedUser = await tx.user.upsert({
+                where: { id: userId },
+                update: { thetaRating: newTheta, lastActive: new Date() },
+                create: { id: userId, thetaRating: newTheta }
+            });
+
+            return { score: correctCount, total: attempts.length, newTheta: updatedUser.thetaRating };
+        });
+
+        // 6. Return strictly formatted data expected by the frontend React UI
         res.status(200).json({
             success: true,
-            diagnostics: {
-                overallScore: overallPercent, correctCount: correctOverall, totalCount: totalQs,
-                verdict, subjTracker, timeSinks, highYield, blindSpots, timeTaken: timeTakenSecs
+            diagnostics: { 
+                score: result.score, 
+                total: result.total 
             },
-            newStats: bulkStats
+            newStats: { 
+                irt: { theta: result.newTheta },
+                cloudTimestamp: Date.now() 
+            }
         });
 
     } catch (error) {
-        console.error("Simulation Processing Error:", error);
-        res.status(500).json({ error: 'Telemetry compilation failed' });
+        console.error("[EXAM ENGINE] Submit Error:", error);
+        res.status(500).json({ error: 'Telemetry compilation failed.' });
+    }
+});
+
+// 3. FETCH EXAM LEDGER HISTORY
+router.get('/history', authMiddleware, async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 20;
+        const history = await prisma.examSession.findMany({
+            where: { userId: req.user.id },
+            orderBy: { createdAt: 'desc' },
+            take: limit
+        });
+        
+        return res.status(200).json(history);
+    } catch (error) {
+        return res.status(500).json({ error: 'Failed to fetch exam history.' });
+    }
+});
+
+router.delete('/history/:id', authMiddleware, async (req, res) => {
+    try {
+        await prisma.examSession.delete({ where: { id: req.params.id, userId: req.user.id } });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to purge record.' });
     }
 });
 

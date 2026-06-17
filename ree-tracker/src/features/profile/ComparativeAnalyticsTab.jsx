@@ -1,7 +1,7 @@
 // src/features/profile/ComparativeAnalyticsTab.jsx
 import React, { useState, useEffect } from 'react';
 import { fetchGlobalLeaderboard, fetchSimulationLedger } from '../../services/dbQueries';
-import ActivityCalendar from './ActivityCalendar'; // Replaced Heatmap
+import ActivityCalendar from './ActivityCalendar'; 
 
 export default function ComparativeAnalyticsTab({ currentUser, stats }) {
   const [rank, setRank] = useState('N/A');
@@ -16,13 +16,13 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
         const board = await fetchGlobalLeaderboard(100);
         if (!isMounted) return;
         
-        setTotalAgents(board.length);
-        const myRank = board.findIndex(agent => agent.uid === currentUser.uid);
+        setTotalAgents(board?.length || 0);
+        const myRank = (board || []).findIndex(agent => agent.uid === currentUser.uid);
         if (myRank !== -1) setRank(myRank + 1);
         else setRank('Unranked');
 
         const now = new Date().getTime();
-        const online = board.filter(agent => {
+        const online = (board || []).filter(agent => {
             if (!agent.lastActive) return false;
             const lastActiveTime = new Date(agent.lastActive).getTime();
             return (now - lastActiveTime) < 15 * 60 * 1000;
@@ -30,7 +30,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
         setOnlineAgentsList(online);
 
         const history = await fetchSimulationLedger(currentUser.uid, 1000);
-        if (isMounted) setSimulationCount(history.length);
+        if (isMounted) setSimulationCount(history?.length || 0);
 
       } catch (err) {
         console.error("Failed to fetch comparative data.");
@@ -63,7 +63,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
           <div className="relative w-56 h-56 flex items-center justify-center z-10">
             <svg className="w-full h-full -rotate-90 transform drop-shadow-md" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" fill="none" stroke="var(--border-light)" strokeWidth="8" />
-              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--brand-cyan, #06b6d4)" strokeWidth="8" strokeDasharray={rank !== 'Unranked' ? `${((totalAgents - rank + 1) / totalAgents) * 282.7} 282.7` : '0 282.7'} className="transition-all duration-1000 ease-out" />
+              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--brand-cyan, #06b6d4)" strokeWidth="8" strokeDasharray={rank !== 'Unranked' && totalAgents > 0 ? `${((totalAgents - rank + 1) / totalAgents) * 282.7} 282.7` : '0 282.7'} className="transition-all duration-1000 ease-out" />
             </svg>
             <div className="absolute flex flex-col items-center">
               <span className="text-6xl font-black text-reeCyan">{rank !== 'Unranked' ? `#${rank}` : 'N/A'}</span>
@@ -113,8 +113,10 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
 
       </div>
 
-      {/* Middle Section: Full-Width Monthly Calendar Heatmap */}
-      <ActivityCalendar activityCalendar={stats?.activityCalendar || {}} targetQuota={50} />
+      {/* Middle Section: Full-Width Monthly Calendar Heatmap with explicitly set minHeight */}
+      <div className="w-full min-h-[250px]">
+        <ActivityCalendar activityCalendar={stats?.activityCalendar || {}} targetQuota={50} />
+      </div>
 
       {/* Bottom Section: Operational Milestones (Locked & Unlocked) */}
       <div className="p-6 bg-surface border border-border2 rounded-xl shadow-sm">

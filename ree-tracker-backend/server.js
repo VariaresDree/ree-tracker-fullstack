@@ -5,14 +5,12 @@ const cors = require('cors');
 
 // Initialize Firebase
 const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
 const serviceAccount = require('./firebase-service-account.json');
 
 initializeApp({
   credential: cert(serviceAccount)
 });
 
-const db = getFirestore();
 const app = express();
 
 // 1. Middleware (Must be first)
@@ -23,12 +21,21 @@ app.use(express.json());
 const examRoutes = require('./src/routes/examRoutes');
 app.use('/api/exams', examRoutes);
 
-// THIS IS THE LINE THAT FIXES YOUR ISSUE
 const analyticsRoutes = require('./src/routes/analyticsRoutes'); 
 app.use('/api/analytics', analyticsRoutes); 
 
 const aiRoutes = require('./src/routes/aiRoutes');
 app.use('/api/ai', aiRoutes);                    
+
+// MISSING ROUTES ADDED HERE:
+const questionRoutes = require('./src/routes/questionRoutes');
+app.use('/api/questions', questionRoutes);
+
+const materialRoutes = require('./src/routes/materialRoutes');
+app.use('/api/materials', materialRoutes);
+
+const metadataRoutes = require('./src/routes/metadataRoutes');
+app.use('/api/metadata', metadataRoutes);
 
 // 3. Health Check
 app.get('/health', (req, res) => {
@@ -46,3 +53,13 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`[SYSTEM] Assessment Engine initialized and listening on port ${PORT}`);
 });
+
+// Add these with your other route declarations
+const leaderboardRoutes = require('./src/routes/leaderboardRoutes');
+app.use('/api/leaderboard', leaderboardRoutes);
+
+const bookmarkRoutes = require('./src/routes/bookmarkRoutes');
+app.use('/api/bookmarks', bookmarkRoutes);
+
+const userRoutes = require('./src/routes/userRoutes');
+app.use('/api/user', userRoutes);

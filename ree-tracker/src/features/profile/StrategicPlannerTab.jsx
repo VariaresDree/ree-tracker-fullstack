@@ -1,7 +1,6 @@
 // src/features/profile/StrategicPlannerTab.jsx
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../config/firebaseDb';
+import { updateCommandParameters } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
 
 export default function StrategicPlannerTab({ currentUser, stats, setStats }) {
@@ -18,11 +17,11 @@ export default function StrategicPlannerTab({ currentUser, stats, setStats }) {
     if (stats?.notes) setNotes(stats.notes);
   }, [stats?.tasks, stats?.notes]);
 
-  const saveTasksToCloud = async (updatedTasks) => {
+const saveTasksToCloud = async (updatedTasks) => {
     setTasks(updatedTasks);
     setStats({ ...stats, tasks: updatedTasks });
     try {
-        await updateDoc(doc(db, "userData", currentUser.uid), { tasks: updatedTasks });
+        await updateCommandParameters(currentUser.uid, { tasks: updatedTasks });
     } catch (err) {
         toast.error("Failed to sync planner matrix.");
     }
@@ -52,10 +51,10 @@ export default function StrategicPlannerTab({ currentUser, stats, setStats }) {
     saveTasksToCloud(updated);
   };
 
-  const saveNotes = async () => {
+const saveNotes = async () => {
       setIsSavingNotes(true);
       try {
-          await updateDoc(doc(db, "userData", currentUser.uid), { notes });
+          await updateCommandParameters(currentUser.uid, { notes });
           toast.success("Notes secured in the vault.");
       } catch (err) {
           toast.error("Failed to sync notes.");

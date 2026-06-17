@@ -2,8 +2,6 @@
 import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { db } from './config/firebaseDb';
-import { doc, onSnapshot } from 'firebase/firestore';
 import { useStore } from './store/useStore';
 import { Toaster } from 'react-hot-toast';
 
@@ -21,49 +19,17 @@ const Materials = lazy(() => import('./pages/Materials'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Arena = lazy(() => import('./pages/Arena'));
 const BattleLobby = lazy(() => import('./pages/BattleLobby'));
-const Gauntlet = lazy(() => import('./pages/Gauntlet')); // Added lazy load
+const Gauntlet = lazy(() => import('./pages/Gauntlet')); 
 
-const defaultStats = {
-  examDate: '2026-08-15',
-  dailyTarget: 50,
-  dailyMath: 0,
-  dailyESAS: 0,
-  dailyEE: 0,
-  matrix: { hc: 0, hw: 0, lc: 0, lw: 0 },
-  microTopics: {},
-  blindSpots: [],
-  thetaHistory: [],
-  irt: { theta: 0.0, consecutiveCorrect: 0, consecutiveWrong: 0 },
-  globalStreak: 0,
-  lastActiveDate: null,
-};
-
+// Replace only this component inside src/App.jsx
 const SecureAppTerminal = () => {
   const { currentUser } = useAuth();
-  const setStats = useStore((state) => state.setStats);
-  const initializeTOS = useStore((state) => state.initializeTOS);
 
   useEffect(() => {
-    // Boot the dynamic TOS engine globally on load
-    initializeTOS();
-
-    if (!currentUser?.uid) return;
-    const docRef = doc(db, 'userData', currentUser.uid);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const cloudData = docSnap.data();
-        const localStats = useStore.getState().stats;
-
-        // CRITICAL CHECK: Ignore stale cloud snapshot to protect local matrix.
-        if (!localStats?.localTimestamp || !cloudData.cloudTimestamp || cloudData.cloudTimestamp > localStats.localTimestamp) {
-            setStats({ ...defaultStats, ...cloudData });
-        }
-      } else {
-        setStats(defaultStats);
-      }
-    });
-    return () => unsubscribe();
-  }, [currentUser, setStats, initializeTOS]);
+    // The previous Firestore listener and TOS initialization have been removed.
+    // User state is now securely handled by Zustand local storage caching
+    // and will be synced via the backend PostgreSQL API.
+  }, []);
 
   if (!currentUser) return <Login />;
 
