@@ -11,12 +11,11 @@ import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
 import { generateBoardReadinessReport } from '../services/geminiApi';
 import { generateDiagnosticReport } from '../utils/pdfEngine';
-import { syncLeaderboardProfile } from '../services/dbQueries'; 
+import { syncLeaderboardProfile, apiRequest } from '../services/dbQueries'; 
 import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
-  
   const { stats, purgeAnalytics } = useStore();
   
   const [sqlData, setSqlData] = useState(null);
@@ -31,17 +30,13 @@ export default function Dashboard() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
+  // FIXED: Replaced unauthorized fetch with secure apiRequest wrapper
   useEffect(() => {
     const fetchSQLAnalytics = async () => {
         if (!currentUser?.uid) return;
         try {
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-            const response = await fetch(`${backendUrl}/api/analytics/dashboard/${currentUser.uid}`);
-            
-            if (!response.ok) throw new Error('Failed to fetch from Assessment Core');
-            const json = await response.json();
-            
-            if (json.success) {
+            const json = await apiRequest(`/api/analytics/dashboard/${currentUser.uid}`);
+            if (json && json.data) {
                 setSqlData(json.data);
             }
         } catch (error) {
@@ -54,6 +49,7 @@ export default function Dashboard() {
     fetchSQLAnalytics();
   }, [currentUser]);
 
+  // FIXED: Map the dynamic daily tallies fetched from SQL directly into the active state
   const activeStats = useMemo(() => {
       if (!stats && !sqlData) return null;
       if (!sqlData) return stats;
@@ -74,13 +70,19 @@ export default function Dashboard() {
           ...stats,
           irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating || stats?.irt?.theta || 0 },
           matrix: sqlData.matrix || stats?.matrix,
-          microTopics: mappedMicroTopics
+          microTopics: mappedMicroTopics,
+          // Syncs the Dashboard Quotas dynamically
+          dailyMath: sqlData.profile?.dailyMath || 0,
+          dailyESAS: sqlData.profile?.dailyESAS || 0,
+          dailyEE: sqlData.profile?.dailyEE || 0,
+          examDate: sqlData.profile?.examDate || stats?.examDate,
+          dailyTarget: sqlData.profile?.dailyTarget || stats?.dailyTarget
       };
   }, [stats, sqlData]);
 
   useEffect(() => {
     if (currentUser && activeStats) {
-        syncLeaderboardProfile(currentUser, activeStats).catch(err => console.error("Leaderboard sync failed:", err));
+        syncLeaderboardProfile().catch(err => console.error("Leaderboard sync failed:", err));
     }
   }, [currentUser, activeStats]);
 
@@ -223,8 +225,9 @@ export default function Dashboard() {
             </div>
         </div>
 
+        {/* FIXED: Added min-h-[300px] to containers to solve Recharts width/height warnings */}
         <div className="flex flex-col gap-6 h-full min-h-0">
-            <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-[250px] min-w-0 overflow-hidden">
+            <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-[300px] min-w-0 overflow-hidden">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0">
                     <span>📈</span> 30-Day Readiness Velocity (θ)
                 </h3>

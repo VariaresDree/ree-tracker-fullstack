@@ -1,25 +1,28 @@
 // ree-tracker-backend/prisma/schema.prisma
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  // Note: URL is configured in prisma.config.ts for Prisma v7+
+}
+
 enum Role {
   USER
   ADMIN
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  // The Prisma 7.8.0+ CLI handles the DATABASE_URL internally via prisma.config.ts
-}
-
+// 1 & 2. Merged 'users' and 'userData' collections
 model User {
-  id            String   @id 
-  role          Role     @default(USER) 
-  globalStreak  Int      @default(0)
-  thetaRating   Float    @default(0.0) 
-  lastActive    DateTime @default(now())
-  createdAt     DateTime @default(now())
+  id               String   @id 
+  role             Role     @default(USER) 
+  globalStreak     Int      @default(0)
+  thetaRating      Float    @default(0.0) 
+  standardError    Float    @default(0.5)
+  lastActive       DateTime @default(now())
+  createdAt        DateTime @default(now())
   
   // Legacy User Data Fields
   activityCalendar Json?
@@ -32,70 +35,70 @@ model User {
   examDate         String?
   dailyTarget      Int?     @default(50)
 
-  sessions      ExamSession[]
-  attempts      QuestionAttempt[]
-  bookmarks     Bookmark[]        
+  sessions         ExamSession[]
+  attempts         QuestionAttempt[]
+  bookmarks        Bookmark[]        
 }
 
+// 3. 'questions' collection (Exact Firebase Names Restored)
+model Question {
+  id               String   @id @default(uuid())
+  subject          String   
+  subtopic         String
+  text             String   // Restored from Firebase
+  options          String[] 
+  answer           String   // Restored from Firebase
+  difficulty       Float    @default(0.0) 
+  fixedExplanation String?  // EXACT MATCH to Firebase 'Offline Solution'
+  source           String?  @default("legacy")
+  type             String?  @default("conceptual")
+  isFlagged        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  attempts         QuestionAttempt[]
+  bookmarks        Bookmark[]
+}
+
+// 4. 'simulationHistory' collection
 model ExamSession {
   id             String   @id @default(uuid())
   userId         String
-  mode           String // 'SIMULATION', 'GAUNTLET', 'ADAPTIVE_QUIZ'
-  targetSubject  String? // 'MATH', 'ESAS', 'EE'
+  mode           String   
+  targetSubject  String
   score          Int
   totalQuestions Int
   timeTakenSecs  Int
-  verdict        String // 'PASSED', 'FAILED'
+  verdict        String
   createdAt      DateTime @default(now())
+  config         Json?    
 
-  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attempts QuestionAttempt[]
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts       QuestionAttempt[]
 }
 
 model QuestionAttempt {
   id              String   @id @default(uuid())
-  sessionId       String
+  sessionId       String?  
   userId          String
-  questionId      String // Abstract structural trace matching static bank records
-  subject         String // 'MATH', 'ESAS', 'EE'
-  subtopic        String // e.g., 'Three-Phase Transformers', 'Thermodynamics'
+  questionId      String
+  subject         String
+  subtopic        String
   isCorrect       Boolean
-  confidenceLevel String // 'HIGH', 'MED', 'LOW' -> Maps directly to matrix quadrants
-  timeSpentMs     Int // Tracking speed and response hesitation
+  confidenceLevel String   @default("LOW")
+  timeSpentMs     Int      @default(0)
   createdAt       DateTime @default(now())
 
-  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, subject, subtopic])
-  @@index([userId, confidenceLevel, isCorrect]) // Accelerates lookups for the "Danger Zone" metric
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question        Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  session         ExamSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
-// Add this to the bottom of schema.prisma
-model Question {
-  id                String   @id @default(uuid())
-  subject           String // 'Mathematics', 'ESAS', 'EE'
-  subtopic          String
-  questionText      String
-  options           String[] // Array of strings for choices
-  correctAnswer     String
-  difficultyTheta   Float    @default(0.0) // IRT difficulty parameter
-  cachedExplanation String?
-  isFlagged         Boolean  @default(false)
-  createdAt         DateTime @default(now())
-
-  bookmarks Bookmark[]
-
-  // Optional: Track attempts specifically for this question to adjust difficulty dynamically over time
-  @@index([subject, subtopic])
-}
-
+// 5 & 6. 'folders' and 'materials' collections
 model Folder {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
-  parentId  String? // 'root' or another folder ID
-  createdAt DateTime @default(now())
-
+  parentId  String?    
+  createdAt DateTime   @default(now())
   materials Material[]
 }
 
@@ -103,23 +106,38 @@ model Material {
   id          String   @id @default(uuid())
   name        String
   url         String
-  type        String // 'pdf', 'image', etc.
+  type        String   
   storagePath String?
   folderId    String
   createdAt   DateTime @default(now())
-
-  folder Folder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  folder      Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
 }
 
-// Add this to the bottom of schema.prisma
 model Bookmark {
   id         String   @id @default(uuid())
   userId     String
   questionId String
   createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  @@unique([userId, questionId]) 
+}
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+// 7 & 8. 'systemConfig' and 'metadata' collections
+model SystemConfig {
+  id          String   @id @default("global_config")
+  tos         Json?    
+  metadata    Json?    
+  updatedAt   DateTime @updatedAt
+}
 
-  @@unique([userId, questionId]) // A user can only bookmark a specific question once
+// 9. 'battles' collection
+model Battle {
+  id            String   @id
+  hostId        String
+  config        Json
+  questions     Json     
+  timeLimitSecs Int
+  status        String   @default("WAITING") 
+  createdAt     DateTime @default(now())
 }

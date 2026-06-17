@@ -6,151 +6,181 @@ const { PrismaClient } = require('@prisma/client');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
-// 1. Init Firebase
 const serviceAccount = require('./firebase-service-account.json');
 initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();
 
-// 2. Init PostgreSQL
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-// 3. YOUR FIREBASE UID GOES HERE
-const MY_ADMIN_UID = "PASTE_YOUR_UID_HERE"; 
+// REPLACE WITH YOUR UID TO GET YOUR ADMIN POWERS BACK
+const MY_ADMIN_UID = "Z15Y1ngRysXID2GjCl2ya8Jr4QG2"; 
 
 async function runTotalMigration() {
-    console.log("🚀 INITIATING TOTAL MIGRATION PROTOCOL...");
+    console.log("🚀 INITIATING TOTAL MIGRATION PUMP...");
 
     try {
-        // --- 1. USERS & USER DATA (Merged) ---
-        console.log("📦 Pulling Users & Analytics Matrices...");
+        // --- 1. USERS & USERDATA ---
+        console.log("📦 1/6: Pumping Users & Analytics Matrices...");
         const usersSnap = await db.collection('users').get();
+        let userCount = 0;
         for (const doc of usersSnap.docs) {
-            const baseData = doc.data();
-            
-            // Fetch associated userData
-            const userDataDoc = await db.collection('userData').doc(doc.id).get();
-            const userData = userDataDoc.exists ? userDataDoc.data() : {};
+            try {
+                const baseData = doc.data();
+                const userDataDoc = await db.collection('userData').doc(doc.id).get();
+                const userData = userDataDoc.exists ? userDataDoc.data() : {};
 
-            await prisma.user.upsert({
-                where: { id: doc.id },
-                update: {
-                    role: doc.id === MY_ADMIN_UID ? 'ADMIN' : 'USER',
-                    globalStreak: userData.globalStreak || 0,
-                    thetaRating: userData.irt?.theta || 0.0,
-                    activityCalendar: userData.activityCalendar || {},
-                    thetaHistory: userData.thetaHistory || [],
-                    matrix: userData.matrix || {},
-                    microTopics: userData.microTopics || {},
-                    blindSpots: userData.blindSpots || [],
-                    examDate: userData.examDate || null,
-                    dailyTarget: userData.dailyTarget || 50
-                },
-                create: {
-                    id: doc.id,
-                    role: doc.id === MY_ADMIN_UID ? 'ADMIN' : 'USER',
-                    globalStreak: userData.globalStreak || 0,
-                    thetaRating: userData.irt?.theta || 0.0,
-                    activityCalendar: userData.activityCalendar || {},
-                    thetaHistory: userData.thetaHistory || [],
-                    matrix: userData.matrix || {},
-                    microTopics: userData.microTopics || {},
-                    blindSpots: userData.blindSpots || [],
-                    examDate: userData.examDate || null,
-                    dailyTarget: userData.dailyTarget || 50,
-                    createdAt: baseData.createdAt ? new Date(baseData.createdAt) : new Date()
-                }
-            });
+                await prisma.user.upsert({
+                    where: { id: doc.id },
+                    update: {}, 
+                    create: {
+                        id: doc.id,
+                        role: doc.id === MY_ADMIN_UID ? 'ADMIN' : 'USER',
+                        globalStreak: userData.globalStreak || 0,
+                        thetaRating: userData.irt?.theta || 0.0,
+                        activityCalendar: userData.activityCalendar || {},
+                        thetaHistory: userData.thetaHistory || [],
+                        matrix: userData.matrix || {},
+                        microTopics: userData.microTopics || {},
+                        blindSpots: userData.blindSpots || [],
+                        examDate: userData.examDate || null,
+                        dailyTarget: userData.dailyTarget || 50,
+                        createdAt: baseData.createdAt ? new Date(baseData.createdAt) : new Date()
+                    }
+                });
+                userCount++;
+            } catch (e) { console.log(`⚠️ Skipped User ${doc.id}: ${e.message}`); }
         }
+        console.log(`✅ ${userCount} Users Migrated.`);
 
-        // --- 2. QUESTIONS ---
-        console.log("📦 Pulling Question Vault...");
+        // --- 2. QUESTIONS (Mapping fixedExplanation exactly) ---
+        console.log("📦 2/6: Pumping Question Vault...");
         const qSnap = await db.collection('questions').get();
+        let qCount = 0;
         for (const doc of qSnap.docs) {
-            const data = doc.data();
-            if (data.status === 'quarantined') continue; 
+            try {
+                const data = doc.data();
+                if (data.status === 'quarantined') continue; 
 
-            await prisma.question.upsert({
-                where: { id: doc.id },
-                update: {},
-                create: {
-                    id: doc.id,
-                    subject: data.subject === 'Mathematics' ? 'Math' : data.subject || 'Blended',
-                    subtopic: data.subtopic || 'General',
-                    questionText: data.question || data.text || 'No text provided',
-                    options: data.options || [],
-                    correctAnswer: data.answer || data.correctAnswer || '',
-                    difficultyTheta: data.difficultyTheta || 0.0,
-                    cachedExplanation: data.cachedExplanation || data.fixedExplanation || null,
-                    isFlagged: data.isFlagged || false
-                }
-            });
-        }
-
-        // --- 3. SIMULATION HISTORY ---
-        console.log("📦 Pulling Simulation Ledgers...");
-        const histSnap = await db.collection('simulationHistory').get();
-        for (const doc of histSnap.docs) {
-            const data = doc.data();
-            if (!data.userId) continue;
-
-            const userExists = await prisma.user.findUnique({ where: { id: data.userId }});
-            if (userExists) {
-                await prisma.examSession.upsert({
+                await prisma.question.upsert({
                     where: { id: doc.id },
                     update: {},
                     create: {
                         id: doc.id,
-                        userId: data.userId,
-                        mode: data.config?.mode || 'unknown',
-                        targetSubject: data.config?.subject || 'Blended',
-                        score: data.score || 0,
-                        totalQuestions: data.totalQs || 0,
-                        timeTakenSecs: data.timeTaken || 0,
-                        verdict: data.verdict || 'UNKNOWN',
-                        createdAt: data.date ? new Date(data.date) : new Date()
+                        subject: data.subject === 'Mathematics' ? 'Math' : data.subject || 'Blended',
+                        subtopic: data.subtopic || 'General',
+                        text: data.question || data.text || '[Missing Text]',
+                        options: data.options || [],
+                        answer: data.answer || data.correctAnswer || '',
+                        difficulty: parseFloat(data.difficulty) || data.difficultyTheta || 0.0,
+                        fixedExplanation: data.fixedExplanation || data.cachedExplanation || null,
+                        source: data.source || 'legacy',
+                        type: data.type || 'conceptual',
+                        isFlagged: data.isFlagged || false
                     }
                 });
-            }
+                qCount++;
+            } catch (e) { console.log(`⚠️ Skipped Question ${doc.id}: ${e.message}`); }
         }
+        console.log(`✅ ${qCount} Questions Migrated.`);
 
-        // --- 4. FOLDERS & MATERIALS ---
-        console.log("📦 Pulling Cloud Vault (Folders & Materials)...");
+        // --- 3. FOLDERS ---
+        console.log("📦 3/6: Pumping Cloud Vault Folders...");
         const fSnap = await db.collection('folders').get();
         for (const doc of fSnap.docs) {
-            const data = doc.data();
-            await prisma.folder.upsert({
-                where: { id: doc.id },
-                update: {},
-                create: { id: doc.id, name: data.name || 'Untitled', parentId: data.parentId || 'root' }
-            });
-        }
-
-        const mSnap = await db.collection('materials').get();
-        for (const doc of mSnap.docs) {
-            const data = doc.data();
-            const folderExists = await prisma.folder.findUnique({ where: { id: data.folderId }});
-            if (folderExists) {
-                await prisma.material.upsert({
+            try {
+                const data = doc.data();
+                await prisma.folder.upsert({
                     where: { id: doc.id },
                     update: {},
-                    create: {
-                        id: doc.id,
-                        name: data.name || 'Document',
-                        url: data.url || '',
-                        type: data.type || 'pdf',
-                        folderId: data.folderId,
-                        createdAt: data.createdAt ? new Date(data.createdAt) : new Date()
-                    }
+                    create: { id: doc.id, name: data.name || 'Untitled', parentId: data.parentId || 'root' }
                 });
-            }
+            } catch (e) { console.log(`⚠️ Skipped Folder ${doc.id}`); }
         }
+        console.log(`✅ Folders Migrated.`);
 
-        console.log("🎉 SYSTEM OVERRIDE COMPLETE. ALL COLLECTIONS MIGRATED.");
+        // --- 4. MATERIALS ---
+        console.log("📦 4/6: Pumping Cloud Vault Materials...");
+        const mSnap = await db.collection('materials').get();
+        for (const doc of mSnap.docs) {
+            try {
+                const data = doc.data();
+                const folderExists = await prisma.folder.findUnique({ where: { id: data.folderId }});
+                if (folderExists) {
+                    await prisma.material.upsert({
+                        where: { id: doc.id },
+                        update: {},
+                        create: {
+                            id: doc.id,
+                            name: data.name || 'Document',
+                            url: data.url || '',
+                            type: data.type || 'pdf',
+                            folderId: data.folderId,
+                            createdAt: data.createdAt ? new Date(data.createdAt) : new Date()
+                        }
+                    });
+                }
+            } catch (e) { console.log(`⚠️ Skipped Material ${doc.id}`); }
+        }
+        console.log(`✅ Materials Migrated.`);
+
+        // --- 5. SIMULATION HISTORY ---
+        console.log("📦 5/6: Pumping Simulation Ledgers...");
+        const histSnap = await db.collection('simulationHistory').get();
+        let histCount = 0;
+        for (const doc of histSnap.docs) {
+            try {
+                const data = doc.data();
+                if (!data.userId) continue;
+
+                const userExists = await prisma.user.findUnique({ where: { id: data.userId }});
+                if (userExists) {
+                    await prisma.examSession.upsert({
+                        where: { id: doc.id },
+                        update: {},
+                        create: {
+                            id: doc.id,
+                            userId: data.userId,
+                            mode: data.config?.mode || 'custom',
+                            targetSubject: data.config?.subject || 'Blended',
+                            score: data.score || 0,
+                            totalQuestions: data.totalQs || 0,
+                            timeTakenSecs: data.timeTaken || 0,
+                            verdict: data.verdict || 'UNKNOWN',
+                            config: data.config || {},
+                            createdAt: data.date ? new Date(data.date) : new Date()
+                        }
+                    });
+                    histCount++;
+                }
+            } catch (e) { console.log(`⚠️ Skipped History ${doc.id}`); }
+        }
+        console.log(`✅ ${histCount} Simulation Ledgers Migrated.`);
+
+        // --- 6. SYSTEM CONFIG & METADATA ---
+        console.log("📦 6/6: Pumping Core Configurations...");
+        const confSnap = await db.collection('systemConfig').doc('dynamicTOS').get();
+        const metaSnap = await db.collection('metadata').doc('vaultStats').get();
+        
+        await prisma.systemConfig.upsert({
+            where: { id: 'global_config' },
+            update: {
+                tos: confSnap.exists ? confSnap.data() : null,
+                metadata: metaSnap.exists ? metaSnap.data() : null
+            },
+            create: {
+                id: 'global_config',
+                tos: confSnap.exists ? confSnap.data() : null,
+                metadata: metaSnap.exists ? metaSnap.data() : null
+            }
+        });
+        console.log(`✅ Configurations Migrated.`);
+
+        console.log("\n🎉 TOTAL MIGRATION 100% COMPLETE. YOU MAY RESTART YOUR SERVER.");
 
     } catch (error) {
-        console.error("❌ Migration Exception:", error);
+        console.error("❌ Fatal Migration Exception:", error);
     } finally {
         await prisma.$disconnect();
         process.exit(0);

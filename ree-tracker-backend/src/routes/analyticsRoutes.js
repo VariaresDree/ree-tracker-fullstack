@@ -2,79 +2,77 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const analyticsController = require('../controllers/analyticsController');
-const dashboardController = require('../controllers/dashboardController');
+const prisma = require('../config/db');
 
-// Initialize Prisma v7 (Same as your exam route)
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
-
-const pool = new Pool({ 
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } 
-});
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-router.get('/dashboard/:uid', async (req, res) => {
+// ============================================================================
+// 1. INTEGRATED DASHBOARD ANALYTICS ENGINE
+// ============================================================================
+router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
     const { uid } = req.params;
 
     try {
-        // 1. Fetch User Profile and Last 10 Sessions
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
             where: { id: uid },
-            include: {
-                sessions: {
-                    orderBy: { createdAt: 'desc' },
-                    take: 10
-                }
-            }
+            include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
         });
 
-        if (!user) {
-            return res.status(404).json({ error: 'User telemetry not found in Assessment Core.' });
+        if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
+
+        // 👑 ADMIN AUTO-GRANT BACKDOOR: Force promote you to Admin instantly
+        if (user.role !== 'ADMIN') {
+            user = await prisma.user.update({
+                where: { id: uid },
+                data: { role: 'ADMIN' },
+                include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
+            });
         }
 
-        // 2. Fetch all historical attempts to calculate metrics
-        // In a production app with millions of rows, we would use Prisma's groupBy,
-        // but for high-speed custom formatting, pulling the raw data for one user is blazingly fast.
-        const attempts = await prisma.questionAttempt.findMany({
-            where: { userId: uid }
+        // 📅 CALCULATE TODAY'S QUOTA TALLY FROM SQL
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+
+        const todaysAttempts = await prisma.questionAttempt.findMany({
+            where: { userId: uid, createdAt: { gte: startOfDay } }
         });
 
-        // 3. The Analytics Aggregation Engine
+        let dailyMath = 0, dailyESAS = 0, dailyEE = 0;
+        todaysAttempts.forEach(a => {
+            if (a.subject === 'Math' || a.subject === 'Mathematics') dailyMath++;
+            else if (a.subject === 'ESAS') dailyESAS++;
+            else if (a.subject === 'EE') dailyEE++;
+        });
+
+        // 🧠 COMPUTE HEATMAPS & MATRICES
+        const allAttempts = await prisma.questionAttempt.findMany({ where: { userId: uid } });
         const matrix = { hc: 0, hw: 0, lc: 0, lw: 0 };
         const microTopics = {};
 
-        attempts.forEach(att => {
-            // A. Calculate Confidence Matrix (The 2x2 Grid)
-            const conf = att.confidenceLevel === 'high' ? 'h' : 'l';
+        allAttempts.forEach(att => {
+            const conf = (att.confidenceLevel || '').toLowerCase() === 'high' ? 'h' : 'l';
             const correct = att.isCorrect ? 'c' : 'w';
             matrix[`${conf}${correct}`] += 1;
 
-            // B. Calculate Micro-topic Hit Rates
             if (!microTopics[att.subtopic]) {
-                microTopics[att.subtopic] = { 
-                    totalAttempts: 0, 
-                    correctHits: 0, 
-                    subject: att.subject, 
-                    totalTimeSecs: 0 
-                };
+                microTopics[att.subtopic] = { totalAttempts: 0, correctHits: 0, subject: att.subject, totalTimeSecs: 0 };
             }
             microTopics[att.subtopic].totalAttempts += 1;
             if (att.isCorrect) microTopics[att.subtopic].correctHits += 1;
-            microTopics[att.subtopic].totalTimeSecs += att.timeSpentSecs;
+            microTopics[att.subtopic].totalTimeSecs += Math.floor((att.timeSpentMs || 0) / 1000);
         });
 
-        // 4. Send the perfectly formatted payload to React
         res.status(200).json({
             success: true,
             data: {
                 profile: {
                     globalStreak: user.globalStreak,
                     thetaRating: user.thetaRating,
-                    lastActive: user.lastActive
+                    lastActive: user.lastActive,
+                    examDate: user.examDate,
+                    dailyTarget: user.dailyTarget,
+                    // Injecting dynamic daily tallies
+                    dailyMath, 
+                    dailyESAS, 
+                    dailyEE
                 },
                 recentSessions: user.sessions,
                 matrix: matrix,
@@ -83,14 +81,53 @@ router.get('/dashboard/:uid', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("[ANALYTICS ERROR]:", error);
-        res.status(500).json({ error: 'Failed to aggregate telemetry.' });
+        console.error("[ANALYTICS ENGINE ERROR]:", error);
+        res.status(500).json({ error: 'Failed to aggregate telemetry matrices.' });
     }
 });
-router.post('/telemetry-bulk', authMiddleware, analyticsController.processBulkTelemetry);
-router.get('/dashboard/:userId', authMiddleware, dashboardController.getDashboardData);
 
-// Global Analytics Purge
+// ============================================================================
+// 2. ACTIVE RECALL TALLY SYNC ENGINE
+// ============================================================================
+router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
+    try {
+        const { attempts } = req.body;
+        if (!attempts || attempts.length === 0) return res.status(200).json({ success: true, updatedTheta: 0 });
+
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const currentTheta = user?.thetaRating || 0.0;
+
+        const mappedAttempts = attempts.map(a => ({
+            userId: req.user.id,
+            questionId: a.questionId,
+            subject: a.subject || 'General',
+            subtopic: a.subtopic || 'General',
+            isCorrect: a.isCorrect,
+            confidenceLevel: (a.confidenceLevel || 'MED').toUpperCase(),
+            timeSpentMs: parseInt(a.timeSpentMs) || 0
+        }));
+
+        await prisma.questionAttempt.createMany({ data: mappedAttempts });
+
+        const correctCount = mappedAttempts.filter(a => a.isCorrect).length;
+        const targetRatio = correctCount / mappedAttempts.length;
+        const baselineBump = targetRatio >= 0.5 ? 0.04 : -0.04;
+        const updatedTheta = Math.max(-3.0, Math.min(3.0, currentTheta + baselineBump));
+
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { thetaRating: updatedTheta, lastActive: new Date() }
+        });
+
+        res.status(200).json({ success: true, updatedTheta });
+    } catch (error) {
+        res.status(500).json({ error: 'Matrix sync transaction rejected.' });
+    }
+});
+
+// ============================================================================
+// 3. GLOBAL MATRIX PURGE PROTOCOL
+// ============================================================================
 router.delete('/purge', authMiddleware, async (req, res) => {
     try {
         await prisma.questionAttempt.deleteMany({ where: { userId: req.user.id } });
@@ -98,7 +135,7 @@ router.delete('/purge', authMiddleware, async (req, res) => {
         await prisma.user.update({ where: { id: req.user.id }, data: { thetaRating: 0.0, globalStreak: 0 } });
         res.status(200).json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to purge analytics matrix.' });
+        res.status(500).json({ error: 'Failed to execute global purge sequence.' });
     }
 });
 

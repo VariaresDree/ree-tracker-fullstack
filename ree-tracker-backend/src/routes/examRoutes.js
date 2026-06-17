@@ -3,19 +3,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
-
-// Initialize Prisma v7 with PostgreSQL Driver Adapter
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
-
-// Enforce SSL for Supabase PostgreSQL connections
-const pool = new Pool({ 
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false } 
-});
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = require('../config/db'); // Centralized DB Connection
 
 // ============================================================================
 // 1. GET QUESTIONS FROM POSTGRESQL BANK
@@ -24,120 +12,125 @@ router.get('/', async (req, res) => {
     try {
         const { subject, limit = 50 } = req.query;
         
-        // Use raw SQL to efficiently pull random questions from the database
+        // FIXED: Added 'answer' to the SELECT statement
         const questions = await prisma.$queryRawUnsafe(`
-            SELECT id, subject, subtopic, "questionText" as question, options, "cachedExplanation", "difficultyTheta"
+            SELECT id, subject, subtopic, text, options, answer, "fixedExplanation", difficulty, source, type
             FROM "Question"
             WHERE "isFlagged" = false ${subject && subject !== 'All' && subject !== 'Blended' ? `AND subject = '${subject}'` : ''}
             ORDER BY RANDOM()
             LIMIT ${parseInt(limit)};
         `);
-        
-        // Note: We DO NOT send the "correctAnswer" property to the frontend to prevent cheating.
-        return res.status(200).json({ success: true, items: questions });
+
+        return res.status(200).json({ items: questions });
     } catch (error) {
-        console.error("[EXAM ENGINE] Fetch Questions Error:", error);
-        return res.status(500).json({ error: 'Failed to fetch question matrix.' });
+        console.error("Fetch Error:", error);
+        return res.status(500).json({ error: 'Database fetch failed.' });
     }
 });
 
 // ============================================================================
-// 2. SUBMIT EXAM & PROCESS TELEMETRY
+// 2. SUBMIT SIMULATION TELEMETRY (GRADING ENGINE)
 // ============================================================================
-router.post('/submit', async (req, res) => {
-    // Check for user ID either from JWT middleware (req.user) or body fallback (req.body.uid)
-    const userId = req.user?.id || req.body.uid;
-    const { attempts, config, timeRemaining, totalExamTime } = req.body;
-
-    if (!userId || !attempts || attempts.length === 0) {
-        return res.status(400).json({ error: 'Missing required telemetry payload or User ID' });
-    }
-
+router.post('/submit', authMiddleware, async (req, res) => {
     try {
-        const timeTakenSecs = (totalExamTime || 0) - (timeRemaining || 0);
-
-        // Execute as a secure Database Transaction
-        const result = await prisma.$transaction(async (tx) => {
-            
-            // 1. Fetch Master Questions from DB to securely check correct answers
-            const questionIds = attempts.map(a => a.questionId).filter(Boolean);
-            const masterQuestions = await tx.question.findMany({
-                where: { id: { in: questionIds } }
-            });
-
-            // Create a lookup map for performance
-            const questionMap = {};
-            masterQuestions.forEach(q => { questionMap[q.id] = q; });
-
-            let correctCount = 0;
-            const gradedAttempts = [];
-            const telemetryRows = [];
-
-            // 2. Grade each attempt
-            attempts.forEach(attempt => {
-                const masterQ = questionMap[attempt.questionId];
-                
-                // Fallback for custom/AI questions not currently in the SQL bank
-                const isCorrect = masterQ ? (masterQ.correctAnswer === attempt.userAnswer) : attempt.isCorrect;
-                const difficulty = masterQ ? masterQ.difficultyTheta : 0.0;
-                
-                if (isCorrect) correctCount++;
-
-                gradedAttempts.push({ isCorrect, questionDifficulty: difficulty });
-
-                telemetryRows.push({
-                    userId: userId,
-                    questionId: attempt.questionId || 'dynamic-ai-id',
-                    subject: attempt.subject || 'Blended',
-                    subtopic: attempt.subtopic || 'General',
-                    isCorrect: isCorrect,
-                    confidenceLevel: attempt.confidence?.toUpperCase() || 'LOW',
-                    timeSpentMs: (attempt.timeSpentSecs || 0) * 1000
-                });
-            });
-
-            // 3. Create the Exam Session Record
-            const sessionMode = config?.mode === 'blended' ? 'SIMULATION' : 'ADAPTIVE_QUIZ';
-            const verdict = (correctCount / attempts.length) >= 0.70 ? 'PASSED' : 'FAILED';
-            
-            const examSession = await tx.examSession.create({
-                data: {
-                    userId: userId,
-                    mode: sessionMode,
-                    targetSubject: config?.subject || 'Blended',
-                    score: correctCount,
-                    totalQuestions: attempts.length,
-                    timeTakenSecs: timeTakenSecs > 0 ? timeTakenSecs : 0,
-                    verdict: verdict
-                }
-            });
-
-            // 4. Insert all granular question attempts attached to this session
-            const finalTelemetry = telemetryRows.map(row => ({ ...row, sessionId: examSession.id }));
-            await tx.questionAttempt.createMany({ data: finalTelemetry });
-
-            // 5. Calculate new IRT Theta and Upsert User Profile
-            const userProfile = await tx.user.findUnique({ where: { id: userId } }) || { thetaRating: 0.0 };
-            const newTheta = calculateUpdatedTheta(userProfile.thetaRating, gradedAttempts);
-
-            const updatedUser = await tx.user.upsert({
-                where: { id: userId },
-                update: { thetaRating: newTheta, lastActive: new Date() },
-                create: { id: userId, thetaRating: newTheta }
-            });
-
-            return { score: correctCount, total: attempts.length, newTheta: updatedUser.thetaRating };
+        const { attempts, config, timeRemaining, totalExamTime } = req.body;
+        
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const currentTheta = user?.thetaRating || 0.0;
+        
+        const questionIds = attempts.map(a => a.questionId).filter(id => id !== undefined);
+        const masterQuestions = await prisma.question.findMany({
+            where: { id: { in: questionIds } }
         });
 
-        // 6. Return strictly formatted data expected by the frontend React UI
+        // Map questions and inject a backwards-compatible alias for irtMath.js
+        const qMap = {};
+        masterQuestions.forEach(q => {
+            qMap[q.id] = { ...q, difficultyTheta: q.difficulty };
+        });
+
+        let correctCount = 0;
+        let parsedAttempts = [];
+        let subjectPerformance = {}; 
+
+        for (let attempt of attempts) {
+            if (!attempt.questionId) continue;
+
+            const masterQ = qMap[attempt.questionId];
+            
+            const isCorrect = masterQ ? (masterQ.answer === attempt.userAnswer) : attempt.isCorrect;
+
+            if (isCorrect) correctCount++;
+            
+            const sub = masterQ?.subject || attempt.subject || 'General';
+            if (!subjectPerformance[sub]) subjectPerformance[sub] = { correct: 0, total: 0 };
+            subjectPerformance[sub].total++;
+            if (isCorrect) subjectPerformance[sub].correct++;
+
+            parsedAttempts.push({
+                userId: req.user.id,
+                questionId: attempt.questionId,
+                subject: sub,
+                subtopic: masterQ?.subtopic || attempt.subtopic || 'General',
+                isCorrect: isCorrect,
+                confidenceLevel: attempt.confidence || 'LOW',
+                timeSpentMs: (attempt.timeSpentSecs || 0) * 1000
+            });
+        }
+
+        const scorePercentage = parsedAttempts.length > 0 ? Math.round((correctCount / parsedAttempts.length) * 100) : 0;
+        let verdict = 'FAILED';
+        let verdictColor = 'text-reeRed';
+        if (scorePercentage >= 70) {
+            verdict = 'PASSED';
+            verdictColor = 'text-reeGreen';
+        } else if (scorePercentage >= 50) {
+            verdict = 'CONDITIONAL PASS';
+            verdictColor = 'text-reeAmber';
+        }
+
+        const timeTakenSecs = totalExamTime - timeRemaining;
+        const newTheta = calculateUpdatedTheta(currentTheta, parsedAttempts, qMap);
+
+        const session = await prisma.examSession.create({
+            data: {
+                userId: req.user.id,
+                mode: config?.mode || 'custom',
+                targetSubject: config?.subject || 'Blended',
+                score: scorePercentage,
+                totalQuestions: parsedAttempts.length,
+                timeTakenSecs: timeTakenSecs,
+                verdict: verdict,
+                config: config || {}
+            }
+        });
+
+        if (parsedAttempts.length > 0) {
+            await prisma.questionAttempt.createMany({
+                data: parsedAttempts.map(a => ({ ...a, sessionId: session.id }))
+            });
+        }
+
+        await prisma.user.update({
+            where: { id: req.user.id },
+            data: { thetaRating: newTheta, lastActive: new Date() }
+        });
+
         res.status(200).json({
             success: true,
             diagnostics: { 
-                score: result.score, 
-                total: result.total 
+                overallScore: scorePercentage,
+                correctCount: correctCount,
+                totalCount: parsedAttempts.length,
+                verdict: verdict,
+                verdictColor: verdictColor,
+                timeTaken: timeTakenSecs,
+                subjTracker: subjectPerformance,
+                timeSinks: parsedAttempts.filter(a => a.timeSpentMs > 180000).map(a => ({ idx: attempts.findIndex(at => at.questionId === a.questionId), time: Math.floor(a.timeSpentMs / 1000) })),
+                blindSpots: parsedAttempts.filter(a => a.confidenceLevel === 'HIGH' && !a.isCorrect).map(a => attempts.findIndex(at => at.questionId === a.questionId))
             },
             newStats: { 
-                irt: { theta: result.newTheta },
+                irt: { theta: newTheta },
                 cloudTimestamp: Date.now() 
             }
         });
@@ -148,7 +141,9 @@ router.post('/submit', async (req, res) => {
     }
 });
 
+// ============================================================================
 // 3. FETCH EXAM LEDGER HISTORY
+// ============================================================================
 router.get('/history', authMiddleware, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 20;

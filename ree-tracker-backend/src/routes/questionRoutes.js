@@ -2,15 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const prisma = require('../config/db'); // Centralized DB Connection
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-// 0. FETCH GLOBAL QUESTION STATS (Must be above the '/' route)
+// 0. FETCH GLOBAL QUESTION STATS
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
         const total = await prisma.question.count({ where: { isFlagged: false } });
@@ -30,29 +24,27 @@ router.get('/stats', authMiddleware, async (req, res) => {
 // 1. FETCH QUESTIONS (Populates the Library)
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const { subject, subtopic, limit = 50 } = req.query;
+        const { subject, limit = 50 } = req.query;
+        
+        // FIXED: Added 'answer' to the SELECT statement
+        const questions = await prisma.$queryRawUnsafe(`
+            SELECT id, subject, subtopic, text, options, answer, "fixedExplanation", difficulty, source, type
+            FROM "Question"
+            WHERE "isFlagged" = false ${subject && subject !== 'All' ? `AND subject = '${subject}'` : ''}
+            ORDER BY RANDOM()
+            LIMIT ${parseInt(limit)};
+        `);
 
-        const whereClause = {};
-        if (subject && subject !== 'All') whereClause.subject = subject;
-        if (subtopic && subtopic !== 'All') whereClause.subtopic = subtopic;
-
-        const questions = await prisma.question.findMany({
-            where: whereClause,
-            take: parseInt(limit),
-            orderBy: { createdAt: 'desc' }
-        });
-
-        return res.status(200).json({ items: questions });
+        return res.status(200).json({ success: true, items: questions });
     } catch (error) {
         console.error("Library Fetch Error:", error);
         return res.status(500).json({ error: 'Failed to fetch question bank.' });
     }
 });
 
-// 2. ADD A NEW QUESTION (Manual Entry for Admins)
+// 2. ADD A NEW QUESTION
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        // Verify Admin Status
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if (user?.role !== 'ADMIN') return res.status(403).json({ error: 'Admin clearance required.' });
 
@@ -61,11 +53,13 @@ router.post('/', authMiddleware, async (req, res) => {
             data: {
                 subject: data.subject || 'Unknown',
                 subtopic: data.subtopic || 'General',
-                questionText: data.question || data.questionText || '',
+                text: data.text || data.question || data.questionText || '',
                 options: data.options || [],
-                correctAnswer: data.answer || data.correctAnswer || '',
-                difficultyTheta: parseFloat(data.difficultyTheta) || 0.0,
-                cachedExplanation: data.cachedExplanation || null
+                answer: data.answer || data.correctAnswer || '',
+                difficulty: parseFloat(data.difficulty || data.difficultyTheta) || 0.0,
+                fixedExplanation: data.fixedExplanation || data.cachedExplanation || null,
+                source: data.source || 'manual',
+                type: data.type || 'conceptual'
             }
         });
 
@@ -75,14 +69,54 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
-// FETCH ACTIVE RECALL REVIEW QUESTIONS
+// 3. UPDATE AN EXISTING QUESTION
+router.put('/:id', authMiddleware, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if (user?.role !== 'ADMIN') return res.status(403).json({ error: 'Admin clearance required.' });
+
+        const data = req.body;
+        await prisma.question.update({
+            where: { id: req.params.id },
+            data: {
+                subject: data.subject,
+                subtopic: data.subtopic,
+                text: data.text || data.question || data.questionText,
+                options: data.options,
+                answer: data.answer || data.correctAnswer,
+                difficulty: parseFloat(data.difficulty || data.difficultyTheta),
+                fixedExplanation: data.fixedExplanation || data.cachedExplanation
+            }
+        });
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ error: 'Failed to update question.' });
+    }
+});
+
+// 4. UPDATE CACHED EXPLANATION (AI Generated)
+router.put('/:id/cache', authMiddleware, async (req, res) => {
+    try {
+        const { cachedExplanation, fixedExplanation } = req.body;
+        await prisma.question.update({
+            where: { id: req.params.id },
+            data: { fixedExplanation: fixedExplanation || cachedExplanation }
+        });
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ error: 'Failed to update explanation.' });
+    }
+});
+
+// 5. FETCH ACTIVE RECALL REVIEW QUESTIONS
 router.post('/review', authMiddleware, async (req, res) => {
     try {
         const { subject, limit = 20 } = req.body;
         
-        // Randomly select questions for the flashcard/active recall session
+        // FIXED: Added 'answer' to the SELECT statement
         const questions = await prisma.$queryRawUnsafe(`
-            SELECT id, subject, subtopic, "questionText" as question, options, "cachedExplanation", "difficultyTheta"
+            SELECT id, subject, subtopic, text, options, answer, "fixedExplanation", difficulty, source, type
             FROM "Question"
             WHERE "isFlagged" = false ${subject && subject !== 'All' ? `AND subject = '${subject}'` : ''}
             ORDER BY RANDOM()
@@ -95,7 +129,7 @@ router.post('/review', authMiddleware, async (req, res) => {
     }
 });
 
-// Flag a question anomaly
+// 6. FLAG A QUESTION ANOMALY
 router.patch('/:id/flag', authMiddleware, async (req, res) => {
     try {
         await prisma.question.update({ where: { id: req.params.id }, data: { isFlagged: true } });
