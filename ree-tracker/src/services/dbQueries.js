@@ -8,7 +8,8 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
     
-    const token = await user.getIdToken();
+    // 🚨 ROOT CAUSE FIX: Passing 'true' forces Firebase to refresh expired tokens!
+    const token = await user.getIdToken(true); 
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
     
     const options = {
@@ -37,16 +38,18 @@ const normalizeQuestions = (data) => {
     let items = Array.isArray(data) ? data : (data?.items || []);
     return items.map(q => ({
         ...q,
-        // Ensures React can find the text whether the backend sends 'question' or 'questionText'
-        question: q.question || q.questionText || '[Question Text Missing]',
-        explanation: q.explanation || q.cachedExplanation || null
+        question: q.text || q.questionText || q.question || '[Question Text Missing]',
+        explanation: q.fixedExplanation || q.cachedExplanation || q.explanation || null,
+        text: q.text || q.questionText || q.question || '[Question Text Missing]',
+        answer: q.answer || q.correctAnswer || '',
+        fixedExplanation: q.fixedExplanation || q.cachedExplanation || q.explanation || null
     }));
 };
 
 // ----------------------------------------------------------------------
 // 1. Analytics Profile & Telemetry
 // ----------------------------------------------------------------------
-export const getAnalyticsProfile = async (uid) => apiRequest('/api/user/profile');
+export const getAnalyticsProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
 export const logSRSRecord = async (uid, questionId, payload) => apiRequest(`/api/user/srs/${questionId}`, 'POST', payload);
 export const updateAnalyticsProfile = async () => true; 
@@ -59,20 +62,24 @@ export const saveQuestionToBank = async (questionObject) => {
     return result.id;
 };
 
-export const fetchQuarantineQueue = async () => apiRequest('/api/questions/quarantine');
+export const fetchQuarantineQueue = async () => {
+    const data = await apiRequest('/api/questions/quarantine');
+    return normalizeQuestions(data);
+};
+
 export const approveQuarantinedQuestion = async (id, subject, subtopic) => apiRequest(`/api/questions/quarantine/${id}/approve`, 'PUT', { subject, subtopic });
 export const fetchServerStats = async () => apiRequest('/api/questions/stats');
 
 export const fetchPaginatedQuestions = async (lastVisibleDoc = null, filterSubject = 'All', filterSubtopic = 'All', limitCount = 50) => {
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic, limit: limitCount });
     const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
-    // Intercept and normalize the data before handing it to the Library
     return { items: normalizeQuestions(data) };
 };
 
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
-    const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
-    return apiRequest(`/api/questions/flagged?${queryParams.toString()}`);
+    const queryParams = newSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
+    const data = await apiRequest(`/api/questions/flagged?${queryParams.toString()}`);
+    return normalizeQuestions(data);
 };
 
 export const deleteQuestionFromBank = async (id) => apiRequest(`/api/questions/${id}`, 'DELETE');
@@ -88,7 +95,6 @@ export const updateQuestionCache = async (id, explanation) => {
 
 export const fetchReviewQuestions = async (mode, subject, subtopic, blindSpots) => {
     const data = await apiRequest('/api/questions/review', 'POST', { mode, subject, subtopic, blindSpots, limit: 20 });
-    // Intercept and normalize data for Active Recall and Board Simulator
     return normalizeQuestions(data);
 };
 
@@ -112,7 +118,7 @@ export const migrateSimulationRecords = async () => 0;
 // ----------------------------------------------------------------------
 // 5. The Social Matrix (Leaderboards)
 // ----------------------------------------------------------------------
-export const syncLeaderboardProfile = async () => apiRequest('/api/user/profile');
+export const syncLeaderboardProfile = async () => true; // Handled dynamically in backend now
 export const fetchGlobalLeaderboard = async (limitCount = 100) => {
     const data = await apiRequest(`/api/leaderboard?limit=${limitCount}`);
     return data?.leaderboard || data?.items || data || [];

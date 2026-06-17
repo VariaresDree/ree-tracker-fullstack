@@ -11,7 +11,7 @@ import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
 import { generateBoardReadinessReport } from '../services/geminiApi';
 import { generateDiagnosticReport } from '../utils/pdfEngine';
-import { syncLeaderboardProfile, apiRequest } from '../services/dbQueries'; 
+import { apiRequest } from '../services/dbQueries'; 
 import toast from 'react-hot-toast';
 
 export default function Dashboard() {
@@ -30,7 +30,6 @@ export default function Dashboard() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
-  // FIXED: Replaced unauthorized fetch with secure apiRequest wrapper
   useEffect(() => {
     const fetchSQLAnalytics = async () => {
         if (!currentUser?.uid) return;
@@ -49,7 +48,6 @@ export default function Dashboard() {
     fetchSQLAnalytics();
   }, [currentUser]);
 
-  // FIXED: Map the dynamic daily tallies fetched from SQL directly into the active state
   const activeStats = useMemo(() => {
       if (!stats && !sqlData) return null;
       if (!sqlData) return stats;
@@ -71,20 +69,16 @@ export default function Dashboard() {
           irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating || stats?.irt?.theta || 0 },
           matrix: sqlData.matrix || stats?.matrix,
           microTopics: mappedMicroTopics,
-          // Syncs the Dashboard Quotas dynamically
-          dailyMath: sqlData.profile?.dailyMath || 0,
-          dailyESAS: sqlData.profile?.dailyESAS || 0,
-          dailyEE: sqlData.profile?.dailyEE || 0,
+          
+          // 🚨 RESTORED ZUSTAND LOCAL COUPLING: Pulls accurate local daily counts
+          dailyMath: stats?.dailyMath || 0,
+          dailyESAS: stats?.dailyESAS || 0,
+          dailyEE: stats?.dailyEE || 0,
+          
           examDate: sqlData.profile?.examDate || stats?.examDate,
           dailyTarget: sqlData.profile?.dailyTarget || stats?.dailyTarget
       };
   }, [stats, sqlData]);
-
-  useEffect(() => {
-    if (currentUser && activeStats) {
-        syncLeaderboardProfile().catch(err => console.error("Leaderboard sync failed:", err));
-    }
-  }, [currentUser, activeStats]);
 
   const currentTheta = activeStats?.irt?.theta || 0;
   const readinessScore = useMemo(() => {
@@ -225,13 +219,13 @@ export default function Dashboard() {
             </div>
         </div>
 
-        {/* FIXED: Added min-h-[300px] to containers to solve Recharts width/height warnings */}
+        {/* REQUIRED WRAPPERS: min-h-[300px] and min-w-0 eliminate Recharts height/width runtime crashes */}
         <div className="flex flex-col gap-6 h-full min-h-0">
             <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-[300px] min-w-0 overflow-hidden">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0">
                     <span>📈</span> 30-Day Readiness Velocity (θ)
                 </h3>
-                <div className="flex-1 w-full min-h-[200px] min-w-0">
+                <div className="flex-1 w-full h-full min-h-[200px] min-w-0">
                     <ThetaVelocityChart history={activeStats?.thetaHistory} />
                 </div>
             </div>
@@ -244,7 +238,7 @@ export default function Dashboard() {
             </div>
         </div>
 
-        <div className="flex flex-col h-full min-h-[350px] xl:col-span-1 lg:col-span-2">
+        <div className="flex flex-col h-full min-h-[350px] min-w-0 xl:col-span-1 lg:col-span-2">
             <HeatmapChart stats={activeStats} />
         </div>
 
