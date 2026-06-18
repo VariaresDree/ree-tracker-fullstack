@@ -17,7 +17,10 @@ export default function VaultDataGrid({
   editingQ, setEditingQ, handleUpdateSubmit,
   isAdmin 
 }) {
-  const dynamicTOS = useStore((state) => state.dynamicTOS);
+  
+  // 🚀 Replaced static import with dynamicTOS from your store
+  const { dynamicTOS } = useStore();
+  
   const [showOnlyFlagged, setShowOnlyFlagged] = useState(false);
   const [adminFlaggedQs, setAdminFlaggedQs] = useState([]);
   const [isFetchingFlagged, setIsFetchingFlagged] = useState(false);
@@ -26,11 +29,12 @@ export default function VaultDataGrid({
   const parentRef = useRef(null);
 
   const availableSubtopics = useMemo(() => {
+    if (!dynamicTOS) return [];
     if (filterSubject === 'All') {
         return [...new Set(Object.values(dynamicTOS).flat())].sort();
     }
     return dynamicTOS[filterSubject] ? [...dynamicTOS[filterSubject]].sort() : [];
-  }, [filterSubject, dynamicTOS]);
+  }, [filterSubject, dynamicTOS]); 
 
   const editDistractors = useMemo(() => {
     if (!editingQ || !editingQ.options) return ['', '', ''];
@@ -104,18 +108,19 @@ export default function VaultDataGrid({
           className="flex-1 bg-bg border border-border2 text-textMain px-4 py-2.5 rounded-lg text-sm font-bold outline-none focus:border-reeBlue transition-colors cursor-pointer"
         >
           <option value="All">All Subjects</option>
-          <option value="Mathematics">Mathematics</option>
-          <option value="ESAS">ESAS</option>
-          <option value="EE">Electrical Engineering</option>
+          {dynamicTOS && Object.keys(dynamicTOS).map(subj => (
+            <option key={subj} value={subj}>{subj}</option>
+          ))}
         </select>
         
         <select 
           value={filterSubtopic}
           onChange={(e) => setFilterSubtopic(e.target.value)}
-          className="flex-1 bg-bg border border-border2 text-textMain px-4 py-2.5 rounded-lg text-sm outline-none focus:border-reeBlue transition-colors cursor-pointer"
+          disabled={filterSubject === 'All'}
+          className="flex-1 bg-bg border border-border2 text-textMain px-4 py-2.5 rounded-lg text-sm outline-none focus:border-reeBlue transition-colors cursor-pointer disabled:opacity-50"
         >
           <option value="All">All Subtopics</option>
-          {availableSubtopics.map(sub => (
+          {filterSubject !== 'All' && (dynamicTOS?.[filterSubject] || []).map(sub => (
             <option key={sub} value={sub}>{sub}</option>
           ))}
         </select>
@@ -290,19 +295,23 @@ export default function VaultDataGrid({
                       onChange={e => setEditingQ({...editingQ, subject: e.target.value})} 
                       className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeBlue cursor-pointer transition-colors shadow-inner"
                     >
-                      <option value="EE">EE</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="ESAS">ESAS</option>
+                      {dynamicTOS && Object.keys(dynamicTOS).map(subj => (
+                          <option key={subj} value={subj}>{subj}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[0.65rem] font-bold text-muted uppercase tracking-widest">Target Matrix Topic</label>
-                    <input 
+                    <select 
                       value={editingQ.subtopic || ''} 
                       onChange={e => setEditingQ({...editingQ, subtopic: e.target.value})} 
-                      className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeBlue transition-colors shadow-inner" 
-                      placeholder="e.g. Electromagnetism" 
-                    />
+                      className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeBlue cursor-pointer transition-colors shadow-inner"
+                    >
+                      <option value="">Select Subtopic...</option>
+                      {dynamicTOS && dynamicTOS[editingQ.subject || 'EE']?.map(topic => (
+                          <option key={topic} value={topic}>{topic}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

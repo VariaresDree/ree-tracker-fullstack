@@ -8,10 +8,16 @@ import {
   signOut,
   updateProfile
 } from 'firebase/auth';
-import { getAnalyticsProfile } from '../services/dbQueries'; // Internal network fetch handler
+// 🚀 NEW: Import the TOS fetch function
+import { getAnalyticsProfile, fetchDynamicTOS } from '../services/dbQueries'; 
+import { useStore } from '../store/useStore';
+
+const MASTER_ADMIN_EMAILS = [
+    'admin@example.com',
+    'donreydenxprey@gmail.com' 
+];
 
 const AuthContext = createContext(null);
-
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
@@ -25,21 +31,42 @@ export const AuthProvider = ({ children }) => {
       
       if (user) {
         try {
-          // Queries PostgreSQL record properties to confirm permissions safely
-          const profileData = await getAnalyticsProfile(user.uid);
-          const userRole = profileData?.role || profileData?.user?.role;
+          const profileResponse = await getAnalyticsProfile(user.uid);
+          const dbRole = profileResponse?.data?.profile?.role;
           
-          if (userRole === 'ADMIN') {
-            setIsAdmin(true);
-          } else {
-            setIsAdmin(false);
+          const isUserAdmin = MASTER_ADMIN_EMAILS.includes(user.email) || dbRole === 'ADMIN' || dbRole === 'admin';
+          
+          setIsAdmin(isUserAdmin);
+          
+          if (useStore.getState) {
+              useStore.getState().setIsAdmin(isUserAdmin);
           }
+
+          // 🚀 FETCH THE NEWEST TOS FROM THE DATABASE
+          try {
+              const cloudTOS = await fetchDynamicTOS();
+              if (cloudTOS && useStore.getState) {
+                  useStore.getState().setDynamicTOS(cloudTOS);
+              }
+          } catch (tosError) {
+              console.warn("Failed to fetch cloud TOS, maintaining local cached state.");
+          }
+
         } catch (err) {
-          console.error("Clearance authorization query tracking failure:", err);
-          setIsAdmin(false);
+          console.warn("Clearance authorization query tracking failure. Defaulting to whitelist check.", err);
+          
+          const isFallbackAdmin = MASTER_ADMIN_EMAILS.includes(user.email);
+          setIsAdmin(isFallbackAdmin);
+          
+          if (useStore.getState) {
+              useStore.getState().setIsAdmin(isFallbackAdmin);
+          }
         }
       } else {
         setIsAdmin(false);
+        if (useStore.getState) {
+            useStore.getState().setIsAdmin(false);
+        }
       }
       
       setLoading(false);
@@ -52,11 +79,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (email, password, displayName) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    
-    if (displayName) {
-      await updateProfile(userCredential.user, { displayName });
-    }
-    
+    if (displayName) await updateProfile(userCredential.user, { displayName });
     return userCredential;
   };
 
@@ -65,6 +88,7 @@ export const AuthProvider = ({ children }) => {
     await signOut(auth);
     setCurrentUser(null);
     setIsAdmin(false);
+    if (useStore.getState) useStore.getState().setIsAdmin(false);
     setLoading(false);
   };
 

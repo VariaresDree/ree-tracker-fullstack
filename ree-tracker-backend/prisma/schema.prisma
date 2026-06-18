@@ -1,7 +1,8 @@
 // ree-tracker-backend/prisma/schema.prisma
+
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
+  // Removed deprecated "driverAdapters" preview feature
 }
 
 datasource db {
@@ -24,7 +25,7 @@ model User {
   lastActive       DateTime @default(now())
   createdAt        DateTime @default(now())
   
-  // Legacy User Data Fields
+  // Legacy User Data Fields (Kept intact so the app doesn't crash)
   activityCalendar Json?
   thetaHistory     Json?
   matrix           Json?
@@ -35,9 +36,15 @@ model User {
   examDate         String?
   dailyTarget      Int?     @default(50)
 
+  // V1 Relations
   sessions         ExamSession[]
   attempts         QuestionAttempt[]
   bookmarks        Bookmark[]        
+
+  // --- V2 RELATIONAL ARRAYS (Fixes P1012) ---
+  topicPerformances UserTopicPerformance[]
+  thetaHistories    ThetaHistory[]
+  activityLogs      ActivityLog[]
 }
 
 // 3. 'questions' collection (Exact Firebase Names Restored)
@@ -140,4 +147,39 @@ model Battle {
   timeLimitSecs Int
   status        String   @default("WAITING") 
   createdAt     DateTime @default(now())
+}
+
+model UserTopicPerformance {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     String   // e.g., "Mathematics", "ESAS", "EE Professional"
+  topic       String   // e.g., "AC Circuits", "Symmetrical Components"
+  attempts    Int      @default(0)
+  correct     Int      @default(0)
+  totalTime   Int      @default(0) // Stored in seconds
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, topic])
+  @@index([userId, subject])
+}
+
+model ThetaHistory {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theta       Float    // Computed capability value
+  recordedAt  DateTime @default(now())
+
+  @@index([userId, recordedAt])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        String   // Format: YYYY-MM-DD
+  count       Int      @default(1)
+
+  @@unique([userId, date])
 }

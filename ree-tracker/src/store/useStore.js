@@ -1,14 +1,33 @@
 // src/store/useStore.js
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { get, set, del } from 'idb-keyval';
 import { auth } from '../config/firebaseDb';
+import { TOS as fallbackTOS } from '../config/constants';
+
+// HIGH-PERFORMANCE ASYNC STORAGE ADAPTER
+const idbStorage = {
+  getItem: async (name) => {
+    const value = await get(name);
+    return value || null;
+  },
+  setItem: async (name, value) => await set(name, value),
+  removeItem: async (name) => await del(name),
+};
 
 export const useStore = create(
   persist(
-    (set, get) => ({
-      // ==========================================
-      // 1. TELEMETRY & STATS SLICE
-      // ==========================================
+    (set, getStore) => ({
+      
+      // 1. MASTER ADMIN STATE
+      isAdmin: false,
+      setIsAdmin: (status) => set({ isAdmin: status }),
+
+      // 🚀 RESTORED: DYNAMIC TOS STATE
+      dynamicTOS: fallbackTOS,
+      setDynamicTOS: (newTOS) => set({ dynamicTOS: newTOS }),
+
+      // 2. TELEMETRY & STATS SLICE
       stats: null,
       syncStatus: 'synced', 
       syncQueue: [],        
@@ -34,7 +53,7 @@ export const useStore = create(
       },
 
       flushQueueToCloud: async () => {
-        const { syncQueue, syncStatus } = get();
+        const { syncQueue, syncStatus } = getStore();
         if (syncQueue.length === 0 || syncStatus === 'syncing') return;
 
         if (!navigator.onLine) {
@@ -58,9 +77,9 @@ export const useStore = create(
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({ 
-                    sessionId: get().currentSessionId || (crypto.randomUUID ? crypto.randomUUID() : 'temp-session'),
-                    mode: get().currentSessionMode || 'ADAPTIVE_QUIZ',
-                    targetSubject: get().currentSubject || 'BLENDED',
+                    sessionId: getStore().currentSessionId || (crypto.randomUUID ? crypto.randomUUID() : 'temp-session'),
+                    mode: getStore().currentSessionMode || 'ADAPTIVE_QUIZ',
+                    targetSubject: getStore().currentSubject || 'BLENDED',
                     attempts: syncQueue 
                 })
             });
@@ -73,7 +92,7 @@ export const useStore = create(
                 syncQueue: [],
                 syncStatus: 'synced',
                 stats: {
-                    ...get().stats,
+                    ...getStore().stats,
                     thetaRating: serverResult.updatedTheta,
                     cloudTimestamp: Date.now()
                 }
@@ -84,20 +103,11 @@ export const useStore = create(
         }
       },
 
-      // CRITICAL FIX: Ensure Daily Quotas can be reset locally by the UI
       resetDailyQuotas: () => set((state) => {
         if (!state.stats) return state;
-        return {
-            stats: {
-                ...state.stats,
-                dailyMath: 0,
-                dailyESAS: 0,
-                dailyEE: 0
-            }
-        };
+        return { stats: { ...state.stats, dailyMath: 0, dailyESAS: 0, dailyEE: 0 } };
       }),
 
-      // CRITICAL FIX: Ping PostgreSQL to purge all analytic history securely
       purgeAnalytics: async () => {
         try {
             const currentUser = auth.currentUser;
@@ -115,89 +125,33 @@ export const useStore = create(
         }
       },
 
-      // ==========================================
-      // 2. POMODORO PROTOCOL SLICE
-      // ==========================================
-      pomodoro: {
-        workDuration: 25,
-        breakDuration: 5,
-        timeLeft: 25 * 60,
-        isRunning: false,
-        isWork: true,
-      },
-      
-      updatePomodoro: (config) => set((state) => ({
-        pomodoro: { ...state.pomodoro, ...config }
-      })),
-      
-      togglePomodoro: () => set((state) => ({
-        pomodoro: { ...state.pomodoro, isRunning: !state.pomodoro.isRunning }
-      })),
-      
+      // 3. POMODORO PROTOCOL SLICE
+      pomodoro: { workDuration: 25, breakDuration: 5, timeLeft: 25 * 60, isRunning: false, isWork: true },
+      updatePomodoro: (config) => set((state) => ({ pomodoro: { ...state.pomodoro, ...config } })),
+      togglePomodoro: () => set((state) => ({ pomodoro: { ...state.pomodoro, isRunning: !state.pomodoro.isRunning } })),
       resetPomodoro: () => set((state) => ({
-        pomodoro: {
-          ...state.pomodoro,
-          isRunning: false,
-          timeLeft: state.pomodoro.isWork ? state.pomodoro.workDuration * 60 : state.pomodoro.breakDuration * 60
-        }
+        pomodoro: { ...state.pomodoro, isRunning: false, timeLeft: state.pomodoro.isWork ? state.pomodoro.workDuration * 60 : state.pomodoro.breakDuration * 60 }
       })),
-      
       tickPomodoro: () => set((state) => {
         const p = state.pomodoro;
         if (!p.isRunning || p.timeLeft <= 0) return state;
         return { pomodoro: { ...p, timeLeft: p.timeLeft - 1 } };
       }),
-      
       switchPomodoroMode: () => set((state) => {
         const p = state.pomodoro;
         const nextMode = !p.isWork;
         return {
-          pomodoro: {
-            ...p,
-            isWork: nextMode,
-            timeLeft: nextMode ? p.workDuration * 60 : p.breakDuration * 60,
-            isRunning: false
-          }
+          pomodoro: { ...p, isWork: nextMode, timeLeft: nextMode ? p.workDuration * 60 : p.breakDuration * 60, isRunning: false }
         };
       }),
 
-      // ==========================================
-      // 3. UI & UX STATE SLICE 
-      // ==========================================
-      dynamicTOS: {
-        'Mathematics': [
-          'Algebra & Complex Numbers', 'Trigonometry', 'Analytic Geometry', 
-          'Probability & Statistics', 'Calculus 1', 'Calculus 2', 
-          'Engineering Data Analytics', 'Differential Equations', 'Numerical Methods & Analysis'
-        ],
-        'ESAS': [
-          'Chemistry for Engineers', 'Physics for Engineers', 'Computer Programming', 
-          'Microprocessor Systems and Logic Circuits', 'Material Science', 
-          'Environmental Science & Engineering', 'Fluid Mechanics', 
-          'Fundamentals of Deformable Bodies', 'Basic Thermodynamics', 
-          'EE Laws, Codes, & Professional Ethics', 'Engineering Economics', 
-          'Technopreneurship & Project Management'
-        ],
-        'EE': [
-          'Electromagnetism', 'Electric Circuits 1', 'Electric Circuits 2', 
-          'Fundamentals of Electronic Communications', 'Electronics 1 and 2', 
-          'Electrical Apparatus & Devices', 'Industrial Electronics', 
-          'Electrical Machinery 1', 'Electrical Machinery 2', 'Instrumentation & Control', 
-          'Feedback Control Systems', 'Electrical System & Illumination Design', 
-          'Power Plant Engineering', 'Distribution Systems & Substation Design', 
-          'Power System Analysis'
-        ]
-      },
-
+      // 4. UI & UX STATE SLICE 
       isSidebarOpen: false, 
       isSidebarCollapsed: false, 
-      
       toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
       setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
-      
       toggleSidebarCollapse: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
       setSidebarCollapsed: (isCollapsed) => set({ isSidebarCollapsed: isCollapsed }),
-
       theme: localStorage.getItem('ree-theme') || 'dark',
       setTheme: (newTheme) => {
         localStorage.setItem('ree-theme', newTheme);
@@ -211,11 +165,14 @@ export const useStore = create(
     }),
     {
       name: 'ree-tracker-secure-storage',
+      storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         syncQueue: state.syncQueue,
         stats: state.stats,
         pomodoro: state.pomodoro,
-        theme: state.theme
+        theme: state.theme,
+        isAdmin: state.isAdmin,
+        dynamicTOS: state.dynamicTOS // 🚀 CRITICAL: Tells the store to remember your changes
       })
     }
   )

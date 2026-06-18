@@ -15,8 +15,10 @@ import VaultDataGrid from '../features/library/VaultDataGrid';
 
 export default function Library() {
   const isOnline = useNetworkStatus();
-  const { stats } = useStore();
-  const isAdmin = stats?.role === 'admin';
+  
+  // 🚀 FIXED: Grab the flawless boolean directly from the store.
+  // No more checking stats?.role which caused the race condition lockout!
+  const isAdmin = useStore((state) => state.isAdmin);
 
   // Global filters mapped at the page level so all sub-hooks can react
   const [filterSubject, setFilterSubject] = useState('All');
@@ -76,7 +78,6 @@ export default function Library() {
             manualQ={manualQ} setManualQ={setManualQ}
             genSubject={genSubject} setGenSubject={setGenSubject}
             genSubtopic={genSubtopic} setGenSubtopic={setGenSubtopic}
-            // Execute manual submit passing the target states directly
             handleManualSubmit={(e) => handleManualSubmit(e, genSubject, genSubtopic)}
           />
         ) : (
@@ -87,7 +88,7 @@ export default function Library() {
       ) : (
         <VaultDataGrid 
           questions={questions} 
-          filteredQuestions={questions} // Filtering is now completely handled server-side!
+          filteredQuestions={questions}
           filterSubject={filterSubject} setFilterSubject={setFilterSubject}
           filterSubtopic={filterSubtopic} setFilterSubtopic={setFilterSubtopic}
           handleDelete={handleDelete}

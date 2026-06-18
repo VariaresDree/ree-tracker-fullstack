@@ -3,7 +3,6 @@ const { PrismaClient } = require('@prisma/client');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
-// Initialize Prisma with the PostgreSQL adapter
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
@@ -11,34 +10,30 @@ const prisma = new PrismaClient({ adapter });
 exports.getDashboardData = async (req, res) => {
     // The authMiddleware guarantees req.user exists and is verified via Firebase JWT
     const userId = req.user.id; 
+    const userEmail = req.user.email || 'unknown@example.com';
 
     try {
-        // 1. Fetch the user's root profile (Global Streak, IRT Theta)
-        const userProfile = await prisma.user.findUnique({
-            where: { id: userId }
+        // 🚀 FIXED: Using UPSERT guarantees we fetch your real Supabase row, 
+        // including your manual 'ADMIN' role, even if you are a brand new user.
+        const userProfile = await prisma.user.upsert({
+            where: { id: userId },
+            update: {}, // Do nothing if exists
+            create: {
+                id: userId,
+                email: userEmail,
+                role: 'USER', // Default enum, but will fetch 'ADMIN' if you manually changed it
+                thetaRating: 0.0,
+                globalStreak: 0
+            }
         });
 
-        if (!userProfile) {
-            // New user case: Return an empty shell
-            return res.status(200).json({
-                success: true,
-                data: {
-                    profile: { thetaRating: 0.0, globalStreak: 0 },
-                    matrix: { hc: 0, hw: 0, lc: 0, lw: 0 },
-                    microTopics: {}
-                }
-            });
-        }
-
         // 2. Aggregate the Quadrant Matrix (High Confidence vs Correctness)
-        // Grouping by confidence level and correctness simultaneously
         const matrixRaw = await prisma.questionAttempt.groupBy({
             by: ['confidenceLevel', 'isCorrect'],
             where: { userId: userId },
             _count: { id: true }
         });
 
-        // Initialize empty matrix
         const matrix = { hc: 0, hw: 0, lc: 0, lw: 0 };
         
         matrixRaw.forEach(group => {
@@ -56,7 +51,6 @@ exports.getDashboardData = async (req, res) => {
             _sum: { timeSpentMs: true }
         });
 
-        // Shape the Prisma data into the format the Dashboard.jsx React components expect
         const microTopics = {};
         
         topicRaw.forEach(row => {
@@ -81,7 +75,7 @@ exports.getDashboardData = async (req, res) => {
         return res.status(200).json({
             success: true,
             data: {
-                profile: userProfile,
+                profile: userProfile, // This now explicitly contains { role: "ADMIN" }
                 matrix: matrix,
                 microTopics: microTopics
             }

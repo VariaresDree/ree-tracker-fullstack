@@ -2,69 +2,133 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const prisma = require('../config/db'); // Centralized DB Connection
 
-// 0. FETCH GLOBAL QUESTION STATS
+// 🚀 FIXED: Pointing back to your centralized, working DB configuration
+const prisma = require('../config/db'); 
+
+const getSubjectFilter = (subjectStr) => {
+    if (!subjectStr || subjectStr === 'All') return undefined;
+    if (subjectStr === 'Mathematics' || subjectStr === 'Math') return { in: ['Math', 'Mathematics'] };
+    if (subjectStr === 'EE' || subjectStr === 'Electrical Engineering') return { in: ['EE', 'Electrical Engineering', 'Electrical Engineering Professional Subjects'] };
+    if (subjectStr === 'ESAS') return { in: ['ESAS', 'Engineering Sciences and Allied Subjects'] };
+    return subjectStr;
+};
+
+// 0. FETCH GLOBAL QUESTION STATS 
 router.get('/stats', authMiddleware, async (req, res) => {
     try {
-        const total = await prisma.question.count({ where: { isFlagged: false } });
-        const math = await prisma.question.count({ where: { subject: 'Math', isFlagged: false } });
-        const esas = await prisma.question.count({ where: { subject: 'ESAS', isFlagged: false } });
-        const ee = await prisma.question.count({ where: { subject: 'EE', isFlagged: false } });
+        const [total, math, esas, ee] = await Promise.all([
+            prisma.question.count(),
+            prisma.question.count({ where: { subject: { in: ['Math', 'Mathematics'] } } }),
+            prisma.question.count({ where: { subject: { in: ['ESAS', 'Engineering Sciences and Allied Subjects'] } } }),
+            prisma.question.count({ where: { subject: { in: ['EE', 'Electrical Engineering', 'Electrical Engineering Professional Subjects'] } } })
+        ]);
         
-        return res.status(200).json({ 
-            totalQuestions: total, 
-            breakdown: { Math: math, ESAS: esas, EE: ee } 
-        });
+        return res.status(200).json({ total, math, esas, ee });
     } catch (error) {
         return res.status(500).json({ error: 'Failed to fetch stats.' });
     }
 });
 
-// 1. FETCH QUESTIONS (Populates the Library)
+// 1. FETCH QUESTIONS 
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const { subject, limit = 50 } = req.query;
+        const { subject, subtopic, limit = 50 } = req.query;
         
-        // FIXED: Added 'answer' to the SELECT statement
-        const questions = await prisma.$queryRawUnsafe(`
-            SELECT id, subject, subtopic, text, options, answer, "fixedExplanation", difficulty, source, type
-            FROM "Question"
-            WHERE "isFlagged" = false ${subject && subject !== 'All' ? `AND subject = '${subject}'` : ''}
-            ORDER BY RANDOM()
-            LIMIT ${parseInt(limit)};
-        `);
+        let whereClause = { isFlagged: false };
+        
+        const subjFilter = getSubjectFilter(subject);
+        if (subjFilter) whereClause.subject = subjFilter;
+        
+        if (subtopic && subtopic !== 'All') {
+            whereClause.subtopic = subtopic.trim(); 
+        }
+
+        const questions = await prisma.question.findMany({
+            where: whereClause,
+            take: parseInt(limit),
+            orderBy: { createdAt: 'desc' }
+        });
 
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {
-        console.error("Library Fetch Error:", error);
         return res.status(500).json({ error: 'Failed to fetch question bank.' });
     }
 });
 
-// 2. ADD A NEW QUESTION
+// 1.5. GET QUARANTINE QUEUE
+router.get('/quarantine', authMiddleware, async (req, res) => {
+    try {
+        const flagged = await prisma.question.findMany({
+            where: { isFlagged: true },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.status(200).json(flagged);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch quarantine queue." });
+    }
+});
+
+// 1.6. APPROVE QUARANTINED ITEM
+router.put('/quarantine/:id/approve', authMiddleware, async (req, res) => {
+    try {
+        await prisma.question.update({
+            where: { id: req.params.id },
+            data: { isFlagged: false, subject: req.body.subject, subtopic: req.body.subtopic }
+        });
+        res.status(200).json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Approval validation failed." });
+    }
+});
+
+// 1.7. GET FLAGGED QUESTIONS 
+router.get('/flagged', authMiddleware, async (req, res) => {
+    try {
+        const { subject, subtopic } = req.query;
+        let whereClause = { isFlagged: true };
+        
+        const subjFilter = getSubjectFilter(subject);
+        if (subjFilter) whereClause.subject = subjFilter;
+        
+        if (subtopic && subtopic !== 'All') {
+            whereClause.subtopic = subtopic.trim();
+        }
+
+        const flaggedQuestions = await prisma.question.findMany({
+            where: whereClause,
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return res.status(200).json(flaggedQuestions);
+    } catch (error) {
+        console.error("Flagged Fetch Error:", error);
+        return res.status(500).json({ error: 'Failed to fetch flagged items.' });
+    }
+});
+
+// 2. ADD A NEW QUESTION 
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-        if (user?.role !== 'ADMIN') return res.status(403).json({ error: 'Admin clearance required.' });
-
         const data = req.body;
         const newQuestion = await prisma.question.create({
             data: {
                 subject: data.subject || 'Unknown',
                 subtopic: data.subtopic || 'General',
-                text: data.text || data.question || data.questionText || '',
-                options: data.options || [],
-                answer: data.answer || data.correctAnswer || '',
-                difficulty: parseFloat(data.difficulty || data.difficultyTheta) || 0.0,
-                fixedExplanation: data.fixedExplanation || data.cachedExplanation || null,
+                text: data.text || '',
+                options: Array.isArray(data.options) ? data.options : [],
+                answer: data.answer || '',
+                difficulty: parseFloat(data.difficulty) || 2.0,
+                fixedExplanation: data.fixedExplanation || null,
                 source: data.source || 'manual',
-                type: data.type || 'conceptual'
+                type: data.type || 'calculation',
+                isFlagged: data.isFlagged || false
             }
         });
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {
+        console.error("Manual Injection Error:", error);
         return res.status(500).json({ error: 'Failed to insert question.' });
     }
 });
@@ -72,20 +136,18 @@ router.post('/', authMiddleware, async (req, res) => {
 // 3. UPDATE AN EXISTING QUESTION
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-        if (user?.role !== 'ADMIN') return res.status(403).json({ error: 'Admin clearance required.' });
-
         const data = req.body;
         await prisma.question.update({
             where: { id: req.params.id },
             data: {
                 subject: data.subject,
                 subtopic: data.subtopic,
-                text: data.text || data.question || data.questionText,
+                text: data.text,
                 options: data.options,
-                answer: data.answer || data.correctAnswer,
-                difficulty: parseFloat(data.difficulty || data.difficultyTheta),
-                fixedExplanation: data.fixedExplanation || data.cachedExplanation
+                answer: data.answer,
+                difficulty: parseFloat(data.difficulty),
+                fixedExplanation: data.fixedExplanation,
+                isFlagged: data.isFlagged !== undefined ? data.isFlagged : undefined
             }
         });
 
@@ -95,7 +157,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// 4. UPDATE CACHED EXPLANATION (AI Generated)
+// 4. UPDATE CACHED EXPLANATION
 router.put('/:id/cache', authMiddleware, async (req, res) => {
     try {
         const { cachedExplanation, fixedExplanation } = req.body;
@@ -114,14 +176,15 @@ router.post('/review', authMiddleware, async (req, res) => {
     try {
         const { subject, limit = 20 } = req.body;
         
-        // FIXED: Added 'answer' to the SELECT statement
-        const questions = await prisma.$queryRawUnsafe(`
-            SELECT id, subject, subtopic, text, options, answer, "fixedExplanation", difficulty, source, type
-            FROM "Question"
-            WHERE "isFlagged" = false ${subject && subject !== 'All' ? `AND subject = '${subject}'` : ''}
-            ORDER BY RANDOM()
-            LIMIT ${parseInt(limit)};
-        `);
+        let whereClause = { isFlagged: false };
+        const subjFilter = getSubjectFilter(subject);
+        if (subjFilter) whereClause.subject = subjFilter;
+
+        const questions = await prisma.question.findMany({
+            where: whereClause,
+            take: parseInt(limit),
+            orderBy: { createdAt: 'desc' }
+        });
 
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {
@@ -136,6 +199,16 @@ router.patch('/:id/flag', authMiddleware, async (req, res) => {
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Failed to flag question.' });
+    }
+});
+
+// 7. DELETE QUESTION
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        await prisma.question.delete({ where: { id: req.params.id } });
+        res.status(200).json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Deletion failed." });
     }
 });
 

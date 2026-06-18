@@ -2,32 +2,43 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+// 🚀 FIXED: Pointing back to your centralized, working DB configuration
+const prisma = require('../config/db'); 
 
 router.get('/vault', authMiddleware, async (req, res) => {
     try {
-        const materialCount = await prisma.material.count();
-        const folderCount = await prisma.folder.count();
-        
-        return res.status(200).json({
-            totalFiles: materialCount,
-            totalFolders: folderCount,
-            lastSync: new Date().toISOString()
+        const groupedData = await prisma.question.groupBy({
+            by: ['subject', 'subtopic'],
+            _count: { id: true },
+            where: { isFlagged: false } 
         });
+
+        const metadataMap = {};
+        
+        groupedData.forEach(item => {
+            let safeSubj = item.subject;
+            
+            // Standardize Firebase anomalies to the exact UI mapping
+            if (safeSubj === 'Mathematics' || safeSubj === 'Math') safeSubj = 'Math';
+            else if (safeSubj === 'ESAS' || safeSubj?.includes('Sciences')) safeSubj = 'ESAS';
+            else if (safeSubj === 'EE' || safeSubj?.includes('Electrical')) safeSubj = 'EE';
+
+            const safeSubtopic = item.subtopic ? item.subtopic.trim() : 'Uncategorized';
+
+            const key = `${safeSubj}_${safeSubtopic}`;
+            metadataMap[key] = (metadataMap[key] || 0) + item._count.id;
+        });
+
+        return res.status(200).json(metadataMap);
     } catch (error) {
-        return res.status(500).json({ error: 'Failed to fetch metadata.' });
+        console.error("Vault Metadata Error:", error);
+        return res.status(500).json({ error: 'Failed to fetch metadata matrix.' });
     }
 });
 
 router.post('/vault/resync', authMiddleware, async (req, res) => {
     try {
-        // A placeholder for vault resync logic
         res.status(200).json({ success: true, message: "Vault synchronized." });
     } catch (error) {
         res.status(500).json({ error: 'Resync failed.' });

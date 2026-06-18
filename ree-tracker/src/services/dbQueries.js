@@ -8,8 +8,8 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
     
-    // 🚨 ROOT CAUSE FIX: Passing 'true' forces Firebase to refresh expired tokens!
-    const token = await user.getIdToken(true); 
+    // 🚨 ROOT CAUSE FIX: Removed 'true'. Relies on high-speed local caching.
+    const token = await user.getIdToken(); 
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
     
     const options = {
@@ -77,7 +77,7 @@ export const fetchPaginatedQuestions = async (lastVisibleDoc = null, filterSubje
 };
 
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
-    const queryParams = newSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
+    const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
     const data = await apiRequest(`/api/questions/flagged?${queryParams.toString()}`);
     return normalizeQuestions(data);
 };
@@ -118,7 +118,7 @@ export const migrateSimulationRecords = async () => 0;
 // ----------------------------------------------------------------------
 // 5. The Social Matrix (Leaderboards)
 // ----------------------------------------------------------------------
-export const syncLeaderboardProfile = async () => true; // Handled dynamically in backend now
+export const syncLeaderboardProfile = async () => true;
 export const fetchGlobalLeaderboard = async (limitCount = 100) => {
     const data = await apiRequest(`/api/leaderboard?limit=${limitCount}`);
     return data?.leaderboard || data?.items || data || [];

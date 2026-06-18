@@ -30,13 +30,20 @@ export default function Dashboard() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
     const fetchSQLAnalytics = async () => {
         if (!currentUser?.uid) return;
         try {
             const json = await apiRequest(`/api/analytics/dashboard/${currentUser.uid}`);
             if (json && json.data) {
                 setSqlData(json.data);
+                
+                // 🚀 ROOT CAUSE FIXED: Force the 'ADMIN' role into the global Zustand memory
+                // so that components across the app instantly unlock Admin features.
+                useStore.getState().setStats({
+                    ...useStore.getState().stats,
+                    role: json.data.profile?.role || 'USER'
+                });
             }
         } catch (error) {
             console.error("SQL Sync Error:", error);

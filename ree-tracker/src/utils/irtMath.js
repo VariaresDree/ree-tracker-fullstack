@@ -40,7 +40,7 @@ export const calculateUpdatedStats = (currentStats = {}, isCorrect, confidence, 
     // ==========================================
     // 3. ATOMIC ACTIVITY CALENDAR (HEATMAP)
     // ==========================================
-    let activityCalendar = JSON.parse(JSON.stringify(currentStats?.activityCalendar || {}));
+let activityCalendar = { ...(currentStats?.activityCalendar || {}) };
     activityCalendar[todayStr] = (activityCalendar[todayStr] || 0) + 1;
 
     // ==========================================
@@ -71,9 +71,12 @@ export const calculateUpdatedStats = (currentStats = {}, isCorrect, confidence, 
     // ==========================================
     // 6. TOPIC HEATMAP DEEP CLONE
     // ==========================================
-    let microTopics = JSON.parse(JSON.stringify(currentStats?.microTopics || {}));
+let microTopics = { ...(currentStats?.microTopics || {}) };
     if (!microTopics[topic]) {
         microTopics[topic] = { attempts: 0, correct: 0, totalTime: 0, subject: subject };
+    } else {
+        // Spread the nested object to avoid mutating the frozen Zustand state
+        microTopics[topic] = { ...microTopics[topic] };
     }
     microTopics[topic].attempts += 1;
     if (isCorrect) microTopics[topic].correct += 1;

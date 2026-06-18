@@ -12,6 +12,9 @@ import toast from 'react-hot-toast';
 
 import { saveBookmark } from '../services/dbQueries';
 
+const formatTimerMinutes = (s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`;
+const formatTimerVerbose = (s) => `${Math.floor(s/60)}m ${(s%60).toString().padStart(2, '0')}s`;
+
 export default function BoardSimulator() {
   const { currentUser } = useAuth();
   const isOnline = useNetworkStatus();
@@ -64,10 +67,10 @@ export default function BoardSimulator() {
         />
       )}
 
-      {engine.session.isFinished && (
+{engine.session.isFinished && (
         <SimulatorDiagnostics 
             session={engine.session} 
-            formatTime={(s) => `${Math.floor(s/60)}m ${(s%60).toString().padStart(2, '0')}s`} 
+            formatTime={formatTimerVerbose} 
             setCurrentIndex={engine.setCurrentIndex}
             onBookmark={handleBookmark} 
         />
@@ -77,7 +80,7 @@ export default function BoardSimulator() {
         <div className={engine.session.isFinished ? "mt-4" : ""}>
           <SimulatorActive 
             engine={engine} 
-            formatTime={(s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`} 
+            formatTime={formatTimerMinutes} 
             requestTerminate={() => setShowTerminateModal(true)} 
             isOnline={isOnline}
             onBookmark={handleBookmark} 

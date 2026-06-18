@@ -1,7 +1,7 @@
 // src/components/ReferenceHub.jsx
 import React, { useState } from 'react';
 import LatexRenderer from './LatexRenderer';
-import { useStore } from '../store/useStore';
+import { TOS } from '../config/constants'; // 🚀 FIXED: Imported TOS
 
 // ============================================================================
 // OFFLINE FORMULA MATRIX (FULLY EXPANDED & VERIFIED)
@@ -148,7 +148,7 @@ const OFFLINE_FORMULAS = {
 };
 
 export default function ReferenceHub() {
-    const dynamicTOS = useStore((state) => state.dynamicTOS);
+    // 🚀 FIXED: Removed dynamicTOS fetch from useStore
     const [matrixSubject, setMatrixSubject] = useState('EE');
     const [activeSubtopic, setActiveSubtopic] = useState('All');
 
@@ -194,7 +194,8 @@ export default function ReferenceHub() {
                     className="flex-1 bg-bg border border-border2 text-textMain p-2 rounded-md text-xs font-bold outline-none focus:border-reeCyan cursor-pointer min-w-[200px] transition-colors"
                 >
                     <option value="" disabled>Select a specific subtopic to filter...</option>
-                    {(dynamicTOS[matrixSubject] || []).map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                    {/* 🚀 FIXED: Used imported TOS below */}
+                    {(TOS[matrixSubject] || []).map(sub => <option key={sub} value={sub}>{sub}</option>)}
                 </select>
             </div>
             
@@ -206,12 +207,10 @@ export default function ReferenceHub() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
                     {displayedFormulas.map((formula, idx) => (
                         <div key={idx} className="p-5 bg-surface border border-border2 rounded-xl shadow-sm hover:border-reeCyan/40 transition-colors flex flex-col h-full overflow-hidden">
-                            {/* FIX: Removed line-clamp-1 so long titles wrap properly */}
                             <div className="text-[0.65rem] text-muted2 uppercase tracking-widest font-bold mb-3 border-b border-border2 pb-2 leading-relaxed" title={formula.title}>
                                 {formula.title}
                             </div>
                             
-                            {/* FIX: `mx-auto` prevents left-cutoff on overflow. `w-max` prevents line breaking. */}
                             <div className="w-full overflow-x-auto math-scroll-mobile pb-4 flex-1 flex items-center">
                                 <div className="w-max mx-auto px-2 text-textMain">
                                     <LatexRenderer content={formula.eq} />

@@ -13,18 +13,15 @@ import MediaViewer from '../components/MediaViewer';
 
 export default function Materials() {
   const { currentUser } = useAuth();
-  const { stats } = useStore();
-  const isAdmin = stats?.role === 'admin';
+  
+  // 🚀 FIXED: Grab the flawless boolean directly from the store
+  const isAdmin = useStore((state) => state.isAdmin);
   const isOnline = useNetworkStatus();
 
   // State is now strictly routing context
   const [activeTab, setActiveTab] = useState('cloud_vault'); 
   
-  // This state was lifted up so the MediaViewer can hijack the full page layout without destroying the tabs if needed,
-  // matching the original monolithic behavior precisely.
   const [viewingMaterial, setViewingMaterial] = useState(null);
-
-  // NEW: Fullscreen state controller for Phase 10.3
   const [isFullscreen, setIsFullscreen] = useState(false); 
 
   if (viewingMaterial) {
@@ -40,7 +37,6 @@ export default function Materials() {
                 <span>🚪</span> Terminate Viewer
               </button>
               
-              {/* NEW: Dynamic Fullscreen Toggle */}
               <button 
                   onClick={() => setIsFullscreen(!isFullscreen)} 
                   className="px-4 py-2 bg-surface2 hover:bg-surface3 text-muted hover:text-textMain border border-border2 rounded-lg text-[0.65rem] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-2"
@@ -54,7 +50,6 @@ export default function Materials() {
           </div>
         </div>
         
-        {/* Dynamic Wrapper handles borders depending on layout mode */}
         <div className={`flex-1 bg-bg relative overflow-hidden ${isFullscreen ? '' : 'border-x border-b border-border2 rounded-b-xl'}`}>
           <MediaViewer item={{ type: viewingMaterial.type, url: viewingMaterial.url, title: viewingMaterial.name }} />
         </div>
@@ -66,7 +61,6 @@ export default function Materials() {
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-6xl mx-auto pt-4">
       
-      {/* Universal Tab Header (Matches exact original layout) */}
       <div className="flex flex-wrap gap-4 border-b border-border2 pb-4">
         <button onClick={() => setActiveTab('cloud_vault')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'cloud_vault' ? 'bg-reeBlue/10 text-reeBlue border border-reeBlue/30 shadow-sm' : 'text-muted hover:text-textMain border border-transparent'}`}>
           <span>☁️</span> Cloud Vault
@@ -82,7 +76,6 @@ export default function Materials() {
         </button>
       </div>
 
-      {/* Render Component based on Tab State */}
       {activeTab === 'cloud_vault' && (
         <CloudVaultTab currentUser={currentUser} isAdmin={isAdmin} onViewMaterial={setViewingMaterial} />
       )}

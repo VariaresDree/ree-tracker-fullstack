@@ -3,6 +3,7 @@ import React, { useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../contexts/AuthContext';
 import FocusTrap from '../../components/FocusTrap';
+import { TOS } from '../../config/constants'; // 🚀 FIXED: Importing our optimized constants file
 
 export default function LibraryIngestion({ 
   genSubject, setGenSubject, genSubtopic, setGenSubtopic, 
@@ -12,7 +13,7 @@ export default function LibraryIngestion({
   handleGenerate, handlePdfSelect, executePdfExtraction,
   removeQuestion, handleCommitToMatrix
 }) {
-  const dynamicTOS = useStore((state) => state.dynamicTOS);
+  // 🚀 FIXED: Removed the dynamicTOS Zustand fetch that was causing the crash
   const { currentUser } = useAuth();
   const fileInputRef = useRef(null);
 
@@ -28,11 +29,13 @@ export default function LibraryIngestion({
             </h3>
             <p className="text-xs text-muted2 mb-5">Command the generative engine to forge questions targeted to the updated TOS list below.</p>
             <div className="flex flex-col gap-3">
-              <select value={genSubject} onChange={e => { setGenSubject(e.target.value); setGenSubtopic(dynamicTOS[e.target.value]?.[0] || ''); }} className="bg-bg border border-border2 text-textMain p-3 rounded-lg text-xs font-bold outline-none focus:border-reeBlue cursor-pointer transition-colors">
-                {Object.keys(dynamicTOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
+              {/* 🚀 FIXED: Replaced dynamicTOS with TOS below */}
+              <select value={genSubject} onChange={e => { setGenSubject(e.target.value); setGenSubtopic(TOS[e.target.value]?.[0] || ''); }} className="bg-bg border border-border2 text-textMain p-3 rounded-lg text-xs font-bold outline-none focus:border-reeBlue cursor-pointer transition-colors">
+                {Object.keys(TOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
               </select>
+              {/* 🚀 FIXED: Replaced dynamicTOS with TOS below */}
               <select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)} className="bg-bg border border-border2 text-textMain p-3 rounded-lg text-xs font-bold outline-none focus:border-reeCyan cursor-pointer transition-colors">
-                {(dynamicTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
+                {(TOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
           </div>

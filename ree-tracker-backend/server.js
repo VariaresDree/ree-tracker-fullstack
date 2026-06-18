@@ -27,7 +27,6 @@ app.use('/api/analytics', analyticsRoutes);
 const aiRoutes = require('./src/routes/aiRoutes');
 app.use('/api/ai', aiRoutes);                    
 
-// MISSING ROUTES ADDED HERE:
 const questionRoutes = require('./src/routes/questionRoutes');
 app.use('/api/questions', questionRoutes);
 
@@ -36,6 +35,19 @@ app.use('/api/materials', materialRoutes);
 
 const metadataRoutes = require('./src/routes/metadataRoutes');
 app.use('/api/metadata', metadataRoutes);
+
+const leaderboardRoutes = require('./src/routes/leaderboardRoutes');
+app.use('/api/leaderboard', leaderboardRoutes);
+
+const bookmarkRoutes = require('./src/routes/bookmarkRoutes');
+app.use('/api/bookmarks', bookmarkRoutes);
+
+const userRoutes = require('./src/routes/userRoutes');
+app.use('/api/user', userRoutes);
+
+// 🚀 NEW: System Configuration Route (Dynamic TOS)
+const configRoutes = require('./src/routes/configRoutes');
+app.use('/api/config', configRoutes);
 
 // 3. Health Check
 app.get('/health', (req, res) => {
@@ -53,13 +65,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`[SYSTEM] Assessment Engine initialized and listening on port ${PORT}`);
 });
-
-// Add these with your other route declarations
-const leaderboardRoutes = require('./src/routes/leaderboardRoutes');
-app.use('/api/leaderboard', leaderboardRoutes);
-
-const bookmarkRoutes = require('./src/routes/bookmarkRoutes');
-app.use('/api/bookmarks', bookmarkRoutes);
-
-const userRoutes = require('./src/routes/userRoutes');
-app.use('/api/user', userRoutes);

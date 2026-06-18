@@ -1,48 +1,67 @@
+// src/features/library/useManualIngestion.js
 import { useState } from 'react';
 import { saveQuestionToBank } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
 
-export const useManualIngestion = (onIngestSuccess) => {
-  const [manualMode, setManualMode] = useState(false);
-  const [manualQ, setManualQ] = useState({ 
-    text: '', correctAnswer: '', distractors: ['', '', ''], 
-    fixedExplanation: '', difficulty: 2, type: 'calculation' 
-  });
+export const useManualIngestion = (onSuccessCallback) => {
+    const [manualMode, setManualMode] = useState(false);
+    const [manualQ, setManualQ] = useState({
+        type: 'calculation', 
+        difficulty: '2', 
+        text: '', 
+        answer: '', 
+        distractor1: '', 
+        distractor2: '', 
+        distractor3: '', 
+        fixedExplanation: ''
+    });
 
-  const shuffleArray = (array) => [...array].sort(() => Math.random() - 0.5);
+    const handleManualSubmit = async (e, subject, subtopic) => {
+        e.preventDefault(); 
 
-  const handleManualSubmit = async (e, targetSubject, targetSubtopic) => {
-    e.preventDefault();
-    if (!manualQ.text || !manualQ.correctAnswer || manualQ.distractors.some(d => !d)) { 
-        toast.error("Complete all fields."); 
-        return; 
-    }
-    
-    try {
-      const combinedOptions = [manualQ.correctAnswer, ...manualQ.distractors];
-      const documentPayload = { 
-          text: manualQ.text, 
-          options: shuffleArray(combinedOptions), 
-          answer: manualQ.correctAnswer, 
-          fixedExplanation: manualQ.fixedExplanation, 
-          difficulty: manualQ.difficulty, 
-          type: manualQ.type, 
-          subject: targetSubject, 
-          subtopic: targetSubtopic, 
-          source: 'manual_entry', 
-          createdAt: new Date().toISOString() 
-      };
-      
-      await saveQuestionToBank(documentPayload);
-      toast.success('Question added.');
-      setManualQ({ text: '', correctAnswer: '', distractors: ['', '', ''], fixedExplanation: '', difficulty: 2, type: 'calculation' });
-      setManualMode(false);
-      
-      if(onIngestSuccess) onIngestSuccess(true);
-    } catch (err) { 
-      toast.error(`Save failed: ${err.message}`); 
-    }
-  };
+        // 🚀 FIXED: Bulletproof validation that safely handles numeric strings and whitespace
+        const requiredFields = [manualQ.text, manualQ.answer, manualQ.distractor1, manualQ.distractor2, manualQ.distractor3];
+        const isFormValid = requiredFields.every(field => typeof field === 'string' && field.trim().length > 0);
 
-  return { manualMode, setManualMode, manualQ, setManualQ, handleManualSubmit };
+        if (!isFormValid || !subject || !subtopic) {
+            toast.error("Complete all fields. Ensure the subject, question, answer, and 3 distractors are filled.");
+            return;
+        }
+
+        const optionsArray = [
+            manualQ.answer.trim(), 
+            manualQ.distractor1.trim(), 
+            manualQ.distractor2.trim(), 
+            manualQ.distractor3.trim()
+        ].sort(() => Math.random() - 0.5);
+
+        const payload = {
+            subject,
+            subtopic,
+            type: manualQ.type,
+            difficulty: parseInt(manualQ.difficulty),
+            text: manualQ.text.trim(),
+            answer: manualQ.answer.trim(),
+            options: optionsArray,
+            fixedExplanation: manualQ.fixedExplanation ? manualQ.fixedExplanation.trim() : null,
+            isFlagged: false 
+        };
+
+        try {
+            await saveQuestionToBank(payload);
+            toast.success("Question injected successfully into the Matrix.");
+            
+            setManualQ({ 
+                type: 'calculation', difficulty: '2', text: '', answer: '', 
+                distractor1: '', distractor2: '', distractor3: '', fixedExplanation: '' 
+            });
+            
+            if (onSuccessCallback) onSuccessCallback();
+        } catch (err) {
+            toast.error("Failed to inject question.");
+            console.error(err);
+        }
+    };
+
+    return { manualMode, setManualMode, manualQ, setManualQ, handleManualSubmit };
 };

@@ -1,15 +1,16 @@
 // src/components/HeatmapChart.jsx
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { TOS } from '../config/constants'; // 🚀 FIXED: Importing from our new optimized constants file
 
 export default function HeatmapChart({ stats }) {
-    const dynamicTOS = useStore((state) => state.dynamicTOS);
     const [activeTab, setActiveTab] = useState('Mathematics'); 
     const [viewMode, setViewMode] = useState('accuracy'); 
 
     const microTopics = stats?.microTopics || {};
 
-    const displayedTopics = (dynamicTOS[activeTab] || []).map(topicName => {
+    // 🚀 FIXED: Using the imported 'TOS' instead of the removed 'dynamicTOS'
+    const displayedTopics = (TOS[activeTab] || []).map(topicName => {
         return {
             name: topicName,
             data: microTopics[topicName] || { attempts: 0, correct: 0, totalTime: 0 }
