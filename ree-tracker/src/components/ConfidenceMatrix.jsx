@@ -2,12 +2,12 @@
 import React from 'react';
 
 export default function ConfidenceMatrix({ stats }) {
-    // Defaults to 0 if telemetry hasn't arrived yet
+    // Graceful fallback before server data loads
     const mc = stats?.matrix || { hc: 0, hw: 0, lc: 0, lw: 0 };
 
     return (
-        <div className="flex flex-col h-full w-full animate-in fade-in">
-            <div className="grid grid-cols-2 gap-4 flex-1">
+        <div className="flex flex-col w-full animate-in fade-in">
+            <div className="grid grid-cols-2 gap-4">
                 
                 {/* High Confidence - Correct */}
                 <div className="p-5 rounded-xl border border-reeGreen/40 bg-reeGreen/5 flex flex-col justify-center shadow-sm transition-colors hover:bg-reeGreen/10">
@@ -47,7 +47,7 @@ export default function ConfidenceMatrix({ stats }) {
 
             </div>
             
-            <div className="text-xs text-muted mt-5 bg-surface2 p-4 rounded-xl border border-border2 leading-relaxed">
+            <div className="text-[0.7rem] text-muted mt-5 bg-surface2 p-4 rounded-xl border border-border2 leading-relaxed">
                 💡 <strong className="text-textMain">Blind spots</strong> (high confidence + wrong) reduce your predicted passing score the most. Target these immediately.
             </div>
         </div>

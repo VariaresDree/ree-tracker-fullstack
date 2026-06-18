@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,9 +17,7 @@ export default function Dashboard() {
   const { currentUser } = useAuth();
   const { stats, purgeAnalytics, dynamicTOS, setStats } = useStore();
   
-  const [sqlData, setSqlData] = useState(null);
   const [isFetchingSQL, setIsFetchingSQL] = useState(true);
-
   const [aiReport, setAiReport] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -45,34 +42,41 @@ export default function Dashboard() {
                     safeTOS[subject].forEach(subtopic => {
                         normalizedMicroTopics[subtopic] = {
                             subject: subject, subtopic: subtopic,
-                            totalAttempts: 0, correctHits: 0, totalTimeSecs: 0
+                            attempts: 0, correct: 0, totalTime: 0
                         };
                     });
                 });
 
                 Object.keys(rawMicroTopics).forEach(backendKey => {
                     const rawData = rawMicroTopics[backendKey];
-                    const actualSubtopicName = rawData.subtopic || backendKey.split('_').pop();
-                    
-                    if (actualSubtopicName) {
-                        normalizedMicroTopics[actualSubtopicName] = {
+                    const subtopicName = rawData.subtopic || backendKey;
+                    if (subtopicName) {
+                        normalizedMicroTopics[subtopicName] = {
                             subject: rawData.subject || 'Unknown',
-                            subtopic: actualSubtopicName,
-                            totalAttempts: rawData.totalAttempts || rawData.attempts || 0,
-                            correctHits: rawData.correctHits || rawData.correct || 0,
-                            totalTimeSecs: rawData.totalTimeSecs || rawData.totalTime || 0
+                            subtopic: subtopicName,
+                            attempts: rawData.totalAttempts || 0,
+                            correct: rawData.correctHits || 0,
+                            totalTime: (rawData.totalTimeSecs || 0) * 1000
                         };
                     }
                 });
 
-                setSqlData({ ...json.data, microTopics: normalizedMicroTopics });
-                
                 const currentState = useStore.getState().stats || {};
                 setStats({
                     ...currentState,
+                    irt: { ...currentState.irt, theta: json.data.profile?.thetaRating || 0 },
+                    matrix: json.data.matrix,
+                    microTopics: normalizedMicroTopics,
+                    activityCalendar: json.data.activityCalendar,
+                    thetaHistory: json.data.thetaHistory || currentState.thetaHistory || [],
+                    
+                    dailyMath: json.data.profile?.dailyMath || 0,
+                    dailyESAS: json.data.profile?.dailyESAS || 0,
+                    dailyEE: json.data.profile?.dailyEE || 0,
+                    
                     role: json.data.profile?.role || currentState.role || 'USER',
-                    dailyTarget: currentState.dailyTarget || 50, 
-                    examDate: currentState.examDate || null      
+                    examDate: json.data.profile?.examDate || currentState.examDate || null, 
+                    dailyTarget: json.data.profile?.dailyTarget || currentState.dailyTarget || 50
                 });
             }
         } catch (error) {
@@ -85,48 +89,12 @@ export default function Dashboard() {
     fetchSQLAnalytics();
   }, [currentUser, dynamicTOS, setStats]); 
 
-  const activeStats = useMemo(() => {
-      if (!stats && !sqlData) return null;
-      if (!sqlData) return stats;
-
-      const mappedMicroTopics = {};
-      if (sqlData.microTopics) {
-          Object.keys(sqlData.microTopics).forEach(subtopicName => {
-              mappedMicroTopics[subtopicName] = {
-                  attempts: sqlData.microTopics[subtopicName].totalAttempts,
-                  correct: sqlData.microTopics[subtopicName].correctHits,
-                  subject: sqlData.microTopics[subtopicName].subject,
-                  totalTime: sqlData.microTopics[subtopicName].totalTimeSecs * 1000 
-              };
-          });
-      }
-
-      return {
-          ...stats,
-          irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating || stats?.irt?.theta || 0 },
-          matrix: sqlData.matrix || stats?.matrix,
-          microTopics: mappedMicroTopics,
-          thetaHistory: sqlData.thetaHistory || stats?.thetaHistory || [],
-          
-          // 🚀 FIXED: Activity Calendar map for the Consistency Matrix Profile Tab
-          activityCalendar: sqlData.activityCalendar || stats?.activityCalendar || {},
-          
-          // 🚀 FIXED: Precise mapping of Daily Quotas
-          dailyMath: sqlData.profile?.dailyMath || stats?.dailyMath || 0,
-          dailyESAS: sqlData.profile?.dailyESAS || stats?.dailyESAS || 0,
-          dailyEE: sqlData.profile?.dailyEE || stats?.dailyEE || 0,
-          
-          examDate: stats?.examDate || sqlData.profile?.examDate || null, 
-          dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50
-      };
-  }, [stats, sqlData]);
-
-  const currentTheta = activeStats?.irt?.theta || 0;
+  const currentTheta = stats?.irt?.theta || 0;
   const readinessScore = useMemo(() => {
     return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
   }, [currentTheta]);
 
-  if (!activeStats || isFetchingSQL) {
+  if (!stats || isFetchingSQL) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="text-center">
@@ -141,12 +109,10 @@ export default function Dashboard() {
     setShowAiModal(false);
     setIsGeneratingAI(true);
     setAiReport('Querying Gemini Core Engine for tactical diagnostics...');
-    
-    const topics = activeStats.microTopics ? Object.entries(activeStats.microTopics) : [];
+    const topics = stats.microTopics ? Object.entries(stats.microTopics) : [];
     const weakTopics = topics.filter(([_, data]) => data.attempts > 0 && (data.correct / data.attempts < 0.5)).map(([name]) => name);
-    
     try {
-      const report = await generateBoardReadinessReport(activeStats, readinessScore, weakTopics);
+      const report = await generateBoardReadinessReport(stats, readinessScore, weakTopics);
       setAiReport(report);
       toast.success('AI report generated.');
     } catch (error) {
@@ -162,7 +128,7 @@ export default function Dashboard() {
     const toastId = toast.loading("Taking high-res snapshots of telemetry charts...");
     try {
         setTimeout(async () => {
-            await generateDiagnosticReport(currentUser, activeStats);
+            await generateDiagnosticReport(currentUser, stats);
             toast.success("Diagnostic PDF compiled successfully.", { id: toastId });
             setIsGeneratingPDF(false);
         }, 500);
@@ -196,17 +162,18 @@ export default function Dashboard() {
       </div>
 
       <MissionControl 
-          stats={activeStats} 
+          stats={stats} 
           onExportPDF={() => setShowPdfModal(true)} 
           isGeneratingPDF={isGeneratingPDF} 
           onPurgeRequest={() => setShowPurgeModal(true)} 
       />
 
+      {/* 🚀 FIXED: Restored items-stretch and xl:h-[860px] to enforce deterministic baseline leveling */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-2 xl:h-[860px] items-stretch">
+        
+        {/* COLUMN 1: Recommended Module & Readiness Index */}
         <div className="flex flex-col gap-6 h-full min-h-0">
-            <div className="shrink-0">
-                <RecommendedModule stats={activeStats} />
-            </div>
+            <div className="shrink-0"><RecommendedModule stats={stats} /></div>
             <div className="p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col flex-1 min-h-0">
               <div className="shrink-0">
                 <h3 className="text-sm font-bold text-textMain uppercase tracking-widest flex items-center gap-2 mb-2">📊 Board Readiness Index</h3>
@@ -248,28 +215,30 @@ export default function Dashboard() {
             </div>
         </div>
 
+        {/* 🚀 FIXED COLUMN 2: Velocity & Confidence Matrix */}
+        {/* Enforced flex-1 on the Velocity chart to absorb empty space and push ConfidenceMatrix to the bottom baseline. */}
         <div className="flex flex-col gap-6 h-full min-h-0">
             <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-[300px] min-w-0 overflow-hidden">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0"><span>📈</span> 30-Day Readiness Velocity (θ)</h3>
                 <div className="flex-1 w-full h-full min-h-[200px] min-w-0">
-                    <ThetaVelocityChart history={activeStats?.thetaHistory} />
+                    <ThetaVelocityChart history={stats?.thetaHistory} />
                 </div>
             </div>
             
             <div className="shrink-0 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center min-h-[350px]">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-6 flex items-center gap-2 shrink-0"><span>🧠</span> Confidence vs Accuracy Matrix</h3>
-                <ConfidenceMatrix stats={activeStats} />
+                <ConfidenceMatrix stats={stats} />
             </div>
         </div>
 
+        {/* COLUMN 3: Topic Mastery Heatmap */}
         <div className="flex flex-col h-full min-h-[350px] min-w-0 xl:col-span-1 lg:col-span-2">
-            <HeatmapChart stats={activeStats} />
+            <HeatmapChart stats={stats} />
         </div>
       </div>
 
       <MockBoardAnalytics />
 
-      {/* MODALS */}
       {showAiModal && (
         <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={showAiModal}>
