@@ -1,5 +1,6 @@
 // src/services/dbQueries.js
 import { auth } from '../config/firebaseDb';
+import { get, set } from 'idb-keyval'; // 🚀 High-speed offline ledgers
 
 // ============================================================================
 // API CORE: Secure Fetch Wrapper
@@ -8,7 +9,6 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
     
-    // 🚨 ROOT CAUSE FIX: Removed 'true'. Relies on high-speed local caching.
     const token = await user.getIdToken(); 
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
     
@@ -35,6 +35,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
 
 // --- NORMALIZER: Translates PostgreSQL Schema to Legacy React Schema ---
 const normalizeQuestions = (data) => {
+    if (!data) return [];
     let items = Array.isArray(data) ? data : (data?.items || []);
     return items.map(q => ({
         ...q,
@@ -47,12 +48,16 @@ const normalizeQuestions = (data) => {
 };
 
 // ----------------------------------------------------------------------
-// 1. Analytics Profile & Telemetry
+// 1. Analytics Profile & Telemetry (RESTORED MISSING EXPORTS)
 // ----------------------------------------------------------------------
 export const getAnalyticsProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
 export const logSRSRecord = async (uid, questionId, payload) => apiRequest(`/api/user/srs/${questionId}`, 'POST', payload);
 export const updateAnalyticsProfile = async () => true; 
+export const syncTelemetryBatch = async (uid, sessionId, targetSubject, mode, attempts) => {
+    return await apiRequest('/api/analytics/telemetry-bulk', 'POST', { sessionId, targetSubject, mode, attempts });
+};
+export const purgeUserAnalytics = async (uid) => apiRequest('/api/analytics/purge', 'DELETE');
 
 // ----------------------------------------------------------------------
 // 2. Question Bank & Review Queue
@@ -61,12 +66,7 @@ export const saveQuestionToBank = async (questionObject) => {
     const result = await apiRequest('/api/questions', 'POST', questionObject);
     return result.id;
 };
-
-export const fetchQuarantineQueue = async () => {
-    const data = await apiRequest('/api/questions/quarantine');
-    return normalizeQuestions(data);
-};
-
+export const fetchQuarantineQueue = async () => normalizeQuestions(await apiRequest('/api/questions/quarantine'));
 export const approveQuarantinedQuestion = async (id, subject, subtopic) => apiRequest(`/api/questions/quarantine/${id}/approve`, 'PUT', { subject, subtopic });
 export const fetchServerStats = async () => apiRequest('/api/questions/stats');
 
@@ -74,6 +74,12 @@ export const fetchPaginatedQuestions = async (lastVisibleDoc = null, filterSubje
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic, limit: limitCount });
     const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
     return { items: normalizeQuestions(data) };
+};
+
+export const fetchVaultQuestions = async (subject, subtopic, limit = 50) => {
+    const queryParams = new URLSearchParams({ subject, subtopic, limit });
+    const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
+    return normalizeQuestions(data);
 };
 
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
@@ -98,25 +104,23 @@ export const fetchReviewQuestions = async (mode, subject, subtopic, blindSpots) 
     return normalizeQuestions(data);
 };
 
+export const initializeReviewSession = async (config) => {
+    const data = await apiRequest('/api/questions/review', 'POST', { 
+        subject: config.subject, 
+        limit: config.count || 20 
+    });
+    return normalizeQuestions(data);
+};
+
 // ----------------------------------------------------------------------
 // 3. Metadata Handlers
 // ----------------------------------------------------------------------
 export const fetchVaultMetadata = async () => apiRequest('/api/metadata/vault');
 export const resyncVaultMetadata = async () => apiRequest('/api/metadata/vault/resync', 'POST');
+export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 'POST'); 
 
 // ----------------------------------------------------------------------
-// 4. Simulation Ledger
-// ----------------------------------------------------------------------
-export const fetchSimulationLedger = async (uid, limitCount = 20) => {
-    const data = await apiRequest(`/api/exams/history?limit=${limitCount}`);
-    return Array.isArray(data) ? data : (data?.items || []);
-};
-export const deleteSimulationRecord = async (uid, recordId) => apiRequest(`/api/exams/history/${recordId}`, 'DELETE');
-export const saveSimulationRecord = async () => true;
-export const migrateSimulationRecords = async () => 0;
-
-// ----------------------------------------------------------------------
-// 5. The Social Matrix (Leaderboards)
+// 4. The Social Matrix (Leaderboards)
 // ----------------------------------------------------------------------
 export const syncLeaderboardProfile = async () => true;
 export const fetchGlobalLeaderboard = async (limitCount = 100) => {
@@ -129,11 +133,12 @@ export const fetchPaginatedLeaderboard = async (limitCount = 20, lastVisible = n
 };
 
 // ----------------------------------------------------------------------
-// 6. Multiplayer Mock Battles
+// 5. Multiplayer Mock Battles
 // ----------------------------------------------------------------------
-export const createMultiplayerBattle = async (host, config, questions, timeLimitSecs) => {
-    const result = await apiRequest('/api/battles', 'POST', { config, questions, timeLimitSecs });
-    return result.battleId;
+export const createMultiplayerBattle = async (hostId, config, questions, timeLimitSecs) => {
+    const battleId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    await apiRequest('/api/battles', 'POST', { battleId, hostId, config, questions, timeLimitSecs });
+    return battleId;
 };
 export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battles/${battleId}`);
 export const submitBattleScore = async (battleId, user, score, totalQs, timeTakenSecs) => {
@@ -144,7 +149,7 @@ export const syncLiveBattleProgress = async (battleId, user, currentScore, items
 };
 
 // ----------------------------------------------------------------------
-// 7. System Configuration & Bookmarks
+// 6. System Configuration & Bookmarks
 // ----------------------------------------------------------------------
 export const fetchDynamicTOS = async () => {
     try { return await apiRequest('/api/config/tos'); } catch (e) { return null; }
@@ -158,4 +163,75 @@ export const fetchBookmarks = async () => {
 };
 export const updateBookmarkCache = async (uid, itemId, aiExplanation) => {
     return await apiRequest(`/api/bookmarks/${itemId}/cache`, 'PUT', { cachedAiExplanation: aiExplanation });
+};
+
+// ----------------------------------------------------------------------
+// 7. Study Materials & Files
+// ----------------------------------------------------------------------
+export const uploadMaterial = async (file, folderId, subject) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Authentication required.");
+    const token = await user.getIdToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folderId', folderId || '');
+    formData.append('subject', subject || 'General');
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/materials/upload`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
+    });
+    if (!response.ok) throw new Error("Upload failed.");
+    return response.json();
+};
+
+export const fetchMaterials = async (folderId = null) => {
+    const url = folderId ? `/api/materials?folderId=${folderId}` : '/api/materials';
+    return await apiRequest(url);
+};
+
+export const createFolder = async (name, parentId = null) => apiRequest('/api/materials/folders', 'POST', { name, parentId });
+export const deleteMaterial = async (id) => apiRequest(`/api/materials/${id}`, 'DELETE');
+export const deleteFolder = async (id) => apiRequest(`/api/materials/folders/${id}`, 'DELETE');
+
+// ----------------------------------------------------------------------
+// 8. High-Speed Local Simulation Ledger (IndexedDB)
+// ----------------------------------------------------------------------
+export const saveSimulationRecord = async (record) => {
+    try {
+        const id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+        const newRecord = { ...record, id };
+        
+        const existing = await get('ree_simulation_ledger') || [];
+        existing.push(newRecord);
+        await set('ree_simulation_ledger', existing);
+        
+        return { success: true, id };
+    } catch (error) {
+        console.error("Ledger save failed:", error);
+        throw error;
+    }
+};
+
+export const fetchSimulationLedger = async (uid, limitParam = 20) => {
+    try {
+        const existing = await get('ree_simulation_ledger') || [];
+        return existing.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, limitParam);
+    } catch (error) {
+        console.error("Ledger fetch failed:", error);
+        return [];
+    }
+};
+
+export const deleteSimulationRecord = async (uid, recordId) => {
+    try {
+        let existing = await get('ree_simulation_ledger') || [];
+        existing = existing.filter(r => r.id !== recordId);
+        await set('ree_simulation_ledger', existing);
+        return { success: true };
+    } catch (error) {
+        throw new Error("Failed to delete record.");
+    }
+};
+
+export const migrateSimulationRecords = async (uid) => {
+    return 0; // Legacy migration no longer needed, IDB is standard
 };

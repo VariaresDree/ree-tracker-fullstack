@@ -1,10 +1,11 @@
 // src/features/active-recall/ReviewSetup.jsx
 import React from 'react';
-import { useStore } from '../../store/useStore';
-import { TOS } from '../../config/constants'; // 🚀 FIXED: Importing from our new optimized constants file
+import { useStore } from '../../store/useStore'; // 🚀 FIXED: Dynamic Store Import
 
 export default function ReviewSetup({ config, setConfig, session, stats, isOnline, loadNextQuestion, libraryCache }) {
-  // 🚀 FIXED: Removed the old dynamicTOS Zustand fetch that was returning undefined
+  // 🚀 FIXED: Pull the live syllabus from global memory
+  const { dynamicTOS } = useStore();
+  const safeTOS = dynamicTOS || {};
 
   return (
     <div className="p-6 bg-surface border border-border2 rounded-xl shadow-sm">
@@ -75,17 +76,31 @@ export default function ReviewSetup({ config, setConfig, session, stats, isOnlin
         <div className="flex gap-4 mb-6 animate-in fade-in duration-300">
           <div className="flex-1">
             <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">Subject</label>
-            {/* 🚀 FIXED: Replaced dynamicTOS with TOS here */}
-            <select value={config.subject} onChange={e => { setConfig({...config, subject: e.target.value, subtopic: TOS[e.target.value]?.[0] || ''}); libraryCache.current = []; }} className="w-full bg-bg border border-border2 text-textMain rounded-md p-2.5 text-xs outline-none focus:border-reeBlue cursor-pointer">
-              {Object.keys(TOS).map(s => <option key={s} value={s}>{s === 'ESAS' ? 'ESAS' : s}</option>)}
+            {/* 🚀 FIXED: Replaced static TOS with dynamic safeTOS here */}
+            <select 
+                value={config.subject} 
+                onChange={e => { 
+                    setConfig({...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || ''}); 
+                    libraryCache.current = []; 
+                }} 
+                className="w-full bg-bg border border-border2 text-textMain rounded-md p-2.5 text-xs outline-none focus:border-reeBlue cursor-pointer"
+            >
+              {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'ESAS' ? 'ESAS' : s}</option>)}
             </select>
           </div>
           {config.studyMode === 'subtopic' && (
             <div className="flex-1">
               <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">Subtopic</label>
-              {/* 🚀 FIXED: Replaced dynamicTOS with TOS here */}
-              <select value={config.subtopic} onChange={e => { setConfig({...config, subtopic: e.target.value}); libraryCache.current = []; }} className="w-full bg-bg border border-border2 text-textMain rounded-md p-2.5 text-xs outline-none focus:border-reeCyan cursor-pointer">
-                {(TOS[config.subject] || []).map(t => <option key={t} value={t}>{t}</option>)}
+              {/* 🚀 FIXED: Replaced static TOS with dynamic safeTOS here */}
+              <select 
+                  value={config.subtopic} 
+                  onChange={e => { 
+                      setConfig({...config, subtopic: e.target.value}); 
+                      libraryCache.current = []; 
+                  }} 
+                  className="w-full bg-bg border border-border2 text-textMain rounded-md p-2.5 text-xs outline-none focus:border-reeCyan cursor-pointer"
+              >
+                {(safeTOS[config.subject] || []).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
           )}

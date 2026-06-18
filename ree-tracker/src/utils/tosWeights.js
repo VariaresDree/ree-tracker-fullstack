@@ -1,8 +1,10 @@
+// src/utils/tosWeights.js
+import { useStore } from '../store/useStore';
+
 /**
  * PRC TOS WEIGHTING CONSTANTS
  * Used for weighted score calculations across the three major REE subjects.
  */
-
 export const TOS_WEIGHTS = {
     MATHEMATICS: 0.25, // 25% weight
     ESAS: 0.30,        // 30% weight
@@ -32,4 +34,31 @@ export const calculateWeightedRating = (mathScore, esasScore, eeScore) => {
 export const getWeightedContribution = (rawScore, subjectKey) => {
     const weight = TOS_WEIGHTS[subjectKey.toUpperCase()] || 0;
     return rawScore * weight;
+};
+
+/**
+ * 🚀 NEW: Dynamic Topic Weights for the Simulator Engine
+ * Automatically scales the simulator distribution to include newly added 
+ * topics from the PostgreSQL TOS Matrix.
+ */
+export const getDynamicWeights = (subject) => {
+    const { dynamicTOS } = useStore.getState();
+    
+    // Safety fallback
+    if (!dynamicTOS || !dynamicTOS[subject]) {
+        return {};
+    }
+
+    const topics = dynamicTOS[subject];
+    if (topics.length === 0) return {};
+
+    // Distributes mathematical selection weighting evenly across all active topics
+    const weightPerTopic = 1.0 / topics.length;
+    
+    const weights = {};
+    topics.forEach(topic => {
+        weights[topic] = weightPerTopic;
+    });
+
+    return weights;
 };

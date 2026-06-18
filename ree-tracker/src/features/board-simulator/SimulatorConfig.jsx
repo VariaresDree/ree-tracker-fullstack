@@ -1,17 +1,26 @@
 // src/features/board-simulator/SimulatorConfig.jsx
 import React from 'react';
+import { useStore } from '../../store/useStore';
 
 export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine }) {
-  
-  // UI Helpers to determine active profile
+  const { dynamicTOS } = useStore();
+  const safeTOS = dynamicTOS || {};
+
   const isCustom = config.mode === 'subject' && !config.isPrcStandard;
   const isPrcSubject = config.mode === 'subject' && config.isPrcStandard;
   const isBlended = config.mode === 'blended';
 
   const setProfile = (profile) => {
-    if (profile === 'custom') setConfig({ ...config, mode: 'subject', isPrcStandard: false });
-    if (profile === 'prc_subject') setConfig({ ...config, mode: 'subject', isPrcStandard: true });
-    if (profile === 'prc_blended') setConfig({ ...config, mode: 'blended', isPrcStandard: true });
+    // 🚀 FIXED: Explicitly overwriting the 'count' state to prevent the 20-item lock bug.
+    if (profile === 'custom') {
+        setConfig({ ...config, mode: 'subject', isPrcStandard: false, count: 50 });
+    }
+    if (profile === 'prc_subject') {
+        setConfig({ ...config, mode: 'subject', isPrcStandard: true, count: 100 });
+    }
+    if (profile === 'prc_blended') {
+        setConfig({ ...config, mode: 'blended', isPrcStandard: true, count: 100, subject: 'blended' });
+    }
   };
 
   return (
@@ -22,7 +31,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           <p className="text-sm text-muted2 mt-1">Select your evaluation profile to configure the chamber.</p>
         </div>
 
-        {session.error && <div className="mb-6 p-3 bg-reeRed/10 border border-reeRed/30 text-reeRed text-sm rounded-lg font-bold">{session.error}</div>}
+        {session?.error && <div className="mb-6 p-3 bg-reeRed/10 border border-reeRed/30 text-reeRed text-sm rounded-lg font-bold">{session.error}</div>}
         
         {engine?.hasSavedSession && (
             <div className="mb-6 p-4 bg-reeAmber/10 border border-reeAmber/30 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-pulse shadow-inner">
@@ -36,7 +45,6 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             </div>
         )}
 
-        {/* 3-Way Profile Selector */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <button onClick={() => setProfile('custom')} className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${isCustom ? 'bg-reeBlue/10 border-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'bg-bg border-border2 hover:border-reeBlue/50 opacity-70 hover:opacity-100'}`}>
                 <div className={`text-xl mb-2 ${isCustom ? 'text-reeBlue' : 'text-muted'}`}>⚙️</div>
@@ -57,16 +65,12 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             </button>
         </div>
 
-        {/* Configuration Matrix */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8 p-6 bg-surface2/50 border border-border2 rounded-xl">
-          
           <div className="flex flex-col gap-2">
             <label className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">Target Domain</label>
-            <select disabled={isBlended} value={config.subject} onChange={e => setConfig({...config, subject: e.target.value})} className="w-full bg-bg border border-border2 p-3 rounded-lg text-sm font-bold text-textMain outline-none focus:border-reeBlue cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              <option value="EE">Electrical Engineering (EE)</option>
-              <option value="Mathematics">Mathematics</option>
-              <option value="ESAS">ESAS</option>
-              {isBlended && <option value="Blended">Blended Matrix</option>}
+            <select disabled={isBlended} value={config.subject} onChange={e => setConfig({...config, subject: e.target.value, subtopic: 'All'})} className="w-full bg-bg border border-border2 p-3 rounded-lg text-sm font-bold text-textMain outline-none focus:border-reeBlue cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'EE' ? 'Electrical Engineering (EE)' : s}</option>)}
+              {isBlended && <option value="blended">Blended Matrix</option>}
             </select>
           </div>
 
@@ -78,11 +82,20 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             </select>
           </div>
 
+          {isCustom && config.subject && config.subject !== 'blended' && (
+            <div className="flex flex-col gap-2 sm:col-span-2 animate-in fade-in">
+              <label className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">Specific Topic Focus</label>
+              <select value={config.subtopic || 'All'} onChange={e => setConfig({...config, subtopic: e.target.value})} className="w-full bg-bg border border-border2 p-3 rounded-lg text-sm font-bold text-textMain outline-none focus:border-reeBlue cursor-pointer">
+                <option value="All">Comprehensive (All Subtopics)</option>
+                {(safeTOS[config.subject] || []).map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          )}
+
           {isCustom ? (
-            <div className="flex flex-col gap-2 sm:col-span-2">
+            <div className="flex flex-col gap-2 sm:col-span-2 mt-2">
               <label className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">Volume Parameter</label>
-              <select value={config.count} onChange={e => setConfig({...config, count: Number(e.target.value)})} className="w-full bg-bg border border-border2 p-3 rounded-lg text-sm font-bold text-textMain outline-none focus:border-reeBlue cursor-pointer">
-                {/* ADDED: 10 Item Quick Drill & 100 Item Mock */}
+              <select disabled={config.isPrcStandard} value={config.count} onChange={e => setConfig({...config, count: Number(e.target.value)})} className="w-full bg-bg border border-border2 p-3 rounded-lg text-sm font-bold text-textMain outline-none focus:border-reeBlue cursor-pointer disabled:opacity-50">
                 <option value={10}>10 Items (Quick Drill)</option>
                 <option value={20}>20 Items (Standard Session)</option>
                 <option value={50}>50 Items (Extended Drill)</option>
@@ -99,26 +112,24 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           )}
         </div>
 
-        {/* REVISED: Single, highly visible Initiation Block */}
         <div className="mt-8 flex flex-col md:flex-row gap-4 pt-6 border-t border-border2">
             <button
                 onClick={startSimulation}
-                disabled={session.loading}
+                disabled={session?.loading}
                 className="px-8 py-4 bg-reeBlue hover:bg-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-widest shadow-[0_0_15px_rgba(59,130,246,0.4)] transition-colors cursor-pointer flex items-center justify-center gap-2 flex-1 disabled:opacity-50"
             >
-                {session.loading && !engine?.isExporting ? <span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span> : '🚀'}
+                {session?.loading && !engine?.isExporting ? <span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span> : '🚀'}
                 INITIATE SIMULATION
             </button>
             <button
                 onClick={engine?.exportOfflinePDF}
-                disabled={session.loading}
+                disabled={session?.loading}
                 className="px-6 py-4 bg-surface2 hover:bg-surface3 border border-border2 text-textMain rounded-xl text-xs font-bold uppercase tracking-widest transition-colors cursor-pointer shadow-sm flex-1 md:max-w-[250px] disabled:opacity-50 flex items-center justify-center gap-2"
             >
-                {session.loading && engine?.isExporting ? <span className="telemetry-spinner !w-4 !h-4 border-textMain border-t-transparent"></span> : '📄'}
+                {session?.loading && engine?.isExporting ? <span className="telemetry-spinner !w-4 !h-4 border-textMain border-t-transparent"></span> : '📄'}
                 Compile to PDF
             </button>
         </div>
-
       </div>
     </div>
   );

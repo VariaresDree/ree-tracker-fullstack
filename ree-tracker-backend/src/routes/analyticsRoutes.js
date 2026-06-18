@@ -18,7 +18,7 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
 
         if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
 
-        // 👑 ADMIN AUTO-GRANT BACKDOOR: Force promote you to Admin instantly
+        // 👑 ADMIN AUTO-GRANT BACKDOOR
         if (user.role !== 'ADMIN') {
             user = await prisma.user.update({
                 where: { id: uid },
@@ -40,6 +40,13 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
             if (a.subject === 'Math' || a.subject === 'Mathematics') dailyMath++;
             else if (a.subject === 'ESAS') dailyESAS++;
             else if (a.subject === 'EE') dailyEE++;
+        });
+
+        // 📅 FETCH ACTIVITY CALENDAR FOR CONSISTENCY HEATMAP
+        const activityLogs = await prisma.activityLog.findMany({ where: { userId: uid } });
+        const activityCalendar = {};
+        activityLogs.forEach(log => {
+            activityCalendar[log.date] = log.count;
         });
 
         // 🧠 COMPUTE HEATMAPS & MATRICES
@@ -69,11 +76,11 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
                     lastActive: user.lastActive,
                     examDate: user.examDate,
                     dailyTarget: user.dailyTarget,
-                    // Injecting dynamic daily tallies
                     dailyMath, 
                     dailyESAS, 
                     dailyEE
                 },
+                activityCalendar, // 🚀 Fully mapped for the frontend!
                 recentSessions: user.sessions,
                 matrix: matrix,
                 microTopics: microTopics
@@ -109,6 +116,21 @@ router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
 
         await prisma.questionAttempt.createMany({ data: mappedAttempts });
 
+        // 🚀 FIXED: Upsert ActivityLog for the Calendar Heatmap Matrix
+        const todayStr = new Date().toISOString().split('T')[0];
+        const existingLog = await prisma.activityLog.findFirst({ where: { userId: req.user.id, date: todayStr } });
+        
+        if (existingLog) {
+            await prisma.activityLog.update({
+                where: { id: existingLog.id },
+                data: { count: existingLog.count + attempts.length }
+            });
+        } else {
+            await prisma.activityLog.create({
+                data: { userId: req.user.id, date: todayStr, count: attempts.length }
+            });
+        }
+
         const correctCount = mappedAttempts.filter(a => a.isCorrect).length;
         const targetRatio = correctCount / mappedAttempts.length;
         const baselineBump = targetRatio >= 0.5 ? 0.04 : -0.04;
@@ -121,6 +143,7 @@ router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
 
         res.status(200).json({ success: true, updatedTheta });
     } catch (error) {
+        console.error("Telemetry Bulk Sync Error:", error);
         res.status(500).json({ error: 'Matrix sync transaction rejected.' });
     }
 });
@@ -132,6 +155,8 @@ router.delete('/purge', authMiddleware, async (req, res) => {
     try {
         await prisma.questionAttempt.deleteMany({ where: { userId: req.user.id } });
         await prisma.examSession.deleteMany({ where: { userId: req.user.id } });
+        await prisma.activityLog.deleteMany({ where: { userId: req.user.id } });
+        await prisma.userTopicPerformance.deleteMany({ where: { userId: req.user.id } });
         await prisma.user.update({ where: { id: req.user.id }, data: { thetaRating: 0.0, globalStreak: 0 } });
         res.status(200).json({ success: true });
     } catch (error) {

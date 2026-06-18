@@ -1,16 +1,17 @@
 // src/components/HeatmapChart.jsx
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { TOS } from '../config/constants'; // 🚀 FIXED: Importing from our new optimized constants file
 
 export default function HeatmapChart({ stats }) {
     const [activeTab, setActiveTab] = useState('Mathematics'); 
     const [viewMode, setViewMode] = useState('accuracy'); 
 
+    // 🚀 FIXED: Dynamic TOS completely replaces the static fallback
+    const { dynamicTOS } = useStore();
+    const safeTOS = dynamicTOS || {};
     const microTopics = stats?.microTopics || {};
 
-    // 🚀 FIXED: Using the imported 'TOS' instead of the removed 'dynamicTOS'
-    const displayedTopics = (TOS[activeTab] || []).map(topicName => {
+    const displayedTopics = (safeTOS[activeTab] || []).map(topicName => {
         return {
             name: topicName,
             data: microTopics[topicName] || { attempts: 0, correct: 0, totalTime: 0 }
@@ -55,9 +56,10 @@ export default function HeatmapChart({ stats }) {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2 min-h-0">
                 {displayedTopics.map((item, idx) => {
+                    // 🚀 SAFE MATH: Guards against Divide by Zero logic errors
                     const hasData = item.data.attempts > 0;
                     const pct = hasData ? Math.round((item.data.correct / item.data.attempts) * 100) : 0;
-                    const avgTime = hasData ? Math.round(item.data.totalTime / item.data.attempts) : 0;
+                    const avgTime = hasData ? Math.round((item.data.totalTime / 1000) / item.data.attempts) : 0;
                     
                     let bgClass = "bg-bg border-border2 opacity-40 grayscale";
                     let textClass = "text-muted";

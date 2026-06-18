@@ -1,7 +1,7 @@
 // src/components/ReferenceHub.jsx
 import React, { useState } from 'react';
 import LatexRenderer from './LatexRenderer';
-import { TOS } from '../config/constants'; // 🚀 FIXED: Imported TOS
+import { useStore } from '../store/useStore'; // 🚀 FIXED: Dynamic Store Import
 
 // ============================================================================
 // OFFLINE FORMULA MATRIX (FULLY EXPANDED & VERIFIED)
@@ -148,7 +148,10 @@ const OFFLINE_FORMULAS = {
 };
 
 export default function ReferenceHub() {
-    // 🚀 FIXED: Removed dynamicTOS fetch from useStore
+    // 🚀 FIXED: Replaced static TOS with dynamicTOS from the global store
+    const { dynamicTOS } = useStore();
+    const safeTOS = dynamicTOS || {};
+
     const [matrixSubject, setMatrixSubject] = useState('EE');
     const [activeSubtopic, setActiveSubtopic] = useState('All');
 
@@ -157,9 +160,9 @@ export default function ReferenceHub() {
         setActiveSubtopic('All');
     };
 
-    const displayedFormulas = OFFLINE_FORMULAS[matrixSubject].filter(f => 
+    const displayedFormulas = OFFLINE_FORMULAS[matrixSubject]?.filter(f => 
         activeSubtopic === 'All' || f.subtopics.includes(activeSubtopic)
-    );
+    ) || [];
 
     return (
         <div className="animate-in fade-in flex flex-col gap-5">
@@ -194,8 +197,8 @@ export default function ReferenceHub() {
                     className="flex-1 bg-bg border border-border2 text-textMain p-2 rounded-md text-xs font-bold outline-none focus:border-reeCyan cursor-pointer min-w-[200px] transition-colors"
                 >
                     <option value="" disabled>Select a specific subtopic to filter...</option>
-                    {/* 🚀 FIXED: Used imported TOS below */}
-                    {(TOS[matrixSubject] || []).map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                    {/* 🚀 FIXED: Used global safeTOS to render dynamic subtopics */}
+                    {(safeTOS[matrixSubject] || []).map(sub => <option key={sub} value={sub}>{sub}</option>)}
                 </select>
             </div>
             

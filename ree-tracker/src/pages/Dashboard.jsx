@@ -16,7 +16,7 @@ import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
-  const { stats, purgeAnalytics } = useStore();
+  const { stats, purgeAnalytics, dynamicTOS, setStats } = useStore();
   
   const [sqlData, setSqlData] = useState(null);
   const [isFetchingSQL, setIsFetchingSQL] = useState(true);
@@ -30,19 +30,49 @@ export default function Dashboard() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
-useEffect(() => {
+  useEffect(() => {
     const fetchSQLAnalytics = async () => {
         if (!currentUser?.uid) return;
         try {
             const json = await apiRequest(`/api/analytics/dashboard/${currentUser.uid}`);
             if (json && json.data) {
-                setSqlData(json.data);
                 
-                // 🚀 ROOT CAUSE FIXED: Force the 'ADMIN' role into the global Zustand memory
-                // so that components across the app instantly unlock Admin features.
-                useStore.getState().setStats({
-                    ...useStore.getState().stats,
-                    role: json.data.profile?.role || 'USER'
+                const rawMicroTopics = json.data.microTopics || {};
+                const normalizedMicroTopics = {};
+                const safeTOS = useStore.getState().dynamicTOS || {};
+
+                Object.keys(safeTOS).forEach(subject => {
+                    safeTOS[subject].forEach(subtopic => {
+                        normalizedMicroTopics[subtopic] = {
+                            subject: subject, subtopic: subtopic,
+                            totalAttempts: 0, correctHits: 0, totalTimeSecs: 0
+                        };
+                    });
+                });
+
+                Object.keys(rawMicroTopics).forEach(backendKey => {
+                    const rawData = rawMicroTopics[backendKey];
+                    const actualSubtopicName = rawData.subtopic || backendKey.split('_').pop();
+                    
+                    if (actualSubtopicName) {
+                        normalizedMicroTopics[actualSubtopicName] = {
+                            subject: rawData.subject || 'Unknown',
+                            subtopic: actualSubtopicName,
+                            totalAttempts: rawData.totalAttempts || rawData.attempts || 0,
+                            correctHits: rawData.correctHits || rawData.correct || 0,
+                            totalTimeSecs: rawData.totalTimeSecs || rawData.totalTime || 0
+                        };
+                    }
+                });
+
+                setSqlData({ ...json.data, microTopics: normalizedMicroTopics });
+                
+                const currentState = useStore.getState().stats || {};
+                setStats({
+                    ...currentState,
+                    role: json.data.profile?.role || currentState.role || 'USER',
+                    dailyTarget: currentState.dailyTarget || 50, 
+                    examDate: currentState.examDate || null      
                 });
             }
         } catch (error) {
@@ -53,7 +83,7 @@ useEffect(() => {
     };
 
     fetchSQLAnalytics();
-  }, [currentUser]);
+  }, [currentUser, dynamicTOS, setStats]); 
 
   const activeStats = useMemo(() => {
       if (!stats && !sqlData) return null;
@@ -61,12 +91,12 @@ useEffect(() => {
 
       const mappedMicroTopics = {};
       if (sqlData.microTopics) {
-          Object.keys(sqlData.microTopics).forEach(key => {
-              mappedMicroTopics[key] = {
-                  attempts: sqlData.microTopics[key].totalAttempts,
-                  correct: sqlData.microTopics[key].correctHits,
-                  subject: sqlData.microTopics[key].subject,
-                  totalTime: sqlData.microTopics[key].totalTimeSecs * 1000 
+          Object.keys(sqlData.microTopics).forEach(subtopicName => {
+              mappedMicroTopics[subtopicName] = {
+                  attempts: sqlData.microTopics[subtopicName].totalAttempts,
+                  correct: sqlData.microTopics[subtopicName].correctHits,
+                  subject: sqlData.microTopics[subtopicName].subject,
+                  totalTime: sqlData.microTopics[subtopicName].totalTimeSecs * 1000 
               };
           });
       }
@@ -76,14 +106,18 @@ useEffect(() => {
           irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating || stats?.irt?.theta || 0 },
           matrix: sqlData.matrix || stats?.matrix,
           microTopics: mappedMicroTopics,
+          thetaHistory: sqlData.thetaHistory || stats?.thetaHistory || [],
           
-          // 🚨 RESTORED ZUSTAND LOCAL COUPLING: Pulls accurate local daily counts
-          dailyMath: stats?.dailyMath || 0,
-          dailyESAS: stats?.dailyESAS || 0,
-          dailyEE: stats?.dailyEE || 0,
+          // 🚀 FIXED: Activity Calendar map for the Consistency Matrix Profile Tab
+          activityCalendar: sqlData.activityCalendar || stats?.activityCalendar || {},
           
-          examDate: sqlData.profile?.examDate || stats?.examDate,
-          dailyTarget: sqlData.profile?.dailyTarget || stats?.dailyTarget
+          // 🚀 FIXED: Precise mapping of Daily Quotas
+          dailyMath: sqlData.profile?.dailyMath || stats?.dailyMath || 0,
+          dailyESAS: sqlData.profile?.dailyESAS || stats?.dailyESAS || 0,
+          dailyEE: sqlData.profile?.dailyEE || stats?.dailyEE || 0,
+          
+          examDate: stats?.examDate || sqlData.profile?.examDate || null, 
+          dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50
       };
   }, [stats, sqlData]);
 
@@ -109,7 +143,7 @@ useEffect(() => {
     setAiReport('Querying Gemini Core Engine for tactical diagnostics...');
     
     const topics = activeStats.microTopics ? Object.entries(activeStats.microTopics) : [];
-    const weakTopics = topics.filter(([_, data]) => data.correct / data.attempts < 0.5).map(([name]) => name);
+    const weakTopics = topics.filter(([_, data]) => data.attempts > 0 && (data.correct / data.attempts < 0.5)).map(([name]) => name);
     
     try {
       const report = await generateBoardReadinessReport(activeStats, readinessScore, weakTopics);
@@ -117,7 +151,6 @@ useEffect(() => {
       toast.success('AI report generated.');
     } catch (error) {
       setAiReport('Failed to generate tactical diagnostics. Please try again later.');
-      toast.error('Failed to generate AI report.');
     } finally {
       setIsGeneratingAI(false);
     }
@@ -155,7 +188,6 @@ useEffect(() => {
 
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-[1600px] mx-auto">
-      
       <div className="mb-2 border-b border-border2 pb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-black text-textMain tracking-tight">Tactical Command Center</h1>
@@ -171,12 +203,10 @@ useEffect(() => {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-2 xl:h-[860px] items-stretch">
-        
         <div className="flex flex-col gap-6 h-full min-h-0">
             <div className="shrink-0">
                 <RecommendedModule stats={activeStats} />
             </div>
-            
             <div className="p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col flex-1 min-h-0">
               <div className="shrink-0">
                 <h3 className="text-sm font-bold text-textMain uppercase tracking-widest flex items-center gap-2 mb-2">📊 Board Readiness Index</h3>
@@ -202,45 +232,32 @@ useEffect(() => {
               <div className="flex-1 flex flex-col min-h-0 w-full mt-6 mb-6">
                 {aiReport ? (
                   <div className="flex-1 h-full bg-reePurple/5 border border-reePurple/20 rounded-xl p-5 overflow-y-auto custom-scrollbar flex flex-col">
-                    <div className="text-[0.65rem] font-bold text-reePurple uppercase tracking-widest mb-3 flex items-center gap-2 shrink-0">
-                      <span>✨</span> Tactical AI Diagnostics
-                    </div>
+                    <div className="text-[0.65rem] font-bold text-reePurple uppercase tracking-widest mb-3 flex items-center gap-2 shrink-0"><span>✨</span> Tactical AI Diagnostics</div>
                     <div className="text-sm text-textMain leading-relaxed font-medium">{aiReport}</div>
                   </div>
                 ) : (
                   <div className="flex-1 h-full flex items-center justify-center border border-dashed border-border2 bg-bg/30 rounded-xl p-4">
-                     <div className="text-xs text-muted2 font-mono text-center leading-relaxed">
-                        AI Diagnostics Standby.<br/>Initialize report to audit blind spots.
-                     </div>
+                     <div className="text-xs text-muted2 font-mono text-center leading-relaxed">AI Diagnostics Standby.<br/>Initialize report to audit blind spots.</div>
                   </div>
                 )}
               </div>
 
-              <button
-                onClick={() => setShowAiModal(true)}
-                disabled={isGeneratingAI}
-                className="shrink-0 w-full py-4 bg-gradient-to-r from-reePurple to-reeBlue text-white font-bold rounded-lg text-xs uppercase tracking-wider shadow-lg hover:shadow-reePurple/20 transition-all flex justify-center items-center gap-2 disabled:opacity-60 cursor-pointer"
-              >
+              <button onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="shrink-0 w-full py-4 bg-gradient-to-r from-reePurple to-reeBlue text-white font-bold rounded-lg text-xs uppercase tracking-wider shadow-lg hover:shadow-reePurple/20 transition-all flex justify-center items-center gap-2 disabled:opacity-60 cursor-pointer">
                 {isGeneratingAI ? <><span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span>Analyzing Matrices...</> : '✨ Generate AI Readiness Report'}
               </button>
             </div>
         </div>
 
-        {/* REQUIRED WRAPPERS: min-h-[300px] and min-w-0 eliminate Recharts height/width runtime crashes */}
         <div className="flex flex-col gap-6 h-full min-h-0">
             <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-[300px] min-w-0 overflow-hidden">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0">
-                    <span>📈</span> 30-Day Readiness Velocity (θ)
-                </h3>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0"><span>📈</span> 30-Day Readiness Velocity (θ)</h3>
                 <div className="flex-1 w-full h-full min-h-[200px] min-w-0">
                     <ThetaVelocityChart history={activeStats?.thetaHistory} />
                 </div>
             </div>
             
-            <div className="shrink-0 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center min-h-[250px]">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-6 flex items-center gap-2 shrink-0">
-                    <span>🧠</span> Confidence vs Accuracy Matrix
-                </h3>
+            <div className="shrink-0 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center min-h-[350px]">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-6 flex items-center gap-2 shrink-0"><span>🧠</span> Confidence vs Accuracy Matrix</h3>
                 <ConfidenceMatrix stats={activeStats} />
             </div>
         </div>
@@ -248,7 +265,6 @@ useEffect(() => {
         <div className="flex flex-col h-full min-h-[350px] min-w-0 xl:col-span-1 lg:col-span-2">
             <HeatmapChart stats={activeStats} />
         </div>
-
       </div>
 
       <MockBoardAnalytics />
@@ -289,18 +305,12 @@ useEffect(() => {
           <FocusTrap active={showPurgeModal}>
             <div className="bg-surface border border-reeRed/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-md w-full relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-reeRed/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-              
-              <h3 className="text-xl font-black text-reeRed mb-3 flex items-center gap-2 relative z-10">
-                  <span>⚠️</span> INITIATE GLOBAL PURGE
-              </h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed relative z-10">
-                  This protocol will permanently delete your <strong className="text-textMain">Topic Heatmaps, IRT Theta Rating, Readiness Velocity, Confidence Matrix, and Lifetime History</strong>. <br/><br/>This action is irreversible. Proceed?
-              </p>
+              <h3 className="text-xl font-black text-reeRed mb-3 flex items-center gap-2 relative z-10"><span>⚠️</span> INITIATE GLOBAL PURGE</h3>
+              <p className="text-sm text-muted2 mb-6 leading-relaxed relative z-10">This protocol will permanently delete your <strong className="text-textMain">Topic Heatmaps, IRT Theta Rating, Readiness Velocity, Confidence Matrix, and Lifetime History</strong>. <br/><br/>This action is irreversible. Proceed?</p>
               <div className="flex justify-end gap-3 relative z-10">
                 <button disabled={isPurging} onClick={() => setShowPurgeModal(false)} className="px-5 py-2.5 bg-surface2 hover:bg-surface3 text-textMain rounded-xl text-xs font-bold transition-colors cursor-pointer border border-border2 disabled:opacity-50">Cancel Protocol</button>
                 <button disabled={isPurging} onClick={executePurge} className="flex items-center gap-2 px-5 py-2.5 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-colors cursor-pointer disabled:opacity-50">
-                    {isPurging && <span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent"></span>}
-                    Confirm Purge
+                    {isPurging && <span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent"></span>} Confirm Purge
                 </button>
               </div>
             </div>

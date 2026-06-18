@@ -1,9 +1,8 @@
 // src/features/library/LibraryIngestion.jsx
 import React, { useRef } from 'react';
-import { useStore } from '../../store/useStore';
+import { useStore } from '../../store/useStore'; // 🚀 FIXED: Dynamic Store Import
 import { useAuth } from '../../contexts/AuthContext';
 import FocusTrap from '../../components/FocusTrap';
-import { TOS } from '../../config/constants'; // 🚀 FIXED: Importing our optimized constants file
 
 export default function LibraryIngestion({ 
   genSubject, setGenSubject, genSubtopic, setGenSubtopic, 
@@ -13,9 +12,12 @@ export default function LibraryIngestion({
   handleGenerate, handlePdfSelect, executePdfExtraction,
   removeQuestion, handleCommitToMatrix
 }) {
-  // 🚀 FIXED: Removed the dynamicTOS Zustand fetch that was causing the crash
   const { currentUser } = useAuth();
   const fileInputRef = useRef(null);
+
+  // 🚀 FIXED: Pull the live syllabus from global memory
+  const { dynamicTOS } = useStore();
+  const safeTOS = dynamicTOS || {};
 
   return (
     <>
@@ -29,13 +31,24 @@ export default function LibraryIngestion({
             </h3>
             <p className="text-xs text-muted2 mb-5">Command the generative engine to forge questions targeted to the updated TOS list below.</p>
             <div className="flex flex-col gap-3">
-              {/* 🚀 FIXED: Replaced dynamicTOS with TOS below */}
-              <select value={genSubject} onChange={e => { setGenSubject(e.target.value); setGenSubtopic(TOS[e.target.value]?.[0] || ''); }} className="bg-bg border border-border2 text-textMain p-3 rounded-lg text-xs font-bold outline-none focus:border-reeBlue cursor-pointer transition-colors">
-                {Object.keys(TOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
+              {/* 🚀 FIXED: Replaced static TOS with dynamic safeTOS */}
+              <select 
+                  value={genSubject} 
+                  onChange={e => { 
+                      setGenSubject(e.target.value); 
+                      setGenSubtopic(safeTOS[e.target.value]?.[0] || ''); 
+                  }} 
+                  className="bg-bg border border-border2 text-textMain p-3 rounded-lg text-xs font-bold outline-none focus:border-reeBlue cursor-pointer transition-colors"
+              >
+                {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
               </select>
-              {/* 🚀 FIXED: Replaced dynamicTOS with TOS below */}
-              <select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)} className="bg-bg border border-border2 text-textMain p-3 rounded-lg text-xs font-bold outline-none focus:border-reeCyan cursor-pointer transition-colors">
-                {(TOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
+              {/* 🚀 FIXED: Replaced static TOS with dynamic safeTOS */}
+              <select 
+                  value={genSubtopic} 
+                  onChange={e => setGenSubtopic(e.target.value)} 
+                  className="bg-bg border border-border2 text-textMain p-3 rounded-lg text-xs font-bold outline-none focus:border-reeCyan cursor-pointer transition-colors"
+              >
+                {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
           </div>
