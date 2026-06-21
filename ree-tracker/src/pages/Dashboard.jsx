@@ -1,3 +1,4 @@
+// src/pages/Dashboard.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +18,9 @@ export default function Dashboard() {
   const { currentUser } = useAuth();
   const { stats, purgeAnalytics, dynamicTOS, setStats } = useStore();
   
+  const [sqlData, setSqlData] = useState(null);
   const [isFetchingSQL, setIsFetchingSQL] = useState(true);
+
   const [aiReport, setAiReport] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -49,34 +52,27 @@ export default function Dashboard() {
 
                 Object.keys(rawMicroTopics).forEach(backendKey => {
                     const rawData = rawMicroTopics[backendKey];
-                    const subtopicName = rawData.subtopic || backendKey;
-                    if (subtopicName) {
-                        normalizedMicroTopics[subtopicName] = {
+                    const actualSubtopicName = rawData.subtopic || backendKey.split('_').pop();
+                    
+                    if (actualSubtopicName) {
+                        normalizedMicroTopics[actualSubtopicName] = {
                             subject: rawData.subject || 'Unknown',
-                            subtopic: subtopicName,
-                            attempts: rawData.totalAttempts || 0,
-                            correct: rawData.correctHits || 0,
+                            subtopic: actualSubtopicName,
+                            attempts: rawData.totalAttempts || rawData.attempts || 0,
+                            correct: rawData.correctHits || rawData.correct || 0,
                             totalTime: (rawData.totalTimeSecs || 0) * 1000
                         };
                     }
                 });
 
+                setSqlData({ ...json.data, microTopics: normalizedMicroTopics });
+                
                 const currentState = useStore.getState().stats || {};
                 setStats({
                     ...currentState,
-                    irt: { ...currentState.irt, theta: json.data.profile?.thetaRating || 0 },
-                    matrix: json.data.matrix,
-                    microTopics: normalizedMicroTopics,
-                    activityCalendar: json.data.activityCalendar,
-                    thetaHistory: json.data.thetaHistory || currentState.thetaHistory || [],
-                    
-                    dailyMath: json.data.profile?.dailyMath || 0,
-                    dailyESAS: json.data.profile?.dailyESAS || 0,
-                    dailyEE: json.data.profile?.dailyEE || 0,
-                    
                     role: json.data.profile?.role || currentState.role || 'USER',
-                    examDate: json.data.profile?.examDate || currentState.examDate || null, 
-                    dailyTarget: json.data.profile?.dailyTarget || currentState.dailyTarget || 50
+                    dailyTarget: currentState.dailyTarget || 50, 
+                    examDate: currentState.examDate || null      
                 });
             }
         } catch (error) {
@@ -89,17 +85,53 @@ export default function Dashboard() {
     fetchSQLAnalytics();
   }, [currentUser, dynamicTOS, setStats]); 
 
-  const currentTheta = stats?.irt?.theta || 0;
+  const activeStats = useMemo(() => {
+      if (!stats && !sqlData) return null;
+      if (!sqlData) return stats;
+
+      const mappedMicroTopics = {};
+      if (sqlData.microTopics) {
+          Object.keys(sqlData.microTopics).forEach(subtopicName => {
+              mappedMicroTopics[subtopicName] = {
+                  attempts: sqlData.microTopics[subtopicName].totalAttempts,
+                  correct: sqlData.microTopics[subtopicName].correctHits,
+                  subject: sqlData.microTopics[subtopicName].subject,
+                  totalTime: sqlData.microTopics[subtopicName].totalTimeSecs * 1000 
+              };
+          });
+      }
+
+      const todayStats = sqlData.dailyStats || sqlData.profile?.dailyStats || {};
+
+      return {
+          ...stats,
+          irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating || stats?.irt?.theta || 0 },
+          matrix: sqlData.matrix || stats?.matrix,
+          microTopics: mappedMicroTopics,
+          thetaHistory: sqlData.thetaHistory || stats?.thetaHistory || [],
+          
+          activityCalendar: sqlData.activityCalendar || stats?.activityCalendar || {},
+          
+          dailyMath: todayStats.Math || sqlData.profile?.dailyMath || stats?.dailyMath || 0,
+          dailyESAS: todayStats.ESAS || sqlData.profile?.dailyESAS || stats?.dailyESAS || 0,
+          dailyEE: todayStats.EE || sqlData.profile?.dailyEE || stats?.dailyEE || 0,
+          
+          examDate: stats?.examDate || sqlData.profile?.examDate || null, 
+          dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50
+      };
+  }, [stats, sqlData]);
+
+  const currentTheta = activeStats?.irt?.theta || 0;
   const readinessScore = useMemo(() => {
     return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
   }, [currentTheta]);
 
-  if (!stats || isFetchingSQL) {
+  if (!activeStats || isFetchingSQL) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="text-center">
           <span className="telemetry-spinner inline-block mr-2"></span>
-          <span className="text-muted2 text-sm ml-2">Loading high-speed SQL matrix...</span>
+          <span className="text-muted2 text-sm ml-2 font-mono uppercase tracking-widest">Syncing Matrices...</span>
         </div>
       </div>
     );
@@ -109,12 +141,14 @@ export default function Dashboard() {
     setShowAiModal(false);
     setIsGeneratingAI(true);
     setAiReport('Querying Gemini Core Engine for tactical diagnostics...');
-    const topics = stats.microTopics ? Object.entries(stats.microTopics) : [];
+    
+    const topics = activeStats.microTopics ? Object.entries(activeStats.microTopics) : [];
     const weakTopics = topics.filter(([_, data]) => data.attempts > 0 && (data.correct / data.attempts < 0.5)).map(([name]) => name);
+    
     try {
-      const report = await generateBoardReadinessReport(stats, readinessScore, weakTopics);
+      const report = await generateBoardReadinessReport(activeStats, readinessScore, weakTopics);
       setAiReport(report);
-      toast.success('AI report generated.');
+      toast.success('AI Report Generated.');
     } catch (error) {
       setAiReport('Failed to generate tactical diagnostics. Please try again later.');
     } finally {
@@ -125,11 +159,11 @@ export default function Dashboard() {
   const handleExportPDF = async () => {
     setShowPdfModal(false);
     setIsGeneratingPDF(true);
-    const toastId = toast.loading("Taking high-res snapshots of telemetry charts...");
+    const toastId = toast.loading("Compiling High-Res Telemetry...");
     try {
         setTimeout(async () => {
-            await generateDiagnosticReport(currentUser, stats);
-            toast.success("Diagnostic PDF compiled successfully.", { id: toastId });
+            await generateDiagnosticReport(currentUser, activeStats);
+            toast.success("PDF Compiled Successfully.", { id: toastId });
             setIsGeneratingPDF(false);
         }, 500);
     } catch (error) {
@@ -140,105 +174,133 @@ export default function Dashboard() {
 
   const executePurge = async () => {
       setIsPurging(true);
-      const toastId = toast.loading("Executing Global Purge Sequence...");
+      const toastId = toast.loading("Executing Global Purge...");
       try {
           await purgeAnalytics();
           setShowPurgeModal(false);
-          toast.success("Telemetry Matrix has been completely wiped.", { id: toastId });
+          toast.success("Telemetry Wiped.", { id: toastId });
       } catch (error) {
-          toast.error("Database override failed. Check network.", { id: toastId });
+          toast.error("Database override failed.", { id: toastId });
       } finally {
           setIsPurging(false);
       }
   };
 
+  // Determine shadow glow colors based on Readiness Score
+  const scoreGlow = readinessScore >= 70 ? 'shadow-[0_0_40px_rgba(34,197,94,0.15)] border-reeGreen/20' 
+                  : readinessScore >= 50 ? 'shadow-[0_0_40px_rgba(245,158,11,0.1)] border-reeAmber/20' 
+                  : 'shadow-[0_0_40px_rgba(239,68,68,0.1)] border-reeRed/20';
+
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-[1600px] mx-auto">
-      <div className="mb-2 border-b border-border2 pb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+      <div className="mb-2 border-b border-border2/60 pb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-black text-textMain tracking-tight">Tactical Command Center</h1>
-          <p className="text-muted2 mt-1 text-sm">Welcome back, Agent <span className="text-reeCyan font-bold">{currentUser?.displayName || 'Reviewer'}</span>. Your real-time SQL metrics are synced.</p>
+          <p className="text-muted2 mt-1.5 text-sm font-medium">Welcome back, Agent <span className="text-reeCyan font-black">{currentUser?.displayName || 'Reviewer'}</span>. System telemetry is online.</p>
         </div>
       </div>
 
       <MissionControl 
-          stats={stats} 
+          stats={activeStats} 
           onExportPDF={() => setShowPdfModal(true)} 
           isGeneratingPDF={isGeneratingPDF} 
           onPurgeRequest={() => setShowPurgeModal(true)} 
       />
 
-      {/* 🚀 FIXED: Restored items-stretch and xl:h-[860px] to enforce deterministic baseline leveling */}
+      {/* 🚀 MAIN GRID: Strict sizing bounds ensure perfect column leveling */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-2 xl:h-[860px] items-stretch">
         
         {/* COLUMN 1: Recommended Module & Readiness Index */}
         <div className="flex flex-col gap-6 h-full min-h-0">
-            <div className="shrink-0"><RecommendedModule stats={stats} /></div>
-            <div className="p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col flex-1 min-h-0">
-              <div className="shrink-0">
-                <h3 className="text-sm font-bold text-textMain uppercase tracking-widest flex items-center gap-2 mb-2">📊 Board Readiness Index</h3>
-                <div className="flex items-end gap-2 mb-2">
-                  <span className={`text-6xl font-black tracking-tighter ${readinessScore >= 70 ? 'text-reeGreen' : readinessScore >= 50 ? 'text-reeAmber' : 'text-reeRed'}`}>{readinessScore}%</span>
+            <div className="shrink-0">
+                <RecommendedModule stats={activeStats} />
+            </div>
+            
+            <div className={`p-6 bg-surface/80 backdrop-blur-sm border rounded-2xl flex flex-col flex-1 min-h-0 transition-all duration-500 ${scoreGlow}`}>
+              <div className="shrink-0 relative">
+                <h3 className="text-xs font-black text-textMain uppercase tracking-widest flex items-center gap-2 mb-3">
+                    <span className="text-lg">📊</span> Board Readiness Index
+                </h3>
+                <div className="flex items-end gap-2 mb-1">
+                  <span className={`text-7xl font-black tracking-tighter drop-shadow-md ${readinessScore >= 70 ? 'text-reeGreen' : readinessScore >= 50 ? 'text-reeAmber' : 'text-reeRed'}`}>
+                      {readinessScore}%
+                  </span>
                 </div>
-                <div className="text-[0.65rem] text-muted uppercase tracking-widest">/ 70% Passing Threshold</div>
-                <div className="w-full h-2 bg-bg rounded-full mt-4 overflow-hidden border border-border2">
-                  <div className={`h-full transition-all duration-1000 ${readinessScore >= 70 ? 'bg-reeGreen shadow-[0_0_10px_rgba(34,197,94,0.5)]' : readinessScore >= 50 ? 'bg-reeAmber' : 'bg-reeRed'}`} style={{ width: `${readinessScore}%` }}></div>
+                <div className="text-[0.65rem] text-muted font-bold uppercase tracking-widest mb-6">/ 70% Passing Threshold</div>
+                
+                <div className="w-full h-2.5 bg-surface3/50 rounded-full overflow-hidden border border-border2/50 shadow-inner">
+                  <div className={`h-full transition-all duration-1500 ease-out ${readinessScore >= 70 ? 'bg-reeGreen shadow-[0_0_12px_rgba(34,197,94,0.6)]' : readinessScore >= 50 ? 'bg-reeAmber shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-reeRed'}`} style={{ width: `${readinessScore}%` }}></div>
                 </div>
 
-                <div className="p-4 bg-bg border border-border2 rounded-lg mt-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[0.65rem] font-bold text-muted uppercase tracking-widest">IRT Ability Level (θ)</span>
-                    <span className="text-sm font-black text-reeCyan">{currentTheta.toFixed(3)}</span>
+                <div className="p-4 bg-surface2/30 border border-border2/40 rounded-xl mt-6">
+                  <div className="flex justify-between items-center mb-2.5">
+                    <span className="text-[0.6rem] font-black text-muted uppercase tracking-widest">IRT Ability Level (θ)</span>
+                    <span className="text-sm font-black text-reeCyan drop-shadow-sm">{currentTheta.toFixed(3)}</span>
                   </div>
-                  <div className="w-full h-1 bg-surface3 rounded-full overflow-hidden relative">
-                    <div className="h-full bg-reeCyan absolute top-0 left-0 transition-all duration-700" style={{ width: `${Math.max(0, Math.min(100, ((currentTheta + 3) / 6) * 100))}%` }}></div>
+                  <div className="w-full h-1.5 bg-surface3/50 rounded-full overflow-hidden relative shadow-inner">
+                    <div className="h-full bg-reeCyan absolute top-0 left-0 transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(6,182,212,0.8)]" style={{ width: `${Math.max(0, Math.min(100, ((currentTheta + 3) / 6) * 100))}%` }}></div>
                   </div>
                 </div>
               </div>
 
               <div className="flex-1 flex flex-col min-h-0 w-full mt-6 mb-6">
                 {aiReport ? (
-                  <div className="flex-1 h-full bg-reePurple/5 border border-reePurple/20 rounded-xl p-5 overflow-y-auto custom-scrollbar flex flex-col">
-                    <div className="text-[0.65rem] font-bold text-reePurple uppercase tracking-widest mb-3 flex items-center gap-2 shrink-0"><span>✨</span> Tactical AI Diagnostics</div>
+                  <div className="flex-1 h-full bg-gradient-to-b from-reePurple/5 to-transparent border border-reePurple/20 rounded-xl p-5 overflow-y-auto custom-scrollbar flex flex-col relative">
+                    <div className="text-[0.65rem] font-black text-reePurple uppercase tracking-widest mb-3 flex items-center gap-2 shrink-0">
+                        <span className="animate-pulse">✨</span> Tactical AI Diagnostics
+                    </div>
                     <div className="text-sm text-textMain leading-relaxed font-medium">{aiReport}</div>
                   </div>
                 ) : (
-                  <div className="flex-1 h-full flex items-center justify-center border border-dashed border-border2 bg-bg/30 rounded-xl p-4">
-                     <div className="text-xs text-muted2 font-mono text-center leading-relaxed">AI Diagnostics Standby.<br/>Initialize report to audit blind spots.</div>
+                  <div className="flex-1 h-full flex flex-col items-center justify-center border-2 border-dashed border-border2/60 bg-surface2/10 rounded-xl p-6 transition-colors hover:border-reePurple/30 group">
+                     <span className="text-2xl mb-3 opacity-20 group-hover:opacity-40 transition-opacity">🤖</span>
+                     <div className="text-xs text-muted2 font-mono text-center leading-relaxed">
+                        Diagnostics Standby.<br/><span className="opacity-60">Initialize report to audit blind spots.</span>
+                     </div>
                   </div>
                 )}
               </div>
 
-              <button onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="shrink-0 w-full py-4 bg-gradient-to-r from-reePurple to-reeBlue text-white font-bold rounded-lg text-xs uppercase tracking-wider shadow-lg hover:shadow-reePurple/20 transition-all flex justify-center items-center gap-2 disabled:opacity-60 cursor-pointer">
-                {isGeneratingAI ? <><span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span>Analyzing Matrices...</> : '✨ Generate AI Readiness Report'}
+              <button onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="shrink-0 w-full py-4 bg-gradient-to-r from-reePurple to-reeBlue text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-[0_4px_14px_rgba(139,92,246,0.25)] hover:shadow-[0_6px_20px_rgba(139,92,246,0.4)] hover:-translate-y-0.5 transition-all duration-300 flex justify-center items-center gap-2 disabled:opacity-60 disabled:hover:translate-y-0 cursor-pointer">
+                {isGeneratingAI ? <><span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span>Analyzing Matrices...</> : '✨ Generate AI Report'}
               </button>
             </div>
         </div>
 
-        {/* 🚀 FIXED COLUMN 2: Velocity & Confidence Matrix */}
-        {/* Enforced flex-1 on the Velocity chart to absorb empty space and push ConfidenceMatrix to the bottom baseline. */}
+        {/* COLUMN 2: Velocity Chart & Confidence Matrix */}
         <div className="flex flex-col gap-6 h-full min-h-0">
-            <div className="flex-1 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col min-h-[300px] min-w-0 overflow-hidden">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0"><span>📈</span> 30-Day Readiness Velocity (θ)</h3>
-                <div className="flex-1 w-full h-full min-h-[200px] min-w-0">
-                    <ThetaVelocityChart history={stats?.thetaHistory} />
+            
+            {/* 🚀 Velocity Chart (flex-1 ensures it dynamically stretches to fill space) */}
+            <div className="flex-1 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col min-h-[250px] min-w-0 overflow-hidden transition-shadow hover:shadow-md">
+                <div className="flex justify-between items-center mb-4 shrink-0">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-textMain flex items-center gap-2">
+                        <span className="text-lg">📈</span> Readiness Velocity (θ)
+                    </h3>
+                    <span className="text-[0.6rem] font-bold text-muted uppercase tracking-widest bg-surface2 px-2 py-1 rounded-md">30 Days</span>
+                </div>
+                <div className="flex-1 w-full h-full min-h-[150px] min-w-0 mt-2">
+                    <ThetaVelocityChart history={activeStats?.thetaHistory} />
                 </div>
             </div>
             
-            <div className="shrink-0 p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center min-h-[350px]">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-textMain mb-6 flex items-center gap-2 shrink-0"><span>🧠</span> Confidence vs Accuracy Matrix</h3>
-                <ConfidenceMatrix stats={stats} />
+            {/* 🚀 Confidence Matrix (shrink-0 ensures it is perfectly sized at the bottom) */}
+            <div className="shrink-0 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col justify-center transition-shadow hover:shadow-md">
+                <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0">
+                    <span className="text-lg">🧠</span> Confidence Assessment
+                </h3>
+                <ConfidenceMatrix stats={activeStats} />
             </div>
         </div>
 
         {/* COLUMN 3: Topic Mastery Heatmap */}
         <div className="flex flex-col h-full min-h-[350px] min-w-0 xl:col-span-1 lg:col-span-2">
-            <HeatmapChart stats={stats} />
+            <HeatmapChart stats={activeStats} />
         </div>
       </div>
 
       <MockBoardAnalytics />
 
+      {/* MODALS */}
       {showAiModal && (
         <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={showAiModal}>

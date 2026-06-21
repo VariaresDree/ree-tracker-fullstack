@@ -1,131 +1,175 @@
 // src/features/active-recall/ReviewSetup.jsx
 import React from 'react';
-import { useStore } from '../../store/useStore'; // 🚀 FIXED: Dynamic Store Import
 
-export default function ReviewSetup({ config, setConfig, session, stats, isOnline, loadNextQuestion, libraryCache }) {
-  // 🚀 FIXED: Pull the live syllabus from global memory
-  const { dynamicTOS } = useStore();
-  const safeTOS = dynamicTOS || {};
+export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnline, startSession }) {
+  
+  const handleModeChange = (mode) => {
+      const defaultSubj = 'Mathematics';
+      const defaultSub = safeTOS[defaultSubj]?.[0] || 'All';
+      setConfig({ ...config, studyMode: mode, subject: defaultSubj, subtopic: defaultSub, source: 'library' });
+  };
 
   return (
-    <div className="p-6 bg-surface border border-border2 rounded-xl shadow-sm">
-      <h2 className="text-2xl font-black text-textMain mb-1 tracking-tight">Review Session</h2>
-      <p className="text-sm text-muted2 mb-6">Configure the spaced repetition and mental agility protocols.</p>
+    <div className="p-6 sm:p-10 bg-surface/90 backdrop-blur-xl border border-border2/80 rounded-[2rem] shadow-2xl max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-6 duration-500">
+      
+      <div className="mb-8 border-b border-border2/50 pb-5">
+        <h2 className="text-2xl sm:text-3xl font-black text-textMain mb-2 tracking-tight drop-shadow-sm">Review Session</h2>
+        <p className="text-sm text-muted2 font-medium">Configure your spaced repetition and mental agility protocols.</p>
+      </div>
 
       {/* SESSION MODE */}
-      <div className="mb-6">
-        <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">Session Mode</label>
-        <div className="flex gap-3">
-          <button onClick={() => { setConfig({...config, sessionMode: 'mcq'}); libraryCache.current = []; }} className={`flex-1 py-3 rounded-lg border text-sm font-bold transition-all cursor-pointer ${config.sessionMode === 'mcq' ? 'bg-reeBlue/20 border-reeBlue text-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'bg-bg border-border2 text-muted hover:border-muted2'}`}>
+      <div className="mb-8">
+        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Session Mode</label>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button 
+            onClick={() => setConfig({...config, sessionMode: 'mcq'})} 
+            className={`flex-1 py-4 px-6 rounded-2xl border-2 text-sm font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 ${config.sessionMode === 'mcq' ? 'bg-reeBlue/10 border-reeBlue/60 text-reeBlue shadow-[0_0_20px_rgba(59,130,246,0.15)] scale-[1.02]' : 'bg-surface2/40 border-border2/60 text-muted hover:border-reeBlue/40 hover:text-reeBlue hover:bg-surface3'}`}
+          >
             📝 Multiple Choice
           </button>
-          <button onClick={() => { setConfig({...config, sessionMode: 'flashcard'}); libraryCache.current = []; }} className={`flex-1 py-3 rounded-lg border text-sm font-bold transition-all flex flex-col items-center justify-center cursor-pointer ${config.sessionMode === 'flashcard' ? 'bg-reePurple/20 border-reePurple text-reePurple shadow-[0_0_15px_rgba(139,92,246,0.15)]' : 'bg-bg border-border2 text-muted hover:border-muted2'}`}>
-            <span>🗂️ Flashcard</span>
-            <span className="text-[0.6rem] font-normal opacity-80">(Prioritizes Facts)</span>
+          <button 
+            onClick={() => setConfig({...config, sessionMode: 'flashcard'})} 
+            className={`flex-1 py-4 px-6 rounded-2xl border-2 text-sm font-black transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-1 ${config.sessionMode === 'flashcard' ? 'bg-reeAmber/10 border-reeAmber/60 text-reeAmber shadow-[0_0_20px_rgba(245,158,11,0.15)] scale-[1.02]' : 'bg-surface2/40 border-border2/60 text-muted hover:border-reeAmber/40 hover:text-reeAmber hover:bg-surface3'}`}
+          >
+            <div className="flex items-center gap-2">🗂️ Flashcard</div>
+            <span className="text-[0.65rem] font-medium opacity-70 normal-case tracking-wide">(Prioritizes Facts)</span>
           </button>
         </div>
       </div>
 
-      {/* NEW: COGNITIVE FOCUS */}
-      <div className="mb-6 animate-in fade-in slide-in-from-top-2">
-        <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">
-            Cognitive Focus
-        </label>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <button
-                onClick={() => { setConfig({ ...config, cognitiveFocus: 'mixed' }); libraryCache.current = []; }}
-                className={`py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border cursor-pointer ${config.cognitiveFocus === 'mixed' ? 'bg-textMain/10 border-textMain text-textMain shadow-[0_0_15px_rgba(241,245,249,0.1)]' : 'bg-bg border-border2 text-muted hover:border-textMain/50'}`}
-            >
-                ⚖️ Standard Mix
-            </button>
-            <button
-                onClick={() => { setConfig({ ...config, cognitiveFocus: 'conceptual' }); libraryCache.current = []; }}
-                className={`py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border cursor-pointer ${config.cognitiveFocus === 'conceptual' ? 'bg-reePurple/20 border-reePurple text-reePurple shadow-[0_0_15px_rgba(139,92,246,0.15)]' : 'bg-bg border-border2 text-muted hover:border-reePurple/50'}`}
-            >
-                🧠 Theory (Conceptual)
-            </button>
-            <button
-                onClick={() => { setConfig({ ...config, cognitiveFocus: 'calculation' }); libraryCache.current = []; }}
-                className={`py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border cursor-pointer ${config.cognitiveFocus === 'calculation' ? 'bg-reeAmber/20 border-reeAmber text-reeAmber shadow-[0_0_15px_rgba(245,158,11,0.15)]' : 'bg-bg border-border2 text-muted hover:border-reeAmber/50'}`}
-            >
-                🧮 Math (Calculation)
-            </button>
+      {/* COGNITIVE FOCUS */}
+      <div className="mb-8 animate-in fade-in slide-in-from-bottom-2">
+        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Cognitive Focus</label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button 
+            onClick={() => setConfig({...config, cognitiveFocus: 'mixed'})} 
+            className={`py-3.5 px-4 rounded-xl border-2 text-[0.7rem] sm:text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.cognitiveFocus === 'mixed' ? 'bg-textMain/5 border-textMain/50 text-textMain shadow-sm scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-textMain/30 hover:text-textMain hover:bg-surface3'}`}
+          >
+            ⚖️ Standard Mix
+          </button>
+          <button 
+            onClick={() => setConfig({...config, cognitiveFocus: 'conceptual'})} 
+            className={`py-3.5 px-4 rounded-xl border-2 text-[0.7rem] sm:text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.cognitiveFocus === 'conceptual' ? 'bg-reePurple/10 border-reePurple/60 text-reePurple shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reePurple/40 hover:text-reePurple hover:bg-surface3'}`}
+          >
+            🧠 Theory (Conceptual)
+          </button>
+          <button 
+            onClick={() => setConfig({...config, cognitiveFocus: 'calculation'})} 
+            className={`py-3.5 px-4 rounded-xl border-2 text-[0.7rem] sm:text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.cognitiveFocus === 'calculation' ? 'bg-reeRed/10 border-reeRed/60 text-reeRed shadow-[0_0_15px_rgba(239,68,68,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeRed/40 hover:text-reeRed hover:bg-surface3'}`}
+          >
+            🧮 Math (Calculation)
+          </button>
         </div>
       </div>
 
-      {/* TARGET MATRIX FOCUS */}
-      <div className="mb-6">
-        <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">Target Matrix Focus</label>
+      {/* STUDY FOCUS */}
+      <div className="mb-8">
+        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Study Focus</label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <button onClick={() => { setConfig({...config, studyMode: 'interleaved', source: 'library'}); libraryCache.current = []; }} className={`py-2.5 rounded-md border text-xs font-bold transition-all cursor-pointer ${config.studyMode === 'interleaved' ? 'bg-reeAmber/20 border-reeAmber text-reeAmber' : 'bg-bg border-border2 text-muted'}`}>
+          <button 
+            onClick={() => handleModeChange('interleaved')} 
+            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'interleaved' ? 'bg-reeBlue/10 border-reeBlue/60 text-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeBlue/40 hover:text-reeBlue hover:bg-surface3'}`}
+          >
             🔀 Interleaved
           </button>
-          <button onClick={() => { setConfig({...config, studyMode: 'subject', source: 'library'}); libraryCache.current = []; }} className={`py-2.5 rounded-md border text-xs font-bold transition-all cursor-pointer ${config.studyMode === 'subject' ? 'bg-reeBlue/20 border-reeBlue text-reeBlue' : 'bg-bg border-border2 text-muted'}`}>
+          <button 
+            onClick={() => handleModeChange('subject')} 
+            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'subject' ? 'bg-reeGreen/10 border-reeGreen/60 text-reeGreen shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeGreen/40 hover:text-reeGreen hover:bg-surface3'}`}
+          >
             📚 By Subject
           </button>
-          <button onClick={() => { setConfig({...config, studyMode: 'subtopic', source: 'library'}); libraryCache.current = []; }} className={`py-2.5 rounded-md border text-xs font-bold transition-all cursor-pointer ${config.studyMode === 'subtopic' ? 'bg-reeCyan/20 border-reeCyan text-reeCyan' : 'bg-bg border-border2 text-muted'}`}>
+          <button 
+            onClick={() => handleModeChange('subtopic')} 
+            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'subtopic' ? 'bg-reeCyan/10 border-reeCyan/60 text-reeCyan shadow-[0_0_15px_rgba(6,182,212,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeCyan/40 hover:text-reeCyan hover:bg-surface3'}`}
+          >
             🎯 Subtopic
           </button>
-          <button onClick={() => { setConfig({...config, studyMode: 'bleeding', source: 'library'}); libraryCache.current = []; }} className={`py-2.5 rounded-md border text-xs font-bold transition-all cursor-pointer relative overflow-hidden ${config.studyMode === 'bleeding' ? 'bg-reeRed/20 border-reeRed text-reeRed font-black' : 'bg-bg border-border2 text-reeRed/70 hover:border-reeRed/50'}`}>
-            🚨 Bleeding Edge ({stats?.blindSpots?.length || 0})
+          <button 
+            onClick={() => handleModeChange('bleeding')} 
+            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'bleeding' ? 'bg-reeRed/10 border-reeRed/60 text-reeRed shadow-[0_0_15px_rgba(239,68,68,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeRed/40 hover:text-reeRed hover:bg-surface3'}`}
+          >
+            🚨 Weak Points
           </button>
         </div>
       </div>
 
-      {config.studyMode !== 'interleaved' && config.studyMode !== 'bleeding' && (
-        <div className="flex gap-4 mb-6 animate-in fade-in duration-300">
+      {['subject', 'subtopic'].includes(config.studyMode) && (
+        <div className="flex flex-col sm:flex-row gap-5 mb-8 animate-in fade-in slide-in-from-top-2">
           <div className="flex-1">
-            <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">Subject</label>
-            {/* 🚀 FIXED: Replaced static TOS with dynamic safeTOS here */}
-            <select 
-                value={config.subject} 
-                onChange={e => { 
-                    setConfig({...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || ''}); 
-                    libraryCache.current = []; 
-                }} 
-                className="w-full bg-bg border border-border2 text-textMain rounded-md p-2.5 text-xs outline-none focus:border-reeBlue cursor-pointer"
-            >
-              {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'ESAS' ? 'ESAS' : s}</option>)}
-            </select>
+            <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Subject</label>
+            <div className="relative group">
+                <select 
+                  value={config.subject} 
+                  onChange={e => setConfig({...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All'})} 
+                  className="w-full bg-surface2/40 border border-border2/60 text-textMain font-bold rounded-xl p-4 text-sm outline-none focus:border-reeBlue focus:ring-2 focus:ring-reeBlue/20 transition-all cursor-pointer appearance-none shadow-sm hover:border-reeBlue/40"
+                >
+                  {Object.keys(safeTOS).map(s => <option key={s} value={s} className="bg-surface text-textMain">{s}</option>)}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted transition-transform group-hover:translate-y-0.5">▼</div>
+            </div>
           </div>
           {config.studyMode === 'subtopic' && (
-            <div className="flex-1">
-              <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">Subtopic</label>
-              {/* 🚀 FIXED: Replaced static TOS with dynamic safeTOS here */}
-              <select 
-                  value={config.subtopic} 
-                  onChange={e => { 
-                      setConfig({...config, subtopic: e.target.value}); 
-                      libraryCache.current = []; 
-                  }} 
-                  className="w-full bg-bg border border-border2 text-textMain rounded-md p-2.5 text-xs outline-none focus:border-reeCyan cursor-pointer"
-              >
-                {(safeTOS[config.subject] || []).map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+            <div className="flex-1 animate-in fade-in slide-in-from-left-4">
+              <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Subtopic</label>
+              <div className="relative group">
+                  <select 
+                    value={config.subtopic} 
+                    onChange={e => setConfig({...config, subtopic: e.target.value})} 
+                    className="w-full bg-surface2/40 border border-border2/60 text-textMain font-bold rounded-xl p-4 text-sm outline-none focus:border-reeCyan focus:ring-2 focus:ring-reeCyan/20 transition-all cursor-pointer appearance-none shadow-sm hover:border-reeCyan/40"
+                  >
+                    {(safeTOS[config.subject] || []).map(t => <option key={t} value={t} className="bg-surface text-textMain">{t}</option>)}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted transition-transform group-hover:translate-y-0.5">▼</div>
+              </div>
             </div>
           )}
         </div>
       )}
 
+      {/* 🚀 SESSION VOLUME (RESTORED) */}
+      <div className="mb-8 animate-in fade-in slide-in-from-bottom-3">
+        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Session Volume</label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[10, 20, 50, 100].map(num => (
+            <button 
+              key={num}
+              onClick={() => setConfig({...config, count: num})}
+              className={`py-3.5 px-4 rounded-2xl border-2 text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.count === num ? 'bg-reeGreen/10 border-reeGreen/60 text-reeGreen shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeGreen/40 hover:text-reeGreen hover:bg-surface3 hover:-translate-y-0.5'}`}
+            >
+              {num} Items
+            </button>
+          ))}
+        </div>
+      </div>
+
       {config.studyMode !== 'bleeding' && (
-        <div className="mb-8">
-          <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-2">Data Ingestion Source</label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button onClick={() => { setConfig({...config, source: 'library'}); libraryCache.current = []; }} className={`p-3 rounded-md border text-left text-xs font-bold transition-all cursor-pointer ${config.source === 'library' ? 'border-reeBlue bg-reeBlue/10 text-reeBlue' : 'border-border2 bg-bg text-muted hover:border-muted2'}`}>
+        <div className="mb-10">
+          <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Question Source</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button 
+              onClick={() => setConfig({...config, source: 'library'})} 
+              className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 ${config.source === 'library' ? 'border-reeBlue/60 bg-reeBlue/10 text-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeBlue/40 hover:text-reeBlue hover:bg-surface3'}`}
+            >
               📚 Local Library Vault
             </button>
-            <button onClick={() => { setConfig({...config, source: 'ai'}); libraryCache.current = []; }} disabled={!isOnline} className={`p-3 rounded-md border text-left text-xs font-bold transition-all ${config.source === 'ai' ? 'border-reePurple bg-reePurple/10 text-reePurple' : 'border-border2 bg-bg text-muted'} ${!isOnline ? 'opacity-50 cursor-not-allowed' : 'hover:border-muted2 cursor-pointer'}`}>
-              ✨ AI Generate {!isOnline && ' (Offline)'}
-            </button>
-            <button onClick={() => { setConfig({...config, source: 'web'}); libraryCache.current = []; }} disabled={!isOnline} className={`p-3 rounded-md border text-left text-xs font-bold transition-all ${config.source === 'web' ? 'border-reeCyan bg-reeCyan/10 text-reeCyan' : 'border-border2 bg-bg text-muted'} ${!isOnline ? 'opacity-50 cursor-not-allowed' : 'hover:border-muted2 cursor-pointer'}`}>
-              🌐 Web Grounded {!isOnline && ' (Offline)'}
+            <button 
+              onClick={() => setConfig({...config, source: 'ai'})} 
+              disabled={!isOnline} 
+              className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 flex items-center justify-center gap-3 ${config.source === 'ai' ? 'border-reeAmber/60 bg-reeAmber/10 text-reeAmber shadow-[0_0_15px_rgba(245,158,11,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeAmber/40 hover:text-reeAmber hover:bg-surface3'} ${!isOnline ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
+            >
+              ✨ AI Generator
             </button>
           </div>
         </div>
       )}
 
-      <button onClick={loadNextQuestion} disabled={session.aiLoading || (!isOnline && config.source !== 'library' && config.studyMode !== 'bleeding')} className="w-full py-4 bg-reeBlue hover:bg-reeBlue2 text-white font-bold rounded-lg shadow-md transition-colors flex justify-center items-center gap-2 text-sm cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
-        {session.aiLoading ? <><span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span> Booting Engine...</> : '🚀 Initialize Active Review Session'}
+      <button 
+        onClick={startSession} 
+        disabled={session.loading || (!isOnline && config.source !== 'library')} 
+        className="relative overflow-hidden w-full py-5 bg-reeBlue hover:bg-blue-500 text-white font-black rounded-2xl shadow-[0_4px_25px_rgba(59,130,246,0.35)] transition-all duration-300 hover:shadow-[0_6px_30px_rgba(59,130,246,0.5)] hover:-translate-y-1 flex justify-center items-center gap-3 text-sm tracking-widest uppercase cursor-pointer disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none group"
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+        {session.loading ? <><span className="telemetry-spinner !w-5 !h-5 border-white"></span> Booting Engine...</> : '🚀 Initialize Active Review Session'}
       </button>
     </div>
   );
