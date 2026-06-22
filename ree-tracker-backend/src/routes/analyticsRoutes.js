@@ -1,29 +1,22 @@
-// src/routes/analyticsRoutes.js
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { validate } = require('../middlewares/validate');
+const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
+const { calculateUpdatedTheta } = require('../utils/irtMath');
 
 router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
     const { uid } = req.params;
 
     try {
-        let user = await prisma.user.findUnique({
+        const user = await prisma.user.findUnique({
             where: { id: uid },
             include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
         });
 
         if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
 
-        // Force promote user
-        if (user.role !== 'ADMIN') {
-            user = await prisma.user.update({
-                where: { id: uid }, data: { role: 'ADMIN' },
-                include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
-            });
-        }
-
-        // 📅 OPTIMIZED: Strict Asian/Manila Timezone Aggregation
         const phtDate = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"}));
         phtDate.setHours(0, 0, 0, 0);
         const utcStartOfDay = new Date(phtDate.getTime() - (8 * 60 * 60 * 1000));
@@ -41,12 +34,10 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
             else if (group.subject === 'EE') dailyEE += group._count.id;
         });
 
-        // 📅 FETCH ACTIVITY CALENDAR FOR HEATMAP
         const activityLogs = await prisma.activityLog.findMany({ where: { userId: uid } });
         const activityCalendar = {};
         activityLogs.forEach(log => activityCalendar[log.date] = log.count);
 
-        // 🚀 OPTIMIZATION: Postgres Aggregation avoids Out Of Memory errors
         const topicAgg = await prisma.questionAttempt.groupBy({
             by: ['subject', 'subtopic', 'isCorrect'],
             where: { userId: uid },
@@ -98,7 +89,7 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
     }
 });
 
-router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
+router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), async (req, res) => {
     try {
         const { attempts } = req.body;
         if (!attempts || attempts.length === 0) return res.status(200).json({ success: true, updatedTheta: 0 });
@@ -106,34 +97,57 @@ router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         const currentTheta = user?.thetaRating || 0.0;
 
-        const mappedAttempts = attempts.map(a => ({
-            userId: req.user.id, questionId: a.questionId,
-            subject: a.subject || 'General', subtopic: a.subtopic || 'General',
-            isCorrect: a.isCorrect, confidenceLevel: (a.confidenceLevel || 'MED').toUpperCase(),
-            timeSpentMs: parseInt(a.timeSpentMs) || 0
-        }));
+        // Server-side answer verification: fetch actual answers from question bank
+        const questionIds = attempts.map(a => a.questionId).filter(Boolean);
+        const masterQuestions = await prisma.question.findMany({
+            where: { id: { in: questionIds } },
+            select: { id: true, answer: true, difficulty: true }
+        });
+        const qMap = {};
+        masterQuestions.forEach(q => { qMap[q.id] = q; });
 
-        await prisma.questionAttempt.createMany({ data: mappedAttempts });
+        const mappedAttempts = attempts.map(a => {
+            const masterQ = qMap[a.questionId];
+            const isCorrect = masterQ
+                ? (masterQ.answer === a.userAnswer)
+                : (a.isCorrect || false);
 
-        // 📅 SAFE TIMEZONE SYNC FOR CALENDAR HEATMAP 
-        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date()); 
-        
-        const existingLog = await prisma.activityLog.findFirst({ where: { userId: req.user.id, date: todayStr } });
-        if (existingLog) {
-            await prisma.activityLog.update({
-                where: { id: existingLog.id },
-                data: { count: existingLog.count + attempts.length }
+            return {
+                userId: req.user.id,
+                questionId: a.questionId,
+                subject: a.subject || 'General',
+                subtopic: a.subtopic || 'General',
+                isCorrect,
+                confidenceLevel: (a.confidenceLevel || 'MED').toUpperCase(),
+                timeSpentMs: parseInt(a.timeSpentMs) || 0,
+                questionDifficulty: masterQ?.difficulty || 0.0
+            };
+        });
+
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+
+        await prisma.$transaction(async (tx) => {
+            await tx.questionAttempt.createMany({
+                data: mappedAttempts.map(({ questionDifficulty, ...rest }) => rest)
             });
-        } else {
-            await prisma.activityLog.create({
-                data: { userId: req.user.id, date: todayStr, count: attempts.length }
-            });
-        }
 
-        const correctCount = mappedAttempts.filter(a => a.isCorrect).length;
-        const targetRatio = correctCount / mappedAttempts.length;
-        const baselineBump = targetRatio >= 0.5 ? 0.04 : -0.04;
-        const updatedTheta = Math.max(-3.0, Math.min(3.0, currentTheta + baselineBump));
+            const existingLog = await tx.activityLog.findFirst({
+                where: { userId: req.user.id, date: todayStr }
+            });
+            if (existingLog) {
+                await tx.activityLog.update({
+                    where: { id: existingLog.id },
+                    data: { count: existingLog.count + attempts.length }
+                });
+            } else {
+                await tx.activityLog.create({
+                    data: { userId: req.user.id, date: todayStr, count: attempts.length }
+                });
+            }
+        });
+
+        // IRT Rasch model theta calculation (replaces crude +/-0.04 bump)
+        const updatedTheta = calculateUpdatedTheta(currentTheta, mappedAttempts);
 
         await prisma.user.update({
             where: { id: req.user.id },
@@ -149,11 +163,16 @@ router.post('/telemetry-bulk', authMiddleware, async (req, res) => {
 
 router.delete('/purge', authMiddleware, async (req, res) => {
     try {
-        await prisma.questionAttempt.deleteMany({ where: { userId: req.user.id } });
-        await prisma.examSession.deleteMany({ where: { userId: req.user.id } });
-        await prisma.activityLog.deleteMany({ where: { userId: req.user.id } });
-        await prisma.userTopicPerformance.deleteMany({ where: { userId: req.user.id } });
-        await prisma.user.update({ where: { id: req.user.id }, data: { thetaRating: 0.0, globalStreak: 0 } });
+        await prisma.$transaction(async (tx) => {
+            await tx.questionAttempt.deleteMany({ where: { userId: req.user.id } });
+            await tx.examSession.deleteMany({ where: { userId: req.user.id } });
+            await tx.activityLog.deleteMany({ where: { userId: req.user.id } });
+            await tx.userTopicPerformance.deleteMany({ where: { userId: req.user.id } });
+            await tx.user.update({
+                where: { id: req.user.id },
+                data: { thetaRating: 0.0, globalStreak: 0 }
+            });
+        });
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Failed to execute global purge sequence.' });

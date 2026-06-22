@@ -3,8 +3,10 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 
-// 🚀 FIXED: Pointing back to your centralized, working DB configuration
-const prisma = require('../config/db'); 
+const { validate } = require('../middlewares/validate');
+const { questionCreateSchema, questionUpdateSchema } = require('../schemas/questionSchemas');
+const { requireAdmin } = require('../middlewares/roleMiddleware');
+const prisma = require('../config/db');
 
 const getSubjectFilter = (subjectStr) => {
     if (!subjectStr || subjectStr === 'All') return undefined;
@@ -70,7 +72,7 @@ router.get('/quarantine', authMiddleware, async (req, res) => {
 });
 
 // 1.6. APPROVE QUARANTINED ITEM
-router.put('/quarantine/:id/approve', authMiddleware, async (req, res) => {
+router.put('/quarantine/:id/approve', authMiddleware, requireAdmin, async (req, res) => {
     try {
         await prisma.question.update({
             where: { id: req.params.id },
@@ -107,8 +109,8 @@ router.get('/flagged', authMiddleware, async (req, res) => {
     }
 });
 
-// 2. ADD A NEW QUESTION 
-router.post('/', authMiddleware, async (req, res) => {
+// 2. ADD A NEW QUESTION
+router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res) => {
     try {
         const data = req.body;
         const newQuestion = await prisma.question.create({
@@ -203,7 +205,7 @@ router.patch('/:id/flag', authMiddleware, async (req, res) => {
 });
 
 // 7. DELETE QUESTION
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
         await prisma.question.delete({ where: { id: req.params.id } });
         res.status(200).json({ success: true });
