@@ -1,7 +1,8 @@
 // src/features/board-simulator/SimulatorActive.jsx
 import React, { useState, useEffect, useRef } from 'react'; 
 import LatexRenderer from '../../components/LatexRenderer';
-import Scratchpad from '../../components/Scratchpad'; 
+import Scratchpad from '../../components/Scratchpad';
+import ReferencePanel from '../../components/ReferencePanel';
 import { generateMasterExplanation } from '../../services/geminiApi';
 import toast from 'react-hot-toast';
 
@@ -309,6 +310,8 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
                   );
               })}
           </div>
+
+          {!isReview && <ReferencePanel question={q} />}
 
           {/* POST-EXAM SOLUTIONS */}
           {isReview && (

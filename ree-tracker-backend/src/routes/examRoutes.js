@@ -208,14 +208,23 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), async (req, r
 // FETCH EXAM LEDGER HISTORY
 router.get('/history', authMiddleware, async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 20;
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        const cursor = req.query.cursor;
+
         const history = await prisma.examSession.findMany({
             where: { userId: req.user.id },
             orderBy: { createdAt: 'desc' },
-            take: limit
+            take: limit + 1,
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
         });
 
-        return res.status(200).json(history);
+        const hasMore = history.length > limit;
+        if (hasMore) history.pop();
+
+        return res.status(200).json({
+            items: history,
+            nextCursor: hasMore ? history[history.length - 1].id : null
+        });
     } catch (error) {
         return res.status(500).json({ error: 'Failed to fetch exam history.' });
     }

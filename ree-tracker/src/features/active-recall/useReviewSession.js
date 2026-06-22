@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, syncTelemetryBatch, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank } from '../../services/dbQueries';
+import { fetchVaultQuestions, syncTelemetryBatch, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
 import toast from 'react-hot-toast';
@@ -161,6 +161,17 @@ export const useReviewSession = (currentUser, isOnline) => {
         try {
             if (isOnline && telemetryBatchRef.current.length > 0) {
                 await syncTelemetryBatch(currentUser.uid, `REV_${Date.now()}`, config.subject, config.sessionMode, telemetryBatchRef.current);
+
+                const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                await apiRequest('/api/analytics/study-sessions', 'POST', {
+                    mode: config.sessionMode,
+                    subject: config.subject,
+                    subtopic: config.subtopic === 'All' ? null : config.subtopic,
+                    totalQuestions: session.totalAnswered,
+                    correctAnswers: session.correctHits,
+                    durationSecs: totalDuration
+                }).catch(() => {});
+
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
                 if (freshProfile?.data) setStats(freshProfile.data);
             }

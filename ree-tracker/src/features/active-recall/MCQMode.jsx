@@ -1,6 +1,7 @@
 // src/features/active-recall/MCQMode.jsx
 import React from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
+import ReferencePanel from '../../components/ReferencePanel';
 
 export default function MCQMode({ session, setSession, handleAnswerSelection }) {
   const currentQ = session.questions[session.currentIndex];
@@ -94,6 +95,8 @@ export default function MCQMode({ session, setSession, handleAnswerSelection }) 
           );
         })}
       </div>
+
+      <ReferencePanel question={currentQ} />
     </div>
   );
 }
