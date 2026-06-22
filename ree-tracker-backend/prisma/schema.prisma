@@ -50,22 +50,33 @@ model User {
   srsCards          SRSCard[]
   studySessions     StudySession[]
   plannerTasks      PlannerTask[]
+
+  // --- V4: Phase 3 Relations ---
+  readinessSnapshots ReadinessSnapshot[]
 }
 
 // 3. 'questions' collection (Exact Firebase Names Restored)
 model Question {
   id               String   @id @default(uuid())
-  subject          String   
+  subject          String
   subtopic         String
-  text             String   // Restored from Firebase
-  options          String[] 
-  answer           String   // Restored from Firebase
-  difficulty       Float    @default(0.0) 
-  fixedExplanation String?  // EXACT MATCH to Firebase 'Offline Solution'
+  text             String
+  options          String[]
+  answer           String
+  difficulty       Float    @default(0.0)
+  fixedExplanation String?
   source           String?  @default("legacy")
   type             String?  @default("conceptual")
   isFlagged        Boolean  @default(false)
   createdAt        DateTime @default(now())
+
+  // Phase 3: Bloom's taxonomy + difficulty tiers
+  bloomLevel       String?  @default("REMEMBER")
+  difficultyTier   Int?     @default(1)
+  competencyArea   String?
+
+  // Phase 3: Explanation review pipeline
+  explanationStatus String? @default("PENDING")
 
   attempts         QuestionAttempt[]
   bookmarks        Bookmark[]
@@ -233,4 +244,20 @@ model PlannerTask {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, completed])
+}
+
+// Phase 3: Weekly readiness score snapshots
+model ReadinessSnapshot {
+  id              String   @id @default(uuid())
+  userId          String
+  score           Float
+  topicCoverage   Float
+  accuracyRate    Float
+  theta           Float
+  consistency     Float
+  blindSpotRatio  Float
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

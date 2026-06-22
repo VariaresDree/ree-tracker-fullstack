@@ -11,7 +11,7 @@ import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
 import { generateBoardReadinessReport } from '../services/geminiApi';
 import { generateDiagnosticReport } from '../utils/pdfEngine';
-import { apiRequest } from '../services/dbQueries'; 
+import { apiRequest, fetchReadinessScore } from '../services/dbQueries';
 import toast from 'react-hot-toast';
 
 export default function Dashboard() {
@@ -121,8 +121,16 @@ export default function Dashboard() {
       };
   }, [stats, sqlData]);
 
+  const [readinessData, setReadinessData] = useState(null);
+
+  useEffect(() => {
+    if (currentUser?.uid && !isFetchingSQL) {
+      fetchReadinessScore().then(data => setReadinessData(data)).catch(() => {});
+    }
+  }, [currentUser, isFetchingSQL]);
+
   const currentTheta = activeStats?.irt?.theta || 0;
-  const readinessScore = useMemo(() => {
+  const readinessScore = readinessData?.score ?? useMemo(() => {
     return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
   }, [currentTheta]);
 

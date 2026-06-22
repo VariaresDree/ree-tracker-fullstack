@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 // Fetch due SRS cards for review
 router.get('/due', authMiddleware, async (req, res) => {
@@ -27,7 +28,7 @@ router.get('/due', authMiddleware, async (req, res) => {
 
         res.status(200).json({ items: dueCards });
     } catch (error) {
-        console.error("SRS Due Fetch Error:", error);
+        logger.error('SRS due fetch error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to fetch due cards.' });
     }
 });
@@ -69,7 +70,7 @@ router.post('/review', authMiddleware, async (req, res) => {
 
         res.status(200).json({ success: true, card });
     } catch (error) {
-        console.error("SRS Review Error:", error);
+        logger.error('SRS review error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to update SRS card.' });
     }
 });

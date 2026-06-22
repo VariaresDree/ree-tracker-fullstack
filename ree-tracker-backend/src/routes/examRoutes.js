@@ -5,6 +5,7 @@ const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema } = require('../schemas/examSchemas');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 // GET QUESTIONS — answers excluded from response
 router.get('/', authMiddleware, async (req, res) => {
@@ -48,7 +49,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         return res.status(200).json({ items: questions });
     } catch (error) {
-        console.error("Fetch Error:", error);
+        logger.error('Exam questions fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Database fetch failed.' });
     }
 });
@@ -82,7 +83,7 @@ router.post('/grade', authMiddleware, validate(gradeSchema), async (req, res) =>
 
         return res.status(200).json({ results });
     } catch (error) {
-        console.error("[GRADE] Error:", error);
+        logger.error('Exam grading error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Grading failed.' });
     }
 });
@@ -200,7 +201,7 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), async (req, r
         });
 
     } catch (error) {
-        console.error("[EXAM ENGINE] Submit Error:", error);
+        logger.error('Exam submit error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Telemetry compilation failed.' });
     }
 });

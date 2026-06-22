@@ -5,6 +5,7 @@ const { validate } = require('../middlewares/validate');
 const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
+const logger = require('../utils/logger');
 
 router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
     const { uid } = req.params;
@@ -84,7 +85,7 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("[ANALYTICS ENGINE ERROR]:", error);
+        logger.error('Analytics dashboard error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to aggregate telemetry matrices.' });
     }
 });
@@ -156,7 +157,7 @@ router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), as
 
         res.status(200).json({ success: true, updatedTheta });
     } catch (error) {
-        console.error("Telemetry Bulk Sync Error:", error);
+        logger.error('Telemetry bulk sync error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Matrix sync transaction rejected.' });
     }
 });

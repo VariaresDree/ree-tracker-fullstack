@@ -6,6 +6,7 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+const logger = require('../utils/logger');
 
 exports.getDashboardData = async (req, res) => {
     // The authMiddleware guarantees req.user exists and is verified via Firebase JWT
@@ -82,7 +83,7 @@ exports.getDashboardData = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("[DASHBOARD SYNC ERROR]:", error);
+        logger.error('Dashboard sync error', { error: error.message, stack: error.stack });
         return res.status(500).json({ success: false, error: 'Failed to aggregate dashboard analytics.' });
     }
 };

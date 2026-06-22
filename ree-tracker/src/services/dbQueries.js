@@ -52,8 +52,8 @@ const normalizeQuestions = (data) => {
 // ----------------------------------------------------------------------
 export const getAnalyticsProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
-export const logSRSRecord = async (uid, questionId, payload) => apiRequest(`/api/user/srs/${questionId}`, 'POST', payload);
-export const updateAnalyticsProfile = async () => true; 
+export const logSRSRecord = async (uid, questionId, payload) => apiRequest('/api/srs/review', 'POST', { questionId, ...payload });
+export const updateAnalyticsProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
 export const syncTelemetryBatch = async (uid, sessionId, targetSubject, mode, attempts) => {
     return await apiRequest('/api/analytics/telemetry-bulk', 'POST', { sessionId, targetSubject, mode, attempts });
 };
@@ -122,7 +122,7 @@ export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 
 // ----------------------------------------------------------------------
 // 4. The Social Matrix (Leaderboards)
 // ----------------------------------------------------------------------
-export const syncLeaderboardProfile = async () => true;
+export const syncLeaderboardProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
 export const fetchGlobalLeaderboard = async (limitCount = 100) => {
     const data = await apiRequest(`/api/leaderboard?limit=${limitCount}`);
     return data?.leaderboard || data?.items || data || [];
@@ -232,6 +232,16 @@ export const deleteSimulationRecord = async (uid, recordId) => {
     }
 };
 
-export const migrateSimulationRecords = async (uid) => {
-    return 0; // Legacy migration no longer needed, IDB is standard
+export const fetchSmartDrillQuestions = async (limit = 20) => {
+    const data = await apiRequest(`/api/smart-drill?limit=${limit}`);
+    return { items: normalizeQuestions(data), weakAreas: data?.weakAreas || [] };
 };
+
+export const fetchReadinessScore = async () => apiRequest('/api/readiness');
+export const fetchReadinessHistory = async () => apiRequest('/api/readiness/history');
+export const saveReadinessSnapshot = async (data) => apiRequest('/api/readiness/snapshot', 'POST', data);
+
+export const fetchAnalyticsDeep = async (type) => apiRequest(`/api/analytics/deep/${type}`);
+
+export const fetchPendingExplanations = async () => apiRequest('/api/questions/explanations/pending');
+export const updateExplanationStatus = async (questionId, status) => apiRequest(`/api/questions/${questionId}/explanation-status`, 'PUT', { status });

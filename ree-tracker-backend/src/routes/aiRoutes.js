@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { GoogleGenAI } = require('@google/genai');
+const logger = require('../utils/logger');
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -24,13 +25,13 @@ router.post('/generate', authMiddleware, async (req, res) => {
                 return res.status(200).json({ text: response.text });
             } catch (error) {
                 lastError = error;
-                console.warn(`[AI] ${modelId} failed:`, error.message);
+                logger.warn('AI model fallback', { model: modelId, error: error.message });
             }
         }
 
         throw lastError || new Error('All AI models exhausted.');
     } catch (error) {
-        console.error("[AI CORE ERROR]:", error);
+        logger.error('AI generation failed', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'AI generation failed on the server.' });
     }
 });

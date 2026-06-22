@@ -12,7 +12,8 @@ const adapter = new PrismaPg(pool);
 
 // 3. Instantiate the client with the adapter
 const prisma = new PrismaClient({ adapter });
-const { calculateUpdatedTheta } = require('../utils/irtMath'); // Secure backend IRT calculations
+const { calculateUpdatedTheta } = require('../utils/irtMath');
+const logger = require('../utils/logger');
 
 exports.processBulkTelemetry = async (req, res) => {
     // Extracted directly from secure verified token headers
@@ -118,7 +119,7 @@ exports.processBulkTelemetry = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("[CRITICAL SYSTEM ERROR] Transaction aborted:", error);
+        logger.error('Transaction aborted', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: "Transactional database write failure." });
     }
 };

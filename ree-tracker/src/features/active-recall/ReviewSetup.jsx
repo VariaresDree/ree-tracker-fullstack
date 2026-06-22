@@ -145,16 +145,24 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
       {config.studyMode !== 'bleeding' && (
         <div className="mb-10">
           <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Question Source</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button 
-              onClick={() => setConfig({...config, source: 'library'})} 
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              onClick={() => setConfig({...config, source: 'library'})}
               className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 ${config.source === 'library' ? 'border-reeBlue/60 bg-reeBlue/10 text-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeBlue/40 hover:text-reeBlue hover:bg-surface3'}`}
             >
               📚 Local Library Vault
             </button>
-            <button 
-              onClick={() => setConfig({...config, source: 'ai'})} 
-              disabled={!isOnline} 
+            <button
+              onClick={() => setConfig({...config, source: 'smart-drill'})}
+              disabled={!isOnline}
+              className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 flex flex-col items-center justify-center gap-1 ${config.source === 'smart-drill' ? 'border-reeRed/60 bg-reeRed/10 text-reeRed shadow-[0_0_15px_rgba(239,68,68,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeRed/40 hover:text-reeRed hover:bg-surface3'} ${!isOnline ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
+            >
+              <span>🎯 Smart Drill</span>
+              <span className="text-[0.6rem] font-medium opacity-70 normal-case">(Targets Weak Areas)</span>
+            </button>
+            <button
+              onClick={() => setConfig({...config, source: 'ai'})}
+              disabled={!isOnline}
               className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 flex items-center justify-center gap-3 ${config.source === 'ai' ? 'border-reeAmber/60 bg-reeAmber/10 text-reeAmber shadow-[0_0_15px_rgba(245,158,11,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeAmber/40 hover:text-reeAmber hover:bg-surface3'} ${!isOnline ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
             >
               ✨ AI Generator

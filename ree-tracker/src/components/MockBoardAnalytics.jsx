@@ -4,7 +4,7 @@ import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine, Cell
 } from 'recharts';
-import { fetchSimulationLedger, deleteSimulationRecord, migrateSimulationRecords } from '../services/dbQueries';
+import { fetchSimulationLedger, deleteSimulationRecord } from '../services/dbQueries';
 import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,7 +16,6 @@ export default function MockBoardAnalytics() {
   const [history, setHistory] = useState(CACHED_HISTORY || []);
   const [loading, setLoading] = useState(!CACHED_HISTORY);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '' });
-  const [isMigrating, setIsMigrating] = useState(false);
 
   const loadHistory = async (forceSync = false) => {
     if (!currentUser?.uid) return;
@@ -38,25 +37,6 @@ export default function MockBoardAnalytics() {
     setLoading(false);
   };
 
-  const handleMigrate = async () => {
-    if (!currentUser?.uid) return;
-    setIsMigrating(true);
-    try {
-      const count = await migrateSimulationRecords(currentUser.uid);
-      if (count > 0) {
-        toast.success(`Migrated ${count} record${count === 1 ? '' : 's'}.`);
-        const data = await fetchSimulationLedger(currentUser.uid, 20);
-        CACHED_HISTORY = data;
-        setHistory(data);
-      } else {
-        toast.info('No records needed migration.');
-      }
-    } catch (error) {
-      toast.error('Migration failed: ' + error.message);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
 
   useEffect(() => {
     loadHistory();
@@ -128,10 +108,7 @@ export default function MockBoardAnalytics() {
           <p className="text-sm text-muted2 mt-1">Simulator diagnostic ledger and readiness analytics</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleMigrate} disabled={isMigrating} className="px-4 py-2.5 bg-reeAmber/10 hover:bg-reeAmber/20 text-reeAmber border border-reeAmber/30 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-2">
-            {isMigrating ? <><span className="telemetry-spinner !w-3 !h-3"></span> Migrating...</> : '🔄 Migrate Old Records'}
-          </button>
-          <button onClick={() => loadHistory(true)} className="px-4 py-2.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg text-xs font-bold text-textMain transition-colors cursor-pointer flex items-center gap-2">
+<button onClick={() => loadHistory(true)} className="px-4 py-2.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg text-xs font-bold text-textMain transition-colors cursor-pointer flex items-center gap-2">
             <span>🔄</span> Sync Telemetry
           </button>
         </div>
