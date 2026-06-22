@@ -1,26 +1,34 @@
-// src/routes/aiRoutes.js
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middlewares/authMiddleware');
 const { GoogleGenAI } = require('@google/genai');
 
-// Initialize the AI securely on the server
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-router.post('/generate', async (req, res) => {
+const MODEL_TIERS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
+router.post('/generate', authMiddleware, async (req, res) => {
     try {
-        // The frontend will send the prompt instructions here
         const { model, contents, config } = req.body;
 
-        // The server makes the secure call to Google
-        const response = await ai.models.generateContent({
-            model: model || 'gemini-2.5-flash',
-            contents: contents,
-            config: config
-        });
+        const modelsToTry = model ? [model] : MODEL_TIERS;
+        let lastError = null;
 
-        // Send the AI's response back to the React frontend
-        res.status(200).json({ text: response.text });
+        for (const modelId of modelsToTry) {
+            try {
+                const response = await ai.models.generateContent({
+                    model: modelId,
+                    contents: contents,
+                    config: config
+                });
+                return res.status(200).json({ text: response.text });
+            } catch (error) {
+                lastError = error;
+                console.warn(`[AI] ${modelId} failed:`, error.message);
+            }
+        }
 
+        throw lastError || new Error('All AI models exhausted.');
     } catch (error) {
         console.error("[AI CORE ERROR]:", error);
         res.status(500).json({ error: 'AI generation failed on the server.' });

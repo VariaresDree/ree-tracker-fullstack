@@ -1,21 +1,13 @@
-// src/routes/bookmarkRoutes.js
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const prisma = require('../config/db');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-// GET all bookmarks for a user
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const bookmarks = await prisma.bookmark.findMany({
             where: { userId: req.user.id },
-            include: { question: true }, // Joins the actual question data
+            include: { question: true },
             orderBy: { createdAt: 'desc' }
         });
         res.status(200).json(bookmarks.map(b => b.question));
@@ -24,5 +16,32 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// Add other standard POST/DELETE routes if needed
+router.post('/', authMiddleware, async (req, res) => {
+    try {
+        const { questionId } = req.body;
+        if (!questionId) return res.status(400).json({ error: 'questionId is required.' });
+
+        const bookmark = await prisma.bookmark.create({
+            data: { userId: req.user.id, questionId }
+        });
+        res.status(201).json({ success: true, id: bookmark.id });
+    } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(409).json({ error: 'Already bookmarked.' });
+        }
+        res.status(500).json({ error: 'Failed to create bookmark.' });
+    }
+});
+
+router.delete('/:id', authMiddleware, async (req, res) => {
+    try {
+        await prisma.bookmark.deleteMany({
+            where: { questionId: req.params.id, userId: req.user.id }
+        });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to remove bookmark.' });
+    }
+});
+
 module.exports = router;

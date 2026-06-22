@@ -1,21 +1,15 @@
-// src/routes/leaderboardRoutes.js
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const authMiddleware = require('../middlewares/authMiddleware');
+const prisma = require('../config/db');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 100;
         const users = await prisma.user.findMany({
             orderBy: { thetaRating: 'desc' },
             take: limit,
-            select: { id: true, role: true, thetaRating: true, globalStreak: true } // Hide sensitive info
+            select: { id: true, role: true, thetaRating: true, globalStreak: true }
         });
         res.status(200).json({ success: true, leaderboard: users });
     } catch (error) {
@@ -23,10 +17,13 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Alias for paginated fetch
-router.get('/paginated', async (req, res) => {
+router.get('/paginated', authMiddleware, async (req, res) => {
     try {
-        const users = await prisma.user.findMany({ orderBy: { thetaRating: 'desc' }, take: 20 });
+        const users = await prisma.user.findMany({
+            orderBy: { thetaRating: 'desc' },
+            take: 20,
+            select: { id: true, role: true, thetaRating: true, globalStreak: true }
+        });
         res.status(200).json({ success: true, items: users });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch paginated leaderboard.' });

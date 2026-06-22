@@ -1,8 +1,6 @@
-// src/features/gauntlet/useGauntletEngine.js
 import { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore'; // Removed query/where imports
-import { db } from '../../config/firebaseDb';
 import { useStore } from '../../store/useStore';
+import { apiRequest } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
 
 const GAUNTLET_TIERS = {
@@ -14,13 +12,12 @@ const GAUNTLET_TIERS = {
 
 export const useGauntletEngine = (level) => {
     const { stats, setStats } = useStore();
-    const [status, setStatus] = useState('loading'); // 'loading' | 'active' | 'diagnostics'
+    const [status, setStatus] = useState('loading');
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
     const [timeLeft, setTimeLeft] = useState(0);
     const [diagnostics, setDiagnostics] = useState(null);
 
-    // Boot Sequence: Randomly fetch questions from Global Bank
     useEffect(() => {
         const bootGauntlet = async () => {
             const tier = GAUNTLET_TIERS[level];
@@ -33,14 +30,12 @@ export const useGauntletEngine = (level) => {
             const totalAnswered = stats?.totalAnswered || 0;
             const currentLevel = stats?.gauntletLevel || 1;
 
-            // 1. Check Cooldown Bypass
             if (lockUntil && lockUntil > Date.now()) {
                 toast.error("Security Breach: System is currently on a cooldown lock.");
                 window.location.href = '/arena';
                 return;
             }
 
-            // 2. Check Eligibility Bypass
             if (totalAnswered < tier.reqQs || currentLevel < parseInt(level)) {
                 toast.error("Security Breach: You lack the required telemetry to enter this sector.");
                 window.location.href = '/arena';
@@ -50,24 +45,17 @@ export const useGauntletEngine = (level) => {
             setTimeLeft(tier.timeLimitSecs);
 
             try {
-                // FIXED: Fetch raw collection to bypass Firebase index exclusion on legacy items
-                const snap = await getDocs(collection(db, "questions"));
-                
-                // Filter out flagged questions securely on the client
-                const allQs = snap.docs
-                    .map(d => ({ id: d.id, ...d.data() }))
-                    .filter(q => q.isFlagged !== true); 
+                const data = await apiRequest(`/api/exams?limit=${tier.items * 2}`);
+                const allQs = (data?.items || []).filter(q => !q.isFlagged);
 
                 if (allQs.length < tier.items) {
                     toast.error("Insufficient global bank questions to construct the Gauntlet.");
                     return setStatus('error');
                 }
 
-                // Shuffle randomly and slice exact amount
-                const shuffled = allQs.sort(() => 0.5 - Math.random());
-                const selectedQs = shuffled.slice(0, tier.items).map(q => ({
+                const selectedQs = allQs.slice(0, tier.items).map(q => ({
                     ...q,
-                    // Scramble options
+                    question: q.text || q.question || '[Question Text Missing]',
                     options: q.options ? [...q.options].sort(() => 0.5 - Math.random()) : []
                 }));
 
@@ -81,11 +69,10 @@ export const useGauntletEngine = (level) => {
         bootGauntlet();
     }, [level, stats]);
 
-    // Brutal Timer Logic
     useEffect(() => {
         if (status !== 'active') return;
         if (timeLeft <= 0) {
-            submitExam(true); // Auto-submit on zero
+            submitExam(true);
             return;
         }
         const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
@@ -96,48 +83,59 @@ export const useGauntletEngine = (level) => {
         setAnswers(prev => ({ ...prev, [qIndex]: selectedOpt }));
     };
 
-    const submitExam = (isTimeOut = false) => {
+    const submitExam = async (isTimeOut = false) => {
         setStatus('loading');
         const tier = GAUNTLET_TIERS[level];
-        let correctCount = 0;
-        const failedSubtopics = {};
 
-        questions.forEach((q, idx) => {
-            const userAns = answers[idx];
-            if (userAns === q.answer) {
-                correctCount++;
+        try {
+            const gradePayload = questions.map((q, idx) => ({
+                questionId: q.id,
+                userAnswer: answers[idx] || ''
+            }));
+
+            const gradeResult = await apiRequest('/api/exams/grade', 'POST', { answers: gradePayload });
+            const results = gradeResult?.results || [];
+
+            let correctCount = 0;
+            const failedSubtopics = {};
+
+            results.forEach((r, idx) => {
+                if (r.isCorrect) {
+                    correctCount++;
+                } else {
+                    const subtopic = questions[idx]?.subtopic || 'Unknown';
+                    if (!failedSubtopics[subtopic]) failedSubtopics[subtopic] = 0;
+                    failedSubtopics[subtopic]++;
+                }
+            });
+
+            const scorePct = Math.round((correctCount / tier.items) * 100);
+            const isPassed = scorePct >= 70;
+
+            setDiagnostics({
+                scorePct,
+                correctCount,
+                totalItems: tier.items,
+                isPassed,
+                failedSubtopics,
+                timeUsedSecs: tier.timeLimitSecs - timeLeft,
+                isTimeOut
+            });
+
+            if (isPassed) {
+                if (stats.gauntletLevel === parseInt(level)) {
+                    setStats({ ...stats, gauntletLevel: parseInt(level) + 1 });
+                }
             } else {
-                // Tally weak subtopics for the Prescription Plan
-                if (!failedSubtopics[q.subtopic]) failedSubtopics[q.subtopic] = 0;
-                failedSubtopics[q.subtopic]++;
+                setStats({ ...stats, gauntletLockUntil: Date.now() + (12 * 60 * 60 * 1000) });
             }
-        });
 
-        const scorePct = Math.round((correctCount / tier.items) * 100);
-        const isPassed = scorePct >= 70;
-
-        setDiagnostics({
-            scorePct,
-            correctCount,
-            totalItems: tier.items,
-            isPassed,
-            failedSubtopics,
-            timeUsedSecs: tier.timeLimitSecs - timeLeft,
-            isTimeOut
-        });
-
-        // --- POST-ACTION REPORT LOGIC ---
-        if (isPassed) {
-            // Level Up
-            if (stats.gauntletLevel === parseInt(level)) {
-                setStats({ ...stats, gauntletLevel: parseInt(level) + 1 });
-            }
-        } else {
-            // Initiate 12-Hour Cooldown Lock
-            setStats({ ...stats, gauntletLockUntil: Date.now() + (12 * 60 * 60 * 1000) });
+            setStatus('diagnostics');
+        } catch (err) {
+            console.error("Gauntlet grading error:", err);
+            toast.error("Failed to grade gauntlet. Please try again.");
+            setStatus('error');
         }
-
-        setStatus('diagnostics');
     };
 
     return {
