@@ -245,3 +245,6 @@ export const fetchAnalyticsDeep = async (type) => apiRequest(`/api/analytics/dee
 
 export const fetchPendingExplanations = async () => apiRequest('/api/questions/explanations/pending');
 export const updateExplanationStatus = async (questionId, status) => apiRequest(`/api/questions/${questionId}/explanation-status`, 'PUT', { status });
+
+export const generateStudyPlan = async (examDate, topics) => apiRequest('/api/user/tasks/generate-plan', 'POST', { examDate, topics });
+export const clearStudyPlan = async () => apiRequest('/api/user/tasks/clear-plan', 'DELETE');
