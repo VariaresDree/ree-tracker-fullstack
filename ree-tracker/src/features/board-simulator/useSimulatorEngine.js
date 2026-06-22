@@ -1,9 +1,10 @@
 // src/features/board-simulator/useSimulatorEngine.js
 import { useState, useEffect, useRef } from 'react';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
-import { 
-  updateQuestionCache, updateQuestionInBank, fetchVaultQuestions, 
-  saveSimulationRecord, syncTelemetryBatch, getAnalyticsProfile
+import {
+  updateQuestionCache, updateQuestionInBank, fetchVaultQuestions,
+  saveSimulationRecord, syncTelemetryBatch, getAnalyticsProfile,
+  fetchMultiplayerBattle
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import toast from 'react-hot-toast';
@@ -355,13 +356,63 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     } catch (error) { toast.error("Flag failed."); }
   };
 
+  const startMultiplayerBattle = async (battleId) => {
+    setSession(prev => ({ ...prev, loading: true, error: '' }));
+    try {
+      const data = await fetchMultiplayerBattle(battleId);
+      if (!data?.battle) throw new Error('Battle not found');
+
+      const battle = data.battle;
+      const pool = shuffleArray(battle.questions || []).map(q =>
+        q.options?.length > 0 ? { ...q, options: shuffleArray(q.options) } : q
+      );
+
+      if (pool.length === 0) throw new Error('No questions in battle');
+
+      const timeLimitSecs = battle.timeLimitSecs || 1800;
+
+      setConfig({
+        mode: battle.config?.mode || 'custom',
+        subject: battle.config?.subject || 'EE',
+        count: pool.length,
+        isPrcStandard: battle.config?.isPrcStandard || false,
+        source: 'library',
+        timeLimitMins: Math.round(timeLimitSecs / 60),
+        cognitiveFocus: 'mixed',
+        battleId
+      });
+
+      timeSpentPerQuestion.current = {};
+      currentAnswersRef.current = {};
+      currentConfidencesRef.current = {};
+      questionsRef.current = pool;
+      lastActiveTime.current = Date.now();
+      totalExamTime.current = timeLimitSecs;
+      endTimeRef.current = Date.now() + timeLimitSecs * 1000;
+
+      setSession({
+        isActive: true, isFinished: false, questions: pool, answers: {},
+        confidences: {}, loading: false, error: '', diagnostics: null
+      });
+      setCurrentIndex(0);
+      setTimeRemaining(timeLimitSecs);
+      setBookmarks(new Set());
+      setIsSubmitting(false);
+
+      toast.success(`Battle loaded: ${pool.length} items, ${Math.round(timeLimitSecs / 60)} min`);
+    } catch (err) {
+      setSession(prev => ({ ...prev, loading: false, error: err.message }));
+      toast.error(err.message);
+    }
+  };
+
   const exportOfflinePDF = async () => {};
 
   return {
     config, setConfig, session, setSession,
     currentIndex, setCurrentIndex, timeRemaining, showTime, setShowTime,
-    bookmarks, toggleBookmark, startSimulation, handleSelectOption, 
-    handleSelectConfidence, handleIndexChange, submitExam, 
+    bookmarks, toggleBookmark, startSimulation, startMultiplayerBattle, handleSelectOption,
+    handleSelectConfidence, handleIndexChange, submitExam,
     hasSavedSession, resumeSimulation, handleFlagQuestion,
     exportOfflinePDF, isExporting, isSubmitting
   };
