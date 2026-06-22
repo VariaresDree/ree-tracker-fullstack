@@ -19,12 +19,24 @@ router.get('/', authMiddleware, async (req, res) => {
 
 router.get('/paginated', authMiddleware, async (req, res) => {
     try {
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        const cursor = req.query.cursor;
+
         const users = await prisma.user.findMany({
             orderBy: { thetaRating: 'desc' },
-            take: 20,
-            select: { id: true, role: true, thetaRating: true, globalStreak: true }
+            take: limit + 1,
+            select: { id: true, role: true, thetaRating: true, globalStreak: true },
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
         });
-        res.status(200).json({ success: true, items: users });
+
+        const hasMore = users.length > limit;
+        if (hasMore) users.pop();
+
+        res.status(200).json({
+            success: true,
+            items: users,
+            nextCursor: hasMore ? users[users.length - 1].id : null
+        });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch paginated leaderboard.' });
     }

@@ -1,65 +1,65 @@
-// src/features/profile/StrategicPlannerTab.jsx
-import React, { useState, useEffect } from 'react';
-import { updateCommandParameters } from '../../services/dbQueries';
+import React, { useState, useEffect, useCallback } from 'react';
+import { apiRequest } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
 
-export default function StrategicPlannerTab({ currentUser, stats, setStats }) {
-  const [tasks, setTasks] = useState(stats?.tasks || []);
+export default function StrategicPlannerTab({ currentUser }) {
+  const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
-  const [newDueDate, setNewDueDate] = useState(''); 
-  const [notes, setNotes] = useState(stats?.notes || '');
-  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [newDueDate, setNewDueDate] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  // Sync local state if global store updates
-  useEffect(() => {
-    if (stats?.tasks) setTasks(stats.tasks);
-    if (stats?.notes) setNotes(stats.notes);
-  }, [stats?.tasks, stats?.notes]);
-
-const saveTasksToCloud = async (updatedTasks) => {
-    setTasks(updatedTasks);
-    setStats({ ...stats, tasks: updatedTasks });
+  const fetchTasks = useCallback(async () => {
     try {
-        await updateCommandParameters(currentUser.uid, { tasks: updatedTasks });
+      const data = await apiRequest('/api/user/tasks');
+      setTasks(data?.items || []);
     } catch (err) {
-        toast.error("Failed to sync planner matrix.");
+      toast.error("Failed to load planner tasks.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) fetchTasks();
+  }, [currentUser, fetchTasks]);
+
+  const handleAddTask = async (e) => {
+    e.preventDefault();
+    if (!newTask.trim()) return;
+    try {
+      const data = await apiRequest('/api/user/tasks', 'POST', {
+        text: newTask,
+        dueDate: newDueDate || null
+      });
+      if (data?.task) setTasks(prev => [data.task, ...prev]);
+      setNewTask('');
+      setNewDueDate('');
+    } catch (err) {
+      toast.error("Failed to create task.");
     }
   };
 
-  const handleAddTask = (e) => {
-    e.preventDefault();
-    if (!newTask.trim()) return;
-    const taskObj = { 
-        id: Date.now(), 
-        text: newTask, 
-        completed: false, 
-        dueDate: newDueDate || null 
-    };
-    saveTasksToCloud([...tasks, taskObj]);
-    setNewTask('');
-    setNewDueDate(''); 
+  const toggleTask = async (task) => {
+    const updated = !task.completed;
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: updated } : t));
+    try {
+      await apiRequest(`/api/user/tasks/${task.id}`, 'PUT', { completed: updated });
+    } catch (err) {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: !updated } : t));
+      toast.error("Failed to update task.");
+    }
   };
 
-  const toggleTask = (id) => {
-    const updated = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
-    saveTasksToCloud(updated);
-  };
-
-  const deleteTask = (id) => {
-    const updated = tasks.filter(t => t.id !== id);
-    saveTasksToCloud(updated);
-  };
-
-const saveNotes = async () => {
-      setIsSavingNotes(true);
-      try {
-          await updateCommandParameters(currentUser.uid, { notes });
-          toast.success("Notes secured in the vault.");
-      } catch (err) {
-          toast.error("Failed to sync notes.");
-      }
-      setIsSavingNotes(false);
+  const deleteTask = async (id) => {
+    const prev = tasks;
+    setTasks(t => t.filter(x => x.id !== id));
+    try {
+      await apiRequest(`/api/user/tasks/${id}`, 'DELETE');
+    } catch (err) {
+      setTasks(prev);
+      toast.error("Failed to delete task.");
+    }
   };
 
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
@@ -73,7 +73,7 @@ const saveNotes = async () => {
       const today = new Date();
       const blanks = Array(firstDay).fill(null);
       const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
-      
+
       return (
           <div className="bg-bg border border-border2 p-4 rounded-xl shadow-inner">
               <div className="flex justify-between items-center mb-4">
@@ -116,22 +116,6 @@ const saveNotes = async () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2">
         <div className="flex flex-col gap-6 lg:col-span-1">
             {renderCalendar()}
-            <div className="bg-surface border border-border2 rounded-xl flex flex-col flex-1 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-border2 flex justify-between items-center bg-surface2/30">
-                    <span className="text-xs font-bold uppercase tracking-widest text-muted flex items-center gap-2">
-                        <span>📝</span> Tactical Notes
-                    </span>
-                    <button onClick={saveNotes} disabled={isSavingNotes} className="text-[0.65rem] bg-reeBlue/10 hover:bg-reeBlue/20 text-reeBlue border border-reeBlue/30 px-3 py-1 rounded transition-colors font-bold uppercase tracking-wider cursor-pointer">
-                        {isSavingNotes ? 'Saving...' : 'Save'}
-                    </button>
-                </div>
-                <textarea 
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Log active concepts, equations, or reminders here..."
-                    className="flex-1 w-full p-4 bg-bg text-sm text-textMain outline-none resize-none min-h-[250px] leading-relaxed custom-scrollbar"
-                />
-            </div>
         </div>
 
         <div className="bg-surface border border-border2 rounded-xl shadow-sm flex flex-col lg:col-span-2 p-6 md:p-8 h-[600px]">
@@ -141,18 +125,18 @@ const saveNotes = async () => {
             </div>
 
             <form onSubmit={handleAddTask} className="flex flex-col sm:flex-row gap-3 mb-6">
-                <input 
-                    type="text" 
-                    value={newTask} 
-                    onChange={(e) => setNewTask(e.target.value)} 
-                    placeholder="Designate new objective..." 
+                <input
+                    type="text"
+                    value={newTask}
+                    onChange={(e) => setNewTask(e.target.value)}
+                    placeholder="Designate new objective..."
                     className="flex-1 bg-bg border border-border2 text-textMain p-3.5 rounded-xl text-sm outline-none focus:border-reeBlue transition-colors shadow-inner"
                 />
-                <input 
-                    type="date" 
-                    value={newDueDate} 
-                    onChange={(e) => setNewDueDate(e.target.value)} 
-                    className="bg-bg border border-border2 text-muted p-3.5 rounded-xl text-sm outline-none focus:border-reeBlue transition-colors shadow-inner w-full sm:w-auto cursor-pointer" 
+                <input
+                    type="date"
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                    className="bg-bg border border-border2 text-muted p-3.5 rounded-xl text-sm outline-none focus:border-reeBlue transition-colors shadow-inner w-full sm:w-auto cursor-pointer"
                 />
                 <button type="submit" disabled={!newTask.trim()} className="px-6 py-3.5 bg-reeBlue hover:bg-reeBlue2 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-colors shadow-md disabled:opacity-50 cursor-pointer">
                     Add
@@ -160,7 +144,12 @@ const saveNotes = async () => {
             </form>
 
             <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                {sortedTasks.length === 0 ? (
+                {isLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                        <span className="telemetry-spinner inline-block mr-2"></span>
+                        <span className="text-muted2 text-sm font-mono uppercase tracking-widest">Loading Objectives...</span>
+                    </div>
+                ) : sortedTasks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center border-2 border-dashed border-border2 rounded-xl p-8 opacity-70">
                         <span className="text-4xl mb-3">🎯</span>
                         <span className="text-sm font-bold text-textMain">Tracker is Empty</span>
@@ -187,7 +176,7 @@ const saveNotes = async () => {
                         return (
                             <div key={task.id} className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all group ${task.completed ? 'bg-surface2/50 border-border2 opacity-60' : `bg-surface hover:border-reeBlue/30 shadow-sm ${statusColor}`}`}>
                                 <div className="flex items-center gap-4 flex-1 overflow-hidden">
-                                    <button onClick={() => toggleTask(task.id)} className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center border transition-colors cursor-pointer ${task.completed ? 'bg-reeGreen border-reeGreen text-bg shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-bg border-border2 text-transparent hover:border-reeGreen'}`}>✓</button>
+                                    <button onClick={() => toggleTask(task)} className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center border transition-colors cursor-pointer ${task.completed ? 'bg-reeGreen border-reeGreen text-bg shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-bg border-border2 text-transparent hover:border-reeGreen'}`}>✓</button>
                                     <div className="flex flex-col truncate">
                                         <span className={`text-sm font-medium truncate ${task.completed ? 'line-through text-muted' : 'text-textMain'}`}>{task.text}</span>
                                         {!task.completed && dateBadge}

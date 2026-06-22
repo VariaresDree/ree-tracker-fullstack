@@ -72,6 +72,15 @@ app.use('/api/config', configRoutes);
 const battleRoutes = require('./src/routes/battleRoutes');
 app.use('/api/battles', battleRoutes);
 
+const srsRoutes = require('./src/routes/srsRoutes');
+app.use('/api/srs', srsRoutes);
+
+const studySessionRoutes = require('./src/routes/studySessionRoutes');
+app.use('/api/analytics/study-sessions', studySessionRoutes);
+
+const plannerRoutes = require('./src/routes/plannerRoutes');
+app.use('/api/user', plannerRoutes);
+
 // 3. Health Check
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'Assessment Core is Online' });

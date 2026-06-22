@@ -200,11 +200,34 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <MissionControl 
-          stats={activeStats} 
-          onExportPDF={() => setShowPdfModal(true)} 
-          isGeneratingPDF={isGeneratingPDF} 
-          onPurgeRequest={() => setShowPurgeModal(true)} 
+      {activeStats.examDate && (() => {
+        const daysLeft = Math.ceil((new Date(activeStats.examDate) - new Date()) / (1000 * 60 * 60 * 24));
+        const isPast = daysLeft < 0;
+        const urgency = isPast ? 'border-reeRed/40 bg-reeRed/5' : daysLeft <= 14 ? 'border-reeAmber/40 bg-reeAmber/5' : 'border-reeGreen/40 bg-reeGreen/5';
+        const textColor = isPast ? 'text-reeRed' : daysLeft <= 14 ? 'text-reeAmber' : 'text-reeGreen';
+        return (
+          <div className={`p-4 border rounded-xl flex items-center justify-between gap-4 ${urgency}`}>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{isPast ? '⚠️' : '📅'}</span>
+              <div>
+                <div className="text-xs font-black uppercase tracking-widest text-muted">REE Board Exam</div>
+                <div className={`text-lg font-black ${textColor}`}>
+                  {isPast ? `${Math.abs(daysLeft)} days ago` : daysLeft === 0 ? 'TODAY' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`}
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted font-mono">{new Date(activeStats.examDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+            </div>
+          </div>
+        );
+      })()}
+
+      <MissionControl
+          stats={activeStats}
+          onExportPDF={() => setShowPdfModal(true)}
+          isGeneratingPDF={isGeneratingPDF}
+          onPurgeRequest={() => setShowPurgeModal(true)}
       />
 
       {/* 🚀 MAIN GRID: Strict sizing bounds ensure perfect column leveling */}

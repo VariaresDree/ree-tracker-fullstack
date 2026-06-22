@@ -39,12 +39,17 @@ model User {
   // V1 Relations
   sessions         ExamSession[]
   attempts         QuestionAttempt[]
-  bookmarks        Bookmark[]        
+  bookmarks        Bookmark[]
 
   // --- V2 RELATIONAL ARRAYS (Fixes P1012) ---
   topicPerformances UserTopicPerformance[]
   thetaHistories    ThetaHistory[]
   activityLogs      ActivityLog[]
+
+  // --- V3: Phase 2 Relations ---
+  srsCards          SRSCard[]
+  studySessions     StudySession[]
+  plannerTasks      PlannerTask[]
 }
 
 // 3. 'questions' collection (Exact Firebase Names Restored)
@@ -64,6 +69,7 @@ model Question {
 
   attempts         QuestionAttempt[]
   bookmarks        Bookmark[]
+  srsCards         SRSCard[]
 }
 
 // 4. 'simulationHistory' collection
@@ -182,4 +188,49 @@ model ActivityLog {
   count       Int      @default(1)
 
   @@unique([userId, date])
+}
+
+// Phase 2: Spaced Repetition System persistence
+model SRSCard {
+  id              String   @id @default(uuid())
+  userId          String
+  questionId      String
+  easeFactor      Float    @default(2.5)
+  interval        Int      @default(0)
+  repetitions     Int      @default(0)
+  nextReviewDate  DateTime
+  lastReviewed    DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question        Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, nextReviewDate])
+}
+
+// Phase 2: Active Review session tracking
+model StudySession {
+  id              String   @id @default(uuid())
+  userId          String
+  mode            String   // 'mcq', 'flashcard'
+  subject         String
+  subtopic        String?
+  totalQuestions   Int
+  correctAnswers  Int
+  durationSecs    Int
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Phase 2: Strategic Planner persistence
+model PlannerTask {
+  id          String    @id @default(uuid())
+  userId      String
+  text        String
+  dueDate     String?
+  completed   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, completed])
 }

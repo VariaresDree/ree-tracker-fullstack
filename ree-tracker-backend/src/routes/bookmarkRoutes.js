@@ -5,12 +5,31 @@ const prisma = require('../config/db');
 
 router.get('/', authMiddleware, async (req, res) => {
     try {
+        const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+        const cursor = req.query.cursor;
+
         const bookmarks = await prisma.bookmark.findMany({
             where: { userId: req.user.id },
-            include: { question: true },
-            orderBy: { createdAt: 'desc' }
+            include: {
+                question: {
+                    select: {
+                        id: true, subject: true, subtopic: true,
+                        text: true, options: true, difficulty: true, type: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit + 1,
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
         });
-        res.status(200).json(bookmarks.map(b => b.question));
+
+        const hasMore = bookmarks.length > limit;
+        if (hasMore) bookmarks.pop();
+
+        res.status(200).json({
+            items: bookmarks.map(b => ({ ...b.question, bookmarkId: b.id })),
+            nextCursor: hasMore ? bookmarks[bookmarks.length - 1].id : null
+        });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch bookmarks.' });
     }
