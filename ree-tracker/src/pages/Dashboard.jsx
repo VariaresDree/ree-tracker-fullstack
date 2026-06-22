@@ -76,7 +76,7 @@ export default function Dashboard() {
                 });
             }
         } catch (error) {
-            console.error("SQL Sync Error:", error);
+            // SQL sync failed silently — dashboard will show cached data
         } finally {
             setIsFetchingSQL(false);
         }
@@ -214,7 +214,7 @@ export default function Dashboard() {
         const urgency = isPast ? 'border-reeRed/40 bg-reeRed/5' : daysLeft <= 14 ? 'border-reeAmber/40 bg-reeAmber/5' : 'border-reeGreen/40 bg-reeGreen/5';
         const textColor = isPast ? 'text-reeRed' : daysLeft <= 14 ? 'text-reeAmber' : 'text-reeGreen';
         return (
-          <div className={`p-4 border rounded-xl flex items-center justify-between gap-4 ${urgency}`}>
+          <div className={`p-4 border rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 ${urgency}`}>
             <div className="flex items-center gap-3">
               <span className="text-2xl">{isPast ? '⚠️' : '📅'}</span>
               <div>

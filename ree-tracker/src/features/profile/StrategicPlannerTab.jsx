@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
+import StudyPlanGenerator from '../study-plan/StudyPlanGenerator';
 
 export default function StrategicPlannerTab({ currentUser }) {
   const [tasks, setTasks] = useState([]);
@@ -113,7 +114,10 @@ export default function StrategicPlannerTab({ currentUser }) {
   });
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2">
+    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
+        <StudyPlanGenerator onPlanGenerated={fetchTasks} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="flex flex-col gap-6 lg:col-span-1">
             {renderCalendar()}
         </div>
@@ -189,6 +193,7 @@ export default function StrategicPlannerTab({ currentUser }) {
                 )}
             </div>
         </div>
+    </div>
     </div>
   );
 }

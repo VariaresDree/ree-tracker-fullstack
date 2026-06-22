@@ -18,7 +18,7 @@ function BarChart({ items, valueKey, labelKey, maxVal, color = 'bg-reeBlue' }) {
     <div className="flex flex-col gap-2">
       {items.slice(0, 12).map((item, idx) => (
         <div key={idx} className="flex items-center gap-3">
-          <div className="w-32 sm:w-40 text-[0.65rem] text-muted2 font-bold truncate text-right">{item[labelKey]}</div>
+          <div className="w-20 sm:w-40 text-[0.65rem] text-muted2 font-bold truncate text-right">{item[labelKey]}</div>
           <div className="flex-1 h-5 bg-surface2/50 rounded-full overflow-hidden">
             <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${max > 0 ? (item[valueKey] / max) * 100 : 0}%` }}></div>
           </div>
@@ -41,7 +41,7 @@ export default function AnalyticsDeepDive() {
       const result = await fetchAnalyticsDeep(type);
       setData(prev => ({ ...prev, [type]: result }));
     } catch (err) {
-      console.error('Analytics fetch failed:', err);
+      // Analytics fetch failed silently — tab will show empty state
     } finally {
       setLoading(false);
     }
