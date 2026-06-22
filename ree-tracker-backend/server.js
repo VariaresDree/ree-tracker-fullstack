@@ -11,6 +11,8 @@ initializeApp({
   credential: cert(serviceAccount)
 });
 
+const logger = require('./src/utils/logger');
+
 const app = express();
 
 // 1. Middleware
@@ -81,6 +83,15 @@ app.use('/api/analytics/study-sessions', studySessionRoutes);
 const plannerRoutes = require('./src/routes/plannerRoutes');
 app.use('/api/user', plannerRoutes);
 
+const smartDrillRoutes = require('./src/routes/smartDrillRoutes');
+app.use('/api/smart-drill', smartDrillRoutes);
+
+const readinessRoutes = require('./src/routes/readinessRoutes');
+app.use('/api/readiness', readinessRoutes);
+
+const analyticsDeepRoutes = require('./src/routes/analyticsDeepRoutes');
+app.use('/api/analytics/deep', analyticsDeepRoutes);
+
 // 3. Health Check
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'Assessment Core is Online' });
@@ -88,12 +99,12 @@ app.get('/health', (req, res) => {
 
 // 4. Global Error Handler
 app.use((err, req, res, next) => {
-    console.error("Critical Matrix Error:", err.stack);
+    logger.error('Unhandled error', { error: err.message, stack: err.stack, path: req.path });
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
 // 5. Server Boot
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`[SYSTEM] Assessment Engine initialized and listening on port ${PORT}`);
+    logger.info(`Assessment Engine initialized on port ${PORT}`);
 });

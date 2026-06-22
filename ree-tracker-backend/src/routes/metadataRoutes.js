@@ -4,7 +4,8 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 
 // 🚀 FIXED: Pointing back to your centralized, working DB configuration
-const prisma = require('../config/db'); 
+const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 router.get('/vault', authMiddleware, async (req, res) => {
     try {
@@ -32,7 +33,7 @@ router.get('/vault', authMiddleware, async (req, res) => {
 
         return res.status(200).json(metadataMap);
     } catch (error) {
-        console.error("Vault Metadata Error:", error);
+        logger.error('Vault metadata error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch metadata matrix.' });
     }
 });

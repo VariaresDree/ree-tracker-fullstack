@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 router.get('/', authMiddleware, async (req, res) => {
     try {
@@ -10,7 +11,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         return res.status(200).json({ success: true, folders, materials });
     } catch (error) {
-        console.error("Material Fetch Error:", error);
+        logger.error('Material fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch vault contents.' });
     }
 });

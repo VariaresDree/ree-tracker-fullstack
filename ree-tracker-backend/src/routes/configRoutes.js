@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 router.get('/tos', async (req, res) => {
     try {
@@ -12,7 +13,7 @@ router.get('/tos', async (req, res) => {
 
         return res.status(200).json(config ? config.tos : null);
     } catch (error) {
-        console.error("TOS Fetch Error:", error);
+        logger.error('TOS fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch TOS.' });
     }
 });
@@ -29,7 +30,7 @@ router.put('/tos', authMiddleware, requireAdmin, async (req, res) => {
 
         return res.status(200).json({ success: true });
     } catch (error) {
-        console.error("TOS Update Error:", error);
+        logger.error('TOS update error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to update TOS.' });
     }
 });

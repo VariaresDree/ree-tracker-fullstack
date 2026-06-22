@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 router.post('/', authMiddleware, async (req, res) => {
     try {
@@ -26,7 +27,7 @@ router.post('/', authMiddleware, async (req, res) => {
         if (error.code === 'P2002') {
             return res.status(409).json({ error: 'Battle ID already exists.' });
         }
-        console.error("Battle Create Error:", error);
+        logger.error('Battle create error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to create battle.' });
     }
 });

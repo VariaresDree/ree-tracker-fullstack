@@ -43,15 +43,15 @@ const SecureAppTerminal = () => {
         </div>
       }>
         <Routes>
-          <Route path="/" element={<MainLayout><Dashboard /></MainLayout>} />
-          <Route path="/review" element={<MainLayout><ActiveReview /></MainLayout>} />
-          <Route path="/library" element={<MainLayout><Library /></MainLayout>} />
-          <Route path="/materials" element={<MainLayout><Materials /></MainLayout>} />
-          <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
-          <Route path="/arena" element={<MainLayout><Arena /></MainLayout>} />
-          <Route path="/battle/:battleId" element={<MainLayout><BattleLobby /></MainLayout>} />
-          <Route path="/simulator" element={<ExamLayout><BoardSimulator /></ExamLayout>} />
-          <Route path="/gauntlet/:level" element={<ExamLayout><Gauntlet /></ExamLayout>} />
+          <Route path="/" element={<MainLayout><ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary></MainLayout>} />
+          <Route path="/review" element={<MainLayout><ErrorBoundary name="Active Review"><ActiveReview /></ErrorBoundary></MainLayout>} />
+          <Route path="/library" element={<MainLayout><ErrorBoundary name="Library"><Library /></ErrorBoundary></MainLayout>} />
+          <Route path="/materials" element={<MainLayout><ErrorBoundary name="Materials"><Materials /></ErrorBoundary></MainLayout>} />
+          <Route path="/profile" element={<MainLayout><ErrorBoundary name="Profile"><Profile /></ErrorBoundary></MainLayout>} />
+          <Route path="/arena" element={<MainLayout><ErrorBoundary name="Arena"><Arena /></ErrorBoundary></MainLayout>} />
+          <Route path="/battle/:battleId" element={<MainLayout><ErrorBoundary name="Battle"><BattleLobby /></ErrorBoundary></MainLayout>} />
+          <Route path="/simulator" element={<ExamLayout><ErrorBoundary name="Simulator"><BoardSimulator /></ErrorBoundary></ExamLayout>} />
+          <Route path="/gauntlet/:level" element={<ExamLayout><ErrorBoundary name="Gauntlet"><Gauntlet /></ErrorBoundary></ExamLayout>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

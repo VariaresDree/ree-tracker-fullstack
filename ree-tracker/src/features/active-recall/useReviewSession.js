@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, syncTelemetryBatch, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest } from '../../services/dbQueries';
+import { fetchVaultQuestions, syncTelemetryBatch, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
 import toast from 'react-hot-toast';
@@ -48,7 +48,11 @@ export const useReviewSession = (currentUser, isOnline) => {
             let freshData = [];
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
-            if (config.source === 'ai') {
+            if (config.source === 'smart-drill') {
+                if (!isOnline) throw new Error("Smart Drill requires an active uplink.");
+                const drillResult = await fetchSmartDrillQuestions(config.count || 20);
+                freshData = drillResult.items || [];
+            } else if (config.source === 'ai') {
                 if (!isOnline) throw new Error("AI Generator requires an active uplink.");
                 const targetTopic = config.studyMode === 'subtopic' ? config.subtopic : (safeTOS[config.subject]?.[0] || 'General');
                 freshData = await generateQuestionsAI(config.subject, targetTopic, false);

@@ -3,6 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
+const logger = require('../utils/logger');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -33,7 +34,7 @@ exports.getQuestions = async (req, res) => {
         
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {
-        console.error("[EXAM ENGINE] Fetch Questions Error:", error);
+        logger.error('Exam fetch questions error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch question matrix.' });
     }
 };
@@ -133,7 +134,7 @@ exports.submitExam = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("[EXAM ENGINE] Submit Error:", error);
+        logger.error('Exam submit error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Server failed to process simulation telemetry.' });
     }
 };

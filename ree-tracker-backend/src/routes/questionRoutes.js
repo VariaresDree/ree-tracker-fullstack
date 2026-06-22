@@ -7,6 +7,7 @@ const { validate } = require('../middlewares/validate');
 const { questionCreateSchema, questionUpdateSchema } = require('../schemas/questionSchemas');
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 const getSubjectFilter = (subjectStr) => {
     if (!subjectStr || subjectStr === 'All') return undefined;
@@ -104,7 +105,7 @@ router.get('/flagged', authMiddleware, async (req, res) => {
 
         return res.status(200).json(flaggedQuestions);
     } catch (error) {
-        console.error("Flagged Fetch Error:", error);
+        logger.error('Flagged questions fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch flagged items.' });
     }
 });
@@ -124,13 +125,16 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
                 fixedExplanation: data.fixedExplanation || null,
                 source: data.source || 'manual',
                 type: data.type || 'calculation',
-                isFlagged: data.isFlagged || false
+                isFlagged: data.isFlagged || false,
+                bloomLevel: data.bloomLevel || 'REMEMBER',
+                difficultyTier: data.difficultyTier || 1,
+                competencyArea: data.competencyArea || null
             }
         });
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {
-        console.error("Manual Injection Error:", error);
+        logger.error('Question create error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to insert question.' });
     }
 });
@@ -204,7 +208,47 @@ router.patch('/:id/flag', authMiddleware, async (req, res) => {
     }
 });
 
-// 7. DELETE QUESTION
+// 7. EXPLANATION REVIEW QUEUE (Admin only)
+router.get('/explanations/pending', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const questions = await prisma.question.findMany({
+            where: {
+                fixedExplanation: { not: null },
+                explanationStatus: 'PENDING'
+            },
+            select: {
+                id: true, subject: true, subtopic: true, text: true,
+                fixedExplanation: true, explanationStatus: true
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+        });
+        res.status(200).json({ items: questions });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch pending explanations.' });
+    }
+});
+
+// 7.1 APPROVE/REJECT EXPLANATION
+router.put('/:id/explanation-status', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
+            return res.status(400).json({ error: 'Status must be APPROVED, REJECTED, or PENDING.' });
+        }
+
+        await prisma.question.update({
+            where: { id: req.params.id },
+            data: { explanationStatus: status }
+        });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        if (error.code === 'P2025') return res.status(404).json({ error: 'Question not found.' });
+        res.status(500).json({ error: 'Failed to update explanation status.' });
+    }
+});
+
+// 8. DELETE QUESTION
 router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
         await prisma.question.delete({ where: { id: req.params.id } });

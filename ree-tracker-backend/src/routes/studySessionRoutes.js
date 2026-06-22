@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
 // Record a completed study session
 router.post('/', authMiddleware, async (req, res) => {
@@ -26,7 +27,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
         res.status(201).json({ success: true, id: session.id });
     } catch (error) {
-        console.error("Study Session Create Error:", error);
+        logger.error('Study session create error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to record study session.' });
     }
 });

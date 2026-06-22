@@ -12,9 +12,11 @@ import ComparativeAnalyticsTab from '../features/profile/ComparativeAnalyticsTab
 import StrategicPlannerTab from '../features/profile/StrategicPlannerTab';
 import CredentialsTab from '../features/profile/CredentialsTab';
 import ThemingArchitecture from '../features/profile/ThemingArchitecture';
+import AnalyticsDeepDive from '../features/analytics/AnalyticsDeepDive';
+import ExplanationReview from '../features/analytics/ExplanationReview';
 
 export default function Profile() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, isAdmin } = useAuth();
   
   // EXTRACTED THEME CONTROLS & SYNC STATUS FROM GLOBAL STORE
   const { stats, setStats, resetStore, theme, setTheme, syncStatus } = useStore();
@@ -192,8 +194,10 @@ export default function Profile() {
       <div className="flex gap-2 border-b border-border2 pb-4 overflow-x-auto no-scrollbar">
         {[
           { id: 'analytics', icon: '📊', label: 'Comparative Analytics' },
+          { id: 'deep-analytics', icon: '🔬', label: 'Deep Analytics' },
           { id: 'planner', icon: '🗓️', label: 'Strategic Planner' },
           { id: 'credentials', icon: '🏆', label: 'Credentials' },
+          ...(isAdmin ? [{ id: 'review', icon: '📝', label: 'Explanation Review' }] : []),
           { id: 'settings', icon: '⚙️', label: 'System Settings' }
         ].map(tab => (
           <button
@@ -208,9 +212,11 @@ export default function Profile() {
 
       {/* Dynamic Tab Injection */}
       {activeTab === 'analytics' && <ComparativeAnalyticsTab currentUser={currentUser} stats={stats} />}
+      {activeTab === 'deep-analytics' && <AnalyticsDeepDive />}
       {activeTab === 'planner' && <StrategicPlannerTab currentUser={currentUser} stats={stats} setStats={setStats} />}
       {activeTab === 'credentials' && <CredentialsTab currentUser={currentUser} stats={stats} />}
-      
+      {activeTab === 'review' && isAdmin && <ExplanationReview />}
+
       {/* BRAND NEW ISOLATED SETTINGS TAB */}
       {activeTab === 'settings' && (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
