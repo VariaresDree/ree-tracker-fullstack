@@ -11,9 +11,13 @@ initializeApp({
   credential: cert(serviceAccount)
 });
 
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const { setupBattleSocket } = require('./src/sockets/battleSocket');
 const logger = require('./src/utils/logger');
 
 const app = express();
+const httpServer = createServer(app);
 
 // 1. Middleware
 app.use(cors({
@@ -103,8 +107,17 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Internal Server Error' });
 });
 
-// 5. Server Boot
+// 5. Socket.IO Setup
+const io = new Server(httpServer, {
+    cors: {
+        origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+        credentials: true
+    }
+});
+setupBattleSocket(io);
+
+// 6. Server Boot
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     logger.info(`Assessment Engine initialized on port ${PORT}`);
 });
