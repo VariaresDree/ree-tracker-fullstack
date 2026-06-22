@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { 
-  updateQuestionCache, fetchMultiplayerBattle, updateQuestionInBank, 
-  fetchVaultQuestions, saveSimulationRecord, syncTelemetryBatch, getAnalyticsProfile
+  updateQuestionCache, updateQuestionInBank, fetchVaultQuestions, 
+  saveSimulationRecord, syncTelemetryBatch, getAnalyticsProfile
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import toast from 'react-hot-toast';
@@ -17,54 +17,21 @@ const shuffleArray = (array) => {
   return shuffled;
 };
 
-const getDynamicWeights = (subject, dynamicTOS) => {
-    if (!dynamicTOS || !dynamicTOS[subject]) return {};
-    const topics = dynamicTOS[subject];
-    if (topics.length === 0) return {};
-    const weightPerTopic = 1.0 / topics.length;
-    const weights = {};
-    topics.forEach(t => { weights[t] = weightPerTopic; });
-    return weights;
-};
-
-const distributeExactItems = (totalItems, weightsMap) => {
-    const keys = Object.keys(weightsMap);
-    if (keys.length === 0) return {};
-    const exactCounts = {};
-    const remainders = [];
-    let allocated = 0;
-
-    keys.forEach(k => {
-        const rawCount = totalItems * weightsMap[k];
-        const floored = Math.floor(rawCount);
-        exactCounts[k] = floored;
-        allocated += floored;
-        remainders.push({ key: k, rem: rawCount - floored });
-    });
-
-    remainders.sort((a, b) => b.rem - a.rem);
-    const shortfall = totalItems - allocated;
-    for (let i = 0; i < shortfall; i++) exactCounts[remainders[i % remainders.length].key] += 1;
-    return exactCounts;
-};
-
 export const useSimulatorEngine = (currentUser, isOnline) => {
-  const dynamicTOS = useStore(state => state.dynamicTOS);
-  const setStats = useStore(state => state.setStats); 
+  const { dynamicTOS, setStats } = useStore();
 
   const [config, setConfig] = useState({
-    mode: 'subject', subject: 'EE', count: 20, isPrcStandard: false, source: 'library', timeLimitMins: 30
+    mode: 'subject', subject: 'EE', count: 20, isPrcStandard: false, source: 'library', timeLimitMins: 30, cognitiveFocus: 'mixed'
   });
 
   const [session, setSession] = useState({
     isActive: false, isFinished: false, questions: [], answers: {},
-    confidences: {}, loading: false, error: '', diagnostics: null, battleId: null
+    confidences: {}, loading: false, error: '', diagnostics: null
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [showTime, setShowTime] = useState(true);
-  const [reviewUI, setReviewUI] = useState({});
   const [bookmarks, setBookmarks] = useState(new Set()); 
   
   const [hasSavedSession, setHasSavedSession] = useState(!!localStorage.getItem('ree_sim_cache'));
@@ -72,39 +39,36 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeIsUp, setTimeIsUp] = useState(false);
 
-  // 🚀 FIXED: Absolute Ref Architecture (Survives Tab Switching & Component Updates)
+  // HIGH-PERFORMANCE REFS
   const endTimeRef = useRef(null);
   const questionsRef = useRef([]);
   const timeSpentPerQuestion = useRef({});
   const lastActiveTime = useRef(Date.now());
   const totalExamTime = useRef(0);
-  const timeRemainingRef = useRef(0);
   const currentAnswersRef = useRef({}); 
   const currentConfidencesRef = useRef({});
 
-  // 🚀 OPTIMIZED: The Absolute Clock Fix (Prevents Background Freezing)
+  // 🚀 ABSOLUTE TIMER: Decoupled from React State Loop
   useEffect(() => {
     let interval = null;
-    if (session.isActive && !session.isFinished && session.timeRemaining > 0) {
+    if (session.isActive && !session.isFinished) {
       if (!endTimeRef.current) {
-          endTimeRef.current = Date.now() + session.timeRemaining * 1000;
+          endTimeRef.current = Date.now() + timeRemaining * 1000;
       }
       
       interval = setInterval(() => {
         const now = Date.now();
-        const nextTime = Math.max(0, Math.round((endTimeRef.current - now) / 1000));
+        const timeLeft = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
         
-        setTimeRemaining(nextTime);
-        timeRemainingRef.current = nextTime;
+        setTimeRemaining(timeLeft);
         
-        if (nextTime <= 0) {
+        if (timeLeft <= 0) {
             clearInterval(interval);
             endTimeRef.current = null;
             setTimeIsUp(true); 
-        } else if (nextTime % 5 === 0) {
+        } else if (timeLeft % 5 === 0) {
             localStorage.setItem('ree_sim_cache', JSON.stringify({ 
-                config, session: { ...session, timeRemaining: nextTime }, 
-                totalExamTime: totalExamTime.current, endTime: endTimeRef.current, bookmarks: Array.from(bookmarks) 
+                config, session, totalExamTime: totalExamTime.current, endTime: endTimeRef.current, bookmarks: Array.from(bookmarks) 
             }));
         }
       }, 1000);
@@ -112,7 +76,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         endTimeRef.current = null;
     }
     return () => clearInterval(interval);
-  }, [session.isActive, session.isFinished, session, bookmarks, config]);
+  }, [session.isActive, session.isFinished]);
 
   useEffect(() => {
       if (timeIsUp) {
@@ -121,59 +85,73 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       }
   }, [timeIsUp]);
 
-  // 🚀 OPTIMIZED: Concurrent Execution eliminates freezing
+  // 🚀 BULLETPROOF EXAM POOL BUILDER
   const buildExamPool = async () => {
       let pool = [];
       let timeLimitSecs = config.timeLimitMins * 60;
       const totalCount = config.isPrcStandard ? 100 : (config.count || 20);
 
+      // Cognitive Filter: Forgiving matching to prevent 0-item crashes
+      const applyFilter = (rawPool) => {
+          if (!config.cognitiveFocus || config.cognitiveFocus === 'mixed') return rawPool;
+          
+          const filtered = rawPool.filter(q => {
+              const typeStr = String(q.type || q.questionType || q.category || q.cognitiveFocus || '').toLowerCase();
+              const isCalc = typeStr.includes('calc') || typeStr.includes('math') || typeStr.includes('problem');
+              return config.cognitiveFocus === 'calculation' ? isCalc : !isCalc;
+          });
+
+          // Fallback: If filter is too strict, return the raw mix instead of crashing
+          if (filtered.length === 0 && rawPool.length > 0) {
+              toast("Strict cognitive filter yielded 0. Reverting to Standard Mix.", { icon: '⚠️' });
+              return rawPool; 
+          }
+          return filtered;
+      };
+
       if (config.source === 'library') {
-        const fetchPromises = [];
-
-        if (config.mode === 'blended') {
-          const dist = { Mathematics: Math.round(totalCount * 0.25), ESAS: Math.round(totalCount * 0.30), EE: Math.round(totalCount * 0.45) };
-          for (const subj of ['Mathematics', 'ESAS', 'EE']) {
-              const weights = getDynamicWeights(subj, dynamicTOS);
-              const exactTopicCounts = distributeExactItems(dist[subj], weights);
-              for (const [subtopic, amount] of Object.entries(exactTopicCounts)) {
-                  if (amount > 0) fetchPromises.push(fetchVaultQuestions(subj, subtopic, amount));
+          if (config.mode === 'blended') {
+              const dist = { Mathematics: Math.round(totalCount * 0.25), ESAS: Math.round(totalCount * 0.30), EE: Math.round(totalCount * 0.45) };
+              for (const subj of ['Mathematics', 'ESAS', 'EE']) {
+                  // Direct Deep Fetch: Pulling 2000 ensures we have enough data even after filtering
+                  const raw = await fetchVaultQuestions(subj, 'All', 2000);
+                  const filtered = applyFilter(raw || []);
+                  const shuffled = shuffleArray(filtered).slice(0, dist[subj]);
+                  pool = pool.concat(shuffled);
               }
-          }
-          timeLimitSecs = config.isPrcStandard ? 5 * 3600 : timeLimitSecs;
-        } else {
-          if (config.subtopic && config.subtopic !== 'All') {
-              fetchPromises.push(fetchVaultQuestions(config.subject, config.subtopic, totalCount));
+              timeLimitSecs = config.isPrcStandard ? 5 * 3600 : timeLimitSecs;
           } else {
-              const weights = getDynamicWeights(config.subject, dynamicTOS);
-              const exactTopicCounts = distributeExactItems(totalCount, weights);
-              for (const [subtopic, amount] of Object.entries(exactTopicCounts)) {
-                  if (amount > 0) fetchPromises.push(fetchVaultQuestions(config.subject, subtopic, amount));
-              }
+              // Direct Deep Fetch
+              const targetSubtopic = config.subtopic === 'All' || !config.subtopic ? 'All' : config.subtopic;
+              const raw = await fetchVaultQuestions(config.subject, targetSubtopic, 2000);
+              const filtered = applyFilter(raw || []);
+              pool = shuffleArray(filtered).slice(0, totalCount);
+              timeLimitSecs = config.isPrcStandard ? (config.subject === 'EE' ? 6 * 3600 : 4 * 3600) : totalCount * 120;
           }
-          timeLimitSecs = config.isPrcStandard ? (config.subject === 'EE' ? 6 * 3600 : 4 * 3600) : totalCount * 120;
-        }
-
-        const resolvedArrays = await Promise.all(fetchPromises);
-        resolvedArrays.forEach(arr => { if (arr) pool = pool.concat(arr); });
-
       } else {
-        if (!isOnline) throw new Error("Offline mode: Must use Local Library Vault.");
-        const subjectTopics = dynamicTOS[config.subject];
-        if (!subjectTopics || subjectTopics.length === 0) throw new Error("TOS configuration missing.");
-        
-        const aiPromises = [];
-        for (let i = 0; i < Math.ceil(totalCount / 3); i++) {
-          const subT = subjectTopics[Math.floor(Math.random() * subjectTopics.length)];
-          aiPromises.push(generateQuestionsAI(config.subject, subT, false));
-        }
-        const aiResults = await Promise.all(aiPromises);
-        aiResults.forEach(arr => { if (arr) pool = pool.concat(arr); });
-        
-        timeLimitSecs = totalCount * 120;
+          if (!isOnline) throw new Error("Offline mode: Must use Local Library Vault.");
+          const subjectTopics = dynamicTOS[config.subject];
+          if (!subjectTopics || subjectTopics.length === 0) throw new Error("TOS configuration missing.");
+          
+          const aiPromises = [];
+          for (let i = 0; i < Math.ceil(totalCount / 3); i++) {
+              const subT = subjectTopics[Math.floor(Math.random() * subjectTopics.length)];
+              aiPromises.push(generateQuestionsAI(config.subject, subT, false));
+          }
+          const aiResults = await Promise.all(aiPromises);
+          aiResults.forEach(arr => { if (arr) pool = pool.concat(arr); });
+          timeLimitSecs = totalCount * 120;
       }
 
+      if (pool.length < totalCount && pool.length > 0) {
+          toast(`Only acquired ${pool.length} items from the vault.`, { icon: '⚠️' });
+      }
       if (pool.length === 0) throw new Error("Vault empty for selected parameters.");
-      pool = shuffleArray(pool).slice(0, totalCount);
+      
+      // 🚀 THE FIX: Final global shuffle destroys predictability in Full Blended Mode!
+      pool = shuffleArray(pool);
+
+      // Final shuffle of the internal options A, B, C, D
       return { pool: pool.map(q => q.options?.length > 0 ? { ...q, options: shuffleArray(q.options) } : q), timeLimitSecs };
   };
 
@@ -188,18 +166,16 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       questionsRef.current = pool; 
       lastActiveTime.current = Date.now();
       totalExamTime.current = timeLimitSecs;
-      timeRemainingRef.current = timeLimitSecs;
       endTimeRef.current = Date.now() + timeLimitSecs * 1000;
       
       const newState = { 
         isActive: true, isFinished: false, questions: pool, answers: {}, 
-        confidences: {}, loading: false, error: '', diagnostics: null, battleId: null 
+        confidences: {}, loading: false, error: '', diagnostics: null 
       };
 
       setSession(newState);
       setCurrentIndex(0); 
       setTimeRemaining(timeLimitSecs); 
-      setReviewUI({}); 
       setBookmarks(new Set());
       setIsSubmitting(false);
       
@@ -221,19 +197,16 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setSession(parsed.session);
       setCurrentIndex(parsed.currentIndex || 0);
       
-      // Calculate true elapsed time
       if (parsed.endTime) {
           const timeLeft = Math.max(0, Math.round((parsed.endTime - Date.now()) / 1000));
           setTimeRemaining(timeLeft);
-          timeRemainingRef.current = timeLeft;
           endTimeRef.current = parsed.endTime;
       } else {
           setTimeRemaining(parsed.session.timeRemaining || parsed.timeRemaining);
-          timeRemainingRef.current = parsed.session.timeRemaining || parsed.timeRemaining;
-          endTimeRef.current = Date.now() + timeRemainingRef.current * 1000;
+          endTimeRef.current = Date.now() + (parsed.session.timeRemaining || parsed.timeRemaining) * 1000;
       }
       
-      totalExamTime.current = parsed.totalExamTime || timeRemainingRef.current; 
+      totalExamTime.current = parsed.totalExamTime || timeRemaining; 
       questionsRef.current = parsed.session.questions || [];
       currentAnswersRef.current = parsed.session.answers || {};
       currentConfidencesRef.current = parsed.session.confidences || {};
@@ -246,21 +219,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     }
   };
 
-  const handleSelectOption = (arg1, arg2) => {
-      let idx = arg2 !== undefined ? arg1 : currentIndex;
-      let val = arg2 !== undefined ? arg2 : arg1;
-
-      const newAnswers = { ...session.answers, [idx]: val };
+  const handleSelectOption = (opt) => {
+      const newAnswers = { ...session.answers, [currentIndex]: opt };
       currentAnswersRef.current = newAnswers; 
       setSession(prev => ({ ...prev, answers: newAnswers }));
   };
 
-  const handleSelectConfidence = (arg1, arg2) => {
-      let idx = arg2 !== undefined ? arg1 : currentIndex;
-      let val = arg2 !== undefined ? arg2 : arg1;
-
-      currentConfidencesRef.current[idx] = val;
-      setSession(prev => ({ ...prev, confidences: { ...prev.confidences, [idx]: val } }));
+  const handleSelectConfidence = (level) => {
+      currentConfidencesRef.current[currentIndex] = level;
+      setSession(prev => ({ ...prev, confidences: { ...prev.confidences, [currentIndex]: level } }));
   };
   
   const handleIndexChange = (newIdx) => {
@@ -273,8 +240,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const toggleBookmark = (idx) => {
     setBookmarks(prev => {
       const next = new Set(prev);
-      if (next.has(idx)) { next.delete(idx); toast.success("Removed from Review queue."); } 
-      else { next.add(idx); toast.success("Bookmarked for Review."); }
+      if (next.has(idx)) { next.delete(idx); toast.success("Removed Bookmark."); } 
+      else { next.add(idx); toast.success("Bookmarked."); }
       return next;
     });
   };
@@ -282,7 +249,6 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const submitExam = async () => {
     if (isSubmitting || session.isFinished) return;
     setIsSubmitting(true);
-    
     const loadingToastId = toast.loading("Transmitting telemetry to Assessment Core...");
 
     try {
@@ -291,7 +257,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
         const now = Date.now();
         timeSpentPerQuestion.current[currentIndex] = (timeSpentPerQuestion.current[currentIndex] || 0) + (now - lastActiveTime.current);
-        endTimeRef.current = null; // Stops the clock
+        endTimeRef.current = null; 
 
         const finalQs = questionsRef.current;
         const finalAns = currentAnswersRef.current;
@@ -317,11 +283,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             if (isCorrect) topicBreakdown[q.subtopic].c += 1;
 
             return {
-                questionId: q.id,
-                subject: q.subject,
-                subtopic: q.subtopic,
-                isCorrect: isCorrect,
-                confidenceLevel: finalConf[idx] || 'HIGH',
+                questionId: q.id, subject: q.subject, subtopic: q.subtopic,
+                isCorrect: isCorrect, confidenceLevel: finalConf[idx] || 'HIGH',
                 timeSpentMs: (timeSpent[idx] || 10) * 1000 
             };
         });
@@ -330,15 +293,21 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             try {
                 await syncTelemetryBatch(currentUser.uid, crypto.randomUUID(), config.subject, config.mode, attemptsPayload);
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
-                if (freshProfile?.data) setStats(freshProfile.data);
-            } catch (syncError) {
-                console.warn("Cloud Sync Failed", syncError);
-            }
+                if (freshProfile?.data) {
+                    setStats({
+                        ...useStore.getState().stats,
+                        ...freshProfile.data.profile, 
+                        activityCalendar: freshProfile.data.activityCalendar,
+                        microTopics: freshProfile.data.microTopics,
+                        matrix: freshProfile.data.matrix
+                    });
+                }
+            } catch (syncError) { console.warn("Cloud Sync Failed", syncError); }
         }
 
         const score = Math.round((correct / finalQs.length) * 100);
         const verdict = score >= 70 ? 'PASSED' : (score >= 60 ? 'CONDITIONAL PASS' : 'FAILED');
-        const timeTakenActual = totalExamTime.current - timeRemainingRef.current;
+        const timeTakenActual = totalExamTime.current - timeRemaining;
 
         const subjectScores = {
             Math: subjBreakdown.Math.t > 0 ? Math.round((subjBreakdown.Math.c / subjBreakdown.Math.t) * 100) : null,
@@ -346,36 +315,26 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             EE: subjBreakdown.EE.t > 0 ? Math.round((subjBreakdown.EE.c / subjBreakdown.EE.t) * 100) : null
         };
 
-        // 🚀 FIXED: Array mapping format properly matches Terminal requirements (No .map errors)
+        const mappedQuestions = finalQs.map((q, idx) => ({ ...q, userAnswer: finalAns[idx] || null, userConf: finalConf[idx] || 'HIGH' }));
+
         const diagnosticsPayload = {
-            score, verdict,
-            timeTakenSecs: timeTakenActual,
-            subjectScores,
+            score, verdict, timeTakenSecs: timeTakenActual, subjectScores,
             weakTopics: Object.entries(topicBreakdown).filter(([_, d]) => d.t > 0 && (d.c / d.t) < 0.6).map(([t]) => t),
-            totalItems: finalQs.length,
-            correctItems: correct,
-            chronoAnomalies: finalQs.filter((_, idx) => (timeSpent[idx] || 0) > 180000),
-            blindSpots: finalQs.filter((q, idx) => (finalConf[idx] === 'HIGH' || !finalConf[idx]) && finalAns[idx] !== q.answer)
+            totalItems: finalQs.length, correctItems: correct,
+            chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpent[idx] || 0) > 180000),
+            blindSpots: mappedQuestions.filter((q) => (q.userConf === 'HIGH') && q.userAnswer !== q.answer)
         };
 
-        // 🚀 FIXED: Set isActive to true so the Component Stays Mounted
         setSession(prev => ({ 
-            ...prev, 
-            isFinished: true, isActive: true, 
-            score, verdict, 
-            results: { score, verdict, subjectScores },
-            diagnostics: diagnosticsPayload, 
-            answers: finalAns,
-            questions: prev.questions.map((q, i) => ({ ...q, userAnswer: finalAns[i] })) 
+            ...prev, isFinished: true, isActive: true, 
+            score, verdict, diagnostics: diagnosticsPayload, answers: finalAns,
+            questions: mappedQuestions 
         }));
         
         setCurrentIndex(0);
-
         await saveSimulationRecord({
-            date: new Date().toISOString(),
-            score, verdict, subjectScores,
-            mode: config.mode, targetSubject: config.subject,
-            totalQs: finalQs.length, timeTaken: timeTakenActual
+            date: new Date().toISOString(), score, verdict, subjectScores,
+            mode: config.mode, targetSubject: config.subject, totalQs: finalQs.length, timeTaken: timeTakenActual
         });
 
         toast.success('Simulation telemetry verified and saved.', { id: loadingToastId });
@@ -387,20 +346,22 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     }
   };
 
+  const handleFlagQuestion = async () => {
+    const currentQ = session.questions[currentIndex];
+    if (!currentQ || !currentQ.id) return toast.error("Cannot flag dynamic items.");
+    try {
+        await updateQuestionInBank(currentQ.id, { isFlagged: true });
+        toast.success("Anomaly reported.");
+    } catch (error) { toast.error("Flag failed."); }
+  };
+
   const exportOfflinePDF = async () => {};
-  const toggleOfflinePanel = () => {};
-  const fetchOrToggleAI = async () => {};
-  const refreshAIExplanation = async () => {};
-  const startMultiplayerBattle = async () => { toast.error("Multiplayer offline"); };
-  const handleFlagQuestion = async () => { toast.success("Anomaly reported."); };
 
   return {
     config, setConfig, session, setSession,
     currentIndex, setCurrentIndex, timeRemaining, showTime, setShowTime,
-    reviewUI, timeSpentPerQuestion, bookmarks, toggleBookmark,
-    startSimulation, startMultiplayerBattle,
-    handleSelectOption, handleSelectConfidence, handleIndexChange, submitExam, 
-    toggleOfflinePanel, fetchOrToggleAI, refreshAIExplanation,
+    bookmarks, toggleBookmark, startSimulation, handleSelectOption, 
+    handleSelectConfidence, handleIndexChange, submitExam, 
     hasSavedSession, resumeSimulation, handleFlagQuestion,
     exportOfflinePDF, isExporting, isSubmitting
   };
