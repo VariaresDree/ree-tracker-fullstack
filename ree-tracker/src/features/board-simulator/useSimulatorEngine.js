@@ -292,7 +292,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
         if (currentUser && isOnline) {
             try {
-                await syncTelemetryBatch(currentUser.uid, crypto.randomUUID(), config.subject, config.mode, attemptsPayload);
+                await syncTelemetryBatch(currentUser.uid, crypto.randomUUID(), config.subject, 'BOARD_SIM', attemptsPayload);
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
                 if (freshProfile?.data) {
                     setStats({

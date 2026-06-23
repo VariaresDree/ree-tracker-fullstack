@@ -164,7 +164,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         try {
             if (isOnline && telemetryBatchRef.current.length > 0) {
-                await syncTelemetryBatch(currentUser.uid, `REV_${Date.now()}`, config.subject, config.sessionMode, telemetryBatchRef.current);
+                await syncTelemetryBatch(currentUser.uid, `REV_${Date.now()}`, config.subject, 'ACTIVE_REVIEW', telemetryBatchRef.current);
 
                 const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
                 await apiRequest('/api/analytics/study-sessions', 'POST', {

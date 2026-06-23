@@ -67,7 +67,11 @@ router.post('/:battleId/submit', authMiddleware, async (req, res) => {
         let telemetry = null;
         if (Array.isArray(attempts) && attempts.length > 0) {
             try {
-                telemetry = await recordAttempts({ userId: req.user.id, attempts });
+                telemetry = await recordAttempts({
+                    userId: req.user.id,
+                    mode: req.body.mode || 'COMBAT',
+                    attempts,
+                });
             } catch (telErr) {
                 logger.warn('battle telemetry persist failed', { error: telErr.message });
             }

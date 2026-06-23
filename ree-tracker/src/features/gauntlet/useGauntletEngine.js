@@ -94,7 +94,7 @@ export const useGauntletEngine = (level) => {
                 userAnswer: answers[idx] || ''
             }));
 
-            const gradeResult = await apiRequest('/api/exams/grade', 'POST', { answers: gradePayload });
+            const gradeResult = await apiRequest('/api/exams/grade', 'POST', { answers: gradePayload, mode: 'GAUNTLET' });
             const results = gradeResult?.results || [];
 
             let correctCount = 0;

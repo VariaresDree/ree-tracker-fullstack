@@ -1,12 +1,21 @@
 const { getAuth } = require('firebase-admin/auth');
 const prisma = require('../config/db');
+const { recordAttempts } = require('../services/telemetryService');
 const logger = require('../utils/logger');
 
-// In-memory lobby state (participants, live scores)
+// In-memory lobby state (participants, live scores).
+// Hard cap prevents unbounded growth if a client spams join-battle with
+// random IDs — old lobbies are evicted FIFO once we exceed the cap.
+const MAX_LOBBIES = 500;
 const battleLobbies = new Map();
 
 function getLobby(battleId) {
     if (!battleLobbies.has(battleId)) {
+        if (battleLobbies.size >= MAX_LOBBIES) {
+            const oldest = battleLobbies.keys().next().value;
+            battleLobbies.delete(oldest);
+            logger.warn('lobby cache evicted', { evicted: oldest });
+        }
         battleLobbies.set(battleId, { participants: new Map(), startedAt: null });
     }
     return battleLobbies.get(battleId);
@@ -122,7 +131,7 @@ function setupBattleSocket(io) {
             }
         });
 
-        socket.on('battle-submit', async ({ battleId, score, total, timeTakenSecs }) => {
+        socket.on('battle-submit', async ({ battleId, score, total, timeTakenSecs, attempts }) => {
             if (!battleId) return;
 
             try {
@@ -133,6 +142,24 @@ function setupBattleSocket(io) {
                     participant.itemsAnswered = total;
                     participant.finished = true;
                     participant.timeTakenSecs = timeTakenSecs;
+                }
+
+                // Persist per-question attempts so Combat Terminal / Battle
+                // results show up in Dashboard + Profile analytics. Server
+                // re-grades against Question.answer inside recordAttempts so
+                // we don't trust the client's isCorrect flag.
+                if (Array.isArray(attempts) && attempts.length > 0) {
+                    try {
+                        await recordAttempts({
+                            userId: socket.userId,
+                            mode: 'BATTLE',
+                            attempts,
+                        });
+                    } catch (telErr) {
+                        logger.warn('battle-submit telemetry persist failed', {
+                            battleId, userId: socket.userId, error: telErr.message,
+                        });
+                    }
                 }
 
                 battleNs.to(battleId).emit('participant-finished', {

@@ -108,7 +108,7 @@ model ExamSession {
 
 model QuestionAttempt {
   id              String   @id @default(uuid())
-  sessionId       String?  
+  sessionId       String?
   userId          String
   questionId      String
   subject         String
@@ -116,6 +116,9 @@ model QuestionAttempt {
   isCorrect       Boolean
   confidenceLevel String   @default("LOW")
   timeSpentMs     Int      @default(0)
+  // Which surface produced this attempt: ACTIVE_REVIEW | BOARD_SIM | GAUNTLET
+  // | COMBAT | BATTLE | LEGACY. Indexed for dashboard mode-breakdown queries.
+  mode            String   @default("LEGACY")
   createdAt       DateTime @default(now())
 
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -124,6 +127,7 @@ model QuestionAttempt {
 
   @@index([userId, createdAt])
   @@index([userId, subject])
+  @@index([userId, mode, createdAt])
 }
 
 // 5 & 6. 'folders' and 'materials' collections

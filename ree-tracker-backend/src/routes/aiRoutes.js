@@ -4,12 +4,26 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const { GoogleGenAI } = require('@google/genai');
 const logger = require('../utils/logger');
 
-// User-specified tier list — kept verbatim per project requirement.
-// Note: gemini-3.5-flash and gemini-3.1-flash-lite are not currently shipped
-// model IDs; the fallback loop will skip them and land on gemini-2.5-flash.
-const MODEL_TIERS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+// Real, currently-shipping Gemini IDs ordered from most capable to lightest.
+// Override at runtime via MODEL_TIERS env (comma-separated) — useful when
+// Google ships new IDs and we don't want to redeploy just to add them.
+const DEFAULT_MODEL_TIERS = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+];
+
+const MODEL_TIERS = (process.env.MODEL_TIERS
+    ? process.env.MODEL_TIERS.split(',').map((s) => s.trim()).filter(Boolean)
+    : DEFAULT_MODEL_TIERS);
 
 const PER_MODEL_TIMEOUT_MS = 10_000;
+
+// Tiers that returned 404 within this process's lifetime — skip them on
+// subsequent calls so a phantom model name (e.g. typo or sunset ID) doesn't
+// cost 10s of timeout on every request.
+const deadTiers = new Set();
 
 let _ai = null;
 function getAI() {
@@ -28,6 +42,15 @@ function withTimeout(promise, ms) {
     });
 }
 
+function classifyError(err) {
+    const msg = (err?.message || '').toLowerCase();
+    if (msg.includes('not found') || msg.includes('404')) return 'not_found';
+    if (msg.includes('429')) return 'rate_limited';
+    if (msg.includes('503') || msg.includes('unavailable')) return 'unavailable';
+    if (msg.includes('timeout')) return 'timeout';
+    return 'other';
+}
+
 router.post('/generate', authMiddleware, async (req, res) => {
     const ai = getAI();
     if (!ai) {
@@ -37,24 +60,46 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
     try {
         const { model, contents, config } = req.body;
-        const modelsToTry = model ? [model] : MODEL_TIERS;
+        const requested = model ? [model] : MODEL_TIERS;
+        const modelsToTry = requested.filter((m) => !deadTiers.has(m));
+        const tried = [];
         let lastError = null;
 
         for (const modelId of modelsToTry) {
+            const startedAt = Date.now();
             try {
                 const response = await withTimeout(
                     ai.models.generateContent({ model: modelId, contents, config }),
                     PER_MODEL_TIMEOUT_MS,
                 );
-                return res.status(200).json({ text: response.text, model: modelId });
+                const latencyMs = Date.now() - startedAt;
+                logger.info('AI model success', { model: modelId, latencyMs });
+                tried.push({ model: modelId, status: 'ok', latencyMs });
+                return res.status(200).json({ text: response.text, model: modelId, tried });
             } catch (error) {
+                const latencyMs = Date.now() - startedAt;
+                const kind = classifyError(error);
                 lastError = error;
-                logger.warn('AI model fallback', { model: modelId, error: error.message });
+                tried.push({ model: modelId, status: kind, latencyMs, error: error.message });
+                logger.warn('AI model fallback', { model: modelId, kind, latencyMs, error: error.message });
+
+                if (kind === 'not_found') {
+                    // Permanent for this process — never try this model again.
+                    deadTiers.add(modelId);
+                }
+                // For all other classes, continue to the next tier immediately.
             }
         }
 
-        logger.error('AI generation exhausted all tiers', { error: lastError?.message });
-        return res.status(502).json({ error: 'AI generation failed across all model tiers.' });
+        logger.error('AI generation exhausted all tiers', {
+            tried,
+            deadTiers: Array.from(deadTiers),
+            lastError: lastError?.message,
+        });
+        return res.status(502).json({
+            error: 'AI service is temporarily unavailable — try again in a minute.',
+            triedModels: tried,
+        });
     } catch (error) {
         logger.error('AI generation failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'AI generation failed on the server.' });
@@ -62,3 +107,5 @@ router.post('/generate', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.MODEL_TIERS = MODEL_TIERS;
+module.exports.deadTiers = deadTiers;

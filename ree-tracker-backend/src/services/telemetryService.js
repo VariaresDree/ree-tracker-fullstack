@@ -32,10 +32,11 @@ function todayManila() {
  * @param {string} opts.userId
  * @param {Array<{questionId, userAnswer?, isCorrect?, confidenceLevel?, timeSpentMs?, subject?, subtopic?}>} opts.attempts
  * @param {string} [opts.sessionId] — optional ExamSession id to attach
+ * @param {string} [opts.mode] — quiz mode tag (ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE)
  * @param {object} [opts.tx] — optional Prisma transaction client
  * @returns {Promise<{ written: number, updatedTheta: number }>}
  */
-async function recordAttempts({ userId, attempts, sessionId = null, tx = null }) {
+async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGACY', tx = null }) {
     if (!Array.isArray(attempts) || attempts.length === 0) {
         return { written: 0, updatedTheta: null };
     }
@@ -66,6 +67,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, tx = null })
                 confidenceLevel: String(a.confidenceLevel || 'LOW').toUpperCase(),
                 timeSpentMs: parseInt(a.timeSpentMs) || 0,
                 sessionId,
+                mode,
                 _difficulty: m.difficulty || 0.0,
             };
         });

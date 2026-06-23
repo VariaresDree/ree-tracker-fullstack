@@ -85,8 +85,32 @@ export const getAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
 export const logSRSRecord = async (uid, questionId, payload) => apiRequest('/api/srs/review', 'POST', { questionId, ...payload });
 export const updateAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
+// mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
+// — server uses it to break down dashboard analytics per surface.
+const MODE_ALIAS = {
+    mcq: 'ACTIVE_REVIEW',
+    flashcard: 'ACTIVE_REVIEW',
+    subject: 'BOARD_SIM',
+    blended: 'BOARD_SIM',
+    custom: 'BOARD_SIM',
+    prc: 'BOARD_SIM',
+    gauntlet: 'GAUNTLET',
+    combat: 'COMBAT',
+    battle: 'BATTLE',
+};
+const canonicalMode = (m) => {
+    if (!m) return 'LEGACY';
+    const upper = String(m).toUpperCase();
+    if (['ACTIVE_REVIEW', 'BOARD_SIM', 'GAUNTLET', 'COMBAT', 'BATTLE', 'LEGACY'].includes(upper)) return upper;
+    return MODE_ALIAS[String(m).toLowerCase()] || 'LEGACY';
+};
 export const syncTelemetryBatch = async (uid, sessionId, targetSubject, mode, attempts) => {
-    return await apiRequest('/api/analytics/telemetry-bulk', 'POST', { sessionId, targetSubject, mode, attempts });
+    return await apiRequest('/api/analytics/telemetry-bulk', 'POST', {
+        sessionId,
+        targetSubject,
+        mode: canonicalMode(mode),
+        attempts,
+    });
 };
 export const purgeUserAnalytics = async (uid) => apiRequest('/api/analytics/purge', 'DELETE');
 
@@ -197,8 +221,14 @@ export const createMultiplayerBattle = async (hostId, config, questions, timeLim
     return battleId;
 };
 export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battles/${battleId}`);
-export const submitBattleScore = async (battleId, user, score, totalQs, timeTakenSecs) => {
-    return await apiRequest(`/api/battles/${battleId}/submit`, 'POST', { score, total: totalQs, timeTakenSecs });
+export const submitBattleScore = async (battleId, user, score, totalQs, timeTakenSecs, attempts = []) => {
+    return await apiRequest(`/api/battles/${battleId}/submit`, 'POST', {
+        score,
+        total: totalQs,
+        timeTakenSecs,
+        mode: 'COMBAT',
+        attempts,
+    });
 };
 export const syncLiveBattleProgress = async (battleId, user, currentScore, itemsAnswered) => {
     return await apiRequest(`/api/battles/${battleId}/progress`, 'PUT', { liveScore: currentScore, itemsAnswered });
