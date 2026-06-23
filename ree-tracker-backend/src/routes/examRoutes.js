@@ -88,6 +88,7 @@ router.post('/grade', authMiddleware, validate(gradeSchema), async (req, res) =>
         try {
             telemetry = await recordAttempts({
                 userId: req.user.id,
+                mode: req.body.mode || 'GAUNTLET',
                 attempts: answers.map((a) => ({
                     questionId: a.questionId,
                     userAnswer: a.userAnswer,
@@ -165,39 +166,41 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), async (req, r
         }
 
         const timeTakenSecs = totalExamTime - timeRemaining;
-        const newTheta = calculateUpdatedTheta(currentTheta, parsedAttempts);
 
-        // Wrap all writes in a transaction
-        const session = await prisma.$transaction(async (tx) => {
-            const sess = await tx.examSession.create({
-                data: {
-                    userId: req.user.id,
-                    mode: config?.mode || 'custom',
-                    targetSubject: config?.subject || 'Blended',
-                    score: scorePercentage,
-                    totalQuestions: parsedAttempts.length,
-                    timeTakenSecs: timeTakenSecs,
-                    verdict: verdict,
-                    config: config || {}
-                }
-            });
-
-            if (parsedAttempts.length > 0) {
-                await tx.questionAttempt.createMany({
-                    data: parsedAttempts.map(({ questionDifficulty, ...rest }) => ({
-                        ...rest,
-                        sessionId: sess.id
-                    }))
-                });
-            }
-
-            await tx.user.update({
-                where: { id: req.user.id },
-                data: { thetaRating: newTheta, lastActive: new Date() }
-            });
-
-            return sess;
+        // Create the ExamSession first, then route per-question attempts
+        // through the shared recordAttempts() path so they land in the same
+        // tables (with ActivityLog + theta recompute) as Active Review and
+        // Battle submissions — no duplicate logic, single source of truth.
+        const session = await prisma.examSession.create({
+            data: {
+                userId: req.user.id,
+                mode: config?.mode || 'custom',
+                targetSubject: config?.subject || 'Blended',
+                score: scorePercentage,
+                totalQuestions: parsedAttempts.length,
+                timeTakenSecs: timeTakenSecs,
+                verdict: verdict,
+                config: config || {},
+            },
         });
+
+        let newTheta = currentTheta;
+        if (parsedAttempts.length > 0) {
+            const telemetry = await recordAttempts({
+                userId: req.user.id,
+                sessionId: session.id,
+                mode: 'BOARD_SIM',
+                attempts: parsedAttempts.map((a) => ({
+                    questionId: a.questionId,
+                    isCorrect: a.isCorrect,
+                    subject: a.subject,
+                    subtopic: a.subtopic,
+                    confidenceLevel: a.confidenceLevel,
+                    timeSpentMs: a.timeSpentMs,
+                })),
+            });
+            if (telemetry?.updatedTheta != null) newTheta = telemetry.updatedTheta;
+        }
 
         res.status(200).json({
             success: true,

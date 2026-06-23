@@ -94,8 +94,8 @@ export function useBattleSocket(battleId) {
         socketRef.current?.emit('battle-progress', { battleId, score, itemsAnswered });
     }, [battleId]);
 
-    const submitResult = useCallback((score, total, timeTakenSecs) => {
-        socketRef.current?.emit('battle-submit', { battleId, score, total, timeTakenSecs });
+    const submitResult = useCallback((score, total, timeTakenSecs, attempts = []) => {
+        socketRef.current?.emit('battle-submit', { battleId, score, total, timeTakenSecs, attempts });
     }, [battleId]);
 
     return {

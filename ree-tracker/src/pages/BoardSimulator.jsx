@@ -69,7 +69,19 @@ export default function BoardSimulator() {
   useEffect(() => {
     if (activeBattleId && engine.session.isFinished && engine.session.diagnostics) {
       const { score, totalItems, timeTakenSecs } = engine.session.diagnostics;
-      submitResult(Math.round(score * totalItems / 100), totalItems, timeTakenSecs);
+      // Build per-question attempts so battle results contribute to dashboard
+      // analytics — the engine's syncTelemetryBatch already persisted them
+      // under BOARD_SIM, but the BATTLE socket path also needs them so the
+      // host's Battle record reflects authoritative scores.
+      const attempts = (engine.session.questions || []).map((q, idx) => ({
+        questionId: q.id,
+        userAnswer: engine.session.answers?.[idx] ?? q.userAnswer ?? null,
+        subject: q.subject,
+        subtopic: q.subtopic,
+        confidenceLevel: q.userConf || 'MED',
+        timeSpentMs: 0,
+      })).filter((a) => a.questionId);
+      submitResult(Math.round(score * totalItems / 100), totalItems, timeTakenSecs, attempts);
     }
   }, [engine.session.isFinished, activeBattleId]);
 

@@ -76,11 +76,13 @@ export const useStore = create(
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     sessionId: getStore().currentSessionId || (crypto.randomUUID ? crypto.randomUUID() : 'temp-session'),
-                    mode: getStore().currentSessionMode || 'ADAPTIVE_QUIZ',
+                    // Server requires a known mode enum; default queue items
+                    // to ACTIVE_REVIEW (the only path that uses this flush).
+                    mode: getStore().currentSessionMode || 'ACTIVE_REVIEW',
                     targetSubject: getStore().currentSubject || 'BLENDED',
-                    attempts: syncQueue 
+                    attempts: syncQueue
                 })
             });
 

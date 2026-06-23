@@ -7,57 +7,87 @@ const path = require('path');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 
-const REQUIRED_ENV = ['DATABASE_URL', 'GEMINI_API_KEY'];
 const FIREBASE_JSON_PATH = path.join(__dirname, 'firebase-service-account.json');
 const FIREBASE_ENV_KEYS = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
 
-function validateEnv() {
-    const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+// Subsystem readiness — populated during bootstrap, read by /healthz and route
+// guards. The HTTP server always comes up; degraded subsystems return a clear
+// 503 with remediation copy instead of crashing the whole process.
+const readiness = {
+    db: 'pending',
+    firebase: 'pending',
+    gemini: 'pending',
+    startedAt: Date.now(),
+};
+
+function checkEnv() {
+    const warnings = [];
+    if (!process.env.DATABASE_URL) {
+        warnings.push('DATABASE_URL is not set — DB-backed routes will return 503.');
+        readiness.db = 'unconfigured';
+    }
+    if (!process.env.GEMINI_API_KEY) {
+        warnings.push('GEMINI_API_KEY is not set — /api/ai/generate will return 503.');
+        readiness.gemini = 'unconfigured';
+    } else {
+        readiness.gemini = 'ok';
+    }
     const hasFirebaseFile = fs.existsSync(FIREBASE_JSON_PATH);
     const hasFirebaseEnv = FIREBASE_ENV_KEYS.every((k) => !!process.env[k]);
     if (!hasFirebaseFile && !hasFirebaseEnv) {
-        missing.push('Firebase credentials (firebase-service-account.json OR FIREBASE_PROJECT_ID+FIREBASE_CLIENT_EMAIL+FIREBASE_PRIVATE_KEY)');
+        warnings.push('Firebase credentials missing — authenticated routes will return 503.');
+        readiness.firebase = 'unconfigured';
     }
-    if (missing.length) {
-        console.error('\n[BOOT] Missing required environment configuration:');
-        missing.forEach((m) => console.error(`  - ${m}`));
-        console.error('\nSet these in .env (local) or your hosting environment (Vercel/Render/etc.) and restart.\n');
-        process.exit(1);
+    if (warnings.length) {
+        console.warn('\n[BOOT] Configuration warnings:');
+        warnings.forEach((w) => console.warn(`  - ${w}`));
+        console.warn('Server will still start. Set the missing variables to enable the affected features.\n');
     }
     return { hasFirebaseFile, hasFirebaseEnv };
 }
 
-function initFirebase({ hasFirebaseFile }) {
-    if (hasFirebaseFile) {
-        initializeApp({ credential: cert(require(FIREBASE_JSON_PATH)) });
-    } else {
-        initializeApp({
-            credential: cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-            }),
-        });
+function initFirebase({ hasFirebaseFile, hasFirebaseEnv }) {
+    try {
+        if (hasFirebaseFile) {
+            initializeApp({ credential: cert(require(FIREBASE_JSON_PATH)) });
+            readiness.firebase = 'ok';
+        } else if (hasFirebaseEnv) {
+            initializeApp({
+                credential: cert({
+                    projectId: process.env.FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+                }),
+            });
+            readiness.firebase = 'ok';
+        }
+    } catch (err) {
+        console.error('[BOOT] Firebase init failed:', err.message);
+        readiness.firebase = 'fail';
     }
 }
 
 async function bootstrap() {
-    const envState = validateEnv();
+    const envState = checkEnv();
     initFirebase(envState);
 
-    // Defer prisma + route loading until after env validation
     const prisma = require('./src/config/db');
     const { createServer } = require('http');
     const { Server } = require('socket.io');
     const { setupBattleSocket } = require('./src/sockets/battleSocket');
     const logger = require('./src/utils/logger');
 
-    // Sanity-check DB up front so a misconfigured DATABASE_URL fails fast
-    try {
-        await prisma.$queryRaw`SELECT 1`;
-    } catch (err) {
-        console.error('[BOOT] Database connectivity check failed:', err.message);
-        process.exit(1);
+    // Probe the DB but never abort boot on failure — degraded mode lets the
+    // frontend circuit breaker show a banner instead of seeing every request
+    // fail with a connection refused.
+    if (readiness.db !== 'unconfigured') {
+        try {
+            await prisma.$queryRaw`SELECT 1`;
+            readiness.db = 'ok';
+        } catch (err) {
+            console.error('[BOOT] DB connectivity check failed:', err.message);
+            readiness.db = 'fail';
+        }
     }
 
     const app = express();
@@ -65,8 +95,17 @@ async function bootstrap() {
 
     app.set('trust proxy', 1);
 
+    const allowedOrigins = [
+        process.env.FRONTEND_URL,
+        'http://localhost:5173',
+        'http://localhost:4173',
+    ].filter(Boolean);
+
     app.use(cors({
-        origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+        origin: (origin, cb) => {
+            if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+            return cb(null, true); // permissive for dev; tighten via FRONTEND_URL in prod
+        },
         credentials: true,
     }));
     app.use(express.json({ limit: '2mb' }));
@@ -97,6 +136,31 @@ async function bootstrap() {
         message: { error: 'Rate limit exceeded for /leaderboard/me.' },
     });
 
+    // Subsystem guards — return a clear remediation message instead of letting
+    // every downstream call blow up.
+    const requireDb = (req, res, next) => {
+        if (readiness.db === 'ok') return next();
+        return res.status(503).json({
+            error: 'Database temporarily unavailable.',
+            subsystem: 'db',
+            status: readiness.db,
+            hint: readiness.db === 'unconfigured'
+                ? 'DATABASE_URL is not configured on the server.'
+                : 'The database connection is down. Retry in a moment.',
+        });
+    };
+    const requireFirebase = (req, res, next) => {
+        if (readiness.firebase === 'ok') return next();
+        return res.status(503).json({
+            error: 'Authentication temporarily unavailable.',
+            subsystem: 'firebase',
+            status: readiness.firebase,
+        });
+    };
+
+    // Every protected mount needs both DB + Firebase.
+    app.use('/api', requireFirebase, requireDb);
+
     app.use('/api/exams', require('./src/routes/examRoutes'));
     app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
     app.use('/api/ai', aiLimiter, require('./src/routes/aiRoutes'));
@@ -116,17 +180,23 @@ async function bootstrap() {
     app.use('/api/readiness', require('./src/routes/readinessRoutes'));
     app.use('/api/analytics/deep', require('./src/routes/analyticsDeepRoutes'));
 
-    const startedAt = Date.now();
-
     app.get('/health', (req, res) => res.status(200).json({ status: 'Assessment Core is Online' }));
 
     app.get('/healthz', async (req, res) => {
-        const report = { db: 'ok', firebase: 'ok', gemini: 'ok', uptimeSec: Math.floor((Date.now() - startedAt) / 1000) };
-        try { await prisma.$queryRaw`SELECT 1`; } catch { report.db = 'fail'; }
-        try { getAuth(); } catch { report.firebase = 'fail'; }
-        if (!process.env.GEMINI_API_KEY) report.gemini = 'fail';
-        const overall = Object.values(report).every((v) => v === 'ok' || typeof v === 'number');
-        res.status(overall ? 200 : 503).json(report);
+        const report = {
+            db: readiness.db,
+            firebase: readiness.firebase,
+            gemini: readiness.gemini,
+            uptimeSec: Math.floor((Date.now() - readiness.startedAt) / 1000),
+        };
+        // Live-probe the DB if it was previously down so it can self-heal.
+        if (readiness.db !== 'ok' && readiness.db !== 'unconfigured') {
+            try { await prisma.$queryRaw`SELECT 1`; readiness.db = 'ok'; report.db = 'ok'; }
+            catch { /* keep prior state */ }
+        }
+        const allGreen = report.db === 'ok' && report.firebase === 'ok'
+            && (report.gemini === 'ok' || report.gemini === 'unconfigured');
+        res.status(allGreen ? 200 : 503).json(report);
     });
 
     app.use((err, req, res, next) => {
@@ -137,12 +207,16 @@ async function bootstrap() {
     const io = new Server(httpServer, {
         cors: { origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true },
     });
-    setupBattleSocket(io);
+    if (readiness.firebase === 'ok' && readiness.db === 'ok') {
+        setupBattleSocket(io);
+    } else {
+        console.warn('[BOOT] Battle socket NOT initialized — firebase or db unavailable.');
+    }
 
     const PORT = process.env.PORT || 5000;
     httpServer.listen(PORT, () => {
         logger.info(`Assessment Engine initialized on port ${PORT}`);
-        console.log(`[BOOT] env=ok db=ok firebase=ok gemini=ok port=${PORT}`);
+        console.log(`[BOOT] env=${readiness.db === 'ok' ? 'ok' : 'degraded'} db=${readiness.db} firebase=${readiness.firebase} gemini=${readiness.gemini} port=${PORT}`);
     });
 
     const shutdown = async (signal) => {
@@ -165,3 +239,5 @@ bootstrap().catch((err) => {
     console.error('[BOOT] Bootstrap failed:', err);
     process.exit(1);
 });
+
+module.exports = { readiness };

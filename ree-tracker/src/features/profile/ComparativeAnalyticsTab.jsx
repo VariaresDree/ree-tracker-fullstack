@@ -4,7 +4,8 @@ import { fetchGlobalLeaderboard, fetchSimulationLedger, fetchLeaderboardMe } fro
 import ActivityCalendar from './ActivityCalendar'; 
 
 export default function ComparativeAnalyticsTab({ currentUser, stats }) {
-  const [rank, setRank] = useState('N/A');
+  const [rank, setRank] = useState(null); // null = loading/unranked; number = real rank
+  const [isUnranked, setIsUnranked] = useState(false);
   const [totalAgents, setTotalAgents] = useState(0);
   const [onlineAgentsList, setOnlineAgentsList] = useState([]);
   const [simulationCount, setSimulationCount] = useState(0);
@@ -26,10 +27,13 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
         const indexInBoard = (board || []).findIndex(agent => agent.uid === currentUser.uid);
         if (indexInBoard !== -1) {
           setRank(indexInBoard + 1);
+          setIsUnranked(false);
         } else if (typeof me?.rank === 'number' && me.rank > 0) {
           setRank(me.rank);
+          setIsUnranked(false);
         } else {
-          setRank('Unranked');
+          setRank(null);
+          setIsUnranked(true);
         }
 
         const now = Date.now();
@@ -76,9 +80,25 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
               <circle cx="50" cy="50" r="45" fill="none" stroke="var(--border-light)" strokeWidth="8" />
               <circle cx="50" cy="50" r="45" fill="none" stroke="var(--brand-cyan, #06b6d4)" strokeWidth="8" strokeDasharray={typeof rank === 'number' && totalAgents > 0 ? `${((totalAgents - rank + 1) / totalAgents) * 282.7} 282.7` : '0 282.7'} className="transition-all duration-1000 ease-out" />
             </svg>
-            <div className="absolute flex flex-col items-center">
-              <span className="text-6xl font-black text-reeCyan">{typeof rank === 'number' ? `#${rank}` : 'N/A'}</span>
-              <span className="text-[0.65rem] text-muted font-mono uppercase mt-2">Out of {totalAgents || 0} Agents</span>
+            <div className="absolute flex flex-col items-center px-4 text-center">
+              {typeof rank === 'number' ? (
+                <>
+                  <span className="text-6xl font-black text-reeCyan">#{rank}</span>
+                  <span className="text-[0.65rem] text-muted font-mono uppercase mt-2">Out of {totalAgents || 1} Agent{totalAgents === 1 ? '' : 's'}</span>
+                </>
+              ) : isUnranked ? (
+                <>
+                  <span className="text-2xl font-black text-reeCyan leading-tight">Unranked</span>
+                  <span className="text-[0.65rem] text-muted font-mono uppercase mt-3 max-w-[180px]">
+                    Answer a few questions to enter the leaderboard
+                  </span>
+                  {totalAgents > 0 && (
+                    <span className="text-[0.6rem] text-muted2 font-mono mt-2">{totalAgents} active agent{totalAgents === 1 ? '' : 's'}</span>
+                  )}
+                </>
+              ) : (
+                <span className="text-xs text-muted font-mono uppercase animate-pulse">Syncing rank…</span>
+              )}
             </div>
           </div>
           <p className="text-[0.65rem] text-muted2 mt-8 uppercase tracking-wider z-10">Ranked by calculated IRT Theta proficiency scores.</p>

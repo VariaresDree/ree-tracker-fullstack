@@ -8,8 +8,18 @@ const { recordAttempts } = require('../services/telemetryService');
 const logger = require('../utils/logger');
 
 // Tiny in-memory dashboard cache (30s TTL, invalidated on telemetry write).
+// Capped at MAX_CACHE entries (FIFO eviction) to prevent unbounded growth
+// under many concurrent users — at ~3KB/payload * 5000 = ~15MB worst case.
 const DASHBOARD_TTL_MS = 30_000;
+const MAX_CACHE = 5000;
 const dashboardCache = new Map();
+const cacheSet = (uid, payload) => {
+    if (dashboardCache.size >= MAX_CACHE) {
+        const oldest = dashboardCache.keys().next().value;
+        dashboardCache.delete(oldest);
+    }
+    dashboardCache.set(uid, { payload, expiresAt: Date.now() + DASHBOARD_TTL_MS });
+};
 const invalidateDashboard = (uid) => dashboardCache.delete(uid);
 
 router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
@@ -80,6 +90,24 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
             matrix[`${conf}${correct}`] += group._count.id;
         });
 
+        // Per-mode breakdown: how many attempts came from each surface
+        // (Active Review, Board Sim, Gauntlet, Combat, Battle). Powers the
+        // dashboard "by mode" view so users can see where their reps land.
+        const modeAgg = await prisma.questionAttempt.groupBy({
+            by: ['mode', 'isCorrect'],
+            where: { userId: uid },
+            _count: { id: true },
+        });
+        const modeBreakdown = {};
+        modeAgg.forEach((g) => {
+            const k = g.mode || 'LEGACY';
+            if (!modeBreakdown[k]) modeBreakdown[k] = { attempts: 0, correct: 0 };
+            modeBreakdown[k].attempts += g._count.id;
+            if (g.isCorrect) modeBreakdown[k].correct += g._count.id;
+        });
+
+        const totalAnswered = Object.values(modeBreakdown).reduce((s, m) => s + m.attempts, 0);
+
         const payload = {
             success: true,
             data: {
@@ -89,15 +117,17 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
                     role: user.role,
                     globalStreak: user.globalStreak, thetaRating: user.thetaRating,
                     lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
-                    dailyMath, dailyESAS, dailyEE
+                    dailyMath, dailyESAS, dailyEE,
+                    totalAnswered,
                 },
                 activityCalendar,
                 recentSessions: user.sessions,
                 matrix,
-                microTopics
+                microTopics,
+                modeBreakdown,
             }
         };
-        dashboardCache.set(uid, { payload, expiresAt: Date.now() + DASHBOARD_TTL_MS });
+        cacheSet(uid, payload);
         res.status(200).json(payload);
     } catch (error) {
         logger.error('Analytics dashboard error', { error: error.message, stack: error.stack });
@@ -107,10 +137,15 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
 
 router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), async (req, res) => {
     try {
-        const { attempts, sessionId } = req.body;
+        const { attempts, sessionId, mode } = req.body;
         if (!attempts || attempts.length === 0) return res.status(200).json({ success: true, updatedTheta: 0 });
 
-        const result = await recordAttempts({ userId: req.user.id, attempts, sessionId: sessionId || null });
+        const result = await recordAttempts({
+            userId: req.user.id,
+            attempts,
+            sessionId: sessionId || null,
+            mode: mode || 'LEGACY',
+        });
         invalidateDashboard(req.user.id);
         res.status(200).json({ success: true, updatedTheta: result.updatedTheta, written: result.written });
     } catch (error) {
