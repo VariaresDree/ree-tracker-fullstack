@@ -1,13 +1,7 @@
 // src/controllers/examController.js
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const prisma = require('../config/db');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
 const logger = require('../utils/logger');
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
 
 // 1. SERVE QUESTIONS TO THE FRONTEND
 exports.getQuestions = async (req, res) => {

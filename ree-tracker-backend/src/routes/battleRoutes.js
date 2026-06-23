@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
+const { recordAttempts } = require('../services/telemetryService');
 const logger = require('../utils/logger');
 
 router.post('/', authMiddleware, async (req, res) => {
@@ -48,7 +49,7 @@ router.get('/:battleId', authMiddleware, async (req, res) => {
 
 router.post('/:battleId/submit', authMiddleware, async (req, res) => {
     try {
-        const { score, total, timeTakenSecs } = req.body;
+        const { score, total, timeTakenSecs, attempts } = req.body;
 
         const battle = await prisma.battle.findUnique({
             where: { id: req.params.battleId }
@@ -60,8 +61,21 @@ router.post('/:battleId/submit', authMiddleware, async (req, res) => {
             data: { status: 'COMPLETED' }
         });
 
-        res.status(200).json({ success: true, score, total, timeTakenSecs });
+        // If the client sends per-question attempts, persist them so Combat Terminal
+        // results contribute to dashboard/profile analytics. The score/total fields
+        // remain authoritative for the lobby view.
+        let telemetry = null;
+        if (Array.isArray(attempts) && attempts.length > 0) {
+            try {
+                telemetry = await recordAttempts({ userId: req.user.id, attempts });
+            } catch (telErr) {
+                logger.warn('battle telemetry persist failed', { error: telErr.message });
+            }
+        }
+
+        res.status(200).json({ success: true, score, total, timeTakenSecs, telemetry });
     } catch (error) {
+        logger.error('battle submit error', { error: error.message });
         res.status(500).json({ error: 'Failed to submit battle score.' });
     }
 });

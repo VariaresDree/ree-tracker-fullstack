@@ -19,7 +19,9 @@ module.exports = async (req, res, next) => {
         // Attach the validated user context to the request for backend logging/querying
         req.user = {
             id: decodedToken.uid,
-            email: decodedToken.email
+            email: decodedToken.email || null,
+            name: decodedToken.name || null,
+            picture: decodedToken.picture || null,
         };
         
         next();

@@ -1,11 +1,5 @@
 // src/controllers/dashboardController.js
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
 exports.getDashboardData = async (req, res) => {
@@ -18,14 +12,16 @@ exports.getDashboardData = async (req, res) => {
         // including your manual 'ADMIN' role, even if you are a brand new user.
         const userProfile = await prisma.user.upsert({
             where: { id: userId },
-            update: {}, // Do nothing if exists
+            update: { lastActive: new Date() },
             create: {
                 id: userId,
                 email: userEmail,
-                role: 'USER', // Default enum, but will fetch 'ADMIN' if you manually changed it
+                displayName: req.user.name || (userEmail.includes('@') ? userEmail.split('@')[0] : null),
+                photoURL: req.user.picture || null,
+                role: 'USER',
                 thetaRating: 0.0,
-                globalStreak: 0
-            }
+                globalStreak: 0,
+            },
         });
 
         // 2. Aggregate the Quadrant Matrix (High Confidence vs Correctness)

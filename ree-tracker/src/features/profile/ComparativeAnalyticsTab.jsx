@@ -1,6 +1,6 @@
 // src/features/profile/ComparativeAnalyticsTab.jsx
 import React, { useState, useEffect } from 'react';
-import { fetchGlobalLeaderboard, fetchSimulationLedger } from '../../services/dbQueries';
+import { fetchGlobalLeaderboard, fetchSimulationLedger, fetchLeaderboardMe } from '../../services/dbQueries';
 import ActivityCalendar from './ActivityCalendar'; 
 
 export default function ComparativeAnalyticsTab({ currentUser, stats }) {
@@ -13,15 +13,26 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
     let isMounted = true;
     const loadAnalytics = async () => {
       try {
-        const board = await fetchGlobalLeaderboard(100);
+        const [board, me] = await Promise.all([
+          fetchGlobalLeaderboard(100),
+          fetchLeaderboardMe(),
+        ]);
         if (!isMounted) return;
-        
-        setTotalAgents(board?.length || 0);
-        const myRank = (board || []).findIndex(agent => agent.uid === currentUser.uid);
-        if (myRank !== -1) setRank(myRank + 1);
-        else setRank('Unranked');
 
-        const now = new Date().getTime();
+        // Prefer authoritative /me count when the leaderboard page doesn't include the user
+        const totalFromMe = typeof me?.total === 'number' && me.total > 0 ? me.total : (board?.length || 0);
+        setTotalAgents(totalFromMe);
+
+        const indexInBoard = (board || []).findIndex(agent => agent.uid === currentUser.uid);
+        if (indexInBoard !== -1) {
+          setRank(indexInBoard + 1);
+        } else if (typeof me?.rank === 'number' && me.rank > 0) {
+          setRank(me.rank);
+        } else {
+          setRank('Unranked');
+        }
+
+        const now = Date.now();
         const online = (board || []).filter(agent => {
             if (!agent.lastActive) return false;
             const lastActiveTime = new Date(agent.lastActive).getTime();
@@ -33,12 +44,12 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
         if (isMounted) setSimulationCount(history?.length || 0);
 
       } catch (err) {
-        console.error("Failed to fetch comparative data.");
+        console.error("Failed to fetch comparative data.", err);
       }
     };
 
     if (currentUser) loadAnalytics();
-    return () => { isMounted = false; }; 
+    return () => { isMounted = false; };
   }, [currentUser]);
 
   // --- DYNAMIC ALL-MILESTONES ENGINE ---
@@ -63,10 +74,10 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
           <div className="relative w-56 h-56 flex items-center justify-center z-10">
             <svg className="w-full h-full -rotate-90 transform drop-shadow-md" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" fill="none" stroke="var(--border-light)" strokeWidth="8" />
-              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--brand-cyan, #06b6d4)" strokeWidth="8" strokeDasharray={rank !== 'Unranked' && totalAgents > 0 ? `${((totalAgents - rank + 1) / totalAgents) * 282.7} 282.7` : '0 282.7'} className="transition-all duration-1000 ease-out" />
+              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--brand-cyan, #06b6d4)" strokeWidth="8" strokeDasharray={typeof rank === 'number' && totalAgents > 0 ? `${((totalAgents - rank + 1) / totalAgents) * 282.7} 282.7` : '0 282.7'} className="transition-all duration-1000 ease-out" />
             </svg>
             <div className="absolute flex flex-col items-center">
-              <span className="text-6xl font-black text-reeCyan">{rank !== 'Unranked' ? `#${rank}` : 'N/A'}</span>
+              <span className="text-6xl font-black text-reeCyan">{typeof rank === 'number' ? `#${rank}` : 'N/A'}</span>
               <span className="text-[0.65rem] text-muted font-mono uppercase mt-2">Out of {totalAgents || 0} Agents</span>
             </div>
           </div>

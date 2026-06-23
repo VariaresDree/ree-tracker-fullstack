@@ -1,17 +1,5 @@
 // src/controllers/analyticsController.js
-const { PrismaClient } = require('@prisma/client');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
-
-// 1. Setup the standard pg connection pool
-const connectionString = process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
-
-// 2. Wrap it in the Prisma Adapter
-const adapter = new PrismaPg(pool);
-
-// 3. Instantiate the client with the adapter
-const prisma = new PrismaClient({ adapter });
+const prisma = require('../config/db');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
 const logger = require('../utils/logger');
 

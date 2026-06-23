@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema } = require('../schemas/examSchemas');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
+const { recordAttempts } = require('../services/telemetryService');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -81,7 +82,24 @@ router.post('/grade', authMiddleware, validate(gradeSchema), async (req, res) =>
             };
         });
 
-        return res.status(200).json({ results });
+        // Persist attempts so Gauntlet/Combat results show up in Dashboard + Profile analytics.
+        // Default confidence LOW and zero time when caller doesn't supply them.
+        let telemetry = null;
+        try {
+            telemetry = await recordAttempts({
+                userId: req.user.id,
+                attempts: answers.map((a) => ({
+                    questionId: a.questionId,
+                    userAnswer: a.userAnswer,
+                    confidenceLevel: a.confidenceLevel || 'LOW',
+                    timeSpentMs: a.timeSpentMs || 0,
+                })),
+            });
+        } catch (telErr) {
+            logger.warn('grade telemetry persist failed', { error: telErr.message });
+        }
+
+        return res.status(200).json({ results, telemetry });
     } catch (error) {
         logger.error('Exam grading error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Grading failed.' });

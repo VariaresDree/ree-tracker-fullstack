@@ -33,7 +33,10 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     let response;
     try {
         response = await fetch(url, options);
-    } catch {
+    } catch (networkErr) {
+        // Only trip the circuit breaker on actual network-class failures (DNS,
+        // connection refused, abort, etc.) — never on HTTP error responses,
+        // which we surface to the caller via the normal error path below.
         _backendUp = false;
         _lastCheck = Date.now();
         throw new Error('[OFFLINE]');
@@ -43,7 +46,9 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Matrix API Exception: ${response.status}`);
+        const err = new Error(errorData.error || `Matrix API Exception: ${response.status}`);
+        err.status = response.status;
+        throw err;
     }
 
     if (response.status === 204) return null;
@@ -149,16 +154,39 @@ export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 
 // 4. The Social Matrix (Leaderboards)
 // ----------------------------------------------------------------------
 export const syncLeaderboardProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
+
+// Normalizes any agent row to the shape the UI expects: { uid, displayName, thetaRating, streak, ... }
+const normalizeAgent = (a) => ({
+    uid: a.uid || a.id,
+    displayName: a.displayName || `Agent-${(a.uid || a.id || '').slice(0, 6)}`,
+    role: a.role || 'USER',
+    thetaRating: typeof a.thetaRating === 'number' ? a.thetaRating : 0,
+    streak: typeof a.streak === 'number' ? a.streak : (a.globalStreak || 0),
+    globalStreak: a.globalStreak || a.streak || 0,
+    gauntletLevel: a.gauntletLevel || 1,
+    lastActive: a.lastActive || null,
+});
+
 export const fetchGlobalLeaderboard = async (limitCount = 100) => {
     const data = await safeApiRequest(`/api/leaderboard?limit=${limitCount}`, 'GET', null, null);
     if (!data) return [];
-    return data?.leaderboard || data?.items || data || [];
+    const raw = data?.leaderboard || data?.items || data || [];
+    return Array.isArray(raw) ? raw.map(normalizeAgent) : [];
 };
-export const fetchPaginatedLeaderboard = async (limitCount = 20, lastVisible = null) => {
-    const data = await safeApiRequest(`/api/leaderboard/paginated?limit=${limitCount}`, 'GET', null, null);
-    if (!data) return [];
-    return data?.items || data || [];
+
+export const fetchPaginatedLeaderboard = async (limitCount = 20, cursor = null) => {
+    const qs = new URLSearchParams({ limit: String(limitCount) });
+    if (cursor) qs.set('cursor', cursor);
+    const data = await safeApiRequest(`/api/leaderboard/paginated?${qs}`, 'GET', null, null);
+    if (!data) return { agents: [], lastDoc: null };
+    const items = (data?.items || []).map(normalizeAgent);
+    return { agents: items, lastDoc: data?.nextCursor || null };
 };
+
+export const fetchLeaderboardMe = async () =>
+    safeApiRequest('/api/leaderboard/me', 'GET', null, { rank: null, total: 0 });
+
+export const updateUserProfile = async (payload) => apiRequest('/api/user/profile', 'PUT', payload);
 
 // ----------------------------------------------------------------------
 // 5. Multiplayer Mock Battles
