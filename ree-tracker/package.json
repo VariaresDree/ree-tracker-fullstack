@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "analyze": "ANALYZE=1 vite build"
   },
   "dependencies": {
     "@google/genai": "^2.6.0",
