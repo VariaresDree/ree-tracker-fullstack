@@ -18,7 +18,7 @@ enum Role {
 // 1 & 2. Merged 'users' and 'userData' collections
 model User {
   id               String   @id
-  email            String?
+  email            String?  @unique
   displayName      String?
   photoURL         String?
   role             Role     @default(USER)
