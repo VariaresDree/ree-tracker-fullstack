@@ -19,13 +19,16 @@ export default defineConfig(async () => ({
     target: 'es2022',
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Cleanly split heavy vendor groups so initial bundle stays lean.
-          react: ['react', 'react-dom', 'react-router-dom'],
-          charts: ['recharts'],
-          firebase: ['firebase'],
-          pdf: ['pdfjs-dist'],
-          socket: ['socket.io-client'],
+        // Cleanly split heavy vendor groups so initial bundle stays lean.
+        // Rolldown (Vite 8) requires the function form of manualChunks.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('react-router-dom') || /[\\/]react(-dom)?[\\/]/.test(id)) return 'react';
+          if (id.includes('recharts')) return 'charts';
+          if (id.includes('firebase')) return 'firebase';
+          if (id.includes('pdfjs-dist')) return 'pdf';
+          if (id.includes('socket.io-client')) return 'socket';
+          return undefined;
         },
       },
     },
