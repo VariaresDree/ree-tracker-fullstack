@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
@@ -135,7 +136,7 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
     }
 });
 
-router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), async (req, res) => {
+router.post('/telemetry-bulk', authMiddleware, idempotency(), validate(telemetryBulkSchema), async (req, res) => {
     try {
         const { attempts, sessionId, mode } = req.body;
         if (!attempts || attempts.length === 0) return res.status(200).json({ success: true, updatedTheta: 0 });

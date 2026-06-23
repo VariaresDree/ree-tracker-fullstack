@@ -9,6 +9,26 @@ let _backendUp = true;
 let _lastCheck = 0;
 const COOLDOWN = 30_000;
 
+// Build a stable idempotency key for a mutating request body. Same body =
+// same key, so a replayed call on the same socket gets short-circuited by
+// the server's idempotency middleware. Falls back to a random UUID if the
+// body isn't JSON-serializable.
+const idempotencyKey = (method, body) => {
+    if (method === 'GET' || !body) return null;
+    try {
+        const seed = JSON.stringify(body);
+        // Tiny non-crypto hash — enough to dedupe within a 10-min window.
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < seed.length; i++) {
+            h ^= seed.charCodeAt(i);
+            h = Math.imul(h, 16777619) >>> 0;
+        }
+        return `c-${h.toString(36)}-${Math.floor(Date.now() / 60000)}`;
+    } catch {
+        return (crypto?.randomUUID?.() ?? String(Math.random())).slice(0, 32);
+    }
+};
+
 export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
@@ -20,13 +40,14 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const token = await user.getIdToken();
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
 
-    const options = {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        }
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
     };
+    const idemKey = idempotencyKey(method, body);
+    if (idemKey) headers['Idempotency-Key'] = idemKey;
+
+    const options = { method, headers };
 
     if (body) options.body = JSON.stringify(body);
 

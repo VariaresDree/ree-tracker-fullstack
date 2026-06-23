@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema } = require('../schemas/examSchemas');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
@@ -57,7 +58,7 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // GRADE — accepts answers and returns graded results
-router.post('/grade', authMiddleware, validate(gradeSchema), async (req, res) => {
+router.post('/grade', authMiddleware, idempotency(), validate(gradeSchema), async (req, res) => {
     try {
         const { answers } = req.body;
         if (!Array.isArray(answers) || answers.length === 0) {
@@ -109,7 +110,7 @@ router.post('/grade', authMiddleware, validate(gradeSchema), async (req, res) =>
 });
 
 // SUBMIT SIMULATION TELEMETRY (GRADING ENGINE)
-router.post('/submit', authMiddleware, validate(examSubmitSchema), async (req, res) => {
+router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema), async (req, res) => {
     try {
         const { attempts, config, timeRemaining, totalExamTime } = req.body;
 
