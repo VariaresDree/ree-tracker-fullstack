@@ -179,6 +179,7 @@ async function bootstrap() {
     app.use('/api/smart-drill', require('./src/routes/smartDrillRoutes'));
     app.use('/api/readiness', require('./src/routes/readinessRoutes'));
     app.use('/api/analytics/deep', require('./src/routes/analyticsDeepRoutes'));
+    app.use('/api/forecast', require('./src/routes/forecastRoutes'));
 
     app.get('/health', (req, res) => res.status(200).json({ status: 'Assessment Core is Online' }));
 

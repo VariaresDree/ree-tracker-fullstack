@@ -5,6 +5,7 @@ const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema } = require('../schemas/examSchemas');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
 const { recordAttempts } = require('../services/telemetryService');
+const { selectNextItem, updateTheta } = require('../engine/irt');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -224,6 +225,98 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), async (req, r
     } catch (error) {
         logger.error('Exam submit error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Telemetry compilation failed.' });
+    }
+});
+
+// CAT — server picks the next item that maximally tightens the user's
+// ability estimate. Accepts the in-session attempt log so we can update
+// theta inline without a separate /grade roundtrip.
+//
+// Body: {
+//   subject?: string,
+//   recentIds?: string[],
+//   sessionAttempts?: [{ questionId, isCorrect }],
+//   poolSize?: number    // optional candidate-pool size (default 80)
+// }
+router.post('/next-item', authMiddleware, async (req, res) => {
+    try {
+        const { subject, recentIds = [], sessionAttempts = [], poolSize = 80 } = req.body || {};
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: { thetaRating: true, standardError: true },
+        });
+
+        let prior = { theta: user?.thetaRating ?? 0, se: user?.standardError ?? 1 };
+
+        // Refine prior with this session's attempts so consecutive picks
+        // converge faster than waiting for /submit.
+        if (Array.isArray(sessionAttempts) && sessionAttempts.length > 0) {
+            const ids = sessionAttempts.map((a) => a.questionId).filter(Boolean);
+            const items = await prisma.question.findMany({
+                where: { id: { in: ids } },
+                select: { id: true, irtA: true, irtB: true, irtC: true, difficulty: true },
+            });
+            const itemMap = Object.fromEntries(items.map((q) => [q.id, q]));
+            const sessionPairs = sessionAttempts
+                .map((a) => {
+                    const q = itemMap[a.questionId];
+                    if (!q) return null;
+                    return {
+                        item: {
+                            a: q.irtA ?? 1,
+                            b: q.irtB ?? q.difficulty ?? 0,
+                            c: q.irtC ?? 0.2,
+                        },
+                        correct: !!a.isCorrect,
+                    };
+                })
+                .filter(Boolean);
+            if (sessionPairs.length > 0) prior = updateTheta(prior, sessionPairs);
+        }
+
+        const whereClause = { isFlagged: false };
+        if (subject && subject !== 'All' && subject !== 'Blended') whereClause.subject = subject;
+
+        const candidates = await prisma.question.findMany({
+            where: whereClause,
+            select: {
+                id: true,
+                subject: true,
+                subtopic: true,
+                text: true,
+                options: true,
+                irtA: true,
+                irtB: true,
+                irtC: true,
+                difficulty: true,
+                source: true,
+                type: true,
+            },
+            take: poolSize,
+        });
+
+        const pool = candidates.map((q) => ({
+            id: q.id,
+            a: q.irtA ?? null,
+            b: q.irtB ?? (q.difficulty != null ? q.difficulty : null),
+            c: q.irtC ?? 0.2,
+        }));
+
+        const pick = selectNextItem(
+            { theta: prior.theta, recentIds: new Set(recentIds) },
+            pool,
+        );
+
+        const chosen = candidates.find((q) => q.id === pick.id) || null;
+
+        return res.status(200).json({
+            item: chosen,
+            ability: prior,
+            selection: { info: pick.info, fallback: pick.fallback },
+        });
+    } catch (error) {
+        logger.error('CAT next-item failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Next item selection failed.' });
     }
 });
 
