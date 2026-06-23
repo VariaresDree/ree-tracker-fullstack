@@ -17,10 +17,13 @@ enum Role {
 
 // 1 & 2. Merged 'users' and 'userData' collections
 model User {
-  id               String   @id 
-  role             Role     @default(USER) 
+  id               String   @id
+  email            String?
+  displayName      String?
+  photoURL         String?
+  role             Role     @default(USER)
   globalStreak     Int      @default(0)
-  thetaRating      Float    @default(0.0) 
+  thetaRating      Float    @default(0.0)
   standardError    Float    @default(0.5)
   lastActive       DateTime @default(now())
   createdAt        DateTime @default(now())
@@ -53,6 +56,9 @@ model User {
 
   // --- V4: Phase 3 Relations ---
   readinessSnapshots ReadinessSnapshot[]
+
+  @@index([thetaRating])
+  @@index([lastActive])
 }
 
 // 3. 'questions' collection (Exact Firebase Names Restored)
@@ -115,6 +121,9 @@ model QuestionAttempt {
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   question        Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
   session         ExamSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, subject])
 }
 
 // 5 & 6. 'folders' and 'materials' collections
@@ -199,6 +208,7 @@ model ActivityLog {
   count       Int      @default(1)
 
   @@unique([userId, date])
+  @@index([userId, date])
 }
 
 // Phase 2: Spaced Repetition System persistence

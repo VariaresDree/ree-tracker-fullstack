@@ -4,11 +4,21 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const { validate } = require('../middlewares/validate');
 const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
-const { calculateUpdatedTheta } = require('../utils/irtMath');
+const { recordAttempts } = require('../services/telemetryService');
 const logger = require('../utils/logger');
+
+// Tiny in-memory dashboard cache (30s TTL, invalidated on telemetry write).
+const DASHBOARD_TTL_MS = 30_000;
+const dashboardCache = new Map();
+const invalidateDashboard = (uid) => dashboardCache.delete(uid);
 
 router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
     const { uid } = req.params;
+
+    const cached = dashboardCache.get(uid);
+    if (cached && cached.expiresAt > Date.now()) {
+        return res.status(200).json(cached.payload);
+    }
 
     try {
         const user = await prisma.user.findUnique({
@@ -70,10 +80,13 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
             matrix[`${conf}${correct}`] += group._count.id;
         });
 
-        res.status(200).json({
+        const payload = {
             success: true,
             data: {
                 profile: {
+                    uid: user.id,
+                    displayName: user.displayName,
+                    role: user.role,
                     globalStreak: user.globalStreak, thetaRating: user.thetaRating,
                     lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
                     dailyMath, dailyESAS, dailyEE
@@ -83,7 +96,9 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
                 matrix,
                 microTopics
             }
-        });
+        };
+        dashboardCache.set(uid, { payload, expiresAt: Date.now() + DASHBOARD_TTL_MS });
+        res.status(200).json(payload);
     } catch (error) {
         logger.error('Analytics dashboard error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to aggregate telemetry matrices.' });
@@ -92,70 +107,12 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
 
 router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), async (req, res) => {
     try {
-        const { attempts } = req.body;
+        const { attempts, sessionId } = req.body;
         if (!attempts || attempts.length === 0) return res.status(200).json({ success: true, updatedTheta: 0 });
 
-        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-        const currentTheta = user?.thetaRating || 0.0;
-
-        // Server-side answer verification: fetch actual answers from question bank
-        const questionIds = attempts.map(a => a.questionId).filter(Boolean);
-        const masterQuestions = await prisma.question.findMany({
-            where: { id: { in: questionIds } },
-            select: { id: true, answer: true, difficulty: true }
-        });
-        const qMap = {};
-        masterQuestions.forEach(q => { qMap[q.id] = q; });
-
-        const mappedAttempts = attempts.map(a => {
-            const masterQ = qMap[a.questionId];
-            const isCorrect = masterQ
-                ? (masterQ.answer === a.userAnswer)
-                : (a.isCorrect || false);
-
-            return {
-                userId: req.user.id,
-                questionId: a.questionId,
-                subject: a.subject || 'General',
-                subtopic: a.subtopic || 'General',
-                isCorrect,
-                confidenceLevel: (a.confidenceLevel || 'MED').toUpperCase(),
-                timeSpentMs: parseInt(a.timeSpentMs) || 0,
-                questionDifficulty: masterQ?.difficulty || 0.0
-            };
-        });
-
-        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
-
-        await prisma.$transaction(async (tx) => {
-            await tx.questionAttempt.createMany({
-                data: mappedAttempts.map(({ questionDifficulty, ...rest }) => rest)
-            });
-
-            const existingLog = await tx.activityLog.findFirst({
-                where: { userId: req.user.id, date: todayStr }
-            });
-            if (existingLog) {
-                await tx.activityLog.update({
-                    where: { id: existingLog.id },
-                    data: { count: existingLog.count + attempts.length }
-                });
-            } else {
-                await tx.activityLog.create({
-                    data: { userId: req.user.id, date: todayStr, count: attempts.length }
-                });
-            }
-        });
-
-        // IRT Rasch model theta calculation (replaces crude +/-0.04 bump)
-        const updatedTheta = calculateUpdatedTheta(currentTheta, mappedAttempts);
-
-        await prisma.user.update({
-            where: { id: req.user.id },
-            data: { thetaRating: updatedTheta, lastActive: new Date() }
-        });
-
-        res.status(200).json({ success: true, updatedTheta });
+        const result = await recordAttempts({ userId: req.user.id, attempts, sessionId: sessionId || null });
+        invalidateDashboard(req.user.id);
+        res.status(200).json({ success: true, updatedTheta: result.updatedTheta, written: result.written });
     } catch (error) {
         logger.error('Telemetry bulk sync error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Matrix sync transaction rejected.' });
@@ -163,6 +120,7 @@ router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), as
 });
 
 router.delete('/purge', authMiddleware, async (req, res) => {
+    invalidateDashboard(req.user.id);
     try {
         await prisma.$transaction(async (tx) => {
             await tx.questionAttempt.deleteMany({ where: { userId: req.user.id } });

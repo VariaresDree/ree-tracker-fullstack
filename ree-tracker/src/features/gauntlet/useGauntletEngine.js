@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { apiRequest } from '../../services/dbQueries';
+import { apiRequest, getAnalyticsProfile } from '../../services/dbQueries';
+import { auth } from '../../config/firebaseDb';
 import toast from 'react-hot-toast';
 
 const GAUNTLET_TIERS = {
@@ -122,12 +123,32 @@ export const useGauntletEngine = (level) => {
                 isTimeOut
             });
 
-            if (isPassed) {
-                if (stats.gauntletLevel === parseInt(level)) {
-                    setStats({ ...stats, gauntletLevel: parseInt(level) + 1 });
+            // Backend /api/exams/grade now persists telemetry, so refresh the
+            // dashboard cache so Profile/Dashboard reflect the new attempts.
+            try {
+                const uid = auth.currentUser?.uid;
+                if (uid) {
+                    const profile = await getAnalyticsProfile(uid);
+                    if (profile?.data?.profile) {
+                        setStats({
+                            ...stats,
+                            irt: { theta: profile.data.profile.thetaRating || 0 },
+                            globalStreak: profile.data.profile.globalStreak || 0,
+                            totalAnswered: (stats?.totalAnswered || 0) + tier.items,
+                            ...(isPassed
+                                ? (stats.gauntletLevel === parseInt(level)
+                                    ? { gauntletLevel: parseInt(level) + 1 }
+                                    : {})
+                                : { gauntletLockUntil: Date.now() + (12 * 60 * 60 * 1000) }),
+                        });
+                    } else if (isPassed && stats.gauntletLevel === parseInt(level)) {
+                        setStats({ ...stats, gauntletLevel: parseInt(level) + 1 });
+                    } else if (!isPassed) {
+                        setStats({ ...stats, gauntletLockUntil: Date.now() + (12 * 60 * 60 * 1000) });
+                    }
                 }
-            } else {
-                setStats({ ...stats, gauntletLockUntil: Date.now() + (12 * 60 * 60 * 1000) });
+            } catch (refreshErr) {
+                console.warn('post-gauntlet analytics refresh failed', refreshErr);
             }
 
             setStatus('diagnostics');
