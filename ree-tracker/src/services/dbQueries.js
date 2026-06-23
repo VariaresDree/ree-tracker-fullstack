@@ -327,6 +327,14 @@ export const fetchReadinessScore = async () => safeApiRequest('/api/readiness', 
 export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/history', 'GET', null, null);
 export const saveReadinessSnapshot = async (data) => apiRequest('/api/readiness/snapshot', 'POST', data);
 
+// Adaptive engine — pass/topnotcher forecast + prescription panel data.
+export const fetchForecast = async () => safeApiRequest('/api/forecast', 'GET', null, null);
+export const recomputeForecast = async () => apiRequest('/api/forecast/recompute', 'POST', {});
+
+// CAT — server-side next-item selection. `body` lets the caller include the
+// in-session attempts so the picker can refine theta before choosing.
+export const fetchNextCatItem = async (body) => apiRequest('/api/exams/next-item', 'POST', body || {});
+
 export const fetchAnalyticsDeep = async (type) => safeApiRequest(`/api/analytics/deep/${type}`, 'GET', null, null);
 
 export const fetchPendingExplanations = async () => safeApiRequest('/api/questions/explanations/pending', 'GET', null, null);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchAnalyticsDeep } from '../../services/dbQueries';
+import { CalibrationCurve } from './CalibrationCurve';
 
 function StatCard({ label, value, sub, color = 'text-textMain' }) {
   return (
@@ -106,6 +107,8 @@ export default function AnalyticsDeepDive() {
       )}
 
       {!loading && activeTab === 'confidence' && (
+        <div className="flex flex-col gap-6">
+          {confData.length > 0 && <CalibrationCurve buckets={confData} />}
         <div className="bg-surface border border-border2/60 rounded-xl p-6">
           <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-6 flex items-center gap-2">
             <span>🎯</span> Confidence Calibration
@@ -125,6 +128,7 @@ export default function AnalyticsDeepDive() {
               );
             })}
           </div>
+        </div>
         </div>
       )}
 

@@ -14,6 +14,8 @@ import { generateBoardReadinessReport } from '../services/geminiApi';
 import { apiRequest, fetchReadinessScore } from '../services/dbQueries';
 import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
+import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
+import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
@@ -204,6 +206,12 @@ export default function Dashboard() {
           </div>
         );
       })()}
+
+      {/* Adaptive forecast — Phase 3 analytics surface */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TrajectoryCard />
+        <PrescriptionPanel />
+      </div>
 
       <MissionControl
           stats={activeStats}
