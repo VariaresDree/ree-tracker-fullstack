@@ -8,7 +8,9 @@
     "dev": "nodemon server.js",
     "test": "vitest run",
     "db:push": "prisma db push",
-    "wipe:test-data": "node scripts/wipe-test-data.js --confirm=WIPE"
+    "wipe:test-data": "node scripts/wipe-test-data.js --confirm=WIPE",
+    "calibrate": "node scripts/calibrate.js",
+    "calibrate:dry": "node scripts/calibrate.js --dry-run"
   },
   "keywords": [],
   "author": "",

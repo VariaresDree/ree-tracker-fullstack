@@ -110,6 +110,11 @@ async function bootstrap() {
     }));
     app.use(express.json({ limit: '2mb' }));
 
+    // Static mount for the local-disk storage driver. Harmless when the S3
+    // driver is in use — the folder simply stays empty.
+    const storage = require('./src/services/storage');
+    app.use('/uploads', express.static(storage.LOCAL_DIR));
+
     const globalLimiter = rateLimit({
         windowMs: 15 * 60 * 1000,
         max: 300,
@@ -180,6 +185,7 @@ async function bootstrap() {
     app.use('/api/readiness', require('./src/routes/readinessRoutes'));
     app.use('/api/analytics/deep', require('./src/routes/analyticsDeepRoutes'));
     app.use('/api/forecast', require('./src/routes/forecastRoutes'));
+    app.use('/api/admin', require('./src/routes/adminRoutes'));
 
     app.get('/health', (req, res) => res.status(200).json({ status: 'Assessment Core is Online' }));
 
