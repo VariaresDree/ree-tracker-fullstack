@@ -247,6 +247,97 @@
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
+
+  /* Staggered list entrance */
+  .stagger-fade-in > * {
+    opacity: 0;
+    animation: fadeSlideUp 0.4s ease-out forwards;
+  }
+  .stagger-fade-in > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-fade-in > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger-fade-in > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger-fade-in > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger-fade-in > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger-fade-in > *:nth-child(6) { animation-delay: 300ms; }
+  .stagger-fade-in > *:nth-child(n+7) { animation-delay: 360ms; }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Scale-fade entrance for cards */
+  .scale-fade-in {
+    animation: scaleFadeIn 0.35s ease-out forwards;
+  }
+  @keyframes scaleFadeIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Modal entrance */
+  .modal-entrance {
+    animation: modalIn 0.25s ease-out forwards;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Skeleton shimmer */
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--bg-surface2) 25%,
+      var(--bg-surface3) 50%,
+      var(--bg-surface2) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 8px;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Button press */
+  .btn-press { transition: transform 0.1s ease; }
+  .btn-press:active { transform: scale(0.97); }
+
+  /* Glassmorphism card */
+  .glass-card {
+    background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Hover glow */
+  .hover-glow {
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .hover-glow:hover {
+    box-shadow: 0 0 20px color-mix(in srgb, var(--brand-blue, #3b82f6) 15%, transparent);
+    transform: translateY(-1px);
+  }
+
+  /* Pulse glow for live indicators */
+  .pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--brand-blue, #3b82f6) 30%, transparent); }
+    50% { box-shadow: 0 0 16px color-mix(in srgb, var(--brand-blue, #3b82f6) 50%, transparent); }
+  }
+
+  /* Number pop for stat counters */
+  .number-pop {
+    animation: numberPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  @keyframes numberPop {
+    from { opacity: 0; transform: scale(0.5); }
+    to { opacity: 1; transform: scale(1); }
+  }
 }
 
 /* ==========================================================================

@@ -6,6 +6,7 @@ import { useStore } from './store/useStore';
 import { Toaster } from 'react-hot-toast';
 
 import ErrorBoundary from './components/ErrorBoundary';
+import { DashboardSkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
 import ExamLayout from './layouts/ExamLayout';
 import Login from './pages/Login'; 
@@ -37,11 +38,7 @@ const SecureAppTerminal = () => {
     <Router>
       <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#1a2235', color: '#f1f5f9' } }} />
       
-      <Suspense fallback={
-        <div className="flex items-center justify-center h-screen bg-bg text-muted2">
-          <span className="telemetry-spinner mr-2"></span> Loading module...
-        </div>
-      }>
+      <Suspense fallback={<DashboardSkeleton />}>
         <Routes>
           <Route path="/" element={<MainLayout><ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary></MainLayout>} />
           <Route path="/review" element={<MainLayout><ErrorBoundary name="Active Review"><ActiveReview /></ErrorBoundary></MainLayout>} />

@@ -8,6 +8,7 @@ import { fetchSimulationLedger, deleteSimulationRecord } from '../services/dbQue
 import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import { SkeletonChart } from './SkeletonLoaders';
 
 let CACHED_HISTORY = null;
 
@@ -115,15 +116,15 @@ export default function MockBoardAnalytics() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center items-center text-center">
+        <div className="glass-card hover-glow p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center items-center text-center">
           <div className="text-[0.65rem] font-bold uppercase tracking-widest text-muted mb-2">Simulations Completed</div>
           <div className="text-4xl font-black text-reeBlue">{totalRuns}</div>
         </div>
-        <div className="p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center items-center text-center">
+        <div className="glass-card hover-glow p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center items-center text-center">
           <div className="text-[0.65rem] font-bold uppercase tracking-widest text-muted mb-2">Average Hit Rate</div>
           <div className={`text-4xl font-black ${avgScore >= 70 ? 'text-reeGreen' : 'text-reeAmber'}`}>{avgScore}%</div>
         </div>
-        <div className="p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center items-center text-center relative overflow-hidden">
+        <div className="glass-card hover-glow p-6 bg-surface border border-border2 rounded-xl shadow-md flex flex-col justify-center items-center text-center relative overflow-hidden">
           <div className={`absolute top-0 left-0 w-full h-1 ${passRate >= 70 ? 'bg-reeGreen' : 'bg-reeRed'}`}></div>
           <div className="text-[0.65rem] font-bold uppercase tracking-widest text-muted mb-2">Pass Probability</div>
           <div className={`text-4xl font-black ${passRate >= 70 ? 'text-reeGreen' : 'text-reeRed'}`}>{passRate}%</div>
@@ -135,13 +136,13 @@ export default function MockBoardAnalytics() {
           <span>📈</span> Readiness Trajectory Plot
         </h3>
         {loading ? (
-          <div className="h-[350px] flex items-center justify-center text-muted font-mono text-xs">Loading analytics payload...</div>
+          <div className="h-[350px] flex items-center justify-center"><SkeletonChart /></div>
         ) : chartData.length === 0 ? (
           <div className="h-[350px] flex items-center justify-center text-muted font-mono text-xs border-2 border-dashed border-border2 rounded-xl">
             No simulation data found. Complete a Mock Board to generate telemetry.
           </div>
         ) : (
-          <div className="h-[350px] w-full relative">
+          <div className="h-[350px] w-full min-w-0 relative">
             <div className="absolute inset-0">
                 <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 20, right: 0, bottom: 0, left: -20 }}>
@@ -176,11 +177,11 @@ export default function MockBoardAnalytics() {
         </div>
         
         {loading ? (
-          <div className="text-xs text-center text-muted py-8 font-mono">Synchronizing structures...</div>
+          <div className="py-8"><SkeletonChart /></div>
         ) : history.length === 0 ? (
           <div className="text-xs text-center text-muted py-8 font-mono border border-dashed border-border2 rounded-xl">Ledger is currently empty.</div>
         ) : (
-          <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-3 pl-1 pb-2">
+          <div className="stagger-fade-in flex flex-col gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-3 pl-1 pb-2">
             {history.map((run, idx) => (
               <div key={run.id} className="p-5 bg-bg border border-border2 hover:border-reeBlue/40 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 transition-all group shadow-sm">
                 
@@ -232,7 +233,7 @@ export default function MockBoardAnalytics() {
       {deleteModal.isOpen && (
         <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={deleteModal.isOpen}>
-            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="modal-entrance bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full">
               <h3 className="text-lg font-black text-reeRed mb-2 flex items-center gap-2">
                 <span>⚠️</span> Purge Simulation Record?
               </h3>

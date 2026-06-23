@@ -26,7 +26,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 5000);
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(timeout);
       setCurrentUser(user);
       
       if (user) {
@@ -72,7 +75,10 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
     
-    return unsubscribe;
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password);
@@ -95,7 +101,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{ currentUser, isAdmin, login, register, logout, loading }}>
       {!loading ? children : (
-        <div className="flex justify-center items-center h-screen bg-bgMain text-textMain">
+        <div className="flex justify-center items-center h-screen bg-bg text-textMain">
           <span className="animate-pulse font-mono tracking-widest text-sm uppercase">Securing Session...</span>
         </div>
       )}

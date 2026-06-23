@@ -10,11 +10,11 @@ export default function TelemetrySync() {
     const stats = useStore((state) => state.stats);
     const isOnline = useNetworkStatus();
 
-    // Background processing loop: Runs a periodic synchronization check every 15 seconds
     useEffect(() => {
+        if (syncQueue.length === 0) return;
+
         const syncInterval = setInterval(() => {
             if (isOnline && syncQueue.length > 0) {
-                console.log(`[AUTONOMOUS SYNC] Processing batch log queue: (${syncQueue.length} items)`);
                 flushQueueToCloud();
             }
         }, 15000);

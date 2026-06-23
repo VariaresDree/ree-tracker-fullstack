@@ -1,7 +1,7 @@
 // src/components/ConfidenceMatrix.jsx
 import React from 'react';
 
-export default function ConfidenceMatrix({ stats }) {
+function ConfidenceMatrix({ stats }) {
     // Fallback to prevent rendering crashes before telemetry syncs
     const mc = stats?.matrix || { hc: 0, hw: 0, lc: 0, lw: 0 };
 
@@ -71,3 +71,5 @@ export default function ConfidenceMatrix({ stats }) {
         </div>
     );
 }
+
+export default React.memo(ConfidenceMatrix);

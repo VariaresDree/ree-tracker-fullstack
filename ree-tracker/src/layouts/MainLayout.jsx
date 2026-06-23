@@ -135,11 +135,11 @@ export default function MainLayout({ children }) {
               onClick={(e) => handleNavClick(e, item.path)}
               title={isSidebarCollapsed ? item.label : ""}
               className={({ isActive }) =>
-                `flex items-start rounded-xl transition-all border border-transparent cursor-pointer ${
+                `flex items-start rounded-xl transition-all border border-transparent cursor-pointer hover:translate-x-0.5 transition-transform ${
                   isSidebarCollapsed ? 'p-3 justify-center' : 'p-3'
                 } ${
                   isActive && item.path !== '/simulator'
-                    ? 'bg-reeBlue/10 border-reeBlue/30 shadow-[0_0_15px_rgba(59,130,246,0.05)]'
+                    ? 'bg-reeBlue/10 border-reeBlue/30 border-l-2 border-l-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.05)]'
                     : 'hover:bg-surface2'
                 }`
               }
@@ -187,7 +187,7 @@ export default function MainLayout({ children }) {
       </aside>
 
       {/* DYNAMIC VIEWPORT FRAMESPACE */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 overflow-y-auto relative animate-in fade-in slide-in-from-bottom-2 custom-scrollbar">
+      <main key={location.pathname} className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 overflow-y-auto relative page-fade-in animate-in fade-in slide-in-from-bottom-2 custom-scrollbar">
         {children}
       </main>
 
@@ -195,7 +195,7 @@ export default function MainLayout({ children }) {
       {showSimulatorModal && (
         <div className="fixed inset-0 bg-bg/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={showSimulatorModal}>
-            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full modal-entrance">
               <h3 className="text-lg font-black text-reeAmber mb-2 flex items-center gap-2">
                 <span className="text-2xl">⚡</span> Pressure Chamber Entry
               </h3>
@@ -212,7 +212,7 @@ export default function MainLayout({ children }) {
                 </button>
                 <button
                   onClick={confirmSimulator}
-                  className="px-4 py-2 bg-reeAmber hover:bg-yellow-600 text-bg rounded-lg text-xs font-black uppercase tracking-wider shadow-md transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-reeAmber hover:bg-yellow-600 text-bg rounded-lg text-xs font-black uppercase tracking-wider shadow-md transition-colors cursor-pointer btn-press"
                 >
                   Initialize Chamber
                 </button>

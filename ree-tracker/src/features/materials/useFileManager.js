@@ -1,9 +1,10 @@
 // src/features/materials/useFileManager.js
 import { useState, useEffect, useCallback } from 'react';
-import { storage, auth } from '../../config/firebaseDb'; // Removed 'db' import
+import { storage } from '../../config/firebaseDb';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import toast from 'react-hot-toast';
+import { apiRequest } from '../../services/dbQueries';
 
 export const useFileManager = (currentUser, isAdmin) => {
   const [folders, setFolders] = useState([]);
@@ -11,33 +12,24 @@ export const useFileManager = (currentUser, isAdmin) => {
   const [currentFolderId, setCurrentFolderId] = useState('root');
   const [breadcrumbs, setBreadcrumbs] = useState([{ id: 'root', name: 'Review Materials' }]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [isUploading, setIsUploading] = useState(false);
   const [dragOverFolderId, setDragOverFolderId] = useState(null);
-
-const apiCall = async (endpoint, options = {}) => {
-    if (!auth.currentUser) return null;
-    const token = await auth.currentUser.getIdToken();
-    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`, {
-        ...options,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...options.headers }
-    });
-    if (!res.ok) throw new Error("API Error");
-    return res.status === 204 ? null : res.json();
-  };
 
   const fetchContents = useCallback(async () => {
     if (!currentUser) return;
     setIsLoading(true);
     try {
-        const data = await apiCall('/api/materials', { method: 'GET' });
+        const data = await apiRequest('/api/materials');
         if (data && data.success) {
             setFolders(data.folders || []);
             setMaterials(data.materials || []);
         }
     } catch (error) {
-      console.error("PostgreSQL read failure:", error);
-      toast.error("Failed to load files.");
+      if (!error.message?.includes('[OFFLINE]')) {
+        console.error("PostgreSQL read failure:", error);
+        toast.error("Failed to load files.");
+      }
     }
     setIsLoading(false);
   }, [currentUser]);

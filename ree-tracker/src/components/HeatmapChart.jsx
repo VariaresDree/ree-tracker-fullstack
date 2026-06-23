@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 
-export default function HeatmapChart({ stats }) {
+function HeatmapChart({ stats }) {
     const [activeTab, setActiveTab] = useState('Mathematics'); 
     const [viewMode, setViewMode] = useState('accuracy'); 
 
@@ -54,7 +54,7 @@ export default function HeatmapChart({ stats }) {
                 ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2 min-h-0">
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2 min-h-0 stagger-fade-in">
                 {displayedTopics.map((item, idx) => {
                     // 🚀 SAFE MATH: Guards against Divide by Zero logic errors
                     const hasData = item.data.attempts > 0;
@@ -103,3 +103,5 @@ export default function HeatmapChart({ stats }) {
         </div>
     );
 }
+
+export default React.memo(HeatmapChart);

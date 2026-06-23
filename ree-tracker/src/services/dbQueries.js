@@ -1,29 +1,46 @@
 // src/services/dbQueries.js
 import { auth } from '../config/firebaseDb';
-import { get, set } from 'idb-keyval'; // 🚀 High-speed offline ledgers
+import { get, set } from 'idb-keyval';
 
 // ============================================================================
-// API CORE: Secure Fetch Wrapper
+// API CORE: Circuit Breaker + Secure Fetch Wrapper
 // ============================================================================
+let _backendUp = true;
+let _lastCheck = 0;
+const COOLDOWN = 30_000;
+
 export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
-    
-    const token = await user.getIdToken(); 
+
+    if (!_backendUp && Date.now() - _lastCheck < COOLDOWN) {
+        throw new Error('[OFFLINE]');
+    }
+
+    const token = await user.getIdToken();
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
-    
+
     const options = {
         method,
-        headers: { 
+        headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` 
+            'Authorization': `Bearer ${token}`
         }
     };
-    
+
     if (body) options.body = JSON.stringify(body);
-    
-    const response = await fetch(url, options);
-    
+
+    let response;
+    try {
+        response = await fetch(url, options);
+    } catch {
+        _backendUp = false;
+        _lastCheck = Date.now();
+        throw new Error('[OFFLINE]');
+    }
+
+    _backendUp = true;
+
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Matrix API Exception: ${response.status}`);
@@ -31,6 +48,15 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
 
     if (response.status === 204) return null;
     return response.json();
+};
+
+const safeApiRequest = async (endpoint, method = 'GET', body = null, fallback = null) => {
+    try {
+        return await apiRequest(endpoint, method, body);
+    } catch (err) {
+        if (err.message === '[OFFLINE]') return fallback;
+        throw err;
+    }
 };
 
 // --- NORMALIZER: Translates PostgreSQL Schema to Legacy React Schema ---
@@ -50,10 +76,10 @@ const normalizeQuestions = (data) => {
 // ----------------------------------------------------------------------
 // 1. Analytics Profile & Telemetry (RESTORED MISSING EXPORTS)
 // ----------------------------------------------------------------------
-export const getAnalyticsProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
+export const getAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
 export const logSRSRecord = async (uid, questionId, payload) => apiRequest('/api/srs/review', 'POST', { questionId, ...payload });
-export const updateAnalyticsProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
+export const updateAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
 export const syncTelemetryBatch = async (uid, sessionId, targetSubject, mode, attempts) => {
     return await apiRequest('/api/analytics/telemetry-bulk', 'POST', { sessionId, targetSubject, mode, attempts });
 };
@@ -68,7 +94,7 @@ export const saveQuestionToBank = async (questionObject) => {
 };
 export const fetchQuarantineQueue = async () => normalizeQuestions(await apiRequest('/api/questions/quarantine'));
 export const approveQuarantinedQuestion = async (id, subject, subtopic) => apiRequest(`/api/questions/quarantine/${id}/approve`, 'PUT', { subject, subtopic });
-export const fetchServerStats = async () => apiRequest('/api/questions/stats');
+export const fetchServerStats = async () => safeApiRequest('/api/questions/stats', 'GET', null, null);
 
 export const fetchPaginatedQuestions = async (lastVisibleDoc = null, filterSubject = 'All', filterSubtopic = 'All', limitCount = 50) => {
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic, limit: limitCount });
@@ -115,7 +141,7 @@ export const initializeReviewSession = async (config) => {
 // ----------------------------------------------------------------------
 // 3. Metadata Handlers
 // ----------------------------------------------------------------------
-export const fetchVaultMetadata = async () => apiRequest('/api/metadata/vault');
+export const fetchVaultMetadata = async () => safeApiRequest('/api/metadata/vault', 'GET', null, null);
 export const resyncVaultMetadata = async () => apiRequest('/api/metadata/vault/resync', 'POST');
 export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 'POST'); 
 
@@ -124,11 +150,13 @@ export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 
 // ----------------------------------------------------------------------
 export const syncLeaderboardProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
 export const fetchGlobalLeaderboard = async (limitCount = 100) => {
-    const data = await apiRequest(`/api/leaderboard?limit=${limitCount}`);
+    const data = await safeApiRequest(`/api/leaderboard?limit=${limitCount}`, 'GET', null, null);
+    if (!data) return [];
     return data?.leaderboard || data?.items || data || [];
 };
 export const fetchPaginatedLeaderboard = async (limitCount = 20, lastVisible = null) => {
-    const data = await apiRequest(`/api/leaderboard/paginated?limit=${limitCount}`);
+    const data = await safeApiRequest(`/api/leaderboard/paginated?limit=${limitCount}`, 'GET', null, null);
+    if (!data) return [];
     return data?.items || data || [];
 };
 
@@ -158,7 +186,7 @@ export const updateDynamicTOS = async (newTOS) => apiRequest('/api/config/tos', 
 export const saveBookmark = async (uid, itemData) => apiRequest('/api/bookmarks', 'POST', itemData);
 export const removeBookmark = async (uid, itemId) => apiRequest(`/api/bookmarks/${itemId}`, 'DELETE');
 export const fetchBookmarks = async () => {
-    const data = await apiRequest('/api/bookmarks');
+    const data = await safeApiRequest('/api/bookmarks', 'GET', null, null);
     return normalizeQuestions(data);
 };
 export const updateBookmarkCache = async (uid, itemId, aiExplanation) => {
@@ -237,13 +265,13 @@ export const fetchSmartDrillQuestions = async (limit = 20) => {
     return { items: normalizeQuestions(data), weakAreas: data?.weakAreas || [] };
 };
 
-export const fetchReadinessScore = async () => apiRequest('/api/readiness');
-export const fetchReadinessHistory = async () => apiRequest('/api/readiness/history');
+export const fetchReadinessScore = async () => safeApiRequest('/api/readiness', 'GET', null, null);
+export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/history', 'GET', null, null);
 export const saveReadinessSnapshot = async (data) => apiRequest('/api/readiness/snapshot', 'POST', data);
 
-export const fetchAnalyticsDeep = async (type) => apiRequest(`/api/analytics/deep/${type}`);
+export const fetchAnalyticsDeep = async (type) => safeApiRequest(`/api/analytics/deep/${type}`, 'GET', null, null);
 
-export const fetchPendingExplanations = async () => apiRequest('/api/questions/explanations/pending');
+export const fetchPendingExplanations = async () => safeApiRequest('/api/questions/explanations/pending', 'GET', null, null);
 export const updateExplanationStatus = async (questionId, status) => apiRequest(`/api/questions/${questionId}/explanation-status`, 'PUT', { status });
 
 export const generateStudyPlan = async (examDate, topics) => apiRequest('/api/user/tasks/generate-plan', 'POST', { examDate, topics });

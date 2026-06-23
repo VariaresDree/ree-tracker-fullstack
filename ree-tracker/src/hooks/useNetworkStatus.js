@@ -5,14 +5,14 @@ import { useStore } from '../store/useStore';
 export function useNetworkStatus() {
     // Initialize with the current browser state
     const [isOnline, setIsOnline] = useState(navigator.onLine);
-    const { retrySync } = useStore();
+    const flushQueueToCloud = useStore((s) => s.flushQueueToCloud);
 
     useEffect(() => {
         const handleOnline = () => {
             setIsOnline(true);
-            retrySync(); // 🔥 Instantly flush the offline queue to Firebase
+            flushQueueToCloud();
         };
-        
+
         const handleOffline = () => {
             setIsOnline(false);
         };
@@ -24,7 +24,7 @@ export function useNetworkStatus() {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [retrySync]);
+    }, [flushQueueToCloud]);
 
     return isOnline;
 }
