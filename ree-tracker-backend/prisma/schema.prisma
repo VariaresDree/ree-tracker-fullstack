@@ -57,6 +57,10 @@ model User {
   // --- V4: Phase 3 Relations ---
   readinessSnapshots ReadinessSnapshot[]
 
+  // --- V5: Phase 4 Adaptive Engine Relations ---
+  abilities          UserAbility[]
+  forecastSnapshots  ForecastSnapshot[]
+
   @@index([thetaRating])
   @@index([lastActive])
 }
@@ -84,9 +88,19 @@ model Question {
   // Phase 3: Explanation review pipeline
   explanationStatus String? @default("PENDING")
 
+  // Phase 4: IRT 3PL parameters. Nullable so legacy items can be drawn
+  // at random until they accumulate enough attempts for calibration.
+  irtA             Float?   // discrimination
+  irtB             Float?   // difficulty (replaces overloaded `difficulty` over time)
+  irtC             Float?   @default(0.20) // guess
+  calibrationN     Int      @default(0)    // attempt count rolled into params
+  lastCalibratedAt DateTime?
+
   attempts         QuestionAttempt[]
   bookmarks        Bookmark[]
   srsCards         SRSCard[]
+
+  @@index([subject, irtB])
 }
 
 // 4. 'simulationHistory' collection
@@ -254,6 +268,37 @@ model PlannerTask {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, completed])
+}
+
+// Phase 4: Per-subject ability (IRT theta with standard error).
+// The User.thetaRating remains as a back-compat global summary.
+model UserAbility {
+  id          String   @id @default(uuid())
+  userId      String
+  subject     String   // "Mathematics" | "ESAS" | "EE Professional" | "GLOBAL"
+  theta       Float    @default(0.0)
+  se          Float    @default(1.0)
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subject])
+  @@index([userId])
+}
+
+// Phase 4: Weekly forecast — pass / topnotcher probability with rationale.
+model ForecastSnapshot {
+  id                     String   @id @default(uuid())
+  userId                 String
+  passProbability        Float    // 0.0 .. 1.0
+  topnotcherProbability  Float    // 0.0 .. 1.0
+  expectedRank           Int?     // estimated percentile rank
+  weakTopics             Json?    // [{ topic, theta, se, gapToTarget }]
+  recommendedActions     Json?    // [{ type, payload, reason }]
+  modelVersion           String   @default("v1")
+  createdAt              DateTime @default(now())
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // Phase 3: Weekly readiness score snapshots
