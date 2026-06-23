@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const { initializeApp, cert } = require('firebase-admin/app');
@@ -93,7 +93,7 @@ async function bootstrap() {
         max: 60,
         standardHeaders: true,
         legacyHeaders: false,
-        keyGenerator: (req) => req.headers.authorization || req.ip,
+        keyGenerator: (req, res) => req.headers.authorization || ipKeyGenerator(req, res),
         message: { error: 'Rate limit exceeded for /leaderboard/me.' },
     });
 
