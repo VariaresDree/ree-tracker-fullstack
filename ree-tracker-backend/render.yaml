@@ -1,0 +1,81 @@
+# Render Blueprint — provisions the REE backend as a long-lived web service
+# (so Socket.io can hold connections, which Vercel Functions can't) plus a
+# nightly calibration cron.
+#
+# Usage:
+#   1. Push this file to your repo
+#   2. Render dashboard -> New -> Blueprint -> point at the repo
+#   3. Render reads this file and creates both services
+#   4. Set the secret env vars (DATABASE_URL, Firebase keys, Gemini key,
+#      FRONTEND_URL) in the Render dashboard for both services. The sync:
+#      false flag below keeps them out of the blueprint.
+
+services:
+  - type: web
+    name: ree-tracker-backend
+    runtime: node
+    plan: starter   # $7/mo — required for Socket.io (free tier sleeps)
+    rootDir: ree-tracker-backend
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      # Optional R2 / S3 — leave unset to use local-disk driver.
+      - key: STORAGE_DRIVER
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+
+  - type: cron
+    name: ree-calibrate-nightly
+    runtime: node
+    plan: starter
+    rootDir: ree-tracker-backend
+    schedule: "0 3 * * *"   # 03:00 UTC = 11:00 Asia/Manila
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm run calibrate
+    envVars:
+      - fromService:
+          name: ree-tracker-backend
+          type: web
+          envVarKey: DATABASE_URL
+      - fromService:
+          name: ree-tracker-backend
+          type: web
+          envVarKey: FIREBASE_PROJECT_ID
+      - fromService:
+          name: ree-tracker-backend
+          type: web
+          envVarKey: FIREBASE_CLIENT_EMAIL
+      - fromService:
+          name: ree-tracker-backend
+          type: web
+          envVarKey: FIREBASE_PRIVATE_KEY
+      - fromService:
+          name: ree-tracker-backend
+          type: web
+          envVarKey: GEMINI_API_KEY

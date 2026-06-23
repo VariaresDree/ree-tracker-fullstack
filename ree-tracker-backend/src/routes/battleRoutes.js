@@ -99,4 +99,77 @@ router.put('/:battleId/progress', authMiddleware, async (req, res) => {
     }
 });
 
+// GET /api/battles/:battleId/replay — full per-question deltas for a
+// completed battle. Sorted by placement so the UI can render the podium
+// + rating swing in order. Returns 404 if no outcomes have been
+// recorded yet (battle still WAITING or ACTIVE).
+router.get('/:battleId/replay', authMiddleware, async (req, res) => {
+    try {
+        const outcomes = await prisma.battleOutcome.findMany({
+            where: { battleId: req.params.battleId },
+            include: { user: { select: { id: true, displayName: true, photoURL: true } } },
+            orderBy: { placement: 'asc' },
+        });
+        if (outcomes.length === 0) return res.status(404).json({ error: 'No completed battle by that id.' });
+        const battle = await prisma.battle.findUnique({
+            where: { id: req.params.battleId },
+            select: { id: true, hostId: true, config: true, timeLimitSecs: true, createdAt: true },
+        });
+        return res.status(200).json({ battle, outcomes });
+    } catch (error) {
+        logger.error('battle replay failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load replay.' });
+    }
+});
+
+// GET /api/battles/:battleId/spectate — lightweight read-only snapshot
+// for spectator overlays. Same payload the lobby socket would broadcast
+// minus the participant attempt log. Polled (or upgraded to socket later).
+router.get('/:battleId/spectate', authMiddleware, async (req, res) => {
+    try {
+        const battle = await prisma.battle.findUnique({
+            where: { id: req.params.battleId },
+            select: { id: true, status: true, config: true, timeLimitSecs: true, hostId: true },
+        });
+        if (!battle) return res.status(404).json({ error: 'Battle not found.' });
+        // When already complete, return the same payload as /replay-minus-attempts.
+        if (battle.status === 'COMPLETED') {
+            const outcomes = await prisma.battleOutcome.findMany({
+                where: { battleId: battle.id },
+                select: {
+                    userId: true, score: true, total: true, placement: true,
+                    eloDelta: true, tierBefore: true, tierAfter: true,
+                    user: { select: { displayName: true, photoURL: true } },
+                },
+                orderBy: { placement: 'asc' },
+            });
+            return res.status(200).json({ battle, outcomes, mode: 'POST' });
+        }
+        // Active lobbies — return battle metadata only; live participant
+        // state lives in the socket lobby cache. The frontend spectator
+        // mode connects a read-only socket for that.
+        return res.status(200).json({ battle, mode: 'LIVE' });
+    } catch (error) {
+        logger.error('battle spectate failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load spectator view.' });
+    }
+});
+
+// GET /api/battles/me/history — most recent BattleOutcomes for the caller.
+router.get('/me/history', authMiddleware, async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        const items = await prisma.battleOutcome.findMany({
+            where: { userId: req.user.id },
+            include: { battle: { select: { config: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+        });
+        return res.status(200).json({ items });
+    } catch (error) {
+        logger.error('battle history failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load battle history.' });
+    }
+});
+
 module.exports = router;

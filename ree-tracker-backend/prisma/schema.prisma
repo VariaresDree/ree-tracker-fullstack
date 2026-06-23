@@ -61,8 +61,14 @@ model User {
   abilities          UserAbility[]
   forecastSnapshots  ForecastSnapshot[]
 
+  // --- V6: Phase 6 Arena 2.0 — ELO + tiers ---
+  eloRating          Int       @default(1200)
+  tier               String    @default("BRONZE")
+  battleOutcomes     BattleOutcome[]
+
   @@index([thetaRating])
   @@index([lastActive])
+  @@index([eloRating])
 }
 
 // 3. 'questions' collection (Exact Firebase Names Restored)
@@ -187,10 +193,37 @@ model Battle {
   id            String   @id
   hostId        String
   config        Json
-  questions     Json     
+  questions     Json
   timeLimitSecs Int
-  status        String   @default("WAITING") 
+  status        String   @default("WAITING")
   createdAt     DateTime @default(now())
+  outcomes      BattleOutcome[]
+}
+
+// Phase 6: per-participant battle outcomes. Persists ELO deltas so the
+// replay/history view can render rank changes, and the leaderboard can
+// query "matches played / last 7d win rate" cheaply.
+model BattleOutcome {
+  id              String   @id @default(uuid())
+  battleId        String
+  userId          String
+  score           Int
+  total           Int
+  timeTakenSecs   Int
+  placement       Int      // 1 = winner
+  eloBefore       Int
+  eloAfter        Int
+  eloDelta        Int
+  tierBefore      String
+  tierAfter       String
+  perQuestion     Json?    // [{ questionId, isCorrect, timeMs }] for replay
+  createdAt       DateTime @default(now())
+
+  battle          Battle   @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+  @@index([userId, createdAt])
 }
 
 model UserTopicPerformance {

@@ -1,6 +1,7 @@
 const { getAuth } = require('firebase-admin/auth');
 const prisma = require('../config/db');
 const { recordAttempts } = require('../services/telemetryService');
+const { recomputeRatings, tierFor } = require('../engine/elo');
 const logger = require('../utils/logger');
 
 // In-memory lobby state (participants, live scores).
@@ -149,6 +150,8 @@ function setupBattleSocket(io) {
                 // re-grades against Question.answer inside recordAttempts so
                 // we don't trust the client's isCorrect flag.
                 if (Array.isArray(attempts) && attempts.length > 0) {
+                    // Cache for replay payload assembled at battle-complete.
+                    if (participant) participant.attempts = attempts;
                     try {
                         await recordAttempts({
                             userId: socket.userId,
@@ -177,8 +180,70 @@ function setupBattleSocket(io) {
                         data: { status: 'COMPLETED' }
                     });
 
-                    const results = serializeParticipants(lobby)
+                    const ranked = serializeParticipants(lobby)
                         .sort((a, b) => b.score - a.score || a.timeTakenSecs - b.timeTakenSecs);
+
+                    // Phase 6 — ELO + ranked tiers. Pull each participant's
+                    // current rating, recompute, persist BattleOutcome rows,
+                    // and decorate the broadcast with rating deltas.
+                    const userIds = ranked.map((r) => r.id);
+                    const users = await prisma.user.findMany({
+                        where: { id: { in: userIds } },
+                        select: { id: true, eloRating: true, tier: true },
+                    });
+                    const ratingMap = Object.fromEntries(
+                        users.map((u) => [u.id, { rating: u.eloRating ?? 1200, tier: u.tier ?? 'BRONZE' }]),
+                    );
+
+                    const eloInput = ranked.map((r, i) => ({
+                        userId: r.id,
+                        rating: ratingMap[r.id]?.rating ?? 1200,
+                        placement: i + 1,
+                    }));
+                    const eloDeltas = recomputeRatings(eloInput);
+                    const deltaByUser = Object.fromEntries(eloDeltas.map((d) => [d.userId, d]));
+
+                    // Persist outcomes + user updates atomically per participant.
+                    await prisma.$transaction(
+                        ranked.flatMap((r, i) => {
+                            const d = deltaByUser[r.id];
+                            const participant = lobby.participants.get(r.id);
+                            return [
+                                prisma.battleOutcome.upsert({
+                                    where: { battleId_userId: { battleId, userId: r.id } },
+                                    update: {},
+                                    create: {
+                                        battleId,
+                                        userId: r.id,
+                                        score: r.score ?? 0,
+                                        total: r.itemsAnswered ?? 0,
+                                        timeTakenSecs: r.timeTakenSecs ?? 0,
+                                        placement: i + 1,
+                                        eloBefore: d.ratingBefore,
+                                        eloAfter: d.ratingAfter,
+                                        eloDelta: d.delta,
+                                        tierBefore: d.tierBefore,
+                                        tierAfter: d.tierAfter,
+                                        perQuestion: participant?.attempts ?? null,
+                                    },
+                                }),
+                                prisma.user.update({
+                                    where: { id: r.id },
+                                    data: { eloRating: d.ratingAfter, tier: d.tierAfter },
+                                }),
+                            ];
+                        }),
+                    );
+
+                    const results = ranked.map((r, i) => {
+                        const d = deltaByUser[r.id];
+                        return {
+                            ...r,
+                            placement: i + 1,
+                            elo: { before: d.ratingBefore, after: d.ratingAfter, delta: d.delta },
+                            tier: { before: d.tierBefore, after: d.tierAfter, promoted: d.tierBefore !== d.tierAfter },
+                        };
+                    });
 
                     battleNs.to(battleId).emit('battle-complete', { results });
 
