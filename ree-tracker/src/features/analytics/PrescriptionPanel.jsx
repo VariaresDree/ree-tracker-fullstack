@@ -1,5 +1,12 @@
+import { motion } from 'motion/react';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Button, Skeleton } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
+
+const rowEnter = (i) => ({
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.3, delay: 0.05 + i * 0.06, ease: [0.16, 1, 0.3, 1] },
+});
 
 // Prescription panel — concrete next 3 actions derived from the forecast.
 // Action types come from the backend (READ | DRILL | SRS_REVIEW); the panel
@@ -74,7 +81,9 @@ export function PrescriptionPanel({ onAction }) {
           </p>
         ) : (
           actions.map((a, i) => (
-            <PrescriptionRow key={i} action={a} onAction={onAction} />
+            <motion.div key={i} {...rowEnter(i)}>
+              <PrescriptionRow action={a} onAction={onAction} />
+            </motion.div>
           ))
         )}
       </CardBody>

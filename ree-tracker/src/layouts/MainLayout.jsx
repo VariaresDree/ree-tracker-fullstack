@@ -132,6 +132,7 @@ export default function MainLayout({ children }) {
             <NavLink
               key={item.path}
               to={item.path}
+              viewTransition
               onClick={(e) => handleNavClick(e, item.path)}
               title={isSidebarCollapsed ? item.label : ""}
               className={({ isActive }) =>
@@ -167,8 +168,9 @@ export default function MainLayout({ children }) {
 
         {/* 3. PROFILE SETTING (Anchored to Absolute Bottom via mt-auto) */}
         <div className={`mt-auto p-4 border-t border-border2 bg-surface2/10 shrink-0 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
-          <NavLink 
-            to="/profile" 
+          <NavLink
+            to="/profile"
+            viewTransition
             className={`flex items-center gap-3 p-2.5 bg-surface hover:bg-surface3 rounded-xl transition-all border border-border2 hover:border-reeBlue/50 shadow-sm group cursor-pointer ${isSidebarCollapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'w-full'}`}
             title={isSidebarCollapsed ? "View Identity Matrix" : "Operator Terminal"}
           >

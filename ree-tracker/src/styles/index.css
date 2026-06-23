@@ -404,6 +404,27 @@
   .elevate-3 { box-shadow: var(--shadow-3); }
   .elevate-glow { box-shadow: var(--shadow-glow-velocity); }
 
+  /* View Transitions API — 180ms crossfade + y-translate for route swaps.
+     React Router's `viewTransition` prop triggers document.startViewTransition,
+     the browser auto-snapshots the old + new pages, and we style the default
+     ::view-transition-{old,new}(root) pseudo-elements. Per-element hero
+     transitions can attach `view-transition-name: foo` later. */
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-old(root) {
+      animation: vt-fade-out 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    ::view-transition-new(root) {
+      animation: vt-fade-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+  }
+  @keyframes vt-fade-out {
+    to { opacity: 0; transform: translateY(-6px); }
+  }
+  @keyframes vt-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   /* Subtle grain overlay for hero panels (4% noise) */
   .grain-overlay {
     position: relative;
