@@ -6,14 +6,14 @@
   --color-surface: var(--bg-surface);
   --color-surface2: var(--bg-surface2);
   --color-surface3: var(--bg-surface3);
-  
+
   --color-border: var(--border-main);
   --color-border2: var(--border-light);
-  
+
   --color-textMain: var(--text-main);
   --color-muted: var(--text-muted);
   --color-muted2: var(--text-muted2);
-  
+
   /* Brand & Feedback Colors (Static) */
   --color-reeBlue: var(--brand-blue, #3b82f6);
   --color-reeBlue2: var(--brand-blue2, #1d4ed8);
@@ -22,27 +22,59 @@
   --color-reeAmber: var(--brand-amber, #f59e0b);
   --color-reePurple: var(--brand-purple, #8b5cf6);
   --color-reeCyan: var(--brand-cyan, #06b6d4);
-  
+
+  /* Semantic accents (editorial layer over brand) */
+  --color-velocity: var(--accent-velocity, #7c5cff);
+  --color-signal: var(--accent-signal, #22d3ee);
+  --color-danger: var(--accent-danger, #ff4d6d);
+  --color-success: var(--accent-success, #34d399);
+
   /* Radii */
   --radius-default: 10px;
   --radius-sm: 6px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 
   /* Typography / Fonts */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Fira Code', 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Fraunces', 'Inter', serif;
+
+  /* Motion tokens */
+  --ease-spring-soft: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --ease-spring-snap: cubic-bezier(0.5, 1.7, 0.5, 1);
+  --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 220ms;
+  --duration-slow: 420ms;
+
+  /* Elevation (editorial — low key, glow-leaning) */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-2: 0 4px 14px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-3: 0 18px 40px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-glow-velocity: 0 0 0 1px color-mix(in srgb, var(--accent-velocity, #7c5cff) 35%, transparent), 0 0 28px color-mix(in srgb, var(--accent-velocity, #7c5cff) 25%, transparent);
 }
 
-/* 1. ORIGINAL / DEEP SPACE (DEFAULT) */
+/* 1. EDITORIAL DARK (DEFAULT) — deep navy + electric violet/cyan accents */
 :root {
-  --bg-primary: #0a0f1e;
-  --bg-surface: #111827;
-  --bg-surface2: #1a2235;
-  --bg-surface3: #1f2d45;
+  --bg-primary: #0b0f1a;
+  --bg-surface: #121826;
+  --bg-surface2: #1a2236;
+  --bg-surface3: #232c44;
   --text-main: #f1f5f9;
   --text-muted: #64748b;
   --text-muted2: #94a3b8;
-  --border-main: rgba(255, 255, 255, 0.07);
+  --border-main: rgba(255, 255, 255, 0.06);
   --border-light: rgba(255, 255, 255, 0.12);
+
+  /* Editorial accent layer */
+  --accent-velocity: #7c5cff;
+  --accent-signal: #22d3ee;
+  --accent-danger: #ff4d6d;
+  --accent-success: #34d399;
+
+  /* Focus ring (high-contrast, never decorative) */
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px color-mix(in srgb, var(--accent-velocity) 70%, transparent);
 }
 
 /* 2. LIGHT MODE (PRC STANDARD) */
@@ -218,14 +250,33 @@
     @apply bg-bg text-textMain font-sans antialiased transition-colors duration-300;
     background-image: radial-gradient(var(--border-main) 1px, transparent 1px);
     background-size: 30px 30px;
+    font-optical-sizing: auto;
   }
-  
+
   /* Override blueprint specific background for Math theme */
   [data-theme="math"] body {
-      background-image: 
+      background-image:
         linear-gradient(var(--border-main) 1px, transparent 1px),
         linear-gradient(90deg, var(--border-main) 1px, transparent 1px);
       background-size: 20px 20px;
+  }
+
+  /* Global focus-visible — editorial high-contrast ring */
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring, 0 0 0 2px var(--bg-primary), 0 0 0 4px #7c5cff);
+    border-radius: var(--radius-sm);
+    transition: box-shadow var(--duration-fast) var(--ease-out-quart);
+  }
+
+  /* Respect reduced-motion across the entire app */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -338,6 +389,37 @@
     from { opacity: 0; transform: scale(0.5); }
     to { opacity: 1; transform: scale(1); }
   }
+
+  /* Editorial display type — hero numerics, dashboard headlines */
+  .text-display {
+    font-family: var(--font-display);
+    font-feature-settings: "ss01" on, "ss02" on;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+  }
+
+  /* Editorial elevation classes (token-driven) */
+  .elevate-1 { box-shadow: var(--shadow-1); }
+  .elevate-2 { box-shadow: var(--shadow-2); }
+  .elevate-3 { box-shadow: var(--shadow-3); }
+  .elevate-glow { box-shadow: var(--shadow-glow-velocity); }
+
+  /* Subtle grain overlay for hero panels (4% noise) */
+  .grain-overlay {
+    position: relative;
+    isolation: isolate;
+  }
+  .grain-overlay::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 1;
+    mix-blend-mode: overlay;
+    z-index: 0;
+  }
+  .grain-overlay > * { position: relative; z-index: 1; }
 }
 
 /* ==========================================================================
