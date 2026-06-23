@@ -2,14 +2,27 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const fs = require('fs');
+const path = require('path');
 
-// Initialize Firebase
+// Initialize Firebase Admin — prefer JSON file, fall back to env vars
 const { initializeApp, cert } = require('firebase-admin/app');
-const serviceAccount = require('./firebase-service-account.json');
 
-initializeApp({
-  credential: cert(serviceAccount)
-});
+const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
+if (fs.existsSync(serviceAccountPath)) {
+  initializeApp({ credential: cert(require(serviceAccountPath)) });
+} else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    }),
+  });
+} else {
+  console.warn('[FIREBASE] No service account found — auth token verification will fail. Add FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY to .env');
+  initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'ree-topnotcher-tracker' });
+}
 
 const { createServer } = require('http');
 const { Server } = require('socket.io');

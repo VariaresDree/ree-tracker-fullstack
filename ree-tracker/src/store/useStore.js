@@ -98,8 +98,13 @@ export const useStore = create(
                 }
             });
         } catch (error) {
-            console.error("[SYNC FATAL ERROR] Processing batch data failed:", error);
-            set({ syncStatus: 'error' });
+            if (error.message?.includes('[OFFLINE]')) {
+                console.warn("[SYNC] Backend offline — queue preserved for retry.");
+                set({ syncStatus: 'offline_queued' });
+            } else {
+                console.error("[SYNC FATAL ERROR] Processing batch data failed:", error);
+                set({ syncStatus: 'error' });
+            }
         }
       },
 

@@ -10,9 +10,10 @@ import RecommendedModule from '../components/RecommendedModule';
 import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
 import { generateBoardReadinessReport } from '../services/geminiApi';
-import { generateDiagnosticReport } from '../utils/pdfEngine';
+
 import { apiRequest, fetchReadinessScore } from '../services/dbQueries';
 import toast from 'react-hot-toast';
+import { DashboardSkeleton } from '../components/SkeletonLoaders';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
@@ -23,10 +24,7 @@ export default function Dashboard() {
 
   const [aiReport, setAiReport] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-
   const [showAiModal, setShowAiModal] = useState(false);
-  const [showPdfModal, setShowPdfModal] = useState(false);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
 
@@ -130,20 +128,10 @@ export default function Dashboard() {
   }, [currentUser, isFetchingSQL]);
 
   const currentTheta = activeStats?.irt?.theta || 0;
-  const readinessScore = readinessData?.score ?? useMemo(() => {
+  const fallbackScore = useMemo(() => {
     return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
   }, [currentTheta]);
-
-  if (!activeStats || isFetchingSQL) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center">
-          <span className="telemetry-spinner inline-block mr-2"></span>
-          <span className="text-muted2 text-sm ml-2 font-mono uppercase tracking-widest">Syncing Matrices...</span>
-        </div>
-      </div>
-    );
-  }
+  const readinessScore = readinessData?.score ?? fallbackScore;
 
   const handleGenerateAIReport = async () => {
     setShowAiModal(false);
@@ -161,22 +149,6 @@ export default function Dashboard() {
       setAiReport('Failed to generate tactical diagnostics. Please try again later.');
     } finally {
       setIsGeneratingAI(false);
-    }
-  };
-
-  const handleExportPDF = async () => {
-    setShowPdfModal(false);
-    setIsGeneratingPDF(true);
-    const toastId = toast.loading("Compiling High-Res Telemetry...");
-    try {
-        setTimeout(async () => {
-            await generateDiagnosticReport(currentUser, activeStats);
-            toast.success("PDF Compiled Successfully.", { id: toastId });
-            setIsGeneratingPDF(false);
-        }, 500);
-    } catch (error) {
-        toast.error("Failed to compile PDF.", { id: toastId });
-        setIsGeneratingPDF(false);
     }
   };
 
@@ -198,6 +170,8 @@ export default function Dashboard() {
   const scoreGlow = readinessScore >= 70 ? 'shadow-[0_0_40px_rgba(34,197,94,0.15)] border-reeGreen/20' 
                   : readinessScore >= 50 ? 'shadow-[0_0_40px_rgba(245,158,11,0.1)] border-reeAmber/20' 
                   : 'shadow-[0_0_40px_rgba(239,68,68,0.1)] border-reeRed/20';
+
+  if (!activeStats || isFetchingSQL) return <DashboardSkeleton />;
 
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-[1600px] mx-auto">
@@ -233,13 +207,11 @@ export default function Dashboard() {
 
       <MissionControl
           stats={activeStats}
-          onExportPDF={() => setShowPdfModal(true)}
-          isGeneratingPDF={isGeneratingPDF}
           onPurgeRequest={() => setShowPurgeModal(true)}
       />
 
       {/* 🚀 MAIN GRID: Strict sizing bounds ensure perfect column leveling */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-2 xl:h-[860px] items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-2 xl:h-[860px] items-stretch stagger-fade-in">
         
         {/* COLUMN 1: Recommended Module & Readiness Index */}
         <div className="flex flex-col gap-6 h-full min-h-0">
@@ -247,7 +219,7 @@ export default function Dashboard() {
                 <RecommendedModule stats={activeStats} />
             </div>
             
-            <div className={`p-6 bg-surface/80 backdrop-blur-sm border rounded-2xl flex flex-col flex-1 min-h-0 transition-all duration-500 ${scoreGlow}`}>
+            <div className={`p-6 bg-surface/80 backdrop-blur-sm border rounded-2xl flex flex-col flex-1 min-h-0 transition-all duration-500 hover-glow ${scoreGlow}`}>
               <div className="shrink-0 relative">
                 <h3 className="text-xs font-black text-textMain uppercase tracking-widest flex items-center gap-2 mb-3">
                     <span className="text-lg">📊</span> Board Readiness Index
@@ -292,7 +264,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <button onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="shrink-0 w-full py-4 bg-gradient-to-r from-reePurple to-reeBlue text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-[0_4px_14px_rgba(139,92,246,0.25)] hover:shadow-[0_6px_20px_rgba(139,92,246,0.4)] hover:-translate-y-0.5 transition-all duration-300 flex justify-center items-center gap-2 disabled:opacity-60 disabled:hover:translate-y-0 cursor-pointer">
+              <button onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="shrink-0 w-full py-4 bg-gradient-to-r from-reePurple to-reeBlue text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-[0_4px_14px_rgba(139,92,246,0.25)] hover:shadow-[0_6px_20px_rgba(139,92,246,0.4)] hover:-translate-y-0.5 transition-all duration-300 flex justify-center items-center gap-2 disabled:opacity-60 disabled:hover:translate-y-0 cursor-pointer btn-press">
                 {isGeneratingAI ? <><span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span>Analyzing Matrices...</> : '✨ Generate AI Report'}
               </button>
             </div>
@@ -302,7 +274,7 @@ export default function Dashboard() {
         <div className="flex flex-col gap-6 h-full min-h-0">
             
             {/* 🚀 Velocity Chart (flex-1 ensures it dynamically stretches to fill space) */}
-            <div className="flex-1 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col min-h-[250px] min-w-0 overflow-hidden transition-shadow hover:shadow-md">
+            <div className="flex-1 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col min-h-[250px] min-w-0 overflow-hidden transition-shadow hover:shadow-md hover-glow">
                 <div className="flex justify-between items-center mb-4 shrink-0">
                     <h3 className="text-xs font-black uppercase tracking-widest text-textMain flex items-center gap-2">
                         <span className="text-lg">📈</span> Readiness Velocity (θ)
@@ -315,7 +287,7 @@ export default function Dashboard() {
             </div>
             
             {/* 🚀 Confidence Matrix (shrink-0 ensures it is perfectly sized at the bottom) */}
-            <div className="shrink-0 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col justify-center transition-shadow hover:shadow-md">
+            <div className="shrink-0 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col justify-center transition-shadow hover:shadow-md hover-glow">
                 <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0">
                     <span className="text-lg">🧠</span> Confidence Assessment
                 </h3>
@@ -335,27 +307,12 @@ export default function Dashboard() {
       {showAiModal && (
         <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={showAiModal}>
-            <div className="bg-surface border border-reePurple/40 p-6 rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="bg-surface border border-reePurple/40 p-6 rounded-2xl shadow-2xl max-w-md w-full modal-entrance">
               <h3 className="text-lg font-black text-reePurple mb-2 flex items-center gap-2"><span>✨</span> Initialize AI Generation?</h3>
               <p className="text-sm text-muted2 mb-6 leading-relaxed">This action queries the Gemini Core Engine to build a customized tactical report based on your heatmaps. This consumes an API transaction.</p>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setShowAiModal(false)} className="px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold transition-colors cursor-pointer">Cancel</button>
-                <button onClick={handleGenerateAIReport} className="px-4 py-2 bg-reePurple hover:bg-purple-600 text-white rounded-lg text-xs font-black tracking-wider uppercase transition-colors shadow-md cursor-pointer">Execute AI Query</button>
-              </div>
-            </div>
-          </FocusTrap>
-        </div>
-      )}
-
-      {showPdfModal && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={showPdfModal}>
-            <div className="bg-surface border border-reeBlue/40 p-6 rounded-2xl shadow-2xl max-w-md w-full">
-              <h3 className="text-lg font-black text-reeBlue mb-2 flex items-center gap-2"><span>📄</span> Export PDF Telemetry?</h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">The system will take high-resolution snapshots of your current DOM matrices. This may cause the UI to briefly freeze during compilation.</p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setShowPdfModal(false)} className="px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold transition-colors cursor-pointer">Cancel</button>
-                <button onClick={handleExportPDF} className="px-4 py-2 bg-reeBlue hover:bg-blue-600 text-white rounded-lg text-xs font-black tracking-wider uppercase transition-colors shadow-md cursor-pointer">Compile PDF</button>
+                <button onClick={handleGenerateAIReport} className="px-4 py-2 bg-reePurple hover:bg-purple-600 text-white rounded-lg text-xs font-black tracking-wider uppercase transition-colors shadow-md cursor-pointer btn-press">Execute AI Query</button>
               </div>
             </div>
           </FocusTrap>
@@ -365,13 +322,13 @@ export default function Dashboard() {
       {showPurgeModal && (
         <div className="fixed inset-0 bg-bg/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={showPurgeModal}>
-            <div className="bg-surface border border-reeRed/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-md w-full relative overflow-hidden">
+            <div className="bg-surface border border-reeRed/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-md w-full relative overflow-hidden modal-entrance">
               <div className="absolute top-0 right-0 w-32 h-32 bg-reeRed/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
               <h3 className="text-xl font-black text-reeRed mb-3 flex items-center gap-2 relative z-10"><span>⚠️</span> INITIATE GLOBAL PURGE</h3>
               <p className="text-sm text-muted2 mb-6 leading-relaxed relative z-10">This protocol will permanently delete your <strong className="text-textMain">Topic Heatmaps, IRT Theta Rating, Readiness Velocity, Confidence Matrix, and Lifetime History</strong>. <br/><br/>This action is irreversible. Proceed?</p>
               <div className="flex justify-end gap-3 relative z-10">
                 <button disabled={isPurging} onClick={() => setShowPurgeModal(false)} className="px-5 py-2.5 bg-surface2 hover:bg-surface3 text-textMain rounded-xl text-xs font-bold transition-colors cursor-pointer border border-border2 disabled:opacity-50">Cancel Protocol</button>
-                <button disabled={isPurging} onClick={executePurge} className="flex items-center gap-2 px-5 py-2.5 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-colors cursor-pointer disabled:opacity-50">
+                <button disabled={isPurging} onClick={executePurge} className="flex items-center gap-2 px-5 py-2.5 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-colors cursor-pointer disabled:opacity-50 btn-press">
                     {isPurging && <span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent"></span>} Confirm Purge
                 </button>
               </div>

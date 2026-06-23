@@ -236,7 +236,7 @@ export default function Arena() {
                     <button
                         type="submit"
                         disabled={isJoining || inviteCode.length < 6}
-                        className="w-full xl:w-auto shrink-0 px-8 py-3.5 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] disabled:opacity-50 cursor-pointer flex justify-center items-center"
+                        className="w-full xl:w-auto shrink-0 px-8 py-3.5 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] disabled:opacity-50 cursor-pointer flex justify-center items-center btn-press"
                     >
                         {isJoining ? <span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span> : 'Establish Link'}
                     </button>
@@ -345,7 +345,7 @@ export default function Arena() {
                                         Lockout active: {cooldownTimer}
                                     </button>
                                 ) : (
-                                    <button onClick={() => initiateGauntlet(tier.level)} className="w-full py-3 bg-reePurple hover:bg-purple-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(139,92,246,0.3)] transition-all cursor-pointer">
+                                    <button onClick={() => initiateGauntlet(tier.level)} className="w-full py-3 bg-reePurple hover:bg-purple-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(139,92,246,0.3)] transition-all cursor-pointer btn-press">
                                         Initiate Level-Up Exam
                                     </button>
                                 )}
@@ -369,7 +369,7 @@ export default function Arena() {
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 stagger-fade-in">
             {isLoadingRankings ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 py-20">
                 <span className="telemetry-spinner !w-8 !h-8 border-reeAmber border-t-transparent"></span>
@@ -389,7 +389,7 @@ export default function Arena() {
                     <div 
                       key={agent.uid} 
                       ref={isLastElement ? lastElementRef : null} 
-                      className={`grid grid-cols-12 gap-3 p-3 items-center rounded-xl mb-1 transition-colors ${isMe ? 'bg-reeBlue/10 border border-reeBlue/30 shadow-sm' : 'hover:bg-surface2 border border-transparent'}`}
+                      className={`grid grid-cols-12 gap-3 p-3 items-center rounded-xl mb-1 transition-colors hover-glow ${isMe ? 'bg-reeBlue/10 border border-reeBlue/30 shadow-sm' : 'hover:bg-surface2 border border-transparent'}`}
                     >
                       <div className="col-span-2 sm:col-span-1 flex justify-center">
                         <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black ${getRankBadge(idx)}`}>
@@ -547,7 +547,7 @@ export default function Arena() {
                 </button>
                 <button
                   onClick={handleDeployLobby}
-                  className="w-full sm:w-auto px-8 py-3 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-8 py-3 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-colors cursor-pointer flex items-center justify-center gap-2 btn-press"
                 >
                   ⚔️ Deploy Multiplayer Lobby
                 </button>

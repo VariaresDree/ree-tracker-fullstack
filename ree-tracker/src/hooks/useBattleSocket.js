@@ -37,6 +37,10 @@ export function useBattleSocket(battleId) {
 
             socket.on('disconnect', () => setConnected(false));
 
+            socket.on('connect_error', () => {
+                setConnected(false);
+            });
+
             socket.on('lobby-update', (data) => {
                 if (data.participants) setParticipants(data.participants);
                 if (data.status) setBattleStatus(data.status);
