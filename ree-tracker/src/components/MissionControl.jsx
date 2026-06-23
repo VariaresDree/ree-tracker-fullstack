@@ -2,14 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { updateCommandParameters } from '../services/dbQueries';
 import { useAuth } from '../contexts/AuthContext';
-import { useStore } from '../store/useStore';
+import { useTelemetrySlice } from '../store/slices';
 import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
 
 export default function MissionControl({ onPurgeRequest }) {
   const { currentUser } = useAuth();
 
-  const { stats, resetDailyQuotas } = useStore();
+  const { stats, resetDailyQuotas } = useTelemetrySlice();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);

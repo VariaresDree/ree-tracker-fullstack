@@ -1,0 +1,48 @@
+// Selector hooks layered on top of the monolithic useStore. Each hook returns
+// only the keys its caller actually reads, and uses `useShallow` so a state
+// update outside that slice never re-renders the component.
+//
+// Usage:
+//   const { stats, setStats } = useTelemetrySlice();
+//
+// This costs nothing at runtime vs the direct destructured pattern and cuts
+// dashboard-wide re-renders meaningfully when stats updates fire.
+
+import { useShallow } from 'zustand/react/shallow';
+import { useStore } from './useStore';
+
+// --- Auth / admin ---
+export const useAuthSlice = () =>
+  useStore(useShallow((s) => ({ isAdmin: s.isAdmin, setIsAdmin: s.setIsAdmin })));
+
+// --- Telemetry & stats ---
+export const useTelemetrySlice = () =>
+  useStore(
+    useShallow((s) => ({
+      stats: s.stats,
+      setStats: s.setStats,
+      syncStatus: s.syncStatus,
+      syncQueue: s.syncQueue,
+      flushQueueToCloud: s.flushQueueToCloud,
+      resetDailyQuotas: s.resetDailyQuotas,
+      purgeAnalytics: s.purgeAnalytics,
+    })),
+  );
+
+// --- Session-scope: review/pomodoro state ---
+export const useSessionSlice = () =>
+  useStore(
+    useShallow((s) => ({
+      pomodoro: s.pomodoro,
+      updatePomodoro: s.updatePomodoro,
+      switchPomodoroMode: s.switchPomodoroMode,
+    })),
+  );
+
+// --- TOS / metadata ---
+export const useTOSSlice = () =>
+  useStore(useShallow((s) => ({ dynamicTOS: s.dynamicTOS, setDynamicTOS: s.setDynamicTOS })));
+
+// --- Theme / preferences ---
+export const useThemeSlice = () =>
+  useStore(useShallow((s) => ({ theme: s.theme, setTheme: s.setTheme })));

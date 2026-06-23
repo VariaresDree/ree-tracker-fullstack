@@ -1,10 +1,11 @@
 // src/pages/Profile.jsx
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { updateProfile, deleteUser } from 'firebase/auth';
 // FIRESTORE IMPORTS COMPLETELY REMOVED
 import FocusTrap from '../components/FocusTrap';
+import { Skeleton } from '../components/ui';
 import toast from 'react-hot-toast';
 
 // Decoupled Components
@@ -12,8 +13,17 @@ import ComparativeAnalyticsTab from '../features/profile/ComparativeAnalyticsTab
 import StrategicPlannerTab from '../features/profile/StrategicPlannerTab';
 import CredentialsTab from '../features/profile/CredentialsTab';
 import ThemingArchitecture from '../features/profile/ThemingArchitecture';
-import AnalyticsDeepDive from '../features/analytics/AnalyticsDeepDive';
-import ExplanationReview from '../features/analytics/ExplanationReview';
+// Lazy: pulls Recharts only when the corresponding tab is opened.
+const AnalyticsDeepDive = lazy(() => import('../features/analytics/AnalyticsDeepDive'));
+const ExplanationReview = lazy(() => import('../features/analytics/ExplanationReview'));
+
+const TabFallback = () => (
+  <div className="space-y-3 py-4">
+    <Skeleton className="h-7 w-1/3" />
+    <Skeleton className="h-40" />
+    <Skeleton className="h-24" />
+  </div>
+);
 
 export default function Profile() {
   const { currentUser, logout, isAdmin } = useAuth();
@@ -212,10 +222,18 @@ export default function Profile() {
 
       {/* Dynamic Tab Injection */}
       {activeTab === 'analytics' && <ComparativeAnalyticsTab currentUser={currentUser} stats={stats} />}
-      {activeTab === 'deep-analytics' && <AnalyticsDeepDive />}
+      {activeTab === 'deep-analytics' && (
+        <Suspense fallback={<TabFallback />}>
+          <AnalyticsDeepDive />
+        </Suspense>
+      )}
       {activeTab === 'planner' && <StrategicPlannerTab currentUser={currentUser} stats={stats} setStats={setStats} />}
       {activeTab === 'credentials' && <CredentialsTab currentUser={currentUser} stats={stats} />}
-      {activeTab === 'review' && isAdmin && <ExplanationReview />}
+      {activeTab === 'review' && isAdmin && (
+        <Suspense fallback={<TabFallback />}>
+          <ExplanationReview />
+        </Suspense>
+      )}
 
       {/* BRAND NEW ISOLATED SETTINGS TAB */}
       {activeTab === 'settings' && (

@@ -1,5 +1,14 @@
+import { motion } from 'motion/react';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Stat, Skeleton } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
+
+// Motion presets — spring tuned to settle in ~700ms with a 6% overshoot.
+const cardEnter = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+};
+const barSpring = { type: 'spring', stiffness: 90, damping: 20, mass: 0.6 };
 
 const pctFmt = (p) => Math.round((p ?? 0) * 100);
 const rankBand = (pct) => {
@@ -53,6 +62,7 @@ export function TrajectoryCard() {
   const band = rankBand(rank);
 
   return (
+    <motion.div {...cardEnter}>
     <Card elevated grain className="overflow-hidden">
       <CardHeader>
         <div>
@@ -82,6 +92,7 @@ export function TrajectoryCard() {
         </div>
       </CardBody>
     </Card>
+    </motion.div>
   );
 }
 
@@ -95,13 +106,17 @@ function ProbabilityBar({ pass, top }) {
         <span>Topnotcher cutoff</span>
       </div>
       <div className="relative h-2 rounded-full bg-surface3 overflow-hidden">
-        <div
+        <motion.div
           className="absolute inset-y-0 left-0 bg-[var(--accent-signal)]"
-          style={{ width: `${passPct}%`, transition: 'width 600ms var(--ease-out-quart)' }}
+          initial={{ width: 0 }}
+          animate={{ width: `${passPct}%` }}
+          transition={barSpring}
         />
-        <div
+        <motion.div
           className="absolute inset-y-0 left-0 bg-[var(--accent-velocity)] mix-blend-screen"
-          style={{ width: `${topPct}%`, transition: 'width 600ms var(--ease-out-quart)' }}
+          initial={{ width: 0 }}
+          animate={{ width: `${topPct}%` }}
+          transition={barSpring}
         />
       </div>
     </div>

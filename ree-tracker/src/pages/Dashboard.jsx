@@ -1,6 +1,7 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { useTelemetrySlice, useTOSSlice } from '../store/slices';
 import { useAuth } from '../contexts/AuthContext';
 import MissionControl from '../components/MissionControl';
 import ThetaVelocityChart from '../components/ThetaVelocityChart';
@@ -19,7 +20,8 @@ import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
-  const { stats, purgeAnalytics, dynamicTOS, setStats } = useStore();
+  const { stats, purgeAnalytics, setStats } = useTelemetrySlice();
+  const { dynamicTOS } = useTOSSlice();
   
   const [sqlData, setSqlData] = useState(null);
   const [isFetchingSQL, setIsFetchingSQL] = useState(true);
