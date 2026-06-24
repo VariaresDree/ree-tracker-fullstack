@@ -5,6 +5,13 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(async () => ({
+  // Vitest config — pure-function tests run in node (no jsdom). When we add
+  // component tests we'll set `environment: 'jsdom'` and add @testing-library/react.
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.{js,jsx,ts,tsx}'],
+    globals: false,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
