@@ -56,8 +56,15 @@ jobs:
       - name: Install
         run: npm ci
 
-      # Backend tests don't need DATABASE_URL (Prisma is mocked or schema-only);
-      # set a dummy so `prisma generate` and any client-init code don't blow up.
+      # Prisma 7's postinstall hook doesn't reliably fire under `npm ci` on
+      # CI runners, leaving @prisma/client without its generated `.prisma`
+      # output. Generate explicitly so any test that requires the client
+      # (modelFallback → aiRoutes → authMiddleware → db.js) can resolve it.
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://localhost:5432/dummy
+
       - name: Test
         run: npm test
         env:
