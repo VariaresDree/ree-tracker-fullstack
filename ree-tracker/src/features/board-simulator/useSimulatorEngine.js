@@ -414,7 +414,135 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     }
   };
 
-  const exportOfflinePDF = async () => {};
+  // Offline reviewer PDF — pulls the same question pool the user would face
+  // if they hit "Initiate Simulation" right now, and dumps it to a printable
+  // PDF (one question per page, four options labelled A-D, blank answer key
+  // page at the end). LaTeX delimiters are stripped to plain text since
+  // jsPDF cannot render KaTeX glyphs; this is a study-on-paper artefact,
+  // not a perfect render of the on-screen exam.
+  const exportOfflinePDF = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    const toastId = toast.loading('Compiling offline simulator pool to PDF…');
+    try {
+      // Pull the pool using the same vault path the live simulator uses
+      // so the printed paper matches what the user would see on screen.
+      const subjectMap = { ee: 'EE', esas: 'ESAS', math: 'Mathematics', mathematics: 'Mathematics' };
+      const subject = subjectMap[String(config.subject || '').toLowerCase()] || config.subject || 'EE';
+      const pool = await fetchVaultQuestions(subject, 'All', config.count || 20);
+      if (!pool || pool.length === 0) {
+        throw new Error('No questions available for the selected configuration.');
+      }
+
+      // Dynamic import keeps jspdf out of the initial bundle.
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const lineH = 6;
+      const usableW = pageW - margin * 2;
+
+      // Cover page
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REE.ai Offline Simulator Pool', margin, margin + 8);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        [
+          `Subject: ${subject}`,
+          `Questions: ${pool.length}`,
+          `Time limit: ${config.timeLimitMins || 30} minutes`,
+          `Generated: ${new Date().toLocaleString()}`,
+          '',
+          'Instructions: For each item, select the best answer (A-D).',
+          'The answer key is on the final page. Do not flip until done.',
+        ],
+        margin,
+        margin + 22,
+      );
+
+      // Per-question pages
+      pool.forEach((q, i) => {
+        doc.addPage();
+        let y = margin + 4;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(`Item ${i + 1}`, margin, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text(`${q.subject || ''}${q.subtopic ? ' › ' + q.subtopic : ''}`, pageW - margin, y, { align: 'right' });
+
+        y += lineH + 2;
+        doc.setFontSize(11);
+        const promptLines = doc.splitTextToSize(stripLatex(q.text || q.question || ''), usableW);
+        doc.text(promptLines, margin, y);
+        y += promptLines.length * lineH + 4;
+
+        (q.options || []).forEach((opt, j) => {
+          const letter = String.fromCharCode(65 + j);
+          const optLines = doc.splitTextToSize(`${letter}. ${stripLatex(opt)}`, usableW - 4);
+          // Page break safety for long options
+          if (y + optLines.length * lineH > pageH - margin) {
+            doc.addPage();
+            y = margin + 4;
+          }
+          doc.text(optLines, margin + 2, y);
+          y += optLines.length * lineH + 2;
+        });
+      });
+
+      // Answer key page
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text('Answer Key', margin, margin + 8);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      let keyY = margin + 18;
+      pool.forEach((q, i) => {
+        const idx = (q.options || []).indexOf(q.answer);
+        const letter = idx >= 0 ? String.fromCharCode(65 + idx) : '?';
+        const line = `${i + 1}. ${letter}`;
+        if (keyY > pageH - margin) {
+          doc.addPage();
+          keyY = margin + 8;
+        }
+        doc.text(line, margin, keyY);
+        keyY += lineH;
+      });
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      doc.save(`ree-simulator-${subject.toLowerCase()}-${stamp}.pdf`);
+      toast.success('Offline pool compiled.', { id: toastId });
+    } catch (err) {
+      console.error('Compile to PDF failed:', err);
+      toast.error(err?.message || 'Failed to compile PDF.', { id: toastId });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Minimal LaTeX → plain-text shim for the PDF export. We strip the math
+  // delimiters and a few of the most common LaTeX commands so prose stays
+  // readable on paper; we don't try to lay out actual math glyphs.
+  function stripLatex(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
+      .replace(/\$([^$]*)\$/g, '$1')
+      .replace(/\\\\\(([^)]*)\\\\\)/g, '$1')
+      .replace(/\\\\\[([\s\S]*?)\\\\\]/g, '$1')
+      .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1)/($2)')
+      .replace(/\\sqrt\{([^}]*)\}/g, 'sqrt($1)')
+      .replace(/\\(sin|cos|tan|log|ln|pi|theta|alpha|beta|gamma|delta|omega|Omega|infty|approx|times|cdot|le|ge|ne|to|leftarrow|rightarrow)\b/g, ' $1 ')
+      .replace(/\\[a-zA-Z]+\s*\{?([^}]*)\}?/g, ' $1 ')
+      .replace(/[{}]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
 
   return {
     config, setConfig, session, setSession,

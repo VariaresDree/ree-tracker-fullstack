@@ -164,7 +164,10 @@ export default function Arena() {
               isPrcStandard: hostConfig.mode === 'prc' || hostConfig.mode === 'blended'
           };
 
-          const battleId = await createMultiplayerBattle(currentUser, finalConfig, pool, finalTime * 60);
+          // Pass the Firebase UID (a String), not the whole user object.
+          // The backend stores Battle.hostId as a String FK to User.id and
+          // would reject an object body with a Prisma type error → 500.
+          const battleId = await createMultiplayerBattle(currentUser.uid, finalConfig, pool, finalTime * 60);
           
           toast.success("Lobby Successfully Created!", { id: toastId });
           setShowHostModal(false);

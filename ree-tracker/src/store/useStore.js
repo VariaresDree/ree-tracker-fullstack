@@ -137,20 +137,42 @@ export const useStore = create(
       }),
 
       purgeAnalytics: async () => {
-        try {
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-                const token = await currentUser.getIdToken();
-                const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                await fetch(`${apiUrl}/api/analytics/purge`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-            }
-            set({ stats: null, syncQueue: [], syncStatus: 'synced' });
-        } catch (e) {
-            console.error("Purge failed", e);
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('Authentication required.');
+        const token = await currentUser.getIdToken();
+        const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const resp = await fetch(`${apiUrl}/api/analytics/purge`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            throw new Error(body.error || `Purge failed (${resp.status}).`);
         }
+        // Reset to a clean baseline stats object instead of `null`. A null
+        // stats traps the Dashboard on its skeleton until the page reloads,
+        // because `if (!activeStats) return <DashboardSkeleton />`. Giving
+        // the user a zeroed-out object lets them keep navigating; the next
+        // dashboard fetch (or telemetry sync) will hydrate fresh numbers.
+        set({
+            stats: {
+                globalStreak: 0,
+                lastActiveDate: null,
+                dailyMath: 0,
+                dailyESAS: 0,
+                dailyEE: 0,
+                matrix: { hc: 0, hw: 0, lc: 0, lw: 0 },
+                blindSpots: [],
+                microTopics: {},
+                activityCalendar: {},
+                thetaHistory: [],
+                totalAnswered: 0,
+                totalCorrect: 0,
+                irt: { theta: 0, consecutiveCorrect: 0, consecutiveWrong: 0 },
+            },
+            syncQueue: [],
+            syncStatus: 'synced',
+        });
       },
 
       // 3. POMODORO PROTOCOL SLICE

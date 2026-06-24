@@ -7,16 +7,20 @@ const logger = require('../utils/logger');
 
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        const { battleId, hostId, config, questions, timeLimitSecs } = req.body;
+        const { battleId, config, questions, timeLimitSecs } = req.body;
 
         if (!battleId || !questions || !timeLimitSecs) {
             return res.status(400).json({ error: 'battleId, questions, and timeLimitSecs are required.' });
         }
 
+        // Always use the authenticated user as host — never trust a body field
+        // for the FK. (The old code accepted a body `hostId` which the frontend
+        // was passing as a Firebase user object, blowing up Prisma's String
+        // type check and producing a silent 500.)
         const battle = await prisma.battle.create({
             data: {
                 id: battleId,
-                hostId: hostId || req.user.id,
+                hostId: req.user.id,
                 config: config || {},
                 questions: questions,
                 timeLimitSecs: parseInt(timeLimitSecs)
