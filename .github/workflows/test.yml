@@ -1,0 +1,64 @@
+# Runs frontend + backend vitest suites on every PR and on pushes to main.
+# Kept intentionally lean — no jobs that need secrets, no lint/typecheck for
+# now (we have no TS yet, ESLint is configured but not enforced in CI). When
+# we add those gates, extend the matrix below.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ree-tracker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ree-tracker/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  backend:
+    name: Backend (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ree-tracker-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ree-tracker-backend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # Backend tests don't need DATABASE_URL (Prisma is mocked or schema-only);
+      # set a dummy so `prisma generate` and any client-init code don't blow up.
+      - name: Test
+        run: npm test
+        env:
+          DATABASE_URL: postgresql://localhost:5432/dummy
