@@ -37,24 +37,51 @@ router.get('/stats', authMiddleware, async (req, res) => {
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { subject, subtopic, limit = 50 } = req.query;
-        
+
         let whereClause = { isFlagged: false };
-        
+
         const subjFilter = getSubjectFilter(subject);
         if (subjFilter) whereClause.subject = subjFilter;
-        
+
         if (subtopic && subtopic !== 'All') {
-            whereClause.subtopic = subtopic.trim(); 
+            whereClause.subtopic = subtopic.trim();
+        }
+
+        // Pull a random sample. Previously this used `orderBy: createdAt desc`
+        // which deterministically returned the latest N questions — for Math
+        // that meant only the most recently added subtopic (e.g. Algebra), for
+        // ESAS only Chemistry. We pull IDs first with `ORDER BY random()` then
+        // re-fetch the rows so subtopic coverage is balanced across sessions.
+        const cap = Math.min(parseInt(limit) || 50, 2000);
+        const ids = await prisma.$queryRawUnsafe(
+            `SELECT id FROM "Question"
+             WHERE "isFlagged" = false
+             ${subjFilter ? `AND "subject" = ANY($1::text[])` : ''}
+             ${subtopic && subtopic !== 'All' ? `AND "subtopic" = $${subjFilter ? 2 : 1}` : ''}
+             ORDER BY random()
+             LIMIT ${cap}`,
+            ...[
+                subjFilter ? (subjFilter.in || [subjFilter]) : null,
+                subtopic && subtopic !== 'All' ? subtopic.trim() : null,
+            ].filter((v) => v !== null),
+        );
+
+        const idList = ids.map((r) => r.id);
+        if (idList.length === 0) {
+            return res.status(200).json({ success: true, items: [] });
         }
 
         const questions = await prisma.question.findMany({
-            where: whereClause,
-            take: parseInt(limit),
-            orderBy: { createdAt: 'desc' }
+            where: { id: { in: idList } },
         });
+
+        // Preserve the random order from the SQL query
+        const orderMap = new Map(idList.map((id, i) => [id, i]));
+        questions.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
 
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {
+        logger.error('Question fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch question bank.' });
     }
 });

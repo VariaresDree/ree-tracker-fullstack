@@ -156,11 +156,18 @@ export default function AnalyticsDeepDive() {
             </div>
           )}
           {studyData.length > 0 && (
-            <div className="mt-4">
+            <div className="mt-6 space-y-2">
+              <div className="text-[0.6rem] font-black text-muted uppercase tracking-widest">Last 14 days (minutes)</div>
               <BarChart
-                items={studyData.slice(-14).map(d => ({ ...d, minutes: Math.round(d.totalSecs / 60) }))}
+                items={studyData.slice(-14).map(d => {
+                  const dt = new Date(d.date);
+                  const short = Number.isNaN(dt.getTime())
+                    ? d.date
+                    : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  return { ...d, minutes: Math.round(d.totalSecs / 60), shortDate: short };
+                })}
                 valueKey="minutes"
-                labelKey="date"
+                labelKey="shortDate"
                 color="bg-reeBlue"
               />
             </div>
