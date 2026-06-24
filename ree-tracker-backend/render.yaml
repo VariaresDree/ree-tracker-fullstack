@@ -14,7 +14,7 @@ services:
   - type: web
     name: ree-tracker-backend
     runtime: node
-    plan: starter   # $7/mo — required for Socket.io (free tier sleeps)
+    plan: free   # was: starter ($7/mo)
     rootDir: ree-tracker-backend
     buildCommand: npm install && npx prisma generate
     startCommand: npm start
