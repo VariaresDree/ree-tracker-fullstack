@@ -137,23 +137,38 @@ export const useStore = create(
         } = event || {};
         if (!questionId) return;
 
-        // 1. Stage for backend sync
-        getStore().stageAttemptTelemetry({ questionId, subject, subtopic, isCorrect, confidenceLevel, timeSpentMs });
+        // Atomic update so two answers in the same JS tick can't both read
+        // the same `stats` snapshot and the second overwrite the first's
+        // optimistic update. Without this, fast users (10 items in 5s) saw
+        // their tally come up 1-2 short of what they actually answered.
+        set((state) => {
+          const payload = {
+            id: newId(),
+            questionId,
+            subject,
+            subtopic,
+            isCorrect: !!isCorrect,
+            confidenceLevel: String(confidenceLevel || 'MED').toUpperCase(),
+            timeSpentMs: Number(timeSpentMs) || 0,
+            createdAt: new Date().toISOString(),
+          };
+          const updatedStats = calculateUpdatedStats(
+            state.stats || {},
+            !!isCorrect,
+            String(confidenceLevel || 'MED').toLowerCase(),
+            subtopic,
+            subject,
+            questionId,
+            Math.floor((Number(timeSpentMs) || 0) / 1000),
+          );
+          return {
+            stats: updatedStats,
+            syncQueue: [...state.syncQueue, payload],
+            syncStatus: state.syncStatus === 'syncing' ? 'syncing' : 'offline_queued',
+          };
+        });
 
-        // 2. Optimistic local update — dashboard widgets tick before the network resolves
-        const currentStats = getStore().stats || {};
-        const updated = calculateUpdatedStats(
-          currentStats,
-          !!isCorrect,
-          String(confidenceLevel || 'MED').toLowerCase(),
-          subtopic,
-          subject,
-          questionId,
-          Math.floor((timeSpentMs || 0) / 1000),
-        );
-        set({ stats: updated });
-
-        // 3. Debounced flush — see scheduleDebouncedFlush below
+        // Debounced flush — see scheduleDebouncedFlush below
         getStore().scheduleDebouncedFlush();
       },
 

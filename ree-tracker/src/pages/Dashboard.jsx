@@ -23,9 +23,21 @@ export default function Dashboard() {
   const { currentUser } = useAuth();
   const { stats, purgeAnalytics, setStats, syncStatus } = useTelemetrySlice();
   const { dynamicTOS } = useTOSSlice();
-  
+
   const [sqlData, setSqlData] = useState(null);
   const [isFetchingSQL, setIsFetchingSQL] = useState(true);
+  // syncTick increments whenever the store transitions from syncing -> synced,
+  // which triggers the dashboard to refetch the authoritative aggregates.
+  // Without this, the optimistic local stats (recordAttempt) tick instantly but
+  // the dashboard widgets keep showing the stale sqlData from initial mount.
+  const [syncTick, setSyncTick] = useState(0);
+  const prevSyncStatusRef = React.useRef(syncStatus);
+  useEffect(() => {
+    if (prevSyncStatusRef.current === 'syncing' && syncStatus === 'synced') {
+      setSyncTick((n) => n + 1);
+    }
+    prevSyncStatusRef.current = syncStatus;
+  }, [syncStatus]);
 
   const [aiReport, setAiReport] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -69,13 +81,16 @@ export default function Dashboard() {
                 });
 
                 setSqlData({ ...json.data, microTopics: normalizedMicroTopics });
-                
+
                 const currentState = useStore.getState().stats || {};
                 setStats({
                     ...currentState,
                     role: json.data.profile?.role || currentState.role || 'USER',
-                    dailyTarget: currentState.dailyTarget || 50, 
-                    examDate: currentState.examDate || null      
+                    // Backend User.examDate / dailyTarget are canonical. Without
+                    // this, the local stats could overwrite a freshly-saved date
+                    // with null if the IDB rehydrate hadn't completed yet.
+                    dailyTarget: json.data.profile?.dailyTarget || currentState.dailyTarget || 50,
+                    examDate: json.data.profile?.examDate || currentState.examDate || null,
                 });
             }
         } catch (error) {
@@ -86,41 +101,72 @@ export default function Dashboard() {
     };
 
     fetchSQLAnalytics();
-  }, [currentUser, dynamicTOS, setStats]); 
+  }, [currentUser, dynamicTOS, setStats, syncTick]);
 
   const activeStats = useMemo(() => {
       if (!stats && !sqlData) return null;
       if (!sqlData) return stats;
 
-      const mappedMicroTopics = {};
+      const sqlMicroTopics = {};
       if (sqlData.microTopics) {
           Object.keys(sqlData.microTopics).forEach(subtopicName => {
-              mappedMicroTopics[subtopicName] = {
-                  attempts: sqlData.microTopics[subtopicName].totalAttempts,
-                  correct: sqlData.microTopics[subtopicName].correctHits,
+              sqlMicroTopics[subtopicName] = {
+                  attempts: sqlData.microTopics[subtopicName].totalAttempts || 0,
+                  correct: sqlData.microTopics[subtopicName].correctHits || 0,
                   subject: sqlData.microTopics[subtopicName].subject,
-                  totalTime: sqlData.microTopics[subtopicName].totalTimeSecs * 1000 
+                  totalTime: (sqlData.microTopics[subtopicName].totalTimeSecs || 0) * 1000,
               };
           });
       }
 
+      // Per-topic merge: take whichever side has more attempts. Lets optimistic
+      // local updates surface before the backend re-aggregation lands, while
+      // still trusting the backend's authoritative numbers once they catch up.
+      const mergedMicroTopics = { ...sqlMicroTopics };
+      const localMicroTopics = stats?.microTopics || {};
+      Object.entries(localMicroTopics).forEach(([topic, local]) => {
+          const sql = sqlMicroTopics[topic];
+          if (!sql || (local?.attempts || 0) > (sql.attempts || 0)) {
+              mergedMicroTopics[topic] = { ...sql, ...local };
+          }
+      });
+
+      // Same idea for the high/low confidence matrix — pick whichever side
+      // has the higher total cell count, since the local one ticked from
+      // recordAttempt and may be ahead of the cached server aggregate.
+      const sqlMatrix = sqlData.matrix || { hc: 0, hw: 0, lc: 0, lw: 0 };
+      const localMatrix = stats?.matrix || { hc: 0, hw: 0, lc: 0, lw: 0 };
+      const sqlTotal = (sqlMatrix.hc||0) + (sqlMatrix.hw||0) + (sqlMatrix.lc||0) + (sqlMatrix.lw||0);
+      const localTotal = (localMatrix.hc||0) + (localMatrix.hw||0) + (localMatrix.lc||0) + (localMatrix.lw||0);
+      const matrix = localTotal > sqlTotal ? localMatrix : sqlMatrix;
+
       const todayStats = sqlData.dailyStats || sqlData.profile?.dailyStats || {};
+
+      // Quotas/streak: prefer the larger value so quick answers (local) aren't
+      // overwritten by cached zero aggregates from the backend.
+      const pickMax = (...vals) => Math.max(...vals.map((v) => Number(v) || 0));
 
       return {
           ...stats,
-          irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating || stats?.irt?.theta || 0 },
-          matrix: sqlData.matrix || stats?.matrix,
-          microTopics: mappedMicroTopics,
-          thetaHistory: sqlData.thetaHistory || stats?.thetaHistory || [],
-          
-          activityCalendar: sqlData.activityCalendar || stats?.activityCalendar || {},
-          
-          dailyMath: todayStats.Math || sqlData.profile?.dailyMath || stats?.dailyMath || 0,
-          dailyESAS: todayStats.ESAS || sqlData.profile?.dailyESAS || stats?.dailyESAS || 0,
-          dailyEE: todayStats.EE || sqlData.profile?.dailyEE || stats?.dailyEE || 0,
-          
-          examDate: stats?.examDate || sqlData.profile?.examDate || null, 
-          dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50
+          irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating ?? stats?.irt?.theta ?? 0 },
+          matrix,
+          microTopics: mergedMicroTopics,
+          thetaHistory: sqlData.thetaHistory && sqlData.thetaHistory.length > (stats?.thetaHistory?.length || 0)
+              ? sqlData.thetaHistory
+              : (stats?.thetaHistory || sqlData.thetaHistory || []),
+
+          activityCalendar: { ...(sqlData.activityCalendar || {}), ...(stats?.activityCalendar || {}) },
+
+          dailyMath: pickMax(todayStats.Math, sqlData.profile?.dailyMath, stats?.dailyMath),
+          dailyESAS: pickMax(todayStats.ESAS, sqlData.profile?.dailyESAS, stats?.dailyESAS),
+          dailyEE: pickMax(todayStats.EE, sqlData.profile?.dailyEE, stats?.dailyEE),
+
+          globalStreak: pickMax(sqlData.profile?.globalStreak, stats?.globalStreak),
+          totalAnswered: pickMax(sqlData.profile?.totalAnswered, stats?.totalAnswered),
+          totalCorrect: pickMax(stats?.totalCorrect),
+
+          examDate: stats?.examDate || sqlData.profile?.examDate || null,
+          dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50,
       };
   }, [stats, sqlData]);
 

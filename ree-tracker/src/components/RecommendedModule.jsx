@@ -30,7 +30,7 @@ export default function RecommendedModule({ stats }) {
         return (
             <div className="p-6 bg-surface border border-border2 rounded-xl shadow-sm text-center">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-muted mb-2">Tactical Recommendation</h3>
-                <p className="text-xs text-muted2 font-mono">Insufficient telemetry. Complete more simulations to generate targeting data.</p>
+                <p className="text-xs text-muted2 font-mono">Answer at least 3 items per topic in any session to generate targeting data.</p>
             </div>
         );
     }
