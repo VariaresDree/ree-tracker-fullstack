@@ -1,6 +1,5 @@
 // src/components/MissionControl.jsx
 import React, { useState, useEffect } from 'react';
-import { updateCommandParameters } from '../services/dbQueries';
 import { useAuth } from '../contexts/AuthContext';
 import { useTelemetrySlice } from '../store/slices';
 import FocusTrap from './FocusTrap';
@@ -9,7 +8,7 @@ import toast from 'react-hot-toast';
 export default function MissionControl({ onPurgeRequest }) {
   const { currentUser } = useAuth();
 
-  const { stats, resetDailyQuotas } = useTelemetrySlice();
+  const { stats, resetDailyQuotas, saveExamConfig } = useTelemetrySlice();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -42,23 +41,23 @@ export default function MissionControl({ onPurgeRequest }) {
   const currentEE = stats?.dailyEE || 0;
   const totalCompleted = currentMath + currentESAS + currentEE;
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleSaveConfig = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
-      if (currentUser?.uid) {
-        await updateCommandParameters(currentUser.uid, {
-          examDate: editDate,
-          dailyTarget: Number(editGoal)
-        });
-        
-        useStore.setState({ 
-            stats: { ...stats, examDate: editDate, dailyTarget: Number(editGoal) } 
-        });
-        toast.success('Configuration saved.');
-      }
+      // Persists to the backend AND updates local stats via the single
+      // source-of-truth action — keeps Profile + Strategic Planner in sync.
+      await saveExamConfig({ examDate: editDate, dailyTarget: Number(editGoal) });
+      toast.success('Configuration saved.');
       setIsEditing(false);
     } catch (error) {
-      console.error("Configuration write failure:", error);
-      toast.error('Failed to save configuration.');
+      console.error('Configuration write failure:', error);
+      const offline = error?.message === '[OFFLINE]';
+      toast.error(offline ? 'Backend unreachable — try again when online.' : 'Failed to save configuration.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -71,26 +70,22 @@ export default function MissionControl({ onPurgeRequest }) {
   return (
     <div className="w-full mb-2 relative animate-in fade-in">
       
-      {/* UNIFIED HEADER BAR */}
+      {/* HEADER BAR — streak + command parameters. The "System Telemetry
+          Online" indicator now lives on the Dashboard, directly under the
+          welcome greeting and above the exam-date countdown. */}
       <div className="flex flex-wrap justify-between items-center mb-6 bg-surface2/40 border border-border2/60 px-4 py-3 rounded-xl gap-3 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="w-2.5 h-2.5 rounded-full bg-reeGreen animate-pulse shadow-[0_0_8px_#22c55e]"></span>
-          <span className="text-[0.65rem] font-bold tracking-widest uppercase text-textMain">System Telemetry Online</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface3/50 border border-border2 rounded-lg">
+          <span className="text-xs">🔥</span>
+          <span className="text-[0.65rem] font-black uppercase tracking-widest text-reeGreen">{streak}</span>
+          <span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted">Day Streak</span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-surface3/50 border border-border2 rounded-lg">
-              <span className="text-xs">🔥</span>
-              <span className="text-[0.65rem] font-black uppercase tracking-widest text-reeGreen">{streak}</span>
-              <span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted">Day Streak</span>
-            </div>
-            <button
-                onClick={() => setIsEditing(!isEditing)}
-                aria-label={isEditing ? 'Close command parameters' : 'Open command parameters'}
-                className={`text-[0.65rem] font-bold uppercase tracking-wider px-4 py-2 rounded-lg transition-all shadow-sm cursor-pointer border ${isEditing ? 'bg-reeBlue/20 border-reeBlue/50 text-reeBlue' : 'bg-surface3 hover:bg-surface3/80 border-border2 text-textMain'}`}
-            >
-                ⚙️ Command Parameters
-            </button>
-        </div>
+        <button
+            onClick={() => setIsEditing(!isEditing)}
+            aria-label={isEditing ? 'Close command parameters' : 'Open command parameters'}
+            className={`text-[0.65rem] font-bold uppercase tracking-wider px-4 py-2 rounded-lg transition-all shadow-sm cursor-pointer border ${isEditing ? 'bg-reeBlue/20 border-reeBlue/50 text-reeBlue' : 'bg-surface3 hover:bg-surface3/80 border-border2 text-textMain'}`}
+        >
+            ⚙️ Command Parameters
+        </button>
       </div>
 
       {/* COMMAND PARAMETERS DROPDOWN */}
@@ -117,8 +112,8 @@ export default function MissionControl({ onPurgeRequest }) {
                 ⚠ Purge All Analytics
               </button>
             </div>
-            <button onClick={handleSaveConfig} className="px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white font-bold rounded-md text-xs transition-colors cursor-pointer uppercase tracking-wider shadow-md">
-              Deploy Overrides
+            <button onClick={handleSaveConfig} disabled={isSaving} className="px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white font-bold rounded-md text-xs transition-colors cursor-pointer uppercase tracking-wider shadow-md disabled:opacity-50">
+              {isSaving ? 'Saving…' : 'Deploy Overrides'}
             </button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 const SUBJECT_MAP = { Mathematics: 'MATHEMATICS', ESAS: 'ESAS', EE: 'EE' };
 
 export default function StudyPlanGenerator({ onPlanGenerated }) {
-    const { dynamicTOS, stats } = useStore();
+    const { dynamicTOS, stats, saveExamConfig } = useStore();
     const safeTOS = dynamicTOS || {};
 
     const examDate = stats?.examDate || '';
@@ -15,6 +15,12 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
     const [selectedSubjects, setSelectedSubjects] = useState(['Mathematics', 'ESAS', 'EE']);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isClearing, setIsClearing] = useState(false);
+
+    // Keep the planner's date mirrored to the canonical exam date — so a change
+    // made in Command Parameters or the Identity Matrix shows here too.
+    useEffect(() => {
+        if (stats?.examDate) setCustomExamDate(stats.examDate);
+    }, [stats?.examDate]);
 
     const daysUntilExam = useMemo(() => {
         if (!customExamDate) return null;
@@ -43,6 +49,12 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
 
         setIsGenerating(true);
         try {
+            // Generating a plan for a date commits that date as the canonical
+            // exam date — persist it so the whole app stays in sync (no more
+            // ephemeral-only planner date).
+            if (customExamDate !== stats?.examDate) {
+                await saveExamConfig({ examDate: customExamDate }).catch(() => {});
+            }
             const result = await generateStudyPlan(customExamDate, topicsToGenerate);
             toast.success(`Generated ${result.tasksCreated} study tasks`);
             onPlanGenerated?.();

@@ -160,11 +160,22 @@ export const useReviewSession = (currentUser, isOnline) => {
     const endSession = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
+
+        const hasBatch = telemetryBatchRef.current.length > 0;
+        let synced = false;
+
+        if (!hasBatch) {
+            setIsSubmitting(false);
+            setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
+            return;
+        }
+
         const toastId = toast.loading("Encrypting and Syncing Telemetry...");
 
         try {
-            if (isOnline && telemetryBatchRef.current.length > 0) {
+            if (isOnline) {
                 await syncTelemetryBatch(currentUser.uid, `REV_${Date.now()}`, config.subject, 'ACTIVE_REVIEW', telemetryBatchRef.current);
+                synced = true;
 
                 const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
                 await apiRequest('/api/analytics/study-sessions', 'POST', {
@@ -178,12 +189,21 @@ export const useReviewSession = (currentUser, isOnline) => {
 
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
                 if (freshProfile?.data) setStats(freshProfile.data);
+                toast.success("Session data synced.", { id: toastId });
+            } else {
+                toast("Offline — progress will sync when you reconnect.", { id: toastId, icon: '📡' });
             }
-            toast.success("Session Data Synced Globally.", { id: toastId });
         } catch (error) {
-            toast.error("Offline: Progress stored locally.", { id: toastId });
+            // Surface the REAL failure instead of masking it as "offline". The
+            // batch is preserved (not cleared below) so a retry can still recover it.
+            const msg = error?.message === '[OFFLINE]'
+                ? 'Backend unreachable — progress kept locally.'
+                : `Sync failed: ${error?.message || 'unknown error'}`;
+            toast.error(msg, { id: toastId });
         } finally {
-            telemetryBatchRef.current = [];
+            // Only drop the batch once it's safely persisted; on failure keep it
+            // so nothing is silently lost.
+            if (synced) telemetryBatchRef.current = [];
             setIsSubmitting(false);
             setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
         }

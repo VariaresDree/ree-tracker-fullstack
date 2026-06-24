@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 const { VALID_MODES, telemetryBulkSchema } = require('../src/schemas/telemetrySchemas');
+const { gradeSchema, examSubmitSchema } = require('../src/schemas/examSchemas');
 
 describe('telemetry mode wiring', () => {
     it('exposes the five quiz-surface modes plus LEGACY', () => {
@@ -29,5 +30,31 @@ describe('telemetry mode wiring', () => {
             attempts: [{ questionId: '11111111-1111-4111-8111-111111111111' }],
         });
         expect(parsed.mode).toBe('LEGACY');
+    });
+});
+
+describe('legacy Firebase question IDs are accepted (not UUIDs)', () => {
+    // Real Question.id values are 20-char Firebase push IDs, e.g. "00QkwHdB8OvPY3Choa4L".
+    // A `.uuid()` constraint silently 400s every attempt, so analytics never persists.
+    const legacyId = '00QkwHdB8OvPY3Choa4L';
+
+    it('telemetry-bulk accepts a legacy push id', () => {
+        const ok = telemetryBulkSchema.safeParse({ attempts: [{ questionId: legacyId }] });
+        expect(ok.success).toBe(true);
+    });
+
+    it('grade schema accepts a legacy push id', () => {
+        const ok = gradeSchema.safeParse({ answers: [{ questionId: legacyId, userAnswer: 'A' }] });
+        expect(ok.success).toBe(true);
+    });
+
+    it('exam-submit schema accepts a legacy push id', () => {
+        const ok = examSubmitSchema.safeParse({ attempts: [{ questionId: legacyId, userAnswer: 'A' }] });
+        expect(ok.success).toBe(true);
+    });
+
+    it('still rejects an empty question id', () => {
+        const bad = telemetryBulkSchema.safeParse({ attempts: [{ questionId: '' }] });
+        expect(bad.success).toBe(false);
     });
 });

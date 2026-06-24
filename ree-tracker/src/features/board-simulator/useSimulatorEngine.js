@@ -303,7 +303,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                         matrix: freshProfile.data.matrix
                     });
                 }
-            } catch (syncError) { console.warn("Cloud Sync Failed", syncError); }
+            } catch (syncError) {
+                console.warn("Cloud Sync Failed", syncError);
+                // Make sync failures visible — results are still saved to the local
+                // ledger below, but the user/dev should know analytics didn't update.
+                const msg = syncError?.message === '[OFFLINE]'
+                    ? 'Offline — exam saved locally; analytics will sync later.'
+                    : `Telemetry sync failed: ${syncError?.message || 'unknown'}. Results saved locally.`;
+                toast.error(msg);
+            }
         }
 
         const score = Math.round((correct / finalQs.length) * 100);

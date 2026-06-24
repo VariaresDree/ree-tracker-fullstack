@@ -64,6 +64,7 @@ model User {
   // --- V6: Phase 6 Arena 2.0 — ELO + tiers ---
   eloRating          Int       @default(1200)
   tier               String    @default("BRONZE")
+  gauntletLevel      Int       @default(1)
   battleOutcomes     BattleOutcome[]
 
   @@index([thetaRating])

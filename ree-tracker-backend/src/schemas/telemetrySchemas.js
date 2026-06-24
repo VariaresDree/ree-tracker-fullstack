@@ -7,7 +7,12 @@ const telemetryBulkSchema = z.object({
     mode: z.enum(VALID_MODES).optional().default('LEGACY'),
     targetSubject: z.string().optional(),
     attempts: z.array(z.object({
-        questionId: z.string().uuid(),
+        // Question IDs are legacy 20-char Firebase push IDs (e.g. "00QkwHdB8OvPY3Choa4L"),
+        // NOT UUIDs — the Question model uses `id String @id` with no uuid() default.
+        // A `.uuid()` constraint here silently 400s every telemetry batch, so nothing
+        // ever persists. Accept any non-empty id; the server re-validates against the
+        // master Question table before writing.
+        questionId: z.string().min(1),
         userAnswer: z.string().optional(),
         subject: z.string().optional().default('General'),
         subtopic: z.string().optional().default('General'),
