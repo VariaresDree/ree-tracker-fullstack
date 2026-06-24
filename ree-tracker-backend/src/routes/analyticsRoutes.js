@@ -140,7 +140,7 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
 
 router.post('/telemetry-bulk', authMiddleware, idempotency(), validate(telemetryBulkSchema), async (req, res) => {
     try {
-        const { attempts, sessionId, mode } = req.body;
+        const { attempts, sessionId, mode, targetSubject } = req.body;
         if (!attempts || attempts.length === 0) return res.status(200).json({ success: true, updatedTheta: 0 });
 
         const result = await recordAttempts({
@@ -148,9 +148,15 @@ router.post('/telemetry-bulk', authMiddleware, idempotency(), validate(telemetry
             attempts,
             sessionId: sessionId || null,
             mode: mode || 'LEGACY',
+            targetSubject: targetSubject || null,
         });
         invalidateDashboard(req.user.id);
-        res.status(200).json({ success: true, updatedTheta: result.updatedTheta, written: result.written });
+        res.status(200).json({
+            success: true,
+            updatedTheta: result.updatedTheta,
+            written: result.written,
+            sessionId: result.sessionId,
+        });
     } catch (error) {
         logger.error('Telemetry bulk sync error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Matrix sync transaction rejected.' });
@@ -165,6 +171,8 @@ router.delete('/purge', authMiddleware, async (req, res) => {
             await tx.examSession.deleteMany({ where: { userId: req.user.id } });
             await tx.activityLog.deleteMany({ where: { userId: req.user.id } });
             await tx.userTopicPerformance.deleteMany({ where: { userId: req.user.id } });
+            await tx.forecastSnapshot.deleteMany({ where: { userId: req.user.id } });
+            await tx.userAbility.deleteMany({ where: { userId: req.user.id } });
             await tx.user.update({
                 where: { id: req.user.id },
                 data: { thetaRating: 0.0, globalStreak: 0 }

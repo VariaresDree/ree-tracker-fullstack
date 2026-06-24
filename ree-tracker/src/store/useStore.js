@@ -5,6 +5,15 @@ import { get, set, del } from 'idb-keyval';
 import { auth } from '../config/firebaseDb';
 import { TOS as fallbackTOS } from '../config/constants';
 import { updateCommandParameters } from '../services/dbQueries';
+import { calculateUpdatedStats } from '../utils/irtMath';
+
+// Module-scope debounce handle for the per-answer event-driven sync.
+// Lives outside the store so multiple resets just call clearTimeout on the
+// same handle without leaking timers.
+let debouncedFlushHandle = null;
+const DEBOUNCE_FLUSH_MS = 1500;
+
+const newId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 // HIGH-PERFORMANCE ASYNC STORAGE ADAPTER
 const idbStorage = {
@@ -30,10 +39,44 @@ export const useStore = create(
 
       // 2. TELEMETRY & STATS SLICE
       stats: null,
-      syncStatus: 'synced', 
-      syncQueue: [],        
+      syncStatus: 'synced',
+      syncQueue: [],
+
+      // Session lifecycle — set by startSession() when the user enters a
+      // quiz surface (Active Review / Board Sim / Gauntlet / Combat). The
+      // sessionId rides every staged attempt so the backend can upsert the
+      // ExamSession row before recording attempts (keystone FK fix).
+      currentSessionId: null,
+      currentSessionMode: null,   // 'ACTIVE_REVIEW' | 'BOARD_SIM' | 'GAUNTLET' | 'COMBAT' | 'BATTLE'
+      currentSubject: null,        // 'Mathematics' | 'ESAS' | 'EE' | 'BLENDED'
 
       setStats: (newStats) => set({ stats: newStats }),
+
+      // Start a new quiz session — call this when the surface mounts so the
+      // sessionId, mode, and targetSubject are available to per-answer events.
+      // Returns the generated sessionId so the surface can persist it locally
+      // if it wants to (Simulator stores it on the session object for resume).
+      startSession: ({ mode, subject } = {}) => {
+        const sessionId = newId();
+        set({
+          currentSessionId: sessionId,
+          currentSessionMode: mode || 'LEGACY',
+          currentSubject: subject || 'BLENDED',
+        });
+        return sessionId;
+      },
+
+      // End the current session — flushes any pending debounced batch and
+      // clears the session pointer. Safe to call when no session is active.
+      endSession: async () => {
+        if (debouncedFlushHandle) {
+          clearTimeout(debouncedFlushHandle);
+          debouncedFlushHandle = null;
+        }
+        const { syncQueue, flushQueueToCloud } = getStore();
+        if (syncQueue.length > 0) await flushQueueToCloud();
+        set({ currentSessionId: null, currentSessionMode: null, currentSubject: null });
+      },
 
       // SINGLE SOURCE OF TRUTH for the target board-exam date + daily quota.
       // Persists to the backend (User.examDate / User.dailyTarget) AND mirrors
@@ -57,12 +100,12 @@ export const useStore = create(
 
       stageAttemptTelemetry: (attemptData) => {
         const payload = {
-            id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+            id: newId(),
             questionId: attemptData.questionId,
             subject: attemptData.subject,
             subtopic: attemptData.subtopic,
             isCorrect: attemptData.isCorrect,
-            confidenceLevel: attemptData.confidenceLevel?.toUpperCase() || 'MED', 
+            confidenceLevel: attemptData.confidenceLevel?.toUpperCase() || 'MED',
             timeSpentMs: attemptData.timeSpentMs,
             createdAt: new Date().toISOString()
         };
@@ -71,6 +114,73 @@ export const useStore = create(
             syncQueue: [...state.syncQueue, payload],
             syncStatus: 'offline_queued'
         }));
+      },
+
+      // High-level per-answer event handler — the single entry point every
+      // quiz surface should call right after the user locks in a choice. It:
+      //
+      //   1. Stages the attempt into the IDB-persisted syncQueue.
+      //   2. Optimistically updates local `stats` so the dashboard counters,
+      //      theta history, matrix buckets, streak, etc. tick INSTANTLY —
+      //      before the network request resolves.
+      //   3. Schedules a debounced flush so 100 simulator answers in 90s
+      //      coalesce into ONE HTTP request, not 100.
+      //
+      // Reuses `calculateUpdatedStats` (utils/irtMath.js) for the optimistic
+      // update — same function the existing post-sync rehydrate already uses,
+      // so the optimistic state is consistent with the eventual server state.
+      // PR #18's vitest suite locks down its invariants.
+      recordAttempt: (event) => {
+        const {
+          questionId, subject = 'General', subtopic = 'General',
+          isCorrect, confidenceLevel = 'MED', timeSpentMs = 0,
+        } = event || {};
+        if (!questionId) return;
+
+        // Atomic update so two answers in the same JS tick can't both read
+        // the same `stats` snapshot and the second overwrite the first's
+        // optimistic update. Without this, fast users (10 items in 5s) saw
+        // their tally come up 1-2 short of what they actually answered.
+        set((state) => {
+          const payload = {
+            id: newId(),
+            questionId,
+            subject,
+            subtopic,
+            isCorrect: !!isCorrect,
+            confidenceLevel: String(confidenceLevel || 'MED').toUpperCase(),
+            timeSpentMs: Number(timeSpentMs) || 0,
+            createdAt: new Date().toISOString(),
+          };
+          const updatedStats = calculateUpdatedStats(
+            state.stats || {},
+            !!isCorrect,
+            String(confidenceLevel || 'MED').toLowerCase(),
+            subtopic,
+            subject,
+            questionId,
+            Math.floor((Number(timeSpentMs) || 0) / 1000),
+          );
+          return {
+            stats: updatedStats,
+            syncQueue: [...state.syncQueue, payload],
+            syncStatus: state.syncStatus === 'syncing' ? 'syncing' : 'offline_queued',
+          };
+        });
+
+        // Debounced flush — see scheduleDebouncedFlush below
+        getStore().scheduleDebouncedFlush();
+      },
+
+      // Resets the debounce timer; once the user pauses for DEBOUNCE_FLUSH_MS
+      // milliseconds (default 1500), flushQueueToCloud fires. Each new answer
+      // pushes the timer forward, so a contiguous burst flushes once.
+      scheduleDebouncedFlush: (delay = DEBOUNCE_FLUSH_MS) => {
+        if (debouncedFlushHandle) clearTimeout(debouncedFlushHandle);
+        debouncedFlushHandle = setTimeout(() => {
+          debouncedFlushHandle = null;
+          getStore().flushQueueToCloud();
+        }, delay);
       },
 
       flushQueueToCloud: async () => {
@@ -91,20 +201,23 @@ export const useStore = create(
             const token = await currentUser.getIdToken();
             const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
+            // currentSessionId is populated by startSession() when a quiz
+            // surface mounts; we deliberately do NOT mint a fresh UUID here
+            // anymore, because each new UUID would create a phantom
+            // ExamSession row. Falling back to a single per-flush UUID still
+            // beats throwing — backend upserts will tolerate it — but the
+            // expected path is "session lifecycle bracket each batch."
+            const sessionId = getStore().currentSessionId || newId();
+            const mode = getStore().currentSessionMode || 'ACTIVE_REVIEW';
+            const targetSubject = getStore().currentSubject || 'BLENDED';
+
             const response = await fetch(`${apiUrl}/api/analytics/telemetry-bulk`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    sessionId: getStore().currentSessionId || (crypto.randomUUID ? crypto.randomUUID() : 'temp-session'),
-                    // Server requires a known mode enum; default queue items
-                    // to ACTIVE_REVIEW (the only path that uses this flush).
-                    mode: getStore().currentSessionMode || 'ACTIVE_REVIEW',
-                    targetSubject: getStore().currentSubject || 'BLENDED',
-                    attempts: syncQueue
-                })
+                body: JSON.stringify({ sessionId, mode, targetSubject, attempts: syncQueue })
             });
 
             if (!response.ok) throw new Error("Backend synchronization transaction rejected.");

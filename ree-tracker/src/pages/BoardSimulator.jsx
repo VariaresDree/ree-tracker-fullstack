@@ -107,13 +107,12 @@ export default function BoardSimulator() {
       )}
 
       {!engine.session.isActive && !engine.session.isFinished && (
-        <SimulatorConfig 
-            config={engine.config} 
-            setConfig={engine.setConfig} 
-            session={engine.session} 
-            startSimulation={engine.startSimulation} 
-            exportOfflinePDF={engine.exportOfflinePDF}
-            isExporting={engine.isExporting}
+        <SimulatorConfig
+            config={engine.config}
+            setConfig={engine.setConfig}
+            session={engine.session}
+            startSimulation={engine.startSimulation}
+            engine={engine}
         />
       )}
 

@@ -233,10 +233,10 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             </button>
             <button
                 onClick={engine?.exportOfflinePDF}
-                disabled={session?.loading}
+                disabled={session?.loading || engine?.isExporting}
                 className="flex-1 sm:max-w-[300px] py-6 bg-surface2 hover:bg-surface3 border-2 border-border2/80 text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-all duration-300 cursor-pointer shadow-sm flex items-center justify-center gap-3 hover:-translate-y-1 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:hover:translate-y-0 disabled:active:scale-100"
             >
-                {session?.loading && engine?.isExporting ? <span className="telemetry-spinner !w-5 !h-5 border-white"></span> : <span className="text-xl">📄</span>} COMPILE TO PDF
+                {engine?.isExporting ? <span className="telemetry-spinner !w-5 !h-5 border-white"></span> : <span className="text-xl">📄</span>} COMPILE TO PDF
             </button>
         </div>
 

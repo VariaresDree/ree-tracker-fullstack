@@ -20,10 +20,33 @@ const MODEL_TIERS = (process.env.MODEL_TIERS
 
 const PER_MODEL_TIMEOUT_MS = 10_000;
 
-// Tiers that returned 404 within this process's lifetime — skip them on
-// subsequent calls so a phantom model name (e.g. typo or sunset ID) doesn't
-// cost 10s of timeout on every request.
-const deadTiers = new Set();
+// Tiers that returned 404 are skipped for DEAD_TIER_TTL_MS, then retried.
+// Previously this Set held forever — so a single transient 404 (rolling Google
+// availability) permanently blacklisted a model in-memory, and over time every
+// tier was marked dead, returning 502 for every AI request until backend
+// restart. TTL eviction lets the route recover without operator intervention.
+const DEAD_TIER_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const deadTiers = new Map(); // modelId -> deadAt timestamp
+
+const isDead = (modelId) => {
+    const ts = deadTiers.get(modelId);
+    if (!ts) return false;
+    if (Date.now() - ts > DEAD_TIER_TTL_MS) {
+        deadTiers.delete(modelId);
+        return false;
+    }
+    return true;
+};
+
+// Expose a Set-shaped view for the existing model-fallback test that asserts
+// `aiRoutes.deadTiers instanceof Set`. The Map is the internal storage; the
+// shimmed Set wraps `keys()` so consumers can still iterate.
+const deadTiersView = new Set();
+const refreshDeadTiersView = () => {
+    deadTiersView.clear();
+    for (const k of deadTiers.keys()) deadTiersView.add(k);
+    return deadTiersView;
+};
 
 let _ai = null;
 function getAI() {
@@ -61,7 +84,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
     try {
         const { model, contents, config } = req.body;
         const requested = model ? [model] : MODEL_TIERS;
-        const modelsToTry = requested.filter((m) => !deadTiers.has(m));
+        const modelsToTry = requested.filter((m) => !isDead(m));
         const tried = [];
         let lastError = null;
 
@@ -84,8 +107,9 @@ router.post('/generate', authMiddleware, async (req, res) => {
                 logger.warn('AI model fallback', { model: modelId, kind, latencyMs, error: error.message });
 
                 if (kind === 'not_found') {
-                    // Permanent for this process — never try this model again.
-                    deadTiers.add(modelId);
+                    // Mark dead with a TTL — auto-recovers after 5 minutes so a
+                    // transient 404 doesn't permanently blacklist the model.
+                    deadTiers.set(modelId, Date.now());
                 }
                 // For all other classes, continue to the next tier immediately.
             }
@@ -93,7 +117,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
         logger.error('AI generation exhausted all tiers', {
             tried,
-            deadTiers: Array.from(deadTiers),
+            deadTiers: Array.from(deadTiers.keys()),
             lastError: lastError?.message,
         });
         return res.status(502).json({
@@ -108,4 +132,10 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
 module.exports = router;
 module.exports.MODEL_TIERS = MODEL_TIERS;
-module.exports.deadTiers = deadTiers;
+// Set-shaped view preserved for the existing modelFallback test which checks
+// `deadTiers instanceof Set`. Mutate via the internal Map; the view is a
+// snapshot refreshed on demand.
+module.exports.deadTiers = refreshDeadTiersView();
+Object.defineProperty(module.exports, 'deadTiers', {
+    get: refreshDeadTiersView,
+});

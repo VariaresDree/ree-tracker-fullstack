@@ -27,6 +27,18 @@ export const useTelemetrySlice = () =>
       flushQueueToCloud: s.flushQueueToCloud,
       resetDailyQuotas: s.resetDailyQuotas,
       purgeAnalytics: s.purgeAnalytics,
+      // Event-driven analytics: per-answer entry point + manual debounce
+      // trigger. Used by Active Review / Board Sim / Gauntlet / Combat to
+      // fire optimistic UI updates + debounced backend sync.
+      recordAttempt: s.recordAttempt,
+      scheduleDebouncedFlush: s.scheduleDebouncedFlush,
+      // Session lifecycle — bracket each quiz surface so the backend can
+      // upsert the ExamSession row before persisting attempts.
+      startSession: s.startSession,
+      endSession: s.endSession,
+      currentSessionId: s.currentSessionId,
+      currentSessionMode: s.currentSessionMode,
+      currentSubject: s.currentSubject,
     })),
   );
 

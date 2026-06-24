@@ -1,12 +1,12 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, syncTelemetryBatch, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
 import toast from 'react-hot-toast';
 
 export const useReviewSession = (currentUser, isOnline) => {
-    const { dynamicTOS, setStats } = useStore();
+    const { dynamicTOS, setStats, recordAttempt, startSession: startStoreSession, endSession: endStoreSession } = useStore();
     const safeTOS = dynamicTOS || {};
 
     const [config, setConfig] = useState({
@@ -83,7 +83,12 @@ export const useReviewSession = (currentUser, isOnline) => {
             telemetryBatchRef.current = [];
             startTimeRef.current = Date.now();
             setElapsedTime(0);
-            
+
+            // Bracket the session in the store so the per-answer events know
+            // which ExamSession id, mode, and target subject to attach. The
+            // backend uses these to auto-upsert the ExamSession row.
+            startStoreSession({ mode: 'ACTIVE_REVIEW', subject: config.subject });
+
             setSession({
                 isActive: true, loading: false, isFinished: false,
                 questions: finalSessionQuestions, currentIndex: 0,
@@ -104,6 +109,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
         const isCorrect = option === currentQ.answer;
+        const timeSpentMs = elapsedTime * 1000;
 
         setSession(prev => ({
             ...prev, isAnswered: true, selectedOption: option,
@@ -111,9 +117,23 @@ export const useReviewSession = (currentUser, isOnline) => {
             totalAnswered: prev.totalAnswered + 1, correctHits: prev.correctHits + (isCorrect ? 1 : 0)
         }));
 
+        // Event-driven: stage + optimistic UI + debounced server sync. The
+        // dashboard counters tick immediately; one HTTP request flushes after
+        // the user pauses for ~1.5s instead of one per question.
+        recordAttempt({
+            questionId: currentQ.id,
+            subject: currentQ.subject,
+            subtopic: currentQ.subtopic,
+            isCorrect,
+            confidenceLevel: session.confidence,
+            timeSpentMs,
+        });
+
+        // Keep the in-memory ref as a backup for the session-end study-session
+        // POST (which records aggregate counts, not per-attempt rows).
         telemetryBatchRef.current.push({
             questionId: currentQ.id, subject: currentQ.subject, subtopic: currentQ.subtopic,
-            isCorrect: isCorrect, confidenceLevel: session.confidence, timeSpentMs: elapsedTime * 1000
+            isCorrect, confidenceLevel: session.confidence, timeSpentMs,
         });
     };
 
@@ -131,14 +151,28 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
 
+        const timeSpentMs = elapsedTime * 1000;
+
         setSession(prev => ({
             ...prev, isAnswered: true,
             totalAnswered: prev.totalAnswered + 1, correctHits: prev.correctHits + (isCorrect ? 1 : 0)
         }));
 
+        // Same event-driven path as MCQ — flashcard rating maps to a self-
+        // reported confidence + correctness pair, then immediately ticks the
+        // dashboard and schedules a debounced backend sync.
+        recordAttempt({
+            questionId: currentQ.id,
+            subject: currentQ.subject,
+            subtopic: currentQ.subtopic,
+            isCorrect,
+            confidenceLevel: mappedConfidence,
+            timeSpentMs,
+        });
+
         telemetryBatchRef.current.push({
             questionId: currentQ.id, subject: currentQ.subject, subtopic: currentQ.subtopic,
-            isCorrect: isCorrect, confidenceLevel: mappedConfidence, timeSpentMs: elapsedTime * 1000
+            isCorrect, confidenceLevel: mappedConfidence, timeSpentMs,
         });
     };
 
@@ -162,9 +196,11 @@ export const useReviewSession = (currentUser, isOnline) => {
         setIsSubmitting(true);
 
         const hasBatch = telemetryBatchRef.current.length > 0;
-        let synced = false;
 
         if (!hasBatch) {
+            // Nothing answered — just tear down. Still call endStoreSession to
+            // clear the session pointer so the next start gets a fresh id.
+            await endStoreSession();
             setIsSubmitting(false);
             setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
             return;
@@ -173,10 +209,13 @@ export const useReviewSession = (currentUser, isOnline) => {
         const toastId = toast.loading("Encrypting and Syncing Telemetry...");
 
         try {
-            if (isOnline) {
-                await syncTelemetryBatch(currentUser.uid, `REV_${Date.now()}`, config.subject, 'ACTIVE_REVIEW', telemetryBatchRef.current);
-                synced = true;
+            // endStoreSession() flushes any pending debounced batch THEN clears
+            // the session pointer. If the user took the questions in a tight
+            // burst the queue may already be empty (the debounce drained it);
+            // either way this is now the single point of session teardown.
+            await endStoreSession();
 
+            if (isOnline) {
                 const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
                 await apiRequest('/api/analytics/study-sessions', 'POST', {
                     mode: config.sessionMode,
@@ -187,23 +226,21 @@ export const useReviewSession = (currentUser, isOnline) => {
                     durationSecs: totalDuration
                 }).catch(() => {});
 
+                // Rehydrate from the canonical backend so any drift between
+                // optimistic local stats and the server state is reconciled.
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
                 if (freshProfile?.data) setStats(freshProfile.data);
                 toast.success("Session data synced.", { id: toastId });
             } else {
                 toast("Offline — progress will sync when you reconnect.", { id: toastId, icon: '📡' });
             }
+            telemetryBatchRef.current = [];
         } catch (error) {
-            // Surface the REAL failure instead of masking it as "offline". The
-            // batch is preserved (not cleared below) so a retry can still recover it.
             const msg = error?.message === '[OFFLINE]'
                 ? 'Backend unreachable — progress kept locally.'
                 : `Sync failed: ${error?.message || 'unknown error'}`;
             toast.error(msg, { id: toastId });
         } finally {
-            // Only drop the batch once it's safely persisted; on failure keep it
-            // so nothing is silently lost.
-            if (synced) telemetryBatchRef.current = [];
             setIsSubmitting(false);
             setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
         }
