@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { apiRequest, getAnalyticsProfile } from '../../services/dbQueries';
 import { auth } from '../../config/firebaseDb';
@@ -16,8 +16,15 @@ export const useGauntletEngine = (level) => {
     const [status, setStatus] = useState('loading');
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
+    const [confidences, setConfidences] = useState({});
     const [timeLeft, setTimeLeft] = useState(0);
     const [diagnostics, setDiagnostics] = useState(null);
+
+    // Per-question time tracking. We bucket time on the question that was
+    // visible when it was answered (best signal available without page-level
+    // visibility tracking); zero defaults are safe — the analytics ignores 0ms.
+    const lastAnswerTimestampRef = useRef(Date.now());
+    const timeSpentPerQuestionRef = useRef({});
 
     useEffect(() => {
         const bootGauntlet = async () => {
@@ -81,7 +88,16 @@ export const useGauntletEngine = (level) => {
     }, [status, timeLeft]);
 
     const handleAnswer = (qIndex, selectedOpt) => {
+        const now = Date.now();
+        const delta = now - lastAnswerTimestampRef.current;
+        lastAnswerTimestampRef.current = now;
+        // Bucket the elapsed time on the question being answered.
+        timeSpentPerQuestionRef.current[qIndex] = (timeSpentPerQuestionRef.current[qIndex] || 0) + Math.max(0, delta);
         setAnswers(prev => ({ ...prev, [qIndex]: selectedOpt }));
+    };
+
+    const handleConfidence = (qIndex, level) => {
+        setConfidences(prev => ({ ...prev, [qIndex]: level }));
     };
 
     const submitExam = async (isTimeOut = false) => {
@@ -89,9 +105,15 @@ export const useGauntletEngine = (level) => {
         const tier = GAUNTLET_TIERS[level];
 
         try {
+            // Per-question confidence (silent MED default when skipped under time
+            // pressure) and elapsed time go into the grade payload so Gauntlet
+            // attempts feed the same calibration/IRT analytics as Active Review
+            // and Board Simulator.
             const gradePayload = questions.map((q, idx) => ({
                 questionId: q.id,
-                userAnswer: answers[idx] || ''
+                userAnswer: answers[idx] || '',
+                confidenceLevel: confidences[idx] || 'MED',
+                timeSpentMs: timeSpentPerQuestionRef.current[idx] || 0,
             }));
 
             const gradeResult = await apiRequest('/api/exams/grade', 'POST', { answers: gradePayload, mode: 'GAUNTLET' });
@@ -160,7 +182,7 @@ export const useGauntletEngine = (level) => {
     };
 
     return {
-        status, questions, answers, timeLeft, diagnostics,
-        handleAnswer, submitExam
+        status, questions, answers, confidences, timeLeft, diagnostics,
+        handleAnswer, handleConfidence, submitExam
     };
 };
