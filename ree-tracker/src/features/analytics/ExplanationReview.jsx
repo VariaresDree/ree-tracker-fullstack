@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchPendingExplanations, updateExplanationStatus } from '../../services/dbQueries';
+import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
 const StatusBadge = ({ status }) => {
@@ -71,11 +72,18 @@ export default function ExplanationReview() {
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-textMain">
-                    Explanation Review Queue ({questions.length})
-                </h3>
-                <button onClick={loadPending} className="text-xs text-reeBlue hover:underline cursor-pointer">
+            <div className="flex items-start justify-between mb-2 gap-3">
+                <div>
+                    <h3 className="text-sm font-bold text-textMain">
+                        Explanation Review Queue ({questions.length})
+                    </h3>
+                    <p className="text-[0.7rem] text-muted2 mt-1 leading-relaxed max-w-2xl">
+                        Approve or reject AI-generated explanations queued for the question bank.
+                        Approved text becomes the canonical solution shown when you review that item;
+                        rejected explanations are discarded so the question can be re-derived later.
+                    </p>
+                </div>
+                <button onClick={loadPending} className="text-xs text-reeBlue hover:underline cursor-pointer shrink-0">
                     Refresh
                 </button>
             </div>
@@ -95,7 +103,9 @@ export default function ExplanationReview() {
                                     <span className="text-[0.5rem] text-muted">•</span>
                                     <span className="text-[0.6rem] text-muted">{q.subtopic}</span>
                                 </div>
-                                <p className="text-xs text-textMain font-medium truncate">{q.text}</p>
+                                <div className="text-xs text-textMain font-medium line-clamp-2 [&_p]:!mb-0">
+                                    <LatexRenderer content={q.text} />
+                                </div>
                             </div>
                             <StatusBadge status={q.explanationStatus} />
                         </div>
@@ -103,13 +113,21 @@ export default function ExplanationReview() {
 
                     {expandedId === q.id && (
                         <div className="border-t border-border2 p-4">
+                            <div className="bg-bg rounded-lg p-3 mb-3 border border-border2">
+                                <div className="text-[0.6rem] font-bold uppercase tracking-widest text-muted mb-2">
+                                    Question
+                                </div>
+                                <div className="text-xs text-textMain leading-relaxed">
+                                    <LatexRenderer content={q.text} />
+                                </div>
+                            </div>
                             <div className="bg-surface2 rounded-lg p-3 mb-4">
                                 <div className="text-[0.6rem] font-bold uppercase tracking-widest text-muted mb-2">
                                     AI-Generated Explanation
                                 </div>
-                                <p className="text-xs text-textMain whitespace-pre-wrap leading-relaxed">
-                                    {q.fixedExplanation}
-                                </p>
+                                <div className="text-xs text-textMain leading-relaxed">
+                                    <LatexRenderer content={q.fixedExplanation} />
+                                </div>
                             </div>
 
                             <div className="flex gap-2">

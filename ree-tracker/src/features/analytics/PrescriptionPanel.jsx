@@ -45,7 +45,9 @@ export function PrescriptionPanel({ onAction }) {
     );
   }
 
-  if (error && !snapshot) {
+  // Missing snapshot = service unreachable (not "no data" — the backend always
+  // returns an estimate when it can respond). Keep the copy calm and truthful.
+  if (!snapshot) {
     return (
       <Card elevated>
         <CardHeader>
@@ -55,7 +57,11 @@ export function PrescriptionPanel({ onAction }) {
           </div>
         </CardHeader>
         <CardBody>
-          <p className="text-muted2 text-sm">We’ll resurface the day’s actions once the forecast service is reachable.</p>
+          <p className="text-muted2 text-sm">
+            {error
+              ? 'We’ll resurface the day’s actions once the forecast service is reachable.'
+              : 'Connecting to the forecast service…'}
+          </p>
         </CardBody>
       </Card>
     );

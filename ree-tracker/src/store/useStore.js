@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { auth } from '../config/firebaseDb';
 import { TOS as fallbackTOS } from '../config/constants';
+import { updateCommandParameters } from '../services/dbQueries';
 
 // HIGH-PERFORMANCE ASYNC STORAGE ADAPTER
 const idbStorage = {
@@ -33,6 +34,26 @@ export const useStore = create(
       syncQueue: [],        
 
       setStats: (newStats) => set({ stats: newStats }),
+
+      // SINGLE SOURCE OF TRUTH for the target board-exam date + daily quota.
+      // Persists to the backend (User.examDate / User.dailyTarget) AND mirrors
+      // the values into local `stats`, so every editor — Dashboard "Command
+      // Parameters", Profile "Edit Identity Matrix", and the Strategic Planner —
+      // can call this one action and stay in sync. Throws on failure so the
+      // caller can surface a real error toast (no more false "write failure").
+      saveExamConfig: async ({ examDate, dailyTarget } = {}) => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('Authentication required.');
+
+        const payload = {};
+        if (examDate !== undefined && examDate !== null) payload.examDate = examDate;
+        if (dailyTarget !== undefined && dailyTarget !== null) payload.dailyTarget = Number(dailyTarget);
+        if (Object.keys(payload).length === 0) return;
+
+        await updateCommandParameters(currentUser.uid, payload);
+
+        set((state) => ({ stats: { ...(state.stats || {}), ...payload } }));
+      },
 
       stageAttemptTelemetry: (attemptData) => {
         const payload = {

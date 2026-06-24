@@ -21,6 +21,7 @@ export const useTelemetrySlice = () =>
     useShallow((s) => ({
       stats: s.stats,
       setStats: s.setStats,
+      saveExamConfig: s.saveExamConfig,
       syncStatus: s.syncStatus,
       syncQueue: s.syncQueue,
       flushQueueToCloud: s.flushQueueToCloud,

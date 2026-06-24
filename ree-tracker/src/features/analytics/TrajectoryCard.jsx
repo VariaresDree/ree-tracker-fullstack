@@ -40,7 +40,10 @@ export function TrajectoryCard() {
     );
   }
 
-  if (error && !snapshot) {
+  // No snapshot means the service was unreachable — the backend always computes
+  // an estimate on the fly when it CAN respond, so a missing snapshot is never
+  // "no data", it's "couldn't connect". Don't render a misleading 0% here.
+  if (!snapshot) {
     return (
       <Card elevated>
         <CardHeader>
@@ -49,8 +52,20 @@ export function TrajectoryCard() {
             <CardTitle>Forecast unavailable</CardTitle>
           </div>
         </CardHeader>
-        <CardBody>
-          <p className="text-muted2 text-sm">Couldn’t reach the forecast service. We’ll retry when the connection is back.</p>
+        <CardBody className="flex flex-col gap-3">
+          <p className="text-muted2 text-sm">
+            {error
+              ? 'Couldn’t reach the forecast service. We’ll retry when the connection is back.'
+              : 'Connecting to the forecast service…'}
+          </p>
+          <button
+            type="button"
+            onClick={recompute}
+            disabled={loading}
+            className="self-start text-xs font-semibold text-[var(--accent-velocity)] underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            {loading ? 'Retrying…' : 'Retry now'}
+          </button>
         </CardBody>
       </Card>
     );
@@ -60,6 +75,10 @@ export function TrajectoryCard() {
   const top = snapshot?.topnotcherProbability ?? 0;
   const rank = snapshot?.expectedRank ?? 50;
   const band = rankBand(rank);
+  // Cold-start: a snapshot with no topic-level signal yet is just the prior.
+  // Tell the user it'll sharpen as they answer questions, rather than implying
+  // these are hardened numbers.
+  const isEarlyEstimate = !snapshot?.weakTopics || snapshot.weakTopics.length === 0;
 
   return (
     <motion.div {...cardEnter}>
@@ -78,6 +97,12 @@ export function TrajectoryCard() {
         </div>
 
         <ProbabilityBar pass={pass} top={top} />
+
+        {isEarlyEstimate && (
+          <p className="text-[11px] leading-snug text-muted2">
+            Early estimate — answer more questions to sharpen your trajectory.
+          </p>
+        )}
 
         <div className="flex items-center justify-between text-xs text-muted2 font-mono">
           <span>Model {snapshot?.modelVersion ?? 'v1'}</span>

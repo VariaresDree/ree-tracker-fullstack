@@ -6,14 +6,21 @@ const logger = require('../utils/logger');
 const { buildForecast } = require('../engine/forecast');
 
 // GET /api/forecast — latest snapshot for the caller, or recompute on the fly.
+// Recomputes (in-memory) when the cached snapshot predates the user's most
+// recent activity, so the trajectory always reflects newly-answered questions
+// instead of freezing on the first snapshot ever persisted.
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const latest = await prisma.forecastSnapshot.findFirst({
-            where: { userId: req.user.id },
-            orderBy: { createdAt: 'desc' },
-        });
+        const [user, latest] = await Promise.all([
+            prisma.user.findUnique({ where: { id: req.user.id }, select: { lastActive: true } }),
+            prisma.forecastSnapshot.findFirst({
+                where: { userId: req.user.id },
+                orderBy: { createdAt: 'desc' },
+            }),
+        ]);
 
-        if (latest) return res.status(200).json({ snapshot: latest, fresh: false });
+        const stale = latest && user?.lastActive && new Date(latest.createdAt) < new Date(user.lastActive);
+        if (latest && !stale) return res.status(200).json({ snapshot: latest, fresh: false });
 
         const computed = await computeForUser(req.user.id);
         return res.status(200).json({ snapshot: computed, fresh: true });

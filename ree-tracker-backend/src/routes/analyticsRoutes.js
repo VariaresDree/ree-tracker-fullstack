@@ -5,7 +5,7 @@ const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
-const { recordAttempts } = require('../services/telemetryService');
+const { recordAttempts, todayManila } = require('../services/telemetryService');
 const logger = require('../utils/logger');
 
 // Tiny in-memory dashboard cache (30s TTL, invalidated on telemetry write).
@@ -39,9 +39,11 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
 
         if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
 
-        const phtDate = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"}));
-        phtDate.setHours(0, 0, 0, 0);
-        const utcStartOfDay = new Date(phtDate.getTime() - (8 * 60 * 60 * 1000));
+        // Start of "today" in Manila (UTC+8), expressed as a UTC instant.
+        // Uses the SAME Manila date string that telemetryService keys ActivityLog
+        // on, so the dashboard's daily Math/ESAS/EE counts always agree with the
+        // activity calendar and never miss attempts due to server-TZ drift.
+        const utcStartOfDay = new Date(`${todayManila()}T00:00:00+08:00`);
 
         const dailyAgg = await prisma.questionAttempt.groupBy({
             by: ['subject'],

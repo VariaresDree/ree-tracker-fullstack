@@ -20,7 +20,7 @@ import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
-  const { stats, purgeAnalytics, setStats } = useTelemetrySlice();
+  const { stats, purgeAnalytics, setStats, syncStatus } = useTelemetrySlice();
   const { dynamicTOS } = useTOSSlice();
   
   const [sqlData, setSqlData] = useState(null);
@@ -182,9 +182,26 @@ export default function Dashboard() {
       <div className="mb-2 border-b border-border2/60 pb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-black text-textMain tracking-tight">Tactical Command Center</h1>
-          <p className="text-muted2 mt-1.5 text-sm font-medium">Welcome back, Agent <span className="text-reeCyan font-black">{currentUser?.displayName || 'Reviewer'}</span>. System telemetry is online.</p>
+          <p className="text-muted2 mt-1.5 text-sm font-medium">Welcome back, Agent <span className="text-reeCyan font-black">{currentUser?.displayName || 'Reviewer'}</span>.</p>
         </div>
       </div>
+
+      {/* System telemetry status — sits below the welcome greeting and above the
+          exam-date countdown. Reflects the live sync state for honest feedback. */}
+      {(() => {
+        const t = ({
+          synced:         { dot: 'bg-reeGreen', label: 'System Telemetry Online',  pulse: true,  glow: 'shadow-[0_0_8px_#22c55e]' },
+          syncing:        { dot: 'bg-reeBlue',  label: 'Syncing Telemetry…',        pulse: true,  glow: 'shadow-[0_0_8px_#3b82f6]' },
+          offline_queued: { dot: 'bg-reeAmber', label: 'Offline — Queued for Sync', pulse: false, glow: '' },
+          error:          { dot: 'bg-reeRed',   label: 'Telemetry Sync Error',      pulse: true,  glow: 'shadow-[0_0_8px_#ef4444]' },
+        })[syncStatus] || { dot: 'bg-reeGreen', label: 'System Telemetry Online', pulse: true, glow: 'shadow-[0_0_8px_#22c55e]' };
+        return (
+          <div role="status" aria-live="polite" className="flex items-center gap-2.5 px-4 py-2.5 bg-surface2/40 border border-border2/60 rounded-xl shadow-sm">
+            <span className={`w-2.5 h-2.5 rounded-full ${t.dot} ${t.pulse ? 'animate-pulse' : ''} ${t.glow}`}></span>
+            <span className="text-[0.65rem] font-bold tracking-widest uppercase text-textMain">{t.label}</span>
+          </div>
+        );
+      })()}
 
       {activeStats.examDate && (() => {
         const daysLeft = Math.ceil((new Date(activeStats.examDate) - new Date()) / (1000 * 60 * 60 * 24));

@@ -29,7 +29,7 @@ export default function Profile() {
   const { currentUser, logout, isAdmin } = useAuth();
   
   // EXTRACTED THEME CONTROLS & SYNC STATUS FROM GLOBAL STORE
-  const { stats, setStats, resetStore, theme, setTheme, syncStatus } = useStore();
+  const { stats, setStats, saveExamConfig, resetStore, theme, setTheme, syncStatus } = useStore();
   
   // UI States
   const [activeTab, setActiveTab] = useState('analytics');
@@ -71,8 +71,9 @@ export default function Profile() {
               await updateProfile(currentUser, { displayName: editForm.displayName });
           }
           if (editForm.targetBoardDate !== stats?.examDate) {
-              const newStats = { ...stats, examDate: editForm.targetBoardDate };
-              setStats(newStats);
+              // Persist through the single source of truth so the exam date
+              // survives refresh and syncs to Dashboard + Strategic Planner.
+              await saveExamConfig({ examDate: editForm.targetBoardDate });
           }
           toast.success("Profile matrix updated successfully.");
           setIsEditing(false);
