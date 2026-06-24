@@ -19,6 +19,11 @@ const rankBand = (pct) => {
   return { label: 'Bottom half', tone: 'danger' };
 };
 
+// One-line definition of the feature, shown in every state so the user
+// understands what they're looking at even before any data lands.
+const ABOUT_TRAJECTORY =
+  'Projects your chance of passing the REE board exam — and of landing in the topnotcher tier — from your answered-question history. Sharpens as you take more sessions.';
+
 export function TrajectoryCard() {
   const { snapshot, loading, error, recompute } = useForecast();
 
@@ -31,10 +36,13 @@ export function TrajectoryCard() {
             <CardTitle>Projecting your exam outcome</CardTitle>
           </div>
         </CardHeader>
-        <CardBody className="grid grid-cols-2 gap-4">
-          <Skeleton className="h-14 w-32" />
-          <Skeleton className="h-14 w-32" />
-          <Skeleton className="h-3 col-span-2" />
+        <CardBody className="flex flex-col gap-4">
+          <p className="text-[11px] leading-snug text-muted2">{ABOUT_TRAJECTORY}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-14 w-32" />
+            <Skeleton className="h-14 w-32" />
+            <Skeleton className="h-3 col-span-2" />
+          </div>
         </CardBody>
       </Card>
     );
@@ -53,9 +61,10 @@ export function TrajectoryCard() {
           </div>
         </CardHeader>
         <CardBody className="flex flex-col gap-3">
+          <p className="text-[11px] leading-snug text-muted2">{ABOUT_TRAJECTORY}</p>
           <p className="text-muted2 text-sm">
             {error
-              ? 'Couldn’t reach the forecast service. We’ll retry when the connection is back.'
+              ? 'Couldn’t reach the forecast service right now. If you just restarted the backend, give it a moment and retry.'
               : 'Connecting to the forecast service…'}
           </p>
           <button
@@ -91,6 +100,7 @@ export function TrajectoryCard() {
         <Badge tone={band.tone}>{band.label}</Badge>
       </CardHeader>
       <CardBody className="flex flex-col gap-5">
+        <p className="text-[11px] leading-snug text-muted2">{ABOUT_TRAJECTORY}</p>
         <div className="grid grid-cols-2 gap-6">
           <Stat label="Pass probability" value={pctFmt(pass)} suffix="%" />
           <Stat label="Topnotcher chance" value={pctFmt(top)} suffix="%" />

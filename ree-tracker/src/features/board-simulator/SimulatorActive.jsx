@@ -10,7 +10,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import Scratchpad from '../../components/Scratchpad';
-import ReferencePanel from '../../components/ReferencePanel';
 import QuestionCard from '../quiz/QuestionCard';
 import { generateMasterExplanation } from '../../services/geminiApi';
 import toast from 'react-hot-toast';
@@ -260,7 +259,9 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
             headerSlot={itemActions}
           />
 
-          {!isReview && <div className="mt-6"><ReferencePanel question={q} /></div>}
+          {/* ReferencePanel intentionally NOT rendered during the answer
+              phase — Reference Constants would function as a cheat code that
+              undermines the simulator's calibration analytics. */}
 
           {/* Post-exam solutions */}
           {isReview && (

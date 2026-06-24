@@ -40,6 +40,12 @@ jobs:
   backend:
     name: Backend (vitest)
     runs-on: ubuntu-latest
+    # DATABASE_URL is a dummy — vitest doesn't connect, but Prisma's config
+    # loader resolves env vars eagerly during `prisma generate` (which is
+    # now fired automatically by package.json's `postinstall` + `pretest`
+    # hooks), and would fail with PrismaConfigEnvError otherwise.
+    env:
+      DATABASE_URL: postgresql://localhost:5432/dummy
     defaults:
       run:
         working-directory: ree-tracker-backend
@@ -56,16 +62,5 @@ jobs:
       - name: Install
         run: npm ci
 
-      # Prisma 7's postinstall hook doesn't reliably fire under `npm ci` on
-      # CI runners, leaving @prisma/client without its generated `.prisma`
-      # output. Generate explicitly so any test that requires the client
-      # (modelFallback → aiRoutes → authMiddleware → db.js) can resolve it.
-      - name: Generate Prisma client
-        run: npx prisma generate
-        env:
-          DATABASE_URL: postgresql://localhost:5432/dummy
-
       - name: Test
         run: npm test
-        env:
-          DATABASE_URL: postgresql://localhost:5432/dummy

@@ -13,8 +13,11 @@
 import React from 'react';
 import toast from 'react-hot-toast';
 import QuestionCard from '../quiz/QuestionCard';
-import ReferencePanel from '../../components/ReferencePanel';
 
+// ReferencePanel intentionally NOT rendered here — Reference Constants
+// during an active answer phase functions as a cheat code that compromises
+// the calibration analytics. The panel is still available on demand from
+// the Materials Hub / sidebar where it doesn't undermine the assessment.
 export default function MCQMode({ session, setSession, handleAnswerSelection }) {
   const currentQ = session.questions[session.currentIndex];
   if (!currentQ) return null;
@@ -33,7 +36,6 @@ export default function MCQMode({ session, setSession, handleAnswerSelection }) 
         onConfidenceChange={(level) => setSession((prev) => ({ ...prev, confidence: level }))}
         onConfidenceRequiredBlocked={() => toast.error('Select Target Lock Confidence first.')}
       />
-      <ReferencePanel question={currentQ} />
     </div>
   );
 }

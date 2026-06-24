@@ -5,8 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
+    "predev": "prisma generate",
     "dev": "nodemon server.js",
+    "pretest": "prisma generate",
     "test": "vitest run",
+    "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "wipe:test-data": "node scripts/wipe-test-data.js --confirm=WIPE",
     "calibrate": "node scripts/calibrate.js",

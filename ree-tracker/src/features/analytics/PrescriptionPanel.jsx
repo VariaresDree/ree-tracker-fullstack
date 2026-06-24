@@ -12,6 +12,12 @@ const rowEnter = (i) => ({
 // Action types come from the backend (READ | DRILL | SRS_REVIEW); the panel
 // renders an action label + reason and lets the user accept (which the
 // dashboard wires into navigation in a follow-up).
+
+// One-line definition of the feature so the user always understands what
+// the card is for, even when no actions have been generated yet.
+const ABOUT_PRESCRIPTION =
+  'Three concrete next steps targeting your weakest topics — drill, spaced review, or read source — generated from the same model behind the Trajectory card.';
+
 const ACTION_LABELS = {
   READ: 'Read source',
   DRILL: 'Targeted drill',
@@ -37,6 +43,7 @@ export function PrescriptionPanel({ onAction }) {
           </div>
         </CardHeader>
         <CardBody className="space-y-3">
+          <p className="text-[11px] leading-snug text-muted2">{ABOUT_PRESCRIPTION}</p>
           <Skeleton className="h-14" />
           <Skeleton className="h-14" />
           <Skeleton className="h-14" />
@@ -56,10 +63,11 @@ export function PrescriptionPanel({ onAction }) {
             <CardTitle>Prescription unavailable</CardTitle>
           </div>
         </CardHeader>
-        <CardBody>
+        <CardBody className="space-y-3">
+          <p className="text-[11px] leading-snug text-muted2">{ABOUT_PRESCRIPTION}</p>
           <p className="text-muted2 text-sm">
             {error
-              ? 'We’ll resurface the day’s actions once the forecast service is reachable.'
+              ? 'We’ll resurface the day’s actions once the forecast service is reachable. If you just restarted the backend, give it a moment and refresh.'
               : 'Connecting to the forecast service…'}
           </p>
         </CardBody>
@@ -81,6 +89,7 @@ export function PrescriptionPanel({ onAction }) {
       </CardHeader>
 
       <CardBody className="space-y-3">
+        <p className="text-[11px] leading-snug text-muted2">{ABOUT_PRESCRIPTION}</p>
         {actions.length === 0 ? (
           <p className="text-muted2 text-sm">
             Not enough telemetry yet. Take a board sim or a few active-review items and we’ll start prescribing.
