@@ -12,7 +12,7 @@ const GAUNTLET_TIERS = {
 };
 
 export const useGauntletEngine = (level) => {
-    const { stats, setStats } = useStore();
+    const { stats, setStats, startSession: startStoreSession, endSession: endStoreSession } = useStore();
     const [status, setStatus] = useState('loading');
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
@@ -68,6 +68,12 @@ export const useGauntletEngine = (level) => {
                 }));
 
                 setQuestions(selectedQs);
+                // Bracket the session in the store. Gauntlet's /api/exams/grade
+                // endpoint creates the ExamSession server-side, so the
+                // frontend doesn't need to send the sessionId — but tracking
+                // the session lifecycle in the store keeps the UI's sync
+                // status and the dashboard's "session active" UX consistent.
+                startStoreSession({ mode: 'GAUNTLET', subject: 'BLENDED' });
                 setStatus('active');
             } catch (err) {
                 console.error(err);
@@ -178,6 +184,8 @@ export const useGauntletEngine = (level) => {
             console.error("Gauntlet grading error:", err);
             toast.error("Failed to grade gauntlet. Please try again.");
             setStatus('error');
+        } finally {
+            try { await endStoreSession(); } catch (_) {}
         }
     };
 

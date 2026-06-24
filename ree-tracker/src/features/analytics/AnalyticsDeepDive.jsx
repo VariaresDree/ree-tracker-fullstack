@@ -13,7 +13,7 @@ function StatCard({ label, value, sub, color = 'text-textMain' }) {
 }
 
 function BarChart({ items, valueKey, labelKey, maxVal, color = 'bg-reeBlue' }) {
-  if (!items?.length) return <div className="text-xs text-muted2 p-4">No data available yet.</div>;
+  if (!items?.length) return <div className="text-xs text-muted2 p-4">Answer questions to populate this metric.</div>;
   const max = maxVal || Math.max(...items.map(i => i[valueKey]));
   return (
     <div className="flex flex-col gap-2">
@@ -147,7 +147,7 @@ export default function AnalyticsDeepDive() {
             <span>📅</span> Daily Study Time
           </h3>
           {studyData.length === 0 ? (
-            <div className="text-xs text-muted2 p-4">No study sessions recorded yet.</div>
+            <div className="text-xs text-muted2 p-4">Complete a review or simulator session to track study time.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <StatCard label="Total Study Days" value={studyData.length} color="text-reeBlue" />
@@ -174,7 +174,7 @@ export default function AnalyticsDeepDive() {
             <span>📈</span> Exam Score Progression
           </h3>
           {scoreData.length === 0 ? (
-            <div className="text-xs text-muted2 p-4">No exam sessions recorded yet.</div>
+            <div className="text-xs text-muted2 p-4">Complete a board simulator exam to track score progression.</div>
           ) : (
             <div className="flex flex-col gap-2">
               {scoreData.map((exam, idx) => (
