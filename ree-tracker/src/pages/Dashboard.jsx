@@ -10,9 +10,10 @@ import HeatmapChart from '../components/HeatmapChart';
 import RecommendedModule from '../components/RecommendedModule';
 import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
+import ExamPerformanceCard from '../features/analytics/ExamPerformanceCard';
 import { generateBoardReadinessReport } from '../services/geminiApi';
 
-import { apiRequest, fetchReadinessScore } from '../services/dbQueries';
+import { apiRequest } from '../services/dbQueries';
 import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
@@ -123,28 +124,19 @@ export default function Dashboard() {
       };
   }, [stats, sqlData]);
 
-  const [readinessData, setReadinessData] = useState(null);
-
-  useEffect(() => {
-    if (currentUser?.uid && !isFetchingSQL) {
-      fetchReadinessScore().then(data => setReadinessData(data)).catch(() => {});
-    }
-  }, [currentUser, isFetchingSQL]);
-
   const currentTheta = activeStats?.irt?.theta || 0;
-  const fallbackScore = useMemo(() => {
+  const readinessScore = useMemo(() => {
     return Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
   }, [currentTheta]);
-  const readinessScore = readinessData?.score ?? fallbackScore;
 
   const handleGenerateAIReport = async () => {
     setShowAiModal(false);
     setIsGeneratingAI(true);
     setAiReport('Querying Gemini Core Engine for tactical diagnostics...');
-    
+
     const topics = activeStats.microTopics ? Object.entries(activeStats.microTopics) : [];
     const weakTopics = topics.filter(([_, data]) => data.attempts > 0 && (data.correct / data.attempts < 0.5)).map(([name]) => name);
-    
+
     try {
       const report = await generateBoardReadinessReport(activeStats, readinessScore, weakTopics);
       setAiReport(report);
@@ -170,11 +162,6 @@ export default function Dashboard() {
       }
   };
 
-  // Determine shadow glow colors based on Readiness Score
-  const scoreGlow = readinessScore >= 70 ? 'shadow-[0_0_40px_rgba(34,197,94,0.15)] border-reeGreen/20' 
-                  : readinessScore >= 50 ? 'shadow-[0_0_40px_rgba(245,158,11,0.1)] border-reeAmber/20' 
-                  : 'shadow-[0_0_40px_rgba(239,68,68,0.1)] border-reeRed/20';
-
   if (!activeStats || isFetchingSQL) return <DashboardSkeleton />;
 
   return (
@@ -186,8 +173,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* System telemetry status — sits below the welcome greeting and above the
-          exam-date countdown. Reflects the live sync state for honest feedback. */}
       {(() => {
         const t = ({
           synced:         { dot: 'bg-reeGreen', label: 'System Telemetry Online',  pulse: true,  glow: 'shadow-[0_0_8px_#22c55e]' },
@@ -211,7 +196,6 @@ export default function Dashboard() {
         return (
           <div className={`p-4 border rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 ${urgency}`}>
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{isPast ? '⚠️' : '📅'}</span>
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-muted">REE Board Exam</div>
                 <div className={`text-lg font-black ${textColor}`}>
@@ -226,109 +210,73 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* Adaptive forecast — Phase 3 analytics surface */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TrajectoryCard />
-        <PrescriptionPanel />
-      </div>
-
-      <MissionControl
-          stats={activeStats}
-          onPurgeRequest={() => setShowPurgeModal(true)}
-      />
-
-      {/* 🚀 MAIN GRID: Strict sizing bounds ensure perfect column leveling */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-2 xl:h-[860px] items-stretch stagger-fade-in">
-        
-        {/* COLUMN 1: Recommended Module & Readiness Index */}
-        <div className="flex flex-col gap-6 h-full min-h-0">
-            <div className="shrink-0">
-                <RecommendedModule stats={activeStats} />
+      {/* ── SECTION 1: EXAM PERFORMANCE ─────────────────────────────── */}
+      <div className="flex flex-col gap-4">
+        <h2 className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-muted border-b border-border2/40 pb-2">Exam Performance</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <ExamPerformanceCard stats={activeStats} />
+          <div className="lg:col-span-2 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col min-h-[250px] min-w-0 overflow-hidden transition-shadow hover:shadow-md hover-glow">
+            <div className="flex justify-between items-center mb-4 shrink-0">
+              <h3 className="text-xs font-black uppercase tracking-widest text-textMain">Readiness Velocity (θ)</h3>
+              <span className="text-[0.6rem] font-bold text-muted uppercase tracking-widest bg-surface2 px-2 py-1 rounded-md">30 Days</span>
             </div>
-            
-            <div className={`p-6 bg-surface/80 backdrop-blur-sm border rounded-2xl flex flex-col flex-1 min-h-0 transition-all duration-500 hover-glow ${scoreGlow}`}>
-              <div className="shrink-0 relative">
-                <h3 className="text-xs font-black text-textMain uppercase tracking-widest flex items-center gap-2 mb-3">
-                    <span className="text-lg">📊</span> Board Readiness Index
-                </h3>
-                <div className="flex items-end gap-2 mb-1">
-                  <span className={`text-7xl font-black tracking-tighter drop-shadow-md ${readinessScore >= 70 ? 'text-reeGreen' : readinessScore >= 50 ? 'text-reeAmber' : 'text-reeRed'}`}>
-                      {readinessScore}%
-                  </span>
-                </div>
-                <div className="text-[0.65rem] text-muted font-bold uppercase tracking-widest mb-6">/ 70% Passing Threshold</div>
-                
-                <div className="w-full h-2.5 bg-surface3/50 rounded-full overflow-hidden border border-border2/50 shadow-inner">
-                  <div className={`h-full transition-all duration-1500 ease-out ${readinessScore >= 70 ? 'bg-reeGreen shadow-[0_0_12px_rgba(34,197,94,0.6)]' : readinessScore >= 50 ? 'bg-reeAmber shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-reeRed'}`} style={{ width: `${readinessScore}%` }}></div>
-                </div>
-
-                <div className="p-4 bg-surface2/30 border border-border2/40 rounded-xl mt-6">
-                  <div className="flex justify-between items-center mb-2.5">
-                    <span className="text-[0.6rem] font-black text-muted uppercase tracking-widest">IRT Ability Level (θ)</span>
-                    <span className="text-sm font-black text-reeCyan drop-shadow-sm">{currentTheta.toFixed(3)}</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-surface3/50 rounded-full overflow-hidden relative shadow-inner">
-                    <div className="h-full bg-reeCyan absolute top-0 left-0 transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(6,182,212,0.8)]" style={{ width: `${Math.max(0, Math.min(100, ((currentTheta + 3) / 6) * 100))}%` }}></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-1 flex flex-col min-h-0 w-full mt-6 mb-6">
-                {aiReport ? (
-                  <div className="flex-1 h-full bg-gradient-to-b from-reePurple/5 to-transparent border border-reePurple/20 rounded-xl p-5 overflow-y-auto custom-scrollbar flex flex-col relative">
-                    <div className="text-[0.65rem] font-black text-reePurple uppercase tracking-widest mb-3 flex items-center gap-2 shrink-0">
-                        <span className="animate-pulse">✨</span> Tactical AI Diagnostics
-                    </div>
-                    <div className="text-sm text-textMain leading-relaxed font-medium">{aiReport}</div>
-                  </div>
-                ) : (
-                  <div className="flex-1 h-full flex flex-col items-center justify-center border-2 border-dashed border-border2/60 bg-surface2/10 rounded-xl p-6 transition-colors hover:border-reePurple/30 group">
-                     <span className="text-2xl mb-3 opacity-20 group-hover:opacity-40 transition-opacity">🤖</span>
-                     <div className="text-xs text-muted2 font-mono text-center leading-relaxed">
-                        Diagnostics Standby.<br/><span className="opacity-60">Initialize report to audit blind spots.</span>
-                     </div>
-                  </div>
-                )}
-              </div>
-
-              <button onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="shrink-0 w-full py-4 bg-gradient-to-r from-reePurple to-reeBlue text-white font-black rounded-xl text-xs uppercase tracking-widest shadow-[0_4px_14px_rgba(139,92,246,0.25)] hover:shadow-[0_6px_20px_rgba(139,92,246,0.4)] hover:-translate-y-0.5 transition-all duration-300 flex justify-center items-center gap-2 disabled:opacity-60 disabled:hover:translate-y-0 cursor-pointer btn-press">
-                {isGeneratingAI ? <><span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span>Analyzing Matrices...</> : '✨ Generate AI Report'}
-              </button>
+            <div className="flex-1 w-full h-full min-h-[150px] min-w-0 mt-2">
+              <ThetaVelocityChart history={activeStats?.thetaHistory} />
             </div>
+          </div>
         </div>
-
-        {/* COLUMN 2: Velocity Chart & Confidence Matrix */}
-        <div className="flex flex-col gap-6 h-full min-h-0">
-            
-            {/* 🚀 Velocity Chart (flex-1 ensures it dynamically stretches to fill space) */}
-            <div className="flex-1 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col min-h-[250px] min-w-0 overflow-hidden transition-shadow hover:shadow-md hover-glow">
-                <div className="flex justify-between items-center mb-4 shrink-0">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-textMain flex items-center gap-2">
-                        <span className="text-lg">📈</span> Readiness Velocity (θ)
-                    </h3>
-                    <span className="text-[0.6rem] font-bold text-muted uppercase tracking-widest bg-surface2 px-2 py-1 rounded-md">30 Days</span>
-                </div>
-                <div className="flex-1 w-full h-full min-h-[150px] min-w-0 mt-2">
-                    <ThetaVelocityChart history={activeStats?.thetaHistory} />
-                </div>
-            </div>
-            
-            {/* 🚀 Confidence Matrix (shrink-0 ensures it is perfectly sized at the bottom) */}
-            <div className="shrink-0 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col justify-center transition-shadow hover:shadow-md hover-glow">
-                <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2 shrink-0">
-                    <span className="text-lg">🧠</span> Confidence Assessment
-                </h3>
-                <ConfidenceMatrix stats={activeStats} />
-            </div>
-        </div>
-
-        {/* COLUMN 3: Topic Mastery Heatmap */}
-        <div className="flex flex-col h-full min-h-[350px] min-w-0 xl:col-span-1 lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col justify-center transition-shadow hover:shadow-md hover-glow">
+            <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4">Confidence vs Accuracy</h3>
+            <ConfidenceMatrix stats={activeStats} />
+          </div>
+          <div className="flex flex-col min-h-[350px] min-w-0">
             <HeatmapChart stats={activeStats} />
+          </div>
         </div>
       </div>
 
-      <MockBoardAnalytics />
+      {/* ── SECTION 2: SESSION BEHAVIOR ─────────────────────────────── */}
+      <div className="flex flex-col gap-4">
+        <h2 className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-muted border-b border-border2/40 pb-2">Session Behavior</h2>
+        <MissionControl
+            stats={activeStats}
+            onPurgeRequest={() => setShowPurgeModal(true)}
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RecommendedModule stats={activeStats} />
+          <MockBoardAnalytics />
+        </div>
+      </div>
+
+      {/* ── SECTION 3: PREDICTIVE INSIGHTS ──────────────────────────── */}
+      <div className="flex flex-col gap-4">
+        <h2 className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-muted border-b border-border2/40 pb-2">Predictive Insights</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TrajectoryCard />
+          <PrescriptionPanel />
+        </div>
+        {/* AI Tactical Report */}
+        <div className="p-6 bg-surface/80 backdrop-blur-sm border border-border2/60 rounded-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-textMain">AI Tactical Diagnostics</h3>
+            <button onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="px-5 py-2.5 bg-gradient-to-r from-reePurple to-reeBlue text-white font-black rounded-xl text-[0.6rem] uppercase tracking-widest shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-2 disabled:opacity-60 disabled:hover:translate-y-0 cursor-pointer btn-press">
+              {isGeneratingAI ? <><span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent"></span>Analyzing...</> : 'Generate Report'}
+            </button>
+          </div>
+          {aiReport ? (
+            <div className="bg-gradient-to-b from-reePurple/5 to-transparent border border-reePurple/20 rounded-xl p-5">
+              <div className="text-sm text-textMain leading-relaxed">{aiReport}</div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center border-2 border-dashed border-border2/60 bg-surface2/10 rounded-xl p-6">
+              <div className="text-xs text-muted2 font-mono text-center">
+                Initialize report to audit blind spots.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* MODALS */}
       {showAiModal && (

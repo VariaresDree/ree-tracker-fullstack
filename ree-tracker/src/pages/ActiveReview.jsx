@@ -100,33 +100,41 @@ export default function ActiveReview() {
       </div>
 
       <div className="p-8 sm:p-10 bg-surface/80 backdrop-blur-2xl border border-border2/60 rounded-[2.5rem] shadow-2xl flex flex-col relative overflow-hidden transition-colors duration-700">
-          
+
           <div className="absolute -top-12 -right-10 text-[14rem] opacity-[0.02] pointer-events-none select-none z-0">
               {isCalculation ? '🧮' : '🧠'}
           </div>
-          
-          <div className="flex justify-between items-start mb-8 relative z-10">
-              <div className="flex flex-col gap-2">
-                  <span className="text-[0.6rem] font-black text-muted uppercase tracking-widest">Vector Target</span>
-                  <div className="px-4 py-1.5 bg-reeCyan/10 border border-reeCyan/20 text-reeCyan rounded-full text-[0.65rem] font-black uppercase tracking-wider inline-block backdrop-blur-sm">
-                      {currentQ.subject} › {currentQ.subtopic}
-                  </div>
-              </div>
-              <div className="flex gap-2">
-                  <button onClick={() => setShowScratchpad(!showScratchpad)} className="w-10 h-10 rounded-full bg-surface2/50 hover:bg-surface3 border border-border2/60 flex items-center justify-center transition-colors text-muted hover:text-textMain cursor-pointer">✏️</button>
-                  <button onClick={handleFlagQuestion} disabled={currentQ.isFlagged} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors ${currentQ.isFlagged ? 'bg-reeRed/10 border-reeRed/30 text-reeRed' : 'bg-surface2/50 hover:bg-surface3 border-border2/60 text-muted hover:text-reeRed cursor-pointer'}`}>🚩</button>
-                  <button onClick={toggleBookmark} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all cursor-pointer ${isBookmarked ? 'bg-reeAmber/10 border-reeAmber/40 text-reeAmber shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'bg-surface2/50 hover:bg-surface3 border-border2/60 text-muted hover:text-reeAmber'}`}>🔖</button>
-              </div>
-          </div>
 
-          <div className="text-xl sm:text-2xl font-medium text-white leading-relaxed relative z-10 mb-10 overflow-x-auto math-scroll-mobile drop-shadow-sm [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0">
-              <LatexRenderer content={currentQ.text || currentQ.question} />
-          </div>
+          {/* Prompt + subject eyebrow + Item N badge are owned by QuestionCard
+              (inside MCQMode below) — the standalone block that used to live
+              here rendered them a second time, hence the visible duplicate.
+              Item action icons (scratchpad / flag / bookmark) are injected
+              through QuestionCard's `headerSlot` so they sit next to the
+              eyebrow with no overlap. */}
 
           {config.sessionMode === 'mcq' ? (
-              <MCQMode session={session} setSession={setSession} handleAnswerSelection={handleAnswerSelection} />
+              <MCQMode
+                  session={session}
+                  setSession={setSession}
+                  handleAnswerSelection={handleAnswerSelection}
+                  index={session.currentIndex}
+                  headerSlot={
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowScratchpad(!showScratchpad)} aria-label="Open scratchpad" className="w-10 h-10 rounded-full bg-surface2/50 hover:bg-surface3 border border-border2/60 flex items-center justify-center transition-colors text-muted hover:text-textMain cursor-pointer">✏️</button>
+                      <button onClick={handleFlagQuestion} disabled={currentQ.isFlagged} aria-label={currentQ.isFlagged ? 'Already flagged' : 'Flag question'} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors ${currentQ.isFlagged ? 'bg-reeRed/10 border-reeRed/30 text-reeRed' : 'bg-surface2/50 hover:bg-surface3 border-border2/60 text-muted hover:text-reeRed cursor-pointer'}`}>🚩</button>
+                      <button onClick={toggleBookmark} aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all cursor-pointer ${isBookmarked ? 'bg-reeAmber/10 border-reeAmber/40 text-reeAmber shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'bg-surface2/50 hover:bg-surface3 border-border2/60 text-muted hover:text-reeAmber'}`}>🔖</button>
+                    </div>
+                  }
+              />
           ) : (
-              <FlashcardMode session={session} handleFlashcardReveal={handleFlashcardReveal} handleFlashcardRating={handleFlashcardRating} />
+              // Flashcard mode still has its own flip surface; the prompt
+              // rendering there is handled inside FlashcardMode.
+              <>
+                  <div className="text-xl sm:text-2xl font-medium text-white leading-relaxed relative z-10 mb-10 overflow-x-auto math-scroll-mobile drop-shadow-sm [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0">
+                      <LatexRenderer content={currentQ.text || currentQ.question} />
+                  </div>
+                  <FlashcardMode session={session} handleFlashcardReveal={handleFlashcardReveal} handleFlashcardRating={handleFlashcardRating} />
+              </>
           )}
 
           {session.isAnswered && (

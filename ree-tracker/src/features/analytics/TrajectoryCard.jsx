@@ -22,7 +22,7 @@ const rankBand = (pct) => {
 // One-line definition of the feature, shown in every state so the user
 // understands what they're looking at even before any data lands.
 const ABOUT_TRAJECTORY =
-  'Projects your chance of passing the REE board exam — and of landing in the topnotcher tier — from your answered-question history. Sharpens as you take more sessions.';
+  'Pass and topnotcher probabilities derived from your question history.';
 
 export function TrajectoryCard() {
   const { snapshot, loading, error, recompute } = useForecast();
@@ -37,7 +37,6 @@ export function TrajectoryCard() {
           </div>
         </CardHeader>
         <CardBody className="flex flex-col gap-4">
-          <p className="text-[11px] leading-snug text-muted2">{ABOUT_TRAJECTORY}</p>
           <div className="grid grid-cols-2 gap-4">
             <Skeleton className="h-14 w-32" />
             <Skeleton className="h-14 w-32" />
@@ -61,11 +60,10 @@ export function TrajectoryCard() {
           </div>
         </CardHeader>
         <CardBody className="flex flex-col gap-3">
-          <p className="text-[11px] leading-snug text-muted2">{ABOUT_TRAJECTORY}</p>
           <p className="text-muted2 text-sm">
             {error
-              ? 'Couldn’t reach the forecast service right now. If you just restarted the backend, give it a moment and retry.'
-              : 'Connecting to the forecast service…'}
+              ? "Forecast service unreachable - retry in a moment."
+              : "Connecting..."}
           </p>
           <button
             type="button"
@@ -99,8 +97,7 @@ export function TrajectoryCard() {
         </div>
         <Badge tone={band.tone}>{band.label}</Badge>
       </CardHeader>
-      <CardBody className="flex flex-col gap-5">
-        <p className="text-[11px] leading-snug text-muted2">{ABOUT_TRAJECTORY}</p>
+      <CardBody className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-6">
           <Stat label="Pass probability" value={pctFmt(pass)} suffix="%" />
           <Stat label="Topnotcher chance" value={pctFmt(top)} suffix="%" />
@@ -109,12 +106,12 @@ export function TrajectoryCard() {
         <ProbabilityBar pass={pass} top={top} />
 
         {isEarlyEstimate && (
-          <p className="text-[11px] leading-snug text-muted2">
-            Early estimate — answer more questions to sharpen your trajectory.
+          <p className="text-[10px] text-muted2">
+            Early estimate — sharpens as you answer more.
           </p>
         )}
 
-        <div className="flex items-center justify-between text-xs text-muted2 font-mono">
+        <div className="flex items-center justify-between text-[10px] text-muted2 font-mono">
           <span>Model {snapshot?.modelVersion ?? 'v1'}</span>
           <button
             type="button"
@@ -122,7 +119,7 @@ export function TrajectoryCard() {
             disabled={loading}
             className="underline-offset-2 hover:underline focus-visible:outline-none disabled:opacity-50"
           >
-            {loading ? 'Recomputing…' : 'Recompute now'}
+            {loading ? 'Retrying…' : 'Recompute'}
           </button>
         </div>
       </CardBody>

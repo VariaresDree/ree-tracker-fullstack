@@ -19,7 +19,7 @@ const shuffleArray = (array) => {
 };
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
-  const { dynamicTOS, setStats } = useStore();
+  const { dynamicTOS, setStats, startSession: startStoreSession, endSession: endStoreSession } = useStore();
 
   const [config, setConfig] = useState({
     mode: 'subject', subject: 'EE', count: 20, isPrcStandard: false, source: 'library', timeLimitMins: 30, cognitiveFocus: 'mixed'
@@ -164,10 +164,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       timeSpentPerQuestion.current = {};
       currentAnswersRef.current = {};
       currentConfidencesRef.current = {};
-      questionsRef.current = pool; 
+      questionsRef.current = pool;
       lastActiveTime.current = Date.now();
       totalExamTime.current = timeLimitSecs;
       endTimeRef.current = Date.now() + timeLimitSecs * 1000;
+
+      // Bracket the session in the store so the eventual submit uses a real
+      // sessionId (one ExamSession upserted on the backend, not a phantom
+      // UUID per submit).
+      startStoreSession({ mode: 'BOARD_SIM', subject: config.subject });
       
       const newState = { 
         isActive: true, isFinished: false, questions: pool, answers: {}, 
@@ -292,7 +297,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
         if (currentUser && isOnline) {
             try {
-                await syncTelemetryBatch(currentUser.uid, crypto.randomUUID(), config.subject, 'BOARD_SIM', attemptsPayload);
+                // Use the session's lifecycle id, not a fresh UUID per submit.
+                // The backend upserts the ExamSession row keyed on this id so
+                // the QuestionAttempt FK is always satisfied (keystone fix).
+                const sessionId = useStore.getState().currentSessionId || crypto.randomUUID();
+                await syncTelemetryBatch(currentUser.uid, sessionId, config.subject, 'BOARD_SIM', attemptsPayload);
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
                 if (freshProfile?.data) {
                     setStats({
@@ -351,6 +360,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     } catch (err) {
         toast.error(`Error: ${err.message}`, { id: loadingToastId });
     } finally {
+        // Clear the session pointer in the store so the next simulation
+        // start gets a fresh id (and any pending debounced queue drains).
+        try { await endStoreSession(); } catch (_) {}
         setIsSubmitting(false);
     }
   };
