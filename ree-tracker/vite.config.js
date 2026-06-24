@@ -5,12 +5,16 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(async () => ({
-  // Vitest config — pure-function tests run in node (no jsdom). When we add
-  // component tests we'll set `environment: 'jsdom'` and add @testing-library/react.
+  // Vitest config. Default environment is jsdom so React component tests can
+  // mount; pure-function suites can opt back to node via a per-file
+  // `// @vitest-environment node` pragma if they want the speed (but jsdom
+  // overhead is ~30ms once for the whole run, so it's rarely worth it).
   test: {
-    environment: 'node',
+    environment: 'jsdom',
     include: ['src/**/*.test.{js,jsx,ts,tsx}'],
+    setupFiles: ['./src/test/setup.js'],
     globals: false,
+    css: false,
   },
   resolve: {
     alias: {
