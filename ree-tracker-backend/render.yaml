@@ -50,32 +50,39 @@ services:
       - key: S3_SECRET_ACCESS_KEY
         sync: false
 
-  - type: cron
-    name: ree-calibrate-nightly
-    runtime: node
-    plan: starter
-    rootDir: ree-tracker-backend
-    schedule: "0 3 * * *"   # 03:00 UTC = 11:00 Asia/Manila
-    buildCommand: npm install && npx prisma generate
-    startCommand: npm run calibrate
-    envVars:
-      - fromService:
-          name: ree-tracker-backend
-          type: web
-          envVarKey: DATABASE_URL
-      - fromService:
-          name: ree-tracker-backend
-          type: web
-          envVarKey: FIREBASE_PROJECT_ID
-      - fromService:
-          name: ree-tracker-backend
-          type: web
-          envVarKey: FIREBASE_CLIENT_EMAIL
-      - fromService:
-          name: ree-tracker-backend
-          type: web
-          envVarKey: FIREBASE_PRIVATE_KEY
-      - fromService:
-          name: ree-tracker-backend
-          type: web
-          envVarKey: GEMINI_API_KEY
+  # ── Nightly IRT calibration cron ─────────────────────────────────────────
+  # DISABLED for the free prototype: Render cron jobs require a paid plan, so
+  # including this block makes the Blueprint prompt for billing. Calibration is
+  # non-essential until there's a meaningful volume of attempts. To run it
+  # on-demand: `npm run calibrate` (locally or as a one-off Render job). When
+  # you're ready to schedule it on a paid plan, un-comment the block below.
+  #
+  # - type: cron
+  #   name: ree-calibrate-nightly
+  #   runtime: node
+  #   plan: starter
+  #   rootDir: ree-tracker-backend
+  #   schedule: "0 3 * * *"   # 03:00 UTC = 11:00 Asia/Manila
+  #   buildCommand: npm install && npx prisma generate
+  #   startCommand: npm run calibrate
+  #   envVars:
+  #     - fromService:
+  #         name: ree-tracker-backend
+  #         type: web
+  #         envVarKey: DATABASE_URL
+  #     - fromService:
+  #         name: ree-tracker-backend
+  #         type: web
+  #         envVarKey: FIREBASE_PROJECT_ID
+  #     - fromService:
+  #         name: ree-tracker-backend
+  #         type: web
+  #         envVarKey: FIREBASE_CLIENT_EMAIL
+  #     - fromService:
+  #         name: ree-tracker-backend
+  #         type: web
+  #         envVarKey: FIREBASE_PRIVATE_KEY
+  #     - fromService:
+  #         name: ree-tracker-backend
+  #         type: web
+  #         envVarKey: GEMINI_API_KEY
