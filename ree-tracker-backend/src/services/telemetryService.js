@@ -22,8 +22,20 @@ const canonicalSubject = (s) => {
     return SUBJECT_CANONICAL[norm] || s;
 };
 
+// Single shared formatter — en-CA yields the YYYY-MM-DD shape ActivityLog keys on.
+const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
 function todayManila() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+    return MANILA_FMT.format(new Date());
+}
+// Manila "yesterday". Manila is a fixed UTC+8 with no DST, so subtracting a flat
+// 24h is always correct (no spring-forward/fall-back edge cases).
+function yesterdayManila() {
+    return MANILA_FMT.format(new Date(Date.now() - 86400000));
+}
+// Manila calendar date of an arbitrary instant — used to dedupe ThetaHistory to
+// one point per day.
+function manilaDateOf(d) {
+    return MANILA_FMT.format(d);
 }
 
 /**
@@ -125,6 +137,10 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         }
     };
 
+    // Whether this batch is the FIRST answered question for the user today
+    // (Manila). Drives the once-per-day streak advance below.
+    let isFirstActivityToday = false;
+
     const runWrites = async (db) => {
         resolvedSessionId = await ensureSession(db);
         const attemptsData = mapped.map(({ _difficulty, sessionId: _s, ...rest }) => ({
@@ -132,6 +148,13 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             sessionId: resolvedSessionId,
         }));
         await db.questionAttempt.createMany({ data: attemptsData });
+
+        const existingToday = await db.activityLog.findUnique({
+            where: { userId_date: { userId, date: today } },
+            select: { userId: true },
+        });
+        isFirstActivityToday = !existingToday;
+
         await db.activityLog.upsert({
             where: { userId_date: { userId, date: today } },
             update: { count: { increment: mapped.length } },
@@ -145,8 +168,13 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         await prisma.$transaction(async (db) => { await runWrites(db); });
     }
 
-    // Recompute theta outside the transaction is fine — it's idempotent on input
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { thetaRating: true } });
+    // Recompute theta + streak outside the transaction — both are idempotent
+    // on the batch input, and keeping them out of the write tx shortens the
+    // lock window under load.
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { thetaRating: true, globalStreak: true },
+    });
     const currentTheta = user?.thetaRating ?? 0.0;
     const irtInput = mapped.map((m) => ({
         isCorrect: m.isCorrect,
@@ -154,10 +182,43 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     }));
     const updatedTheta = calculateUpdatedTheta(currentTheta, irtInput);
 
+    // Global Active Streak — advances at most once per Manila day. On the first
+    // answered question of a new day we increment if yesterday also had
+    // activity, otherwise the run is broken and we reset to 1. Later batches the
+    // same day leave the streak untouched (but self-heal to >=1 for legacy rows
+    // that were stuck at 0 despite activity today).
+    let newStreak = user?.globalStreak ?? 0;
+    if (isFirstActivityToday) {
+        const hadYesterday = await prisma.activityLog.findUnique({
+            where: { userId_date: { userId, date: yesterdayManila() } },
+            select: { userId: true },
+        });
+        newStreak = hadYesterday ? (user?.globalStreak ?? 0) + 1 : 1;
+    } else {
+        newStreak = Math.max(user?.globalStreak ?? 0, 1);
+    }
+
     await prisma.user.update({
         where: { id: userId },
-        data: { thetaRating: updatedTheta, lastActive: new Date() },
+        data: { thetaRating: updatedTheta, lastActive: new Date(), globalStreak: newStreak },
     });
+
+    // θ-history — one point per Manila day, updated in place within the day so
+    // the Readiness Velocity chart gets clean daily samples and the table stays
+    // bounded (one row/day instead of one/batch).
+    const lastTheta = await prisma.thetaHistory.findFirst({
+        where: { userId },
+        orderBy: { recordedAt: 'desc' },
+        select: { id: true, recordedAt: true },
+    });
+    if (lastTheta && manilaDateOf(lastTheta.recordedAt) === today) {
+        await prisma.thetaHistory.update({
+            where: { id: lastTheta.id },
+            data: { theta: updatedTheta },
+        });
+    } else {
+        await prisma.thetaHistory.create({ data: { userId, theta: updatedTheta } });
+    }
 
     return { written: mapped.length, updatedTheta, sessionId: resolvedSessionId };
 }

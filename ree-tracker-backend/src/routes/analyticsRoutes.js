@@ -111,6 +111,21 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
 
         const totalAnswered = Object.values(modeBreakdown).reduce((s, m) => s + m.attempts, 0);
 
+        // θ-history powers the Readiness Velocity chart. We store one row per
+        // Manila day (telemetryService daily-upsert), so the last ~120 rows give
+        // ~4 months of daily samples — enough for the Day/Week/Month buckets.
+        const thetaRows = await prisma.thetaHistory.findMany({
+            where: { userId: uid },
+            orderBy: { recordedAt: 'asc' },
+            take: 120,
+            select: { theta: true, recordedAt: true },
+        });
+        const manilaFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
+        const thetaHistory = thetaRows.map((r) => ({
+            date: manilaFmt.format(r.recordedAt),
+            theta: r.theta,
+        }));
+
         const payload = {
             success: true,
             data: {
@@ -128,6 +143,7 @@ router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
                 matrix,
                 microTopics,
                 modeBreakdown,
+                thetaHistory,
             }
         };
         cacheSet(uid, payload);
@@ -173,6 +189,13 @@ router.delete('/purge', authMiddleware, async (req, res) => {
             await tx.userTopicPerformance.deleteMany({ where: { userId: req.user.id } });
             await tx.forecastSnapshot.deleteMany({ where: { userId: req.user.id } });
             await tx.userAbility.deleteMany({ where: { userId: req.user.id } });
+            // Also wipe the surfaces these tables back: StudySession → Profile
+            // "Study Time" tab, ThetaHistory → Readiness Velocity, and weekly
+            // ReadinessSnapshot. Without these a purge left stale study-time and
+            // an old velocity curve behind.
+            await tx.studySession.deleteMany({ where: { userId: req.user.id } });
+            await tx.thetaHistory.deleteMany({ where: { userId: req.user.id } });
+            await tx.readinessSnapshot.deleteMany({ where: { userId: req.user.id } });
             await tx.user.update({
                 where: { id: req.user.id },
                 data: { thetaRating: 0.0, globalStreak: 0 }

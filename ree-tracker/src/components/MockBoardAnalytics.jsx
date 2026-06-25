@@ -102,7 +102,7 @@ export default function MockBoardAnalytics() {
   const passRate = totalRuns > 0 ? Math.round((passCount / totalRuns) * 100) : 0;
 
   return (
-    <div className="flex flex-col gap-6 mt-8">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-2">
         <div>
           <h2 className="text-2xl font-black text-textMain tracking-tight">Pre-Board Trajectory Matrix</h2>

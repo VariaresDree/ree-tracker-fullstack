@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
+import { stratifiedSample } from '../../utils/shuffle';
 import toast from 'react-hot-toast';
 
 export const useReviewSession = (currentUser, isOnline) => {
@@ -76,9 +77,11 @@ export const useReviewSession = (currentUser, isOnline) => {
                 throw new Error(`No [${config.cognitiveFocus.toUpperCase()}] items found. Please switch to Standard Mix or change topics.`);
             }
             
-            // 3. 🚀 TRUE RANDOMIZATION: Shuffle massive pool, then extract exact session count
-            const shuffled = filteredData.sort(() => 0.5 - Math.random());
-            const finalSessionQuestions = shuffled.slice(0, config.count || 20);
+            // 3. 🚀 TRUE RANDOMIZATION: stratified sample across subtopics so a
+            // subject-wide ("All") session spans the whole subject instead of
+            // collapsing onto the dominant subtopic (Math→Algebra, ESAS→Chemistry).
+            // For a pinned subtopic this is just a uniform Fisher-Yates pick.
+            const finalSessionQuestions = stratifiedSample(filteredData, config.count || 20);
 
             telemetryBatchRef.current = [];
             startTimeRef.current = Date.now();
@@ -109,7 +112,10 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
         const isCorrect = option === currentQ.answer;
-        const timeSpentMs = elapsedTime * 1000;
+        // Millisecond-accurate: read the wall clock directly instead of the
+        // 1s-throttled `elapsedTime` state, which recorded 0 ms for any answer
+        // locked in under a second and deflated the per-question time averages.
+        const timeSpentMs = Math.max(0, Date.now() - startTimeRef.current);
 
         setSession(prev => ({
             ...prev, isAnswered: true, selectedOption: option,
@@ -151,7 +157,10 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
 
-        const timeSpentMs = elapsedTime * 1000;
+        // Millisecond-accurate: read the wall clock directly instead of the
+        // 1s-throttled `elapsedTime` state, which recorded 0 ms for any answer
+        // locked in under a second and deflated the per-question time averages.
+        const timeSpentMs = Math.max(0, Date.now() - startTimeRef.current);
 
         setSession(prev => ({
             ...prev, isAnswered: true,

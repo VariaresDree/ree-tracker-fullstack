@@ -47,24 +47,42 @@ router.get('/', authMiddleware, async (req, res) => {
             whereClause.subtopic = subtopic.trim();
         }
 
-        // Pull a random sample. Previously this used `orderBy: createdAt desc`
-        // which deterministically returned the latest N questions — for Math
-        // that meant only the most recently added subtopic (e.g. Algebra), for
-        // ESAS only Chemistry. We pull IDs first with `ORDER BY random()` then
-        // re-fetch the rows so subtopic coverage is balanced across sessions.
+        // Pull a random sample. A flat `ORDER BY random()` is still biased toward
+        // whichever subtopic dominates the bank — for Math that's "Algebra &
+        // Complex Numbers", for ESAS "Chemistry for Engineers" — so a subject-wide
+        // ("All") session looked un-randomized. When no subtopic is pinned we
+        // stratify: ROW_NUMBER() partitions by subtopic, then ordering by
+        // (rn, random()) round-robins one item per subtopic before any subtopic
+        // contributes a second, guaranteeing breadth across the subject.
         const cap = Math.min(parseInt(limit) || 50, 2000);
-        const ids = await prisma.$queryRawUnsafe(
-            `SELECT id FROM "Question"
-             WHERE "isFlagged" = false
-             ${subjFilter ? `AND "subject" = ANY($1::text[])` : ''}
-             ${subtopic && subtopic !== 'All' ? `AND "subtopic" = $${subjFilter ? 2 : 1}` : ''}
-             ORDER BY random()
-             LIMIT ${cap}`,
-            ...[
-                subjFilter ? (subjFilter.in || [subjFilter]) : null,
-                subtopic && subtopic !== 'All' ? subtopic.trim() : null,
-            ].filter((v) => v !== null),
-        );
+        const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
+        const specificSubtopic = subtopic && subtopic !== 'All' ? subtopic.trim() : null;
+
+        let ids;
+        if (specificSubtopic) {
+            ids = await prisma.$queryRawUnsafe(
+                `SELECT id FROM "Question"
+                 WHERE "isFlagged" = false
+                 ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
+                 AND "subtopic" = $${subjectValues ? 2 : 1}
+                 ORDER BY random()
+                 LIMIT ${cap}`,
+                ...[subjectValues, specificSubtopic].filter((v) => v !== null),
+            );
+        } else {
+            ids = await prisma.$queryRawUnsafe(
+                `SELECT id FROM (
+                    SELECT id,
+                           ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn
+                    FROM "Question"
+                    WHERE "isFlagged" = false
+                    ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
+                 ) t
+                 ORDER BY t.rn, random()
+                 LIMIT ${cap}`,
+                ...[subjectValues].filter((v) => v !== null),
+            );
+        }
 
         const idList = ids.map((r) => r.id);
         if (idList.length === 0) {
@@ -205,19 +223,35 @@ router.put('/:id/cache', authMiddleware, async (req, res) => {
 });
 
 // 5. FETCH ACTIVE RECALL REVIEW QUESTIONS
+// Kept consistent with GET / : stratified random across subtopics instead of the
+// old `orderBy createdAt desc` (which returned only the latest subtopic).
 router.post('/review', authMiddleware, async (req, res) => {
     try {
         const { subject, limit = 20 } = req.body;
-        
-        let whereClause = { isFlagged: false };
-        const subjFilter = getSubjectFilter(subject);
-        if (subjFilter) whereClause.subject = subjFilter;
+        const cap = Math.min(parseInt(limit) || 20, 2000);
 
-        const questions = await prisma.question.findMany({
-            where: whereClause,
-            take: parseInt(limit),
-            orderBy: { createdAt: 'desc' }
-        });
+        const subjFilter = getSubjectFilter(subject);
+        const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
+
+        const ids = await prisma.$queryRawUnsafe(
+            `SELECT id FROM (
+                SELECT id,
+                       ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn
+                FROM "Question"
+                WHERE "isFlagged" = false
+                ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
+             ) t
+             ORDER BY t.rn, random()
+             LIMIT ${cap}`,
+            ...[subjectValues].filter((v) => v !== null),
+        );
+
+        const idList = ids.map((r) => r.id);
+        if (idList.length === 0) return res.status(200).json({ success: true, items: [] });
+
+        const questions = await prisma.question.findMany({ where: { id: { in: idList } } });
+        const orderMap = new Map(idList.map((id, i) => [id, i]));
+        questions.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
 
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {

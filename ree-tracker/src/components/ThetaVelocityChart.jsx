@@ -27,18 +27,58 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-export default function ThetaVelocityChart({ history = [] }) {
+// ISO-8601 week key (e.g. "2026-W26") for an YYYY-MM-DD date string.
+function isoWeekKey(dateStr) {
+  const d = new Date(dateStr);
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+// Bucket the daily θ-history by range using PERIOD-LATEST semantics: within each
+// week/month we keep the most recent θ reached (history arrives sorted ascending,
+// so the last write per bucket wins). Day = raw daily points.
+function bucketHistory(history, range) {
+  if (range === 'week' || range === 'month') {
+    const keyOf = (dateStr) => {
+      if (range === 'month') {
+        const d = new Date(dateStr);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }
+      return isoWeekKey(dateStr);
+    };
+    const map = new Map();
+    for (const h of history) map.set(keyOf(h.date), h); // ascending → latest wins
+    const entries = [...map.values()].slice(-12);
+    return entries.map((h, i) => {
+      const dt = new Date(h.date);
+      const name = range === 'month'
+        ? dt.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+        : `Wk ${i + 1}`;
+      const date = range === 'month'
+        ? dt.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        : `Week of ${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      return { name, date, theta: h.theta };
+    });
+  }
+  return history.slice(-30).map((h, i) => ({
+    name: `Day ${i + 1}`,
+    date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    theta: h.theta,
+  }));
+}
+
+export default function ThetaVelocityChart({ history = [], range = 'day' }) {
   const safeHistory = Array.isArray(history) ? history : [];
 
-  const chartData = useMemo(() => safeHistory.slice(-30).map((h, i) => {
-    const passProb = Math.min(100, Math.max(0, ((h.theta + 3) / 6) * 100));
-    return {
-      name: `Day ${i + 1}`,
-      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      theta: Number(h.theta.toFixed(3)),
-      probability: passProb
-    };
-  }), [safeHistory]);
+  const chartData = useMemo(() => bucketHistory(safeHistory, range).map((h) => ({
+    ...h,
+    theta: Number(Number(h.theta).toFixed(3)),
+    probability: Math.min(100, Math.max(0, ((h.theta + 3) / 6) * 100)),
+  })), [safeHistory, range]);
 
   return (
     <div className="w-full h-full min-h-[220px] min-w-0 relative animate-in fade-in">

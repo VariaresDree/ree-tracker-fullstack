@@ -13,6 +13,11 @@ import { calculateUpdatedStats } from '../utils/irtMath';
 let debouncedFlushHandle = null;
 const DEBOUNCE_FLUSH_MS = 1500;
 
+// Tracks the in-flight flush so concurrent callers (debounced timer + endSession)
+// serialize onto a single POST instead of racing — the race used to let a
+// later flush clobber attempts queued during an earlier one's round-trip.
+let inFlightFlush = null;
+
 const newId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 // HIGH-PERFORMANCE ASYNC STORAGE ADAPTER
@@ -183,64 +188,104 @@ export const useStore = create(
         }, delay);
       },
 
+      // Sends the staged attempts to the backend. Hardened so a 10-item burst
+      // never under-counts:
+      //   • Serializes on `inFlightFlush` so the debounced timer and endSession
+      //     can't POST concurrently.
+      //   • Snapshots the exact batch and removes ONLY those ids on success, so
+      //     attempts staged DURING the round-trip are preserved (the old code
+      //     blindly cleared the whole queue and lost them).
+      //   • Sends an Idempotency-Key so a network-retried batch is replayed by
+      //     the backend, not double-inserted.
+      //   • Drains trailing items via a guarded re-flush (only on success +
+      //     online, so an error can't spin a tight retry loop).
       flushQueueToCloud: async () => {
-        const { syncQueue, syncStatus } = getStore();
-        if (syncQueue.length === 0 || syncStatus === 'syncing') return;
-
-        if (!navigator.onLine) {
-            set({ syncStatus: 'offline_queued' });
-            return;
+        // If a flush is already running, wait for it (its success path will have
+        // cleared its own ids) before we evaluate what's left to send.
+        if (inFlightFlush) {
+          await inFlightFlush.catch(() => {});
         }
 
-        set({ syncStatus: 'syncing' });
+        const run = async () => {
+          const { syncQueue } = getStore();
+          if (syncQueue.length === 0) return true;
 
-        try {
+          if (!navigator.onLine) {
+            set({ syncStatus: 'offline_queued' });
+            return false;
+          }
+
+          const batch = syncQueue.slice();
+          const sentIds = new Set(batch.map((a) => a.id));
+          const batchKey = newId();
+
+          set({ syncStatus: 'syncing' });
+
+          try {
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("No authenticated session located.");
 
             const token = await currentUser.getIdToken();
             const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-            // currentSessionId is populated by startSession() when a quiz
-            // surface mounts; we deliberately do NOT mint a fresh UUID here
-            // anymore, because each new UUID would create a phantom
-            // ExamSession row. Falling back to a single per-flush UUID still
-            // beats throwing — backend upserts will tolerate it — but the
-            // expected path is "session lifecycle bracket each batch."
+            // currentSessionId is populated by startSession() when a quiz surface
+            // mounts; we deliberately do NOT mint a fresh UUID per flush, because
+            // each new UUID would create a phantom ExamSession row.
             const sessionId = getStore().currentSessionId || newId();
             const mode = getStore().currentSessionMode || 'ACTIVE_REVIEW';
             const targetSubject = getStore().currentSubject || 'BLENDED';
 
             const response = await fetch(`${apiUrl}/api/analytics/telemetry-bulk`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ sessionId, mode, targetSubject, attempts: syncQueue })
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'Idempotency-Key': batchKey,
+              },
+              body: JSON.stringify({ sessionId, mode, targetSubject, attempts: batch })
             });
 
             if (!response.ok) throw new Error("Backend synchronization transaction rejected.");
-            
+
             const serverResult = await response.json();
 
-            set({
-                syncQueue: [],
-                syncStatus: 'synced',
+            set((state) => {
+              const remaining = state.syncQueue.filter((a) => !sentIds.has(a.id));
+              return {
+                syncQueue: remaining,
+                syncStatus: remaining.length > 0 ? 'offline_queued' : 'synced',
                 stats: {
-                    ...getStore().stats,
-                    thetaRating: serverResult.updatedTheta,
-                    cloudTimestamp: Date.now()
+                  ...state.stats,
+                  thetaRating: serverResult.updatedTheta,
+                  cloudTimestamp: Date.now()
                 }
+              };
             });
-        } catch (error) {
+            return true;
+          } catch (error) {
             if (error.message?.includes('[OFFLINE]')) {
-                console.warn("[SYNC] Backend offline — queue preserved for retry.");
-                set({ syncStatus: 'offline_queued' });
+              console.warn("[SYNC] Backend offline — queue preserved for retry.");
+              set({ syncStatus: 'offline_queued' });
             } else {
-                console.error("[SYNC FATAL ERROR] Processing batch data failed:", error);
-                set({ syncStatus: 'error' });
+              console.error("[SYNC FATAL ERROR] Processing batch data failed:", error);
+              set({ syncStatus: 'error' });
             }
+            return false;
+          }
+        };
+
+        inFlightFlush = run();
+        let succeeded = false;
+        try {
+          succeeded = await inFlightFlush;
+        } finally {
+          inFlightFlush = null;
+        }
+
+        // Drain anything that landed mid-flush. Bounded: each successful pass
+        // removes its batch, so the queue strictly shrinks until empty.
+        if (succeeded && navigator.onLine && getStore().syncQueue.length > 0) {
+          await getStore().flushQueueToCloud();
         }
       },
 

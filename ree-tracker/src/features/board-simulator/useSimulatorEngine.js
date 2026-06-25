@@ -7,16 +7,8 @@ import {
   fetchMultiplayerBattle
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
+import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
 import toast from 'react-hot-toast';
-
-const shuffleArray = (array) => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
   const { dynamicTOS, setStats, startSession: startStoreSession, endSession: endStoreSession } = useStore();
@@ -117,7 +109,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                   // Direct Deep Fetch: Pulling 2000 ensures we have enough data even after filtering
                   const raw = await fetchVaultQuestions(subj, 'All', 2000);
                   const filtered = applyFilter(raw || []);
-                  const shuffled = shuffleArray(filtered).slice(0, dist[subj]);
+                  const shuffled = stratifiedSample(filtered, dist[subj]);
                   pool = pool.concat(shuffled);
               }
               timeLimitSecs = config.isPrcStandard ? 5 * 3600 : timeLimitSecs;
@@ -126,7 +118,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               const targetSubtopic = config.subtopic === 'All' || !config.subtopic ? 'All' : config.subtopic;
               const raw = await fetchVaultQuestions(config.subject, targetSubtopic, 2000);
               const filtered = applyFilter(raw || []);
-              pool = shuffleArray(filtered).slice(0, totalCount);
+              // Stratify so a single-subject sim spans its subtopics rather than
+              // collapsing onto the dominant one. (No-op for a pinned subtopic.)
+              pool = stratifiedSample(filtered, totalCount);
               timeLimitSecs = config.isPrcStandard ? (config.subject === 'EE' ? 6 * 3600 : 4 * 3600) : totalCount * 120;
           }
       } else {
@@ -291,7 +285,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             return {
                 questionId: q.id, subject: q.subject, subtopic: q.subtopic,
                 isCorrect: isCorrect, confidenceLevel: finalConf[idx] || 'HIGH',
-                timeSpentMs: (timeSpent[idx] || 10) * 1000 
+                // `timeSpent[idx]` is ALREADY milliseconds (accumulated as
+                // Date.now() - lastActiveTime). The old `* 1000` inflated it 1000×,
+                // so every attempt recorded ~hours and poisoned the per-question
+                // time averages / Speed Mapping. Send the raw ms; 10s fallback.
+                timeSpentMs: Math.round(timeSpent[idx]) || 10000
             };
         });
 

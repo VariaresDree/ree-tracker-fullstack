@@ -1,20 +1,31 @@
 // src/components/HeatmapChart.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 
+const normKey = (s) => String(s || '').trim().toLowerCase();
+
 function HeatmapChart({ stats }) {
-    const [activeTab, setActiveTab] = useState('Mathematics'); 
-    const [viewMode, setViewMode] = useState('accuracy'); 
+    const [activeTab, setActiveTab] = useState('Mathematics');
+    const [viewMode, setViewMode] = useState('accuracy');
 
     // 🚀 FIXED: Dynamic TOS completely replaces the static fallback
     const { dynamicTOS } = useStore();
     const safeTOS = dynamicTOS || {};
     const microTopics = stats?.microTopics || {};
 
+    // Case/whitespace-insensitive index so a stored subtopic like
+    // "algebra & complex numbers" still matches the TOS label
+    // "Algebra & Complex Numbers" instead of silently rendering an empty tile.
+    const microByNorm = useMemo(() => {
+        const m = {};
+        for (const [k, v] of Object.entries(microTopics)) m[normKey(k)] = v;
+        return m;
+    }, [microTopics]);
+
     const displayedTopics = (safeTOS[activeTab] || []).map(topicName => {
         return {
             name: topicName,
-            data: microTopics[topicName] || { attempts: 0, correct: 0, totalTime: 0 }
+            data: microByNorm[normKey(topicName)] || { attempts: 0, correct: 0, totalTime: 0 }
         };
     }).sort((a, b) => {
         return b.data.attempts - a.data.attempts;

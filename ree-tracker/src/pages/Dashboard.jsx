@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [showAiModal, setShowAiModal] = useState(false);
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
+  const [velocityRange, setVelocityRange] = useState('day'); // 'day' | 'week' | 'month'
 
   useEffect(() => {
     const fetchSQLAnalytics = async () => {
@@ -264,19 +265,33 @@ export default function Dashboard() {
           <div className="lg:col-span-2 p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col min-h-[250px] min-w-0 overflow-hidden transition-shadow hover:shadow-md hover-glow">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h3 className="text-xs font-black uppercase tracking-widest text-textMain">Readiness Velocity (θ)</h3>
-              <span className="text-[0.6rem] font-bold text-muted uppercase tracking-widest bg-surface2 px-2 py-1 rounded-md">30 Days</span>
+              <div className="flex items-center gap-1 bg-surface2 p-1 rounded-lg" role="group" aria-label="Velocity time range">
+                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setVelocityRange(val)}
+                    aria-pressed={velocityRange === val}
+                    className={`px-2.5 py-1 rounded-md text-[0.6rem] font-bold uppercase tracking-widest transition-colors cursor-pointer ${velocityRange === val ? 'bg-reeBlue/15 text-reeBlue shadow-sm' : 'text-muted hover:text-textMain'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex-1 w-full h-full min-h-[150px] min-w-0 mt-2">
-              <ThetaVelocityChart history={activeStats?.thetaHistory} />
+              <ThetaVelocityChart history={activeStats?.thetaHistory} range={velocityRange} />
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
           <div className="p-6 bg-surface border border-border2/60 rounded-2xl shadow-sm flex flex-col justify-center transition-shadow hover:shadow-md hover-glow">
             <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4">Confidence vs Accuracy</h3>
             <ConfidenceMatrix stats={activeStats} />
           </div>
-          <div className="flex flex-col min-h-[350px] min-w-0">
+          {/* Bounded height + internal scroll (HeatmapChart owns an overflow-y-auto
+              list) so switching Math/ESAS/EE tabs can't grow this column and
+              stretch the Confidence box beside it. */}
+          <div className="flex flex-col min-h-[350px] lg:h-[440px] min-w-0">
             <HeatmapChart stats={activeStats} />
           </div>
         </div>
@@ -289,7 +304,10 @@ export default function Dashboard() {
             stats={activeStats}
             onPurgeRequest={() => setShowPurgeModal(true)}
         />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* items-start: the compact Tactical Recommendation keeps its natural
+            height instead of stretching to match the very tall Pre-Board
+            Trajectory + Simulation Ledger block beside it. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
           <RecommendedModule stats={activeStats} />
           <MockBoardAnalytics />
         </div>
@@ -346,7 +364,7 @@ export default function Dashboard() {
             <div className="bg-surface border border-reeRed/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-md w-full relative overflow-hidden modal-entrance">
               <div className="absolute top-0 right-0 w-32 h-32 bg-reeRed/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
               <h3 className="text-xl font-black text-reeRed mb-3 flex items-center gap-2 relative z-10"><span>⚠️</span> INITIATE GLOBAL PURGE</h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed relative z-10">This protocol will permanently delete your <strong className="text-textMain">Topic Heatmaps, IRT Theta Rating, Readiness Velocity, Confidence Matrix, and Lifetime History</strong>. <br/><br/>This action is irreversible. Proceed?</p>
+              <p className="text-sm text-muted2 mb-6 leading-relaxed relative z-10">This protocol will permanently delete your <strong className="text-textMain">Topic Heatmaps, IRT Theta Rating, Readiness Velocity, Confidence Matrix, Study Time logs, and Lifetime History</strong>. <br/><br/>This action is irreversible. Proceed?</p>
               <div className="flex justify-end gap-3 relative z-10">
                 <button disabled={isPurging} onClick={() => setShowPurgeModal(false)} className="px-5 py-2.5 bg-surface2 hover:bg-surface3 text-textMain rounded-xl text-xs font-bold transition-colors cursor-pointer border border-border2 disabled:opacity-50">Cancel Protocol</button>
                 <button disabled={isPurging} onClick={executePurge} className="flex items-center gap-2 px-5 py-2.5 bg-reeRed hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-colors cursor-pointer disabled:opacity-50 btn-press">
