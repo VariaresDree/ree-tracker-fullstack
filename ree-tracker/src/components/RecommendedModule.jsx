@@ -1,73 +1,78 @@
 // src/components/RecommendedModule.jsx
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Card, Button, Panel } from './ui';
+import { Target, ArrowRight } from './ui/icons';
 
 export default function RecommendedModule({ stats }) {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    // The hunting algorithm: Find the subtopic with the highest number of incorrect answers
-    const weakestLink = useMemo(() => {
-        if (!stats?.microTopics) return null;
-        
-        let highestRiskTopic = null;
-        let highestRiskScore = -1;
+  // Find the subtopic with the most mistakes (min 3 attempts to qualify).
+  const weakestLink = useMemo(() => {
+    if (!stats?.microTopics) return null;
+    let topic = null;
+    let score = -1;
+    Object.entries(stats.microTopics).forEach(([name, data]) => {
+      if (data.attempts >= 3) {
+        const mistakes = data.attempts - data.correct;
+        if (mistakes > score) {
+          score = mistakes;
+          topic = name;
+        }
+      }
+    });
+    return { topic, score };
+  }, [stats]);
 
-        Object.entries(stats.microTopics).forEach(([topic, data]) => {
-            // Risk score = Total mistakes. We only care if they've attempted it at least 3 times.
-            if (data.attempts >= 3) {
-                const mistakes = data.attempts - data.correct;
-                if (mistakes > highestRiskScore) {
-                    highestRiskScore = mistakes;
-                    highestRiskTopic = topic;
-                }
-            }
-        });
-
-        return { topic: highestRiskTopic, score: highestRiskScore };
-    }, [stats]);
-
-    if (!weakestLink?.topic) {
-        return (
-            <div className="p-6 bg-surface border border-border2 rounded-xl shadow-sm text-center">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-muted mb-2">Tactical Recommendation</h3>
-                <p className="text-xs text-muted2 font-mono">Answer at least 3 items per topic in any session to generate targeting data.</p>
-            </div>
-        );
-    }
-
+  if (!weakestLink?.topic) {
     return (
-        <div className="p-6 bg-surface border border-reeRed/30 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.05)] relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-reeRed"></div>
-            
-            <div className="flex justify-between items-start mb-4">
-                <div>
-                    <h3 className="text-[0.65rem] font-bold uppercase tracking-widest text-reeRed mb-1 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-reeRed rounded-full animate-pulse"></span> Critical Vulnerability Detected
-                    </h3>
-                    <div className="text-lg font-black text-textMain leading-tight line-clamp-2" title={weakestLink.topic}>
-                        {weakestLink.topic}
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex items-center gap-4 mb-5 text-xs">
-                <div className="flex flex-col">
-                    <span className="text-[0.6rem] text-muted uppercase tracking-widest">Risk Level</span>
-                    <span className="font-bold text-reeRed">High ({weakestLink.score} Errors)</span>
-                </div>
-                <div className="w-px h-6 bg-border2"></div>
-                <div className="flex flex-col">
-                    <span className="text-[0.6rem] text-muted uppercase tracking-widest">Action Required</span>
-                    <span className="font-bold text-textMain">Active Recall</span>
-                </div>
-            </div>
-
-            <button 
-                onClick={() => navigate('/review')} 
-                className="w-full py-3 bg-reeRed/10 hover:bg-reeRed/20 border border-reeRed/30 text-reeRed text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex justify-center items-center gap-2 group-hover:border-reeRed/60"
-            >
-                Launch Focused Review <span>→</span>
-            </button>
-        </div>
+      <Panel icon={Target} eyebrow="Focus" title="Critical focus" className="h-full">
+        <p className="text-sm text-muted2 leading-relaxed">
+          Answer at least 3 items per topic in any session to unlock targeting.
+        </p>
+      </Panel>
     );
+  }
+
+  return (
+    <Card
+      elevated
+      className="relative overflow-hidden flex flex-col"
+      style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 32%, transparent)' }}
+    >
+      <span className="absolute top-0 left-0 w-1 h-full" style={{ background: 'var(--accent-danger)' }} />
+      <div className="p-5 flex flex-col gap-4">
+        <div>
+          <div
+            className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.18em]"
+            style={{ color: 'var(--accent-danger)' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--accent-danger)' }} />
+            Critical focus
+          </div>
+          <h3 className="text-lg font-semibold text-textMain leading-tight mt-1.5 line-clamp-2" title={weakestLink.topic}>
+            {weakestLink.topic}
+          </h3>
+        </div>
+
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex flex-col">
+            <span className="text-[0.6rem] text-muted uppercase tracking-wider">Risk level</span>
+            <span className="font-semibold" style={{ color: 'var(--accent-danger)' }}>
+              High · {weakestLink.score} error{weakestLink.score === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="w-px h-6 bg-border" />
+          <div className="flex flex-col">
+            <span className="text-[0.6rem] text-muted uppercase tracking-wider">Recommended</span>
+            <span className="font-semibold text-textMain">Active recall</span>
+          </div>
+        </div>
+
+        <Button variant="danger" onClick={() => navigate('/review')} className="w-full">
+          Launch focused review <ArrowRight size={15} strokeWidth={2} />
+        </Button>
+      </div>
+    </Card>
+  );
 }

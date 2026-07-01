@@ -1,17 +1,17 @@
 // src/components/MissionControl.jsx
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { useTelemetrySlice } from '../store/slices';
 import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
+import { Panel, Button, Card, Skeleton } from './ui';
+import { ClipboardList, Settings2, RefreshCw, Trash2 } from './ui/icons';
 
 export default function MissionControl({ onPurgeRequest }) {
-  const { currentUser } = useAuth();
-
   const { stats, resetDailyQuotas, saveExamConfig } = useTelemetrySlice();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [editDate, setEditDate] = useState(stats?.examDate || '2026-04-15');
   const [editGoal, setEditGoal] = useState(stats?.dailyTarget || 50);
@@ -22,40 +22,35 @@ export default function MissionControl({ onPurgeRequest }) {
   }, [stats?.examDate, stats?.dailyTarget]);
 
   if (!stats) {
-    return <div className="w-full h-32 animate-pulse bg-surface rounded-xl mb-6"></div>;
+    return <Skeleton className="w-full h-40 rounded-[var(--radius-lg)]" />;
   }
-
-  const targetDate = new Date(stats?.examDate || '2026-04-15');
-  const today = new Date();
-  const daysLeft = Math.max(0, Math.ceil((targetDate - today) / (1000 * 60 * 60 * 24)));
-  const streak = stats?.globalStreak || 0;
 
   const totalGoal = stats?.dailyTarget || 50;
   const mathGoal = Math.floor(totalGoal * 0.25);
-  const esasGoal = Math.floor(totalGoal * 0.30);
+  const esasGoal = Math.floor(totalGoal * 0.3);
   const eeGoal = totalGoal - mathGoal - esasGoal;
 
-  // Extracted dynamically from stats object
   const currentMath = stats?.dailyMath || 0;
   const currentESAS = stats?.dailyESAS || 0;
   const currentEE = stats?.dailyEE || 0;
   const totalCompleted = currentMath + currentESAS + currentEE;
 
-  const [isSaving, setIsSaving] = useState(false);
+  const QUOTAS = [
+    { label: 'Mathematics', cur: currentMath, goal: mathGoal, color: 'var(--color-reeCyan)' },
+    { label: 'ESAS', cur: currentESAS, goal: esasGoal, color: 'var(--color-reeAmber)' },
+    { label: 'EE Professional', cur: currentEE, goal: eeGoal, color: 'var(--color-reePurple)' },
+  ];
 
   const handleSaveConfig = async () => {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      // Persists to the backend AND updates local stats via the single
-      // source-of-truth action — keeps Profile + Strategic Planner in sync.
       await saveExamConfig({ examDate: editDate, dailyTarget: Number(editGoal) });
-      toast.success('Configuration saved.');
+      toast.success('Settings saved.');
       setIsEditing(false);
     } catch (error) {
-      console.error('Configuration write failure:', error);
       const offline = error?.message === '[OFFLINE]';
-      toast.error(offline ? 'Backend unreachable — try again when online.' : 'Failed to save configuration.');
+      toast.error(offline ? 'Backend unreachable — try again when online.' : 'Failed to save settings.');
     } finally {
       setIsSaving(false);
     }
@@ -63,117 +58,118 @@ export default function MissionControl({ onPurgeRequest }) {
 
   const executeDailyReset = () => {
     resetDailyQuotas();
-    toast.success("Today's quotas have been reset.");
+    toast.success("Today's targets reset.");
     setShowResetModal(false);
   };
 
   return (
-    <div className="w-full mb-2 relative animate-in fade-in">
-      
-      {/* HEADER BAR — streak + command parameters. The "System Telemetry
-          Online" indicator now lives on the Dashboard, directly under the
-          welcome greeting and above the exam-date countdown. */}
-      <div className="flex flex-wrap justify-between items-center mb-6 bg-surface2/40 border border-border2/60 px-4 py-3 rounded-xl gap-3 shadow-sm">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface3/50 border border-border2 rounded-lg">
-          <span className="text-xs">🔥</span>
-          <span className="text-[0.65rem] font-black uppercase tracking-widest text-reeGreen">{streak}</span>
-          <span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted">Day Streak</span>
-        </div>
-        <button
-            onClick={() => setIsEditing(!isEditing)}
-            aria-label={isEditing ? 'Close command parameters' : 'Open command parameters'}
-            className={`text-[0.65rem] font-bold uppercase tracking-wider px-4 py-2 rounded-lg transition-all shadow-sm cursor-pointer border ${isEditing ? 'bg-reeBlue/20 border-reeBlue/50 text-reeBlue' : 'bg-surface3 hover:bg-surface3/80 border-border2 text-textMain'}`}
-        >
-            ⚙️ Command Parameters
-        </button>
-      </div>
-
-      {/* COMMAND PARAMETERS DROPDOWN */}
-      {isEditing && (
-        <div className="p-6 bg-surface border border-reeBlue/40 rounded-xl mb-6 flex flex-col gap-6 animate-in slide-in-from-top-4 shadow-xl relative z-10">
-          <div className="flex flex-wrap gap-6">
-            <div>
-              <label className="block text-[0.65rem] font-bold uppercase tracking-wider text-muted mb-2">Target Board Date</label>
-              <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="bg-bg border border-border2 text-textMain p-2.5 rounded-md text-sm outline-none focus:border-reeBlue transition-colors cursor-pointer" />
-            </div>
-            <div>
-              <label className="block text-[0.65rem] font-bold uppercase tracking-wider text-muted mb-2">Total Daily Quota Target</label>
-              <input type="number" min="10" max="500" value={editGoal} onChange={(e) => setEditGoal(e.target.value)} className="bg-bg border border-border2 text-textMain p-2.5 rounded-md text-sm outline-none focus:border-reeBlue w-32 transition-colors" />
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-5 border-t border-border2">
-            <div className="flex gap-3">
-              <button onClick={() => setShowResetModal(true)} className="px-4 py-2 bg-bg border border-border2 hover:border-reeAmber/50 hover:bg-reeAmber/10 text-muted hover:text-reeAmber rounded-md text-xs font-bold transition-all cursor-pointer uppercase tracking-wider">
-                ↺ Reset Today's Quota
-              </button>
-              
-              {/* TRIGGER MASTER PURGE MODAL */}
-              <button onClick={onPurgeRequest} className="px-4 py-2 bg-bg border border-border2 hover:border-reeRed/50 hover:bg-reeRed/10 text-muted hover:text-reeRed rounded-md text-xs font-bold transition-all cursor-pointer uppercase tracking-wider">
-                ⚠ Purge All Analytics
-              </button>
-            </div>
-            <button onClick={handleSaveConfig} disabled={isSaving} className="px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white font-bold rounded-md text-xs transition-colors cursor-pointer uppercase tracking-wider shadow-md disabled:opacity-50">
-              {isSaving ? 'Saving…' : 'Deploy Overrides'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* DAILY QUOTAS */}
-      <div>
-        <div className="p-6 bg-surface border border-border2 rounded-xl shadow-sm flex flex-col hover:border-reeBlue/20 transition-colors">
-          <div className="flex justify-between items-end mb-6 border-b border-border2 pb-4">
-            <div>
-              <h3 className="text-base font-bold text-textMain flex items-center gap-2">⚔️ Daily Structural Quotas</h3>
-              <p className="text-[0.65rem] text-muted2 mt-1 uppercase tracking-widest">Weighted to match actual board exam distribution</p>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-black text-textMain leading-none">{totalCompleted}</div>
-              <div className="text-xs font-bold text-muted2 uppercase tracking-widest mt-1">/ {totalGoal} Total</div>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 flex-1">
-            <div className="bg-bg border border-border2 rounded-xl p-4 flex flex-col justify-center hover:border-reeCyan/30 transition-colors">
-              <div className="text-[0.65rem] font-bold text-reeCyan uppercase flex justify-between tracking-widest mb-3 gap-2"><span className="truncate">Mathematics</span><span className="shrink-0">{currentMath} / {mathGoal}</span></div>
-              <div className="w-full h-2 bg-surface3 rounded-full overflow-hidden">
-                <div className="h-full bg-reeCyan transition-all duration-700 ease-out shadow-[0_0_8px_rgba(6,182,212,0.6)]" style={{ width: `${Math.min((currentMath / mathGoal) * 100, 100)}%` }}></div>
+    <>
+      <Panel
+        icon={ClipboardList}
+        eyebrow="Today"
+        title="Daily targets"
+        bodyClassName="flex flex-col gap-5"
+        action={
+          <Button variant={isEditing ? 'primary' : 'secondary'} size="sm" onClick={() => setIsEditing(!isEditing)}>
+            <Settings2 size={14} strokeWidth={1.75} /> Config
+          </Button>
+        }
+      >
+        {isEditing && (
+          <div
+            className="p-5 bg-surface2/40 rounded-xl flex flex-col gap-5 animate-in slide-in-from-top-2"
+            style={{ border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)' }}
+          >
+            <div className="flex flex-wrap gap-5">
+              <div>
+                <label className="block text-[0.65rem] font-medium uppercase tracking-wider text-muted mb-2">Target board date</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="bg-bg border border-border text-textMain p-2.5 rounded-md text-sm outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
+                />
+              </div>
+              <div>
+                <label className="block text-[0.65rem] font-medium uppercase tracking-wider text-muted mb-2">Daily quota target</label>
+                <input
+                  type="number"
+                  min="10"
+                  max="500"
+                  value={editGoal}
+                  onChange={(e) => setEditGoal(e.target.value)}
+                  className="bg-bg border border-border text-textMain p-2.5 rounded-md text-sm outline-none focus:border-[var(--accent)] w-32 transition-colors"
+                />
               </div>
             </div>
-            <div className="bg-bg border border-border2 rounded-xl p-4 flex flex-col justify-center hover:border-reeAmber/30 transition-colors">
-              <div className="text-[0.65rem] font-bold text-reeAmber uppercase flex justify-between tracking-widest mb-3 gap-2"><span className="truncate">ESAS</span><span className="shrink-0">{currentESAS} / {esasGoal}</span></div>
-              <div className="w-full h-2 bg-surface3 rounded-full overflow-hidden">
-                <div className="h-full bg-reeAmber transition-all duration-700 ease-out shadow-[0_0_8px_rgba(245,158,11,0.6)]" style={{ width: `${Math.min((currentESAS / esasGoal) * 100, 100)}%` }}></div>
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-border">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setShowResetModal(true)}>
+                  <RefreshCw size={14} strokeWidth={1.75} /> Reset today
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onPurgeRequest} className="text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)]">
+                  <Trash2 size={14} strokeWidth={1.75} /> Purge analytics
+                </Button>
               </div>
-            </div>
-            <div className="bg-bg border border-border2 rounded-xl p-4 flex flex-col justify-center hover:border-reePurple/30 transition-colors">
-              <div className="text-[0.65rem] font-bold text-reePurple uppercase flex justify-between tracking-widest mb-3 gap-2"><span className="truncate">EE Professional</span><span className="shrink-0">{currentEE} / {eeGoal}</span></div>
-              <div className="w-full h-2 bg-surface3 rounded-full overflow-hidden">
-                <div className="h-full bg-reePurple transition-all duration-700 ease-out shadow-[0_0_8px_rgba(139,92,246,0.6)]" style={{ width: `${Math.min((currentEE / eeGoal) * 100, 100)}%` }}></div>
-              </div>
+              <Button variant="primary" size="sm" onClick={handleSaveConfig} disabled={isSaving}>
+                {isSaving ? 'Saving…' : 'Save'}
+              </Button>
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Reset Modal */}
+        <div className="flex justify-between items-end border-b border-border pb-4">
+          <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-muted max-w-[60%] leading-relaxed">
+            Weighted to the board exam distribution
+          </span>
+          <div className="text-right">
+            <div className="text-3xl text-display tabular-nums leading-none text-textMain">{totalCompleted}</div>
+            <div className="text-[11px] text-muted2 mt-1">/ {totalGoal} today</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {QUOTAS.map((q) => {
+            const pct = Math.min((q.cur / (q.goal || 1)) * 100, 100);
+            return (
+              <div key={q.label} className="rounded-xl border border-border bg-surface2/30 p-4">
+                <div className="flex justify-between items-center mb-3 gap-2">
+                  <span className="text-[0.65rem] font-medium uppercase tracking-wider truncate" style={{ color: q.color }}>
+                    {q.label}
+                  </span>
+                  <span className="text-[0.65rem] text-muted2 tabular-nums shrink-0">
+                    {q.cur} / {q.goal}
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-surface3 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, background: q.color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+
       {showResetModal && (
         <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <FocusTrap active={showResetModal}>
-            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-sm w-full">
-              <h3 className="text-lg font-black text-reeAmber mb-2 flex items-center gap-2"><span>↺</span> Reset Daily Quotas?</h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">This will revert today's Math, ESAS, and EE volumes back to 0. Your overall streak and deep analytics will remain unaffected.</p>
+            <Card elevated className="p-6 max-w-sm w-full modal-entrance">
+              <h3 className="text-lg font-semibold text-reeAmber mb-2 flex items-center gap-2">
+                <RefreshCw size={18} strokeWidth={2} /> Reset today's targets?
+              </h3>
+              <p className="text-sm text-muted2 mb-6 leading-relaxed">
+                This reverts today's Math, ESAS, and EE counts to 0. Your streak and deep analytics are unaffected.
+              </p>
               <div className="flex justify-end gap-3">
-                <button data-close-modal onClick={() => setShowResetModal(false)} className="px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                <Button variant="secondary" size="sm" data-close-modal onClick={() => setShowResetModal(false)}>
                   Cancel
-                </button>
-                <button onClick={executeDailyReset} className="px-4 py-2 bg-reeAmber hover:bg-yellow-600 text-bg rounded-lg text-xs font-black uppercase tracking-wider shadow-md transition-colors cursor-pointer">
-                  Reset Quotas
-                </button>
+                </Button>
+                <Button variant="primary" size="sm" onClick={executeDailyReset}>Reset</Button>
               </div>
-            </div>
+            </Card>
           </FocusTrap>
         </div>
       )}
-    </div>
+    </>
   );
 }

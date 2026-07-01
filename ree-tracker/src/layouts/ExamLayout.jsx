@@ -1,44 +1,25 @@
 import React from 'react';
+import { ShieldAlert } from '../components/ui/icons';
 
 export default function ExamLayout({ children }) {
-    return (
-        <div className="exam-environment" style={{ 
-            minHeight: '100vh', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            backgroundColor: 'var(--bg-color)' 
-        }}>
-            {/* Minimalist High-Contrast Warning Header */}
-            <header style={{ 
-                backgroundColor: 'var(--danger)', 
-                color: 'white', 
-                padding: '0.5rem 1rem', 
-                textAlign: 'center', 
-                fontWeight: 'bold', 
-                letterSpacing: '2px', 
-                fontSize: '0.85rem',
-                textTransform: 'uppercase',
-                boxShadow: '0 2px 10px rgba(239, 68, 68, 0.2)'
-            }}>
-                ⚠️ Distraction-Free Board Simulation Active — Real-Time Penalties Apply
-            </header>
-            
-            {/* Centered Exam Viewport */}
-            <main style={{ 
-                flex: 1, 
-                padding: '2rem 1rem', 
-                overflowY: 'auto',
-                display: 'flex',
-                justifyContent: 'center'
-            }}>
-                <div style={{ 
-                    width: '100%', 
-                    maxWidth: '1000px', // Slightly wider than standard to accommodate complex circuits/derivations
-                    margin: '0 auto' 
-                }}>
-                    {children}
-                </div>
-            </main>
-        </div>
-    );
+  return (
+    <div className="exam-environment min-h-screen flex flex-col bg-bg">
+      {/* Minimalist high-contrast warning header (sticky so it stays visible) */}
+      <header
+        className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-2 text-center text-[0.8rem] font-semibold tracking-wide uppercase text-white"
+        style={{
+          background: 'var(--accent-danger)',
+          boxShadow: '0 2px 10px color-mix(in srgb, var(--accent-danger) 30%, transparent)',
+        }}
+      >
+        <ShieldAlert size={15} strokeWidth={2} className="shrink-0" />
+        <span>Distraction-free board simulation active — real-time penalties apply</span>
+      </header>
+
+      {/* Centered, fluid exam viewport (wide enough for circuits/derivations) */}
+      <main className="flex-1 overflow-y-auto flex justify-center px-4 py-6 sm:py-8 custom-scrollbar">
+        <div className="w-full max-w-[1000px]">{children}</div>
+      </main>
+    </div>
+  );
 }
