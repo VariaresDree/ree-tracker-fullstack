@@ -4,4 +4,8 @@ export { Badge } from './Badge';
 export { Skeleton } from './Skeleton';
 export { KBD } from './KBD';
 export { Stat } from './Stat';
+export { KpiTile } from './KpiTile';
+export { StatusPill } from './StatusPill';
+export { DataTable } from './DataTable';
+export { Panel } from './Panel';
 export { cn } from './cn';

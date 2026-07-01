@@ -29,6 +29,10 @@
   --color-danger: var(--accent-danger, #ff4d6d);
   --color-success: var(--accent-success, #34d399);
 
+  /* Single dominant accent alias — overhauled surfaces reference `accent`
+     instead of scattering brand colors. Resolves to the velocity violet. */
+  --color-accent: var(--accent-velocity, #7c5cff);
+
   /* Radii */
   --radius-default: 10px;
   --radius-sm: 6px;
@@ -62,13 +66,16 @@
   --bg-surface2: #1a2236;
   --bg-surface3: #232c44;
   --text-main: #f1f5f9;
-  --text-muted: #64748b;
-  --text-muted2: #94a3b8;
+  /* Bumped from #64748b (~3.8:1 on surface — fails AA) to ~5:1 so small
+     secondary labels/eyebrows meet WCAG AA in the default dark theme. */
+  --text-muted: #7c8aa0;
+  --text-muted2: #a5b2c4;
   --border-main: rgba(255, 255, 255, 0.06);
   --border-light: rgba(255, 255, 255, 0.12);
 
   /* Editorial accent layer */
   --accent-velocity: #7c5cff;
+  --accent: #7c5cff;
   --accent-signal: #22d3ee;
   --accent-danger: #ff4d6d;
   --accent-success: #34d399;
