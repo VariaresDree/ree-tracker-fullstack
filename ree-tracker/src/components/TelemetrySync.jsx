@@ -10,17 +10,18 @@ export default function TelemetrySync() {
     const stats = useStore((state) => state.stats);
     const isOnline = useNetworkStatus();
 
+    // Safety-net flush every 15s. The queue length is read via getState()
+    // inside the tick — putting `syncQueue` in the dep array tore the
+    // interval down and recreated it on every recorded answer.
     useEffect(() => {
-        if (syncQueue.length === 0) return;
-
         const syncInterval = setInterval(() => {
-            if (isOnline && syncQueue.length > 0) {
+            if (isOnline && useStore.getState().syncQueue.length > 0) {
                 flushQueueToCloud();
             }
         }, 15000);
 
         return () => clearInterval(syncInterval);
-    }, [isOnline, syncQueue, flushQueueToCloud]);
+    }, [isOnline, flushQueueToCloud]);
 
     // Emergency Flush Hook: Triggers immediately if connectivity shifts from offline to online
     useEffect(() => {

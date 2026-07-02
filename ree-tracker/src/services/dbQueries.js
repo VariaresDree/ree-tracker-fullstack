@@ -29,6 +29,13 @@ const idempotencyKey = (method, body) => {
     }
 };
 
+// Hard request timeout. Without it a stalled backend leaves loading UIs
+// hanging forever. 12s covers slow 3G round-trips; Render free-tier cold
+// starts can exceed it, but the circuit breaker's 30s cooldown + the offline
+// queue's retry absorb that — raise toward 25s if cold-start aborts show up
+// in practice.
+const REQUEST_TIMEOUT_MS = 12_000;
+
 export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
@@ -47,7 +54,9 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
     const idemKey = idempotencyKey(method, body);
     if (idemKey) headers['Idempotency-Key'] = idemKey;
 
-    const options = { method, headers };
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const options = { method, headers, signal: controller.signal };
 
     if (body) options.body = JSON.stringify(body);
 
@@ -56,11 +65,14 @@ export const apiRequest = async (endpoint, method = 'GET', body = null) => {
         response = await fetch(url, options);
     } catch (networkErr) {
         // Only trip the circuit breaker on actual network-class failures (DNS,
-        // connection refused, abort, etc.) — never on HTTP error responses,
-        // which we surface to the caller via the normal error path below.
+        // connection refused, timeout abort, etc.) — never on HTTP error
+        // responses, which we surface to the caller via the normal error path
+        // below. Writes are retry-safe thanks to the idempotency key.
         _backendUp = false;
         _lastCheck = Date.now();
         throw new Error('[OFFLINE]');
+    } finally {
+        clearTimeout(timeoutHandle);
     }
 
     _backendUp = true;
@@ -236,24 +248,16 @@ export const updateUserProfile = async (payload) => apiRequest('/api/user/profil
 // ----------------------------------------------------------------------
 // 5. Multiplayer Mock Battles
 // ----------------------------------------------------------------------
-export const createMultiplayerBattle = async (hostId, config, questions, timeLimitSecs) => {
-    const battleId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    await apiRequest('/api/battles', 'POST', { battleId, hostId, config, questions, timeLimitSecs });
+// The client sends only a pool SPEC (mode/subject/count) — the server samples
+// the questions itself so answer keys never reach a battle client. Battle id
+// must be exactly 6 uppercase alphanumerics (the join form + backend schema
+// both enforce it), so pad the rare short base36 roll.
+export const createMultiplayerBattle = async (config, timeLimitSecs) => {
+    const battleId = (Math.random().toString(36).substring(2, 8) + 'XXXXXX').substring(0, 6).toUpperCase();
+    await apiRequest('/api/battles', 'POST', { battleId, config, timeLimitSecs });
     return battleId;
 };
 export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battles/${battleId}`);
-export const submitBattleScore = async (battleId, user, score, totalQs, timeTakenSecs, attempts = []) => {
-    return await apiRequest(`/api/battles/${battleId}/submit`, 'POST', {
-        score,
-        total: totalQs,
-        timeTakenSecs,
-        mode: 'COMBAT',
-        attempts,
-    });
-};
-export const syncLiveBattleProgress = async (battleId, user, currentScore, itemsAnswered) => {
-    return await apiRequest(`/api/battles/${battleId}/progress`, 'PUT', { liveScore: currentScore, itemsAnswered });
-};
 
 // ----------------------------------------------------------------------
 // 6. System Configuration & Bookmarks

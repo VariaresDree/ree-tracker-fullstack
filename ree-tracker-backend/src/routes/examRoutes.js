@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
-const { examSubmitSchema, gradeSchema } = require('../schemas/examSchemas');
+const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
 const { recordAttempts } = require('../services/telemetryService');
 const { selectNextItem, updateTheta } = require('../engine/irt');
@@ -239,9 +239,9 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
 //   sessionAttempts?: [{ questionId, isCorrect }],
 //   poolSize?: number    // optional candidate-pool size (default 80)
 // }
-router.post('/next-item', authMiddleware, async (req, res) => {
+router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, res) => {
     try {
-        const { subject, recentIds = [], sessionAttempts = [], poolSize = 80 } = req.body || {};
+        const { subject, recentIds, sessionAttempts, poolSize } = req.body;
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
             select: { thetaRating: true, standardError: true },

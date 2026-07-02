@@ -135,40 +135,26 @@ export default function Arena() {
   };
 
   const handleDeployLobby = async () => {
-      const toastId = toast.loading("Fetching questions and deploying lobby code...");
+      const toastId = toast.loading("Deploying lobby code...");
       try {
-          const { fetchPaginatedQuestions, createMultiplayerBattle } = await import('../services/dbQueries');
-          
-          let pool = [];
-          if (hostConfig.mode === 'blended') {
-              const m = await fetchPaginatedQuestions(null, 'Mathematics', 'All', 25);
-              const e = await fetchPaginatedQuestions(null, 'ESAS', 'All', 30);
-              const ee = await fetchPaginatedQuestions(null, 'EE', 'All', 45);
-              pool = [...(m.items || []), ...(e.items || []), ...(ee.items || [])];
-          } else {
-              const res = await fetchPaginatedQuestions(null, hostConfig.subject, 'All', hostConfig.mode === 'prc' ? 100 : hostConfig.count);
-              pool = res.items || [];
-          }
+          const { createMultiplayerBattle } = await import('../services/dbQueries');
 
-          if (pool.length === 0) throw new Error("Question pool unavailable.");
-          
           let finalTime = hostConfig.timeLimitMins;
-          if (hostConfig.mode === 'blended') finalTime = 300; 
-          if (hostConfig.mode === 'prc') finalTime = hostConfig.subject === 'EE' ? 360 : 240; 
+          if (hostConfig.mode === 'blended') finalTime = 300;
+          if (hostConfig.mode === 'prc') finalTime = hostConfig.subject === 'EE' ? 360 : 240;
 
-          const finalConfig = { 
-              mode: hostConfig.mode === 'blended' ? 'blended' : 'subject', 
-              subject: hostConfig.mode === 'blended' ? 'Blended' : hostConfig.subject, 
-              count: pool.length, 
+          // Send only the pool SPEC — the server samples the questions itself
+          // (a client-assembled pool would require shipping answer keys).
+          const finalConfig = {
+              mode: hostConfig.mode === 'blended' ? 'blended' : 'subject',
+              subject: hostConfig.mode === 'blended' ? 'Blended' : hostConfig.subject,
+              count: hostConfig.mode === 'prc' || hostConfig.mode === 'blended' ? 100 : hostConfig.count,
               timeLimitMins: finalTime,
               isPrcStandard: hostConfig.mode === 'prc' || hostConfig.mode === 'blended'
           };
 
-          // Pass the Firebase UID (a String), not the whole user object.
-          // The backend stores Battle.hostId as a String FK to User.id and
-          // would reject an object body with a Prisma type error → 500.
-          const battleId = await createMultiplayerBattle(currentUser.uid, finalConfig, pool, finalTime * 60);
-          
+          const battleId = await createMultiplayerBattle(finalConfig, finalTime * 60);
+
           toast.success("Lobby Successfully Created!", { id: toastId });
           setShowHostModal(false);
           navigate(`/battle/${battleId}`);

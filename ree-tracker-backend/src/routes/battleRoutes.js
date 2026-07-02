@@ -1,29 +1,37 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const idempotency = require('../middlewares/idempotency');
+const { validate } = require('../middlewares/validate');
+const { battleCreateSchema } = require('../schemas/battleSchemas');
+const { samplePool, sampleBlendedPool } = require('../services/questionPool');
+const { sanitizeBattleQuestions } = require('../utils/battleSanitizer');
 const prisma = require('../config/db');
-const { recordAttempts } = require('../services/telemetryService');
 const logger = require('../utils/logger');
 
-router.post('/', authMiddleware, async (req, res) => {
+// Create a battle from a pool SPEC. The server samples the questions itself —
+// clients never supply the pool (they'd need answer keys to build one, which
+// is exactly the cheating vector this closes). Always uses the authenticated
+// user as host — never trust a body field for the FK.
+router.post('/', authMiddleware, idempotency(), validate(battleCreateSchema), async (req, res) => {
     try {
-        const { battleId, config, questions, timeLimitSecs } = req.body;
+        const { battleId, config, timeLimitSecs } = req.body;
 
-        if (!battleId || !questions || !timeLimitSecs) {
-            return res.status(400).json({ error: 'battleId, questions, and timeLimitSecs are required.' });
+        const pool = config.mode === 'blended'
+            ? await sampleBlendedPool(100)
+            : await samplePool({ subject: config.subject, subtopic: config.subtopic, limit: config.count });
+
+        if (pool.length === 0) {
+            return res.status(422).json({ error: 'Question pool unavailable for that configuration.' });
         }
 
-        // Always use the authenticated user as host — never trust a body field
-        // for the FK. (The old code accepted a body `hostId` which the frontend
-        // was passing as a Firebase user object, blowing up Prisma's String
-        // type check and producing a silent 500.)
         const battle = await prisma.battle.create({
             data: {
                 id: battleId,
                 hostId: req.user.id,
-                config: config || {},
-                questions: questions,
-                timeLimitSecs: parseInt(timeLimitSecs)
+                config: { ...config, count: pool.length },
+                questions: pool,
+                timeLimitSecs,
             }
         });
 
@@ -37,6 +45,9 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 });
 
+// Battle payloads are sanitized: no answer keys, explanations, or IRT params
+// leave the server while a battle is live. The key is revealed via the
+// socket's battle-complete broadcast for the post-battle review screen.
 router.get('/:battleId', authMiddleware, async (req, res) => {
     try {
         const battle = await prisma.battle.findUnique({
@@ -45,63 +56,19 @@ router.get('/:battleId', authMiddleware, async (req, res) => {
 
         if (!battle) return res.status(404).json({ error: 'Battle not found.' });
 
-        res.status(200).json({ success: true, battle });
+        res.status(200).json({
+            success: true,
+            battle: { ...battle, questions: sanitizeBattleQuestions(battle.questions) },
+        });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch battle.' });
     }
 });
 
-router.post('/:battleId/submit', authMiddleware, async (req, res) => {
-    try {
-        const { score, total, timeTakenSecs, attempts } = req.body;
-
-        const battle = await prisma.battle.findUnique({
-            where: { id: req.params.battleId }
-        });
-        if (!battle) return res.status(404).json({ error: 'Battle not found.' });
-
-        await prisma.battle.update({
-            where: { id: req.params.battleId },
-            data: { status: 'COMPLETED' }
-        });
-
-        // If the client sends per-question attempts, persist them so Combat Terminal
-        // results contribute to dashboard/profile analytics. The score/total fields
-        // remain authoritative for the lobby view.
-        let telemetry = null;
-        if (Array.isArray(attempts) && attempts.length > 0) {
-            try {
-                telemetry = await recordAttempts({
-                    userId: req.user.id,
-                    mode: req.body.mode || 'COMBAT',
-                    attempts,
-                });
-            } catch (telErr) {
-                logger.warn('battle telemetry persist failed', { error: telErr.message });
-            }
-        }
-
-        res.status(200).json({ success: true, score, total, timeTakenSecs, telemetry });
-    } catch (error) {
-        logger.error('battle submit error', { error: error.message });
-        res.status(500).json({ error: 'Failed to submit battle score.' });
-    }
-});
-
-router.put('/:battleId/progress', authMiddleware, async (req, res) => {
-    try {
-        const { liveScore, itemsAnswered } = req.body;
-
-        const battle = await prisma.battle.findUnique({
-            where: { id: req.params.battleId }
-        });
-        if (!battle) return res.status(404).json({ error: 'Battle not found.' });
-
-        res.status(200).json({ success: true, liveScore, itemsAnswered });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to update progress.' });
-    }
-});
+// NOTE: the old REST POST /:battleId/submit and PUT /:battleId/progress
+// endpoints are gone. They trusted client-supplied scores and had no real
+// callers — the socket namespace (battle-answer / battle-submit) is the
+// only submission path, and it grades server-side.
 
 // GET /api/battles/:battleId/replay — full per-question deltas for a
 // completed battle. Sorted by placement so the UI can render the podium

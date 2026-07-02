@@ -12,6 +12,8 @@ export function useBattleSocket(battleId) {
     const [battleConfig, setBattleConfig] = useState(null);
     const [battleStarted, setBattleStarted] = useState(null);
     const [results, setResults] = useState(null);
+    const [graded, setGraded] = useState(null);
+    const [answerKey, setAnswerKey] = useState(null);
     const [opponentProgress, setOpponentProgress] = useState(new Map());
 
     useEffect(() => {
@@ -66,9 +68,18 @@ export function useBattleSocket(battleId) {
                 );
             });
 
+            // Server ack for OUR submission — authoritative score, no answer
+            // key yet (opponents may still be playing).
+            socket.on('battle-graded', (data) => {
+                setGraded(data);
+            });
+
             socket.on('battle-complete', (data) => {
                 setBattleStatus('COMPLETED');
                 setResults(data.results);
+                // Answer key revealed only once everyone finished — feeds the
+                // post-battle review screen.
+                if (data.answerKey) setAnswerKey(data.answerKey);
             });
 
             socket.on('error', (data) => {
@@ -90,12 +101,17 @@ export function useBattleSocket(battleId) {
         socketRef.current?.emit('start-battle', { battleId });
     }, [battleId]);
 
-    const sendProgress = useCallback((score, itemsAnswered) => {
-        socketRef.current?.emit('battle-progress', { battleId, score, itemsAnswered });
+    // Live per-question answer — the server grades it against its own key
+    // and broadcasts opponent progress itself. Replaces the old
+    // client-computed `battle-progress` event (a score-forgery vector).
+    const sendAnswer = useCallback((questionId, userAnswer, confidenceLevel = 'MED', timeSpentMs = 0) => {
+        socketRef.current?.emit('battle-answer', { battleId, questionId, userAnswer, confidenceLevel, timeSpentMs });
     }, [battleId]);
 
-    const submitResult = useCallback((score, total, timeTakenSecs, attempts = []) => {
-        socketRef.current?.emit('battle-submit', { battleId, score, total, timeTakenSecs, attempts });
+    // Final submission carries only the attempts (for disconnect-gap
+    // recovery); the server computes score/total/timing itself.
+    const submitResult = useCallback((attempts = []) => {
+        socketRef.current?.emit('battle-submit', { battleId, attempts });
     }, [battleId]);
 
     return {
@@ -105,9 +121,11 @@ export function useBattleSocket(battleId) {
         battleConfig,
         battleStarted,
         results,
+        graded,
+        answerKey,
         opponentProgress: Array.from(opponentProgress.values()),
         startBattle,
-        sendProgress,
+        sendAnswer,
         submitResult
     };
 }
