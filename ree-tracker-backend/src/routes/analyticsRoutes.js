@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { requireSelf } = require('../middlewares/requireSelf');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
@@ -23,7 +24,7 @@ const cacheSet = (uid, payload) => {
 };
 const invalidateDashboard = (uid) => dashboardCache.delete(uid);
 
-router.get('/dashboard/:uid', authMiddleware, async (req, res) => {
+router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, res) => {
     const { uid } = req.params;
 
     const cached = dashboardCache.get(uid);

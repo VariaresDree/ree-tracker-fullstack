@@ -125,6 +125,8 @@ model ExamSession {
 
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts       QuestionAttempt[]
+
+  @@index([userId, createdAt])
 }
 
 model QuestionAttempt {
@@ -292,6 +294,8 @@ model StudySession {
   durationSecs    Int
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // Phase 2: Strategic Planner persistence

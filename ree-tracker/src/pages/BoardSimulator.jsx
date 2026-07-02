@@ -1,5 +1,5 @@
 // src/pages/BoardSimulator.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
@@ -27,7 +27,7 @@ export default function BoardSimulator() {
   const navigate = useNavigate();
 
   const activeBattleId = engine.config.battleId || searchParams.get('battleId');
-  const { connected: battleConnected, opponentProgress, sendProgress, submitResult } = useBattleSocket(activeBattleId);
+  const { connected: battleConnected, opponentProgress, graded, answerKey, sendAnswer, submitResult } = useBattleSocket(activeBattleId);
 
   useEffect(() => {
     const bId = searchParams.get('battleId');
@@ -36,14 +36,19 @@ export default function BoardSimulator() {
     }
   }, [searchParams]);
 
+  // Stream each answered/changed question to the server, which grades it
+  // against its own key and broadcasts opponent progress. Battle questions
+  // are sanitized (no `answer` field), so grading can't happen client-side.
+  const lastSentAnswersRef = useRef({});
   useEffect(() => {
     if (!activeBattleId || !battleConnected || !engine.session.isActive || engine.session.isFinished) return;
 
-    const answered = Object.keys(engine.session.answers).length;
-    const correct = engine.session.questions.reduce((acc, q, idx) =>
-      engine.session.answers[idx] === q.answer ? acc + 1 : acc, 0
-    );
-    sendProgress(correct, answered);
+    for (const [idx, ans] of Object.entries(engine.session.answers)) {
+      if (lastSentAnswersRef.current[idx] === ans) continue;
+      lastSentAnswersRef.current[idx] = ans;
+      const q = engine.session.questions[idx];
+      if (q?.id) sendAnswer(q.id, ans, engine.session.confidences?.[idx] || 'MED');
+    }
   }, [engine.session.answers, activeBattleId, battleConnected]);
 
   // FULLY WIRED BOOKMARK HANDLER WITH COMPLETE PAYLOAD
@@ -66,24 +71,28 @@ export default function BoardSimulator() {
     }
   };
 
+  // On finish, hand the server the full attempt list (covers answers it may
+  // have missed during a disconnect). The server re-grades everything and
+  // computes score/total/timing itself — nothing score-like leaves the client.
   useEffect(() => {
-    if (activeBattleId && engine.session.isFinished && engine.session.diagnostics) {
-      const { score, totalItems, timeTakenSecs } = engine.session.diagnostics;
-      // Build per-question attempts so battle results contribute to dashboard
-      // analytics — the engine's syncTelemetryBatch already persisted them
-      // under BOARD_SIM, but the BATTLE socket path also needs them so the
-      // host's Battle record reflects authoritative scores.
-      const attempts = (engine.session.questions || []).map((q, idx) => ({
-        questionId: q.id,
-        userAnswer: engine.session.answers?.[idx] ?? q.userAnswer ?? null,
-        subject: q.subject,
-        subtopic: q.subtopic,
-        confidenceLevel: q.userConf || 'MED',
-        timeSpentMs: 0,
-      })).filter((a) => a.questionId);
-      submitResult(Math.round(score * totalItems / 100), totalItems, timeTakenSecs, attempts);
+    if (activeBattleId && engine.session.isFinished && engine.session.diagnostics?.pending) {
+      submitResult(engine.session.diagnostics.pendingAttempts || []);
     }
   }, [engine.session.isFinished, activeBattleId]);
+
+  // Server ack for our own submission — authoritative score while opponents
+  // are still playing.
+  useEffect(() => {
+    if (activeBattleId && graded) engine.applyServerScore(graded);
+  }, [graded, activeBattleId]);
+
+  // battle-complete revealed the answer key — unlock the full per-question
+  // review (correct answers, blind spots, subject breakdown).
+  useEffect(() => {
+    if (activeBattleId && answerKey && engine.session.isFinished) {
+      engine.applyBattleGrades(answerKey);
+    }
+  }, [answerKey, activeBattleId, engine.session.isFinished]);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">

@@ -58,7 +58,7 @@ function manilaDateOf(d) {
  */
 async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGACY', targetSubject = null, tx = null }) {
     if (!Array.isArray(attempts) || attempts.length === 0) {
-        return { written: 0, updatedTheta: null, sessionId: null };
+        return { written: 0, updatedTheta: null, sessionId: null, graded: [] };
     }
 
     const client = tx || prisma;
@@ -92,7 +92,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             };
         });
 
-    if (mapped.length === 0) return { written: 0, updatedTheta: null, sessionId: null };
+    if (mapped.length === 0) return { written: 0, updatedTheta: null, sessionId: null, graded: [] };
 
     const today = todayManila();
 
@@ -168,59 +168,69 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         await prisma.$transaction(async (db) => { await runWrites(db); });
     }
 
-    // Recompute theta + streak outside the transaction — both are idempotent
-    // on the batch input, and keeping them out of the write tx shortens the
-    // lock window under load.
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { thetaRating: true, globalStreak: true },
-    });
-    const currentTheta = user?.thetaRating ?? 0.0;
+    // Recompute theta + streak in a second, short transaction with a row lock
+    // on the user. Concurrent batches for the same user (e.g. a telemetry-bulk
+    // flush landing at the same time as a battle-submit) previously did
+    // read-modify-write against `prisma` directly, so the last writer silently
+    // clobbered the other's theta/streak. FOR UPDATE serializes them. Kept
+    // separate from runWrites so the attempt-write lock window stays short.
     const irtInput = mapped.map((m) => ({
         isCorrect: m.isCorrect,
         questionDifficulty: m._difficulty,
     }));
-    const updatedTheta = calculateUpdatedTheta(currentTheta, irtInput);
+    let updatedTheta = 0.0;
+    await prisma.$transaction(async (db) => {
+        const [user] = await db.$queryRaw`SELECT "thetaRating", "globalStreak" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+        const currentTheta = user?.thetaRating ?? 0.0;
+        updatedTheta = calculateUpdatedTheta(currentTheta, irtInput);
 
-    // Global Active Streak — advances at most once per Manila day. On the first
-    // answered question of a new day we increment if yesterday also had
-    // activity, otherwise the run is broken and we reset to 1. Later batches the
-    // same day leave the streak untouched (but self-heal to >=1 for legacy rows
-    // that were stuck at 0 despite activity today).
-    let newStreak = user?.globalStreak ?? 0;
-    if (isFirstActivityToday) {
-        const hadYesterday = await prisma.activityLog.findUnique({
-            where: { userId_date: { userId, date: yesterdayManila() } },
-            select: { userId: true },
+        // Global Active Streak — advances at most once per Manila day. On the first
+        // answered question of a new day we increment if yesterday also had
+        // activity, otherwise the run is broken and we reset to 1. Later batches the
+        // same day leave the streak untouched (but self-heal to >=1 for legacy rows
+        // that were stuck at 0 despite activity today).
+        let newStreak = user?.globalStreak ?? 0;
+        if (isFirstActivityToday) {
+            const hadYesterday = await db.activityLog.findUnique({
+                where: { userId_date: { userId, date: yesterdayManila() } },
+                select: { userId: true },
+            });
+            newStreak = hadYesterday ? (user?.globalStreak ?? 0) + 1 : 1;
+        } else {
+            newStreak = Math.max(user?.globalStreak ?? 0, 1);
+        }
+
+        await db.user.update({
+            where: { id: userId },
+            data: { thetaRating: updatedTheta, lastActive: new Date(), globalStreak: newStreak },
         });
-        newStreak = hadYesterday ? (user?.globalStreak ?? 0) + 1 : 1;
-    } else {
-        newStreak = Math.max(user?.globalStreak ?? 0, 1);
-    }
 
-    await prisma.user.update({
-        where: { id: userId },
-        data: { thetaRating: updatedTheta, lastActive: new Date(), globalStreak: newStreak },
+        // θ-history — one point per Manila day, updated in place within the day so
+        // the Readiness Velocity chart gets clean daily samples and the table stays
+        // bounded (one row/day instead of one/batch).
+        const lastTheta = await db.thetaHistory.findFirst({
+            where: { userId },
+            orderBy: { recordedAt: 'desc' },
+            select: { id: true, recordedAt: true },
+        });
+        if (lastTheta && manilaDateOf(lastTheta.recordedAt) === today) {
+            await db.thetaHistory.update({
+                where: { id: lastTheta.id },
+                data: { theta: updatedTheta },
+            });
+        } else {
+            await db.thetaHistory.create({ data: { userId, theta: updatedTheta } });
+        }
     });
 
-    // θ-history — one point per Manila day, updated in place within the day so
-    // the Readiness Velocity chart gets clean daily samples and the table stays
-    // bounded (one row/day instead of one/batch).
-    const lastTheta = await prisma.thetaHistory.findFirst({
-        where: { userId },
-        orderBy: { recordedAt: 'desc' },
-        select: { id: true, recordedAt: true },
-    });
-    if (lastTheta && manilaDateOf(lastTheta.recordedAt) === today) {
-        await prisma.thetaHistory.update({
-            where: { id: lastTheta.id },
-            data: { theta: updatedTheta },
-        });
-    } else {
-        await prisma.thetaHistory.create({ data: { userId, theta: updatedTheta } });
-    }
-
-    return { written: mapped.length, updatedTheta, sessionId: resolvedSessionId };
+    return {
+        written: mapped.length,
+        updatedTheta,
+        sessionId: resolvedSessionId,
+        // Server-side grading verdicts (from Question.answer), so callers like
+        // battle-submit can score authoritatively without a second fetch.
+        graded: mapped.map((m) => ({ questionId: m.questionId, isCorrect: m.isCorrect })),
+    };
 }
 
 module.exports = { recordAttempts, canonicalSubject, todayManila };

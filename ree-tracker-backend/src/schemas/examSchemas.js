@@ -29,4 +29,16 @@ const gradeSchema = z.object({
     mode: z.string().optional()
 });
 
-module.exports = { examSubmitSchema, gradeSchema };
+// POST /exams/next-item — CAT item picker. poolSize is capped so a forged
+// request can't pull an unbounded candidate set into memory.
+const nextItemSchema = z.object({
+    subject: z.string().max(64).optional(),
+    recentIds: z.array(z.string().min(1)).max(500).default([]),
+    sessionAttempts: z.array(z.object({
+        questionId: z.string().min(1),
+        isCorrect: z.boolean()
+    })).max(200).default([]),
+    poolSize: z.number().int().min(10).max(200).default(80)
+});
+
+module.exports = { examSubmitSchema, gradeSchema, nextItemSchema };

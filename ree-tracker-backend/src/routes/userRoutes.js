@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { validate } = require('../middlewares/validate');
+const { profileUpdateSchema, settingsUpdateSchema } = require('../schemas/userSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -44,20 +46,11 @@ router.get('/profile', authMiddleware, async (req, res) => {
     }
 });
 
-router.put('/profile', authMiddleware, async (req, res) => {
+router.put('/profile', authMiddleware, validate(profileUpdateSchema), async (req, res) => {
     try {
-        const { displayName } = req.body || {};
-        if (typeof displayName !== 'string') {
-            return res.status(400).json({ error: 'displayName must be a string.' });
-        }
-        const trimmed = displayName.trim();
-        if (trimmed.length < 1 || trimmed.length > 32) {
-            return res.status(400).json({ error: 'displayName must be 1–32 characters.' });
-        }
-
         const user = await prisma.user.update({
             where: { id: req.user.id },
-            data: { displayName: trimmed },
+            data: { displayName: req.body.displayName },
         });
         res.status(200).json({ success: true, user });
     } catch (error) {
@@ -66,15 +59,12 @@ router.put('/profile', authMiddleware, async (req, res) => {
     }
 });
 
-router.put('/settings', authMiddleware, async (req, res) => {
+router.put('/settings', authMiddleware, validate(settingsUpdateSchema), async (req, res) => {
     try {
         const { examDate, dailyTarget } = req.body;
         const data = {};
         if (examDate !== undefined) data.examDate = examDate;
         if (dailyTarget !== undefined) data.dailyTarget = dailyTarget;
-        if (Object.keys(data).length === 0) {
-            return res.status(400).json({ error: 'No valid settings provided.' });
-        }
         await prisma.user.update({ where: { id: req.user.id }, data });
         res.status(200).json({ success: true });
     } catch (error) {

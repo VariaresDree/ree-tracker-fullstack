@@ -8,6 +8,7 @@ import {
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
+import { computeBattleDiagnostics } from './battleGrades';
 import toast from 'react-hot-toast';
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
@@ -264,6 +265,39 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         const finalConf = currentConfidencesRef.current;
         const timeSpent = timeSpentPerQuestion.current;
 
+        // BATTLE MODE: questions arrive sanitized (no answer keys), so local
+        // grading is impossible — and telemetry is persisted server-side by
+        // the battle socket (mode BATTLE), so syncing here would double-count
+        // attempts. Lock in the answers, hand the attempt list to the socket
+        // layer (via diagnostics.pendingAttempts), and wait for the server's
+        // battle-graded / battle-complete events to fill in the real score.
+        if (config.battleId) {
+            const timeTakenActual = totalExamTime.current - timeRemaining;
+            const mappedQuestions = finalQs.map((q, idx) => ({
+                ...q, userAnswer: finalAns[idx] ?? null, userConf: finalConf[idx] || 'HIGH'
+            }));
+            const pendingAttempts = finalQs.map((q, idx) => ({
+                questionId: q.id,
+                userAnswer: finalAns[idx] ?? null,
+                confidenceLevel: finalConf[idx] || 'MED',
+                timeSpentMs: Math.round(timeSpent[idx]) || 0,
+            })).filter((a) => a.questionId);
+
+            setSession(prev => ({
+                ...prev, isFinished: true, isActive: true, answers: finalAns,
+                questions: mappedQuestions,
+                diagnostics: {
+                    pending: true, score: null, verdict: 'GRADING',
+                    timeTakenSecs: timeTakenActual, totalItems: finalQs.length,
+                    correctItems: null, subjectScores: {}, weakTopics: [],
+                    chronoAnomalies: [], blindSpots: [], pendingAttempts,
+                },
+            }));
+            setCurrentIndex(0);
+            toast.success('Answers locked in. Awaiting server grading…', { id: loadingToastId });
+            return;
+        }
+
         let correct = 0;
         const subjBreakdown = { Math: {c:0, t:0}, ESAS: {c:0, t:0}, EE: {c:0, t:0} };
         const topicBreakdown = {};
@@ -416,12 +450,62 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setTimeRemaining(timeLimitSecs);
       setBookmarks(new Set());
       setIsSubmitting(false);
+      gradesAppliedRef.current = false;
 
       toast.success(`Battle loaded: ${pool.length} items, ${Math.round(timeLimitSecs / 60)} min`);
     } catch (err) {
       setSession(prev => ({ ...prev, loading: false, error: err.message }));
       toast.error(err.message);
     }
+  };
+
+  // Server ack for OUR submission (battle-graded): authoritative score before
+  // the full answer key exists (opponents may still be playing). Keeps the
+  // per-question review pending until applyBattleGrades.
+  const applyServerScore = ({ score, total }) => {
+    setSession(prev => {
+      if (!prev.isFinished || !prev.diagnostics?.pending) return prev;
+      const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+      const verdict = pct >= 70 ? 'PASSED' : (pct >= 60 ? 'CONDITIONAL PASS' : 'FAILED');
+      return {
+        ...prev, score: pct, verdict,
+        diagnostics: { ...prev.diagnostics, score: pct, verdict, correctItems: score },
+      };
+    });
+  };
+
+  // battle-complete revealed the answer key — patch the sanitized questions
+  // with real answers and compute the full local diagnostics for the review
+  // screen. Also persists the local ledger record (skipped at submit time
+  // because the score wasn't known yet).
+  const gradesAppliedRef = useRef(false);
+  const applyBattleGrades = (answerKey) => {
+    if (!session.isFinished || !session.diagnostics?.pending || !answerKey) return;
+    if (gradesAppliedRef.current) return;
+    gradesAppliedRef.current = true;
+
+    const { mappedQuestions, diagnostics } = computeBattleDiagnostics({
+      questions: session.questions,
+      answerKey,
+      timeSpentPerQuestion: timeSpentPerQuestion.current,
+      timeTakenSecs: session.diagnostics.timeTakenSecs || 0,
+    });
+
+    setSession(prev => ({
+      ...prev,
+      questions: mappedQuestions,
+      score: diagnostics.score,
+      verdict: diagnostics.verdict,
+      diagnostics: { ...diagnostics, pending: false },
+    }));
+
+    saveSimulationRecord({
+      date: new Date().toISOString(),
+      score: diagnostics.score, verdict: diagnostics.verdict,
+      subjectScores: diagnostics.subjectScores,
+      mode: 'battle', targetSubject: config.subject,
+      totalQs: diagnostics.totalItems, timeTaken: diagnostics.timeTakenSecs,
+    }).catch(() => {});
   };
 
   // Offline reviewer PDF — pulls the same question pool the user would face
@@ -558,7 +642,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     config, setConfig, session, setSession,
     currentIndex, setCurrentIndex, timeRemaining, showTime, setShowTime,
     bookmarks, toggleBookmark, startSimulation, startMultiplayerBattle, handleSelectOption,
-    handleSelectConfidence, handleIndexChange, submitExam,
+    handleSelectConfidence, handleIndexChange, submitExam, applyServerScore, applyBattleGrades,
     hasSavedSession, resumeSimulation, handleFlagQuestion,
     exportOfflinePDF, isExporting, isSubmitting
   };
