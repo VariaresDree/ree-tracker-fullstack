@@ -82,7 +82,7 @@ export default function MissionControl({ onPurgeRequest }) {
           >
             <div className="flex flex-wrap gap-5">
               <div>
-                <label className="block text-[0.65rem] font-medium uppercase tracking-wider text-muted mb-2">Target board date</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-muted mb-2">Target board date</label>
                 <input
                   type="date"
                   value={editDate}
@@ -91,7 +91,7 @@ export default function MissionControl({ onPurgeRequest }) {
                 />
               </div>
               <div>
-                <label className="block text-[0.65rem] font-medium uppercase tracking-wider text-muted mb-2">Daily quota target</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-muted mb-2">Daily quota target</label>
                 <input
                   type="number"
                   min="10"
@@ -134,10 +134,10 @@ export default function MissionControl({ onPurgeRequest }) {
             return (
               <div key={q.label} className="rounded-xl border border-border bg-surface2/30 p-4">
                 <div className="flex justify-between items-center mb-3 gap-2">
-                  <span className="text-[0.65rem] font-medium uppercase tracking-wider truncate" style={{ color: q.color }}>
+                  <span className="text-[11px] font-medium uppercase tracking-wider truncate" style={{ color: q.color }}>
                     {q.label}
                   </span>
-                  <span className="text-[0.65rem] text-muted2 tabular-nums shrink-0">
+                  <span className="text-[11px] text-muted2 tabular-nums shrink-0">
                     {q.cur} / {q.goal}
                   </span>
                 </div>

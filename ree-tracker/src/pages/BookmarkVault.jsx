@@ -33,10 +33,10 @@ export default function BookmarkVault() {
             <div key={item.id} className="p-5 bg-surface border border-border2 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-start md:items-center hover:border-reeAmber/40 transition-colors group shadow-sm">
               <div className="flex flex-col gap-2">
                 <div className="flex gap-2 items-center">
-                  <span className={`px-2 py-0.5 rounded text-[0.6rem] font-black uppercase tracking-widest border ${item.type === 'Question' ? 'bg-reeCyan/10 text-reeCyan border-reeCyan/30' : 'bg-reePurple/10 text-reePurple border-reePurple/30'}`}>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase tracking-widest border ${item.type === 'Question' ? 'bg-reeCyan/10 text-reeCyan border-reeCyan/30' : 'bg-reePurple/10 text-reePurple border-reePurple/30'}`}>
                     {item.type}
                   </span>
-                  <span className="text-[0.65rem] text-muted font-bold uppercase tracking-widest border-l border-border2 pl-2">
+                  <span className="text-[11px] text-muted font-bold uppercase tracking-widest border-l border-border2 pl-2">
                     {item.subject}
                   </span>
                 </div>

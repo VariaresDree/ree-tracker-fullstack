@@ -10,7 +10,6 @@
 // reveal) used to live here AND in SimulatorActive AND in Gauntlet. It all
 // moved into QuestionCard so the four answering surfaces share semantics.
 
-import React from 'react';
 import toast from 'react-hot-toast';
 import QuestionCard from '../quiz/QuestionCard';
 
@@ -36,7 +35,7 @@ export default function MCQMode({ session, setSession, handleAnswerSelection, in
         headerSlot={headerSlot}
         onSelect={handleAnswerSelection}
         onConfidenceChange={(level) => setSession((prev) => ({ ...prev, confidence: level }))}
-        onConfidenceRequiredBlocked={() => toast.error('Select Target Lock Confidence first.')}
+        onConfidenceRequiredBlocked={() => toast.error('Pick a confidence level first.')}
       />
     </div>
   );

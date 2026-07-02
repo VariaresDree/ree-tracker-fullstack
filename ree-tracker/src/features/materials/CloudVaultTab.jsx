@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useFileManager } from './useFileManager';
-import FocusTrap from '../../components/FocusTrap';
+import { Button, Modal } from '../../components/ui';
+import { FolderOpen, FileText, Pencil, Scissors, X, Download, TriangleAlert } from '../../components/ui/icons';
 
 export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) {
   const [sortBy, setSortBy] = useState('name');
@@ -125,21 +126,23 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
       {clipboard && isAdmin && (
         <div className="bg-reeBlue/10 border border-reeBlue/30 p-3 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 animate-in slide-in-from-top-4 shadow-sm">
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-xl">{clipboard.type === 'folder' ? '📁' : '📄'}</span>
-            <span className="text-textMain font-medium">Moving <span className="font-bold text-reeBlue">"{clipboard.name}"</span></span>
+            {clipboard.type === 'folder'
+              ? <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" />
+              : <FileText size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" />}
+            <span className="text-textMain font-medium">Moving <span className="font-bold text-[var(--accent)]">"{clipboard.name}"</span></span>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setClipboard(null)} className="px-4 py-2 bg-surface hover:bg-surface2 border border-border2 text-textMain text-xs font-bold rounded-lg transition-colors cursor-pointer">Cancel</button>
-            <button onClick={handlePaste} disabled={clipboard.id === currentFolderId} className="px-5 py-2 bg-reeBlue hover:bg-reeBlue2 text-white text-xs font-bold rounded-lg shadow-md transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2">
-              <span>📋</span> Paste Here
-            </button>
+            <Button size="sm" variant="secondary" onClick={() => setClipboard(null)}>Cancel</Button>
+            <Button size="sm" onClick={handlePaste} disabled={clipboard.id === currentFolderId}>
+              Paste here
+            </Button>
           </div>
         </div>
       )}
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-border2 pb-6 gap-4">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-textMain">Materials Hub Vault</h2>
+          <h2 className="text-display text-2xl tracking-tight text-textMain">Cloud Vault</h2>
           <div className="flex items-center gap-2 mt-3 font-mono text-xs text-muted2 flex-wrap">
             {breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={crumb.id}>
@@ -167,7 +170,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
 
       {isCreatingFolder && isAdmin && (
         <div className="p-5 bg-surface border border-reeBlue/40 rounded-xl flex flex-col sm:flex-row gap-3 items-center shadow-lg animate-in fade-in slide-in-from-top-2">
-          <div className="text-xl hidden sm:block">📁</div>
+          <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="hidden sm:block text-[var(--accent)]" />
           <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Enter new subfolder name..." className="flex-1 w-full bg-bg border border-border2 text-sm text-textMain px-4 py-2.5 rounded-lg outline-none focus:border-reeBlue transition-colors" />
           <div className="flex gap-2 w-full sm:w-auto">
             <button onClick={handleCreateFolderClick} className="flex-1 sm:flex-none px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors">Create</button>
@@ -197,11 +200,11 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
           ) : (
             <div className="flex flex-col gap-4">
               <div>
-                <label className="block text-[0.65rem] font-bold uppercase tracking-wider text-muted mb-1.5">Media Display Title</label>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Media Display Title</label>
                 <input value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="e.g. AC Circuits Lecture" className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan transition-colors" />
               </div>
               <div>
-                <label className="block text-[0.65rem] font-bold uppercase tracking-wider text-muted mb-1.5">Target Web Vector (URL)</label>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Target Web Vector (URL)</label>
                 <input value={newMaterial.url} onChange={e => setNewMaterial({...newMaterial, url: e.target.value})} placeholder="Paste YouTube link or Google Drive Shareable Link..." className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan transition-colors" />
               </div>
             </div>
@@ -242,7 +245,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                 }`}
               >
                 <div className="flex items-start gap-3 overflow-hidden flex-1 pointer-events-none">
-                  <span className="text-2xl opacity-90 group-hover:scale-110 transition-transform -mt-1">📁</span>
+                  <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className="opacity-90 group-hover:scale-110 transition-transform text-[var(--accent)] shrink-0" />
                   {editingItem.id === f.id && editingItem.type === 'folder' ? (
                     <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded outline-none w-full font-bold pointer-events-auto" />
                   ) : (
@@ -252,10 +255,10 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                 {isAdmin && (
                   <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2 shrink-0 bg-surface2/80 backdrop-blur rounded p-1">
                     {!(editingItem.id === f.id && editingItem.type === 'folder') && (
-                      <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="p-1.5 text-muted hover:text-reeBlue hover:bg-reeBlue/10 rounded transition-colors text-xs cursor-pointer">✏️</button>
+                      <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="p-1.5 text-muted hover:text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
-                    <button onClick={(e) => handleCut(f, 'folder', e)} aria-label="Cut folder to move" className="p-1.5 text-muted hover:text-reePurple hover:bg-reePurple/10 rounded transition-colors text-xs cursor-pointer">✂️</button>
-                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="p-1.5 text-muted hover:text-reeRed hover:bg-reeRed/10 rounded transition-colors text-xs cursor-pointer">✕</button>
+                    <button onClick={(e) => handleCut(f, 'folder', e)} aria-label="Cut folder to move" className="p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
               </div>
@@ -269,16 +272,16 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
               className="p-5 bg-surface border border-border2 rounded-xl flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors cursor-grab active:cursor-grabbing"
             >
               <div className="flex justify-between items-start">
-                <span className={`px-2 py-0.5 bg-bg border border-border2 text-[0.6rem] font-mono rounded uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed' : m.type === 'audio' ? 'text-reePurple' : m.type === 'image' ? 'text-reeAmber' : 'text-reeCyan'}`}>
+                <span className={`px-2 py-0.5 bg-bg border border-border2 text-[11px] font-mono rounded uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed' : m.type === 'audio' ? 'text-reePurple' : m.type === 'image' ? 'text-reeAmber' : 'text-reeCyan'}`}>
                     {m.type}
                 </span>
                 {isAdmin && (
                   <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded p-1 -mt-1 -mr-1">
                     {!(editingItem.id === m.id && editingItem.type === 'material') && (
-                      <button onClick={(e) => initiateRename(m, 'material', e)} aria-label="Rename file" className="p-1.5 text-muted hover:text-reeCyan hover:bg-reeCyan/10 rounded transition-colors text-xs cursor-pointer">✏️</button>
+                      <button onClick={(e) => initiateRename(m, 'material', e)} aria-label="Rename file" className="p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
-                    <button onClick={(e) => handleCut(m, 'material', e)} aria-label="Cut file to move" className="p-1.5 text-muted hover:text-reePurple hover:bg-reePurple/10 rounded transition-colors text-xs cursor-pointer">✂️</button>
-                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(m.id, 'material', m.name); }} aria-label="Delete file" className="p-1.5 text-muted hover:text-reeRed hover:bg-reeRed/10 rounded transition-colors text-xs cursor-pointer">✕</button>
+                    <button onClick={(e) => handleCut(m, 'material', e)} aria-label="Cut file to move" className="p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(m.id, 'material', m.name); }} aria-label="Delete file" className="p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
               </div>
@@ -288,11 +291,13 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                 <div className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 pointer-events-none break-words">{m.name}</div>
               )}
               <div className="flex gap-2 mt-4 pt-4 border-t border-border2/50">
-                <button onClick={() => onViewMaterial(m)} className="flex-1 py-2 bg-surface3 hover:bg-reeBlue hover:text-white rounded-lg text-xs font-bold text-textMain transition-all border border-border2 hover:border-reeBlue cursor-pointer">
-                  View Target
-                </button>
+                <Button size="sm" variant="secondary" className="flex-1" onClick={() => onViewMaterial(m)}>
+                  View
+                </Button>
                 {m.type !== 'video' && (
-                    <a href={m.url} download={m.name} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-surface2 hover:bg-surface3 rounded-lg text-xs font-bold text-textMain transition-all border border-border2 flex items-center justify-center cursor-pointer" aria-label="Download file">📥</a>
+                    <Button as="a" size="icon" variant="secondary" href={m.url} download={m.name} target="_blank" rel="noopener noreferrer" aria-label="Download file">
+                      <Download size={16} strokeWidth={1.75} aria-hidden="true" />
+                    </Button>
                 )}
               </div>
             </div>
@@ -300,20 +305,21 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
         </div>
       )}
 
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={deleteModal.isOpen}>
-            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full">
-              <h3 className="text-lg font-black text-reeRed mb-2 flex items-center gap-2"><span>⚠️</span> Confirm Deletion</h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">Are you sure you want to delete <strong className="text-textMain">"{deleteModal.name}"</strong>? This action cannot be undone.</p>
-              <div className="flex justify-end gap-3">
-                <button data-close-modal onClick={() => setDeleteModal({ isOpen: false, id: null, type: null, name: '' })} className="px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold transition-colors cursor-pointer">Cancel</button>
-                <button onClick={executeDeleteClick} className="px-4 py-2 bg-reeRed hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer">Delete</button>
-              </div>
-            </div>
-          </FocusTrap>
-        </div>
-      )}
+      <Modal
+        open={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, id: null, type: null, name: '' })}
+        tone="danger"
+        icon={TriangleAlert}
+        title={`Delete "${deleteModal.name}"?`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteModal({ isOpen: false, id: null, type: null, name: '' })}>Cancel</Button>
+            <Button tone="danger" onClick={executeDeleteClick}>Delete</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">This can't be undone.</p>
+      </Modal>
     </div>
   );
 }

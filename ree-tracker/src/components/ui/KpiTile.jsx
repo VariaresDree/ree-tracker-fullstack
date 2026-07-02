@@ -61,7 +61,7 @@ export function KpiTile({
       <Stat value={value} suffix={suffix} precision={precision} className="[&>span]:text-3xl sm:[&>span]:text-4xl" />
 
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-muted truncate">{label}</span>
+        <span className="text-eyebrow truncate">{label}</span>
         {hint && <span className="text-[11px] text-muted2 tabular-nums shrink-0">{hint}</span>}
       </div>
     </Card>

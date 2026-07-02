@@ -1,5 +1,6 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useTelemetrySlice, useTOSSlice } from '../store/slices';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +19,7 @@ import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
 import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
 import PageHeader from '../components/PageHeader';
-import { Panel, KpiTile, StatusPill, Button, Card, Badge } from '../components/ui';
+import { Panel, KpiTile, StatusPill, Button, Card, Badge, EmptyState, SegmentedControl } from '../components/ui';
 import {
   Target, Gauge, ListChecks, Timer, Flame, AudioWaveform,
   Sparkles, ArrowRight, CalendarDays, ShieldAlert,
@@ -264,6 +265,28 @@ export default function Dashboard() {
         }
       />
 
+      {/* First-run hero — an all-zero dashboard should invite action, not
+          look like failure. */}
+      {kpi.answered === 0 && !isFetchingSQL && (
+        <Card elevated glow grain>
+          <EmptyState
+            icon={Sparkles}
+            title="Start your first review"
+            description="Answer your first questions to unlock readiness tracking, topic heatmaps, and the confidence matrix."
+            action={
+              <>
+                <Button as={Link} to="/review" size="lg">
+                  Start a quick 20 review
+                </Button>
+                <Button as={Link} to="/simulator" variant="ghost">
+                  Explore the simulator
+                </Button>
+              </>
+            }
+          />
+        </Card>
+      )}
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         <KpiTile icon={Target} tone="velocity" label="Board readiness" value={readinessScore} suffix="%" hint="/ 70% pass" />
@@ -284,22 +307,17 @@ export default function Dashboard() {
           action={
             <div className="flex items-center gap-2">
               <Badge tone="velocity" className="hidden sm:inline-flex tabular-nums">θ {Number(currentTheta).toFixed(2)}</Badge>
-              <div className="flex items-center gap-1 bg-surface2 p-1 rounded-lg" role="group" aria-label="Velocity time range">
-                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([val, label]) => (
-                  <button
-                    key={val}
-                    onClick={() => setVelocityRange(val)}
-                    aria-pressed={velocityRange === val}
-                    className={`px-2.5 py-1 rounded-md text-[0.65rem] font-medium tracking-wide transition-colors cursor-pointer ${
-                      velocityRange === val
-                        ? 'bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)]'
-                        : 'text-muted hover:text-textMain'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                size="sm"
+                label="Velocity time range"
+                value={velocityRange}
+                onChange={setVelocityRange}
+                options={[
+                  { value: 'day', label: 'Day' },
+                  { value: 'week', label: 'Week' },
+                  { value: 'month', label: 'Month' },
+                ]}
+              />
             </div>
           }
         >

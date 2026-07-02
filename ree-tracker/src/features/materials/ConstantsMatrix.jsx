@@ -56,7 +56,7 @@ export default function ConstantsMatrix() {
               className="p-5 bg-surface border border-border2 rounded-xl shadow-sm hover:border-reeCyan/40 transition-colors flex flex-col h-full overflow-hidden justify-between min-h-[140px]"
             >
               {/* Title Section matching ReferenceHub Layout */}
-              <div className="text-[0.65rem] text-muted2 uppercase tracking-widest font-bold mb-3 border-b border-border2 pb-2 leading-relaxed">
+              <div className="text-[11px] text-muted2 uppercase tracking-widest font-bold mb-3 border-b border-border2 pb-2 leading-relaxed">
                 <LatexRenderer content={item.name} />
               </div>
               
@@ -70,7 +70,7 @@ export default function ConstantsMatrix() {
               {/* Meta Tags Base Syncing */}
               {activeCategory === 'All' && (
                 <div className="mt-4 flex flex-wrap gap-1.5 pt-3 border-t border-border2/30">
-                  <span className="text-[0.6rem] px-2 py-0.5 rounded border bg-reeCyan/10 border-reeCyan/30 text-reeCyan font-bold tracking-widest uppercase">
+                  <span className="text-[11px] px-2 py-0.5 rounded border bg-reeCyan/10 border-reeCyan/30 text-reeCyan font-bold tracking-widest uppercase">
                     {item.category}
                   </span>
                 </div>

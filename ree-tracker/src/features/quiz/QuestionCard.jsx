@@ -13,7 +13,7 @@
 //   - One place to enforce the confidence + correctness color semantics
 //   - Removes ~300 lines of duplicated JSX from MCQMode/SimulatorActive/Gauntlet
 
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
 
@@ -114,12 +114,19 @@ export default function QuestionCard({
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             {index != null && (
-              <span className="bg-surface2/50 border border-border2 px-2 py-0.5 rounded-md font-mono text-[0.65rem] font-black text-muted uppercase tracking-widest">
+              <span className="text-eyebrow bg-surface2/50 border border-border2 px-2 py-0.5 rounded-[var(--radius-sm)]">
                 Item {index + 1}
               </span>
             )}
             {subjectLabel && (
-              <span className="px-3 py-1 bg-reeCyan/10 border border-reeCyan/20 text-reeCyan rounded-md text-[0.65rem] font-black uppercase tracking-wider">
+              <span
+                className="text-eyebrow px-3 py-1 rounded-[var(--radius-sm)] border"
+                style={{
+                  color: 'var(--accent-signal)',
+                  background: 'color-mix(in srgb, var(--accent-signal) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--accent-signal) 25%, transparent)',
+                }}
+              >
                 {subjectLabel}
               </span>
             )}
@@ -136,10 +143,10 @@ export default function QuestionCard({
       {/* Confidence selector */}
       {showConfidence && !isReviewing && (
         <fieldset className="border-0 p-0 m-0">
-          <legend className="text-[0.65rem] text-muted uppercase tracking-widest font-black mb-3 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 bg-reeAmber rounded-full animate-pulse"></span>
-            Target Lock Confidence
-            {requireConfidence && <span className="text-reeAmber/70 normal-case font-bold ml-1">(required)</span>}
+          <legend className="text-eyebrow mb-3 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-reeAmber)' }}></span>
+            Confidence
+            {requireConfidence && <span className="normal-case font-bold ml-1" style={{ color: 'color-mix(in srgb, var(--color-reeAmber) 70%, transparent)' }}>(required)</span>}
           </legend>
           <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Confidence level">
             {CONFIDENCE_LEVELS.map((level, i) => {
@@ -151,14 +158,14 @@ export default function QuestionCard({
                   role="radio"
                   aria-checked={isSelected}
                   onClick={() => onConfidenceChange?.(level)}
-                  className={`py-3.5 rounded-2xl border-2 text-xs font-black uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-velocity)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-base)] ${
+                  className={`py-3.5 rounded-[var(--radius-default)] border-2 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-velocity)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
                     isSelected
                       ? 'bg-surface3 border-textMain text-textMain shadow-md'
                       : 'bg-surface2/30 border-border2/50 text-muted hover:border-textMain/40 hover:text-textMain hover:bg-surface2'
                   } ${!reduceMotion && isSelected ? 'scale-[1.02]' : ''} ${!reduceMotion && !isSelected ? 'hover:-translate-y-0.5' : ''}`}
                 >
                   {level}
-                  <span className="opacity-30 text-[0.55rem] font-mono hidden sm:inline">
+                  <span className="opacity-30 text-[11px] font-mono hidden sm:inline">
                     [{['Q', 'W', 'E'][i]}]
                   </span>
                 </button>
@@ -195,23 +202,26 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
   //   reviewing + wrongly-picked → red strikethrough
   //   reviewing + neither       → dimmed
   let stateClass =
-    'bg-surface2/40 border-border2/50 hover:border-reeBlue/50 hover:bg-surface3/50 text-textMain cursor-pointer';
-  let letterColor = 'text-muted/60 group-hover:text-reeBlue';
+    'bg-surface2/40 border-border2/50 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] hover:bg-surface3/50 text-textMain cursor-pointer';
+  let letterColor = 'text-muted/60 group-hover:text-[var(--accent)]';
   let innerClass = '';
   let icon = null;
 
   if (!isReviewing && isSelected) {
-    stateClass = 'bg-reeBlue/15 border-reeBlue/60 text-textMain shadow-[0_0_20px_rgba(59,130,246,0.15)] font-semibold';
-    letterColor = 'text-reeBlue';
+    stateClass =
+      'bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] border-[color-mix(in_srgb,var(--accent)_60%,transparent)] text-textMain font-semibold';
+    letterColor = 'text-[var(--accent)]';
   } else if (isReviewing) {
     if (isCorrectAnswer) {
-      stateClass = 'bg-[#0f291e] border-reeGreen/60 text-reeGreen shadow-[0_0_20px_rgba(34,197,94,0.15)] font-bold';
-      letterColor = 'text-reeGreen';
+      stateClass =
+        'bg-[color-mix(in_srgb,var(--accent-success)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-success)_60%,transparent)] text-[var(--accent-success)] font-bold';
+      letterColor = 'text-[var(--accent-success)]';
       icon = <CheckIcon />;
     } else if (isSelected) {
-      stateClass = 'bg-[#2a1215] border-reeRed/50 text-reeRed/80 font-semibold';
-      letterColor = 'text-reeRed/80';
-      innerClass = 'line-through decoration-reeRed/40';
+      stateClass =
+        'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)] font-semibold';
+      letterColor = 'text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)]';
+      innerClass = 'line-through decoration-[color-mix(in_srgb,var(--accent-danger)_40%,transparent)]';
       icon = <XIcon />;
     } else {
       stateClass = 'bg-surface/10 border-border2/20 text-muted opacity-40 cursor-not-allowed';
@@ -229,7 +239,7 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       aria-checked={isSelected}
       disabled={isReviewing}
       onClick={onClick}
-      className={`group p-5 sm:p-6 rounded-2xl border text-left flex items-center w-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-velocity)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-base)] ${stateClass} ${scaleClass} ${hoverLift}`}
+      className={`group p-5 sm:p-6 rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-velocity)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
     >
       <span className={`w-8 shrink-0 font-black font-mono text-base sm:text-lg tracking-wider transition-colors duration-200 ${letterColor}`}>
         {letter}.
@@ -244,7 +254,11 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
 
 function CheckIcon() {
   return (
-    <div className="w-7 h-7 bg-reeGreen rounded-lg flex items-center justify-center shrink-0 shadow-sm" aria-hidden="true">
+    <div
+      className="w-7 h-7 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 shadow-sm"
+      style={{ background: 'var(--accent-success)' }}
+      aria-hidden="true"
+    >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
       </svg>
@@ -254,7 +268,19 @@ function CheckIcon() {
 
 function XIcon() {
   return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-reeRed shrink-0" aria-hidden="true">
+    <svg
+      width="28"
+      height="28"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+      style={{ color: 'var(--accent-danger)' }}
+      aria-hidden="true"
+    >
       <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   );

@@ -1,6 +1,8 @@
 // src/pages/Login.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { Button, FormField, Input } from '../components/ui';
+import { Eye, EyeOff } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 
 export default function Login() {
@@ -21,10 +23,10 @@ export default function Login() {
         try {
             if (isRegistering) {
                 await register(email, password, name);
-                toast.success("Profile Initialized.");
+                toast.success("Account created.");
             } else {
                 await login(email, password);
-                toast.success("Access Granted.");
+                toast.success("Signed in.");
             }
         } catch (err) {
             setError(err.message.replace('Firebase: ', ''));
@@ -34,73 +36,82 @@ export default function Login() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-bg p-4 relative overflow-hidden page-fade-in">
-            {/* Ambient Glow Effects */}
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-reeBlue/10 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-reePurple/10 rounded-full blur-3xl pointer-events-none"></div>
+            {/* Ambient glow */}
+            <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}></div>
+            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent-signal) 10%, transparent)' }}></div>
 
-            <div className="w-full max-w-md p-8 bg-surface border border-border2 rounded-2xl shadow-2xl relative z-10">
+            <div className="w-full max-w-md p-8 bg-surface border border-border rounded-[var(--radius-xl)] elevate-3 relative z-10">
                 <div className="text-center mb-8">
-                    <div className="text-3xl font-black text-textMain tracking-tight mb-2">
-                        REE<span className="text-reeBlue">.ai</span> Core
+                    <div className="text-display text-3xl text-textMain tracking-tight mb-2">
+                        REE<span className="text-[var(--accent)]">.ai</span> Core
                     </div>
                     <p className="text-sm text-muted2 leading-relaxed">
                         {isRegistering
-                            ? "Initialize your profile and begin your journey toward topnotcher status."
-                            : "Authenticate to access your personalized board exam telemetry."}
+                            ? "Create your profile to start tracking your board-exam readiness."
+                            : "Sign in to continue your board-exam prep."}
                     </p>
                 </div>
 
                 {error && (
-                    <div className="mb-6 p-3 bg-reeRed/10 border border-reeRed/30 text-reeRed text-xs font-bold rounded-lg text-center">
+                    <div
+                        role="alert"
+                        className="mb-6 p-3 border text-xs font-bold rounded-[var(--radius-default)] text-center"
+                        style={{
+                            background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)',
+                            borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)',
+                            color: 'var(--accent-danger)',
+                        }}
+                    >
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                     {isRegistering && (
-                        <div className="animate-in fade-in slide-in-from-top-2">
-                            <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-1.5">Agent Alias (Display Name)</label>
-                            <input required type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Engr. Cruz" className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeBlue transition-colors" />
-                        </div>
+                        <FormField label="Display name" className="animate-in fade-in slide-in-from-top-2">
+                            <Input required type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Engr. Cruz" autoComplete="name" />
+                        </FormField>
                     )}
-                    <div>
-                        <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-1.5">Email Address</label>
-                        <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="agent@matrix.com" className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeBlue transition-colors" />
-                    </div>
-                    <div>
-                        <label className="block text-[0.65rem] font-bold text-muted uppercase tracking-wider mb-1.5">Password</label>
-                        <div className="relative">
-                            <input 
-                                required 
-                                type={showPassword ? "text" : "password"} 
-                                value={password} 
-                                onChange={(e) => setPassword(e.target.value)} 
-                                placeholder="••••••••"
-                                className="w-full bg-bg border border-border2 text-textMain p-3 pr-10 rounded-lg text-sm outline-none focus:border-reeBlue transition-colors" 
-                            />
-                            <button 
-                                type="button" 
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-textMain transition-colors focus:outline-none cursor-pointer"
-                            >
-                                {showPassword ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
-                                ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                )}
-                            </button>
-                        </div>
-                    </div>
+                    <FormField label="Email address">
+                        <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                    </FormField>
+                    <FormField label="Password">
+                        {({ id, ...a11y }) => (
+                            <div className="relative">
+                                <Input
+                                    id={id}
+                                    {...a11y}
+                                    required
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                                    className="pr-11"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-[var(--radius-sm)] text-muted hover:text-textMain transition-colors cursor-pointer"
+                                >
+                                    {showPassword
+                                        ? <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" />
+                                        : <Eye size={18} strokeWidth={1.75} aria-hidden="true" />}
+                                </button>
+                            </div>
+                        )}
+                    </FormField>
 
-                    <button disabled={loading} type="submit" className="w-full py-3.5 mt-2 bg-reeBlue hover:bg-reeBlue2 text-white font-black rounded-lg transition-colors disabled:opacity-50 uppercase tracking-widest text-xs cursor-pointer shadow-md flex items-center justify-center">
-                        {loading ? <span className="telemetry-spinner !w-4 !h-4 border-white border-t-transparent"></span> : (isRegistering ? 'Initialize Profile' : 'Access Dashboard')}
-                    </button>
+                    <Button type="submit" size="lg" fullWidth loading={loading} disabled={loading} className="mt-2">
+                        {isRegistering ? 'Create account' : 'Sign in'}
+                    </Button>
                 </form>
 
-                <div className="mt-6 pt-6 border-t border-border2 text-center">
-                    <button onClick={() => setIsRegistering(!isRegistering)} className="text-xs font-bold text-muted hover:text-reeBlue transition-colors cursor-pointer uppercase tracking-wider">
-                        {isRegistering ? 'Already have an access matrix? Sign In.' : 'New recruit? Create a Profile.'}
-                    </button>
+                <div className="mt-6 pt-6 border-t border-border text-center">
+                    <Button variant="ghost" size="sm" onClick={() => setIsRegistering(!isRegistering)} className="text-muted hover:text-textMain">
+                        {isRegistering ? 'Already have an account? Sign in' : 'New here? Create an account'}
+                    </Button>
                 </div>
             </div>
         </div>

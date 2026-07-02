@@ -6,7 +6,7 @@ export default function ZoomableImage({ src, alt }) {
   return (
     <div className="w-full h-full bg-surface2 border border-border2 rounded-xl overflow-hidden relative group">
       {/* Overlay controls hint */}
-      <div className="absolute top-4 right-4 z-10 bg-bg/80 backdrop-blur-sm border border-border2 px-3 py-1.5 rounded-lg text-[0.65rem] font-bold text-muted uppercase tracking-widest pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-4 right-4 z-10 bg-bg/80 backdrop-blur-sm border border-border2 px-3 py-1.5 rounded-lg text-[11px] font-bold text-muted uppercase tracking-widest pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
         Pinch or Scroll to Zoom
       </div>
 

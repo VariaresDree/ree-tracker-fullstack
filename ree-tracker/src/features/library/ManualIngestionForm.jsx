@@ -1,6 +1,6 @@
 // src/features/library/ManualIngestionForm.jsx
-import React from 'react';
-import { useStore } from '../../store/useStore'; 
+import { useStore } from '../../store/useStore';
+import { Button, FormField, Select, Input, Textarea } from '../../components/ui';
 
 export default function ManualIngestionForm({
     manualQ, setManualQ,
@@ -9,123 +9,117 @@ export default function ManualIngestionForm({
     handleManualSubmit
 }) {
     // 🚀 Connect the dropdowns directly to the cloud-synced Dynamic TOS
-    const { dynamicTOS } = useStore(); 
+    const { dynamicTOS } = useStore();
 
     // Safety fallback in case the store hasn't populated yet
     const safeTOS = dynamicTOS || {};
 
     return (
-        <div className="bg-surface border border-border2 rounded-xl p-6 shadow-sm animate-in fade-in">
-            <h3 className="text-lg font-black text-textMain uppercase tracking-widest flex items-center gap-2 mb-6">
-                <span className="text-reeCyan">⌨️</span> Manual Entry Terminal
+        <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-6 shadow-sm animate-in fade-in">
+            <h3 className="text-lg font-semibold text-textMain tracking-tight mb-6">
+                Add a question manually
             </h3>
-            
+
             <form onSubmit={handleManualSubmit} className="flex flex-col gap-5">
-                {/* Subject and Subtopic Dropdowns */}
+                {/* Subject and subtopic */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-[0.65rem] font-bold text-muted uppercase tracking-widest">Subject</label>
-                        <select 
-                            value={genSubject} 
+                    <FormField label="Subject">
+                        <Select
+                            value={genSubject}
                             onChange={e => {
                                 setGenSubject(e.target.value);
                                 setGenSubtopic(safeTOS[e.target.value]?.[0] || '');
-                            }} 
-                            className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan cursor-pointer transition-colors shadow-inner"
+                            }}
                         >
                             {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-[0.65rem] font-bold text-muted uppercase tracking-widest">Subtopic</label>
-                        <select 
-                            value={genSubtopic} 
-                            onChange={e => setGenSubtopic(e.target.value)} 
-                            className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan cursor-pointer transition-colors shadow-inner"
-                        >
+                        </Select>
+                    </FormField>
+                    <FormField label="Topic">
+                        <Select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)}>
                             {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                    </div>
+                        </Select>
+                    </FormField>
                 </div>
 
-                {/* Configuration Row */}
+                {/* Type + difficulty */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-[0.65rem] font-bold text-muted uppercase tracking-widest">Question Type</label>
-                        <select 
-                            value={manualQ.type || 'calculation'} 
-                            onChange={e => setManualQ({...manualQ, type: e.target.value})} 
-                            className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan cursor-pointer transition-colors shadow-inner"
+                    <FormField label="Question type">
+                        <Select
+                            value={manualQ.type || 'calculation'}
+                            onChange={e => setManualQ({ ...manualQ, type: e.target.value })}
                         >
-                            <option value="calculation">🧮 Calculation (Heavy Math)</option>
-                            <option value="conceptual">🧠 Conceptual (Theory)</option>
-                        </select>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-[0.65rem] font-bold text-muted uppercase tracking-widest">Difficulty Metric</label>
-                        <select 
-                            value={manualQ.difficulty || '2'} 
-                            onChange={e => setManualQ({...manualQ, difficulty: e.target.value})} 
-                            className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan cursor-pointer transition-colors shadow-inner"
+                            <option value="calculation">Calculation (heavy math)</option>
+                            <option value="conceptual">Conceptual (theory)</option>
+                        </Select>
+                    </FormField>
+                    <FormField label="Difficulty">
+                        <Select
+                            value={manualQ.difficulty || '2'}
+                            onChange={e => setManualQ({ ...manualQ, difficulty: e.target.value })}
                         >
-                            <option value="1">1 - Foundation (Easy)</option>
-                            <option value="2">2 - Core Evaluation (Medium)</option>
-                            <option value="3">3 - Advanced (Hard)</option>
-                        </select>
-                    </div>
+                            <option value="1">1 — Foundation (easy)</option>
+                            <option value="2">2 — Core (medium)</option>
+                            <option value="3">3 — Advanced (hard)</option>
+                        </Select>
+                    </FormField>
                 </div>
 
-                {/* Question Text */}
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-[0.65rem] font-bold text-muted uppercase tracking-widest">Question Content Text</label>
-                    <textarea 
+                {/* Question text */}
+                <FormField label="Question text" required>
+                    <Textarea
                         required
-                        value={manualQ.text || ''} 
-                        onChange={e => setManualQ({...manualQ, text: e.target.value})} 
-                        className="w-full bg-bg border border-border2 text-textMain p-4 rounded-lg text-sm outline-none min-h-[100px] leading-relaxed custom-scrollbar focus:border-reeCyan transition-colors shadow-inner" 
-                        placeholder="Enter the complete question text..." 
+                        value={manualQ.text || ''}
+                        onChange={e => setManualQ({ ...manualQ, text: e.target.value })}
+                        className="min-h-[100px] leading-relaxed custom-scrollbar"
+                        placeholder="Enter the complete question text…"
                     />
-                </div>
+                </FormField>
 
-                {/* Correct Answer */}
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-[0.65rem] font-bold text-reeGreen uppercase tracking-widest">Verified Correct Answer</label>
-                    <input 
+                {/* Correct answer — success-tinted border is semantic (this IS the key) */}
+                <FormField label="Correct answer" required>
+                    <Input
                         required
-                        value={manualQ.answer || ''} 
-                        onChange={e => setManualQ({...manualQ, answer: e.target.value})} 
-                        className="w-full bg-bg border border-reeGreen/40 text-textMain p-3.5 rounded-lg text-sm outline-none focus:border-reeGreen transition-colors shadow-[inset_0_0_10px_rgba(34,197,94,0.05)]" 
-                        placeholder="The absolute correct value or statement" 
+                        value={manualQ.answer || ''}
+                        onChange={e => setManualQ({ ...manualQ, answer: e.target.value })}
+                        placeholder="The exact correct value or statement"
+                        style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}
                     />
-                </div>
+                </FormField>
 
-                {/* Distractors */}
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-[0.65rem] font-bold text-reeRed uppercase tracking-widest">Distractors (Wrong Options)</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <input required value={manualQ.distractor1 || ''} onChange={e => setManualQ({...manualQ, distractor1: e.target.value})} className="w-full bg-bg border border-reeRed/20 text-textMain p-3.5 rounded-lg text-sm outline-none focus:border-reeRed/60 transition-colors shadow-inner" placeholder="Distractor Option 1" />
-                        <input required value={manualQ.distractor2 || ''} onChange={e => setManualQ({...manualQ, distractor2: e.target.value})} className="w-full bg-bg border border-reeRed/20 text-textMain p-3.5 rounded-lg text-sm outline-none focus:border-reeRed/60 transition-colors shadow-inner" placeholder="Distractor Option 2" />
-                        <input required value={manualQ.distractor3 || ''} onChange={e => setManualQ({...manualQ, distractor3: e.target.value})} className="w-full bg-bg border border-reeRed/20 text-textMain p-3.5 rounded-lg text-sm outline-none focus:border-reeRed/60 transition-colors shadow-inner" placeholder="Distractor Option 3" />
-                    </div>
-                </div>
+                {/* Distractors — danger-tinted borders are semantic (wrong options) */}
+                <FormField label="Wrong options (distractors)" required>
+                    {({ id }) => (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {[1, 2, 3].map((n) => (
+                                <Input
+                                    key={n}
+                                    id={n === 1 ? id : undefined}
+                                    required
+                                    value={manualQ[`distractor${n}`] || ''}
+                                    onChange={e => setManualQ({ ...manualQ, [`distractor${n}`]: e.target.value })}
+                                    placeholder={`Wrong option ${n}`}
+                                    aria-label={`Wrong option ${n}`}
+                                    style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 20%, transparent)' }}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </FormField>
 
                 {/* Explanation */}
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-[0.65rem] font-bold text-reeCyan uppercase tracking-widest flex items-center gap-1.5">
-                        <span>💾</span> Hardcoded Offline Solution / Explanation (Optional)
-                    </label>
-                    <textarea 
-                        value={manualQ.fixedExplanation || ''} 
-                        onChange={e => setManualQ({...manualQ, fixedExplanation: e.target.value})} 
-                        className="w-full bg-bg border border-border2 text-textMain p-4 rounded-lg text-sm outline-none min-h-[100px] leading-relaxed custom-scrollbar focus:border-reeCyan transition-colors shadow-inner" 
-                        placeholder="Provide step-by-step derivation or conceptual context..." 
+                <FormField label="Solution / explanation" hint="Optional — shown as the offline solution after answering.">
+                    <Textarea
+                        value={manualQ.fixedExplanation || ''}
+                        onChange={e => setManualQ({ ...manualQ, fixedExplanation: e.target.value })}
+                        className="min-h-[100px] leading-relaxed custom-scrollbar"
+                        placeholder="Step-by-step derivation or conceptual context…"
                     />
-                </div>
+                </FormField>
 
-                <div className="pt-4 border-t border-border2 mt-2">
-                    <button type="submit" className="w-full py-3.5 bg-reeBlue hover:bg-reeBlue2 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] flex justify-center items-center gap-2">
-                        <span>🚀</span> Inject into Matrix
-                    </button>
+                <div className="pt-4 border-t border-border mt-2">
+                    <Button type="submit" fullWidth>
+                        Add to vault
+                    </Button>
                 </div>
             </form>
         </div>
