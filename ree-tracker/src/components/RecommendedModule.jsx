@@ -57,14 +57,14 @@ export default function RecommendedModule({ stats }) {
 
         <div className="flex items-center gap-4 text-xs">
           <div className="flex flex-col">
-            <span className="text-[0.6rem] text-muted uppercase tracking-wider">Risk level</span>
+            <span className="text-[11px] text-muted uppercase tracking-wider">Risk level</span>
             <span className="font-semibold" style={{ color: 'var(--accent-danger)' }}>
               High · {weakestLink.score} error{weakestLink.score === 1 ? '' : 's'}
             </span>
           </div>
           <div className="w-px h-6 bg-border" />
           <div className="flex flex-col">
-            <span className="text-[0.6rem] text-muted uppercase tracking-wider">Recommended</span>
+            <span className="text-[11px] text-muted uppercase tracking-wider">Recommended</span>
             <span className="font-semibold text-textMain">Active recall</span>
           </div>
         </div>

@@ -17,11 +17,11 @@ test.describe('Login screen', () => {
 
     // The body copy differs between the two modes — assert one is visible
     // initially and the other appears after the toggle is clicked.
-    await expect(page.getByText(/Authenticate to access/i)).toBeVisible();
+    await expect(page.getByText(/Sign in to continue/i)).toBeVisible();
     const toggle = page.getByRole('button', { name: /(register|create|sign up)/i });
     if (await toggle.count()) {
       await toggle.first().click();
-      await expect(page.getByText(/Initialize your profile/i)).toBeVisible();
+      await expect(page.getByText(/Create your profile/i)).toBeVisible();
     }
   });
 

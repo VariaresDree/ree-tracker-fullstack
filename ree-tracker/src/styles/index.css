@@ -276,13 +276,19 @@
     transition: box-shadow var(--duration-fast) var(--ease-out-quart);
   }
 
-  /* Respect reduced-motion across the entire app */
+  /* Respect reduced-motion across the entire app. animation-delay must be
+     zeroed too: .stagger-fade-in children start at opacity 0 and would stay
+     invisible for up to 360ms if only the duration were shortened. */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
+      animation-delay: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
+    }
+    .stagger-fade-in > * {
+      opacity: 1;
     }
   }
 }
@@ -297,8 +303,10 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* Inherits the surrounding text color so it stays theme-correct — set a
+     text-* class on the spinner (or its parent) to tint it. */
   .telemetry-spinner {
-    @apply w-6 h-6 border-2 border-reeBlue border-t-transparent rounded-full inline-block;
+    @apply w-6 h-6 border-2 border-current border-t-transparent rounded-full inline-block;
     animation: spin 1s linear infinite;
   }
 
@@ -403,6 +411,19 @@
     font-feature-settings: "ss01" on, "ss02" on;
     letter-spacing: -0.02em;
     font-weight: 500;
+  }
+
+  /* THE micro-label. Every eyebrow / tiny uppercase label in the app uses
+     this one class — no more ad-hoc text-[0.55–0.7rem] + tracking-widest
+     combinations. Override color with a text-* class when needed. */
+  .text-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-weight: 500;
+    color: var(--text-muted);
   }
 
   /* Editorial elevation classes (token-driven) */

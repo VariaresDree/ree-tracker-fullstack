@@ -43,45 +43,50 @@ export const useReviewSession = (currentUser, isOnline) => {
         return () => clearInterval(interval);
     }, [session.isActive, session.isAnswered, session.isFlipped, session.currentIndex, session.isFinished]);
 
-    const startSession = async () => {
+    // `overrides` lets preset cards start a session in one click without a
+    // setConfig round-trip; the form state is synced so the custom panel
+    // reflects what actually ran.
+    const startSession = async (overrides = null) => {
+        const cfg = overrides ? { ...config, ...overrides } : config;
+        if (overrides) setConfig(cfg);
         setSession(prev => ({ ...prev, loading: true }));
         try {
             let freshData = [];
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
-            if (config.source === 'smart-drill') {
-                if (!isOnline) throw new Error("Smart Drill requires an active uplink.");
-                const drillResult = await fetchSmartDrillQuestions(config.count || 20);
+            if (cfg.source === 'smart-drill') {
+                if (!isOnline) throw new Error("Smart drill needs a connection.");
+                const drillResult = await fetchSmartDrillQuestions(cfg.count || 20);
                 freshData = drillResult.items || [];
-            } else if (config.source === 'ai') {
-                if (!isOnline) throw new Error("AI Generator requires an active uplink.");
-                const targetTopic = config.studyMode === 'subtopic' ? config.subtopic : (safeTOS[config.subject]?.[0] || 'General');
-                freshData = await generateQuestionsAI(config.subject, targetTopic, false);
+            } else if (cfg.source === 'ai') {
+                if (!isOnline) throw new Error("The AI generator needs a connection.");
+                const targetTopic = cfg.studyMode === 'subtopic' ? cfg.subtopic : (safeTOS[cfg.subject]?.[0] || 'General');
+                freshData = await generateQuestionsAI(cfg.subject, targetTopic, false);
             } else {
                 // 🚀 FIXED: Fetch up to 1000 questions to create a massive Supabase randomization pool
-                const subTarget = config.subtopic === 'All' ? 'All' : config.subtopic;
-                freshData = await fetchVaultQuestions(config.subject, subTarget, 1000);
+                const subTarget = cfg.subtopic === 'All' ? 'All' : cfg.subtopic;
+                freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000);
             }
 
-            if (!freshData || freshData.length === 0) throw new Error("Vault is empty for these parameters.");
+            if (!freshData || freshData.length === 0) throw new Error("No questions match these settings yet.");
 
             // 2. 🚀 STRICT COGNITIVE FOCUS FILTERING
             let filteredData = freshData;
-            if (config.cognitiveFocus === 'conceptual') {
+            if (cfg.cognitiveFocus === 'conceptual') {
                 filteredData = freshData.filter(q => q.type !== 'calculation');
-            } else if (config.cognitiveFocus === 'calculation') {
+            } else if (cfg.cognitiveFocus === 'calculation') {
                 filteredData = freshData.filter(q => q.type === 'calculation');
             }
 
             if (filteredData.length === 0) {
-                throw new Error(`No [${config.cognitiveFocus.toUpperCase()}] items found. Please switch to Standard Mix or change topics.`);
+                throw new Error(`No ${cfg.cognitiveFocus} questions found for this topic. Try the mixed focus or another topic.`);
             }
-            
+
             // 3. 🚀 TRUE RANDOMIZATION: stratified sample across subtopics so a
             // subject-wide ("All") session spans the whole subject instead of
             // collapsing onto the dominant subtopic (Math→Algebra, ESAS→Chemistry).
             // For a pinned subtopic this is just a uniform Fisher-Yates pick.
-            const finalSessionQuestions = stratifiedSample(filteredData, config.count || 20);
+            const finalSessionQuestions = stratifiedSample(filteredData, cfg.count || 20);
 
             telemetryBatchRef.current = [];
             startTimeRef.current = Date.now();
@@ -90,7 +95,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             // Bracket the session in the store so the per-answer events know
             // which ExamSession id, mode, and target subject to attach. The
             // backend uses these to auto-upsert the ExamSession row.
-            startStoreSession({ mode: 'ACTIVE_REVIEW', subject: config.subject });
+            startStoreSession({ mode: 'ACTIVE_REVIEW', subject: cfg.subject });
 
             setSession({
                 isActive: true, loading: false, isFinished: false,
@@ -108,7 +113,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
     const handleAnswerSelection = (option) => {
         if (session.isAnswered) return;
-        if (!session.confidence) return toast.error("Select Target Lock Confidence First.");
+        if (!session.confidence) return toast.error("Pick a confidence level first.");
 
         const currentQ = session.questions[session.currentIndex];
         const isCorrect = option === currentQ.answer;

@@ -5,9 +5,9 @@ import { CalibrationCurve } from './CalibrationCurve';
 function StatCard({ label, value, sub, color = 'text-textMain' }) {
   return (
     <div className="p-4 bg-surface border border-border2/50 rounded-xl">
-      <div className="text-[0.6rem] font-black text-muted uppercase tracking-widest mb-1">{label}</div>
+      <div className="text-[11px] font-black text-muted uppercase tracking-widest mb-1">{label}</div>
       <div className={`text-2xl font-black ${color}`}>{value}</div>
-      {sub && <div className="text-[0.65rem] text-muted2 mt-0.5">{sub}</div>}
+      {sub && <div className="text-[11px] text-muted2 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -19,7 +19,7 @@ function BarChart({ items, valueKey, labelKey, maxVal, color = 'bg-reeBlue' }) {
     <div className="flex flex-col gap-2">
       {items.slice(0, 12).map((item, idx) => (
         <div key={idx} className="flex items-center gap-3">
-          <div className="w-20 sm:w-40 text-[0.65rem] text-muted2 font-bold truncate text-right">{item[labelKey]}</div>
+          <div className="w-20 sm:w-40 text-[11px] text-muted2 font-bold truncate text-right">{item[labelKey]}</div>
           <div className="flex-1 h-5 bg-surface2/50 rounded-full overflow-hidden">
             <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${max > 0 ? (item[valueKey] / max) * 100 : 0}%` }}></div>
           </div>
@@ -120,8 +120,8 @@ export default function AnalyticsDeepDive() {
                 <div key={item.confidence} className={`p-5 rounded-xl border-2 text-center ${calibrated ? 'border-reeGreen/30 bg-reeGreen/5' : 'border-reeRed/30 bg-reeRed/5'}`}>
                   <div className="text-xs font-black uppercase tracking-widest text-muted mb-2">{item.confidence} Confidence</div>
                   <div className={`text-3xl font-black ${calibrated ? 'text-reeGreen' : 'text-reeRed'}`}>{item.accuracy}%</div>
-                  <div className="text-[0.65rem] text-muted2 mt-1">{item.correct}/{item.total} correct</div>
-                  <div className={`text-[0.6rem] font-bold mt-2 uppercase tracking-wider ${calibrated ? 'text-reeGreen' : 'text-reeRed'}`}>
+                  <div className="text-[11px] text-muted2 mt-1">{item.correct}/{item.total} correct</div>
+                  <div className={`text-[11px] font-bold mt-2 uppercase tracking-wider ${calibrated ? 'text-reeGreen' : 'text-reeRed'}`}>
                     {calibrated ? 'Well Calibrated' : 'Miscalibrated'}
                   </div>
                 </div>
@@ -157,7 +157,7 @@ export default function AnalyticsDeepDive() {
           )}
           {studyData.length > 0 && (
             <div className="mt-6 space-y-2">
-              <div className="text-[0.6rem] font-black text-muted uppercase tracking-widest">Last 14 days (minutes)</div>
+              <div className="text-[11px] font-black text-muted uppercase tracking-widest">Last 14 days (minutes)</div>
               <BarChart
                 items={studyData.slice(-14).map(d => {
                   const dt = new Date(d.date);
@@ -188,11 +188,11 @@ export default function AnalyticsDeepDive() {
                 <div key={idx} className={`p-4 rounded-xl border flex items-center justify-between ${exam.verdict === 'PASSED' ? 'border-reeGreen/30 bg-reeGreen/5' : exam.verdict === 'CONDITIONAL PASS' ? 'border-reeAmber/30 bg-reeAmber/5' : 'border-reeRed/30 bg-reeRed/5'}`}>
                   <div>
                     <div className="text-sm font-bold text-textMain">{exam.targetSubject}</div>
-                    <div className="text-[0.65rem] text-muted2">{new Date(exam.createdAt).toLocaleDateString()}</div>
+                    <div className="text-[11px] text-muted2">{new Date(exam.createdAt).toLocaleDateString()}</div>
                   </div>
                   <div className="text-right">
                     <div className={`text-xl font-black ${exam.verdict === 'PASSED' ? 'text-reeGreen' : exam.verdict === 'CONDITIONAL PASS' ? 'text-reeAmber' : 'text-reeRed'}`}>{exam.score}%</div>
-                    <div className="text-[0.6rem] font-bold uppercase tracking-wider text-muted">{exam.totalQuestions} items</div>
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted">{exam.totalQuestions} items</div>
                   </div>
                 </div>
               ))}

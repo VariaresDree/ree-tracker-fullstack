@@ -22,15 +22,15 @@ export default function ExamPerformanceCard({ stats }) {
           <span className={`text-5xl font-black tracking-tighter ${readinessColor}`}>
             {readiness}%
           </span>
-          <div className="text-[0.6rem] text-muted font-bold uppercase tracking-widest mt-1">/ 70% passing</div>
+          <div className="text-[11px] text-muted font-bold uppercase tracking-widest mt-1">/ 70% passing</div>
         </div>
 
         <div className="flex-1 space-y-3">
-          <div className="flex justify-between text-[0.6rem] font-black text-muted uppercase tracking-widest">
+          <div className="flex justify-between text-[11px] font-black text-muted uppercase tracking-widest">
             <span>IRT Ability (θ)</span>
             <span className="text-reeCyan">{theta.toFixed(3)}</span>
           </div>
-          <div className="flex justify-between text-[0.6rem] font-black text-muted uppercase tracking-widest">
+          <div className="flex justify-between text-[11px] font-black text-muted uppercase tracking-widest">
             <span>Accuracy</span>
             <span className="text-textMain">{accuracy}% <span className="text-muted font-normal">({totalCorrect}/{totalAnswered})</span></span>
           </div>

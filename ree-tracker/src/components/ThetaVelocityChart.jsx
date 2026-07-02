@@ -10,14 +10,14 @@ const CustomTooltip = ({ active, payload }) => {
     const data = payload[0].payload;
     return (
       <div className="bg-surface/90 backdrop-blur-md border border-border2/80 p-3.5 rounded-xl shadow-xl z-50">
-        <p className="text-[0.65rem] uppercase tracking-widest font-black text-textMain mb-2 border-b border-border2/50 pb-2">
+        <p className="text-[11px] uppercase tracking-widest font-black text-textMain mb-2 border-b border-border2/50 pb-2">
           {data.date} <span className="text-muted font-medium ml-2">({data.name})</span>
         </p>
         <div className="flex flex-col gap-1">
             <p className="text-sm font-black text-reeCyan drop-shadow-sm">
               θ: {data.theta > 0 ? '+' : ''}{data.theta}
             </p>
-            <p className={`text-[0.65rem] font-bold uppercase tracking-wider ${data.probability >= 70 ? 'text-reeGreen' : data.probability >= 50 ? 'text-reeAmber' : 'text-reeRed'}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${data.probability >= 70 ? 'text-reeGreen' : data.probability >= 50 ? 'text-reeAmber' : 'text-reeRed'}`}>
               {Math.round(data.probability)}% Pass Probability
             </p>
         </div>
@@ -84,7 +84,7 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
     <div className="w-full h-full min-h-[220px] min-w-0 relative animate-in fade-in">
         {chartData.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center border-2 border-dashed border-border2/50 rounded-xl bg-surface2/20">
-                 <span className="text-[0.65rem] text-muted font-mono uppercase tracking-widest">Awaiting Velocity Data</span>
+                 <span className="text-[11px] text-muted font-mono uppercase tracking-widest">Awaiting Velocity Data</span>
             </div>
         ) : (
           <div className="absolute inset-0">

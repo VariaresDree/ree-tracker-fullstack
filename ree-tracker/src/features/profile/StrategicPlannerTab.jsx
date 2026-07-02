@@ -84,7 +84,7 @@ export default function StrategicPlannerTab({ currentUser }) {
                   </div>
                   <button onClick={nextMonth} className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer">&gt;</button>
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-[0.65rem] font-bold text-muted mb-2 uppercase">
+              <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-muted mb-2 uppercase">
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => <div key={d}>{d}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-1 text-center">
@@ -168,12 +168,12 @@ export default function StrategicPlannerTab({ currentUser }) {
                         if (!task.completed && task.dueDate) {
                             if (task.dueDate < today) {
                                 statusColor = 'border-reeRed/50 bg-reeRed/5';
-                                dateBadge = <span className="text-[0.6rem] font-bold uppercase tracking-widest text-reeRed bg-reeRed/10 px-2 py-0.5 rounded ml-2">Overdue</span>;
+                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeRed bg-reeRed/10 px-2 py-0.5 rounded ml-2">Overdue</span>;
                             } else if (task.dueDate === today) {
                                 statusColor = 'border-reeAmber/50 bg-reeAmber/5';
-                                dateBadge = <span className="text-[0.6rem] font-bold uppercase tracking-widest text-reeAmber bg-reeAmber/10 px-2 py-0.5 rounded ml-2">Today</span>;
+                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeAmber bg-reeAmber/10 px-2 py-0.5 rounded ml-2">Today</span>;
                             } else {
-                                dateBadge = <span className="text-[0.6rem] font-mono text-muted2 ml-2">{task.dueDate}</span>;
+                                dateBadge = <span className="text-[11px] font-mono text-muted2 ml-2">{task.dueDate}</span>;
                             }
                         }
 

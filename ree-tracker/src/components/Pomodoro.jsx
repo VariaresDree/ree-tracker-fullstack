@@ -1,10 +1,12 @@
 // src/components/Pomodoro.jsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { Button } from './ui';
+import { Settings2, Play, Pause, RotateCcw } from './ui/icons';
 
 export default function Pomodoro() {
   const { pomodoro, updatePomodoro, switchPomodoroMode } = useStore();
-  
+
   // Local state isolates the 1-second re-renders to just this component!
   const [localTimeLeft, setLocalTimeLeft] = useState(pomodoro.timeLeft);
   const [isEditing, setIsEditing] = useState(false);
@@ -56,68 +58,75 @@ export default function Pomodoro() {
 
   if (isEditing) {
     return (
-      <div className="flex flex-col gap-2 p-3 bg-surface border border-border2 rounded-xl text-center w-full font-mono text-xs text-textMain transition-all shadow-inner">
-        <div className="text-[0.65rem] text-muted font-bold uppercase tracking-wider">Configure Cycle</div>
+      <div className="flex flex-col gap-2 p-3 bg-surface border border-border2 rounded-[var(--radius-default)] text-center w-full font-mono text-xs text-textMain transition-all shadow-inner">
+        <div className="text-eyebrow">Timer settings</div>
         <div className="flex items-center justify-center gap-2">
           <input
             type="number"
             value={pomodoro.workDuration}
             onChange={(e) => updatePomodoro({ workDuration: Number(e.target.value) })}
-            className="w-12 py-1 bg-bg text-center rounded border border-border2 text-reeAmber font-bold outline-none focus:border-reeBlue"
-            title="Focus Duration (Mins)"
+            aria-label="Focus minutes"
+            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold outline-none focus:border-[var(--accent)]"
+            style={{ color: 'var(--color-reeAmber)' }}
+            title="Focus minutes"
           />
           <span className="text-muted">/</span>
           <input
             type="number"
             value={pomodoro.breakDuration}
             onChange={(e) => updatePomodoro({ breakDuration: Number(e.target.value) })}
-            className="w-12 py-1 bg-bg text-center rounded border border-border2 text-reeGreen font-bold outline-none focus:border-reeGreen"
-            title="Break Duration (Mins)"
+            aria-label="Break minutes"
+            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold outline-none focus:border-[var(--accent)]"
+            style={{ color: 'var(--accent-success)' }}
+            title="Break minutes"
           />
         </div>
-        <button
+        <Button
+          size="sm"
+          fullWidth
+          className="mt-1"
           onClick={() => {
             setIsEditing(false);
             resetPomodoro();
           }}
-          className="w-full py-1.5 bg-reeBlue hover:bg-reeBlue2 text-white rounded font-bold text-[0.65rem] cursor-pointer transition-colors mt-1 uppercase tracking-wider"
         >
-          Lock System Time
-        </button>
+          Save
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="w-full p-4 bg-surface border border-border2 rounded-2xl flex flex-col items-center gap-2.5 shadow-md transition-all">
+    <div className="w-full p-4 bg-surface border border-border2 rounded-[var(--radius-lg)] flex flex-col items-center gap-2.5 shadow-md transition-all">
       {/* Header Info */}
       <div className="flex justify-between items-center w-full border-b border-border2/40 pb-2">
-        <span className={`text-[0.7rem] font-black uppercase tracking-widest ${pomodoro.isWork ? 'text-reeAmber' : 'text-reeGreen'}`}>
-          ⚡ {pomodoro.isWork ? 'Focus Phase' : 'Break Matrix'}
+        <span className="text-eyebrow" style={{ color: pomodoro.isWork ? 'var(--color-reeAmber)' : 'var(--accent-success)' }}>
+          {pomodoro.isWork ? 'Focus' : 'Break'}
         </span>
-        <button 
-          onClick={() => setIsEditing(true)} 
-          className="text-muted hover:text-textMain cursor-pointer transition-colors text-xs p-0.5 rounded"
-          title="Adjust Duration Slices"
-        >
-          ⚙️
-        </button>
+        <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)} aria-label="Timer settings" className="!h-7 !w-7 text-muted hover:text-textMain">
+          <Settings2 size={14} strokeWidth={1.75} aria-hidden="true" />
+        </Button>
       </div>
 
       {/* Amplified High-Visibility Clock digits */}
-      <div className={`font-mono text-3xl font-black tracking-widest text-textMain my-1 ${pomodoro.isRunning && localTimeLeft < 60 ? 'text-reeRed animate-pulse' : ''}`}>
+      <div
+        className={`font-mono text-3xl font-bold tabular-nums tracking-widest my-1 ${pomodoro.isRunning && localTimeLeft < 60 ? 'animate-pulse' : 'text-textMain'}`}
+        style={pomodoro.isRunning && localTimeLeft < 60 ? { color: 'var(--accent-danger)' } : undefined}
+      >
         {formatTime(localTimeLeft)}
       </div>
 
-      {/* Control Interface Matrix */}
-      <div className="flex justify-center items-center gap-4 w-full border-t border-border2/30 pt-2.5 text-muted2 text-xs font-bold">
-        <button onClick={togglePomodoro} className="hover:text-textMain cursor-pointer transition-colors flex items-center gap-1.5">
-          {pomodoro.isRunning ? '⏸ Pause' : '▶ Engage'}
-        </button>
+      {/* Controls */}
+      <div className="flex justify-center items-center gap-2 w-full border-t border-border2/30 pt-2">
+        <Button size="sm" variant="ghost" onClick={togglePomodoro} className="text-muted2 hover:text-textMain">
+          {pomodoro.isRunning
+            ? <><Pause size={14} strokeWidth={1.75} aria-hidden="true" /> Pause</>
+            : <><Play size={14} strokeWidth={1.75} aria-hidden="true" /> Start</>}
+        </Button>
         <div className="w-px h-3 bg-border2"></div>
-        <button onClick={resetPomodoro} className="hover:text-textMain cursor-pointer transition-colors flex items-center gap-1.5" title="Reset Current Cycle">
-          ↺ Reset
-        </button>
+        <Button size="sm" variant="ghost" onClick={resetPomodoro} className="text-muted2 hover:text-textMain">
+          <RotateCcw size={14} strokeWidth={1.75} aria-hidden="true" /> Reset
+        </Button>
       </div>
     </div>
   );

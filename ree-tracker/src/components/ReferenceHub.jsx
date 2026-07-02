@@ -181,12 +181,12 @@ export default function ReferenceHub() {
                 <div className="flex gap-2 shrink-0">
                     <button 
                         onClick={() => setActiveSubtopic('All')}
-                        className={`px-4 py-2 rounded-lg text-[0.65rem] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'All' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
+                        className={`px-4 py-2 rounded-lg text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'All' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
                         All
                     </button>
                     <button 
                         onClick={() => setActiveSubtopic('General')}
-                        className={`px-4 py-2 rounded-lg text-[0.65rem] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'General' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
+                        className={`px-4 py-2 rounded-lg text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'General' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
                         General
                     </button>
                 </div>
@@ -210,7 +210,7 @@ export default function ReferenceHub() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
                     {displayedFormulas.map((formula, idx) => (
                         <div key={idx} className="p-5 bg-surface border border-border2 rounded-xl shadow-sm hover:border-reeCyan/40 transition-colors flex flex-col h-full overflow-hidden">
-                            <div className="text-[0.65rem] text-muted2 uppercase tracking-widest font-bold mb-3 border-b border-border2 pb-2 leading-relaxed" title={formula.title}>
+                            <div className="text-[11px] text-muted2 uppercase tracking-widest font-bold mb-3 border-b border-border2 pb-2 leading-relaxed" title={formula.title}>
                                 {formula.title}
                             </div>
                             
@@ -223,7 +223,7 @@ export default function ReferenceHub() {
                             {activeSubtopic === 'All' && (
                                 <div className="mt-4 flex flex-wrap gap-1.5 pt-3 border-t border-border2/30">
                                     {formula.subtopics.map(t => (
-                                        <span key={t} className={`text-[0.6rem] px-2 py-0.5 rounded border ${t === 'General' ? 'bg-reeCyan/10 border-reeCyan/30 text-reeCyan font-bold tracking-widest uppercase' : 'bg-surface2 border-border2 text-muted2 font-medium'}`}>
+                                        <span key={t} className={`text-[11px] px-2 py-0.5 rounded border ${t === 'General' ? 'bg-reeCyan/10 border-reeCyan/30 text-reeCyan font-bold tracking-widest uppercase' : 'bg-surface2 border-border2 text-muted2 font-medium'}`}>
                                             {t}
                                         </span>
                                     ))}

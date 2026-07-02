@@ -58,8 +58,8 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
     initializeVault(true);
   }, [filterSubject, filterSubtopic]);
 
+  // Confirmation lives in VaultDataGrid's Modal — this just executes.
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this question from the global vault?")) return;
     try {
       await deleteQuestionFromBank(id);
       setQuestions(prev => prev.filter(q => q.id !== id));

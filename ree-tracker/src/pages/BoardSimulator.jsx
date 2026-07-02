@@ -8,7 +8,8 @@ import { useBattleSocket } from '../hooks/useBattleSocket';
 import SimulatorConfig from '../features/board-simulator/SimulatorConfig';
 import SimulatorActive from '../features/board-simulator/SimulatorActive';
 import SimulatorDiagnostics from '../features/board-simulator/SimulatorDiagnostics';
-import FocusTrap from '../components/FocusTrap';
+import { Button, Modal } from '../components/ui';
+import { TriangleAlert } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 
 import { saveBookmark } from '../services/dbQueries';
@@ -100,7 +101,7 @@ export default function BoardSimulator() {
       {activeBattleId && battleConnected && opponentProgress.length > 0 && engine.session.isActive && !engine.session.isFinished && (
         <div className="bg-surface border border-reeRed/30 rounded-xl p-4 shadow-sm animate-in fade-in">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[0.65rem] font-black uppercase tracking-widest text-reeRed flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-widest text-reeRed flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-reeGreen animate-pulse"></span> Live Opponents
             </span>
           </div>
@@ -146,20 +147,21 @@ export default function BoardSimulator() {
         </div>
       )}
 
-      {showTerminateModal && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={showTerminateModal}>
-            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full">
-              <h3 className="text-lg font-black text-reeAmber mb-2 flex items-center gap-2"><span>⚠️</span> Terminate Simulation?</h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">Submitting will calculate your diagnostics and save the record.</p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setShowTerminateModal(false)} className="px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold cursor-pointer transition-colors">Cancel</button>
-                <button onClick={() => { setShowTerminateModal(false); engine.submitExam(); }} className="px-4 py-2 bg-reeRed hover:bg-red-600 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors">Submit Exam</button>
-              </div>
-            </div>
-          </FocusTrap>
-        </div>
-      )}
+      <Modal
+        open={showTerminateModal}
+        onClose={() => setShowTerminateModal(false)}
+        tone="amber"
+        icon={TriangleAlert}
+        title="Submit this exam?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowTerminateModal(false)}>Keep working</Button>
+            <Button tone="danger" onClick={() => { setShowTerminateModal(false); engine.submitExam(); }}>Submit exam</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">Submitting grades your answers and saves the report to your ledger.</p>
+      </Modal>
 
     </div>
   );

@@ -19,7 +19,7 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
                     {isPassed ? 'Gauntlet Mastered' : 'Simulation Failed'}
                 </h2>
                 
-                <div className="text-[0.65rem] font-bold text-muted uppercase tracking-widest mb-8 relative z-10">
+                <div className="text-[11px] font-bold text-muted uppercase tracking-widest mb-8 relative z-10">
                     {isTimeOut ? 'Time Expired. Auto-submitted.' : 'Evaluation Complete'}
                 </div>
 
@@ -29,11 +29,11 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
 
                 <div className="flex justify-center gap-6 relative z-10">
                     <div className="flex flex-col items-center">
-                        <span className="text-[0.6rem] uppercase tracking-widest text-muted font-bold mb-1">Accuracy</span>
+                        <span className="text-[11px] uppercase tracking-widest text-muted font-bold mb-1">Accuracy</span>
                         <span className="font-mono text-lg font-black">{correctCount} / {totalItems}</span>
                     </div>
                     <div className="flex flex-col items-center border-l border-border2 pl-6">
-                        <span className="text-[0.6rem] uppercase tracking-widest text-muted font-bold mb-1">Time Elapsed</span>
+                        <span className="text-[11px] uppercase tracking-widest text-muted font-bold mb-1">Time Elapsed</span>
                         <span className="font-mono text-lg font-black">{formatTime(timeUsedSecs)}</span>
                     </div>
                 </div>
@@ -53,7 +53,7 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
                         {weakTopics.map(([topic, errors], i) => (
                             <div key={i} className="flex justify-between items-center p-3 bg-bg border border-border2 rounded-lg">
                                 <span className="text-sm font-bold text-textMain">{topic}</span>
-                                <span className="text-[0.65rem] font-bold text-reeRed uppercase tracking-widest bg-reeRed/10 px-2 py-1 rounded">{errors} Errors</span>
+                                <span className="text-[11px] font-bold text-reeRed uppercase tracking-widest bg-reeRed/10 px-2 py-1 rounded">{errors} Errors</span>
                             </div>
                         ))}
                     </div>

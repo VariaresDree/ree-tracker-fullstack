@@ -51,7 +51,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       {/* Grid Canvas */}
       <div className="w-full border-t border-l border-border2 bg-surface2/30 rounded-lg overflow-hidden">
         {/* Days of Week */}
-        <div className="grid grid-cols-7 text-center text-[0.65rem] md:text-xs font-black text-muted uppercase tracking-widest bg-surface border-b border-border2">
+        <div className="grid grid-cols-7 text-center text-[11px] md:text-xs font-black text-muted uppercase tracking-widest bg-surface border-b border-border2">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                 <div key={d} className="py-2 border-r border-border2 last:border-r-0">{d}</div>
             ))}
@@ -72,13 +72,13 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
                 
                 return (
                     <div key={d} className={`aspect-square border-r border-b border-border2/50 relative transition-all group ${colorClass}`}>
-                        <span className="absolute top-1 left-1.5 text-[0.65rem] md:text-sm font-bold opacity-80">{d}</span>
+                        <span className="absolute top-1 left-1.5 text-[11px] md:text-sm font-bold opacity-80">{d}</span>
                         {count > 0 && (
-                            <span className="absolute bottom-1 right-1.5 text-[0.6rem] md:text-xs font-mono opacity-90">{count}</span>
+                            <span className="absolute bottom-1 right-1.5 text-[11px] md:text-xs font-mono opacity-90">{count}</span>
                         )}
                         
                         {/* Hover Tooltip */}
-                        <div className="absolute opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-1 bg-black text-white text-[0.6rem] px-2 py-1 rounded whitespace-nowrap z-10 pointer-events-none transition-opacity shadow-xl font-mono">
+                        <div className="absolute opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-1 bg-black text-white text-[11px] px-2 py-1 rounded whitespace-nowrap z-10 pointer-events-none transition-opacity shadow-xl font-mono">
                             {count} Questions Answered
                         </div>
                     </div>
@@ -91,11 +91,11 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       <div className="w-full flex flex-wrap justify-between items-center gap-4 mt-6 pt-4 border-t border-border2 text-xs text-muted uppercase font-bold tracking-widest">
         <span className="shrink-0 text-textMain">Activity Intensity Spectrum</span>
         <div className="flex items-center gap-3 md:gap-4 flex-wrap">
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-surface2 border border-border2"></div> <span className="hidden md:inline text-[0.6rem]">0 Qs</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/20 border border-reeGreen/30"></div> <span className="hidden md:inline text-[0.6rem]">1-{(targetQuota*0.3).toFixed(0)} Qs</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/50 border border-reeGreen/60"></div> <span className="hidden md:inline text-[0.6rem]">{(targetQuota*0.3).toFixed(0)}-{(targetQuota*0.7).toFixed(0)} Qs</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/80 border border-reeGreen"></div> <span className="hidden md:inline text-[0.6rem]">{(targetQuota*0.7).toFixed(0)}-{targetQuota-1} Qs</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen border-green-400 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> <span className="hidden md:inline text-[0.6rem]">{targetQuota}+ Qs</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-surface2 border border-border2"></div> <span className="hidden md:inline text-[11px]">0 Qs</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/20 border border-reeGreen/30"></div> <span className="hidden md:inline text-[11px]">1-{(targetQuota*0.3).toFixed(0)} Qs</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/50 border border-reeGreen/60"></div> <span className="hidden md:inline text-[11px]">{(targetQuota*0.3).toFixed(0)}-{(targetQuota*0.7).toFixed(0)} Qs</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/80 border border-reeGreen"></div> <span className="hidden md:inline text-[11px]">{(targetQuota*0.7).toFixed(0)}-{targetQuota-1} Qs</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen border-green-400 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> <span className="hidden md:inline text-[11px]">{targetQuota}+ Qs</span></div>
         </div>
       </div>
     </div>

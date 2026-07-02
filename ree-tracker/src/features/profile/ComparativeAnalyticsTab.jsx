@@ -84,16 +84,16 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
               {typeof rank === 'number' ? (
                 <>
                   <span className="text-6xl font-black text-reeCyan">#{rank}</span>
-                  <span className="text-[0.65rem] text-muted font-mono uppercase mt-2">Out of {totalAgents || 1} Agent{totalAgents === 1 ? '' : 's'}</span>
+                  <span className="text-[11px] text-muted font-mono uppercase mt-2">Out of {totalAgents || 1} Agent{totalAgents === 1 ? '' : 's'}</span>
                 </>
               ) : isUnranked ? (
                 <>
                   <span className="text-2xl font-black text-reeCyan leading-tight">Unranked</span>
-                  <span className="text-[0.65rem] text-muted font-mono uppercase mt-3 max-w-[180px]">
+                  <span className="text-[11px] text-muted font-mono uppercase mt-3 max-w-[180px]">
                     Answer a few questions to enter the leaderboard
                   </span>
                   {totalAgents > 0 && (
-                    <span className="text-[0.6rem] text-muted2 font-mono mt-2">{totalAgents} active agent{totalAgents === 1 ? '' : 's'}</span>
+                    <span className="text-[11px] text-muted2 font-mono mt-2">{totalAgents} active agent{totalAgents === 1 ? '' : 's'}</span>
                   )}
                 </>
               ) : (
@@ -101,7 +101,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
               )}
             </div>
           </div>
-          <p className="text-[0.65rem] text-muted2 mt-8 uppercase tracking-wider z-10">Ranked by calculated IRT Theta proficiency scores.</p>
+          <p className="text-[11px] text-muted2 mt-8 uppercase tracking-wider z-10">Ranked by calculated IRT Theta proficiency scores.</p>
         </div>
 
         {/* Right Column: Stacked Statistics */}
@@ -132,7 +132,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
               </div>
               <div className="flex flex-wrap gap-2 overflow-y-auto max-h-24 custom-scrollbar pr-2 relative z-10">
                   {onlineAgentsList.length > 0 ? onlineAgentsList.map((agent, i) => (
-                      <span key={i} className="text-[0.65rem] font-bold uppercase tracking-widest bg-reeGreen/10 text-reeGreen border border-reeGreen/20 px-2 py-1 rounded-md shadow-sm">
+                      <span key={i} className="text-[11px] font-bold uppercase tracking-widest bg-reeGreen/10 text-reeGreen border border-reeGreen/20 px-2 py-1 rounded-md shadow-sm">
                           {agent.displayName || 'Agent'}
                       </span>
                   )) : (
@@ -158,7 +158,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
             </h3>
             <p className="text-sm text-muted mt-1 font-medium">Unlock badges by dominating the matrix.</p>
           </div>
-          <span className="text-[0.65rem] text-muted font-black uppercase tracking-widest bg-surface2 px-3 py-1.5 rounded-lg border border-border2">
+          <span className="text-[11px] text-muted font-black uppercase tracking-widest bg-surface2 px-3 py-1.5 rounded-lg border border-border2">
             {ALL_MILESTONES.filter(m => m.condition).length} / {ALL_MILESTONES.length} UNLOCKED
           </span>
         </div>
@@ -174,7 +174,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
                 </div>
                 <div className="flex flex-col">
                   <span className={`text-sm font-black uppercase tracking-wide ${isUnlocked ? 'text-inherit' : 'text-muted'}`}>{badge.name}</span>
-                  <span className={`text-[0.65rem] font-bold uppercase tracking-widest mt-0.5 ${isUnlocked ? 'opacity-80' : 'text-muted2'}`}>{badge.desc}</span>
+                  <span className={`text-[11px] font-bold uppercase tracking-widest mt-0.5 ${isUnlocked ? 'opacity-80' : 'text-muted2'}`}>{badge.desc}</span>
                 </div>
               </div>
             );

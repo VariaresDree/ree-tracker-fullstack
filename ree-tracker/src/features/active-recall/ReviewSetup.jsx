@@ -1,184 +1,237 @@
 // src/features/active-recall/ReviewSetup.jsx
-import React from 'react';
+import { useState } from 'react';
+import { Card, Button, FormField, Select, SegmentedControl, cn } from '../../components/ui';
+import { Shuffle, Crosshair, Layers, ChevronDown, ChevronUp } from '../../components/ui/icons';
+
+// One-click presets cover the common sessions; the full configuration lives
+// behind the "Custom session" disclosure so first-time users aren't handed
+// seven simultaneous decisions.
+const PRESETS = [
+  {
+    id: 'quick20',
+    icon: Shuffle,
+    name: 'Quick 20 — mixed',
+    meta: '20 questions across all subjects',
+    needsConnection: false,
+    overrides: {
+      sessionMode: 'mcq', studyMode: 'interleaved', subject: 'All', subtopic: 'All',
+      cognitiveFocus: 'mixed', count: 20, source: 'library',
+    },
+  },
+  {
+    id: 'weak50',
+    icon: Crosshair,
+    name: 'Weak points 50',
+    meta: '50 questions targeting your weakest areas',
+    needsConnection: true,
+    overrides: {
+      sessionMode: 'mcq', studyMode: 'bleeding',
+      cognitiveFocus: 'mixed', count: 50, source: 'smart-drill',
+    },
+  },
+  {
+    id: 'flash20',
+    icon: Layers,
+    name: 'Flashcard sprint 20',
+    meta: '20 flashcards for definitions and facts',
+    needsConnection: false,
+    overrides: {
+      sessionMode: 'flashcard', studyMode: 'interleaved', subject: 'All', subtopic: 'All',
+      cognitiveFocus: 'mixed', count: 20, source: 'library',
+    },
+  },
+];
 
 export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnline, startSession }) {
-  
-  const handleModeChange = (mode) => {
-      const defaultSubj = 'Mathematics';
-      const defaultSub = safeTOS[defaultSubj]?.[0] || 'All';
-      setConfig({ ...config, studyMode: mode, subject: defaultSubj, subtopic: defaultSub, source: 'library' });
+  const [showCustom, setShowCustom] = useState(false);
+  const [launchingPreset, setLaunchingPreset] = useState(null);
+
+  const handleScopeChange = (mode) => {
+    const defaultSubj = 'Mathematics';
+    const defaultSub = safeTOS[defaultSubj]?.[0] || 'All';
+    setConfig({ ...config, studyMode: mode, subject: defaultSubj, subtopic: defaultSub, source: 'library' });
   };
 
+  const launchPreset = (preset) => {
+    setLaunchingPreset(preset.id);
+    startSession(preset.overrides);
+  };
+
+  const customDisabled = session.loading || (!isOnline && config.source !== 'library');
+
   return (
-    <div className="p-6 sm:p-10 bg-surface/90 backdrop-blur-xl border border-border2/80 rounded-[2rem] shadow-2xl max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-6 duration-500">
-      
-      <div className="mb-8 border-b border-border2/50 pb-5">
-        <h2 className="text-2xl sm:text-3xl font-black text-textMain mb-2 tracking-tight drop-shadow-sm">Review Session</h2>
-        <p className="text-sm text-muted2 font-medium">Configure your spaced repetition and mental agility protocols.</p>
+    <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
+      <div>
+        <h2 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Active Review</h2>
+        <p className="text-sm text-muted2 mt-1">Pick a preset or build a custom session.</p>
       </div>
 
-      {/* SESSION MODE */}
-      <div className="mb-8">
-        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Session Mode</label>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <button 
-            onClick={() => setConfig({...config, sessionMode: 'mcq'})} 
-            className={`flex-1 py-4 px-6 rounded-2xl border-2 text-sm font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 ${config.sessionMode === 'mcq' ? 'bg-reeBlue/10 border-reeBlue/60 text-reeBlue shadow-[0_0_20px_rgba(59,130,246,0.15)] scale-[1.02]' : 'bg-surface2/40 border-border2/60 text-muted hover:border-reeBlue/40 hover:text-reeBlue hover:bg-surface3'}`}
-          >
-            📝 Multiple Choice
-          </button>
-          <button 
-            onClick={() => setConfig({...config, sessionMode: 'flashcard'})} 
-            className={`flex-1 py-4 px-6 rounded-2xl border-2 text-sm font-black transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-1 ${config.sessionMode === 'flashcard' ? 'bg-reeAmber/10 border-reeAmber/60 text-reeAmber shadow-[0_0_20px_rgba(245,158,11,0.15)] scale-[1.02]' : 'bg-surface2/40 border-border2/60 text-muted hover:border-reeAmber/40 hover:text-reeAmber hover:bg-surface3'}`}
-          >
-            <div className="flex items-center gap-2">🗂️ Flashcard</div>
-            <span className="text-[0.65rem] font-medium opacity-70 normal-case tracking-wide">(Prioritizes Facts)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* COGNITIVE FOCUS */}
-      <div className="mb-8 animate-in fade-in slide-in-from-bottom-2">
-        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Cognitive Focus</label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <button 
-            onClick={() => setConfig({...config, cognitiveFocus: 'mixed'})} 
-            className={`py-3.5 px-4 rounded-xl border-2 text-[0.7rem] sm:text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.cognitiveFocus === 'mixed' ? 'bg-textMain/5 border-textMain/50 text-textMain shadow-sm scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-textMain/30 hover:text-textMain hover:bg-surface3'}`}
-          >
-            ⚖️ Standard Mix
-          </button>
-          <button 
-            onClick={() => setConfig({...config, cognitiveFocus: 'conceptual'})} 
-            className={`py-3.5 px-4 rounded-xl border-2 text-[0.7rem] sm:text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.cognitiveFocus === 'conceptual' ? 'bg-reePurple/10 border-reePurple/60 text-reePurple shadow-[0_0_15px_rgba(139,92,246,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reePurple/40 hover:text-reePurple hover:bg-surface3'}`}
-          >
-            🧠 Theory (Conceptual)
-          </button>
-          <button 
-            onClick={() => setConfig({...config, cognitiveFocus: 'calculation'})} 
-            className={`py-3.5 px-4 rounded-xl border-2 text-[0.7rem] sm:text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.cognitiveFocus === 'calculation' ? 'bg-reeRed/10 border-reeRed/60 text-reeRed shadow-[0_0_15px_rgba(239,68,68,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeRed/40 hover:text-reeRed hover:bg-surface3'}`}
-          >
-            🧮 Math (Calculation)
-          </button>
-        </div>
-      </div>
-
-      {/* STUDY FOCUS */}
-      <div className="mb-8">
-        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Study Focus</label>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <button 
-            onClick={() => handleModeChange('interleaved')} 
-            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'interleaved' ? 'bg-reeBlue/10 border-reeBlue/60 text-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeBlue/40 hover:text-reeBlue hover:bg-surface3'}`}
-          >
-            🔀 Interleaved
-          </button>
-          <button 
-            onClick={() => handleModeChange('subject')} 
-            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'subject' ? 'bg-reeGreen/10 border-reeGreen/60 text-reeGreen shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeGreen/40 hover:text-reeGreen hover:bg-surface3'}`}
-          >
-            📚 By Subject
-          </button>
-          <button 
-            onClick={() => handleModeChange('subtopic')} 
-            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'subtopic' ? 'bg-reeCyan/10 border-reeCyan/60 text-reeCyan shadow-[0_0_15px_rgba(6,182,212,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeCyan/40 hover:text-reeCyan hover:bg-surface3'}`}
-          >
-            🎯 Subtopic
-          </button>
-          <button 
-            onClick={() => handleModeChange('bleeding')} 
-            className={`py-3.5 rounded-xl border text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.studyMode === 'bleeding' ? 'bg-reeRed/10 border-reeRed/60 text-reeRed shadow-[0_0_15px_rgba(239,68,68,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeRed/40 hover:text-reeRed hover:bg-surface3'}`}
-          >
-            🚨 Weak Points
-          </button>
-        </div>
-      </div>
-
-      {['subject', 'subtopic'].includes(config.studyMode) && (
-        <div className="flex flex-col sm:flex-row gap-5 mb-8 animate-in fade-in slide-in-from-top-2">
-          <div className="flex-1">
-            <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Subject</label>
-            <div className="relative group">
-                <select 
-                  value={config.subject} 
-                  onChange={e => setConfig({...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All'})} 
-                  className="w-full bg-surface2/40 border border-border2/60 text-textMain font-bold rounded-xl p-4 text-sm outline-none focus:border-reeBlue focus:ring-2 focus:ring-reeBlue/20 transition-all cursor-pointer appearance-none shadow-sm hover:border-reeBlue/40"
-                >
-                  {Object.keys(safeTOS).map(s => <option key={s} value={s} className="bg-surface text-textMain">{s}</option>)}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted transition-transform group-hover:translate-y-0.5">▼</div>
-            </div>
-          </div>
-          {config.studyMode === 'subtopic' && (
-            <div className="flex-1 animate-in fade-in slide-in-from-left-4">
-              <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Subtopic</label>
-              <div className="relative group">
-                  <select 
-                    value={config.subtopic} 
-                    onChange={e => setConfig({...config, subtopic: e.target.value})} 
-                    className="w-full bg-surface2/40 border border-border2/60 text-textMain font-bold rounded-xl p-4 text-sm outline-none focus:border-reeCyan focus:ring-2 focus:ring-reeCyan/20 transition-all cursor-pointer appearance-none shadow-sm hover:border-reeCyan/40"
-                  >
-                    {(safeTOS[config.subject] || []).map(t => <option key={t} value={t} className="bg-surface text-textMain">{t}</option>)}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted transition-transform group-hover:translate-y-0.5">▼</div>
+      {/* One-click presets */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 stagger-fade-in">
+        {PRESETS.map((preset) => {
+          const offline = preset.needsConnection && !isOnline;
+          const Icon = preset.icon;
+          return (
+            <Card key={preset.id} elevated className="p-5 flex flex-col gap-3 hover-glow">
+              <span
+                className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-default)]"
+                style={{
+                  background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                  color: 'var(--accent)',
+                }}
+              >
+                <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+              </span>
+              <div className="flex-1">
+                <p className="text-textMain font-semibold">{preset.name}</p>
+                <p className="text-xs text-muted2 mt-0.5">{preset.meta}</p>
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 🚀 SESSION VOLUME (RESTORED) */}
-      <div className="mb-8 animate-in fade-in slide-in-from-bottom-3">
-        <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Session Volume</label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[10, 20, 50, 100].map(num => (
-            <button 
-              key={num}
-              onClick={() => setConfig({...config, count: num})}
-              className={`py-3.5 px-4 rounded-2xl border-2 text-[0.75rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${config.count === num ? 'bg-reeGreen/10 border-reeGreen/60 text-reeGreen shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02]' : 'bg-surface2/30 border-border2/60 text-muted hover:border-reeGreen/40 hover:text-reeGreen hover:bg-surface3 hover:-translate-y-0.5'}`}
-            >
-              {num} Items
-            </button>
-          ))}
-        </div>
+              <Button
+                fullWidth
+                loading={session.loading && launchingPreset === preset.id}
+                disabled={offline || session.loading}
+                onClick={() => launchPreset(preset)}
+              >
+                Start
+              </Button>
+              {offline && <p className="text-xs text-muted text-center">Needs a connection</p>}
+            </Card>
+          );
+        })}
       </div>
 
-      {config.studyMode !== 'bleeding' && (
-        <div className="mb-10">
-          <label className="block text-xs font-black text-muted uppercase tracking-widest mb-3 drop-shadow-sm">Question Source</label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button
-              onClick={() => setConfig({...config, source: 'library'})}
-              className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 ${config.source === 'library' ? 'border-reeBlue/60 bg-reeBlue/10 text-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeBlue/40 hover:text-reeBlue hover:bg-surface3'}`}
-            >
-              📚 Local Library Vault
-            </button>
-            <button
-              onClick={() => setConfig({...config, source: 'smart-drill'})}
-              disabled={!isOnline}
-              className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 flex flex-col items-center justify-center gap-1 ${config.source === 'smart-drill' ? 'border-reeRed/60 bg-reeRed/10 text-reeRed shadow-[0_0_15px_rgba(239,68,68,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeRed/40 hover:text-reeRed hover:bg-surface3'} ${!isOnline ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
-            >
-              <span>🎯 Smart Drill</span>
-              <span className="text-[0.6rem] font-medium opacity-70 normal-case">(Targets Weak Areas)</span>
-            </button>
-            <button
-              onClick={() => setConfig({...config, source: 'ai'})}
-              disabled={!isOnline}
-              className={`p-4 rounded-xl border-2 text-[0.8rem] font-black transition-all duration-300 flex items-center justify-center gap-3 ${config.source === 'ai' ? 'border-reeAmber/60 bg-reeAmber/10 text-reeAmber shadow-[0_0_15px_rgba(245,158,11,0.15)] scale-[1.02]' : 'border-border2/60 bg-surface2/30 text-muted hover:border-reeAmber/40 hover:text-reeAmber hover:bg-surface3'} ${!isOnline ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
-            >
-              ✨ AI Generator
-            </button>
+      {/* Custom session — progressive disclosure */}
+      <Card elevated>
+        <button
+          type="button"
+          onClick={() => setShowCustom((v) => !v)}
+          aria-expanded={showCustom}
+          className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left cursor-pointer hover:bg-surface2 rounded-[var(--radius-lg)] transition-colors"
+        >
+          <div>
+            <p className="text-textMain font-semibold">Custom session</p>
+            <p className="text-xs text-muted2 mt-0.5">Choose the mode, focus, scope, length, and source yourself.</p>
           </div>
-        </div>
-      )}
+          {showCustom
+            ? <ChevronUp size={18} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0" />
+            : <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0" />}
+        </button>
 
-      <button 
-        onClick={startSession} 
-        disabled={session.loading || (!isOnline && config.source !== 'library')} 
-        className="relative overflow-hidden w-full py-5 bg-reeBlue hover:bg-blue-500 text-white font-black rounded-2xl shadow-[0_4px_25px_rgba(59,130,246,0.35)] transition-all duration-300 hover:shadow-[0_6px_30px_rgba(59,130,246,0.5)] hover:-translate-y-1 flex justify-center items-center gap-3 text-sm tracking-widest uppercase cursor-pointer disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none group"
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-        {session.loading ? <><span className="telemetry-spinner !w-5 !h-5 border-white"></span> Booting Engine...</> : '🚀 Initialize Active Review Session'}
-      </button>
+        {showCustom && (
+          <div className="px-5 pb-5 flex flex-col gap-5 animate-in fade-in slide-in-from-top-2">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-eyebrow">Mode</span>
+              <SegmentedControl
+                label="Session mode"
+                value={config.sessionMode}
+                onChange={(v) => setConfig({ ...config, sessionMode: v })}
+                options={[
+                  { value: 'mcq', label: 'Multiple choice' },
+                  { value: 'flashcard', label: 'Flashcards', hint: 'best for definitions and facts' },
+                ]}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-eyebrow">Focus</span>
+              <SegmentedControl
+                label="Cognitive focus"
+                value={config.cognitiveFocus}
+                onChange={(v) => setConfig({ ...config, cognitiveFocus: v })}
+                options={[
+                  { value: 'mixed', label: 'Mixed' },
+                  { value: 'conceptual', label: 'Theory' },
+                  { value: 'calculation', label: 'Calculation' },
+                ]}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-eyebrow">Scope</span>
+              <SegmentedControl
+                label="Study scope"
+                value={config.studyMode}
+                onChange={handleScopeChange}
+                columns={2}
+                className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
+                options={[
+                  { value: 'interleaved', label: 'Interleaved' },
+                  { value: 'subject', label: 'By subject' },
+                  { value: 'subtopic', label: 'By subtopic' },
+                  { value: 'bleeding', label: 'Weak points' },
+                ]}
+              />
+            </div>
+
+            {['subject', 'subtopic'].includes(config.studyMode) && (
+              <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-top-2">
+                <FormField label="Subject" className="flex-1">
+                  <Select
+                    value={config.subject}
+                    onChange={(e) => setConfig({ ...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All' })}
+                  >
+                    {Object.keys(safeTOS).map((s) => <option key={s} value={s}>{s}</option>)}
+                  </Select>
+                </FormField>
+                {config.studyMode === 'subtopic' && (
+                  <FormField label="Topic" className="flex-1">
+                    <Select
+                      value={config.subtopic}
+                      onChange={(e) => setConfig({ ...config, subtopic: e.target.value })}
+                    >
+                      {(safeTOS[config.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </FormField>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-eyebrow">Length</span>
+              <SegmentedControl
+                label="Number of questions"
+                value={config.count}
+                onChange={(v) => setConfig({ ...config, count: v })}
+                columns={2}
+                className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
+                options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n} questions` }))}
+              />
+            </div>
+
+            {config.studyMode !== 'bleeding' && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-eyebrow">Source</span>
+                <SegmentedControl
+                  label="Question source"
+                  value={config.source}
+                  onChange={(v) => setConfig({ ...config, source: v })}
+                  columns={1}
+                  className="sm:[grid-template-columns:repeat(3,minmax(0,1fr))]"
+                  options={[
+                    { value: 'library', label: 'Library' },
+                    { value: 'smart-drill', label: 'Smart drill', hint: isOnline ? 'targets weak areas' : 'needs a connection', disabled: !isOnline },
+                    { value: 'ai', label: 'AI generated', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+                  ]}
+                />
+              </div>
+            )}
+
+            {/* Sticky above the mobile bottom nav so the CTA never scrolls out
+                of reach on a tall form. */}
+            <div className={cn('sticky bottom-20 md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
+              <Button
+                size="lg"
+                fullWidth
+                loading={session.loading && !launchingPreset}
+                disabled={customDisabled}
+                onClick={() => { setLaunchingPreset(null); startSession(); }}
+              >
+                Start review session
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
