@@ -8,10 +8,10 @@ const logger = require('../utils/logger');
 // Override at runtime via MODEL_TIERS env (comma-separated) — useful when
 // Google ships new IDs and we don't want to redeploy just to add them.
 const DEFAULT_MODEL_TIERS = [
+    'gemini-3.5-flash',
     'gemini-2.5-flash',
+    'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
 ];
 
 const MODEL_TIERS = (process.env.MODEL_TIERS
