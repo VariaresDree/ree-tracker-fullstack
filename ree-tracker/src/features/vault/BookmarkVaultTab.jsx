@@ -73,14 +73,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     setShowAiFor(prev => ({ ...prev, [item.id]: true }));
     
     try {
-        let responseText = "";
-        if (typeof geminiApi.generateDeepExplanation === 'function') {
-            responseText = await geminiApi.generateDeepExplanation(item.content || item.question, item.answer, item.options);
-        } else if (typeof geminiApi.generateExplanation === 'function') {
-            responseText = await geminiApi.generateExplanation(item.content || item.question, item.answer);
-        } else {
-            responseText = `**AI Derivation Engine Error.** Function not found.`;
-        }
+        const responseText = await geminiApi.generateDeepExplanation(item.content || item.question, item.answer, item.options);
         
         // Save to Firebase so it's permanently available offline next time
         await updateBookmarkCache(currentUser.uid, item.id, responseText);
