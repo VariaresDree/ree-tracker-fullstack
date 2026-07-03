@@ -4,8 +4,10 @@
 // key at battle-complete. Pure function — unit-tested without React.
 
 // `questions` are the session's mapped questions (userAnswer/userConf baked in
-// at submit). `answerKey` is { [questionId]: answer } from the server.
-export function computeBattleDiagnostics({ questions, answerKey, timeSpentPerQuestion = {}, timeTakenSecs = 0 }) {
+// at submit). `answerKey` is { [questionId]: answer } and `explanationKey` is
+// { [questionId]: fixedExplanation }, both revealed by the server at
+// battle-complete (sanitization strips them during play).
+export function computeBattleDiagnostics({ questions, answerKey, explanationKey = {}, timeSpentPerQuestion = {}, timeTakenSecs = 0 }) {
   let correct = 0;
   const subjBreakdown = { Math: { c: 0, t: 0 }, ESAS: { c: 0, t: 0 }, EE: { c: 0, t: 0 } };
   const topicBreakdown = {};
@@ -25,7 +27,14 @@ export function computeBattleDiagnostics({ questions, answerKey, timeSpentPerQue
     topicBreakdown[q.subtopic].t += 1;
     if (isCorrect) topicBreakdown[q.subtopic].c += 1;
 
-    return { ...q, answer };
+    const fixedExplanation = explanationKey?.[q.id] ?? q.fixedExplanation ?? null;
+    return {
+      ...q,
+      answer,
+      fixedExplanation,
+      // `explanation` alias kept in sync — some review surfaces read it.
+      explanation: fixedExplanation ?? q.explanation ?? null,
+    };
   });
 
   const totalItems = mappedQuestions.length;

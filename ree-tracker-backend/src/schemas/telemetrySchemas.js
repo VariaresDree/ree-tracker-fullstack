@@ -19,6 +19,9 @@ const telemetryBulkSchema = z.object({
         isCorrect: z.boolean().optional(),
         confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).optional().default('MED'),
         timeSpentMs: z.number().nonnegative().optional().default(0),
+        // Client-generated per-attempt id — the server's durable dedupe handle
+        // against replayed batches (unique per user among non-null values).
+        clientAttemptId: z.string().min(8).max(80).optional(),
     })).min(1),
 });
 

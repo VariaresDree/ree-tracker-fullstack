@@ -2,13 +2,15 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
+const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 
-// GET /api/analytics/deep/time-analysis — time-per-question by subtopic
+// GET /api/analytics/deep/time-analysis — time-per-question by subtopic.
+// Excludes corrupt timing rows (0ms/inflated) so the averages are truthful.
 router.get('/time-analysis', authMiddleware, async (req, res) => {
     try {
         const data = await prisma.questionAttempt.groupBy({
             by: ['subtopic'],
-            where: { userId: req.user.id },
+            where: { userId: req.user.id, timeSpentMs: { gte: TIME_MIN_MS, lte: TIME_MAX_MS } },
             _avg: { timeSpentMs: true },
             _count: { id: true },
             _sum: { timeSpentMs: true }

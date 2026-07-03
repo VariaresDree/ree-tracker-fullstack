@@ -2,7 +2,7 @@ const { getAuth } = require('firebase-admin/auth');
 const prisma = require('../config/db');
 const { recordAttempts } = require('../services/telemetryService');
 const { recomputeRatings } = require('../engine/elo');
-const { buildAnswerKey } = require('../utils/battleSanitizer');
+const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitizer');
 const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSchemas');
 const logger = require('../utils/logger');
 
@@ -46,6 +46,7 @@ async function ensureAnswerKey(lobby, battleId) {
     });
     if (!battle || !Array.isArray(battle.questions)) return null;
     lobby.answerKey = buildAnswerKey(battle.questions);
+    lobby.explanationKey = buildExplanationKey(battle.questions);
     lobby.questionCount = battle.questions.length;
     lobby.timeLimitSecs = battle.timeLimitSecs;
     return lobby.answerKey;
@@ -91,6 +92,7 @@ function setupBattleSocket(io) {
                 const lobby = getLobby(battleId);
                 if (!lobby.answerKey && Array.isArray(battle.questions)) {
                     lobby.answerKey = buildAnswerKey(battle.questions);
+                    lobby.explanationKey = buildExplanationKey(battle.questions);
                     lobby.questionCount = battle.questions.length;
                     lobby.timeLimitSecs = battle.timeLimitSecs;
                 }
@@ -245,7 +247,13 @@ function setupBattleSocket(io) {
                         const result = await recordAttempts({
                             userId: socket.userId,
                             mode: 'BATTLE',
-                            attempts: finalAttempts,
+                            // Deterministic per-attempt ids: a replayed
+                            // battle-submit (reconnect, double emit) dedupes
+                            // instead of double-counting the whole battle.
+                            attempts: finalAttempts.map((a) => ({
+                                ...a,
+                                clientAttemptId: `${battleId}:${socket.userId}:${a.questionId}`,
+                            })),
                         });
                         graded = result.graded || null;
                     } catch (telErr) {
@@ -362,9 +370,14 @@ function setupBattleSocket(io) {
                         };
                     });
 
-                    // Reveal the answer key only now — everyone is finished, so
-                    // the post-battle review screen can grade/annotate locally.
-                    battleNs.to(battleId).emit('battle-complete', { results, answerKey });
+                    // Reveal the answer key (and offline explanations) only
+                    // now — everyone is finished, so the post-battle review
+                    // screen can grade, annotate, and show solutions locally.
+                    battleNs.to(battleId).emit('battle-complete', {
+                        results,
+                        answerKey,
+                        explanationKey: lobby.explanationKey || {},
+                    });
 
                     setTimeout(() => battleLobbies.delete(battleId), 5 * 60 * 1000);
 

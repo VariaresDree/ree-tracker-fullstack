@@ -10,6 +10,12 @@ const cleanJsonPayload = (text) => {
     return clean.trim();
 };
 
+// Gemini generation regularly takes 15-40s server-side. The default 12s
+// apiRequest timeout aborted healthy AI calls with [OFFLINE] AND tripped the
+// 30s circuit breaker, blocking every other request. AI calls get a 90s
+// budget; the abort of a long-timeout call is scoped to NOT trip the breaker.
+const AI_TIMEOUT_MS = 90_000;
+
 async function callAI(prompt, isJson = false, config = {}) {
     if (!navigator.onLine) {
         throw new Error("Cannot connect to AI while offline.");
@@ -18,7 +24,7 @@ async function callAI(prompt, isJson = false, config = {}) {
     const response = await apiRequest('/api/ai/generate', 'POST', {
         contents: prompt,
         config: { temperature: isJson ? 0.1 : 0.7, ...config }
-    });
+    }, { timeoutMs: AI_TIMEOUT_MS });
 
     if (isJson) {
         const cleanText = cleanJsonPayload(response.text);
@@ -167,7 +173,7 @@ export const generateQuestionsFromImages = async (base64Images, subject, subtopi
         const response = await apiRequest('/api/ai/generate', 'POST', {
             contents: [prompt, ...imageParts],
             config: { temperature: 0.1 }
-        });
+        }, { timeoutMs: AI_TIMEOUT_MS });
 
         const cleanJson = cleanJsonPayload(response.text);
         return JSON.parse(cleanJson);

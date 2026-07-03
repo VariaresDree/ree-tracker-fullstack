@@ -6,8 +6,12 @@ import toast from 'react-hot-toast';
 import { Panel, Button, Card, Skeleton } from './ui';
 import { ClipboardList, Settings2, RefreshCw, Trash2 } from './ui/icons';
 
-export default function MissionControl({ onPurgeRequest }) {
-  const { stats, resetDailyQuotas, saveExamConfig } = useTelemetrySlice();
+// `stats` comes from the PARENT (Dashboard's merged activeStats — local
+// optimistic + server-canonical). Reading the raw store here served stale
+// tallies that only refreshed after a full sync round-trip, which is why the
+// daily targets seemed to move only after Board Simulator runs.
+export default function MissionControl({ stats, onPurgeRequest }) {
+  const { resetDailyQuotas, saveExamConfig } = useTelemetrySlice();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);

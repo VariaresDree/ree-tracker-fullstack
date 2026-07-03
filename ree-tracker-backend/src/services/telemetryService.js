@@ -5,6 +5,8 @@
 // the user's IRT theta + lastActive.
 const prisma = require('../config/db');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
+const { partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
+const dashboardCache = require('./dashboardCache');
 
 const SUBJECT_CANONICAL = {
     'math': 'Mathematics',
@@ -86,35 +88,42 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 isCorrect,
                 confidenceLevel: String(a.confidenceLevel || 'LOW').toUpperCase(),
                 timeSpentMs: parseInt(a.timeSpentMs) || 0,
+                clientAttemptId: a.clientAttemptId || null,
                 sessionId,
                 mode,
                 _difficulty: m.difficulty || 0.0,
             };
         });
 
-    if (mapped.length === 0) return { written: 0, updatedTheta: null, sessionId: null, graded: [] };
+    // `skipped` makes silent drops observable: attempts whose questionId
+    // isn't in the Question table (e.g. unsaved AI-generated items) used to
+    // vanish without a trace, undercounting sessions.
+    const skipped = attempts.length - mapped.length;
+
+    if (mapped.length === 0) {
+        return { written: 0, received: attempts.length, skipped, deduped: 0, updatedTheta: null, sessionId: null, graded: [] };
+    }
 
     const today = todayManila();
-
-    // Aggregates derived from this batch — used to update the ExamSession's
-    // running score/totals when the same session sends multiple batches
-    // (the event-driven debounced sync may flush a session in chunks).
-    const batchCorrect = mapped.filter((m) => m.isCorrect).length;
-    const batchTimeSecs = Math.floor(mapped.reduce((s, m) => s + (m.timeSpentMs || 0), 0) / 1000);
-    const batchTarget = canonicalSubject(targetSubject || mapped[0]?.subject || 'General');
 
     // Auto-upsert the ExamSession before writing attempts so the FK is always
     // satisfied. Verdict stays IN_PROGRESS until an end-of-session call
     // (currently outside recordAttempts; this is forward-compatible).
+    // Increments are computed from the NEW rows only — a replayed batch used
+    // to re-increment these counters, which is how a 10-item session showed
+    // 20/30+ answered.
     let resolvedSessionId = sessionId;
-    const ensureSession = async (db) => {
+    const ensureSession = async (db, newOnly) => {
         if (!sessionId) return null;
+        const batchCorrect = newOnly.filter((m) => m.isCorrect).length;
+        const batchTimeSecs = Math.floor(newOnly.reduce((s, m) => s + (m.timeSpentMs || 0), 0) / 1000);
+        const batchTarget = canonicalSubject(targetSubject || newOnly[0]?.subject || 'General');
         try {
             await db.examSession.upsert({
                 where: { id: sessionId },
                 update: {
                     score: { increment: batchCorrect },
-                    totalQuestions: { increment: mapped.length },
+                    totalQuestions: { increment: newOnly.length },
                     timeTakenSecs: { increment: batchTimeSecs },
                 },
                 create: {
@@ -123,7 +132,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                     mode,
                     targetSubject: batchTarget,
                     score: batchCorrect,
-                    totalQuestions: mapped.length,
+                    totalQuestions: newOnly.length,
                     timeTakenSecs: batchTimeSecs,
                     verdict: 'IN_PROGRESS',
                 },
@@ -140,14 +149,35 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     // Whether this batch is the FIRST answered question for the user today
     // (Manila). Drives the once-per-day streak advance below.
     let isFirstActivityToday = false;
+    let newOnly = mapped;
+    let dedupedCount = 0;
 
     const runWrites = async (db) => {
-        resolvedSessionId = await ensureSession(db);
-        const attemptsData = mapped.map(({ _difficulty, sessionId: _s, ...rest }) => ({
+        // Hard dedupe: rows whose clientAttemptId this user already recorded
+        // are replays (retry after a timeout the server actually completed,
+        // app-reopen re-flush, etc.) — grade them, but write NOTHING.
+        const claimedIds = mapped.map((m) => m.clientAttemptId).filter(Boolean);
+        const existing = claimedIds.length
+            ? await db.questionAttempt.findMany({
+                where: { userId, clientAttemptId: { in: claimedIds } },
+                select: { clientAttemptId: true },
+            })
+            : [];
+        const partition = partitionNewAttempts(new Set(existing.map((e) => e.clientAttemptId)), mapped);
+        newOnly = partition.newOnly;
+        dedupedCount = partition.duplicates.length;
+
+        if (newOnly.length === 0) return; // pure replay — nothing to write
+
+        resolvedSessionId = await ensureSession(db, newOnly);
+        const attemptsData = newOnly.map(({ _difficulty, sessionId: _s, ...rest }) => ({
             ...rest,
             sessionId: resolvedSessionId,
         }));
-        await db.questionAttempt.createMany({ data: attemptsData });
+        // skipDuplicates backstops the race where two identical batches pass
+        // the pre-select simultaneously — the (userId, clientAttemptId) unique
+        // index turns the loser's insert into a no-op.
+        await db.questionAttempt.createMany({ data: attemptsData, skipDuplicates: true });
 
         const existingToday = await db.activityLog.findUnique({
             where: { userId_date: { userId, date: today } },
@@ -157,9 +187,31 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
 
         await db.activityLog.upsert({
             where: { userId_date: { userId, date: today } },
-            update: { count: { increment: mapped.length } },
-            create: { userId, date: today, count: mapped.length },
+            update: { count: { increment: newOnly.length } },
+            create: { userId, date: today, count: newOnly.length },
         });
+
+        // Per-topic rollups feed the forecast/prescription engine — nothing
+        // populated UserTopicPerformance before, so "Today's prescription"
+        // and weak-topic ranking always came back empty.
+        for (const roll of aggregateTopicRollups(newOnly)) {
+            await db.userTopicPerformance.upsert({
+                where: { userId_topic: { userId, topic: roll.topic } },
+                update: {
+                    attempts: { increment: roll.attempts },
+                    correct: { increment: roll.correct },
+                    totalTime: { increment: roll.totalTimeSecs },
+                },
+                create: {
+                    userId,
+                    subject: roll.subject,
+                    topic: roll.topic,
+                    attempts: roll.attempts,
+                    correct: roll.correct,
+                    totalTime: roll.totalTimeSecs,
+                },
+            });
+        }
     };
 
     if (tx) {
@@ -168,13 +220,30 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         await prisma.$transaction(async (db) => { await runWrites(db); });
     }
 
+    // Pure replay: grade from the master answers but leave every aggregate
+    // untouched, and report the user's CURRENT theta so clients don't
+    // clobber their local value with null.
+    if (newOnly.length === 0) {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { thetaRating: true } });
+        dashboardCache.invalidate(userId);
+        return {
+            written: 0,
+            received: attempts.length,
+            skipped,
+            deduped: dedupedCount,
+            updatedTheta: user?.thetaRating ?? null,
+            sessionId: resolvedSessionId,
+            graded: mapped.map((m) => ({ questionId: m.questionId, isCorrect: m.isCorrect })),
+        };
+    }
+
     // Recompute theta + streak in a second, short transaction with a row lock
     // on the user. Concurrent batches for the same user (e.g. a telemetry-bulk
     // flush landing at the same time as a battle-submit) previously did
     // read-modify-write against `prisma` directly, so the last writer silently
     // clobbered the other's theta/streak. FOR UPDATE serializes them. Kept
     // separate from runWrites so the attempt-write lock window stays short.
-    const irtInput = mapped.map((m) => ({
+    const irtInput = newOnly.map((m) => ({
         isCorrect: m.isCorrect,
         questionDifficulty: m._difficulty,
     }));
@@ -223,12 +292,21 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         }
     });
 
+    // One choke point for cache freshness: every write surface funnels
+    // through recordAttempts (telemetry-bulk, exams/grade, exams/submit,
+    // battle-submit), so the dashboard never serves a stale payload after
+    // ANY kind of session.
+    dashboardCache.invalidate(userId);
+
     return {
-        written: mapped.length,
+        written: newOnly.length,
+        received: attempts.length,
+        skipped,
+        deduped: dedupedCount,
         updatedTheta,
         sessionId: resolvedSessionId,
-        // Server-side grading verdicts (from Question.answer), so callers like
-        // battle-submit can score authoritatively without a second fetch.
+        // Server-side grading verdicts (from Question.answer) for the FULL
+        // batch — replayed battle submits still need their score.
         graded: mapped.map((m) => ({ questionId: m.questionId, isCorrect: m.isCorrect })),
     };
 }

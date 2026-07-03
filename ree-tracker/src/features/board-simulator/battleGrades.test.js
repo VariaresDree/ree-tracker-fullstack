@@ -55,4 +55,19 @@ describe('computeBattleDiagnostics', () => {
     expect(diagnostics.score).toBe(0);
     expect(diagnostics.verdict).toBe('FAILED');
   });
+
+  it('patches offline explanations from the explanationKey', () => {
+    const explanationKey = { q1: 'Because 2+2=4.', q2: 'Ohms law: V=IR.' };
+    const { mappedQuestions } = computeBattleDiagnostics({ questions, answerKey, explanationKey });
+    expect(mappedQuestions[0].fixedExplanation).toBe('Because 2+2=4.');
+    expect(mappedQuestions[0].explanation).toBe('Because 2+2=4.'); // alias kept in sync
+    expect(mappedQuestions[1].fixedExplanation).toBe('Ohms law: V=IR.');
+    // No explanation for q3/q4 → null, not undefined
+    expect(mappedQuestions[2].fixedExplanation).toBeNull();
+  });
+
+  it('tolerates a missing explanationKey (defaults to null)', () => {
+    const { mappedQuestions } = computeBattleDiagnostics({ questions, answerKey });
+    expect(mappedQuestions[0].fixedExplanation).toBeNull();
+  });
 });
