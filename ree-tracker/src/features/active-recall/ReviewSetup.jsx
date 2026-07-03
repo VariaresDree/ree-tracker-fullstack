@@ -48,7 +48,10 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
 
   const handleScopeChange = (mode) => {
     const defaultSubj = 'Mathematics';
-    const defaultSub = safeTOS[defaultSubj]?.[0] || 'All';
+    // Only 'subtopic' scope pins a specific topic. 'By subject' MUST use
+    // 'All' — pinning to the first topic made every by-subject session serve
+    // only Algebra/Chemistry/Electromagnetism instead of the whole subject.
+    const defaultSub = mode === 'subtopic' ? (safeTOS[defaultSubj]?.[0] || 'All') : 'All';
     setConfig({ ...config, studyMode: mode, subject: defaultSubj, subtopic: defaultSub, source: 'library' });
   };
 
@@ -168,7 +171,12 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
                 <FormField label="Subject" className="flex-1">
                   <Select
                     value={config.subject}
-                    onChange={(e) => setConfig({ ...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All' })}
+                    onChange={(e) => setConfig({
+                      ...config,
+                      subject: e.target.value,
+                      // Keep 'All' unless the user is explicitly picking a topic.
+                      subtopic: config.studyMode === 'subtopic' ? (safeTOS[e.target.value]?.[0] || 'All') : 'All',
+                    })}
                   >
                     {Object.keys(safeTOS).map((s) => <option key={s} value={s}>{s}</option>)}
                   </Select>

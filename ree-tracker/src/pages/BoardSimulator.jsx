@@ -12,7 +12,8 @@ import { Button, Modal } from '../components/ui';
 import { TriangleAlert } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 
-import { saveBookmark } from '../services/dbQueries';
+import { saveBookmark, getAnalyticsProfile } from '../services/dbQueries';
+import { useStore } from '../store/useStore';
 
 const formatTimerMinutes = (s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`;
 const formatTimerVerbose = (s) => `${Math.floor(s/60)}m ${(s%60).toString().padStart(2, '0')}s`;
@@ -28,7 +29,7 @@ export default function BoardSimulator() {
   const navigate = useNavigate();
 
   const activeBattleId = engine.config.battleId || searchParams.get('battleId');
-  const { connected: battleConnected, opponentProgress, graded, answerKey, sendAnswer, submitResult } = useBattleSocket(activeBattleId);
+  const { connected: battleConnected, opponentProgress, graded, answerKey, explanationKey, sendAnswer, submitResult } = useBattleSocket(activeBattleId);
 
   useEffect(() => {
     const bId = searchParams.get('battleId');
@@ -87,13 +88,29 @@ export default function BoardSimulator() {
     if (activeBattleId && graded) engine.applyServerScore(graded);
   }, [graded, activeBattleId]);
 
-  // battle-complete revealed the answer key — unlock the full per-question
-  // review (correct answers, blind spots, subject breakdown).
+  // battle-complete revealed the answer + explanation keys — unlock the full
+  // per-question review (correct answers, offline solutions, blind spots),
+  // then refetch the canonical analytics so the dashboard is fresh the
+  // moment the user navigates there (mirrors the gauntlet's post-grade
+  // refetch).
   useEffect(() => {
     if (activeBattleId && answerKey && engine.session.isFinished) {
-      engine.applyBattleGrades(answerKey);
+      engine.applyBattleGrades(answerKey, explanationKey);
+      if (currentUser?.uid) {
+        getAnalyticsProfile(currentUser.uid).then((fresh) => {
+          if (fresh?.data) {
+            useStore.getState().setStats({
+              ...useStore.getState().stats,
+              ...fresh.data.profile,
+              activityCalendar: fresh.data.activityCalendar,
+              microTopics: fresh.data.microTopics,
+              matrix: fresh.data.matrix,
+            });
+          }
+        }).catch(() => {});
+      }
     }
-  }, [answerKey, activeBattleId, engine.session.isFinished]);
+  }, [answerKey, explanationKey, activeBattleId, engine.session.isFinished]);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">

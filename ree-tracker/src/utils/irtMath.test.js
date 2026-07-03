@@ -106,22 +106,37 @@ describe('calculateUpdatedStats', () => {
     expect(after2.activityCalendar[TODAY]).toBe(2);
   });
 
-  it('aggregates microTopics by topic', () => {
+  it('aggregates microTopics by topic (times in ms, plausibility-bounded)', () => {
     let s = emptyStats();
-    s = calculateUpdatedStats(s, true, 'high', 'AC Circuits', 'EE', 'q1', 1200);
-    s = calculateUpdatedStats(s, false, 'med', 'AC Circuits', 'EE', 'q2', 800);
-    s = calculateUpdatedStats(s, true, 'low', 'Algebra', 'Mathematics', 'q3', 400);
+    s = calculateUpdatedStats(s, true, 'high', 'AC Circuits', 'EE', 'q1', 12000);
+    s = calculateUpdatedStats(s, false, 'med', 'AC Circuits', 'EE', 'q2', 8000);
+    s = calculateUpdatedStats(s, true, 'low', 'Algebra', 'Mathematics', 'q3', 4000);
     expect(s.microTopics['AC Circuits']).toMatchObject({
       attempts: 2,
       correct: 1,
-      totalTime: 2000,
+      totalTime: 20000,
+      timedAttempts: 2,
       subject: 'EE',
     });
     expect(s.microTopics['Algebra']).toMatchObject({
       attempts: 1,
       correct: 1,
-      totalTime: 400,
+      totalTime: 4000,
+      timedAttempts: 1,
       subject: 'Mathematics',
+    });
+  });
+
+  it('excludes implausible times (0ms / >30min) from the speed average', () => {
+    let s = emptyStats();
+    s = calculateUpdatedStats(s, true, 'high', 'Algebra', 'Mathematics', 'q1', 0);          // instant — excluded
+    s = calculateUpdatedStats(s, true, 'high', 'Algebra', 'Mathematics', 'q2', 5_000);       // real
+    s = calculateUpdatedStats(s, true, 'high', 'Algebra', 'Mathematics', 'q3', 2_000_000);   // >30min — excluded
+    expect(s.microTopics['Algebra']).toMatchObject({
+      attempts: 3,          // every answer still counts toward accuracy
+      correct: 3,
+      totalTime: 5_000,     // only the plausible one contributes time
+      timedAttempts: 1,
     });
   });
 

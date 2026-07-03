@@ -1,5 +1,4 @@
 // src/components/TelemetrySync.jsx
-import { useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { StatusPill } from './ui';
@@ -8,29 +7,13 @@ import { RefreshCw } from './ui/icons';
 export default function TelemetrySync() {
     const syncStatus = useStore((state) => state.syncStatus);
     const syncQueue = useStore((state) => state.syncQueue);
-    const flushQueueToCloud = useStore((state) => state.flushQueueToCloud);
     const stats = useStore((state) => state.stats);
     const isOnline = useNetworkStatus();
 
-    // Safety-net flush every 15s. The queue length is read via getState()
-    // inside the tick — putting `syncQueue` in the dep array tore the
-    // interval down and recreated it on every recorded answer.
-    useEffect(() => {
-        const syncInterval = setInterval(() => {
-            if (isOnline && useStore.getState().syncQueue.length > 0) {
-                flushQueueToCloud();
-            }
-        }, 15000);
-
-        return () => clearInterval(syncInterval);
-    }, [isOnline, flushQueueToCloud]);
-
-    // Emergency Flush Hook: Triggers immediately if connectivity shifts from offline to online
-    useEffect(() => {
-        if (isOnline && syncQueue.length > 0) {
-            flushQueueToCloud();
-        }
-    }, [isOnline]);
+    // NOTE: the safety-net interval and reconnect flush that used to live here
+    // moved to hooks/useSyncLifecycle (mounted app-wide in App.jsx) — this
+    // component was never mounted, so those effects were dead code. It is now
+    // pure status UI, safe to render anywhere.
 
     const formatTime = (ts) => {
         if (!ts) return 'Awaiting initial telemetry trace...';

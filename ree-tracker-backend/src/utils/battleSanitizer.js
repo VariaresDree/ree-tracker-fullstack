@@ -29,4 +29,17 @@ function buildAnswerKey(questions) {
     return key;
 }
 
-module.exports = { sanitizeBattleQuestions, buildAnswerKey, PUBLIC_FIELDS };
+// { [questionId]: fixedExplanation } — revealed alongside the answer key at
+// battle-complete so the post-battle review can show offline solutions
+// (sanitization strips them during play, which left battle reviews without
+// any "Show solution" option).
+function buildExplanationKey(questions) {
+    if (!Array.isArray(questions)) return {};
+    const key = {};
+    for (const q of questions) {
+        if (q && q.id != null && q.fixedExplanation) key[q.id] = q.fixedExplanation;
+    }
+    return key;
+}
+
+module.exports = { sanitizeBattleQuestions, buildAnswerKey, buildExplanationKey, PUBLIC_FIELDS };

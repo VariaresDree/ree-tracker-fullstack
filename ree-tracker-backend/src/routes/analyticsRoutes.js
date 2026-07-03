@@ -6,30 +6,23 @@ const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
+const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { recordAttempts, todayManila } = require('../services/telemetryService');
+// Shared cache module — recordAttempts invalidates it for EVERY write surface
+// (telemetry-bulk, exams/grade, exams/submit, battle-submit), so battles and
+// gauntlet runs no longer leave the dashboard stale for up to 30s.
+const dashboardCache = require('../services/dashboardCache');
 const logger = require('../utils/logger');
 
-// Tiny in-memory dashboard cache (30s TTL, invalidated on telemetry write).
-// Capped at MAX_CACHE entries (FIFO eviction) to prevent unbounded growth
-// under many concurrent users — at ~3KB/payload * 5000 = ~15MB worst case.
-const DASHBOARD_TTL_MS = 30_000;
-const MAX_CACHE = 5000;
-const dashboardCache = new Map();
-const cacheSet = (uid, payload) => {
-    if (dashboardCache.size >= MAX_CACHE) {
-        const oldest = dashboardCache.keys().next().value;
-        dashboardCache.delete(oldest);
-    }
-    dashboardCache.set(uid, { payload, expiresAt: Date.now() + DASHBOARD_TTL_MS });
-};
-const invalidateDashboard = (uid) => dashboardCache.delete(uid);
+const cacheSet = dashboardCache.set;
+const invalidateDashboard = dashboardCache.invalidate;
 
 router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, res) => {
     const { uid } = req.params;
 
     const cached = dashboardCache.get(uid);
-    if (cached && cached.expiresAt > Date.now()) {
-        return res.status(200).json(cached.payload);
+    if (cached) {
+        return res.status(200).json(cached);
     }
 
     try {
@@ -63,22 +56,39 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         const activityCalendar = {};
         activityLogs.forEach(log => activityCalendar[log.date] = log.count);
 
-        const topicAgg = await prisma.questionAttempt.groupBy({
-            by: ['subject', 'subtopic', 'isCorrect'],
-            where: { userId: uid },
-            _count: { id: true },
-            _sum: { timeSpentMs: true }
-        });
+        // Counts/accuracy use EVERY attempt. Timing is aggregated separately
+        // and bounded to plausible values — the live DB has corrupted rows
+        // (0ms "instant" answers and ~1000x-inflated times) that would poison
+        // the Speed Mapping averages. We exclude them here rather than
+        // destructively rewriting history.
+        const [topicAgg, timeAgg] = await Promise.all([
+            prisma.questionAttempt.groupBy({
+                by: ['subject', 'subtopic', 'isCorrect'],
+                where: { userId: uid },
+                _count: { id: true },
+            }),
+            prisma.questionAttempt.groupBy({
+                by: ['subtopic'],
+                where: { userId: uid, timeSpentMs: { gte: TIME_MIN_MS, lte: TIME_MAX_MS } },
+                _sum: { timeSpentMs: true },
+                _count: { id: true },
+            }),
+        ]);
 
         const microTopics = {};
         topicAgg.forEach(group => {
             const sub = group.subtopic;
             if (!microTopics[sub]) {
-                microTopics[sub] = { subject: group.subject, totalAttempts: 0, correctHits: 0, totalTimeSecs: 0 };
+                microTopics[sub] = { subject: group.subject, totalAttempts: 0, correctHits: 0, totalTimeSecs: 0, timedAttempts: 0 };
             }
             microTopics[sub].totalAttempts += group._count.id;
             if (group.isCorrect) microTopics[sub].correctHits += group._count.id;
+        });
+        timeAgg.forEach(group => {
+            const sub = group.subtopic;
+            if (!microTopics[sub]) return; // no counts row shouldn't happen, but guard
             microTopics[sub].totalTimeSecs += Math.floor((group._sum.timeSpentMs || 0) / 1000);
+            microTopics[sub].timedAttempts += group._count.id;
         });
 
         const matrixAgg = await prisma.questionAttempt.groupBy({

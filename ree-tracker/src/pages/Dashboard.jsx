@@ -13,7 +13,7 @@ import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
 import { generateBoardReadinessReport } from '../services/geminiApi';
 
-import { apiRequest } from '../services/dbQueries';
+import { apiRequest, fetchReadinessScore } from '../services/dbQueries';
 import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
@@ -56,6 +56,10 @@ export default function Dashboard() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
   const [velocityRange, setVelocityRange] = useState('day'); // 'day' | 'week' | 'month'
+  // Composite readiness from /api/readiness (coverage + accuracy + θ +
+  // consistency + blind spots) — a truer "am I ready" number than the old
+  // pure-θ formula, and a DIFFERENT metric from the θ trajectory chart.
+  const [readiness, setReadiness] = useState(null);
 
   useEffect(() => {
     const fetchSQLAnalytics = async () => {
@@ -70,7 +74,7 @@ export default function Dashboard() {
           Object.keys(safeTOS).forEach((subject) => {
             safeTOS[subject].forEach((subtopic) => {
               normalizedMicroTopics[subtopic] = {
-                subject, subtopic, attempts: 0, correct: 0, totalTime: 0,
+                subject, subtopic, attempts: 0, correct: 0, totalTime: 0, timedAttempts: 0,
               };
             });
           });
@@ -84,7 +88,11 @@ export default function Dashboard() {
                 subtopic: actualSubtopicName,
                 attempts: rawData.totalAttempts || rawData.attempts || 0,
                 correct: rawData.correctHits || rawData.correct || 0,
+                // ms, matching the local optimistic microTopics shape.
                 totalTime: (rawData.totalTimeSecs || 0) * 1000,
+                // How many of those attempts had usable timing (rest excluded
+                // as corrupt) — the heatmap averages over this count.
+                timedAttempts: rawData.timedAttempts || 0,
               };
             }
           });
@@ -107,23 +115,21 @@ export default function Dashboard() {
     };
 
     fetchSQLAnalytics();
+    // Composite readiness is computed per-request on the backend — refetch on
+    // the same triggers so the KPI is always as fresh as the rest.
+    fetchReadinessScore().then((r) => { if (r) setReadiness(r); }).catch(() => {});
   }, [currentUser, dynamicTOS, setStats, syncTick]);
 
   const activeStats = useMemo(() => {
     if (!stats && !sqlData) return null;
     if (!sqlData) return stats;
 
-    const sqlMicroTopics = {};
-    if (sqlData.microTopics) {
-      Object.keys(sqlData.microTopics).forEach((subtopicName) => {
-        sqlMicroTopics[subtopicName] = {
-          attempts: sqlData.microTopics[subtopicName].totalAttempts || 0,
-          correct: sqlData.microTopics[subtopicName].correctHits || 0,
-          subject: sqlData.microTopics[subtopicName].subject,
-          totalTime: (sqlData.microTopics[subtopicName].totalTimeSecs || 0) * 1000,
-        };
-      });
-    }
+    // sqlData.microTopics was ALREADY normalized at fetch time to
+    // { subject, subtopic, attempts, correct, totalTime(ms) }. The old code
+    // re-read the RAW backend field names (totalAttempts/correctHits/
+    // totalTimeSecs) off the normalized objects — everything came out zero,
+    // which is why the heatmap and speed view looked dead.
+    const sqlMicroTopics = sqlData.microTopics || {};
 
     const mergedMicroTopics = { ...sqlMicroTopics };
     const localMicroTopics = stats?.microTopics || {};
@@ -148,27 +154,31 @@ export default function Dashboard() {
       irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating ?? stats?.irt?.theta ?? 0 },
       matrix,
       microTopics: mergedMicroTopics,
-      thetaHistory:
-        sqlData.thetaHistory && sqlData.thetaHistory.length > (stats?.thetaHistory?.length || 0)
-          ? sqlData.thetaHistory
-          : stats?.thetaHistory || sqlData.thetaHistory || [],
+      // Server history is canonical whenever we have it — a LONGER stale
+      // local array used to win and lag the chart behind the fresh KPI.
+      thetaHistory: sqlData.thetaHistory?.length
+        ? sqlData.thetaHistory
+        : stats?.thetaHistory || [],
       activityCalendar: { ...(sqlData.activityCalendar || {}), ...(stats?.activityCalendar || {}) },
       dailyMath: pickMax(todayStats.Math, sqlData.profile?.dailyMath, stats?.dailyMath),
       dailyESAS: pickMax(todayStats.ESAS, sqlData.profile?.dailyESAS, stats?.dailyESAS),
       dailyEE: pickMax(todayStats.EE, sqlData.profile?.dailyEE, stats?.dailyEE),
       globalStreak: pickMax(sqlData.profile?.globalStreak, stats?.globalStreak),
       totalAnswered: pickMax(sqlData.profile?.totalAnswered, stats?.totalAnswered),
-      totalCorrect: pickMax(stats?.totalCorrect),
+      totalCorrect: pickMax(
+        stats?.totalCorrect,
+        Object.values(mergedMicroTopics).reduce((s, t) => s + (t.correct || 0), 0),
+      ),
       examDate: stats?.examDate || sqlData.profile?.examDate || null,
       dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50,
     };
   }, [stats, sqlData]);
 
   const currentTheta = activeStats?.irt?.theta || 0;
-  const readinessScore = useMemo(
-    () => Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100))),
-    [currentTheta]
-  );
+  // Composite score from /api/readiness; falls back to the θ-linear map only
+  // until the first readiness fetch resolves.
+  const readinessScore = readiness?.score
+    ?? Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
 
   // KPI strip values, derived from the same microTopics aggregate the heatmap uses.
   const kpi = useMemo(() => {
@@ -289,18 +299,55 @@ export default function Dashboard() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-        <KpiTile icon={Target} tone="velocity" label="Board readiness" value={readinessScore} suffix="%" hint="/ 70% pass" />
+        <KpiTile icon={Target} tone="velocity" label="Board readiness" value={readinessScore} suffix="%" hint={readiness ? 'coverage · accuracy · θ' : '/ 70% pass'} />
         <KpiTile icon={Gauge} tone="success" label="Global accuracy" value={kpi.accuracy} suffix="%" />
         <KpiTile icon={ListChecks} tone="signal" label="Questions answered" value={kpi.answered} />
         <KpiTile icon={Timer} tone="signal" label="Avg time / question" value={kpi.avgSec} precision={1} suffix="s" />
         <KpiTile icon={Flame} tone="amber" label="Day streak" value={kpi.streak} hint="days" className="col-span-2 md:col-span-1" />
       </div>
 
+      {/* Daily targets + AI report — pinned near the top so the day's goals
+          and the exam-config settings are one glance/click away. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2">
+          <MissionControl stats={activeStats} onPurgeRequest={() => setShowPurgeModal(true)} />
+        </div>
+        <Card elevated glow className="p-6 flex flex-col gap-4 justify-between grain-overlay bg-gradient-to-br from-surface to-surface2/50">
+          <div>
+            <div className="inline-flex items-center gap-2 text-[var(--accent)]">
+              <Sparkles size={16} strokeWidth={2} />
+              <span className="text-[11px] font-mono uppercase tracking-[0.18em]">AI diagnostics</span>
+            </div>
+            <h3 className="text-display text-textMain text-xl mt-3 leading-snug">Unlock your board report</h3>
+            <p className="text-sm text-muted2 mt-2 leading-relaxed">
+              A tailored readiness audit from your heatmaps, blind spots, and velocity.
+            </p>
+          </div>
+          {aiReport && (
+            <div className="text-sm text-textMain leading-relaxed bg-surface2/40 border border-border rounded-[var(--radius-default)] p-4 max-h-44 overflow-y-auto custom-scrollbar">
+              {aiReport}
+            </div>
+          )}
+          <Button variant="primary" onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="w-full">
+            {isGeneratingAI ? (
+              <>
+                <span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent" />
+                Analyzing…
+              </>
+            ) : (
+              <>
+                Generate report <ArrowRight size={15} strokeWidth={2} />
+              </>
+            )}
+          </Button>
+        </Card>
+      </div>
+
       {/* Hero: θ readiness signal + trajectory */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <Panel
           icon={AudioWaveform}
-          eyebrow="Readiness signal"
+          eyebrow="Ability signal"
           title="Ability trajectory (θ)"
           className="lg:col-span-2 grain-overlay"
           bodyClassName="h-[260px] sm:h-[300px]"
@@ -342,42 +389,6 @@ export default function Dashboard() {
 
       {/* Pre-board simulation ledger */}
       <MockBoardAnalytics />
-
-      {/* Daily targets + AI report */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2">
-          <MissionControl stats={activeStats} onPurgeRequest={() => setShowPurgeModal(true)} />
-        </div>
-        <Card elevated glow className="p-6 flex flex-col gap-4 justify-between grain-overlay bg-gradient-to-br from-surface to-surface2/50">
-          <div>
-            <div className="inline-flex items-center gap-2 text-[var(--accent)]">
-              <Sparkles size={16} strokeWidth={2} />
-              <span className="text-[11px] font-mono uppercase tracking-[0.18em]">AI diagnostics</span>
-            </div>
-            <h3 className="text-display text-textMain text-xl mt-3 leading-snug">Unlock your board report</h3>
-            <p className="text-sm text-muted2 mt-2 leading-relaxed">
-              A tailored readiness audit from your heatmaps, blind spots, and velocity.
-            </p>
-          </div>
-          {aiReport && (
-            <div className="text-sm text-textMain leading-relaxed bg-surface2/40 border border-border rounded-[var(--radius-default)] p-4 max-h-44 overflow-y-auto custom-scrollbar">
-              {aiReport}
-            </div>
-          )}
-          <Button variant="primary" onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="w-full">
-            {isGeneratingAI ? (
-              <>
-                <span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent" />
-                Analyzing…
-              </>
-            ) : (
-              <>
-                Generate report <ArrowRight size={15} strokeWidth={2} />
-              </>
-            )}
-          </Button>
-        </Card>
-      </div>
 
       {/* MODALS */}
       {showAiModal && (

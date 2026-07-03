@@ -302,10 +302,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         const subjBreakdown = { Math: {c:0, t:0}, ESAS: {c:0, t:0}, EE: {c:0, t:0} };
         const topicBreakdown = {};
 
+        // Session's lifecycle id, not a fresh UUID per submit — the backend
+        // upserts the ExamSession row keyed on this id, and the deterministic
+        // clientAttemptId below makes a retried submit a no-op server-side.
+        const sessionId = useStore.getState().currentSessionId || crypto.randomUUID();
+
         const attemptsPayload = finalQs.map((q, idx) => {
             const isCorrect = finalAns[idx] === q.answer;
             if (isCorrect) correct++;
-            
+
             let sKey = q.subject === 'Mathematics' ? 'Math' : q.subject;
             if (subjBreakdown[sKey]) {
                 subjBreakdown[sKey].t += 1;
@@ -323,16 +328,13 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 // Date.now() - lastActiveTime). The old `* 1000` inflated it 1000×,
                 // so every attempt recorded ~hours and poisoned the per-question
                 // time averages / Speed Mapping. Send the raw ms; 10s fallback.
-                timeSpentMs: Math.round(timeSpent[idx]) || 10000
+                timeSpentMs: Math.round(timeSpent[idx]) || 10000,
+                clientAttemptId: `${sessionId}:${q.id}`,
             };
         });
 
         if (currentUser && isOnline) {
             try {
-                // Use the session's lifecycle id, not a fresh UUID per submit.
-                // The backend upserts the ExamSession row keyed on this id so
-                // the QuestionAttempt FK is always satisfied (keystone fix).
-                const sessionId = useStore.getState().currentSessionId || crypto.randomUUID();
                 await syncTelemetryBatch(currentUser.uid, sessionId, config.subject, 'BOARD_SIM', attemptsPayload);
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
                 if (freshProfile?.data) {
@@ -479,7 +481,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   // screen. Also persists the local ledger record (skipped at submit time
   // because the score wasn't known yet).
   const gradesAppliedRef = useRef(false);
-  const applyBattleGrades = (answerKey) => {
+  const applyBattleGrades = (answerKey, explanationKey = null) => {
     if (!session.isFinished || !session.diagnostics?.pending || !answerKey) return;
     if (gradesAppliedRef.current) return;
     gradesAppliedRef.current = true;
@@ -487,6 +489,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     const { mappedQuestions, diagnostics } = computeBattleDiagnostics({
       questions: session.questions,
       answerKey,
+      explanationKey: explanationKey || {},
       timeSpentPerQuestion: timeSpentPerQuestion.current,
       timeTakenSecs: session.diagnostics.timeTakenSecs || 0,
     });

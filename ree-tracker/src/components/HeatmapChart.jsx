@@ -72,7 +72,11 @@ function HeatmapChart({ stats }) {
         {displayedTopics.map((item, idx) => {
           const hasData = item.data.attempts > 0;
           const pct = hasData ? Math.round((item.data.correct / item.data.attempts) * 100) : 0;
-          const avgTime = hasData ? Math.round(item.data.totalTime / 1000 / item.data.attempts) : 0;
+          // Average over ONLY the attempts that had plausible timing (corrupt
+          // 0ms/inflated rows are excluded server-side), not all attempts —
+          // otherwise the average is diluted toward zero.
+          const timedCount = item.data.timedAttempts || 0;
+          const avgTime = timedCount > 0 ? Math.round(item.data.totalTime / 1000 / timedCount) : 0;
 
           let bgClass = 'bg-bg/60 border-border opacity-50';
           let textClass = 'text-muted';
@@ -87,6 +91,13 @@ function HeatmapChart({ stats }) {
               else if (pct >= 70) { bgClass = 'bg-green-400/10 border-green-400/30'; textClass = 'text-green-400'; }
               else if (pct >= 50) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber'; }
               else { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed'; }
+            } else if (!item.data.totalTime) {
+              // Attempts exist but no plausible timing rows (legacy corrupted
+              // data is filtered out server-side) — don't fake "0s optimal".
+              metricDisplay = '—';
+              subLabel = 'No timing data yet';
+              bgClass = 'bg-bg/60 border-border';
+              textClass = 'text-muted';
             } else {
               metricDisplay = `${avgTime}s`;
               if (avgTime > targetLimit + 30) { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed'; subLabel = 'Critical risk'; }

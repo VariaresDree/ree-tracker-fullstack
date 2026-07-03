@@ -14,6 +14,7 @@ export function useBattleSocket(battleId) {
     const [results, setResults] = useState(null);
     const [graded, setGraded] = useState(null);
     const [answerKey, setAnswerKey] = useState(null);
+    const [explanationKey, setExplanationKey] = useState(null);
     const [opponentProgress, setOpponentProgress] = useState(new Map());
 
     useEffect(() => {
@@ -77,9 +78,10 @@ export function useBattleSocket(battleId) {
             socket.on('battle-complete', (data) => {
                 setBattleStatus('COMPLETED');
                 setResults(data.results);
-                // Answer key revealed only once everyone finished — feeds the
-                // post-battle review screen.
+                // Answer key + offline explanations revealed only once
+                // everyone finished — feeds the post-battle review screen.
                 if (data.answerKey) setAnswerKey(data.answerKey);
+                if (data.explanationKey) setExplanationKey(data.explanationKey);
             });
 
             socket.on('error', (data) => {
@@ -123,6 +125,7 @@ export function useBattleSocket(battleId) {
         results,
         graded,
         answerKey,
+        explanationKey,
         opponentProgress: Array.from(opponentProgress.values()),
         startBattle,
         sendAnswer,

@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, saveQuestionToBank } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
 import { stratifiedSample } from '../../utils/shuffle';
@@ -60,8 +60,30 @@ export const useReviewSession = (currentUser, isOnline) => {
                 freshData = drillResult.items || [];
             } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("The AI generator needs a connection.");
-                const targetTopic = cfg.studyMode === 'subtopic' ? cfg.subtopic : (safeTOS[cfg.subject]?.[0] || 'General');
+                // Random topic within the subject (not always the first) so
+                // consecutive AI sessions vary.
+                const topics = safeTOS[cfg.subject] || [];
+                const targetTopic = cfg.studyMode === 'subtopic'
+                    ? cfg.subtopic
+                    : (topics[Math.floor(Math.random() * topics.length)] || 'General');
                 freshData = await generateQuestionsAI(cfg.subject, targetTopic, false);
+
+                // AI questions have no DB id, so their attempts were silently
+                // dropped by both the client (recordAttempt requires an id) and
+                // the server (FK filter) — the classic "10-item session shows
+                // 8" undercount. Persist them first to mint real ids.
+                if (Array.isArray(freshData) && freshData.length > 0) {
+                    try {
+                        freshData = await Promise.all(freshData.map(async (q) => {
+                            if (q.id) return q;
+                            const newId = await saveQuestionToBank({ ...q, source: 'ai' });
+                            return { ...q, id: newId };
+                        }));
+                    } catch (persistErr) {
+                        console.warn('AI question persist failed:', persistErr);
+                        toast("Couldn't save the AI questions — this session won't count toward analytics.", { icon: '⚠️' });
+                    }
+                }
             } else {
                 // 🚀 FIXED: Fetch up to 1000 questions to create a massive Supabase randomization pool
                 const subTarget = cfg.subtopic === 'All' ? 'All' : cfg.subtopic;

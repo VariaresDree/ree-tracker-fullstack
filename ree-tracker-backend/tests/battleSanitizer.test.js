@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-const { sanitizeBattleQuestions, buildAnswerKey } = require('../src/utils/battleSanitizer');
+const { sanitizeBattleQuestions, buildAnswerKey, buildExplanationKey } = require('../src/utils/battleSanitizer');
 
 const FULL_QUESTION = {
     id: 'q1',
@@ -64,5 +64,22 @@ describe('buildAnswerKey', () => {
     it('skips malformed entries and non-arrays', () => {
         expect(buildAnswerKey(null)).toEqual({});
         expect(buildAnswerKey([{ id: null, answer: 'x' }, { id: 'ok', answer: 'y' }])).toEqual({ ok: 'y' });
+    });
+});
+
+describe('buildExplanationKey', () => {
+    it('maps question ids to their offline explanations (revealed post-battle)', () => {
+        expect(buildExplanationKey([FULL_QUESTION, { ...FULL_QUESTION, id: 'q2', fixedExplanation: 'X=Y.' }]))
+            .toEqual({ q1: 'Because Z = V/I.', q2: 'X=Y.' });
+    });
+
+    it('omits questions with no explanation', () => {
+        expect(buildExplanationKey([{ id: 'q1', fixedExplanation: null }, { id: 'q2', fixedExplanation: 'ok' }]))
+            .toEqual({ q2: 'ok' });
+    });
+
+    it('sanitize still strips fixedExplanation (explanations only reach clients via this key)', () => {
+        const [q] = sanitizeBattleQuestions([FULL_QUESTION]);
+        expect(q.fixedExplanation).toBeUndefined();
     });
 });

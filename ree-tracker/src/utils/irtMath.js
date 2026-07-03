@@ -1,11 +1,16 @@
 // src/utils/irtMath.js
+import { todayManila } from './manilaDate';
 
-// Note: timeSpent defaults to 0 to prevent NaN errors on legacy data
+// Note: timeSpent defaults to 0 to prevent NaN errors on legacy data.
+// timeSpent is in MILLISECONDS (matches the server's microTopics.totalTime).
 export const calculateUpdatedStats = (currentStats = {}, isCorrect, confidence, topic, subject, questionId, timeSpent = 0) => {
     // ==========================================
     // 1. REAL-TIME STREAK & DAILY RESET ENGINE
     // ==========================================
-    const todayStr = new Date().toLocaleDateString('en-CA'); 
+    // Manila date, NOT browser-local — the backend keys every daily boundary
+    // to Asia/Manila, and a mismatch reset the daily tallies mid-session for
+    // users in other timezones.
+    const todayStr = todayManila();
     
     let globalStreak = currentStats?.globalStreak || 0;
     let lastActiveDate = currentStats?.lastActiveDate || null;
@@ -73,14 +78,19 @@ let activityCalendar = { ...(currentStats?.activityCalendar || {}) };
     // ==========================================
 let microTopics = { ...(currentStats?.microTopics || {}) };
     if (!microTopics[topic]) {
-        microTopics[topic] = { attempts: 0, correct: 0, totalTime: 0, subject: subject };
+        microTopics[topic] = { attempts: 0, correct: 0, totalTime: 0, timedAttempts: 0, subject: subject };
     } else {
         // Spread the nested object to avoid mutating the frozen Zustand state
         microTopics[topic] = { ...microTopics[topic] };
     }
     microTopics[topic].attempts += 1;
     if (isCorrect) microTopics[topic].correct += 1;
-    microTopics[topic].totalTime = (microTopics[topic].totalTime || 0) + timeSpent;
+    // Only count plausibly-timed answers toward the speed average (matches the
+    // server's timeSpentMs bounds: 0.5s–30min). timeSpent is in ms.
+    if (timeSpent >= 500 && timeSpent <= 1800000) {
+        microTopics[topic].totalTime = (microTopics[topic].totalTime || 0) + timeSpent;
+        microTopics[topic].timedAttempts = (microTopics[topic].timedAttempts || 0) + 1;
+    }
     microTopics[topic].subject = subject;
 
     // ==========================================

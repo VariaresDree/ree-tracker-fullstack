@@ -3,6 +3,7 @@ import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useStore } from './store/useStore';
+import { useSyncLifecycle } from './hooks/useSyncLifecycle';
 import { Toaster } from 'react-hot-toast';
 
 import ErrorBoundary from './components/ErrorBoundary';
@@ -26,6 +27,10 @@ const Gauntlet = lazy(() => import('./pages/Gauntlet'));
 // Replace only this component inside src/App.jsx
 const SecureAppTerminal = () => {
   const { currentUser } = useAuth();
+
+  // App-lifetime telemetry guardian: 15s safety-net flush, reconnect flush,
+  // and a last-gasp keepalive flush when the tab hides/closes.
+  useSyncLifecycle();
 
   useEffect(() => {
     // The previous Firestore listener and TOS initialization have been removed.
