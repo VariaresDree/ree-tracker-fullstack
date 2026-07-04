@@ -5,6 +5,7 @@ const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
+const { getSubjectFilter } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { selectNextItem, updateTheta } = require('../engine/irt');
 const prisma = require('../config/db');
@@ -17,17 +18,10 @@ router.get('/', authMiddleware, async (req, res) => {
         const parsedLimit = Math.min(parseInt(limit) || 50, 200);
 
         let whereClause = { isFlagged: false };
-        if (subject && subject !== 'All' && subject !== 'Blended') {
-            if (subject === 'Mathematics' || subject === 'Math') {
-                whereClause.subject = { in: ['Math', 'Mathematics'] };
-            } else if (subject === 'EE') {
-                whereClause.subject = { in: ['EE', 'Electrical Engineering', 'Electrical Engineering Professional Subjects'] };
-            } else if (subject === 'ESAS') {
-                whereClause.subject = { in: ['ESAS', 'Engineering Sciences and Allied Subjects'] };
-            } else {
-                whereClause.subject = subject;
-            }
-        }
+        // 'Blended' means no subject constraint (mix everything); otherwise use
+        // the shared filter that matches every stored spelling of the subject.
+        const subjFilter = subject !== 'Blended' ? getSubjectFilter(subject) : undefined;
+        if (subjFilter) whereClause.subject = subjFilter;
 
         const questions = await prisma.question.findMany({
             where: whereClause,

@@ -62,6 +62,13 @@ export const useStore = create(
       currentSessionMode: null,   // 'ACTIVE_REVIEW' | 'BOARD_SIM' | 'GAUNTLET' | 'COMBAT' | 'BATTLE'
       currentSubject: null,        // 'Mathematics' | 'ESAS' | 'EE' | 'BLENDED'
 
+      // Optimistic-then-reconcile contract: recordAttempt() updates `stats`
+      // locally for instant UI, but every session end (Active Review endSession,
+      // Board Sim submit) rehydrates from getAnalyticsProfile and calls setStats
+      // with the server's canonical payload — a FULL replace, so client theta /
+      // matrix can't drift from the server's authoritative recompute. The theta
+      // formula itself lives once in utils/irtMath (client) mirroring the
+      // backend's calculateUpdatedTheta; the server value always wins on reconcile.
       setStats: (newStats) => set({ stats: newStats }),
 
       // Start a new quiz session — call this when the surface mounts so the
@@ -145,7 +152,7 @@ export const useStore = create(
       recordAttempt: (event) => {
         const {
           questionId, subject = 'General', subtopic = 'General',
-          isCorrect, confidenceLevel = 'MED', timeSpentMs = 0,
+          isCorrect, confidenceLevel = 'MED', timeSpentMs = 0, userAnswer = null,
         } = event || {};
         if (!questionId) return;
 
@@ -162,6 +169,11 @@ export const useStore = create(
             isCorrect: !!isCorrect,
             confidenceLevel: String(confidenceLevel || 'MED').toUpperCase(),
             timeSpentMs: Number(timeSpentMs) || 0,
+            // Selected option (MCQ) so the server re-grades authoritatively on
+            // sync. OMITTED (not null) for flashcards — the bulk schema's
+            // userAnswer is an optional string (null would 400 the batch); the
+            // server falls back to the client isCorrect when it's absent.
+            ...(typeof userAnswer === 'string' ? { userAnswer } : {}),
             createdAt: new Date().toISOString(),
           };
           const updatedStats = calculateUpdatedStats(

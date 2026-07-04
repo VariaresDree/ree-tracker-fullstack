@@ -17,7 +17,7 @@ const GAUNTLET_TIERS = [
 
 export default function Arena() {
   const { currentUser } = useAuth();
-  const { stats } = useStore();
+  const stats = useStore((s) => s.stats);
   const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState('terminal'); 

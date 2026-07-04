@@ -1,11 +1,11 @@
 // src/components/Pomodoro.jsx
 import { useState, useEffect } from 'react';
-import { useStore } from '../store/useStore';
+import { useSessionSlice } from '../store/slices';
 import { Button } from './ui';
 import { Settings2, Play, Pause, RotateCcw } from './ui/icons';
 
 export default function Pomodoro() {
-  const { pomodoro, updatePomodoro, switchPomodoroMode } = useStore();
+  const { pomodoro, updatePomodoro, switchPomodoroMode } = useSessionSlice();
 
   // Local state isolates the 1-second re-renders to just this component!
   const [localTimeLeft, setLocalTimeLeft] = useState(pomodoro.timeLeft);

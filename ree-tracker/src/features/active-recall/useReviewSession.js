@@ -160,6 +160,8 @@ export const useReviewSession = (currentUser, isOnline) => {
             isCorrect,
             confidenceLevel: session.confidence,
             timeSpentMs,
+            // Send the chosen option so the server re-grades authoritatively.
+            userAnswer: option,
         });
 
         // Keep the in-memory ref as a backup for the session-end study-session
