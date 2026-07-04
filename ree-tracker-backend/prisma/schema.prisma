@@ -155,6 +155,10 @@ model QuestionAttempt {
   @@index([userId, createdAt])
   @@index([userId, subject])
   @@index([userId, mode, createdAt])
+  // Dashboard/readiness groupBys filter by userId and group by these — lets
+  // Postgres index-scan the user's slice instead of a heap scan.
+  @@index([userId, subtopic])
+  @@index([userId, confidenceLevel, isCorrect])
   @@unique([userId, clientAttemptId])
 }
 

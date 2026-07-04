@@ -52,7 +52,13 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             else if (group.subject === 'EE') dailyEE += group._count.id;
         });
 
-        const activityLogs = await prisma.activityLog.findMany({ where: { userId: uid } });
+        // Bounded to the last ~year — the calendar UI never renders deeper, and
+        // an unbounded scan grows linearly with account age on every dashboard load.
+        const activityLogs = await prisma.activityLog.findMany({
+            where: { userId: uid },
+            orderBy: { date: 'desc' },
+            take: 365,
+        });
         const activityCalendar = {};
         activityLogs.forEach(log => activityCalendar[log.date] = log.count);
 

@@ -5,7 +5,7 @@ import Pomodoro from '../components/Pomodoro';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Modal } from '../components/ui';
-import { useStore } from '../store/useStore';
+import { useUISlice } from '../store/slices';
 import {
   LayoutDashboard, BrainCircuit, Zap, Swords, Library, FolderOpen, User,
   PanelLeftClose, PanelLeftOpen, Timer, Menu, X,
@@ -45,7 +45,7 @@ const ACTIVE_LINK =
 const IDLE_LINK = 'border-l-transparent text-textMain hover:bg-surface2';
 
 export default function MainLayout({ children }) {
-  const { isSidebarOpen, setSidebarOpen, isSidebarCollapsed, toggleSidebarCollapse, theme } = useStore();
+  const { isSidebarOpen, setSidebarOpen, isSidebarCollapsed, toggleSidebarCollapse, theme } = useUISlice();
   const [showSimulatorModal, setShowSimulatorModal] = useState(false);
 
   const location = useLocation();

@@ -2,6 +2,7 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { updateProfile, deleteUser } from 'firebase/auth';
 // FIRESTORE IMPORTS COMPLETELY REMOVED
 import { Skeleton, Button, Modal, FormField, Input, Tabs, StatusPill } from '../components/ui';
@@ -28,8 +29,19 @@ const TabFallback = () => (
 export default function Profile() {
   const { currentUser, logout, isAdmin } = useAuth();
   
-  // EXTRACTED THEME CONTROLS & SYNC STATUS FROM GLOBAL STORE
-  const { stats, setStats, saveExamConfig, resetStore, theme, setTheme, syncStatus } = useStore();
+  // EXTRACTED THEME CONTROLS & SYNC STATUS FROM GLOBAL STORE. Narrow selector so
+  // Profile doesn't re-render on unrelated store changes (syncQueue pushes, etc.).
+  const { stats, setStats, saveExamConfig, resetStore, theme, setTheme, syncStatus } = useStore(
+    useShallow((s) => ({
+      stats: s.stats,
+      setStats: s.setStats,
+      saveExamConfig: s.saveExamConfig,
+      resetStore: s.resetStore,
+      theme: s.theme,
+      setTheme: s.setTheme,
+      syncStatus: s.syncStatus,
+    })),
+  );
   
   // UI States
   const [activeTab, setActiveTab] = useState('analytics');
