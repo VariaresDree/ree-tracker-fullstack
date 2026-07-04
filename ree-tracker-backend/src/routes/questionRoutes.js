@@ -8,15 +8,7 @@ const { questionCreateSchema, questionUpdateSchema } = require('../schemas/quest
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { sanitizeOptions, stripChoicePrefix } = require('../utils/sanitizeOptions');
-
-const getSubjectFilter = (subjectStr) => {
-    if (!subjectStr || subjectStr === 'All') return undefined;
-    if (subjectStr === 'Mathematics' || subjectStr === 'Math') return { in: ['Math', 'Mathematics'] };
-    if (subjectStr === 'EE' || subjectStr === 'Electrical Engineering') return { in: ['EE', 'Electrical Engineering', 'Electrical Engineering Professional Subjects'] };
-    if (subjectStr === 'ESAS') return { in: ['ESAS', 'Engineering Sciences and Allied Subjects'] };
-    return subjectStr;
-};
+const { getSubjectFilter, samplePool } = require('../services/questionPool');
 
 // 0. FETCH GLOBAL QUESTION STATS 
 router.get('/stats', authMiddleware, async (req, res) => {
@@ -34,34 +26,25 @@ router.get('/stats', authMiddleware, async (req, res) => {
     }
 });
 
-// 1. FETCH QUESTIONS 
+// 1. FETCH QUESTIONS
+// Stratified random sampling lives in services/questionPool (shared with
+// battle creation) — see that module for the randomization rationale.
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { subject, subtopic, limit = 50, sort = 'random', offset = 0 } = req.query;
 
-        let whereClause = { isFlagged: false };
-
-        const subjFilter = getSubjectFilter(subject);
-        if (subjFilter) whereClause.subject = subjFilter;
-
-        if (subtopic && subtopic !== 'All') {
-            whereClause.subtopic = subtopic.trim();
-        }
-
-        // Pull a random sample. A flat `ORDER BY random()` is still biased toward
-        // whichever subtopic dominates the bank — for Math that's "Algebra &
-        // Complex Numbers", for ESAS "Chemistry for Engineers" — so a subject-wide
-        // ("All") session looked un-randomized. When no subtopic is pinned we
-        // stratify: ROW_NUMBER() partitions by subtopic, then ordering by
-        // (rn, random()) round-robins one item per subtopic before any subtopic
-        // contributes a second, guaranteeing breadth across the subject.
-        const cap = Math.min(parseInt(limit) || 50, 2000);
-
         // Deterministic ingestion ordering for the admin/library review grid:
         // newest- or oldest-created first, with real offset pagination so
         // "Load More" advances instead of re-rolling. The default 'random' path
-        // below is left untouched — active review & vault sampling depend on it.
+        // (samplePool, shared with battle creation) is left untouched — active
+        // review & vault sampling depend on it.
         if (sort === 'recent' || sort === 'oldest') {
+            const whereClause = { isFlagged: false };
+            const subjFilter = getSubjectFilter(subject);
+            if (subjFilter) whereClause.subject = subjFilter;
+            if (subtopic && subtopic !== 'All') whereClause.subtopic = subtopic.trim();
+
+            const cap = Math.min(parseInt(limit) || 50, 2000);
             const skip = Math.max(0, parseInt(offset) || 0);
             const questions = await prisma.question.findMany({
                 where: whereClause,
@@ -76,48 +59,7 @@ router.get('/', authMiddleware, async (req, res) => {
             });
         }
 
-        const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
-        const specificSubtopic = subtopic && subtopic !== 'All' ? subtopic.trim() : null;
-
-        let ids;
-        if (specificSubtopic) {
-            ids = await prisma.$queryRawUnsafe(
-                `SELECT id FROM "Question"
-                 WHERE "isFlagged" = false
-                 ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
-                 AND "subtopic" = $${subjectValues ? 2 : 1}
-                 ORDER BY random()
-                 LIMIT ${cap}`,
-                ...[subjectValues, specificSubtopic].filter((v) => v !== null),
-            );
-        } else {
-            ids = await prisma.$queryRawUnsafe(
-                `SELECT id FROM (
-                    SELECT id,
-                           ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn
-                    FROM "Question"
-                    WHERE "isFlagged" = false
-                    ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
-                 ) t
-                 ORDER BY t.rn, random()
-                 LIMIT ${cap}`,
-                ...[subjectValues].filter((v) => v !== null),
-            );
-        }
-
-        const idList = ids.map((r) => r.id);
-        if (idList.length === 0) {
-            return res.status(200).json({ success: true, items: [] });
-        }
-
-        const questions = await prisma.question.findMany({
-            where: { id: { in: idList } },
-        });
-
-        // Preserve the random order from the SQL query
-        const orderMap = new Map(idList.map((id, i) => [id, i]));
-        questions.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
-
+        const questions = await samplePool({ subject, subtopic, limit });
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {
         logger.error('Question fetch error', { error: error.message, stack: error.stack });
@@ -206,29 +148,30 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 });
 
 // 3. UPDATE AN EXISTING QUESTION
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authMiddleware, validate(questionUpdateSchema), async (req, res) => {
     try {
         const data = req.body;
-        // Strip baked-in choice labels here too — this route bypasses the Zod
-        // transform. `undefined` is left untouched so Prisma treats it as no-op.
-        const cleanOptions = data.options !== undefined ? sanitizeOptions(data.options) : undefined;
-        const cleanAnswer = data.answer !== undefined ? stripChoicePrefix(data.answer) : undefined;
+        // Choice-label sanitisation ("A."/"b)" prefixes) is applied by the Zod
+        // transform in questionUpdateSchema via the validate() middleware above.
+        // questionUpdateSchema is a .partial() — absent fields stay undefined,
+        // which Prisma skips (the old parseFloat(undefined) wrote NaN).
         await prisma.question.update({
             where: { id: req.params.id },
             data: {
                 subject: data.subject,
                 subtopic: data.subtopic,
                 text: data.text,
-                options: cleanOptions,
-                answer: cleanAnswer,
-                difficulty: parseFloat(data.difficulty),
+                options: data.options,
+                answer: data.answer,
+                difficulty: data.difficulty,
                 fixedExplanation: data.fixedExplanation,
-                isFlagged: data.isFlagged !== undefined ? data.isFlagged : undefined
+                isFlagged: data.isFlagged
             }
         });
 
         return res.status(200).json({ success: true });
     } catch (error) {
+        if (error.code === 'P2025') return res.status(404).json({ error: 'Question not found.' });
         return res.status(500).json({ error: 'Failed to update question.' });
     }
 });
@@ -253,31 +196,7 @@ router.put('/:id/cache', authMiddleware, async (req, res) => {
 router.post('/review', authMiddleware, async (req, res) => {
     try {
         const { subject, limit = 20 } = req.body;
-        const cap = Math.min(parseInt(limit) || 20, 2000);
-
-        const subjFilter = getSubjectFilter(subject);
-        const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
-
-        const ids = await prisma.$queryRawUnsafe(
-            `SELECT id FROM (
-                SELECT id,
-                       ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn
-                FROM "Question"
-                WHERE "isFlagged" = false
-                ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
-             ) t
-             ORDER BY t.rn, random()
-             LIMIT ${cap}`,
-            ...[subjectValues].filter((v) => v !== null),
-        );
-
-        const idList = ids.map((r) => r.id);
-        if (idList.length === 0) return res.status(200).json({ success: true, items: [] });
-
-        const questions = await prisma.question.findMany({ where: { id: { in: idList } } });
-        const orderMap = new Map(idList.map((id, i) => [id, i]));
-        questions.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
-
+        const questions = await samplePool({ subject, limit });
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {
         return res.status(500).json({ error: 'Failed to initialize active recall.' });

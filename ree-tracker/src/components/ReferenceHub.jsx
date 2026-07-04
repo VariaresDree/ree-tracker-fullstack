@@ -43,12 +43,12 @@ export default function ReferenceHub() {
                 <div className="flex gap-2 shrink-0">
                     <button
                         onClick={() => setActiveSubtopic('All')}
-                        className={`px-4 py-2 rounded-lg text-[0.65rem] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'All' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
+                        className={`px-4 py-2 rounded-lg text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'All' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
                         All
                     </button>
                     <button
                         onClick={() => setActiveSubtopic('General')}
-                        className={`px-4 py-2 rounded-lg text-[0.65rem] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'General' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
+                        className={`px-4 py-2 rounded-lg text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer ${activeSubtopic === 'General' ? 'bg-surface3 border-reeCyan text-reeCyan border' : 'bg-bg border border-border2 text-muted hover:text-textMain'}`}>
                         General
                     </button>
                 </div>

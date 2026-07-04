@@ -1,33 +1,19 @@
 // src/components/TelemetrySync.jsx
-import React, { useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { StatusPill } from './ui';
+import { RefreshCw } from './ui/icons';
 
 export default function TelemetrySync() {
     const syncStatus = useStore((state) => state.syncStatus);
     const syncQueue = useStore((state) => state.syncQueue);
-    const flushQueueToCloud = useStore((state) => state.flushQueueToCloud);
     const stats = useStore((state) => state.stats);
     const isOnline = useNetworkStatus();
 
-    useEffect(() => {
-        if (syncQueue.length === 0) return;
-
-        const syncInterval = setInterval(() => {
-            if (isOnline && syncQueue.length > 0) {
-                flushQueueToCloud();
-            }
-        }, 15000);
-
-        return () => clearInterval(syncInterval);
-    }, [isOnline, syncQueue, flushQueueToCloud]);
-
-    // Emergency Flush Hook: Triggers immediately if connectivity shifts from offline to online
-    useEffect(() => {
-        if (isOnline && syncQueue.length > 0) {
-            flushQueueToCloud();
-        }
-    }, [isOnline]);
+    // NOTE: the safety-net interval and reconnect flush that used to live here
+    // moved to hooks/useSyncLifecycle (mounted app-wide in App.jsx) — this
+    // component was never mounted, so those effects were dead code. It is now
+    // pure status UI, safe to render anywhere.
 
     const formatTime = (ts) => {
         if (!ts) return 'Awaiting initial telemetry trace...';
@@ -41,33 +27,28 @@ export default function TelemetrySync() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-reeBlue/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
 
             <div className="flex flex-col relative z-10">
-                <span className="text-sm font-bold text-textMain uppercase tracking-widest flex items-center gap-2 mb-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-reeBlue"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-                    Autonomous Telemetry Sync Engine
+                <span className="text-sm font-semibold text-textMain flex items-center gap-2 mb-1">
+                    <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-signal)]" />
+                    Sync
                 </span>
-                <span className="text-[0.65rem] text-muted2 font-mono uppercase tracking-widest mt-1">
-                    {!isOnline 
-                        ? `Offline Cache Engaged — ${syncQueue.length} Unsaved Items Buffered` 
-                        : `Last Database Check-In: ${formatTime(stats?.cloudTimestamp)}`}
+                <span className="text-[11px] text-muted2 font-mono mt-1">
+                    {!isOnline
+                        ? `Offline — ${syncQueue.length} answer${syncQueue.length === 1 ? '' : 's'} waiting to sync`
+                        : `Last backed up: ${formatTime(stats?.cloudTimestamp)}`}
                 </span>
             </div>
-            
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg border font-bold text-xs uppercase tracking-wider transition-colors relative z-10 ${
-                !isOnline ? 'bg-reeRed/10 border-reeRed/30 text-reeRed' : 
-                syncStatus === 'syncing' ? 'bg-reeAmber/10 border-reeAmber/30 text-reeAmber animate-pulse' : 
-                syncQueue.length > 0 ? 'bg-reeAmber/5 border-reeAmber/20 text-reeAmber' :
-                'bg-reeGreen/10 border-reeGreen/30 text-reeGreen'
-            }`}>
+
+            <span role="status" aria-live="polite" className="relative z-10">
                 {!isOnline ? (
-                    <><span>🔴</span> Offline Mode Active</>
+                    <StatusPill tone="danger">Offline — changes saved locally</StatusPill>
                 ) : syncStatus === 'syncing' ? (
-                    <><span className="telemetry-spinner !w-3 !h-3 border-reeAmber border-t-transparent animate-spin rounded-full"></span> Flushing Batch...</>
+                    <StatusPill tone="amber">Syncing…</StatusPill>
                 ) : syncQueue.length > 0 ? (
-                    <><span>⚠️</span> Pending Sync ({syncQueue.length})</>
+                    <StatusPill tone="amber">Waiting to sync ({syncQueue.length})</StatusPill>
                 ) : (
-                    <><span>🟢</span> Subsystems Secured</>
+                    <StatusPill tone="success">Backed up</StatusPill>
                 )}
-            </div>
+            </span>
         </div>
     );
 }

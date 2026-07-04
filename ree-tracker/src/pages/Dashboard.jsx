@@ -1,5 +1,6 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useTelemetrySlice, useTOSSlice } from '../store/slices';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,13 +13,13 @@ import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
 import { generateBoardReadinessReport } from '../services/geminiApi';
 
-import { apiRequest } from '../services/dbQueries';
+import { apiRequest, fetchReadinessScore } from '../services/dbQueries';
 import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
 import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
 import PageHeader from '../components/PageHeader';
-import { Panel, KpiTile, StatusPill, Button, Card, Badge } from '../components/ui';
+import { Panel, KpiTile, StatusPill, Button, Card, Badge, EmptyState, SegmentedControl } from '../components/ui';
 import {
   Target, Gauge, ListChecks, Timer, Flame, AudioWaveform,
   Sparkles, ArrowRight, CalendarDays, ShieldAlert,
@@ -55,6 +56,10 @@ export default function Dashboard() {
   const [showPurgeModal, setShowPurgeModal] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
   const [velocityRange, setVelocityRange] = useState('day'); // 'day' | 'week' | 'month'
+  // Composite readiness from /api/readiness (coverage + accuracy + θ +
+  // consistency + blind spots) — a truer "am I ready" number than the old
+  // pure-θ formula, and a DIFFERENT metric from the θ trajectory chart.
+  const [readiness, setReadiness] = useState(null);
 
   useEffect(() => {
     const fetchSQLAnalytics = async () => {
@@ -69,7 +74,7 @@ export default function Dashboard() {
           Object.keys(safeTOS).forEach((subject) => {
             safeTOS[subject].forEach((subtopic) => {
               normalizedMicroTopics[subtopic] = {
-                subject, subtopic, attempts: 0, correct: 0, totalTime: 0,
+                subject, subtopic, attempts: 0, correct: 0, totalTime: 0, timedAttempts: 0,
               };
             });
           });
@@ -83,7 +88,11 @@ export default function Dashboard() {
                 subtopic: actualSubtopicName,
                 attempts: rawData.totalAttempts || rawData.attempts || 0,
                 correct: rawData.correctHits || rawData.correct || 0,
+                // ms, matching the local optimistic microTopics shape.
                 totalTime: (rawData.totalTimeSecs || 0) * 1000,
+                // How many of those attempts had usable timing (rest excluded
+                // as corrupt) — the heatmap averages over this count.
+                timedAttempts: rawData.timedAttempts || 0,
               };
             }
           });
@@ -106,23 +115,21 @@ export default function Dashboard() {
     };
 
     fetchSQLAnalytics();
+    // Composite readiness is computed per-request on the backend — refetch on
+    // the same triggers so the KPI is always as fresh as the rest.
+    fetchReadinessScore().then((r) => { if (r) setReadiness(r); }).catch(() => {});
   }, [currentUser, dynamicTOS, setStats, syncTick]);
 
   const activeStats = useMemo(() => {
     if (!stats && !sqlData) return null;
     if (!sqlData) return stats;
 
-    const sqlMicroTopics = {};
-    if (sqlData.microTopics) {
-      Object.keys(sqlData.microTopics).forEach((subtopicName) => {
-        sqlMicroTopics[subtopicName] = {
-          attempts: sqlData.microTopics[subtopicName].totalAttempts || 0,
-          correct: sqlData.microTopics[subtopicName].correctHits || 0,
-          subject: sqlData.microTopics[subtopicName].subject,
-          totalTime: (sqlData.microTopics[subtopicName].totalTimeSecs || 0) * 1000,
-        };
-      });
-    }
+    // sqlData.microTopics was ALREADY normalized at fetch time to
+    // { subject, subtopic, attempts, correct, totalTime(ms) }. The old code
+    // re-read the RAW backend field names (totalAttempts/correctHits/
+    // totalTimeSecs) off the normalized objects — everything came out zero,
+    // which is why the heatmap and speed view looked dead.
+    const sqlMicroTopics = sqlData.microTopics || {};
 
     const mergedMicroTopics = { ...sqlMicroTopics };
     const localMicroTopics = stats?.microTopics || {};
@@ -147,27 +154,31 @@ export default function Dashboard() {
       irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating ?? stats?.irt?.theta ?? 0 },
       matrix,
       microTopics: mergedMicroTopics,
-      thetaHistory:
-        sqlData.thetaHistory && sqlData.thetaHistory.length > (stats?.thetaHistory?.length || 0)
-          ? sqlData.thetaHistory
-          : stats?.thetaHistory || sqlData.thetaHistory || [],
+      // Server history is canonical whenever we have it — a LONGER stale
+      // local array used to win and lag the chart behind the fresh KPI.
+      thetaHistory: sqlData.thetaHistory?.length
+        ? sqlData.thetaHistory
+        : stats?.thetaHistory || [],
       activityCalendar: { ...(sqlData.activityCalendar || {}), ...(stats?.activityCalendar || {}) },
       dailyMath: pickMax(todayStats.Math, sqlData.profile?.dailyMath, stats?.dailyMath),
       dailyESAS: pickMax(todayStats.ESAS, sqlData.profile?.dailyESAS, stats?.dailyESAS),
       dailyEE: pickMax(todayStats.EE, sqlData.profile?.dailyEE, stats?.dailyEE),
       globalStreak: pickMax(sqlData.profile?.globalStreak, stats?.globalStreak),
       totalAnswered: pickMax(sqlData.profile?.totalAnswered, stats?.totalAnswered),
-      totalCorrect: pickMax(stats?.totalCorrect),
+      totalCorrect: pickMax(
+        stats?.totalCorrect,
+        Object.values(mergedMicroTopics).reduce((s, t) => s + (t.correct || 0), 0),
+      ),
       examDate: stats?.examDate || sqlData.profile?.examDate || null,
       dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50,
     };
   }, [stats, sqlData]);
 
   const currentTheta = activeStats?.irt?.theta || 0;
-  const readinessScore = useMemo(
-    () => Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100))),
-    [currentTheta]
-  );
+  // Composite score from /api/readiness; falls back to the θ-linear map only
+  // until the first readiness fetch resolves.
+  const readinessScore = readiness?.score
+    ?? Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
 
   // KPI strip values, derived from the same microTopics aggregate the heatmap uses.
   const kpi = useMemo(() => {
@@ -264,68 +275,39 @@ export default function Dashboard() {
         }
       />
 
+      {/* First-run hero — an all-zero dashboard should invite action, not
+          look like failure. */}
+      {kpi.answered === 0 && !isFetchingSQL && (
+        <Card elevated glow grain>
+          <EmptyState
+            icon={Sparkles}
+            title="Start your first review"
+            description="Answer your first questions to unlock readiness tracking, topic heatmaps, and the confidence matrix."
+            action={
+              <>
+                <Button as={Link} to="/review" size="lg">
+                  Start a quick 20 review
+                </Button>
+                <Button as={Link} to="/simulator" variant="ghost">
+                  Explore the simulator
+                </Button>
+              </>
+            }
+          />
+        </Card>
+      )}
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-        <KpiTile icon={Target} tone="velocity" label="Board readiness" value={readinessScore} suffix="%" hint="/ 70% pass" />
+        <KpiTile icon={Target} tone="velocity" label="Board readiness" value={readinessScore} suffix="%" hint={readiness ? 'coverage · accuracy · θ' : '/ 70% pass'} />
         <KpiTile icon={Gauge} tone="success" label="Global accuracy" value={kpi.accuracy} suffix="%" />
         <KpiTile icon={ListChecks} tone="signal" label="Questions answered" value={kpi.answered} />
         <KpiTile icon={Timer} tone="signal" label="Avg time / question" value={kpi.avgSec} precision={1} suffix="s" />
         <KpiTile icon={Flame} tone="amber" label="Day streak" value={kpi.streak} hint="days" className="col-span-2 md:col-span-1" />
       </div>
 
-      {/* Hero: θ readiness signal + trajectory */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <Panel
-          icon={AudioWaveform}
-          eyebrow="Readiness signal"
-          title="Ability trajectory (θ)"
-          className="lg:col-span-2 grain-overlay"
-          bodyClassName="h-[260px] sm:h-[300px]"
-          action={
-            <div className="flex items-center gap-2">
-              <Badge tone="velocity" className="hidden sm:inline-flex tabular-nums">θ {Number(currentTheta).toFixed(2)}</Badge>
-              <div className="flex items-center gap-1 bg-surface2 p-1 rounded-lg" role="group" aria-label="Velocity time range">
-                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([val, label]) => (
-                  <button
-                    key={val}
-                    onClick={() => setVelocityRange(val)}
-                    aria-pressed={velocityRange === val}
-                    className={`px-2.5 py-1 rounded-md text-[0.65rem] font-medium tracking-wide transition-colors cursor-pointer ${
-                      velocityRange === val
-                        ? 'bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)]'
-                        : 'text-muted hover:text-textMain'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          }
-        >
-          <ThetaVelocityChart history={activeStats?.thetaHistory} range={velocityRange} />
-        </Panel>
-        <TrajectoryCard />
-      </div>
-
-      {/* Mastery: topic heatmap + confidence matrix */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div className="min-h-[380px] lg:h-[460px]">
-          <HeatmapChart stats={activeStats} />
-        </div>
-        <ConfidenceMatrix stats={activeStats} />
-      </div>
-
-      {/* Action: prescription + critical focus */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <PrescriptionPanel />
-        <RecommendedModule stats={activeStats} />
-      </div>
-
-      {/* Pre-board simulation ledger */}
-      <MockBoardAnalytics />
-
-      {/* Daily targets + AI report */}
+      {/* Daily targets + AI report — pinned near the top so the day's goals
+          and the exam-config settings are one glance/click away. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2">
           <MissionControl stats={activeStats} onPurgeRequest={() => setShowPurgeModal(true)} />
@@ -360,6 +342,53 @@ export default function Dashboard() {
           </Button>
         </Card>
       </div>
+
+      {/* Hero: θ readiness signal + trajectory */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <Panel
+          icon={AudioWaveform}
+          eyebrow="Ability signal"
+          title="Ability trajectory (θ)"
+          className="lg:col-span-2 grain-overlay"
+          bodyClassName="h-[260px] sm:h-[300px]"
+          action={
+            <div className="flex items-center gap-2">
+              <Badge tone="velocity" className="hidden sm:inline-flex tabular-nums">θ {Number(currentTheta).toFixed(2)}</Badge>
+              <SegmentedControl
+                size="sm"
+                label="Velocity time range"
+                value={velocityRange}
+                onChange={setVelocityRange}
+                options={[
+                  { value: 'day', label: 'Day' },
+                  { value: 'week', label: 'Week' },
+                  { value: 'month', label: 'Month' },
+                ]}
+              />
+            </div>
+          }
+        >
+          <ThetaVelocityChart history={activeStats?.thetaHistory} range={velocityRange} />
+        </Panel>
+        <TrajectoryCard />
+      </div>
+
+      {/* Mastery: topic heatmap + confidence matrix */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="min-h-[380px] lg:h-[460px]">
+          <HeatmapChart stats={activeStats} />
+        </div>
+        <ConfidenceMatrix stats={activeStats} />
+      </div>
+
+      {/* Action: prescription + critical focus */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <PrescriptionPanel />
+        <RecommendedModule stats={activeStats} />
+      </div>
+
+      {/* Pre-board simulation ledger */}
+      <MockBoardAnalytics />
 
       {/* MODALS */}
       {showAiModal && (

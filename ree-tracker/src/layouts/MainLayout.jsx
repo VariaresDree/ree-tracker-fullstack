@@ -1,10 +1,10 @@
 // src/layouts/MainLayout.jsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import Pomodoro from '../components/Pomodoro';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
-import FocusTrap from '../components/FocusTrap';
+import { Button, Modal } from '../components/ui';
 import { useStore } from '../store/useStore';
 import {
   LayoutDashboard, BrainCircuit, Zap, Swords, Library, FolderOpen, User,
@@ -200,7 +200,7 @@ export default function MainLayout({ children }) {
                           {!isSidebarCollapsed && (
                             <div className="flex flex-col min-w-0 ml-3">
                               <span className="text-sm font-semibold tracking-tight truncate">{item.label}</span>
-                              <span className={`text-[0.65rem] mt-0.5 truncate ${on ? 'text-[color-mix(in_srgb,var(--accent)_75%,var(--text-muted2))]' : 'text-muted2'}`}>
+                              <span className={`text-[11px] mt-0.5 truncate ${on ? 'text-[color-mix(in_srgb,var(--accent)_75%,var(--text-muted2))]' : 'text-muted2'}`}>
                                 {item.desc}
                               </span>
                             </div>
@@ -235,7 +235,7 @@ export default function MainLayout({ children }) {
             {!isSidebarCollapsed && (
               <div className="flex flex-col overflow-hidden min-w-0">
                 <span className="text-sm font-semibold text-textMain truncate">{currentUser?.displayName || 'Operator'}</span>
-                <span className="text-[0.6rem] text-muted font-mono uppercase tracking-widest mt-0.5">Profile & settings</span>
+                <span className="text-[11px] text-muted font-mono uppercase tracking-widest mt-0.5">Profile & settings</span>
               </div>
             )}
           </NavLink>
@@ -263,7 +263,7 @@ export default function MainLayout({ children }) {
               to={item.path}
               onClick={(e) => handleNavClick(e, item.path)}
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-1 py-2.5 text-[0.6rem] font-medium tracking-wide transition-colors ${
+                `flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium tracking-wide transition-colors ${
                   isActive && item.path !== '/simulator' ? 'text-[var(--accent)]' : 'text-muted hover:text-textMain'
                 }`
               }
@@ -276,36 +276,23 @@ export default function MainLayout({ children }) {
       </nav>
 
       {/* Simulator warning modal */}
-      {showSimulatorModal && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={showSimulatorModal}>
-            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full modal-entrance">
-              <h3 className="text-lg font-semibold text-reeAmber mb-2 flex items-center gap-2">
-                <Zap size={20} strokeWidth={2} /> Pressure chamber entry
-              </h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">
-                The Board Simulator forces a restrictive, distraction-free environment mirroring actual PRC
-                conditions. Timers are strict.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  data-close-modal
-                  onClick={() => setShowSimulatorModal(false)}
-                  className="px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmSimulator}
-                  className="px-4 py-2 bg-reeAmber hover:brightness-110 text-bg rounded-lg text-xs font-bold tracking-wide shadow-md transition-all cursor-pointer btn-press"
-                >
-                  Start simulation
-                </button>
-              </div>
-            </div>
-          </FocusTrap>
-        </div>
-      )}
+      <Modal
+        open={showSimulatorModal}
+        onClose={() => setShowSimulatorModal(false)}
+        tone="amber"
+        icon={Zap}
+        title="Enter the Board Simulator?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowSimulatorModal(false)}>Cancel</Button>
+            <Button tone="amber" onClick={confirmSimulator}>Start simulation</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">
+          The Board Simulator is a distraction-free environment mirroring actual PRC conditions. Timers are strict.
+        </p>
+      </Modal>
     </div>
   );
 }

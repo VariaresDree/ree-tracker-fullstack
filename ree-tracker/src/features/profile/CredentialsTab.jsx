@@ -26,7 +26,7 @@ export default function CredentialsTab({ currentUser, stats }) {
             </div>
             
             <div className="flex-1 flex flex-col justify-center text-center sm:text-left relative z-10">
-                <div className="text-[0.65rem] text-reePurple font-bold uppercase tracking-widest mb-1 flex items-center justify-center sm:justify-start gap-2">
+                <div className="text-[11px] text-reePurple font-bold uppercase tracking-widest mb-1 flex items-center justify-center sm:justify-start gap-2">
                     {readinessScore >= 70 ? <><span className="w-2 h-2 bg-reePurple rounded-full animate-pulse"></span> Unlocked</> : <><span className="w-2 h-2 bg-reeRed rounded-full"></span> Locked (Requires 70% Readiness)</>}
                 </div>
                 <h3 className="text-2xl font-black text-textMain tracking-tight mb-2">Certificate of Operational Readiness</h3>
@@ -34,12 +34,12 @@ export default function CredentialsTab({ currentUser, stats }) {
                     An officially formatted, verifiable digital document confirming your statistical probability of passing the actual licensure examination based on deep telemetry.
                 </p>
                 
-                <button 
+                <button
                     onClick={handleIssueCertificate}
                     disabled={readinessScore < 70}
-                    className={`py-3 px-8 rounded-xl text-xs font-bold uppercase tracking-wider transition-all self-center sm:self-start shadow-md cursor-pointer ${readinessScore >= 70 ? 'bg-reePurple hover:bg-purple-600 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]' : 'bg-surface2 text-muted border border-border2 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                    className={`py-3 px-8 rounded-[var(--radius-default)] text-xs font-bold uppercase tracking-wider transition-all self-center sm:self-start shadow-md cursor-pointer ${readinessScore >= 70 ? 'bg-[var(--accent)] hover:brightness-110 text-white elevate-glow' : 'bg-surface2 text-muted border border-border2 disabled:opacity-50 disabled:cursor-not-allowed'}`}
                 >
-                    {readinessScore >= 70 ? '📥 Download Certificate (PDF)' : 'Requirements Not Met'}
+                    {readinessScore >= 70 ? 'Download certificate (PDF)' : 'Requires 70% readiness'}
                 </button>
             </div>
         </div>

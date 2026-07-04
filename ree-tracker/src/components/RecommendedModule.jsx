@@ -7,28 +7,34 @@ import { Target, ArrowRight } from './ui/icons';
 export default function RecommendedModule({ stats }) {
   const navigate = useNavigate();
 
-  // Find the subtopic with the most mistakes (min 3 attempts to qualify).
+  // Find the subtopic with the most mistakes. Prefer topics with 3+ attempts
+  // (statistically meaningful); fall back to ANY attempted topic with a
+  // mistake so the widget starts guiding from the very first session instead
+  // of sitting empty.
   const weakestLink = useMemo(() => {
     if (!stats?.microTopics) return null;
-    let topic = null;
-    let score = -1;
-    Object.entries(stats.microTopics).forEach(([name, data]) => {
-      if (data.attempts >= 3) {
-        const mistakes = data.attempts - data.correct;
-        if (mistakes > score) {
-          score = mistakes;
-          topic = name;
+    const pick = (minAttempts) => {
+      let topic = null;
+      let score = -1;
+      Object.entries(stats.microTopics).forEach(([name, data]) => {
+        if ((data.attempts || 0) >= minAttempts) {
+          const mistakes = (data.attempts || 0) - (data.correct || 0);
+          if (mistakes > score) {
+            score = mistakes;
+            topic = name;
+          }
         }
-      }
-    });
-    return { topic, score };
+      });
+      return topic && score > 0 ? { topic, score, lowData: minAttempts < 3 } : null;
+    };
+    return pick(3) || pick(1);
   }, [stats]);
 
   if (!weakestLink?.topic) {
     return (
       <Panel icon={Target} eyebrow="Focus" title="Critical focus" className="h-full">
         <p className="text-sm text-muted2 leading-relaxed">
-          Answer at least 3 items per topic in any session to unlock targeting.
+          Answer a few questions in any session — your weakest topic shows up here.
         </p>
       </Panel>
     );
@@ -57,14 +63,14 @@ export default function RecommendedModule({ stats }) {
 
         <div className="flex items-center gap-4 text-xs">
           <div className="flex flex-col">
-            <span className="text-[0.6rem] text-muted uppercase tracking-wider">Risk level</span>
+            <span className="text-[11px] text-muted uppercase tracking-wider">Risk level</span>
             <span className="font-semibold" style={{ color: 'var(--accent-danger)' }}>
-              High · {weakestLink.score} error{weakestLink.score === 1 ? '' : 's'}
+              {weakestLink.lowData ? 'Early signal' : 'High'} · {weakestLink.score} error{weakestLink.score === 1 ? '' : 's'}
             </span>
           </div>
           <div className="w-px h-6 bg-border" />
           <div className="flex flex-col">
-            <span className="text-[0.6rem] text-muted uppercase tracking-wider">Recommended</span>
+            <span className="text-[11px] text-muted uppercase tracking-wider">Recommended</span>
             <span className="font-semibold text-textMain">Active recall</span>
           </div>
         </div>

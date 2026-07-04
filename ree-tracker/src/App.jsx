@@ -3,9 +3,11 @@ import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useStore } from './store/useStore';
+import { useSyncLifecycle } from './hooks/useSyncLifecycle';
 import { Toaster } from 'react-hot-toast';
 
 import ErrorBoundary from './components/ErrorBoundary';
+import RouteFallback from './components/RouteFallback';
 import { DashboardSkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
 import ExamLayout from './layouts/ExamLayout';
@@ -26,6 +28,10 @@ const Gauntlet = lazy(() => import('./pages/Gauntlet'));
 const SecureAppTerminal = () => {
   const { currentUser } = useAuth();
 
+  // App-lifetime telemetry guardian: 15s safety-net flush, reconnect flush,
+  // and a last-gasp keepalive flush when the tab hides/closes.
+  useSyncLifecycle();
+
   useEffect(() => {
     // The previous Firestore listener and TOS initialization have been removed.
     // User state is now securely handled by Zustand local storage caching
@@ -38,9 +44,11 @@ const SecureAppTerminal = () => {
     <Router>
       <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#1a2235', color: '#f1f5f9' } }} />
       
-      <Suspense fallback={<DashboardSkeleton />}>
+      {/* Neutral fallback for all routes; the dashboard nests its own
+          skeleton so only "/" shows the dashboard-shaped placeholder. */}
+      <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/" element={<MainLayout><ErrorBoundary name="Dashboard"><Dashboard /></ErrorBoundary></MainLayout>} />
+          <Route path="/" element={<MainLayout><ErrorBoundary name="Dashboard"><Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense></ErrorBoundary></MainLayout>} />
           <Route path="/review" element={<MainLayout><ErrorBoundary name="Active Review"><ActiveReview /></ErrorBoundary></MainLayout>} />
           <Route path="/library" element={<MainLayout><ErrorBoundary name="Library"><Library /></ErrorBoundary></MainLayout>} />
           <Route path="/materials" element={<MainLayout><ErrorBoundary name="Materials"><Materials /></ErrorBoundary></MainLayout>} />

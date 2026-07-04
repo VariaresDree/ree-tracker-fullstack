@@ -1,22 +1,30 @@
 // src/features/library/LibraryOverview.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useStore } from '../../store/useStore';
-import { 
-    updateDynamicTOS, 
-    fetchQuarantineQueue, 
-    approveQuarantinedQuestion, 
-    deleteQuestionFromBank 
+import {
+    updateDynamicTOS,
+    fetchQuarantineQueue,
+    approveQuarantinedQuestion,
+    deleteQuestionFromBank
 } from '../../services/dbQueries';
-import FocusTrap from '../../components/FocusTrap';
-import LatexRenderer from '../../components/LatexRenderer'; 
+import { Button, Modal, FormField, Select, Input, Badge, EmptyState, StatusPill } from '../../components/ui';
+import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers } from '../../components/ui/icons';
+import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
+// Per-subject track colors — data-viz distinction routed through theme vars.
+const TRACK_ACCENT = {
+  Mathematics: 'var(--accent-signal)',
+  ESAS: 'var(--accent-velocity)',
+  EE: 'var(--color-reeAmber)',
+};
+
 export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaultMetadata, manualMode, setManualMode }) {
-  
+
   // 🚀 Reads dynamicTOS and the setter securely from the global store
   const { isAdmin, dynamicTOS, setDynamicTOS } = useStore();
   const [isSyncing, setIsSyncing] = useState(false);
-  
+
   // --- TOS MANAGER STATE ---
   const [showTOSManager, setShowTOSManager] = useState(false);
   const [editTOS, setEditTOS] = useState(null);
@@ -37,7 +45,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           const items = await fetchQuarantineQueue();
           setQuarantineItems(items);
       } catch (err) {
-          toast.error("Failed to access Quarantine Sector.");
+          toast.error("Couldn't load the review queue.");
       }
       setIsLoadingQueue(false);
   };
@@ -46,10 +54,10 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
       try {
           await approveQuarantinedQuestion(item.id, item.subject, item.subtopic);
           setQuarantineItems(prev => prev.filter(q => q.id !== item.id));
-          toast.success("Anomaly Verified & Deployed to Active Vault.");
-          resyncVaultMetadata(); 
+          toast.success("Question approved.");
+          resyncVaultMetadata();
       } catch (err) {
-          toast.error("Verification protocol failed.");
+          toast.error("Approval failed.");
       }
   };
 
@@ -57,9 +65,9 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
       try {
           await deleteQuestionFromBank(id);
           setQuarantineItems(prev => prev.filter(q => q.id !== id));
-          toast.success("Hallucination purged from matrix.");
+          toast.success("Question deleted.");
       } catch (err) {
-          toast.error("Purge protocol failed.");
+          toast.error("Delete failed.");
       }
   };
 
@@ -67,16 +75,16 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
     setIsSyncing(true);
     try {
       await resyncVaultMetadata();
-      toast.success("Matrix tally resynchronized.");
+      toast.success("Vault counts refreshed.");
     } catch (err) {
-      toast.error("Failed to resync vault.");
+      toast.error("Refresh failed.");
     }
     setIsSyncing(false);
   };
 
   // --- TOS MANAGER HANDLERS ---
   const openTOSManager = () => {
-      setEditTOS(JSON.parse(JSON.stringify(dynamicTOS))); 
+      setEditTOS(JSON.parse(JSON.stringify(dynamicTOS)));
       setShowTOSManager(true);
   };
 
@@ -91,7 +99,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           [targetSubject]: [...prev[targetSubject], newSubtopic.trim()].sort()
       }));
       setNewSubtopic('');
-      toast.success(`Staged: ${newSubtopic.trim()}`);
+      toast.success(`Added: ${newSubtopic.trim()}`);
   };
 
   const handleRemoveSubtopic = (subject, subtopicToRemove) => {
@@ -107,68 +115,66 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           await updateDynamicTOS(editTOS);
           setDynamicTOS(editTOS); // Updates global UI immediately without reload
           setShowTOSManager(false);
-          toast.success("System TOS Matrix updated successfully.");
+          toast.success("Syllabus updated.");
       } catch (error) {
-          toast.error("Failed to push TOS changes to cloud.");
+          toast.error("Couldn't save the syllabus changes.");
       }
       setIsSavingTOS(false);
   };
 
   return (
-    <div className="bg-surface border border-border2 rounded-xl p-6 shadow-sm flex flex-col gap-6">
-      <div className="flex justify-between items-center border-b border-border2 pb-4 flex-wrap gap-4">
-        <h3 className="text-lg font-black text-textMain uppercase tracking-widest flex items-center gap-2">
-          <span className="text-reePurple">🗄️</span> Global Vault Matrix
+    <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-6 shadow-sm flex flex-col gap-6">
+      <div className="flex justify-between items-center border-b border-border pb-4 flex-wrap gap-4">
+        <h3 className="text-lg font-semibold text-textMain tracking-tight flex items-center gap-2">
+          <Layers size={18} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" /> Vault overview
         </h3>
-        <div className="flex flex-wrap gap-3 z-10">
+        <div className="flex flex-wrap gap-2 z-10">
           {isAdmin && (
               <>
-                  <button onClick={openQuarantineQueue} className="px-4 py-2 bg-reeAmber/10 hover:bg-reeAmber/20 text-reeAmber border border-reeAmber/30 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.1)] flex items-center gap-2">
-                      <span>🛡️</span> Quarantine Queue
-                  </button>
-                  <button onClick={openTOSManager} className="px-4 py-2 bg-reeCyan/10 hover:bg-reeCyan/20 text-reeCyan border border-reeCyan/30 text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-[0_0_10px_rgba(6,182,212,0.1)] flex items-center gap-2">
-                      <span>⚙️</span> Configure TOS
-                  </button>
+                  <Button size="sm" variant="outline" tone="amber" onClick={openQuarantineQueue}>
+                      <Shield size={14} strokeWidth={1.75} aria-hidden="true" /> Review queue
+                  </Button>
+                  <Button size="sm" variant="outline" tone="signal" onClick={openTOSManager}>
+                      <Settings2 size={14} strokeWidth={1.75} aria-hidden="true" /> Edit syllabus
+                  </Button>
               </>
           )}
-          <button onClick={handleResync} disabled={isSyncing} className="px-4 py-2 bg-surface2 hover:bg-surface3 border border-border2 text-xs font-bold text-muted rounded-lg transition-colors cursor-pointer disabled:opacity-50">
-            {isSyncing ? 'Syncing...' : '🔄 Resync Tally'}
-          </button>
-          <button type="button" onClick={() => setManualMode(!manualMode)} className="px-4 py-2 bg-surface2 hover:bg-surface3 border border-border2 text-xs font-bold text-textMain rounded-lg transition-colors cursor-pointer">
-            {manualMode ? '← Return to Automated Ingestion' : '+ Manual Entry Terminal'}
-          </button>
+          <Button size="sm" variant="secondary" loading={isSyncing} disabled={isSyncing} onClick={handleResync}>
+            {!isSyncing && <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />} Refresh counts
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setManualMode(!manualMode)}>
+            {manualMode ? 'Back to AI ingestion' : <><Plus size={14} strokeWidth={1.75} aria-hidden="true" /> Add manually</>}
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-bg border border-border2 rounded-xl text-center">
-          <div className="text-3xl font-black text-textMain">{serverStats?.total || 0}</div>
-          <div className="text-[0.65rem] uppercase tracking-widest text-muted mt-1 font-bold">Total Items</div>
-        </div>
-        <div className="p-4 bg-bg border border-reeCyan/20 rounded-xl text-center shadow-[0_0_15px_rgba(6,182,212,0.05)]">
-          <div className="text-3xl font-black text-reeCyan">{serverStats?.math || 0}</div>
-          <div className="text-[0.65rem] uppercase tracking-widest text-muted mt-1 font-bold">Math Track</div>
-        </div>
-        <div className="p-4 bg-bg border border-reePurple/20 rounded-xl text-center shadow-[0_0_15px_rgba(139,92,246,0.05)]">
-          <div className="text-3xl font-black text-reePurple">{serverStats?.esas || 0}</div>
-          <div className="text-[0.65rem] uppercase tracking-widest text-muted mt-1 font-bold">ESAS Track</div>
-        </div>
-        <div className="p-4 bg-bg border border-reeAmber/20 rounded-xl text-center shadow-[0_0_15px_rgba(245,158,11,0.05)]">
-          <div className="text-3xl font-black text-reeAmber">{serverStats?.ee || 0}</div>
-          <div className="text-[0.65rem] uppercase tracking-widest text-muted mt-1 font-bold">EE Track</div>
-        </div>
+        {[
+          { label: 'Total questions', value: serverStats?.total || 0, accent: null },
+          { label: 'Mathematics', value: serverStats?.math || 0, accent: TRACK_ACCENT.Mathematics },
+          { label: 'ESAS', value: serverStats?.esas || 0, accent: TRACK_ACCENT.ESAS },
+          { label: 'EE', value: serverStats?.ee || 0, accent: TRACK_ACCENT.EE },
+        ].map((s) => (
+          <div
+            key={s.label}
+            className="p-4 bg-bg border rounded-[var(--radius-lg)] text-center"
+            style={{ borderColor: s.accent ? `color-mix(in srgb, ${s.accent} 20%, transparent)` : 'var(--border-light)' }}
+          >
+            <div className="text-display text-3xl tabular-nums" style={{ color: s.accent || 'var(--text-main)' }}>{s.value}</div>
+            <div className="text-eyebrow mt-1">{s.label}</div>
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 animate-in fade-in">
         {['Mathematics', 'ESAS', 'EE'].map(s => {
-          const trackColor = s === 'Mathematics' ? 'text-reeCyan' : s === 'ESAS' ? 'text-reePurple' : 'text-reeAmber';
-          const trackBorder = s === 'Mathematics' ? 'border-reeCyan/20' : s === 'ESAS' ? 'border-reePurple/20' : 'border-reeAmber/20';
+          const accent = TRACK_ACCENT[s];
           const safeSubj = s === 'Mathematics' ? 'Math' : s;
 
           return (
-            <div key={s} className={`p-5 bg-surface2 border rounded-xl flex flex-col h-[280px] ${trackBorder}`}>
+            <div key={s} className="p-5 bg-surface2 border rounded-[var(--radius-lg)] flex flex-col h-[280px]" style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}>
               <div className="border-b border-border2 pb-3 mb-3 shrink-0">
-                <div className={`text-sm font-black uppercase tracking-widest ${trackColor}`}>{s}</div>
+                <div className="text-eyebrow" style={{ color: accent }}>{s}</div>
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2">
                 {/* 🚀 FIXED: Maps directly over the dynamic store array */}
@@ -177,7 +183,12 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                   return (
                     <div key={sub} className="flex justify-between items-center text-xs group shrink-0">
                       <span className={`truncate pr-3 transition-colors ${count > 0 ? 'text-textMain font-medium' : 'text-muted2 opacity-50'}`} title={sub}>{sub}</span>
-                      <span className={`font-mono text-[0.65rem] px-2 py-0.5 rounded border ${count > 0 ? (s === 'Mathematics' ? 'bg-reeCyan/10 border-reeCyan/30 text-reeCyan font-bold' : s === 'ESAS' ? 'bg-reePurple/10 border-reePurple/30 text-reePurple font-bold' : 'bg-reeAmber/10 border-reeAmber/30 text-reeAmber font-bold') : 'bg-bg border-border2 text-muted2 opacity-30'}`}>{count}</span>
+                      <span
+                        className="font-mono text-[11px] px-2 py-0.5 rounded-[var(--radius-sm)] border tabular-nums"
+                        style={count > 0
+                          ? { color: accent, background: `color-mix(in srgb, ${accent} 10%, transparent)`, borderColor: `color-mix(in srgb, ${accent} 30%, transparent)`, fontWeight: 700 }
+                          : { opacity: 0.3 }}
+                      >{count}</span>
                     </div>
                   );
                 })}
@@ -187,145 +198,135 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
         })}
       </div>
 
-      {/* --- TOS MANAGER MODAL --- */}
-      {showTOSManager && editTOS && (
-          <div className="fixed inset-0 bg-bg/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-              <FocusTrap active={showTOSManager}>
-                  <div className="bg-surface border border-reeCyan/40 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-                      
-                      <div className="p-5 border-b border-border2 bg-surface2/50 flex justify-between items-center shrink-0">
-                          <h3 className="text-xl font-black text-textMain flex items-center gap-2">
-                              <span className="text-reeCyan">⚙️</span> System TOS Configuration
-                          </h3>
-                          <button onClick={() => setShowTOSManager(false)} className="text-muted hover:text-reeRed text-sm font-bold transition-colors cursor-pointer">✕ Close</button>
+      {/* --- Syllabus editor --- */}
+      <Modal
+        open={showTOSManager && !!editTOS}
+        onClose={() => setShowTOSManager(false)}
+        size="xl"
+        icon={Settings2}
+        title="Edit the syllabus"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowTOSManager(false)}>Discard changes</Button>
+            <Button loading={isSavingTOS} disabled={isSavingTOS} onClick={saveTOSChanges}>Save syllabus</Button>
+          </>
+        }
+      >
+        {editTOS && (
+          <>
+            <p className="text-sm text-muted2 mb-6">
+              Add or remove topics. Changes apply immediately to AI generation and the dashboard heatmaps.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 mb-8 p-4 border rounded-[var(--radius-lg)]"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)',
+                background: 'color-mix(in srgb, var(--accent-signal) 5%, transparent)',
+              }}
+            >
+              <FormField label="Subject" className="sm:w-1/3">
+                <Select value={targetSubject} onChange={(e) => setTargetSubject(e.target.value)}>
+                  {Object.keys(editTOS).map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="New topic" className="flex-1">
+                <Input
+                  type="text"
+                  value={newSubtopic}
+                  onChange={(e) => setNewSubtopic(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSubtopic())}
+                  placeholder="e.g. Vector Analysis"
+                />
+              </FormField>
+              <div className="flex items-end">
+                <Button tone="signal" onClick={handleAddSubtopic} disabled={!newSubtopic.trim()}>
+                  Add topic
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {Object.keys(editTOS).map(subject => (
+                  <div key={subject} className="bg-surface2/40 border border-border rounded-[var(--radius-lg)] p-4 flex flex-col max-h-[350px]">
+                      <h4 className="text-eyebrow mb-3 pb-2 border-b border-border shrink-0">{subject}</h4>
+                      <div className="flex-1 flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2">
+                          {editTOS[subject].map(sub => (
+                              <div key={sub} className="flex justify-between items-center bg-bg border border-border p-2 rounded-[var(--radius-sm)] group transition-colors shrink-0">
+                                  <span className="text-xs font-medium text-muted2 truncate pr-2" title={sub}>{sub}</span>
+                                  <button
+                                      onClick={() => handleRemoveSubtopic(subject, sub)}
+                                      aria-label={`Remove ${sub}`}
+                                      className="text-muted hover:text-[var(--accent-danger)] p-1 rounded-[var(--radius-sm)] transition-colors opacity-50 group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer"
+                                  >
+                                      <X size={12} strokeWidth={2} aria-hidden="true" />
+                                  </button>
+                              </div>
+                          ))}
                       </div>
-
-                      <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-bg">
-                          <p className="text-sm text-muted2 mb-6">
-                              Add or remove specific engineering subtopics. Changes here will instantly rewrite the AI generation parameters and dashboard matrices globally.
-                          </p>
-
-                          <div className="flex flex-col sm:flex-row gap-3 mb-8 p-4 border border-reeCyan/30 bg-reeCyan/5 rounded-xl">
-                              <select 
-                                  value={targetSubject} 
-                                  onChange={(e) => setTargetSubject(e.target.value)} 
-                                  className="bg-surface border border-border2 text-textMain p-2.5 rounded-lg text-sm font-bold outline-none focus:border-reeCyan cursor-pointer sm:w-1/3"
-                              >
-                                  {Object.keys(editTOS).map(s => <option key={s} value={s}>{s}</option>)}
-                              </select>
-                              <input 
-                                  type="text" 
-                                  value={newSubtopic} 
-                                  onChange={(e) => setNewSubtopic(e.target.value)} 
-                                  onKeyDown={(e) => e.key === 'Enter' && handleAddSubtopic()}
-                                  placeholder="e.g. Vector Analysis" 
-                                  className="flex-1 bg-surface border border-border2 text-textMain p-2.5 rounded-lg text-sm outline-none focus:border-reeCyan shadow-inner"
-                              />
-                              <button 
-                                  onClick={handleAddSubtopic} 
-                                  disabled={!newSubtopic.trim()}
-                                  className="px-6 py-2.5 bg-reeCyan hover:bg-cyan-500 text-bg font-black rounded-lg text-xs uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer shadow-md"
-                              >
-                                  Inject
-                              </button>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                              {Object.keys(editTOS).map(subject => (
-                                  <div key={subject} className="bg-surface border border-border2 rounded-xl p-4 flex flex-col max-h-[350px]">
-                                      <h4 className="text-xs font-black uppercase tracking-widest mb-3 pb-2 border-b border-border2 text-textMain shrink-0">{subject}</h4>
-                                      <div className="flex-1 flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2">
-                                          {editTOS[subject].map(sub => (
-                                              <div key={sub} className="flex justify-between items-center bg-bg border border-border2 p-2 rounded-lg group hover:border-reeRed/30 transition-colors shrink-0">
-                                                  <span className="text-[0.65rem] font-bold text-muted2 truncate pr-2" title={sub}>{sub}</span>
-                                                  <button 
-                                                      onClick={() => handleRemoveSubtopic(subject, sub)} 
-                                                      className="text-muted hover:text-reeRed text-[0.6rem] font-black px-1.5 py-0.5 rounded transition-colors opacity-50 group-hover:opacity-100 cursor-pointer"
-                                                      title="Remove Subtopic"
-                                                  >
-                                                      ✕
-                                                  </button>
-                                              </div>
-                                          ))}
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-
-                      <div className="p-5 border-t border-border2 bg-surface2/50 flex justify-end gap-3 shrink-0">
-                          <button onClick={() => setShowTOSManager(false)} className="px-5 py-2.5 bg-surface hover:bg-surface3 border border-border2 text-textMain text-xs font-bold rounded-xl transition-colors cursor-pointer">
-                              Discard Changes
-                          </button>
-                          <button onClick={saveTOSChanges} disabled={isSavingTOS} className="px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-colors cursor-pointer flex items-center gap-2 disabled:opacity-50">
-                              {isSavingTOS ? <><span className="telemetry-spinner !w-3 !h-3"></span> Writing to Core...</> : 'Deploy Matrix Updates'}
-                          </button>
-                      </div>
-
                   </div>
-              </FocusTrap>
-          </div>
-      )}
+              ))}
+            </div>
+          </>
+        )}
+      </Modal>
 
-      {/* --- QUARANTINE QUEUE MODAL --- */}
-      {showQuarantineQueue && (
-        <div className="fixed inset-0 bg-bg/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-            <FocusTrap active={showQuarantineQueue}>
-                <div className="bg-surface border border-reeAmber/40 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-                    <div className="p-5 border-b border-border2 bg-surface2/50 flex justify-between items-center shrink-0">
-                        <h3 className="text-xl font-black text-textMain flex items-center gap-2">
-                            <span className="text-reeAmber">🛡️</span> AI Quarantine Queue
-                        </h3>
-                        <button onClick={() => setShowQuarantineQueue(false)} className="text-muted hover:text-reeRed text-sm font-bold transition-colors cursor-pointer">✕ Close</button>
+      {/* --- AI review queue --- */}
+      <Modal
+        open={showQuarantineQueue}
+        onClose={() => setShowQuarantineQueue(false)}
+        size="xl"
+        tone="amber"
+        icon={Shield}
+        title="AI review queue"
+      >
+        {isLoadingQueue ? (
+            <div className="flex items-center justify-center py-16 text-[var(--color-reeAmber)]">
+                <span className="telemetry-spinner"></span>
+                <span className="ml-3 text-muted font-mono text-sm">Loading the queue…</span>
+            </div>
+        ) : quarantineItems.length === 0 ? (
+            <EmptyState
+                icon={Sparkles}
+                title="Queue is clear"
+                description="No AI-generated questions are waiting for review."
+            />
+        ) : (
+            <div className="flex flex-col gap-6">
+                {quarantineItems.map((q) => (
+                    <div key={q.id} className="bg-surface2/40 border rounded-[var(--radius-lg)] p-5 shadow-sm" style={{ borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)' }}>
+                        <div className="flex justify-between items-start mb-4 border-b border-border pb-3 gap-3 flex-wrap">
+                            <div>
+                                <StatusPill tone="amber">Pending review</StatusPill>
+                                <div className="text-eyebrow mt-2">{q.subject} • {q.subtopic}</div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button size="sm" variant="outline" tone="danger" onClick={() => handleRejectQuarantinedItem(q.id)}>Delete</Button>
+                                <Button size="sm" tone="success" onClick={() => handleApproveQuarantinedItem(q)}>Approve</Button>
+                            </div>
+                        </div>
+
+                        <div className="text-sm text-textMain mb-4">
+                            <LatexRenderer content={q.content || q.text || q.question || "No content available."} />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {q.options && q.options.map((opt, i) => (
+                                <div
+                                  key={i}
+                                  className="p-3 rounded-[var(--radius-default)] text-xs font-mono border"
+                                  style={opt === q.answer
+                                    ? { background: 'color-mix(in srgb, var(--accent-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)', color: 'var(--accent-success)', fontWeight: 700 }
+                                    : undefined}
+                                >
+                                    {String.fromCharCode(65 + i)}. <LatexRenderer content={opt} />
+                                </div>
+                            ))}
+                        </div>
                     </div>
-
-                    <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-bg">
-                        {isLoadingQueue ? (
-                            <div className="flex items-center justify-center h-full">
-                                <span className="telemetry-spinner"></span>
-                                <span className="ml-3 text-muted font-mono text-sm">Scanning anomalies...</span>
-                            </div>
-                        ) : quarantineItems.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-muted2 border border-dashed border-border2 rounded-xl p-10">
-                                <span className="text-4xl mb-3">✨</span>
-                                <span className="font-bold uppercase tracking-widest text-sm">Sector Clear</span>
-                                <span className="text-xs mt-2 text-center max-w-sm">No pending AI hallucinations detected. The global matrix is stable.</span>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-6">
-                                {quarantineItems.map((q) => (
-                                    <div key={q.id} className="bg-surface border border-reeAmber/30 rounded-xl p-5 shadow-sm">
-                                        <div className="flex justify-between items-start mb-4 border-b border-border2 pb-3">
-                                            <div>
-                                                <span className="text-[0.6rem] font-black uppercase tracking-widest text-reeAmber bg-reeAmber/10 px-2 py-1 rounded border border-reeAmber/20">Pending Review</span>
-                                                <div className="text-[0.65rem] text-muted font-bold mt-2 uppercase tracking-widest">{q.subject} • {q.subtopic}</div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleRejectQuarantinedItem(q.id)} className="px-4 py-2 bg-reeRed/10 hover:bg-reeRed/20 text-reeRed border border-reeRed/30 text-xs font-bold rounded-lg transition-colors cursor-pointer">Purge</button>
-                                                <button onClick={() => handleApproveQuarantinedItem(q)} className="px-4 py-2 bg-reeGreen/10 hover:bg-reeGreen/20 text-reeGreen border border-reeGreen/30 text-xs font-bold rounded-lg transition-colors cursor-pointer">Verify & Deploy</button>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="text-sm text-textMain mb-4">
-                                            <LatexRenderer content={q.content || q.text || q.question || "No content available."} />
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {q.options && q.options.map((opt, i) => (
-                                                <div key={i} className={`p-3 rounded-lg text-xs font-mono border ${opt === q.answer ? 'bg-reeGreen/10 border-reeGreen/30 text-reeGreen font-bold' : 'bg-bg border-border2 text-muted2'}`}>
-                                                    {String.fromCharCode(65 + i)}. <LatexRenderer content={opt} />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </FocusTrap>
-        </div>
-      )}
+                ))}
+            </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -1,10 +1,12 @@
 const { getAuth } = require('firebase-admin/auth');
 const prisma = require('../config/db');
 const { recordAttempts } = require('../services/telemetryService');
-const { recomputeRatings, tierFor } = require('../engine/elo');
+const { recomputeRatings } = require('../engine/elo');
+const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitizer');
+const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSchemas');
 const logger = require('../utils/logger');
 
-// In-memory lobby state (participants, live scores).
+// In-memory lobby state (participants, live scores, answer keys).
 // Hard cap prevents unbounded growth if a client spams join-battle with
 // random IDs — old lobbies are evicted FIFO once we exceed the cap.
 const MAX_LOBBIES = 500;
@@ -17,13 +19,41 @@ function getLobby(battleId) {
             battleLobbies.delete(oldest);
             logger.warn('lobby cache evicted', { evicted: oldest });
         }
-        battleLobbies.set(battleId, { participants: new Map(), startedAt: null });
+        battleLobbies.set(battleId, {
+            participants: new Map(),
+            startedAt: null,
+            answerKey: null,
+            questionCount: 0,
+            timeLimitSecs: null,
+        });
     }
     return battleLobbies.get(battleId);
 }
 
+// Public view of a participant — strips the server-side answers Map.
 function serializeParticipants(lobby) {
-    return Array.from(lobby.participants.values());
+    return Array.from(lobby.participants.values()).map(({ answers, attempts, ...pub }) => pub);
+}
+
+// The answer key never leaves the server while the battle is live. Built on
+// first join; lazily refetched from the DB if the lobby was FIFO-evicted or
+// the process restarted mid-battle.
+async function ensureAnswerKey(lobby, battleId) {
+    if (lobby.answerKey) return lobby.answerKey;
+    const battle = await prisma.battle.findUnique({
+        where: { id: battleId },
+        select: { questions: true, timeLimitSecs: true },
+    });
+    if (!battle || !Array.isArray(battle.questions)) return null;
+    lobby.answerKey = buildAnswerKey(battle.questions);
+    lobby.explanationKey = buildExplanationKey(battle.questions);
+    lobby.questionCount = battle.questions.length;
+    lobby.timeLimitSecs = battle.timeLimitSecs;
+    return lobby.answerKey;
+}
+
+function gradeAnswer(answerKey, questionId, userAnswer) {
+    return userAnswer != null && answerKey[questionId] === userAnswer;
 }
 
 function setupBattleSocket(io) {
@@ -47,7 +77,7 @@ function setupBattleSocket(io) {
     battleNs.on('connection', (socket) => {
         logger.info('Battle socket connected', { userId: socket.userId });
 
-        socket.on('join-battle', async ({ battleId }) => {
+        socket.on('join-battle', async ({ battleId } = {}) => {
             if (!battleId) return;
 
             try {
@@ -60,14 +90,27 @@ function setupBattleSocket(io) {
                 socket.battleId = battleId;
 
                 const lobby = getLobby(battleId);
+                if (!lobby.answerKey && Array.isArray(battle.questions)) {
+                    lobby.answerKey = buildAnswerKey(battle.questions);
+                    lobby.explanationKey = buildExplanationKey(battle.questions);
+                    lobby.questionCount = battle.questions.length;
+                    lobby.timeLimitSecs = battle.timeLimitSecs;
+                }
+
+                // Merge into any existing entry so a reconnect doesn't wipe the
+                // participant's live score/answers.
+                const existing = lobby.participants.get(socket.userId);
                 lobby.participants.set(socket.userId, {
                     id: socket.userId,
                     displayName: socket.displayName,
-                    score: 0,
-                    itemsAnswered: 0,
+                    score: existing?.score ?? 0,
+                    itemsAnswered: existing?.itemsAnswered ?? 0,
                     connected: true,
                     isHost: battle.hostId === socket.userId,
-                    finished: false
+                    finished: existing?.finished ?? false,
+                    timeTakenSecs: existing?.timeTakenSecs,
+                    answers: existing?.answers ?? new Map(),
+                    attempts: existing?.attempts,
                 });
 
                 battleNs.to(battleId).emit('lobby-update', {
@@ -85,7 +128,7 @@ function setupBattleSocket(io) {
             }
         });
 
-        socket.on('start-battle', async ({ battleId }) => {
+        socket.on('start-battle', async ({ battleId } = {}) => {
             if (!battleId) return;
 
             try {
@@ -114,50 +157,105 @@ function setupBattleSocket(io) {
             }
         });
 
-        socket.on('battle-progress', ({ battleId, score, itemsAnswered }) => {
-            if (!battleId) return;
-
-            const lobby = getLobby(battleId);
-            const participant = lobby.participants.get(socket.userId);
-            if (participant) {
-                participant.score = score;
-                participant.itemsAnswered = itemsAnswered;
-
-                socket.to(battleId).emit('opponent-progress', {
-                    id: socket.userId,
-                    displayName: participant.displayName,
-                    score,
-                    itemsAnswered
-                });
-            }
-        });
-
-        socket.on('battle-submit', async ({ battleId, score, total, timeTakenSecs, attempts }) => {
-            if (!battleId) return;
+        // Live per-question answer, graded server-side against the lobby's
+        // answer key. Replaces the old client-trusted `battle-progress` event.
+        socket.on('battle-answer', async (payload) => {
+            const parsed = battleAnswerSchema.safeParse(payload || {});
+            if (!parsed.success) return; // silently drop malformed payloads
+            const { battleId, questionId, userAnswer, confidenceLevel, timeSpentMs } = parsed.data;
 
             try {
                 const lobby = getLobby(battleId);
                 const participant = lobby.participants.get(socket.userId);
-                if (participant) {
-                    participant.score = score;
-                    participant.itemsAnswered = total;
-                    participant.finished = true;
-                    participant.timeTakenSecs = timeTakenSecs;
+                if (!participant || participant.finished) return;
+
+                const answerKey = await ensureAnswerKey(lobby, battleId);
+                if (!answerKey || !(questionId in answerKey)) return;
+
+                // Upsert-by-questionId: changing an answer replaces the old one.
+                participant.answers.set(questionId, {
+                    questionId,
+                    userAnswer,
+                    isCorrect: gradeAnswer(answerKey, questionId, userAnswer),
+                    confidenceLevel,
+                    timeSpentMs,
+                });
+                participant.itemsAnswered = participant.answers.size;
+                let liveScore = 0;
+                for (const a of participant.answers.values()) if (a.isCorrect) liveScore++;
+                participant.score = liveScore;
+
+                socket.to(battleId).emit('opponent-progress', {
+                    id: socket.userId,
+                    displayName: participant.displayName,
+                    score: participant.score,
+                    itemsAnswered: participant.itemsAnswered
+                });
+            } catch (err) {
+                logger.warn('battle-answer failed', { error: err.message, battleId });
+            }
+        });
+
+        socket.on('battle-submit', async (payload) => {
+            const parsed = battleSubmitSchema.safeParse(payload || {});
+            if (!parsed.success) return;
+            const { battleId, attempts: clientAttempts } = parsed.data;
+
+            try {
+                const lobby = getLobby(battleId);
+                const participant = lobby.participants.get(socket.userId);
+                if (!participant || participant.finished) return; // double-submit guard
+
+                const answerKey = await ensureAnswerKey(lobby, battleId);
+                if (!answerKey) {
+                    return socket.emit('error', { message: 'Battle not found' });
                 }
 
-                // Persist per-question attempts so Combat Terminal / Battle
-                // results show up in Dashboard + Profile analytics. Server
-                // re-grades against Question.answer inside recordAttempts so
-                // we don't trust the client's isCorrect flag.
-                if (Array.isArray(attempts) && attempts.length > 0) {
-                    // Cache for replay payload assembled at battle-complete.
-                    if (participant) participant.attempts = attempts;
+                // Merge client-carried attempts only for questions the server
+                // never saw live (covers brief disconnects). They are graded
+                // right here against the server's key — the client's own
+                // isCorrect flags are never read.
+                for (const a of clientAttempts) {
+                    if (!(a.questionId in answerKey) || participant.answers.has(a.questionId)) continue;
+                    participant.answers.set(a.questionId, {
+                        questionId: a.questionId,
+                        userAnswer: a.userAnswer,
+                        isCorrect: gradeAnswer(answerKey, a.questionId, a.userAnswer),
+                        confidenceLevel: a.confidenceLevel,
+                        timeSpentMs: a.timeSpentMs,
+                    });
+                }
+
+                const finalAttempts = Array.from(participant.answers.values());
+                const total = lobby.questionCount || Object.keys(answerKey).length;
+
+                // Server-authoritative timing: never trust a client-supplied
+                // duration. Clamped to the battle's time limit.
+                const elapsedSecs = lobby.startedAt
+                    ? Math.floor((Date.now() - lobby.startedAt) / 1000)
+                    : 0;
+                const limit = lobby.timeLimitSecs ?? elapsedSecs;
+                const timeTakenSecs = Math.max(0, Math.min(elapsedSecs, limit));
+
+                // Persist per-question attempts so battle results feed the
+                // dashboard/profile analytics. recordAttempts re-grades against
+                // Question.answer in the DB — its `graded` output is the
+                // authoritative score source.
+                let graded = null;
+                if (finalAttempts.length > 0) {
                     try {
-                        await recordAttempts({
+                        const result = await recordAttempts({
                             userId: socket.userId,
                             mode: 'BATTLE',
-                            attempts,
+                            // Deterministic per-attempt ids: a replayed
+                            // battle-submit (reconnect, double emit) dedupes
+                            // instead of double-counting the whole battle.
+                            attempts: finalAttempts.map((a) => ({
+                                ...a,
+                                clientAttemptId: `${battleId}:${socket.userId}:${a.questionId}`,
+                            })),
                         });
+                        graded = result.graded || null;
                     } catch (telErr) {
                         logger.warn('battle-submit telemetry persist failed', {
                             battleId, userId: socket.userId, error: telErr.message,
@@ -165,9 +263,32 @@ function setupBattleSocket(io) {
                     }
                 }
 
+                const score = graded
+                    ? graded.filter((g) => g.isCorrect).length
+                    : finalAttempts.filter((a) => a.isCorrect).length;
+
+                participant.score = score;
+                participant.itemsAnswered = finalAttempts.length;
+                participant.finished = true;
+                participant.timeTakenSecs = timeTakenSecs;
+                participant.attempts = finalAttempts.map((a) => ({
+                    questionId: a.questionId,
+                    isCorrect: a.isCorrect,
+                    timeMs: a.timeSpentMs,
+                }));
+
+                // Ack the submitter with their authoritative result. No answer
+                // key yet — opponents may still be mid-battle.
+                socket.emit('battle-graded', {
+                    score,
+                    total,
+                    timeTakenSecs,
+                    perQuestion: finalAttempts.map((a) => ({ questionId: a.questionId, isCorrect: a.isCorrect })),
+                });
+
                 battleNs.to(battleId).emit('participant-finished', {
                     id: socket.userId,
-                    displayName: participant?.displayName,
+                    displayName: participant.displayName,
                     score,
                     total,
                     timeTakenSecs
@@ -175,10 +296,14 @@ function setupBattleSocket(io) {
 
                 const allFinished = Array.from(lobby.participants.values()).every(p => p.finished);
                 if (allFinished && lobby.participants.size > 0) {
-                    await prisma.battle.update({
-                        where: { id: battleId },
-                        data: { status: 'COMPLETED' }
+                    // Atomic finalize guard: two simultaneous submitters can
+                    // both observe allFinished — only the one whose updateMany
+                    // flips the status runs Elo/outcome persistence.
+                    const { count } = await prisma.battle.updateMany({
+                        where: { id: battleId, status: { not: 'COMPLETED' } },
+                        data: { status: 'COMPLETED' },
                     });
+                    if (count !== 1) return;
 
                     const ranked = serializeParticipants(lobby)
                         .sort((a, b) => b.score - a.score || a.timeTakenSecs - b.timeTakenSecs);
@@ -207,7 +332,7 @@ function setupBattleSocket(io) {
                     await prisma.$transaction(
                         ranked.flatMap((r, i) => {
                             const d = deltaByUser[r.id];
-                            const participant = lobby.participants.get(r.id);
+                            const p = lobby.participants.get(r.id);
                             return [
                                 prisma.battleOutcome.upsert({
                                     where: { battleId_userId: { battleId, userId: r.id } },
@@ -216,7 +341,7 @@ function setupBattleSocket(io) {
                                         battleId,
                                         userId: r.id,
                                         score: r.score ?? 0,
-                                        total: r.itemsAnswered ?? 0,
+                                        total,
                                         timeTakenSecs: r.timeTakenSecs ?? 0,
                                         placement: i + 1,
                                         eloBefore: d.ratingBefore,
@@ -224,7 +349,7 @@ function setupBattleSocket(io) {
                                         eloDelta: d.delta,
                                         tierBefore: d.tierBefore,
                                         tierAfter: d.tierAfter,
-                                        perQuestion: participant?.attempts ?? null,
+                                        perQuestion: p?.attempts ?? null,
                                     },
                                 }),
                                 prisma.user.update({
@@ -245,7 +370,14 @@ function setupBattleSocket(io) {
                         };
                     });
 
-                    battleNs.to(battleId).emit('battle-complete', { results });
+                    // Reveal the answer key (and offline explanations) only
+                    // now — everyone is finished, so the post-battle review
+                    // screen can grade, annotate, and show solutions locally.
+                    battleNs.to(battleId).emit('battle-complete', {
+                        results,
+                        answerKey,
+                        explanationKey: lobby.explanationKey || {},
+                    });
 
                     setTimeout(() => battleLobbies.delete(battleId), 5 * 60 * 1000);
 

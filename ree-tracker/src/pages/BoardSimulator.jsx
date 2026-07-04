@@ -1,5 +1,5 @@
 // src/pages/BoardSimulator.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
@@ -8,10 +8,12 @@ import { useBattleSocket } from '../hooks/useBattleSocket';
 import SimulatorConfig from '../features/board-simulator/SimulatorConfig';
 import SimulatorActive from '../features/board-simulator/SimulatorActive';
 import SimulatorDiagnostics from '../features/board-simulator/SimulatorDiagnostics';
-import FocusTrap from '../components/FocusTrap';
+import { Button, Modal } from '../components/ui';
+import { TriangleAlert } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 
-import { saveBookmark } from '../services/dbQueries';
+import { saveBookmark, getAnalyticsProfile } from '../services/dbQueries';
+import { useStore } from '../store/useStore';
 
 const formatTimerMinutes = (s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`;
 const formatTimerVerbose = (s) => `${Math.floor(s/60)}m ${(s%60).toString().padStart(2, '0')}s`;
@@ -27,7 +29,7 @@ export default function BoardSimulator() {
   const navigate = useNavigate();
 
   const activeBattleId = engine.config.battleId || searchParams.get('battleId');
-  const { connected: battleConnected, opponentProgress, sendProgress, submitResult } = useBattleSocket(activeBattleId);
+  const { connected: battleConnected, opponentProgress, graded, answerKey, explanationKey, sendAnswer, submitResult } = useBattleSocket(activeBattleId);
 
   useEffect(() => {
     const bId = searchParams.get('battleId');
@@ -36,14 +38,19 @@ export default function BoardSimulator() {
     }
   }, [searchParams]);
 
+  // Stream each answered/changed question to the server, which grades it
+  // against its own key and broadcasts opponent progress. Battle questions
+  // are sanitized (no `answer` field), so grading can't happen client-side.
+  const lastSentAnswersRef = useRef({});
   useEffect(() => {
     if (!activeBattleId || !battleConnected || !engine.session.isActive || engine.session.isFinished) return;
 
-    const answered = Object.keys(engine.session.answers).length;
-    const correct = engine.session.questions.reduce((acc, q, idx) =>
-      engine.session.answers[idx] === q.answer ? acc + 1 : acc, 0
-    );
-    sendProgress(correct, answered);
+    for (const [idx, ans] of Object.entries(engine.session.answers)) {
+      if (lastSentAnswersRef.current[idx] === ans) continue;
+      lastSentAnswersRef.current[idx] = ans;
+      const q = engine.session.questions[idx];
+      if (q?.id) sendAnswer(q.id, ans, engine.session.confidences?.[idx] || 'MED');
+    }
   }, [engine.session.answers, activeBattleId, battleConnected]);
 
   // FULLY WIRED BOOKMARK HANDLER WITH COMPLETE PAYLOAD
@@ -66,24 +73,44 @@ export default function BoardSimulator() {
     }
   };
 
+  // On finish, hand the server the full attempt list (covers answers it may
+  // have missed during a disconnect). The server re-grades everything and
+  // computes score/total/timing itself — nothing score-like leaves the client.
   useEffect(() => {
-    if (activeBattleId && engine.session.isFinished && engine.session.diagnostics) {
-      const { score, totalItems, timeTakenSecs } = engine.session.diagnostics;
-      // Build per-question attempts so battle results contribute to dashboard
-      // analytics — the engine's syncTelemetryBatch already persisted them
-      // under BOARD_SIM, but the BATTLE socket path also needs them so the
-      // host's Battle record reflects authoritative scores.
-      const attempts = (engine.session.questions || []).map((q, idx) => ({
-        questionId: q.id,
-        userAnswer: engine.session.answers?.[idx] ?? q.userAnswer ?? null,
-        subject: q.subject,
-        subtopic: q.subtopic,
-        confidenceLevel: q.userConf || 'MED',
-        timeSpentMs: 0,
-      })).filter((a) => a.questionId);
-      submitResult(Math.round(score * totalItems / 100), totalItems, timeTakenSecs, attempts);
+    if (activeBattleId && engine.session.isFinished && engine.session.diagnostics?.pending) {
+      submitResult(engine.session.diagnostics.pendingAttempts || []);
     }
   }, [engine.session.isFinished, activeBattleId]);
+
+  // Server ack for our own submission — authoritative score while opponents
+  // are still playing.
+  useEffect(() => {
+    if (activeBattleId && graded) engine.applyServerScore(graded);
+  }, [graded, activeBattleId]);
+
+  // battle-complete revealed the answer + explanation keys — unlock the full
+  // per-question review (correct answers, offline solutions, blind spots),
+  // then refetch the canonical analytics so the dashboard is fresh the
+  // moment the user navigates there (mirrors the gauntlet's post-grade
+  // refetch).
+  useEffect(() => {
+    if (activeBattleId && answerKey && engine.session.isFinished) {
+      engine.applyBattleGrades(answerKey, explanationKey);
+      if (currentUser?.uid) {
+        getAnalyticsProfile(currentUser.uid).then((fresh) => {
+          if (fresh?.data) {
+            useStore.getState().setStats({
+              ...useStore.getState().stats,
+              ...fresh.data.profile,
+              activityCalendar: fresh.data.activityCalendar,
+              microTopics: fresh.data.microTopics,
+              matrix: fresh.data.matrix,
+            });
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [answerKey, explanationKey, activeBattleId, engine.session.isFinished]);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">
@@ -91,7 +118,7 @@ export default function BoardSimulator() {
       {activeBattleId && battleConnected && opponentProgress.length > 0 && engine.session.isActive && !engine.session.isFinished && (
         <div className="bg-surface border border-reeRed/30 rounded-xl p-4 shadow-sm animate-in fade-in">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[0.65rem] font-black uppercase tracking-widest text-reeRed flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-widest text-reeRed flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-reeGreen animate-pulse"></span> Live Opponents
             </span>
           </div>
@@ -137,20 +164,21 @@ export default function BoardSimulator() {
         </div>
       )}
 
-      {showTerminateModal && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={showTerminateModal}>
-            <div className="bg-surface border border-border2 p-6 rounded-2xl shadow-2xl max-w-md w-full">
-              <h3 className="text-lg font-black text-reeAmber mb-2 flex items-center gap-2"><span>⚠️</span> Terminate Simulation?</h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">Submitting will calculate your diagnostics and save the record.</p>
-              <div className="flex justify-end gap-3">
-                <button onClick={() => setShowTerminateModal(false)} className="px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold cursor-pointer transition-colors">Cancel</button>
-                <button onClick={() => { setShowTerminateModal(false); engine.submitExam(); }} className="px-4 py-2 bg-reeRed hover:bg-red-600 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors">Submit Exam</button>
-              </div>
-            </div>
-          </FocusTrap>
-        </div>
-      )}
+      <Modal
+        open={showTerminateModal}
+        onClose={() => setShowTerminateModal(false)}
+        tone="amber"
+        icon={TriangleAlert}
+        title="Submit this exam?"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowTerminateModal(false)}>Keep working</Button>
+            <Button tone="danger" onClick={() => { setShowTerminateModal(false); engine.submitExam(); }}>Submit exam</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">Submitting grades your answers and saves the report to your ledger.</p>
+      </Modal>
 
     </div>
   );

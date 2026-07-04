@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
-const { examSubmitSchema, gradeSchema } = require('../schemas/examSchemas');
+const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
 const { recordAttempts } = require('../services/telemetryService');
 const { selectNextItem, updateTheta } = require('../engine/irt');
@@ -96,6 +96,7 @@ router.post('/grade', authMiddleware, idempotency(), validate(gradeSchema), asyn
                     userAnswer: a.userAnswer,
                     confidenceLevel: a.confidenceLevel || 'LOW',
                     timeSpentMs: a.timeSpentMs || 0,
+                    clientAttemptId: a.clientAttemptId,
                 })),
             });
         } catch (telErr) {
@@ -152,6 +153,7 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
                 isCorrect: isCorrect,
                 confidenceLevel: attempt.confidence || 'LOW',
                 timeSpentMs: (attempt.timeSpentSecs || 0) * 1000,
+                clientAttemptId: attempt.clientAttemptId,
                 questionDifficulty: masterQ?.difficulty || 0.0
             });
         }
@@ -173,13 +175,16 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
         // through the shared recordAttempts() path so they land in the same
         // tables (with ActivityLog + theta recompute) as Active Review and
         // Battle submissions — no duplicate logic, single source of truth.
+        // Create the session shell at ZERO counts — recordAttempts' upsert
+        // increments them from the actually-inserted rows. Pre-filling the
+        // final totals here made the subsequent increments DOUBLE them.
         const session = await prisma.examSession.create({
             data: {
                 userId: req.user.id,
                 mode: config?.mode || 'custom',
                 targetSubject: config?.subject || 'Blended',
-                score: scorePercentage,
-                totalQuestions: parsedAttempts.length,
+                score: 0,
+                totalQuestions: 0,
                 timeTakenSecs: timeTakenSecs,
                 verdict: verdict,
                 config: config || {},
@@ -199,6 +204,7 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
                     subtopic: a.subtopic,
                     confidenceLevel: a.confidenceLevel,
                     timeSpentMs: a.timeSpentMs,
+                    clientAttemptId: a.clientAttemptId,
                 })),
             });
             if (telemetry?.updatedTheta != null) newTheta = telemetry.updatedTheta;
@@ -239,9 +245,9 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
 //   sessionAttempts?: [{ questionId, isCorrect }],
 //   poolSize?: number    // optional candidate-pool size (default 80)
 // }
-router.post('/next-item', authMiddleware, async (req, res) => {
+router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, res) => {
     try {
-        const { subject, recentIds = [], sessionAttempts = [], poolSize = 80 } = req.body || {};
+        const { subject, recentIds, sessionAttempts, poolSize } = req.body;
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
             select: { thetaRating: true, standardError: true },

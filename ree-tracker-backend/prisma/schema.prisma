@@ -125,6 +125,8 @@ model ExamSession {
 
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts       QuestionAttempt[]
+
+  @@index([userId, createdAt])
 }
 
 model QuestionAttempt {
@@ -137,6 +139,10 @@ model QuestionAttempt {
   isCorrect       Boolean
   confidenceLevel String   @default("LOW")
   timeSpentMs     Int      @default(0)
+  // Client-generated per-attempt id. Unique per user (NULLs distinct, so
+  // legacy rows are unaffected) — the durable dedupe handle that stops
+  // replayed telemetry batches from double-counting attempts.
+  clientAttemptId String?
   // Which surface produced this attempt: ACTIVE_REVIEW | BOARD_SIM | GAUNTLET
   // | COMBAT | BATTLE | LEGACY. Indexed for dashboard mode-breakdown queries.
   mode            String   @default("LEGACY")
@@ -149,6 +155,7 @@ model QuestionAttempt {
   @@index([userId, createdAt])
   @@index([userId, subject])
   @@index([userId, mode, createdAt])
+  @@unique([userId, clientAttemptId])
 }
 
 // 5 & 6. 'folders' and 'materials' collections
@@ -292,6 +299,8 @@ model StudySession {
   durationSecs    Int
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // Phase 2: Strategic Planner persistence

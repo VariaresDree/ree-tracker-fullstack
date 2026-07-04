@@ -4,9 +4,12 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const { GoogleGenAI } = require('@google/genai');
 const logger = require('../utils/logger');
 
-// Real, currently-shipping Gemini IDs ordered from most capable to lightest.
-// Override at runtime via MODEL_TIERS env (comma-separated) — useful when
-// Google ships new IDs and we don't want to redeploy just to add them.
+// Real, currently-shipping, free-tier Gemini IDs ordered from most capable
+// to lightest. Override at runtime via MODEL_TIERS env (comma-separated) —
+// useful when Google ships new IDs and we don't want to redeploy just to
+// add them. (The previous defaults included ids that don't exist —
+// 'gemini-3.5-flash', 'gemini-3.1-flash-lite' — so every request burned two
+// 404s before reaching a real model.)
 const DEFAULT_MODEL_TIERS = [
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
@@ -18,7 +21,10 @@ const MODEL_TIERS = (process.env.MODEL_TIERS
     ? process.env.MODEL_TIERS.split(',').map((s) => s.trim()).filter(Boolean)
     : DEFAULT_MODEL_TIERS);
 
-const PER_MODEL_TIMEOUT_MS = 10_000;
+// Real question generation (5-10 items with LaTeX + validation rules) can
+// take 15-40s — the old 10s ceiling timed out healthy requests and marched
+// the fallback chain to exhaustion.
+const PER_MODEL_TIMEOUT_MS = Number(process.env.PER_MODEL_TIMEOUT_MS) || 45_000;
 
 // Tiers that returned 404 are skipped for DEAD_TIER_TTL_MS, then retried.
 // Previously this Set held forever — so a single transient 404 (rolling Google

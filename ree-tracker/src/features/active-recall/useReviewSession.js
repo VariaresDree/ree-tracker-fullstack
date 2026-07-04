@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, saveQuestionToBank } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
 import { stratifiedSample } from '../../utils/shuffle';
@@ -43,33 +43,54 @@ export const useReviewSession = (currentUser, isOnline) => {
         return () => clearInterval(interval);
     }, [session.isActive, session.isAnswered, session.isFlipped, session.currentIndex, session.isFinished]);
 
-    const startSession = async (overrideConfig = null) => {
-        // Preset quick-starts pass a fully-merged config object so we launch with
-        // the intended settings instead of racing React's async setConfig. The
-        // main "Initialize" button calls startSession() with no argument and uses
-        // the live config state. (overrideConfig is only honoured when it's a real
-        // config object — never a click event.)
-        const cfg = overrideConfig && overrideConfig.source ? overrideConfig : config;
+    // `overrides` lets preset cards start a session in one click without a
+    // setConfig round-trip; the form state is synced so the custom panel
+    // reflects what actually ran.
+    const startSession = async (overrides = null) => {
+        const cfg = overrides ? { ...config, ...overrides } : config;
+        if (overrides) setConfig(cfg);
         setSession(prev => ({ ...prev, loading: true }));
         try {
             let freshData = [];
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
             if (cfg.source === 'smart-drill') {
-                if (!isOnline) throw new Error("Smart Drill requires an active uplink.");
+                if (!isOnline) throw new Error("Smart drill needs a connection.");
                 const drillResult = await fetchSmartDrillQuestions(cfg.count || 20);
                 freshData = drillResult.items || [];
             } else if (cfg.source === 'ai') {
-                if (!isOnline) throw new Error("AI Generator requires an active uplink.");
-                const targetTopic = cfg.studyMode === 'subtopic' ? cfg.subtopic : (safeTOS[cfg.subject]?.[0] || 'General');
+                if (!isOnline) throw new Error("The AI generator needs a connection.");
+                // Random topic within the subject (not always the first) so
+                // consecutive AI sessions vary.
+                const topics = safeTOS[cfg.subject] || [];
+                const targetTopic = cfg.studyMode === 'subtopic'
+                    ? cfg.subtopic
+                    : (topics[Math.floor(Math.random() * topics.length)] || 'General');
                 freshData = await generateQuestionsAI(cfg.subject, targetTopic, false);
+
+                // AI questions have no DB id, so their attempts were silently
+                // dropped by both the client (recordAttempt requires an id) and
+                // the server (FK filter) — the classic "10-item session shows
+                // 8" undercount. Persist them first to mint real ids.
+                if (Array.isArray(freshData) && freshData.length > 0) {
+                    try {
+                        freshData = await Promise.all(freshData.map(async (q) => {
+                            if (q.id) return q;
+                            const newId = await saveQuestionToBank({ ...q, source: 'ai' });
+                            return { ...q, id: newId };
+                        }));
+                    } catch (persistErr) {
+                        console.warn('AI question persist failed:', persistErr);
+                        toast("Couldn't save the AI questions — this session won't count toward analytics.", { icon: '⚠️' });
+                    }
+                }
             } else {
                 // 🚀 FIXED: Fetch up to 1000 questions to create a massive Supabase randomization pool
                 const subTarget = cfg.subtopic === 'All' ? 'All' : cfg.subtopic;
                 freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000);
             }
 
-            if (!freshData || freshData.length === 0) throw new Error("Vault is empty for these parameters.");
+            if (!freshData || freshData.length === 0) throw new Error("No questions match these settings yet.");
 
             // 2. 🚀 STRICT COGNITIVE FOCUS FILTERING
             let filteredData = freshData;
@@ -80,7 +101,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             }
 
             if (filteredData.length === 0) {
-                throw new Error(`No [${cfg.cognitiveFocus.toUpperCase()}] items found. Please switch to Standard Mix or change topics.`);
+                throw new Error(`No ${cfg.cognitiveFocus} questions found for this topic. Try the mixed focus or another topic.`);
             }
 
             // 3. 🚀 TRUE RANDOMIZATION: stratified sample across subtopics so a
@@ -114,7 +135,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
     const handleAnswerSelection = (option) => {
         if (session.isAnswered) return;
-        if (!session.confidence) return toast.error("Select Target Lock Confidence First.");
+        if (!session.confidence) return toast.error("Pick a confidence level first.");
 
         const currentQ = session.questions[session.currentIndex];
         const isCorrect = option === currentQ.answer;

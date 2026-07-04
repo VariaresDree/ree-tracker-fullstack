@@ -28,7 +28,7 @@ export default function SmartText({ text }) {
           return (
             <span key={i} className="relative group cursor-help inline-block mx-1">
               <span className="text-reeCyan border-b border-dashed border-reeCyan font-bold">{part}</span>
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-surface2 border border-border2 rounded-lg shadow-xl text-[0.65rem] text-textMain z-50 text-center pointer-events-none">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-surface2 border border-border2 rounded-lg shadow-xl text-[11px] text-textMain z-50 text-center pointer-events-none">
                 <span className="block text-reePurple font-black uppercase mb-1">{part}</span>
                 {DICTIONARY[foundKey]}
               </div>

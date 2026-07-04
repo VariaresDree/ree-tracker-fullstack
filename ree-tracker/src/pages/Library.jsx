@@ -1,7 +1,9 @@
 // src/pages/Library.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useStore } from '../store/useStore';
+import { EmptyState } from '../components/ui';
+import { Lock } from '../components/ui/icons';
 
 // Phase 3: Decoupled Architectural Hooks
 import { useVaultGrid } from '../features/library/useVaultGrid';
@@ -50,8 +52,8 @@ export default function Library() {
   return (
     <div className="flex flex-col gap-6 page-fade-in max-w-6xl mx-auto pb-12 w-full pt-4">
       <div className="mb-2">
-        <h1 className="text-3xl font-black text-textMain tracking-tight">The Global Matrix</h1>
-        <p className="text-sm text-muted2 mt-1">Ingest, refine, and forge new telemetry data for the active recall system.</p>
+        <h1 className="text-display text-3xl text-textMain tracking-tight">Library</h1>
+        <p className="text-sm text-muted2 mt-1">Add, review, and manage the question vault.</p>
       </div>
 
       <LibraryIngestion 
@@ -82,8 +84,13 @@ export default function Library() {
             handleManualSubmit={(e) => handleManualSubmit(e, genSubject, genSubtopic)}
           />
         ) : (
-          <div className="p-8 text-center border-2 border-dashed border-border2 rounded-xl text-muted2 font-mono text-sm">
-            Manual insertion locked. Requires Admin clearance.
+          <div className="p-4 border-2 border-dashed border-border2 rounded-[var(--radius-lg)]">
+            <EmptyState
+              compact
+              icon={Lock}
+              title="Admin access required"
+              description="Only admins can add questions manually."
+            />
           </div>
         )
       ) : (

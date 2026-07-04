@@ -102,7 +102,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
 
             {/* Exam Date */}
             <div className="mb-5">
-                <label className="block text-[0.65rem] font-bold uppercase tracking-widest text-muted mb-2">
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-muted mb-2">
                     Board Exam Date
                 </label>
                 <div className="flex items-center gap-3">
@@ -126,7 +126,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
 
             {/* Subject Selection */}
             <div className="mb-5">
-                <label className="block text-[0.65rem] font-bold uppercase tracking-widest text-muted mb-2">
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-muted mb-2">
                     Subjects to Include
                 </label>
                 <div className="flex gap-2 flex-wrap">
@@ -145,7 +145,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                                 }`}
                             >
                                 {subject} ({Math.round((weight || 0) * 100)}%)
-                                <span className="ml-1 text-[0.55rem] opacity-60">{subtopicCount} topics</span>
+                                <span className="ml-1 text-[11px] opacity-60">{subtopicCount} topics</span>
                             </button>
                         );
                     })}
@@ -156,15 +156,15 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
             <div className="bg-bg border border-border2 rounded-xl p-4 mb-5">
                 <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
-                        <div className="text-[0.6rem] font-bold uppercase tracking-widest text-muted mb-1">Topics</div>
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-1">Topics</div>
                         <div className="text-xl font-black text-textMain">{topicsToGenerate.length}</div>
                     </div>
                     <div>
-                        <div className="text-[0.6rem] font-bold uppercase tracking-widest text-muted mb-1">Days</div>
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-1">Days</div>
                         <div className="text-xl font-black text-textMain">{daysUntilExam || '—'}</div>
                     </div>
                     <div>
-                        <div className="text-[0.6rem] font-bold uppercase tracking-widest text-muted mb-1">Tasks</div>
+                        <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-1">Tasks</div>
                         <div className="text-xl font-black text-reeBlue">
                             {daysUntilExam ? Math.min(daysUntilExam, topicsToGenerate.length * 2) : '—'}
                         </div>

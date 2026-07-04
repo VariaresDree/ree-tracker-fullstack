@@ -103,14 +103,14 @@ export default function Scratchpad({ isOpen, onClose }) {
   return (
     <div className="absolute inset-0 z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-xl overflow-hidden flex flex-col page-fade-in">
       <div className="flex justify-between items-center p-2 bg-bg/90 border-b border-border2 pointer-events-auto">
-        <span className="text-xs font-bold text-reeCyan uppercase tracking-widest flex items-center gap-2">
-          ✏️ Digital Scratchpad Active
+        <span className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-signal)' }}>
+          Scratchpad
         </span>
         <div className="flex gap-2">
-          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded text-[0.65rem] font-bold uppercase transition-colors shadow-sm cursor-pointer">
+          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-colors shadow-sm cursor-pointer">
             Clear
           </button>
-          <button onClick={onClose} className="px-3 py-1 bg-reeRed hover:bg-red-600 text-white rounded text-[0.65rem] font-bold uppercase transition-colors shadow-sm cursor-pointer">
+          <button onClick={onClose} className="px-3 py-1 bg-[var(--accent-danger)] hover:brightness-110 text-white rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-all shadow-sm cursor-pointer">
             Close
           </button>
         </div>

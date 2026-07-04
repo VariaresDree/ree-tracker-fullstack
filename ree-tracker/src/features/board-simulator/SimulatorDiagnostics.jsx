@@ -1,25 +1,18 @@
 // src/features/board-simulator/SimulatorDiagnostics.jsx
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
+import { Button, Modal } from '../../components/ui';
+import { Shield, Zap, Clock, TriangleAlert } from '../../components/ui/icons';
 
 export default function SimulatorDiagnostics({ session, setSession, engine }) {
     const { diagnostics } = session;
     const [showExitConfirm, setShowExitConfirm] = useState(false);
 
-    useEffect(() => {
-      if (showExitConfirm) document.body.style.overflow = 'hidden';
-      else document.body.style.overflow = 'unset';
-      return () => { document.body.style.overflow = 'unset'; };
-    }, [showExitConfirm]);
-
     if (!diagnostics) return null;
 
     const isPassed = diagnostics.score >= 70;
     const isConditional = diagnostics.score >= 60 && diagnostics.score < 70;
-    
-    const statusColor = isPassed ? 'text-reeGreen' : isConditional ? 'text-reeAmber' : 'text-reeRed';
-    const glowColor = isPassed ? 'shadow-[0_0_50px_rgba(34,197,94,0.15)] border-reeGreen/20' : isConditional ? 'shadow-[0_0_50px_rgba(245,158,11,0.15)] border-reeAmber/20' : 'shadow-[0_0_50px_rgba(239,68,68,0.15)] border-reeRed/20';
-    const bgGlow = isPassed ? 'bg-reeGreen/10' : isConditional ? 'bg-reeAmber/10' : 'bg-reeRed/10';
+    const accent = isPassed ? 'var(--accent-success)' : isConditional ? 'var(--color-reeAmber)' : 'var(--accent-danger)';
 
     const formatTime = (secs) => {
         const m = Math.floor(secs / 60);
@@ -36,173 +29,224 @@ export default function SimulatorDiagnostics({ session, setSession, engine }) {
         window.location.href = '/dashboard';
     };
 
+    const scrollbarClasses = '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted/60 [&::-webkit-scrollbar-thumb]:rounded-full';
+
     return (
         <>
-            {/* 🚀 POST-VERIFICATION MODAL: Completely escapes stacking context traps */}
-            {showExitConfirm && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-300">
-                    <div className="absolute inset-0 bg-bg/95 backdrop-blur-xl" onClick={() => setShowExitConfirm(false)}></div>
-                    <div className="relative bg-surface border border-border2/80 p-8 md:p-12 rounded-[2rem] shadow-[0_0_80px_rgba(0,0,0,0.8)] max-w-md w-full text-center flex flex-col items-center animate-in zoom-in-95 duration-300">
-                        <span className="text-6xl mb-6 drop-shadow-lg">🚪</span>
-                        <h3 className="text-2xl sm:text-3xl font-black text-white mb-4 tracking-tight">Terminate Diagnostics?</h3>
-                        <p className="text-sm text-gray-300 mb-10 font-medium leading-relaxed">
-                            Are you sure you want to leave? This report will be closed and you will be returned to the command center.
-                        </p>
-                        <div className="flex flex-col sm:flex-row w-full gap-4">
-                            <button onClick={() => setShowExitConfirm(false)} className="flex-1 py-4 sm:py-5 bg-surface2 hover:bg-surface3 border border-border2/60 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-colors cursor-pointer">Cancel</button>
-                            <button onClick={handleExit} className="flex-1 py-4 sm:py-5 bg-reeBlue hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_4px_15px_rgba(59,130,246,0.4)] transition-all cursor-pointer">Confirm Exit</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <Modal
+                open={showExitConfirm}
+                onClose={() => setShowExitConfirm(false)}
+                title="Leave results?"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowExitConfirm(false)}>Stay</Button>
+                        <Button onClick={handleExit}>Back to dashboard</Button>
+                    </>
+                }
+            >
+                <p className="text-sm text-muted2">
+                    Your report is saved to the simulation ledger — you can revisit it from the dashboard.
+                </p>
+            </Modal>
 
             {/* 🚀 MAIN CONTENT */}
             <div className={`flex flex-col gap-8 max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-8 duration-700 pb-12 z-0 relative transition-all duration-500 origin-center ${showExitConfirm ? 'scale-95 blur-md opacity-40 pointer-events-none' : 'scale-100 blur-none opacity-100'}`}>
-                
-                {/* THE HERO TERMINAL */}
-                <div className={`relative p-10 sm:p-16 bg-surface/80 backdrop-blur-2xl border rounded-[3rem] flex flex-col items-center justify-center text-center overflow-hidden transition-all duration-1000 ${glowColor}`}>
-                    <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 blur-[100px] rounded-full pointer-events-none ${bgGlow}`}></div>
-                    
+
+                {/* Score hero */}
+                <div
+                    className="relative p-10 sm:p-16 bg-surface/80 backdrop-blur-2xl border rounded-[var(--radius-xl)] flex flex-col items-center justify-center text-center overflow-hidden transition-all duration-1000"
+                    style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}
+                >
+                    <div
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 blur-[100px] rounded-full pointer-events-none"
+                        style={{ background: `color-mix(in srgb, ${accent} 10%, transparent)` }}
+                    ></div>
+
                     <div className="relative z-10">
-                        <h2 className="text-[0.65rem] font-black text-muted uppercase tracking-[0.3em] mb-4">Terminal Diagnostics Report</h2>
-                        <div className={`text-8xl sm:text-9xl font-black tracking-tighter drop-shadow-lg mb-2 ${statusColor}`}>
+                        <h2 className="text-eyebrow mb-4">Results</h2>
+                        <div className="text-display text-8xl sm:text-9xl tracking-tighter drop-shadow-lg mb-2" style={{ color: accent }}>
                             {diagnostics.score}%
                         </div>
-                        <div className={`text-xl sm:text-2xl font-black uppercase tracking-widest bg-bg/50 px-6 py-2 rounded-lg inline-block backdrop-blur-md border border-border2/50 ${statusColor}`}>
+                        <div
+                            className="text-xl sm:text-2xl font-bold uppercase tracking-widest bg-bg/50 px-6 py-2 rounded-[var(--radius-default)] inline-block backdrop-blur-md border border-border2/50"
+                            style={{ color: accent }}
+                        >
                             {diagnostics.verdict}
                         </div>
 
-                        <div className="flex justify-center gap-4 sm:gap-8 mt-10">
-                            <div className="bg-surface2 border border-border2/50 px-8 py-5 rounded-3xl flex flex-col items-center min-w-[140px] shadow-sm">
-                                <span className="text-[0.65rem] text-gray-400 uppercase tracking-widest font-black mb-1">Hit Rate</span>
-                                <span className="text-2xl font-black text-white">{diagnostics.correctItems} <span className="text-gray-400 text-lg">/ {diagnostics.totalItems}</span></span>
+                        <div className="flex justify-center gap-4 sm:gap-8 mt-10 flex-wrap">
+                            <div className="bg-surface2 border border-border2/50 px-8 py-5 rounded-[var(--radius-lg)] flex flex-col items-center min-w-[140px] shadow-sm">
+                                <span className="text-eyebrow mb-1">Correct</span>
+                                <span className="text-2xl font-bold text-textMain tabular-nums">{diagnostics.correctItems} <span className="text-muted text-lg">/ {diagnostics.totalItems}</span></span>
                             </div>
-                            <div className="bg-surface2 border border-border2/50 px-8 py-5 rounded-3xl flex flex-col items-center min-w-[140px] shadow-sm">
-                                <span className="text-[0.65rem] text-gray-400 uppercase tracking-widest font-black mb-1">Time Used</span>
-                                <span className="text-2xl font-black text-white">{formatTime(diagnostics.timeTakenSecs)}</span>
+                            <div className="bg-surface2 border border-border2/50 px-8 py-5 rounded-[var(--radius-lg)] flex flex-col items-center min-w-[140px] shadow-sm">
+                                <span className="text-eyebrow mb-1">Time used</span>
+                                <span className="text-2xl font-bold text-textMain tabular-nums">{formatTime(diagnostics.timeTakenSecs)}</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* SUBJECT PERFORMANCE BREAKDOWN */}
+                {/* Per-subject breakdown */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                     {[
-                        { label: 'Mathematics', score: diagnostics.subjectScores?.Math, color: 'bg-reeBlue shadow-[0_0_15px_rgba(59,130,246,0.5)]' },
-                        { label: 'ESAS', score: diagnostics.subjectScores?.ESAS, color: 'bg-reeAmber shadow-[0_0_15px_rgba(245,158,11,0.5)]' },
-                        { label: 'EE Professional', score: diagnostics.subjectScores?.EE, color: 'bg-reePurple shadow-[0_0_15px_rgba(139,92,246,0.5)]' }
+                        { label: 'Mathematics', score: diagnostics.subjectScores?.Math, accent: 'var(--accent-velocity)' },
+                        { label: 'ESAS', score: diagnostics.subjectScores?.ESAS, accent: 'var(--color-reeAmber)' },
+                        { label: 'EE Professional', score: diagnostics.subjectScores?.EE, accent: 'var(--accent-signal)' },
                     ].map((subj, i) => (
-                        <div key={i} className="bg-surface/80 backdrop-blur-md border border-border2/60 p-6 rounded-3xl shadow-sm transition-transform hover:-translate-y-1">
+                        <div key={i} className="bg-surface/80 backdrop-blur-md border border-border2/60 p-6 rounded-[var(--radius-lg)] shadow-sm transition-transform hover:-translate-y-1">
                             <div className="flex justify-between items-end mb-4">
-                                <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{subj.label}</span>
-                                <span className="text-xl font-black text-white">{subj.score !== null && subj.score !== undefined ? `${subj.score}%` : 'N/A'}</span>
+                                <span className="text-eyebrow">{subj.label}</span>
+                                <span className="text-xl font-bold text-textMain tabular-nums">{subj.score !== null && subj.score !== undefined ? `${subj.score}%` : 'N/A'}</span>
                             </div>
                             <div className="w-full h-2.5 bg-surface3/50 rounded-full overflow-hidden border border-border2/30 shadow-inner">
-                                <div className={`h-full transition-all duration-1500 ease-out ${subj.color}`} style={{ width: `${subj.score || 0}%` }}></div>
+                                <div className="h-full transition-all duration-1500 ease-out rounded-full" style={{ width: `${subj.score || 0}%`, background: subj.accent }}></div>
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* CRITICAL INSIGHTS GRID */}
+                {/* Weak topics + slow items */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    
-                    <div className="bg-surface/80 backdrop-blur-md border border-border2/60 p-8 rounded-[2rem] shadow-sm flex flex-col hover:border-reeRed/30 transition-colors">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-6">
-                            <span className="text-reeRed animate-pulse">⚠️</span> Tactical Vulnerabilities
+
+                    <div className="bg-surface/80 backdrop-blur-md border border-border2/60 p-6 sm:p-8 rounded-[var(--radius-lg)] shadow-sm flex flex-col">
+                        <h3 className="text-sm font-semibold text-textMain flex items-center gap-2 mb-6">
+                            <TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-danger)' }} /> Weak topics
                         </h3>
-                        {/* 🚀 Scrollable Frame */}
-                        <div className="flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-3 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+                        <div className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-3 ${scrollbarClasses}`}>
                             {diagnostics.weakTopics?.length > 0 ? diagnostics.weakTopics.map((topic, i) => (
-                                <div key={i} className="px-5 py-4 bg-reeRed/10 border border-reeRed/20 rounded-xl text-red-400 text-sm font-black uppercase tracking-wider shadow-inner">
+                                <div
+                                    key={i}
+                                    className="px-5 py-4 rounded-[var(--radius-default)] text-sm font-semibold shadow-inner border"
+                                    style={{
+                                        background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)',
+                                        borderColor: 'color-mix(in srgb, var(--accent-danger) 20%, transparent)',
+                                        color: 'color-mix(in srgb, var(--accent-danger) 85%, var(--text-main))',
+                                    }}
+                                >
                                     {topic}
                                 </div>
                             )) : (
-                                <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border2/50 rounded-2xl opacity-60 p-6 text-center">
-                                    <span className="text-2xl mb-2">🛡️</span>
-                                    <span className="text-xs text-gray-400 font-mono uppercase tracking-widest">Optimal Coverage Maintained</span>
+                                <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border2/50 rounded-[var(--radius-lg)] opacity-70 p-6 text-center gap-2">
+                                    <Shield size={22} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
+                                    <span className="text-xs text-muted2">No weak topics this run — every topic scored 60% or better.</span>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="bg-surface/80 backdrop-blur-md border border-border2/60 p-8 rounded-[2rem] shadow-sm flex flex-col hover:border-reeAmber/30 transition-colors">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-2">
-                            <span>⏱️</span> Chrono-Anomalies <span className="text-reeAmber bg-reeAmber/10 px-2 py-0.5 rounded-md border border-reeAmber/20">{diagnostics.chronoAnomalies?.length || 0}</span>
+                    <div className="bg-surface/80 backdrop-blur-md border border-border2/60 p-6 sm:p-8 rounded-[var(--radius-lg)] shadow-sm flex flex-col">
+                        <h3 className="text-sm font-semibold text-textMain flex items-center gap-2 mb-2">
+                            <Clock size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> Slow items
+                            <span
+                                className="px-2 py-0.5 rounded-[var(--radius-sm)] border text-xs tabular-nums"
+                                style={{
+                                    color: 'var(--color-reeAmber)',
+                                    background: 'color-mix(in srgb, var(--color-reeAmber) 10%, transparent)',
+                                    borderColor: 'color-mix(in srgb, var(--color-reeAmber) 20%, transparent)',
+                                }}
+                            >{diagnostics.chronoAnomalies?.length || 0}</span>
                         </h3>
-                        <p className="text-[0.65rem] text-gray-400 font-medium mb-6">Items that consumed over 3 minutes of resolution time.</p>
-                        
-                        {/* 🚀 Scrollable Frame */}
-                        <div className="flex flex-col gap-4 flex-1 max-h-[400px] overflow-y-auto pr-3 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+                        <p className="text-xs text-muted2 mb-6">Questions that took more than 3 minutes.</p>
+
+                        <div className={`flex flex-col gap-4 flex-1 max-h-[400px] overflow-y-auto pr-3 ${scrollbarClasses}`}>
                             {diagnostics.chronoAnomalies?.length > 0 ? diagnostics.chronoAnomalies.map((q, i) => (
-                                <div key={i} className="p-6 bg-surface2 border border-border2/60 rounded-2xl text-base text-gray-200 font-medium [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] shadow-sm">
+                                <div key={i} className="p-6 bg-surface2 border border-border2/60 rounded-[var(--radius-lg)] text-base text-textMain/90 font-medium [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] shadow-sm">
                                     <LatexRenderer content={q.text || q.question} />
                                 </div>
                             )) : (
-                                <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border2/50 rounded-2xl opacity-60 p-6 text-center">
-                                    <span className="text-2xl mb-2">⚡</span>
-                                    <span className="text-xs text-gray-400 font-mono uppercase tracking-widest">Optimal Velocity Maintained</span>
+                                <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border2/50 rounded-[var(--radius-lg)] opacity-70 p-6 text-center gap-2">
+                                    <Zap size={22} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
+                                    <span className="text-xs text-muted2">Good pacing — nothing took over 3 minutes.</span>
                                 </div>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* 🚀 CRITICAL BLIND SPOTS DEEP DIVE (Fixed Infinite Scroll & Typography) */}
-                <div className="bg-surface/80 backdrop-blur-md border border-reeRed/40 p-8 sm:p-10 rounded-[2.5rem] shadow-[0_0_40px_rgba(239,68,68,0.1)] flex flex-col mt-4 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-reeRed/5 blur-[80px] rounded-full pointer-events-none"></div>
-                    
-                    <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2 mb-2 relative z-10">
-                        <span className="w-2 h-2 bg-reeRed rounded-full animate-pulse"></span> Critical Blind Spots <span className="text-reeRed bg-reeRed/10 px-2 py-0.5 rounded-md border border-reeRed/20">{diagnostics.blindSpots?.length || 0}</span>
+                {/* Blind spots — high-confidence answers that were wrong */}
+                <div
+                    className="bg-surface/80 backdrop-blur-md border p-6 sm:p-10 rounded-[var(--radius-xl)] flex flex-col mt-4 relative overflow-hidden"
+                    style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}
+                >
+                    <h3 className="text-sm font-semibold text-textMain flex items-center gap-2 mb-2 relative z-10">
+                        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--accent-danger)' }}></span> Blind spots
+                        <span
+                            className="px-2 py-0.5 rounded-[var(--radius-sm)] border text-xs tabular-nums"
+                            style={{
+                                color: 'var(--accent-danger)',
+                                background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)',
+                                borderColor: 'color-mix(in srgb, var(--accent-danger) 20%, transparent)',
+                            }}
+                        >{diagnostics.blindSpots?.length || 0}</span>
                     </h3>
-                    <p className="text-[0.65rem] text-gray-400 font-medium mb-8 relative z-10">Items marked "High Confidence" that evaluated as Incorrect. Review immediately.</p>
+                    <p className="text-xs text-muted2 mb-8 relative z-10">Answers you marked high-confidence that turned out wrong — review these first.</p>
 
-                    {/* 🚀 Safe Scrolling Boundary Applied Here */}
-                    <div className="flex flex-col gap-6 relative z-10 max-h-[800px] overflow-y-auto pr-3 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+                    <div className={`flex flex-col gap-6 relative z-10 max-h-[800px] overflow-y-auto pr-3 ${scrollbarClasses}`}>
                         {diagnostics.blindSpots?.length > 0 ? diagnostics.blindSpots.map((q, i) => (
-                            <div key={i} className="p-6 sm:p-8 bg-surface2 border border-border2/60 rounded-[2rem] flex flex-col gap-6 shadow-sm">
-                                
-                                {/* Question Text */}
-                                <div className="text-base sm:text-xl font-medium text-gray-100 [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                            <div key={i} className="p-6 sm:p-8 bg-surface2 border border-border2/60 rounded-[var(--radius-lg)] flex flex-col gap-6 shadow-sm">
+
+                                <div className="text-base sm:text-xl font-medium text-textMain [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                     <LatexRenderer content={q.text || q.question} />
                                 </div>
-                                
-                                {/* Strict WCAG High Contrast Answer Blocks */}
+
                                 <div className="flex flex-col sm:flex-row gap-5 pt-6 border-t border-border2/50">
-                                    <div className="flex-1 bg-[#2a1215] border border-reeRed/40 p-6 rounded-[1.5rem] relative overflow-hidden shadow-inner">
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-5 text-7xl font-black text-reeRed select-none pointer-events-none">✕</div>
-                                        <span className="block text-[0.65rem] text-red-400 font-black uppercase tracking-widest mb-3 relative z-10">Your Selected Answer</span>
-                                        <div className="text-base sm:text-lg text-red-300 [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] line-through decoration-red-500/50 font-medium relative z-10">
-                                            <LatexRenderer content={q.userAnswer || 'No Answer Selected'} />
+                                    <div
+                                        className="flex-1 border p-6 rounded-[var(--radius-lg)] relative overflow-hidden shadow-inner"
+                                        style={{
+                                            background: 'color-mix(in srgb, var(--accent-danger) 12%, var(--bg-surface))',
+                                            borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)',
+                                        }}
+                                    >
+                                        <span className="block text-eyebrow mb-3 relative z-10" style={{ color: 'var(--accent-danger)' }}>Your answer</span>
+                                        <div
+                                            className="text-base sm:text-lg [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] line-through font-medium relative z-10"
+                                            style={{
+                                                color: 'color-mix(in srgb, var(--accent-danger) 70%, var(--text-main))',
+                                                textDecorationColor: 'color-mix(in srgb, var(--accent-danger) 50%, transparent)',
+                                            }}
+                                        >
+                                            <LatexRenderer content={q.userAnswer || 'No answer selected'} />
                                         </div>
                                     </div>
-                                    <div className="flex-1 bg-[#0f291e] border border-reeGreen/40 p-6 rounded-[1.5rem] shadow-[0_0_15px_rgba(34,197,94,0.05)] relative overflow-hidden">
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-5 text-7xl font-black text-reeGreen select-none pointer-events-none">✓</div>
-                                        <span className="block text-[0.65rem] text-green-400 font-black uppercase tracking-widest mb-3 relative z-10">Verified Target Knowledge</span>
-                                        <div className="text-base sm:text-lg text-green-300 font-black [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] relative z-10">
+                                    <div
+                                        className="flex-1 border p-6 rounded-[var(--radius-lg)] relative overflow-hidden"
+                                        style={{
+                                            background: 'color-mix(in srgb, var(--accent-success) 12%, var(--bg-surface))',
+                                            borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)',
+                                        }}
+                                    >
+                                        <span className="block text-eyebrow mb-3 relative z-10" style={{ color: 'var(--accent-success)' }}>Correct answer</span>
+                                        <div
+                                            className="text-base sm:text-lg font-bold [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] relative z-10"
+                                            style={{ color: 'color-mix(in srgb, var(--accent-success) 70%, var(--text-main))' }}
+                                        >
                                             <LatexRenderer content={q.answer} />
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         )) : (
-                            <div className="py-16 flex flex-col items-center justify-center border-2 border-dashed border-reeGreen/30 rounded-[2rem] bg-reeGreen/5 shadow-inner">
-                                <span className="text-5xl mb-4">🛡️</span>
-                                <span className="text-sm text-reeGreen font-black uppercase tracking-widest">No Blind Spots Detected</span>
-                                <span className="text-xs text-gray-400 font-medium mt-2">Your confidence aligns perfectly with your competence.</span>
+                            <div
+                                className="py-16 flex flex-col items-center justify-center border-2 border-dashed rounded-[var(--radius-lg)] shadow-inner gap-3"
+                                style={{
+                                    borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)',
+                                    background: 'color-mix(in srgb, var(--accent-success) 5%, transparent)',
+                                }}
+                            >
+                                <Shield size={36} strokeWidth={1.5} aria-hidden="true" style={{ color: 'var(--accent-success)' }} />
+                                <span className="text-sm font-semibold" style={{ color: 'var(--accent-success)' }}>No blind spots</span>
+                                <span className="text-xs text-muted2">Your confidence matched your results on every question.</span>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* 🚀 HIGH-VISIBILITY EXIT BUTTON */}
+                {/* Exit */}
                 <div className="flex justify-center mt-10 relative z-10">
-                    <button 
-                        onClick={() => setShowExitConfirm(true)}
-                        className="px-12 py-6 bg-reeBlue hover:bg-blue-600 border-2 border-reeBlue/50 text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-all duration-300 shadow-[0_4px_25px_rgba(59,130,246,0.35)] hover:shadow-[0_6px_30px_rgba(59,130,246,0.5)] hover:-translate-y-1 active:scale-95 cursor-pointer flex items-center gap-3"
-                    >
-                        Terminate Diagnostics & Return <span>→</span>
-                    </button>
+                    <Button size="lg" onClick={() => setShowExitConfirm(true)}>
+                        Back to dashboard
+                    </Button>
                 </div>
 
             </div>

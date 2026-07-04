@@ -115,11 +115,15 @@ export const useGauntletEngine = (level) => {
             // pressure) and elapsed time go into the grade payload so Gauntlet
             // attempts feed the same calibration/IRT analytics as Active Review
             // and Board Simulator.
+            // Deterministic per-attempt id: a retried grade call (timeout,
+            // double-tap) dedupes server-side instead of double-counting.
+            const gauntletSessionId = useStore.getState().currentSessionId || (crypto?.randomUUID?.() ?? String(Date.now()));
             const gradePayload = questions.map((q, idx) => ({
                 questionId: q.id,
                 userAnswer: answers[idx] || '',
                 confidenceLevel: confidences[idx] || 'MED',
                 timeSpentMs: timeSpentPerQuestionRef.current[idx] || 0,
+                clientAttemptId: `${gauntletSessionId}:${q.id}`,
             }));
 
             const gradeResult = await apiRequest('/api/exams/grade', 'POST', { answers: gradePayload, mode: 'GAUNTLET' });

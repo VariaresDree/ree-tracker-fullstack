@@ -34,7 +34,7 @@ export default function MediaViewer({ item }) {
         <div className="w-full p-6 bg-surface border border-border2 rounded-xl shadow-sm flex flex-col items-center gap-4 mt-8">
           <div className="w-20 h-20 rounded-full bg-reePurple/10 border border-reePurple/30 flex items-center justify-center text-4xl shadow-[0_0_15px_rgba(139,92,246,0.2)] animate-pulse">🎙️</div>
           <div className="text-sm font-bold text-textMain text-center mt-2">{item.title}</div>
-          <div className="text-[0.65rem] font-mono text-muted uppercase tracking-widest -mt-2">Audio Playback Matrix</div>
+          <div className="text-[11px] font-mono text-muted uppercase tracking-widest -mt-2">Audio Playback Matrix</div>
           <audio controls className="w-full max-w-md mt-4 custom-audio-player">
             <source src={item.url} type="audio/mpeg" />
             <source src={item.url} type="audio/wav" />

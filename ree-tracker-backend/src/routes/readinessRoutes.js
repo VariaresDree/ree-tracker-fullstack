@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { validate } = require('../middlewares/validate');
+const { readinessSnapshotSchema } = require('../schemas/readinessSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -12,9 +14,11 @@ router.get('/', authMiddleware, async (req, res) => {
             select: { thetaRating: true, standardError: true }
         });
 
+        // groupBy pushes the DISTINCT down to Postgres and returns one row per
+        // subtopic — the old findMany+distinct pulled full row sets first.
         const [totalSubtopics, coveredSubtopics] = await Promise.all([
-            prisma.question.findMany({ where: { isFlagged: false }, select: { subtopic: true }, distinct: ['subtopic'] }),
-            prisma.questionAttempt.findMany({ where: { userId: req.user.id }, select: { subtopic: true }, distinct: ['subtopic'] })
+            prisma.question.groupBy({ by: ['subtopic'], where: { isFlagged: false } }),
+            prisma.questionAttempt.groupBy({ by: ['subtopic'], where: { userId: req.user.id } })
         ]);
 
         const topicCoverage = totalSubtopics.length > 0
@@ -110,20 +114,12 @@ router.get('/history', authMiddleware, async (req, res) => {
 });
 
 // POST /api/readiness/snapshot — save a readiness snapshot (called after computing score)
-router.post('/snapshot', authMiddleware, async (req, res) => {
+router.post('/snapshot', authMiddleware, validate(readinessSnapshotSchema), async (req, res) => {
     try {
         const { score, topicCoverage, accuracyRate, theta, consistency, blindSpotRatio } = req.body;
 
         const snapshot = await prisma.readinessSnapshot.create({
-            data: {
-                userId: req.user.id,
-                score: score || 0,
-                topicCoverage: topicCoverage || 0,
-                accuracyRate: accuracyRate || 0,
-                theta: theta || 0,
-                consistency: consistency || 0,
-                blindSpotRatio: blindSpotRatio || 0
-            }
+            data: { userId: req.user.id, score, topicCoverage, accuracyRate, theta, consistency, blindSpotRatio }
         });
 
         res.status(201).json({ success: true, id: snapshot.id });

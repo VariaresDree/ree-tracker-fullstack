@@ -186,9 +186,9 @@ describe('QuestionCard — reviewing state', () => {
     const opts = ['A', 'B', 'C', 'D'].map(getOption);
     for (const o of opts) expect(o).toBeDisabled();
 
-    // Correct answer (A) is the one with the green color class
+    // Correct answer (A) is the one styled with the success accent
     const correct = getOption('A');
-    expect(correct.className).toMatch(/reeGreen|0f291e/);
+    expect(correct.className).toMatch(/accent-success/);
 
     // Wrong selection (B) is the one with strikethrough container
     const wrong = getOption('B');

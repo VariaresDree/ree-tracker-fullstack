@@ -32,6 +32,9 @@ function checkEnv() {
     } else {
         readiness.gemini = 'ok';
     }
+    if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+        warnings.push('FRONTEND_URL is not set in production — CORS will accept ANY origin. Set it to your Vercel URL.');
+    }
     const hasFirebaseFile = fs.existsSync(FIREBASE_JSON_PATH);
     const hasFirebaseEnv = FIREBASE_ENV_KEYS.every((k) => !!process.env[k]);
     if (!hasFirebaseFile && !hasFirebaseEnv) {
@@ -101,11 +104,11 @@ async function bootstrap() {
         'http://localhost:4173',
     ].filter(Boolean);
 
+    // Strict when FRONTEND_URL is set (production): unknown origins get no
+    // CORS headers, so browsers block them. Permissive only as dev fallback.
+    const { makeOriginCheck } = require('./src/utils/corsOrigin');
     app.use(cors({
-        origin: (origin, cb) => {
-            if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-            return cb(null, true); // permissive for dev; tighten via FRONTEND_URL in prod
-        },
+        origin: makeOriginCheck(allowedOrigins, { strict: !!process.env.FRONTEND_URL }),
         credentials: true,
     }));
     app.use(express.json({ limit: '2mb' }));
@@ -139,6 +142,15 @@ async function bootstrap() {
         legacyHeaders: false,
         keyGenerator: (req, res) => req.headers.authorization || ipKeyGenerator(req, res),
         message: { error: 'Rate limit exceeded for /leaderboard/me.' },
+    });
+
+    const battleLimiter = rateLimit({
+        windowMs: 60 * 1000,
+        max: 60,
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: (req, res) => req.headers.authorization || ipKeyGenerator(req, res),
+        message: { error: 'Battle rate limit exceeded. Slow down.' },
     });
 
     // Subsystem guards — return a clear remediation message instead of letting
@@ -177,7 +189,7 @@ async function bootstrap() {
     app.use('/api/bookmarks', require('./src/routes/bookmarkRoutes'));
     app.use('/api/user', require('./src/routes/userRoutes'));
     app.use('/api/config', require('./src/routes/configRoutes'));
-    app.use('/api/battles', require('./src/routes/battleRoutes'));
+    app.use('/api/battles', battleLimiter, require('./src/routes/battleRoutes'));
     app.use('/api/srs', require('./src/routes/srsRoutes'));
     app.use('/api/analytics/study-sessions', require('./src/routes/studySessionRoutes'));
     app.use('/api/user', require('./src/routes/plannerRoutes'));
@@ -207,13 +219,16 @@ async function bootstrap() {
         res.status(allGreen ? 200 : 503).json(report);
     });
 
+    // Consistent JSON 404 for unmatched routes (must come before the error handler).
+    app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
+
     app.use((err, req, res, next) => {
         logger.error('Unhandled error', { error: err.message, stack: err.stack, path: req.path });
         res.status(500).json({ error: 'Internal Server Error' });
     });
 
     const io = new Server(httpServer, {
-        cors: { origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true },
+        cors: { origin: allowedOrigins.length ? allowedOrigins : 'http://localhost:5173', credentials: true },
     });
     if (readiness.firebase === 'ok' && readiness.db === 'ok') {
         setupBattleSocket(io);

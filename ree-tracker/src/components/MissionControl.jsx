@@ -6,8 +6,12 @@ import toast from 'react-hot-toast';
 import { Panel, Button, Card, Skeleton } from './ui';
 import { ClipboardList, Settings2, RefreshCw, Trash2 } from './ui/icons';
 
-export default function MissionControl({ onPurgeRequest }) {
-  const { stats, resetDailyQuotas, saveExamConfig } = useTelemetrySlice();
+// `stats` comes from the PARENT (Dashboard's merged activeStats — local
+// optimistic + server-canonical). Reading the raw store here served stale
+// tallies that only refreshed after a full sync round-trip, which is why the
+// daily targets seemed to move only after Board Simulator runs.
+export default function MissionControl({ stats, onPurgeRequest }) {
+  const { resetDailyQuotas, saveExamConfig } = useTelemetrySlice();
 
   const [isEditing, setIsEditing] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -82,7 +86,7 @@ export default function MissionControl({ onPurgeRequest }) {
           >
             <div className="flex flex-wrap gap-5">
               <div>
-                <label className="block text-[0.65rem] font-medium uppercase tracking-wider text-muted mb-2">Target board date</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-muted mb-2">Target board date</label>
                 <input
                   type="date"
                   value={editDate}
@@ -91,7 +95,7 @@ export default function MissionControl({ onPurgeRequest }) {
                 />
               </div>
               <div>
-                <label className="block text-[0.65rem] font-medium uppercase tracking-wider text-muted mb-2">Daily quota target</label>
+                <label className="block text-[11px] font-medium uppercase tracking-wider text-muted mb-2">Daily quota target</label>
                 <input
                   type="number"
                   min="10"
@@ -134,10 +138,10 @@ export default function MissionControl({ onPurgeRequest }) {
             return (
               <div key={q.label} className="rounded-xl border border-border bg-surface2/30 p-4">
                 <div className="flex justify-between items-center mb-3 gap-2">
-                  <span className="text-[0.65rem] font-medium uppercase tracking-wider truncate" style={{ color: q.color }}>
+                  <span className="text-[11px] font-medium uppercase tracking-wider truncate" style={{ color: q.color }}>
                     {q.label}
                   </span>
-                  <span className="text-[0.65rem] text-muted2 tabular-nums shrink-0">
+                  <span className="text-[11px] text-muted2 tabular-nums shrink-0">
                     {q.cur} / {q.goal}
                   </span>
                 </div>

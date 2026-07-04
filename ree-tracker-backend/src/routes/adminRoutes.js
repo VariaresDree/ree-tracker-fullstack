@@ -27,35 +27,50 @@ router.post('/calibrate', async (req, res) => {
         let updated = 0;
         const sample = [];
 
-        for (const q of candidates) {
-            const attempts = await prisma.questionAttempt.findMany({
-                where: { questionId: q.id },
-                select: { isCorrect: true, user: { select: { thetaRating: true } } },
+        // Batch-fetch attempts in chunks instead of one query per question
+        // (the old N+1 pattern: 500 candidates = 500 serial round-trips).
+        // Chunking keeps peak memory bounded for heavily-attempted items.
+        const CHUNK = 100;
+        for (let i = 0; i < candidates.length; i += CHUNK) {
+            const chunkIds = candidates.slice(i, i + CHUNK).map((q) => q.id);
+            const chunkAttempts = await prisma.questionAttempt.findMany({
+                where: { questionId: { in: chunkIds } },
+                select: { questionId: true, isCorrect: true, user: { select: { thetaRating: true } } },
             });
-            if (attempts.length < minN) continue;
+            const byQuestion = new Map();
+            for (const a of chunkAttempts) {
+                let arr = byQuestion.get(a.questionId);
+                if (!arr) byQuestion.set(a.questionId, (arr = []));
+                arr.push(a);
+            }
 
-            inspected += 1;
-            const samples = attempts.map((a) => ({
-                theta: a.user?.thetaRating ?? 0,
-                correct: !!a.isCorrect,
-            }));
-            const params = calibrateItem(samples, { minN });
-            if (!params) continue;
+            for (const qid of chunkIds) {
+                const attempts = byQuestion.get(qid) || [];
+                if (attempts.length < minN) continue;
 
-            if (sample.length < 10) sample.push({ id: q.id, n: samples.length, ...params });
+                inspected += 1;
+                const samples = attempts.map((a) => ({
+                    theta: a.user?.thetaRating ?? 0,
+                    correct: !!a.isCorrect,
+                }));
+                const params = calibrateItem(samples, { minN });
+                if (!params) continue;
 
-            if (!dryRun) {
-                await prisma.question.update({
-                    where: { id: q.id },
-                    data: {
-                        irtA: params.a,
-                        irtB: params.b,
-                        irtC: params.c,
-                        calibrationN: samples.length,
-                        lastCalibratedAt: new Date(),
-                    },
-                });
-                updated += 1;
+                if (sample.length < 10) sample.push({ id: qid, n: samples.length, ...params });
+
+                if (!dryRun) {
+                    await prisma.question.update({
+                        where: { id: qid },
+                        data: {
+                            irtA: params.a,
+                            irtB: params.b,
+                            irtC: params.c,
+                            calibrationN: samples.length,
+                            lastCalibratedAt: new Date(),
+                        },
+                    });
+                    updated += 1;
+                }
             }
         }
 

@@ -6,6 +6,7 @@ import { auth } from '../config/firebaseDb';
 import { TOS as fallbackTOS } from '../config/constants';
 import { updateCommandParameters, apiRequest } from '../services/dbQueries';
 import { calculateUpdatedStats } from '../utils/irtMath';
+import { stableBatchKey } from '../utils/contentHash';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
 // Lives outside the store so multiple resets just call clearTimeout on the
@@ -170,7 +171,10 @@ export const useStore = create(
             subtopic,
             subject,
             questionId,
-            Math.floor((Number(timeSpentMs) || 0) / 1000),
+            // Milliseconds, matching the server payload's microTopics.totalTime —
+            // the old ÷1000 made local topic times 1000× smaller than the
+            // server's, so the dashboard merge produced garbage speed data.
+            Number(timeSpentMs) || 0,
           );
           return {
             stats: updatedStats,
@@ -223,7 +227,6 @@ export const useStore = create(
 
           const batch = syncQueue.slice();
           const sentIds = new Set(batch.map((a) => a.id));
-          const batchKey = newId();
 
           set({ syncStatus: 'syncing' });
 
@@ -241,6 +244,12 @@ export const useStore = create(
             const mode = getStore().currentSessionMode || 'ACTIVE_REVIEW';
             const targetSubject = getStore().currentSubject || 'BLENDED';
 
+            // Content-derived key: a RETRY of this exact batch (network flake,
+            // timeout abort, app reopen) reuses the identical key, so the
+            // server replays the cached response instead of double-writing.
+            // The old random-per-flush key made every retry look like new data.
+            const batchKey = stableBatchKey(sessionId, batch.map((a) => a.id));
+
             const response = await fetch(`${apiUrl}/api/analytics/telemetry-bulk`, {
               method: 'POST',
               headers: {
@@ -248,12 +257,25 @@ export const useStore = create(
                 'Authorization': `Bearer ${token}`,
                 'Idempotency-Key': batchKey,
               },
-              body: JSON.stringify({ sessionId, mode, targetSubject, attempts: batch })
+              body: JSON.stringify({
+                sessionId,
+                mode,
+                targetSubject,
+                // clientAttemptId gives the server a durable per-attempt dedupe
+                // handle that outlives the idempotency cache's 10-min TTL.
+                attempts: batch.map((a) => ({ ...a, clientAttemptId: a.id })),
+              })
             });
 
             if (!response.ok) throw new Error("Backend synchronization transaction rejected.");
 
             const serverResult = await response.json();
+
+            // Surface silent drops (e.g. questions the server couldn't match)
+            // instead of letting sessions quietly undercount.
+            if (serverResult.skipped > 0) {
+              console.warn(`[SYNC] Server skipped ${serverResult.skipped} attempt(s) with unknown question ids.`);
+            }
 
             set((state) => {
               const remaining = state.syncQueue.filter((a) => !sentIds.has(a.id));
@@ -262,7 +284,9 @@ export const useStore = create(
                 syncStatus: remaining.length > 0 ? 'offline_queued' : 'synced',
                 stats: {
                   ...state.stats,
-                  thetaRating: serverResult.updatedTheta,
+                  // Guard: a fully-deduped replay returns the CURRENT theta;
+                  // never let a null response wipe the local value.
+                  thetaRating: serverResult.updatedTheta ?? state.stats?.thetaRating,
                   cloudTimestamp: Date.now()
                 }
               };

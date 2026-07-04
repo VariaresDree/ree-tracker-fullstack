@@ -1,246 +1,265 @@
 // src/features/board-simulator/SimulatorConfig.jsx
-import React from 'react';
+import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { Card, Button, FormField, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
+import { Settings2, Landmark, Scale, FileText, TriangleAlert } from '../../components/ui/icons';
+
+const PROFILES = [
+  {
+    id: 'custom',
+    icon: Settings2,
+    name: 'Custom Drill',
+    description: 'Pick the item count, topic, and source for focused practice.',
+  },
+  {
+    id: 'prc_subject',
+    icon: Landmark,
+    name: 'PRC Standard',
+    description: 'Strict 100 items with the fixed 4 or 6 hour board time limit.',
+  },
+  {
+    id: 'prc_blended',
+    icon: Scale,
+    name: 'Full Blended',
+    description: 'The full mock board: 100 mixed items in 5 hours.',
+  },
+];
 
 export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine }) {
   const { dynamicTOS } = useStore();
   const safeTOS = dynamicTOS || {};
   const isOnline = useNetworkStatus();
+  const [showNewExamGuard, setShowNewExamGuard] = useState(false);
 
   const isCustom = config.mode === 'subject' && !config.isPrcStandard;
   const isPrcSubject = config.mode === 'subject' && config.isPrcStandard;
   const isBlended = config.mode === 'blended';
+  const activeProfile = isBlended ? 'prc_blended' : isPrcSubject ? 'prc_subject' : 'custom';
 
   // State-safe profile handler
   const setProfile = (profile) => {
     if (profile === 'custom') {
-        setConfig({ 
-            ...config, mode: 'subject', isPrcStandard: false, count: 50, 
-            subject: config.subject === 'blended' ? 'Mathematics' : config.subject 
-        });
+      setConfig({
+        ...config, mode: 'subject', isPrcStandard: false, count: 50,
+        subject: config.subject === 'blended' ? 'Mathematics' : config.subject,
+      });
     }
     if (profile === 'prc_subject') {
-        setConfig({ 
-            ...config, mode: 'subject', isPrcStandard: true, count: 100,
-            subject: config.subject === 'blended' ? 'Mathematics' : config.subject 
-        });
+      setConfig({
+        ...config, mode: 'subject', isPrcStandard: true, count: 100,
+        subject: config.subject === 'blended' ? 'Mathematics' : config.subject,
+      });
     }
     if (profile === 'prc_blended') {
-        setConfig({ ...config, mode: 'blended', isPrcStandard: true, count: 100, subject: 'blended' });
+      setConfig({ ...config, mode: 'blended', isPrcStandard: true, count: 100, subject: 'blended' });
     }
   };
 
+  // Starting a new exam silently discards any saved one — make that a
+  // deliberate choice instead of an accident.
+  const handleStart = () => {
+    if (engine?.hasSavedSession) {
+      setShowNewExamGuard(true);
+      return;
+    }
+    startSimulation();
+  };
+
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pt-6 pb-12 w-full z-0 relative">
-      
-      {/* 🚀 Unified Premium Container */}
-      <div className="p-8 sm:p-12 bg-surface/90 backdrop-blur-2xl border border-border2/80 rounded-[2.5rem] shadow-2xl animate-in fade-in slide-in-from-bottom-6 duration-500 relative overflow-hidden">
-        
-        {/* Subtle Background Glow */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-reeBlue/5 blur-[120px] rounded-full pointer-events-none"></div>
-
-        {/* 🚀 Header */}
-        <div className="mb-10 border-b border-border2/60 pb-6 relative z-10">
-          <h2 className="text-3xl sm:text-4xl font-black text-white mb-3 tracking-tight drop-shadow-sm">Pre-Board Simulator</h2>
-          <p className="text-sm text-gray-300 font-medium">Select your evaluation profile to configure the pressure chamber.</p>
+    <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
+      <Card elevated grain className="p-6 sm:p-10">
+        <div className="mb-8 border-b border-border pb-5">
+          <h2 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Board Simulator</h2>
+          <p className="text-sm text-muted2 mt-1">Choose how strict the exam should be.</p>
         </div>
 
-        {/* 🚀 Status Warnings */}
         {session?.error && (
-            <div className="mb-8 p-5 bg-reeRed/20 border-l-4 border-reeRed text-white text-sm rounded-xl font-bold animate-in zoom-in shadow-sm relative z-10">
-                {session.error}
-            </div>
+          <div className="mb-8 p-4 rounded-[var(--radius-default)] border-l-4 text-sm font-medium animate-in zoom-in"
+            style={{
+              borderColor: 'var(--accent-danger)',
+              background: 'color-mix(in srgb, var(--accent-danger) 12%, transparent)',
+              color: 'var(--text-main)',
+            }}
+          >
+            {session.error}
+          </div>
         )}
-        
+
         {engine?.hasSavedSession && (
-            <div className="mb-10 p-6 bg-surface2 border-2 border-reeAmber/50 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 shadow-[0_0_20px_rgba(245,158,11,0.1)] animate-in fade-in slide-in-from-top-4 relative z-10">
-                <div>
-                    <h4 className="text-xs font-black text-reeAmber tracking-widest uppercase mb-2 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-reeAmber animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.8)]"></span> Unfinished Matrix Detected
-                    </h4>
-                    <p className="text-sm text-gray-200 font-medium">You have a cached mock board in progress.</p>
-                </div>
-                <button 
-                    onClick={engine.resumeSimulation} 
-                    className="px-8 py-4 bg-reeAmber hover:bg-amber-500 text-bg font-black rounded-xl text-xs uppercase tracking-widest shadow-[0_4px_15px_rgba(245,158,11,0.3)] hover:shadow-[0_6px_20px_rgba(245,158,11,0.4)] hover:-translate-y-1 active:scale-95 transition-all duration-300 w-full sm:w-auto flex justify-center cursor-pointer"
-                >
-                    Resume Matrix
-                </button>
+          <Card className="mb-8 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4"
+            style={{ borderColor: 'color-mix(in srgb, var(--color-reeAmber) 45%, transparent)' }}
+          >
+            <div className="flex flex-col gap-1.5">
+              <StatusPill tone="amber">In progress</StatusPill>
+              <p className="text-textMain font-semibold">Resume your last exam?</p>
+              <p className="text-sm text-muted2">You have an unfinished simulation saved on this device.</p>
             </div>
+            <Button tone="amber" onClick={engine.resumeSimulation} className="w-full sm:w-auto">
+              Resume exam
+            </Button>
+          </Card>
         )}
 
-        {/* 🚀 EVALUATION PROFILE (High Contrast Cards) */}
-        <div className="mb-10 relative z-10">
-            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4 drop-shadow-sm">Evaluation Profile</label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <button 
-                    onClick={() => setProfile('custom')} 
-                    className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 cursor-pointer flex flex-col justify-between hover:-translate-y-1 active:scale-95 ${
-                        isCustom 
-                        ? 'bg-reeBlue/10 border-reeBlue text-white shadow-[0_0_20px_rgba(59,130,246,0.2)]' 
-                        : 'bg-surface2 border-border2/80 text-gray-300 hover:border-gray-400 hover:bg-surface3'
-                    }`}
+        {/* Exam profile */}
+        <div className="mb-8">
+          <span className="text-eyebrow block mb-3">Exam profile</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4" role="radiogroup" aria-label="Exam profile">
+            {PROFILES.map((p) => {
+              const selected = activeProfile === p.id;
+              const Icon = p.icon;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setProfile(p.id)}
+                  className={cn(
+                    'p-5 rounded-[var(--radius-lg)] border text-left transition-all cursor-pointer flex flex-col gap-3 btn-press',
+                    selected
+                      ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
+                      : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'
+                  )}
                 >
-                    <div className={`text-3xl mb-5 transition-transform duration-300 ${isCustom ? 'scale-110 drop-shadow-md' : 'opacity-70'}`}>⚙️</div>
-                    <div>
-                        <h3 className={`text-sm font-black uppercase tracking-widest mb-2 ${isCustom ? 'text-reeBlue' : 'text-gray-100'}`}>Custom Drill</h3>
-                        <p className="text-xs text-gray-400 leading-relaxed font-medium">Adjustable item count and time limits for focused practice.</p>
-                    </div>
+                  <span
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-default)]"
+                    style={{
+                      background: selected ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'var(--bg-surface3)',
+                      color: selected ? 'var(--accent)' : 'var(--text-muted2)',
+                    }}
+                  >
+                    <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h3 className={cn('text-sm font-semibold mb-1', selected ? 'text-[var(--accent)]' : 'text-textMain')}>{p.name}</h3>
+                    <p className="text-xs text-muted2 leading-relaxed">{p.description}</p>
+                  </div>
                 </button>
-                
-                <button 
-                    onClick={() => setProfile('prc_subject')} 
-                    className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 cursor-pointer flex flex-col justify-between hover:-translate-y-1 active:scale-95 ${
-                        isPrcSubject 
-                        ? 'bg-reeAmber/10 border-reeAmber text-white shadow-[0_0_20px_rgba(245,158,11,0.2)]' 
-                        : 'bg-surface2 border-border2/80 text-gray-300 hover:border-gray-400 hover:bg-surface3'
-                    }`}
-                >
-                    <div className={`text-3xl mb-5 transition-transform duration-300 ${isPrcSubject ? 'scale-110 drop-shadow-md' : 'opacity-70'}`}>🏛️</div>
-                    <div>
-                        <h3 className={`text-sm font-black uppercase tracking-widest mb-2 ${isPrcSubject ? 'text-reeAmber' : 'text-gray-100'}`}>PRC Standard</h3>
-                        <p className="text-xs text-gray-400 leading-relaxed font-medium">Strict 100 items. Locked 4 or 6 hour limit depending on subject.</p>
-                    </div>
-                </button>
-
-                <button 
-                    onClick={() => setProfile('prc_blended')} 
-                    className={`p-6 rounded-2xl border-2 text-left transition-all duration-300 cursor-pointer flex flex-col justify-between hover:-translate-y-1 active:scale-95 ${
-                        isBlended 
-                        ? 'bg-reePurple/10 border-reePurple text-white shadow-[0_0_20px_rgba(139,92,246,0.2)]' 
-                        : 'bg-surface2 border-border2/80 text-gray-300 hover:border-gray-400 hover:bg-surface3'
-                    }`}
-                >
-                    <div className={`text-3xl mb-5 transition-transform duration-300 ${isBlended ? 'scale-110 drop-shadow-md' : 'opacity-70'}`}>⚖️</div>
-                    <div>
-                        <h3 className={`text-sm font-black uppercase tracking-widest mb-2 ${isBlended ? 'text-reePurple' : 'text-gray-100'}`}>Full Blended</h3>
-                        <p className="text-xs text-gray-400 leading-relaxed font-medium">The ultimate test. 100 mixed items locked to 5 hours.</p>
-                    </div>
-                </button>
-            </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* 🚀 TARGET DOMAIN & SUBTOPIC (Solid Background Selects) */}
-        <div className="flex flex-col sm:flex-row gap-6 mb-10 animate-in fade-in slide-in-from-top-2 relative z-10">
-          <div className="flex-1">
-            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4 drop-shadow-sm">Target Domain</label>
-            <div className="relative group">
-                <select 
-                  disabled={isBlended} 
-                  value={config.subject} 
-                  onChange={e => setConfig({...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All'})} 
-                  className="w-full bg-surface2 border-2 border-border2/80 text-white font-bold rounded-2xl p-5 text-sm outline-none focus:border-reeBlue transition-all cursor-pointer appearance-none shadow-sm hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {Object.keys(safeTOS).map(s => <option key={s} value={s} className="bg-surface text-white">{s === 'EE' ? 'Electrical Engineering (EE)' : s}</option>)}
-                  {isBlended && <option value="blended" className="bg-surface text-white">Blended Matrix</option>}
-                </select>
-                {!isBlended && <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 transition-transform group-hover:translate-y-0.5">▼</div>}
-            </div>
-          </div>
+        {/* Subject & topic */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-8 animate-in fade-in slide-in-from-top-2">
+          <FormField label="Subject" className="flex-1">
+            <Select
+              disabled={isBlended}
+              value={config.subject}
+              onChange={(e) => setConfig({ ...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All' })}
+            >
+              {Object.keys(safeTOS).map((s) => (
+                <option key={s} value={s}>{s === 'EE' ? 'Electrical Engineering (EE)' : s}</option>
+              ))}
+              {isBlended && <option value="blended">All subjects (blended)</option>}
+            </Select>
+          </FormField>
 
           {isCustom && config.subject && config.subject !== 'blended' && (
-            <div className="flex-1 animate-in fade-in slide-in-from-left-4">
-              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4 drop-shadow-sm">Specific Topic Focus</label>
-              <div className="relative group">
-                  <select 
-                    value={config.subtopic || 'All'} 
-                    onChange={e => setConfig({...config, subtopic: e.target.value})} 
-                    className="w-full bg-surface2 border-2 border-border2/80 text-white font-bold rounded-2xl p-5 text-sm outline-none focus:border-reeCyan transition-all cursor-pointer appearance-none shadow-sm hover:border-gray-400"
-                  >
-                    <option value="All" className="bg-surface text-white">Comprehensive (All Subtopics)</option>
-                    {(safeTOS[config.subject] || []).map(t => <option key={t} value={t} className="bg-surface text-white">{t}</option>)}
-                  </select>
-                  <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 transition-transform group-hover:translate-y-0.5">▼</div>
-              </div>
-            </div>
+            <FormField label="Topic" className="flex-1 animate-in fade-in slide-in-from-left-4">
+              <Select
+                value={config.subtopic || 'All'}
+                onChange={(e) => setConfig({ ...config, subtopic: e.target.value })}
+              >
+                <option value="All">All topics</option>
+                {(safeTOS[config.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </FormField>
           )}
         </div>
 
-        {/* 🚀 SIMULATION VOLUME OR ENFORCED TIME */}
+        {/* Length, or the enforced board time limit */}
         {isCustom ? (
-            <div className="mb-10 animate-in fade-in slide-in-from-bottom-3 relative z-10">
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4 drop-shadow-sm">Simulation Volume</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {[10, 20, 50, 100].map(num => (
-                        <button 
-                            key={num}
-                            onClick={() => setConfig({...config, count: num})}
-                            className={`py-4 px-4 rounded-2xl border-2 text-sm font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 hover:-translate-y-1 active:scale-95 ${
-                                config.count === num 
-                                ? 'bg-reeGreen/20 border-reeGreen text-white shadow-[0_0_15px_rgba(34,197,94,0.2)]' 
-                                : 'bg-surface2 border-border2/80 text-gray-300 hover:border-gray-400 hover:bg-surface3'
-                            }`}
-                        >
-                            {num} Items
-                        </button>
-                    ))}
-                </div>
-            </div>
+          <div className="mb-8 animate-in fade-in slide-in-from-bottom-3">
+            <span className="text-eyebrow block mb-3">Length</span>
+            <SegmentedControl
+              label="Number of questions"
+              value={config.count}
+              onChange={(v) => setConfig({ ...config, count: v })}
+              columns={2}
+              className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
+              options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n} questions` }))}
+            />
+          </div>
         ) : (
-            <div className="mb-10 animate-in fade-in slide-in-from-bottom-3 p-8 bg-surface2 border-2 border-border2/80 rounded-[2rem] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-sm relative z-10">
-                <div className="flex flex-col gap-2">
-                    <span className="text-[0.65rem] font-black text-reeAmber uppercase tracking-widest flex items-center gap-2">
-                        <span className="w-2 h-2 bg-reeAmber rounded-full animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]"></span> Enforced Time Limit
-                    </span>
-                    <span className="text-sm text-gray-300 font-medium">Standardized PRC board conditions are active.</span>
-                </div>
-                <span className="text-3xl sm:text-4xl font-black text-white tracking-widest bg-surface px-8 py-5 rounded-2xl border border-border2/50 shadow-inner">
-                    {isBlended ? '05:00:00' : (config.subject === 'EE' ? '06:00:00' : '04:00:00')}
-                </span>
+          <Card className="mb-8 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-3 bg-surface2">
+            <div className="flex flex-col gap-1">
+              <span className="text-eyebrow">Time limit</span>
+              <span className="text-sm text-muted2">Fixed by PRC board rules.</span>
             </div>
+            <span className="text-display text-3xl text-textMain font-mono tabular-nums bg-surface px-6 py-3 rounded-[var(--radius-default)] border border-border">
+              {isBlended ? '05:00:00' : (config.subject === 'EE' ? '06:00:00' : '04:00:00')}
+            </span>
+          </Card>
         )}
 
-        {/* 🚀 DATA SOURCE (CUSTOM ONLY) */}
+        {/* Source (custom only) */}
         {isCustom && (
-            <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 relative z-10">
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-4 drop-shadow-sm">Ingestion Source</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <button 
-                        onClick={() => setConfig({...config, source: 'library'})} 
-                        className={`p-6 rounded-2xl border-2 text-sm font-black transition-all duration-300 cursor-pointer flex items-center justify-center gap-3 hover:-translate-y-1 active:scale-95 ${
-                            config.source === 'library' 
-                            ? 'border-reeBlue bg-reeBlue/20 text-white shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
-                            : 'border-border2/80 bg-surface2 text-gray-300 hover:border-gray-400 hover:bg-surface3'
-                        }`}
-                    >
-                        📚 Global Vault
-                    </button>
-                    <button 
-                        onClick={() => setConfig({...config, source: 'ai'})} 
-                        disabled={!isOnline} 
-                        className={`p-6 rounded-2xl border-2 text-sm font-black transition-all duration-300 flex items-center justify-center gap-3 active:scale-95 ${
-                            config.source === 'ai' 
-                            ? 'border-reePurple bg-reePurple/20 text-white shadow-[0_0_15px_rgba(139,92,246,0.2)] hover:-translate-y-1' 
-                            : 'border-border2/80 bg-surface2 text-gray-300 hover:border-gray-400 hover:bg-surface3 hover:-translate-y-1'
-                        } ${!isOnline ? 'opacity-40 cursor-not-allowed grayscale hover:translate-y-0 active:scale-100' : 'cursor-pointer'}`}
-                    >
-                        ✨ AI Matrix
-                    </button>
-                </div>
-            </div>
+          <div className="mb-10 animate-in fade-in slide-in-from-bottom-4">
+            <span className="text-eyebrow block mb-3">Source</span>
+            <SegmentedControl
+              label="Question source"
+              value={config.source}
+              onChange={(v) => setConfig({ ...config, source: v })}
+              options={[
+                { value: 'library', label: 'Question vault' },
+                { value: 'ai', label: 'AI generated', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+              ]}
+            />
+          </div>
         )}
 
-        {/* 🚀 ACTION BUTTONS (Clear Hierarchy & Strong Contrast) */}
-        <div className="flex flex-col sm:flex-row gap-5 pt-8 border-t border-border2/60 mt-8 relative z-10">
-            <button
-                onClick={startSimulation}
-                disabled={session?.loading}
-                className="relative overflow-hidden flex-1 py-6 bg-reeBlue hover:bg-blue-600 text-white font-black rounded-2xl shadow-[0_4px_25px_rgba(59,130,246,0.4)] transition-all duration-300 hover:shadow-[0_6px_30px_rgba(59,130,246,0.6)] hover:-translate-y-1 active:scale-95 flex justify-center items-center gap-3 text-base tracking-widest uppercase cursor-pointer disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:active:scale-100 group"
-            >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                {session?.loading && !engine?.isExporting ? <span className="telemetry-spinner !w-6 !h-6 border-white"></span> : <span className="text-xl">🚀</span>} INITIATE SIMULATION
-            </button>
-            <button
-                onClick={engine?.exportOfflinePDF}
-                disabled={session?.loading || engine?.isExporting}
-                className="flex-1 sm:max-w-[300px] py-6 bg-surface2 hover:bg-surface3 border-2 border-border2/80 text-white rounded-2xl text-sm font-black uppercase tracking-widest transition-all duration-300 cursor-pointer shadow-sm flex items-center justify-center gap-3 hover:-translate-y-1 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:hover:translate-y-0 disabled:active:scale-100"
-            >
-                {engine?.isExporting ? <span className="telemetry-spinner !w-5 !h-5 border-white"></span> : <span className="text-xl">📄</span>} COMPILE TO PDF
-            </button>
+        {/* Primary action, with the PDF export visibly subordinate */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-6 border-t border-border">
+          <Button
+            size="lg"
+            className="flex-1"
+            loading={session?.loading && !engine?.isExporting}
+            disabled={session?.loading}
+            onClick={handleStart}
+          >
+            Start simulation
+          </Button>
+          <Button
+            variant="ghost"
+            loading={engine?.isExporting}
+            disabled={session?.loading || engine?.isExporting}
+            onClick={engine?.exportOfflinePDF}
+          >
+            <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
+            Export as PDF
+          </Button>
         </div>
+      </Card>
 
-      </div>
+      <Modal
+        open={showNewExamGuard}
+        onClose={() => setShowNewExamGuard(false)}
+        tone="amber"
+        icon={TriangleAlert}
+        title="Start a new exam?"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => { setShowNewExamGuard(false); engine.resumeSimulation(); }}
+            >
+              Resume saved exam
+            </Button>
+            <Button
+              tone="amber"
+              onClick={() => { setShowNewExamGuard(false); startSimulation(); }}
+            >
+              Start new exam
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2">
+          Starting a new exam replaces the one saved on this device. Your answers in the saved exam will be lost.
+        </p>
+      </Modal>
     </div>
   );
 }

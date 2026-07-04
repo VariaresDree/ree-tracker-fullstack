@@ -11,7 +11,8 @@ const examSubmitSchema = z.object({
         confidence: z.enum(['LOW', 'MED', 'HIGH']).optional().default('LOW'),
         timeSpentSecs: z.number().nonnegative().optional().default(0),
         subject: z.string().optional(),
-        subtopic: z.string().optional()
+        subtopic: z.string().optional(),
+        clientAttemptId: z.string().min(8).max(80).optional()
     })).min(1),
     config: z.object({
         mode: z.string().optional(),
@@ -21,12 +22,31 @@ const examSubmitSchema = z.object({
     totalExamTime: z.number().nonnegative().default(0)
 });
 
+// IMPORTANT: zod's validate() REPLACES req.body with the parsed result, so
+// any field missing from this schema is silently stripped. The gauntlet
+// already sends confidenceLevel/timeSpentMs — omitting them here downgraded
+// every gauntlet attempt to LOW confidence / 0ms.
 const gradeSchema = z.object({
     answers: z.array(z.object({
         questionId: z.string().min(1),
-        userAnswer: z.string()
+        userAnswer: z.string(),
+        confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).optional(),
+        timeSpentMs: z.number().nonnegative().optional(),
+        clientAttemptId: z.string().min(8).max(80).optional()
     })).min(1),
     mode: z.string().optional()
 });
 
-module.exports = { examSubmitSchema, gradeSchema };
+// POST /exams/next-item — CAT item picker. poolSize is capped so a forged
+// request can't pull an unbounded candidate set into memory.
+const nextItemSchema = z.object({
+    subject: z.string().max(64).optional(),
+    recentIds: z.array(z.string().min(1)).max(500).default([]),
+    sessionAttempts: z.array(z.object({
+        questionId: z.string().min(1),
+        isCorrect: z.boolean()
+    })).max(200).default([]),
+    poolSize: z.number().int().min(10).max(200).default(80)
+});
+
+module.exports = { examSubmitSchema, gradeSchema, nextItemSchema };

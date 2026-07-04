@@ -37,15 +37,7 @@ export function CardTitle({ className, ...rest }) {
 }
 
 export function CardEyebrow({ className, ...rest }) {
-  return (
-    <p
-      className={cn(
-        'text-[11px] font-mono uppercase tracking-[0.18em] text-muted',
-        className
-      )}
-      {...rest}
-    />
-  );
+  return <p className={cn('text-eyebrow', className)} {...rest} />;
 }
 
 export function CardBody({ className, ...rest }) {
