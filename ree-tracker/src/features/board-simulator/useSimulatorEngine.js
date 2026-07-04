@@ -324,6 +324,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             return {
                 questionId: q.id, subject: q.subject, subtopic: q.subtopic,
                 isCorrect: isCorrect, confidenceLevel: finalConf[idx] || 'HIGH',
+                // Send the selected option so the server re-grades against its own
+                // answer key — offline client grading is never trusted for stats.
+                // Omitted (not null) when unanswered — schema userAnswer is optional string.
+                ...(finalAns[idx] != null ? { userAnswer: finalAns[idx] } : {}),
                 // `timeSpent[idx]` is ALREADY milliseconds (accumulated as
                 // Date.now() - lastActiveTime). The old `* 1000` inflated it 1000×,
                 // so every attempt recorded ~hours and poisoned the per-question

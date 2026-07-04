@@ -5,10 +5,16 @@ const { validate } = require('../middlewares/validate');
 const { readinessSnapshotSchema } = require('../schemas/readinessSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const readinessCache = require('../services/readinessCache');
 
 // GET /api/readiness — compute composite readiness score
 router.get('/', authMiddleware, async (req, res) => {
     try {
+        // Slow-moving metric behind ~7 aggregate queries — serve a 60s cache to
+        // avoid recomputing on rapid refreshes.
+        const cached = readinessCache.get(req.user.id);
+        if (cached) return res.status(200).json(cached);
+
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
             select: { thetaRating: true, standardError: true }
@@ -80,7 +86,7 @@ router.get('/', authMiddleware, async (req, res) => {
             (1 - blindSpotRatio) * 0.10
         ) * 100);
 
-        res.status(200).json({
+        const payload = {
             score: Math.min(100, Math.max(0, score)),
             breakdown: {
                 topicCoverage: Math.round(topicCoverage * 100),
@@ -92,7 +98,9 @@ router.get('/', authMiddleware, async (req, res) => {
                 totalSubtopics: totalSubtopics.length,
                 coveredSubtopics: coveredSubtopics.length
             }
-        });
+        };
+        readinessCache.set(req.user.id, payload);
+        res.status(200).json(payload);
     } catch (error) {
         logger.error('Readiness score error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to compute readiness score.' });

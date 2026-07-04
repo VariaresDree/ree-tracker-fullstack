@@ -1,5 +1,5 @@
 // src/features/materials/ConstantsMatrix.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { useReferenceData } from '../../hooks/useReferenceData';
 
@@ -10,14 +10,21 @@ export default function ConstantsMatrix() {
   // Bundled seed merged with admin-managed DB rows (cached for offline).
   const { mergedConstants } = useReferenceData();
 
-  const categories = ['All', ...new Set(mergedConstants.map(c => c.category))];
+  const categories = useMemo(
+    () => ['All', ...new Set(mergedConstants.map(c => c.category))],
+    [mergedConstants],
+  );
 
-  const filteredConstants = mergedConstants.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          c.value.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = activeCategory === 'All' || c.category === activeCategory;
-    return matchesSearch && matchesCategory;
-  });
+  // Memoized so typing in the search box doesn't re-filter + re-render (and
+  // re-parse KaTeX in) every card on each keystroke.
+  const filteredConstants = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return mergedConstants.filter(c => {
+      const matchesSearch = c.name.toLowerCase().includes(q) || c.value.toLowerCase().includes(q);
+      const matchesCategory = activeCategory === 'All' || c.category === activeCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [mergedConstants, searchTerm, activeCategory]);
 
   return (
     <div className="animate-in fade-in flex flex-col gap-5">
@@ -53,9 +60,9 @@ export default function ConstantsMatrix() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
-          {filteredConstants.map((item, idx) => (
-            <div 
-              key={idx} 
+          {filteredConstants.map((item) => (
+            <div
+              key={item.id || `${item.category}|${item.name}`}
               className="p-5 bg-surface border border-border2 rounded-xl shadow-sm hover:border-reeCyan/40 transition-colors flex flex-col h-full overflow-hidden justify-between min-h-[140px]"
             >
               {/* Title Section matching ReferenceHub Layout */}

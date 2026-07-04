@@ -59,3 +59,17 @@ export const useTOSSlice = () =>
 // --- Theme / preferences ---
 export const useThemeSlice = () =>
   useStore(useShallow((s) => ({ theme: s.theme, setTheme: s.setTheme })));
+
+// --- UI shell (sidebar + theme read) ---
+// Used by the always-mounted MainLayout so per-answer stats/syncQueue pushes
+// during a session don't re-render the entire app shell.
+export const useUISlice = () =>
+  useStore(
+    useShallow((s) => ({
+      isSidebarOpen: s.isSidebarOpen,
+      setSidebarOpen: s.setSidebarOpen,
+      isSidebarCollapsed: s.isSidebarCollapsed,
+      toggleSidebarCollapse: s.toggleSidebarCollapse,
+      theme: s.theme,
+    })),
+  );

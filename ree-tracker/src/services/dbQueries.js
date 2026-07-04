@@ -201,18 +201,24 @@ export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 
 // online (see useOfflinePack) and on manual "Download".
 export const refreshOfflinePack = async ({ perSubject = 400 } = {}) => {
     if (!navigator.onLine) return getOfflinePackMeta();
-    const subjects = {};
-    let fetched = 0;
-    for (const subj of OFFLINE_SUBJECTS) {
+    // Fetch subjects in parallel — 3 sequential round-trips collapse to 1
+    // wall-clock. Each mapper catches its own failure, so Promise.all won't reject.
+    const entries = await Promise.all(OFFLINE_SUBJECTS.map(async (subj) => {
         try {
             const qp = new URLSearchParams({ subject: subj, subtopic: 'All', limit: perSubject, sort: 'random' });
             const data = await apiRequest(`/api/questions?${qp.toString()}`);
-            subjects[subj] = normalizeQuestions(data);
-            fetched += subjects[subj].length;
+            return [subj, normalizeQuestions(data)];
         } catch {
             // Preserve whatever we already cached for this subject on failure.
-            subjects[subj] = await getOfflineQuestions(subj, 'All', perSubject);
+            return [subj, await getOfflineQuestions(subj, 'All', perSubject)];
         }
+    }));
+
+    const subjects = {};
+    let fetched = 0;
+    for (const [subj, list] of entries) {
+        subjects[subj] = list;
+        fetched += list.length;
     }
     // Don't overwrite a good pack with an all-empty one (e.g. auth token not
     // ready, or every request failed) — that would suppress auto-retry for a day.

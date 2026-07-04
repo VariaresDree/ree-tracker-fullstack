@@ -1,7 +1,7 @@
 // src/components/ReferenceHub.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import LatexRenderer from './LatexRenderer';
-import { useStore } from '../store/useStore';
+import { useTOSSlice } from '../store/slices';
 import { useReferenceData } from '../hooks/useReferenceData';
 
 // The bundled OFFLINE_FORMULAS seed now lives in ../config/formulaSeed and is
@@ -9,7 +9,7 @@ import { useReferenceData } from '../hooks/useReferenceData';
 // component just renders the merged, offline-capable result.
 
 export default function ReferenceHub() {
-    const { dynamicTOS } = useStore();
+    const { dynamicTOS } = useTOSSlice();
     const safeTOS = dynamicTOS || {};
     const { mergedFormulas } = useReferenceData();
 
@@ -21,9 +21,13 @@ export default function ReferenceHub() {
         setActiveSubtopic('All');
     };
 
-    const displayedFormulas = mergedFormulas.filter(f =>
-        f.subject === matrixSubject &&
-        (activeSubtopic === 'All' || (f.subtopics || []).includes(activeSubtopic))
+    // Memoized so subject/subtopic changes don't re-filter + re-render every card.
+    const displayedFormulas = useMemo(
+        () => mergedFormulas.filter(f =>
+            f.subject === matrixSubject &&
+            (activeSubtopic === 'All' || (f.subtopics || []).includes(activeSubtopic))
+        ),
+        [mergedFormulas, matrixSubject, activeSubtopic],
     );
 
     return (
@@ -69,8 +73,8 @@ export default function ReferenceHub() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
-                    {displayedFormulas.map((formula, idx) => (
-                        <div key={formula.id || `${formula.title}-${idx}`} className="p-5 bg-surface border border-border2 rounded-xl shadow-sm hover:border-reeCyan/40 transition-colors flex flex-col h-full overflow-hidden">
+                    {displayedFormulas.map((formula) => (
+                        <div key={formula.id || `${formula.subject}|${formula.title}`} className="p-5 bg-surface border border-border2 rounded-xl shadow-sm hover:border-reeCyan/40 transition-colors flex flex-col h-full overflow-hidden">
                             <div className="text-[0.65rem] text-muted2 uppercase tracking-widest font-bold mb-3 border-b border-border2 pb-2 leading-relaxed flex items-center justify-between gap-2" title={formula.title}>
                                 <span className="truncate">{formula.title}</span>
                                 {formula._seed === false && (
