@@ -348,6 +348,38 @@ model ForecastSnapshot {
   @@index([userId, createdAt])
 }
 
+// Modular reference library — admin-managed engineering constants & formulas
+// that SUPPLEMENT the bundled offline seed (config/knowledgeBase.js and
+// ReferenceHub.jsx on the client). Global reference data, not per-user. The
+// client merges these DB rows over the bundled seed (deduped by natural key)
+// and caches them for offline use.
+model EngineeringConstant {
+  id        String   @id @default(uuid())
+  category  String
+  name      String
+  value     String
+  keyword   String?
+  subject   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, name])
+  @@index([category])
+}
+
+model EngineeringFormula {
+  id        String   @id @default(uuid())
+  subject   String
+  title     String
+  eq        String
+  subtopics String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subject, title])
+  @@index([subject])
+}
+
 // Phase 3: Weekly readiness score snapshots
 model ReadinessSnapshot {
   id              String   @id @default(uuid())

@@ -1,8 +1,9 @@
 const { z } = require('zod');
+const { sanitizeQuestionShape } = require('../utils/sanitizeOptions');
 
 const BLOOM_LEVELS = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'];
 
-const questionCreateSchema = z.object({
+const baseQuestionSchema = z.object({
     subject: z.string().min(1).default('Unknown'),
     subtopic: z.string().min(1).default('General'),
     text: z.string().min(1),
@@ -18,6 +19,11 @@ const questionCreateSchema = z.object({
     competencyArea: z.string().nullable().optional()
 });
 
-const questionUpdateSchema = questionCreateSchema.partial();
+// Strip any baked-in answer-choice labels ("A.", "b)", "(C)") from options and
+// the answer AFTER validation, so the exact-match grading invariant holds and
+// the quiz UI never renders a duplicate label. Runs on every validated POST.
+const questionCreateSchema = baseQuestionSchema.transform(sanitizeQuestionShape);
+
+const questionUpdateSchema = baseQuestionSchema.partial().transform(sanitizeQuestionShape);
 
 module.exports = { questionCreateSchema, questionUpdateSchema };

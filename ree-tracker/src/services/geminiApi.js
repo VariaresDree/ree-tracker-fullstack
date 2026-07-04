@@ -1,5 +1,6 @@
 import { apiRequest } from './dbQueries';
 import { TOS } from '../config/constants';
+import { sanitizeGeneratedBatch } from '../utils/sanitizeOptions';
 
 const cleanJsonPayload = (text) => {
     let clean = text.trim();
@@ -50,12 +51,13 @@ const getStrictRules = (subject, targetSubtopic) => {
     6. Format ALL mathematical formulas and variables using standard Markdown LaTeX (e.g., $V = I \\times R$).
     7. Provide a "fixedExplanation" for EVERY question detailing the step-by-step mathematical derivation in Markdown LaTeX.
     8. ZERO-HALLUCINATION POLICY: When extracting data from technical charts (especially logarithmic graphs, X/R ratios, or PEC tables), you MUST explicitly state the exact plotted intersection in the explanation. DO NOT round standard engineering constants. If a chart intersection is 37, return 37, not 40.
+    9. OPTION FORMATTING: Each string in "options" — and the "answer" — MUST contain ONLY the choice's content. NEVER prefix a choice with an enumerator label such as "A.", "B)", "(C)", or "D:". The interface renders the A/B/C/D labels automatically; a baked-in label is a formatting error that renders as a duplicate ("A. A. ...").
 
     JSON SCHEMA:
     [
       {
         "text": "Detailed question string containing LaTeX formatting.",
-        "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+        "options": ["First choice text (no letter prefix)", "Second choice text", "Third choice text", "Fourth choice text"],
         "answer": "EXACT string matching the correct option",
         "type": "conceptual or calculation",
         "difficulty": 1,
@@ -84,7 +86,7 @@ export const generateQuestionsAI = async (subject, subtopic, useWeb = false, cou
     ${useWeb ? 'Utilize current real-world engineering data where applicable.' : ''}`;
 
     try {
-        return await callAI(prompt, true);
+        return sanitizeGeneratedBatch(await callAI(prompt, true));
     } catch (error) {
         console.error("AI Generation pipeline connection failed:", error);
         return [];
@@ -149,7 +151,7 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
     """`;
 
     try {
-        return await callAI(prompt, true);
+        return sanitizeGeneratedBatch(await callAI(prompt, true));
     } catch (error) {
         console.error("AI Text Extraction pipeline failed:", error);
         throw error;
@@ -176,7 +178,7 @@ export const generateQuestionsFromImages = async (base64Images, subject, subtopi
         }, { timeoutMs: AI_TIMEOUT_MS });
 
         const cleanJson = cleanJsonPayload(response.text);
-        return JSON.parse(cleanJson);
+        return sanitizeGeneratedBatch(JSON.parse(cleanJson));
     } catch (error) {
         console.error("Gemini Vision API Error:", error);
         throw new Error("Failed to process module images via AI Vision.");

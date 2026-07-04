@@ -1,15 +1,18 @@
 // src/features/materials/ConstantsMatrix.jsx
 import React, { useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
-import { EE_CONSTANTS } from '../../config/knowledgeBase'; // Pulling from the new unified dictionary
+import { useReferenceData } from '../../hooks/useReferenceData';
 
 export default function ConstantsMatrix() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
 
-  const categories = ['All', ...new Set(EE_CONSTANTS.map(c => c.category))];
+  // Bundled seed merged with admin-managed DB rows (cached for offline).
+  const { mergedConstants } = useReferenceData();
 
-  const filteredConstants = EE_CONSTANTS.filter(c => {
+  const categories = ['All', ...new Set(mergedConstants.map(c => c.category))];
+
+  const filteredConstants = mergedConstants.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           c.value.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = activeCategory === 'All' || c.category === activeCategory;

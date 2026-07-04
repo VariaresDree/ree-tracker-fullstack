@@ -2,6 +2,7 @@
 import { auth } from '../config/firebaseDb';
 import { get, set } from 'idb-keyval';
 import { fnv1a } from '../utils/contentHash';
+import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, OFFLINE_SUBJECTS, getReferenceCache, writeReferenceCache } from './offlinePack';
 
 // ============================================================================
 // API CORE: Circuit Breaker + Secure Fetch Wrapper
@@ -163,16 +164,70 @@ export const fetchQuarantineQueue = async () => normalizeQuestions(await apiRequ
 export const approveQuarantinedQuestion = async (id, subject, subtopic) => apiRequest(`/api/questions/quarantine/${id}/approve`, 'PUT', { subject, subtopic });
 export const fetchServerStats = async () => safeApiRequest('/api/questions/stats', 'GET', null, null);
 
-export const fetchPaginatedQuestions = async (lastVisibleDoc = null, filterSubject = 'All', filterSubtopic = 'All', limitCount = 50) => {
-    const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic, limit: limitCount });
+// `cursor` is an integer offset (or null for the first page). `sort` is one of
+// 'recent' | 'oldest' | 'random'; the admin vault list defaults to 'recent' so
+// newly ingested questions surface first, with `nextOffset` driving Load More.
+export const fetchPaginatedQuestions = async (cursor = null, filterSubject = 'All', filterSubtopic = 'All', limitCount = 50, sort = 'recent') => {
+    const offset = typeof cursor === 'number' ? cursor : 0;
+    const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic, limit: limitCount, sort, offset });
     const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
-    return { items: normalizeQuestions(data) };
+    return { items: normalizeQuestions(data), nextOffset: data?.nextOffset ?? null };
 };
 
-export const fetchVaultQuestions = async (subject, subtopic, limit = 50) => {
-    const queryParams = new URLSearchParams({ subject, subtopic, limit });
-    const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
-    return normalizeQuestions(data);
+// Sessions want variety, so this defaults to the server's stratified-random
+// order. Callers can request 'recent'/'oldest' for deterministic pulls.
+//
+// OFFLINE FALLBACK: when the backend is unreachable ([OFFLINE]) we serve from the
+// on-device pack instead of throwing, so Active Review and the Board Simulator
+// keep working without a connection. Every caller of this function (review setup,
+// simulator pool builder, offline-PDF export) inherits offline support for free.
+export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 'random') => {
+    const queryParams = new URLSearchParams({ subject, subtopic, limit, sort });
+    try {
+        const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
+        return normalizeQuestions(data);
+    } catch (err) {
+        if (err.message === '[OFFLINE]') {
+            const cached = await getOfflineQuestions(subject, subtopic, limit);
+            if (cached.length > 0) return cached;
+        }
+        throw err;
+    }
+};
+
+// ---- OFFLINE PACK BUILDERS ------------------------------------------------
+// Snapshot a bounded, stratified slice of each subject (with answers +
+// explanations) into IndexedDB for offline sessions. Called on app load when
+// online (see useOfflinePack) and on manual "Download".
+export const refreshOfflinePack = async ({ perSubject = 400 } = {}) => {
+    if (!navigator.onLine) return getOfflinePackMeta();
+    const subjects = {};
+    let fetched = 0;
+    for (const subj of OFFLINE_SUBJECTS) {
+        try {
+            const qp = new URLSearchParams({ subject: subj, subtopic: 'All', limit: perSubject, sort: 'random' });
+            const data = await apiRequest(`/api/questions?${qp.toString()}`);
+            subjects[subj] = normalizeQuestions(data);
+            fetched += subjects[subj].length;
+        } catch {
+            // Preserve whatever we already cached for this subject on failure.
+            subjects[subj] = await getOfflineQuestions(subj, 'All', perSubject);
+        }
+    }
+    // Don't overwrite a good pack with an all-empty one (e.g. auth token not
+    // ready, or every request failed) — that would suppress auto-retry for a day.
+    if (fetched === 0) return getOfflinePackMeta();
+
+    await writeOfflinePack({ version: 1, fetchedAt: Date.now(), subjects });
+    return getOfflinePackMeta();
+};
+
+// Build the pack only when it's missing or stale — cheap no-op otherwise.
+export const ensureOfflinePack = async () => {
+    if (!navigator.onLine) return getOfflinePackMeta();
+    const meta = await getOfflinePackMeta();
+    if (!meta.exists || meta.stale) return refreshOfflinePack();
+    return meta;
 };
 
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
@@ -372,3 +427,38 @@ export const updateExplanationStatus = async (questionId, status) => apiRequest(
 
 export const generateStudyPlan = async (examDate, topics) => apiRequest('/api/user/tasks/generate-plan', 'POST', { examDate, topics });
 export const clearStudyPlan = async () => apiRequest('/api/user/tasks/clear-plan', 'DELETE');
+
+// ----------------------------------------------------------------------
+// 9. Modular Reference Library (Constants & Formulas)
+// GET is cached to IndexedDB so admin-added items still render offline;
+// writes are admin-only (enforced server-side).
+// ----------------------------------------------------------------------
+export const fetchConstants = async () => {
+    try {
+        const data = await apiRequest('/api/reference/constants');
+        const items = data?.items || [];
+        await writeReferenceCache({ constants: items });
+        return items;
+    } catch (err) {
+        if (err.message === '[OFFLINE]') return (await getReferenceCache()).constants || [];
+        throw err;
+    }
+};
+export const fetchFormulas = async () => {
+    try {
+        const data = await apiRequest('/api/reference/formulas');
+        const items = data?.items || [];
+        await writeReferenceCache({ formulas: items });
+        return items;
+    } catch (err) {
+        if (err.message === '[OFFLINE]') return (await getReferenceCache()).formulas || [];
+        throw err;
+    }
+};
+export const createConstant = (body) => apiRequest('/api/reference/constants', 'POST', body);
+export const updateConstant = (id, body) => apiRequest(`/api/reference/constants/${id}`, 'PUT', body);
+export const deleteConstant = (id) => apiRequest(`/api/reference/constants/${id}`, 'DELETE');
+export const createFormula = (body) => apiRequest('/api/reference/formulas', 'POST', body);
+export const updateFormula = (id, body) => apiRequest(`/api/reference/formulas/${id}`, 'PUT', body);
+export const deleteFormula = (id) => apiRequest(`/api/reference/formulas/${id}`, 'DELETE');
+export const importReferenceLibrary = (payload) => apiRequest('/api/reference/import', 'POST', payload);

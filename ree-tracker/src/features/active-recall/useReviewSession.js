@@ -7,7 +7,7 @@ import { stratifiedSample } from '../../utils/shuffle';
 import toast from 'react-hot-toast';
 
 export const useReviewSession = (currentUser, isOnline) => {
-    const { dynamicTOS, setStats, recordAttempt, startSession: startStoreSession, endSession: endStoreSession } = useStore();
+    const { dynamicTOS, setStats, recordAttempt, queuePendingWrite, startSession: startStoreSession, endSession: endStoreSession } = useStore();
     const safeTOS = dynamicTOS || {};
 
     const [config, setConfig] = useState({
@@ -251,16 +251,24 @@ export const useReviewSession = (currentUser, isOnline) => {
             // either way this is now the single point of session teardown.
             await endStoreSession();
 
+            const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+            const summary = {
+                mode: config.sessionMode,
+                subject: config.subject,
+                subtopic: config.subtopic === 'All' ? null : config.subtopic,
+                totalQuestions: session.totalAnswered,
+                correctAnswers: session.correctHits,
+                durationSecs: totalDuration,
+            };
+
             if (isOnline) {
-                const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-                await apiRequest('/api/analytics/study-sessions', 'POST', {
-                    mode: config.sessionMode,
-                    subject: config.subject,
-                    subtopic: config.subtopic === 'All' ? null : config.subtopic,
-                    totalQuestions: session.totalAnswered,
-                    correctAnswers: session.correctHits,
-                    durationSecs: totalDuration
-                }).catch(() => {});
+                try {
+                    await apiRequest('/api/analytics/study-sessions', 'POST', summary);
+                } catch (e) {
+                    // Backend went unreachable mid-flush — defer the summary instead
+                    // of dropping it, so the session history stays complete.
+                    queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
+                }
 
                 // Rehydrate from the canonical backend so any drift between
                 // optimistic local stats and the server state is reconciled.
@@ -268,6 +276,9 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (freshProfile?.data) setStats(freshProfile.data);
                 toast.success("Session data synced.", { id: toastId });
             } else {
+                // Per-attempt telemetry is already queued via recordAttempt; also
+                // defer the aggregate session summary so nothing is lost offline.
+                queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
                 toast("Offline — progress will sync when you reconnect.", { id: toastId, icon: '📡' });
             }
             telemetryBatchRef.current = [];

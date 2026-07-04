@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import Pomodoro from '../components/Pomodoro';
+import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Modal } from '../components/ui';
 import { useStore } from '../store/useStore';
@@ -155,6 +156,12 @@ export default function MainLayout({ children }) {
           ) : (
             <Pomodoro />
           )}
+        </div>
+
+        {/* Connectivity + offline-readiness indicator (also keeps the offline
+            question pack fresh via useOfflinePack on mount). */}
+        <div className={`shrink-0 border-b border-border2 bg-surface2/10 ${isSidebarCollapsed ? 'py-3' : 'px-4 py-3'}`}>
+          <OfflineStatusBadge collapsed={isSidebarCollapsed} />
         </div>
 
         {/* Navigation (grouped) */}

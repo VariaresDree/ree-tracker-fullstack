@@ -4,13 +4,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { Button, Tabs, Badge } from '../components/ui';
-import { X, Maximize2, Minimize2, Cloud, Calculator, BookOpen, Bookmark } from '../components/ui/icons';
+import { X, Maximize2, Minimize2, Cloud, Calculator, BookOpen, Bookmark, Settings2 } from '../components/ui/icons';
 
 // Extracted Components
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
 import CloudVaultTab from '../features/materials/CloudVaultTab';
 import ReferenceHub from '../components/ReferenceHub';
 import ConstantsMatrix from '../features/materials/ConstantsMatrix';
+import ReferenceAdmin from '../features/materials/ReferenceAdmin';
 import MediaViewer from '../components/MediaViewer';
 
 export default function Materials() {
@@ -68,6 +69,7 @@ export default function Materials() {
           { id: 'constants', label: 'Constants', icon: Calculator },
           { id: 'matrix', label: 'Formulas', icon: BookOpen },
           { id: 'bookmarks', label: 'Bookmark Vault', icon: Bookmark },
+          ...(isAdmin ? [{ id: 'manage_ref', label: 'Manage Reference', icon: Settings2 }] : []),
         ]}
       />
 
@@ -93,6 +95,16 @@ export default function Materials() {
 
       {activeTab === 'bookmarks' && (
         <BookmarkVaultTab currentUser={currentUser} isOnline={isOnline} />
+      )}
+
+      {activeTab === 'manage_ref' && isAdmin && (
+        <div className="animate-in fade-in slide-in-from-bottom-2">
+          <div className="mb-6">
+            <h2 className="text-2xl font-black text-textMain tracking-tight">Manage Reference Library</h2>
+            <p className="text-sm text-muted2 mt-1">Insert, delete, and verify constants &amp; formulas. Additions sync to all users and cache for offline.</p>
+          </div>
+          <ReferenceAdmin />
+        </div>
       )}
 
     </div>

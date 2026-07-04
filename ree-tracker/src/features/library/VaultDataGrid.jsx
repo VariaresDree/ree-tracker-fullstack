@@ -16,8 +16,15 @@ export default function VaultDataGrid({
   isFetchingVault,
   hasMore, isLoadingMore, loadMoreQuestions,
   editingQ, setEditingQ, handleUpdateSubmit,
-  isAdmin
+  isAdmin,
+  sortOrder = 'recent', setSortOrder = () => {}
 }) {
+
+  const SORT_OPTIONS = [
+    { key: 'recent', label: '🆕 Newest' },
+    { key: 'oldest', label: '📜 Oldest' },
+    { key: 'random', label: '🔀 Random' },
+  ];
 
   // 🚀 Replaced static import with dynamicTOS from your store
   const { dynamicTOS } = useStore();
@@ -133,6 +140,28 @@ export default function VaultDataGrid({
             </Button>
         )}
       </div>
+
+      {/* Sort control — newest-ingested first by default so freshly generated
+          items are easy to review. Hidden in flagged-only mode (that view is
+          always newest-first via its own endpoint). */}
+      {!showOnlyFlagged && (
+        <div className="flex items-center gap-1.5 -mt-2">
+          <span className="text-[0.6rem] font-bold text-muted2 uppercase tracking-widest mr-1">Sort</span>
+          {SORT_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => setSortOrder(opt.key)}
+              className={`px-3 py-1.5 rounded-lg border text-[0.65rem] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                sortOrder === opt.key
+                  ? 'bg-reeBlue/10 border-reeBlue/50 text-reeBlue shadow-[0_0_12px_rgba(59,130,246,0.15)]'
+                  : 'bg-bg border-border2 text-muted hover:text-textMain hover:border-reeBlue/40'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* --- VIRTUALIZED SCROLL CONTAINER --- */}
       <div

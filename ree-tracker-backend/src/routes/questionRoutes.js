@@ -31,7 +31,34 @@ router.get('/stats', authMiddleware, async (req, res) => {
 // battle creation) — see that module for the randomization rationale.
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const { subject, subtopic, limit = 50 } = req.query;
+        const { subject, subtopic, limit = 50, sort = 'random', offset = 0 } = req.query;
+
+        // Deterministic ingestion ordering for the admin/library review grid:
+        // newest- or oldest-created first, with real offset pagination so
+        // "Load More" advances instead of re-rolling. The default 'random' path
+        // (samplePool, shared with battle creation) is left untouched — active
+        // review & vault sampling depend on it.
+        if (sort === 'recent' || sort === 'oldest') {
+            const whereClause = { isFlagged: false };
+            const subjFilter = getSubjectFilter(subject);
+            if (subjFilter) whereClause.subject = subjFilter;
+            if (subtopic && subtopic !== 'All') whereClause.subtopic = subtopic.trim();
+
+            const cap = Math.min(parseInt(limit) || 50, 2000);
+            const skip = Math.max(0, parseInt(offset) || 0);
+            const questions = await prisma.question.findMany({
+                where: whereClause,
+                orderBy: { createdAt: sort === 'oldest' ? 'asc' : 'desc' },
+                skip,
+                take: cap,
+            });
+            return res.status(200).json({
+                success: true,
+                items: questions,
+                nextOffset: skip + questions.length,
+            });
+        }
+
         const questions = await samplePool({ subject, subtopic, limit });
         return res.status(200).json({ success: true, items: questions });
     } catch (error) {
@@ -124,6 +151,8 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 router.put('/:id', authMiddleware, validate(questionUpdateSchema), async (req, res) => {
     try {
         const data = req.body;
+        // Choice-label sanitisation ("A."/"b)" prefixes) is applied by the Zod
+        // transform in questionUpdateSchema via the validate() middleware above.
         // questionUpdateSchema is a .partial() — absent fields stay undefined,
         // which Prisma skips (the old parseFloat(undefined) wrote NaN).
         await prisma.question.update({

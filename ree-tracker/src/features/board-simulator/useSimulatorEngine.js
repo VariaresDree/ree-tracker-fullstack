@@ -333,27 +333,40 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             };
         });
 
-        if (currentUser && isOnline) {
-            try {
-                await syncTelemetryBatch(currentUser.uid, sessionId, config.subject, 'BOARD_SIM', attemptsPayload);
-                const freshProfile = await getAnalyticsProfile(currentUser.uid);
-                if (freshProfile?.data) {
-                    setStats({
-                        ...useStore.getState().stats,
-                        ...freshProfile.data.profile, 
-                        activityCalendar: freshProfile.data.activityCalendar,
-                        microTopics: freshProfile.data.microTopics,
-                        matrix: freshProfile.data.matrix
-                    });
+        if (currentUser) {
+            // A fully self-describing telemetry batch — carries its own sessionId,
+            // BOARD_SIM mode, subject, and deterministic clientAttemptIds, so it
+            // replays exactly-once even hours later.
+            const bulkBody = { sessionId, targetSubject: config.subject, mode: 'BOARD_SIM', attempts: attemptsPayload };
+
+            if (isOnline) {
+                try {
+                    await syncTelemetryBatch(currentUser.uid, sessionId, config.subject, 'BOARD_SIM', attemptsPayload);
+                    const freshProfile = await getAnalyticsProfile(currentUser.uid);
+                    if (freshProfile?.data) {
+                        setStats({
+                            ...useStore.getState().stats,
+                            ...freshProfile.data.profile,
+                            activityCalendar: freshProfile.data.activityCalendar,
+                            microTopics: freshProfile.data.microTopics,
+                            matrix: freshProfile.data.matrix
+                        });
+                    }
+                } catch (syncError) {
+                    console.warn("Cloud Sync Failed", syncError);
+                    if (syncError?.message === '[OFFLINE]') {
+                        // Circuit breaker tripped despite navigator.onLine — defer.
+                        useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', bulkBody);
+                        toast('Offline — exam queued; analytics will sync on reconnect.', { icon: '📡' });
+                    } else {
+                        toast.error(`Telemetry sync failed: ${syncError?.message || 'unknown'}. Results saved locally.`);
+                    }
                 }
-            } catch (syncError) {
-                console.warn("Cloud Sync Failed", syncError);
-                // Make sync failures visible — results are still saved to the local
-                // ledger below, but the user/dev should know analytics didn't update.
-                const msg = syncError?.message === '[OFFLINE]'
-                    ? 'Offline — exam saved locally; analytics will sync later.'
-                    : `Telemetry sync failed: ${syncError?.message || 'unknown'}. Results saved locally.`;
-                toast.error(msg);
+            } else {
+                // Fully offline mock exam — defer the batch with its correct
+                // session + mode so it lands exactly like an online submit later.
+                useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', bulkBody);
+                toast('Offline — exam saved locally; analytics will sync on reconnect.', { icon: '📡' });
             }
         }
 
