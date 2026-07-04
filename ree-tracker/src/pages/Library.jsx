@@ -28,7 +28,8 @@ export default function Library() {
   const {
     questions, serverStats, vaultMetadata, resyncVaultMetadata,
     isFetchingVault, hasMore, isLoadingMore, loadMoreQuestions,
-    editingQ, setEditingQ, handleDelete, handleUpdateSubmit, initializeVault
+    editingQ, setEditingQ, handleDelete, handleUpdateSubmit, initializeVault,
+    sortOrder, setSortOrder
   } = useVaultGrid(filterSubject, filterSubtopic);
 
   // 2. AI Generator Sub-Engine (Passes initializeVault to auto-refresh the grid on QA success)
@@ -96,10 +97,12 @@ export default function Library() {
           hasMore={hasMore} 
           isLoadingMore={isLoadingMore} 
           loadMoreQuestions={loadMoreQuestions} 
-          editingQ={editingQ}                   
-          setEditingQ={setEditingQ}             
+          editingQ={editingQ}
+          setEditingQ={setEditingQ}
           handleUpdateSubmit={handleUpdateSubmit}
           isAdmin={isAdmin}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
         />
       )}
     </div>

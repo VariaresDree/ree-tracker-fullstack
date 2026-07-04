@@ -8,6 +8,7 @@ const { questionCreateSchema, questionUpdateSchema } = require('../schemas/quest
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const { sanitizeOptions, stripChoicePrefix } = require('../utils/sanitizeOptions');
 
 const getSubjectFilter = (subjectStr) => {
     if (!subjectStr || subjectStr === 'All') return undefined;
@@ -36,7 +37,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 // 1. FETCH QUESTIONS 
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const { subject, subtopic, limit = 50 } = req.query;
+        const { subject, subtopic, limit = 50, sort = 'random', offset = 0 } = req.query;
 
         let whereClause = { isFlagged: false };
 
@@ -55,6 +56,26 @@ router.get('/', authMiddleware, async (req, res) => {
         // (rn, random()) round-robins one item per subtopic before any subtopic
         // contributes a second, guaranteeing breadth across the subject.
         const cap = Math.min(parseInt(limit) || 50, 2000);
+
+        // Deterministic ingestion ordering for the admin/library review grid:
+        // newest- or oldest-created first, with real offset pagination so
+        // "Load More" advances instead of re-rolling. The default 'random' path
+        // below is left untouched — active review & vault sampling depend on it.
+        if (sort === 'recent' || sort === 'oldest') {
+            const skip = Math.max(0, parseInt(offset) || 0);
+            const questions = await prisma.question.findMany({
+                where: whereClause,
+                orderBy: { createdAt: sort === 'oldest' ? 'asc' : 'desc' },
+                skip,
+                take: cap,
+            });
+            return res.status(200).json({
+                success: true,
+                items: questions,
+                nextOffset: skip + questions.length,
+            });
+        }
+
         const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
         const specificSubtopic = subtopic && subtopic !== 'All' ? subtopic.trim() : null;
 
@@ -188,14 +209,18 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
         const data = req.body;
+        // Strip baked-in choice labels here too — this route bypasses the Zod
+        // transform. `undefined` is left untouched so Prisma treats it as no-op.
+        const cleanOptions = data.options !== undefined ? sanitizeOptions(data.options) : undefined;
+        const cleanAnswer = data.answer !== undefined ? stripChoicePrefix(data.answer) : undefined;
         await prisma.question.update({
             where: { id: req.params.id },
             data: {
                 subject: data.subject,
                 subtopic: data.subtopic,
                 text: data.text,
-                options: data.options,
-                answer: data.answer,
+                options: cleanOptions,
+                answer: cleanAnswer,
                 difficulty: parseFloat(data.difficulty),
                 fixedExplanation: data.fixedExplanation,
                 isFlagged: data.isFlagged !== undefined ? data.isFlagged : undefined

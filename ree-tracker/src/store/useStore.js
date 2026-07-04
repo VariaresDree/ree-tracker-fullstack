@@ -4,7 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { auth } from '../config/firebaseDb';
 import { TOS as fallbackTOS } from '../config/constants';
-import { updateCommandParameters } from '../services/dbQueries';
+import { updateCommandParameters, apiRequest } from '../services/dbQueries';
 import { calculateUpdatedStats } from '../utils/irtMath';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
@@ -46,6 +46,12 @@ export const useStore = create(
       stats: null,
       syncStatus: 'synced',
       syncQueue: [],
+      // Durable queue for whole-request writes that must survive going offline —
+      // e.g. the Active Review study-session summary and an offline mock-exam's
+      // telemetry batch (which carries its own sessionId + mode). Distinct from
+      // syncQueue (per-attempt telemetry); replayed by flushPendingWrites on
+      // reconnect. Persisted via partialize below.
+      pendingWrites: [],
 
       // Session lifecycle — set by startSession() when the user enters a
       // quiz surface (Active Review / Board Sim / Gauntlet / Combat). The
@@ -289,6 +295,36 @@ export const useStore = create(
         }
       },
 
+      // Defer a full write (endpoint + body) until we're back online. Used for
+      // session summaries and offline mock-exam telemetry so nothing is dropped
+      // when the user finishes a session with no connection.
+      queuePendingWrite: (endpoint, method, body) => {
+        set((state) => ({
+          pendingWrites: [
+            ...state.pendingWrites,
+            { id: newId(), endpoint, method: method || 'POST', body, createdAt: new Date().toISOString() },
+          ],
+        }));
+      },
+
+      // Replays queued writes one at a time on reconnect. apiRequest attaches a
+      // stable Idempotency-Key, and each write is removed only on success, so a
+      // replay lands at-least-once (practically exactly-once for our writes).
+      // Stops on the first failure to avoid a tight retry loop when still flaky.
+      flushPendingWrites: async () => {
+        if (!navigator.onLine) return;
+        const { pendingWrites } = getStore();
+        if (!pendingWrites || pendingWrites.length === 0) return;
+        for (const w of pendingWrites) {
+          try {
+            await apiRequest(w.endpoint, w.method, w.body);
+            set((state) => ({ pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id) }));
+          } catch (_) {
+            break;
+          }
+        }
+      },
+
       resetDailyQuotas: () => set((state) => {
         if (!state.stats) return state;
         return { stats: { ...state.stats, dailyMath: 0, dailyESAS: 0, dailyEE: 0 } };
@@ -329,6 +365,7 @@ export const useStore = create(
                 irt: { theta: 0, consecutiveCorrect: 0, consecutiveWrong: 0 },
             },
             syncQueue: [],
+            pendingWrites: [],
             syncStatus: 'synced',
         });
       },
@@ -376,6 +413,7 @@ export const useStore = create(
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
         syncQueue: state.syncQueue,
+        pendingWrites: state.pendingWrites,
         stats: state.stats,
         pomodoro: state.pomodoro,
         theme: state.theme,

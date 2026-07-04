@@ -141,12 +141,13 @@ export default function Arena() {
           
           let pool = [];
           if (hostConfig.mode === 'blended') {
-              const m = await fetchPaginatedQuestions(null, 'Mathematics', 'All', 25);
-              const e = await fetchPaginatedQuestions(null, 'ESAS', 'All', 30);
-              const ee = await fetchPaginatedQuestions(null, 'EE', 'All', 45);
+              // Battles need a randomized pull, not newest-first — pin sort='random'.
+              const m = await fetchPaginatedQuestions(null, 'Mathematics', 'All', 25, 'random');
+              const e = await fetchPaginatedQuestions(null, 'ESAS', 'All', 30, 'random');
+              const ee = await fetchPaginatedQuestions(null, 'EE', 'All', 45, 'random');
               pool = [...(m.items || []), ...(e.items || []), ...(ee.items || [])];
           } else {
-              const res = await fetchPaginatedQuestions(null, hostConfig.subject, 'All', hostConfig.mode === 'prc' ? 100 : hostConfig.count);
+              const res = await fetchPaginatedQuestions(null, hostConfig.subject, 'All', hostConfig.mode === 'prc' ? 100 : hostConfig.count, 'random');
               pool = res.items || [];
           }
 

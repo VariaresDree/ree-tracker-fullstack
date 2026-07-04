@@ -1,12 +1,35 @@
 // src/features/active-recall/ReviewSetup.jsx
 import React from 'react';
 
+// One-tap preset sessions. Each overrides the relevant knobs but inherits the
+// user's currently-selected subject/subtopic from `config`, so a preset respects
+// what they were already looking at.
+const PRESETS = [
+  { id: 'daily', icon: '☀️', label: 'Daily Warm-up', desc: '20 mixed items',
+    cfg: { sessionMode: 'mcq', cognitiveFocus: 'mixed', studyMode: 'subject', subtopic: 'All', count: 20, source: 'library' } },
+  { id: 'rapid', icon: '⚡', label: 'Rapid Recall', desc: '10 quick items',
+    cfg: { sessionMode: 'mcq', cognitiveFocus: 'mixed', studyMode: 'subject', subtopic: 'All', count: 10, source: 'library' } },
+  { id: 'weak', icon: '🎯', label: 'Weak-Points Drill', desc: '20 targeted items', online: true,
+    cfg: { sessionMode: 'mcq', cognitiveFocus: 'mixed', studyMode: 'bleeding', count: 20, source: 'smart-drill' } },
+  { id: 'sweep', icon: '📚', label: 'Full Subject Sweep', desc: '50 items',
+    cfg: { sessionMode: 'mcq', cognitiveFocus: 'mixed', studyMode: 'subject', subtopic: 'All', count: 50, source: 'library' } },
+];
+
 export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnline, startSession }) {
-  
+
   const handleModeChange = (mode) => {
       const defaultSubj = 'Mathematics';
       const defaultSub = safeTOS[defaultSubj]?.[0] || 'All';
       setConfig({ ...config, studyMode: mode, subject: defaultSubj, subtopic: defaultSub, source: 'library' });
+  };
+
+  // Merge the preset over the live config, persist it (so downstream views like
+  // the timer/mode header read the right values), and launch immediately with an
+  // explicit config to avoid a setState race.
+  const launchPreset = (preset) => {
+      const merged = { ...config, ...preset.cfg };
+      setConfig(merged);
+      startSession(merged);
   };
 
   return (
@@ -15,6 +38,15 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
       <div className="mb-8 border-b border-border2/50 pb-5">
         <h2 className="text-2xl sm:text-3xl font-black text-textMain mb-2 tracking-tight drop-shadow-sm">Review Session</h2>
         <p className="text-sm text-muted2 font-medium">Configure your spaced repetition and mental agility protocols.</p>
+      </div>
+
+      {/* ── CUSTOM SESSION BUILDER ─────────────────────────────────────────
+          Full control over the session lives here and is presented first, so
+          building a bespoke drill is the primary path. One-tap presets follow
+          the Initialize button below. */}
+      <div className="mb-6 flex items-center gap-2">
+        <span className="text-[0.7rem] font-black text-reeBlue uppercase tracking-[0.2em]">Custom Session Builder</span>
+        <div className="flex-1 h-px bg-border2/40"></div>
       </div>
 
       {/* SESSION MODE */}
@@ -171,14 +203,46 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
         </div>
       )}
 
-      <button 
-        onClick={startSession} 
-        disabled={session.loading || (!isOnline && config.source !== 'library')} 
+      <button
+        onClick={() => startSession()}
+        disabled={session.loading || (!isOnline && config.source !== 'library')}
         className="relative overflow-hidden w-full py-5 bg-reeBlue hover:bg-blue-500 text-white font-black rounded-2xl shadow-[0_4px_25px_rgba(59,130,246,0.35)] transition-all duration-300 hover:shadow-[0_6px_30px_rgba(59,130,246,0.5)] hover:-translate-y-1 flex justify-center items-center gap-3 text-sm tracking-widest uppercase cursor-pointer disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none group"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
         {session.loading ? <><span className="telemetry-spinner !w-5 !h-5 border-white"></span> Booting Engine...</> : '🚀 Initialize Active Review Session'}
       </button>
+
+      {/* ── PRESET SESSIONS ────────────────────────────────────────────────
+          One-tap quick-starts, shown after the custom builder. Each applies a
+          curated config and launches immediately. */}
+      <div className="mt-10">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-[0.7rem] font-black text-muted uppercase tracking-[0.2em]">Preset Sessions</span>
+          <span className="text-[0.6rem] font-medium text-muted2 normal-case tracking-normal">— one-tap start</span>
+          <div className="flex-1 h-px bg-border2/40"></div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {PRESETS.map(preset => {
+            const disabled = session.loading || (preset.online && !isOnline);
+            return (
+              <button
+                key={preset.id}
+                onClick={() => launchPreset(preset)}
+                disabled={disabled}
+                className={`group flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all duration-300 ${disabled ? 'opacity-40 cursor-not-allowed grayscale border-border2/60 bg-surface2/20' : 'cursor-pointer border-border2/60 bg-surface2/30 hover:border-reeBlue/50 hover:bg-surface3 hover:-translate-y-0.5'}`}
+              >
+                <span className="text-2xl shrink-0">{preset.icon}</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-black text-textMain truncate">{preset.label}</span>
+                  <span className="text-[0.7rem] font-medium text-muted2">
+                    {preset.desc}{preset.online && !isOnline ? ' · needs connection' : ''}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

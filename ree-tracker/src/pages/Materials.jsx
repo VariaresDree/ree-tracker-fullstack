@@ -9,6 +9,7 @@ import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
 import CloudVaultTab from '../features/materials/CloudVaultTab';
 import ReferenceHub from '../components/ReferenceHub';
 import ConstantsMatrix from '../features/materials/ConstantsMatrix';
+import ReferenceAdmin from '../features/materials/ReferenceAdmin';
 import MediaViewer from '../components/MediaViewer';
 
 export default function Materials() {
@@ -74,6 +75,11 @@ export default function Materials() {
         <button onClick={() => setActiveTab('bookmarks')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'bookmarks' ? 'bg-reeAmber/10 text-reeAmber border border-reeAmber/30 shadow-sm' : 'text-muted hover:text-textMain border border-transparent'}`}>
           <span>🔐</span> Bookmark Vault
         </button>
+        {isAdmin && (
+          <button onClick={() => setActiveTab('manage_ref')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'manage_ref' ? 'bg-reePurple/10 text-reePurple border border-reePurple/30 shadow-sm' : 'text-muted hover:text-textMain border border-transparent'}`}>
+            <span>🛠️</span> Manage Reference
+          </button>
+        )}
       </div>
 
       {activeTab === 'cloud_vault' && (
@@ -98,6 +104,16 @@ export default function Materials() {
 
       {activeTab === 'bookmarks' && (
         <BookmarkVaultTab currentUser={currentUser} isOnline={isOnline} />
+      )}
+
+      {activeTab === 'manage_ref' && isAdmin && (
+        <div className="animate-in fade-in slide-in-from-bottom-2">
+          <div className="mb-6">
+            <h2 className="text-2xl font-black text-textMain tracking-tight">Manage Reference Library</h2>
+            <p className="text-sm text-muted2 mt-1">Insert, delete, and verify constants &amp; formulas. Additions sync to all users and cache for offline.</p>
+          </div>
+          <ReferenceAdmin />
+        </div>
       )}
 
     </div>

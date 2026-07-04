@@ -7,7 +7,7 @@ import { stratifiedSample } from '../../utils/shuffle';
 import toast from 'react-hot-toast';
 
 export const useReviewSession = (currentUser, isOnline) => {
-    const { dynamicTOS, setStats, recordAttempt, startSession: startStoreSession, endSession: endStoreSession } = useStore();
+    const { dynamicTOS, setStats, recordAttempt, queuePendingWrite, startSession: startStoreSession, endSession: endStoreSession } = useStore();
     const safeTOS = dynamicTOS || {};
 
     const [config, setConfig] = useState({
@@ -43,45 +43,51 @@ export const useReviewSession = (currentUser, isOnline) => {
         return () => clearInterval(interval);
     }, [session.isActive, session.isAnswered, session.isFlipped, session.currentIndex, session.isFinished]);
 
-    const startSession = async () => {
+    const startSession = async (overrideConfig = null) => {
+        // Preset quick-starts pass a fully-merged config object so we launch with
+        // the intended settings instead of racing React's async setConfig. The
+        // main "Initialize" button calls startSession() with no argument and uses
+        // the live config state. (overrideConfig is only honoured when it's a real
+        // config object — never a click event.)
+        const cfg = overrideConfig && overrideConfig.source ? overrideConfig : config;
         setSession(prev => ({ ...prev, loading: true }));
         try {
             let freshData = [];
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
-            if (config.source === 'smart-drill') {
+            if (cfg.source === 'smart-drill') {
                 if (!isOnline) throw new Error("Smart Drill requires an active uplink.");
-                const drillResult = await fetchSmartDrillQuestions(config.count || 20);
+                const drillResult = await fetchSmartDrillQuestions(cfg.count || 20);
                 freshData = drillResult.items || [];
-            } else if (config.source === 'ai') {
+            } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("AI Generator requires an active uplink.");
-                const targetTopic = config.studyMode === 'subtopic' ? config.subtopic : (safeTOS[config.subject]?.[0] || 'General');
-                freshData = await generateQuestionsAI(config.subject, targetTopic, false);
+                const targetTopic = cfg.studyMode === 'subtopic' ? cfg.subtopic : (safeTOS[cfg.subject]?.[0] || 'General');
+                freshData = await generateQuestionsAI(cfg.subject, targetTopic, false);
             } else {
                 // 🚀 FIXED: Fetch up to 1000 questions to create a massive Supabase randomization pool
-                const subTarget = config.subtopic === 'All' ? 'All' : config.subtopic;
-                freshData = await fetchVaultQuestions(config.subject, subTarget, 1000);
+                const subTarget = cfg.subtopic === 'All' ? 'All' : cfg.subtopic;
+                freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000);
             }
 
             if (!freshData || freshData.length === 0) throw new Error("Vault is empty for these parameters.");
 
             // 2. 🚀 STRICT COGNITIVE FOCUS FILTERING
             let filteredData = freshData;
-            if (config.cognitiveFocus === 'conceptual') {
+            if (cfg.cognitiveFocus === 'conceptual') {
                 filteredData = freshData.filter(q => q.type !== 'calculation');
-            } else if (config.cognitiveFocus === 'calculation') {
+            } else if (cfg.cognitiveFocus === 'calculation') {
                 filteredData = freshData.filter(q => q.type === 'calculation');
             }
 
             if (filteredData.length === 0) {
-                throw new Error(`No [${config.cognitiveFocus.toUpperCase()}] items found. Please switch to Standard Mix or change topics.`);
+                throw new Error(`No [${cfg.cognitiveFocus.toUpperCase()}] items found. Please switch to Standard Mix or change topics.`);
             }
-            
+
             // 3. 🚀 TRUE RANDOMIZATION: stratified sample across subtopics so a
             // subject-wide ("All") session spans the whole subject instead of
             // collapsing onto the dominant subtopic (Math→Algebra, ESAS→Chemistry).
             // For a pinned subtopic this is just a uniform Fisher-Yates pick.
-            const finalSessionQuestions = stratifiedSample(filteredData, config.count || 20);
+            const finalSessionQuestions = stratifiedSample(filteredData, cfg.count || 20);
 
             telemetryBatchRef.current = [];
             startTimeRef.current = Date.now();
@@ -90,7 +96,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             // Bracket the session in the store so the per-answer events know
             // which ExamSession id, mode, and target subject to attach. The
             // backend uses these to auto-upsert the ExamSession row.
-            startStoreSession({ mode: 'ACTIVE_REVIEW', subject: config.subject });
+            startStoreSession({ mode: 'ACTIVE_REVIEW', subject: cfg.subject });
 
             setSession({
                 isActive: true, loading: false, isFinished: false,
@@ -224,16 +230,24 @@ export const useReviewSession = (currentUser, isOnline) => {
             // either way this is now the single point of session teardown.
             await endStoreSession();
 
+            const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+            const summary = {
+                mode: config.sessionMode,
+                subject: config.subject,
+                subtopic: config.subtopic === 'All' ? null : config.subtopic,
+                totalQuestions: session.totalAnswered,
+                correctAnswers: session.correctHits,
+                durationSecs: totalDuration,
+            };
+
             if (isOnline) {
-                const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-                await apiRequest('/api/analytics/study-sessions', 'POST', {
-                    mode: config.sessionMode,
-                    subject: config.subject,
-                    subtopic: config.subtopic === 'All' ? null : config.subtopic,
-                    totalQuestions: session.totalAnswered,
-                    correctAnswers: session.correctHits,
-                    durationSecs: totalDuration
-                }).catch(() => {});
+                try {
+                    await apiRequest('/api/analytics/study-sessions', 'POST', summary);
+                } catch (e) {
+                    // Backend went unreachable mid-flush — defer the summary instead
+                    // of dropping it, so the session history stays complete.
+                    queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
+                }
 
                 // Rehydrate from the canonical backend so any drift between
                 // optimistic local stats and the server state is reconciled.
@@ -241,6 +255,9 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (freshProfile?.data) setStats(freshProfile.data);
                 toast.success("Session data synced.", { id: toastId });
             } else {
+                // Per-attempt telemetry is already queued via recordAttempt; also
+                // defer the aggregate session summary so nothing is lost offline.
+                queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
                 toast("Offline — progress will sync when you reconnect.", { id: toastId, icon: '📡' });
             }
             telemetryBatchRef.current = [];

@@ -5,6 +5,8 @@ import {
 } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
 
+const PAGE_SIZE = 30;
+
 export const useVaultGrid = (filterSubject, filterSubtopic) => {
   const [questions, setQuestions] = useState([]);
   const [serverStats, setServerStats] = useState({ total: 0, math: 0, esas: 0, ee: 0 });
@@ -14,6 +16,9 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
   const [isFetchingVault, setIsFetchingVault] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [editingQ, setEditingQ] = useState(null);
+  // Admin review defaults to newest-ingested first. 'oldest' and 'random' are
+  // also available via the grid's sort toggle.
+  const [sortOrder, setSortOrder] = useState('recent');
 
   const initializeVault = async (reset = false) => {
     try {
@@ -26,13 +31,13 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
       const [stats, meta, qData] = await Promise.all([
           fetchServerStats(),
           fetchVaultMetadata(),
-          fetchPaginatedQuestions(null, filterSubject, filterSubtopic, 30)
+          fetchPaginatedQuestions(null, filterSubject, filterSubtopic, PAGE_SIZE, sortOrder)
       ]);
       setServerStats(stats);
       setVaultMetadata(meta || {});
       setQuestions(qData.items);
-      setLastDoc(qData.lastVisible);
-      setHasMore(!qData.empty && qData.items.length === 30);
+      setLastDoc(qData.nextOffset);
+      setHasMore(qData.items.length === PAGE_SIZE);
     } catch (error) {
       toast.error(`Vault Error: ${error.message}`);
     } finally {
@@ -44,10 +49,10 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
     if (!hasMore || isLoadingMore) return;
     setIsLoadingMore(true);
     try {
-      const { items, lastVisible, empty } = await fetchPaginatedQuestions(lastDoc, filterSubject, filterSubtopic, 30);
+      const { items, nextOffset } = await fetchPaginatedQuestions(lastDoc, filterSubject, filterSubtopic, PAGE_SIZE, sortOrder);
       setQuestions(prev => [...prev, ...items]);
-      setLastDoc(lastVisible);
-      if (empty || items.length < 30) setHasMore(false);
+      setLastDoc(nextOffset);
+      if (items.length < PAGE_SIZE) setHasMore(false);
     } catch (error) {
       toast.error('Failed to fetch more items.');
     }
@@ -56,7 +61,7 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
 
   useEffect(() => {
     initializeVault(true);
-  }, [filterSubject, filterSubtopic]);
+  }, [filterSubject, filterSubtopic, sortOrder]);
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this question from the global vault?")) return;
@@ -82,6 +87,6 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
     questions, serverStats, vaultMetadata, resyncVaultMetadata,
     isFetchingVault, hasMore, isLoadingMore, loadMoreQuestions,
     editingQ, setEditingQ, handleDelete, handleUpdateSubmit,
-    initializeVault
+    initializeVault, sortOrder, setSortOrder
   };
 };
