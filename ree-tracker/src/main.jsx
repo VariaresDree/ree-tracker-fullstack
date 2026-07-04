@@ -19,6 +19,15 @@ const updateSW = registerSW({
   },
 });
 
+// Ask the browser to persist storage so the offline question pack + sync queue
+// (IndexedDB) aren't evicted under storage pressure — matters most on iOS/Safari,
+// which can otherwise clear IndexedDB after inactivity. Best-effort, one-time.
+if (navigator.storage?.persist) {
+  Promise.resolve(navigator.storage.persisted?.())
+    .then((already) => { if (!already) return navigator.storage.persist(); })
+    .catch(() => {});
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

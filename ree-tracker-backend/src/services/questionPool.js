@@ -3,14 +3,9 @@
 // and battle creation. Centralizing it here means battle pools are built on the
 // server (clients never assemble pools — they'd need answer keys to do so).
 const prisma = require('../config/db');
-
-const getSubjectFilter = (subjectStr) => {
-    if (!subjectStr || subjectStr === 'All') return undefined;
-    if (subjectStr === 'Mathematics' || subjectStr === 'Math') return { in: ['Math', 'Mathematics'] };
-    if (subjectStr === 'EE' || subjectStr === 'Electrical Engineering') return { in: ['EE', 'Electrical Engineering', 'Electrical Engineering Professional Subjects'] };
-    if (subjectStr === 'ESAS') return { in: ['ESAS', 'Engineering Sciences and Allied Subjects'] };
-    return subjectStr;
-};
+// Single source of truth for subject spellings/filters (re-exported below so
+// existing importers of getSubjectFilter from this module keep working).
+const { getSubjectFilter } = require('../utils/subject');
 
 // Random sample of question ids. A flat `ORDER BY random()` is biased toward
 // whichever subtopic dominates the bank, so when no subtopic is pinned we

@@ -8,21 +8,9 @@ const { calculateUpdatedTheta } = require('../utils/irtMath');
 const { partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
 const dashboardCache = require('./dashboardCache');
 
-const SUBJECT_CANONICAL = {
-    'math': 'Mathematics',
-    'mathematics': 'Mathematics',
-    'esas': 'ESAS',
-    'engineering sciences and allied subjects': 'ESAS',
-    'ee': 'EE',
-    'electrical engineering': 'EE',
-    'electrical engineering professional subjects': 'EE',
-};
-
-const canonicalSubject = (s) => {
-    if (!s) return 'General';
-    const norm = String(s).trim().toLowerCase();
-    return SUBJECT_CANONICAL[norm] || s;
-};
+// Canonical subject naming lives in one place now (utils/subject); kept aliased
+// as canonicalSubject for this module's internal uses and its export.
+const { normalizeSubject: canonicalSubject } = require('../utils/subject');
 
 // Single shared formatter — en-CA yields the YYYY-MM-DD shape ActivityLog keys on.
 const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
