@@ -228,7 +228,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             onClick={engine?.exportOfflinePDF}
           >
             <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
-            Export as PDF
+            Export exam paper (PDF)
           </Button>
         </div>
       </Card>
