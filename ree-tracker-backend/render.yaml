@@ -16,7 +16,12 @@ services:
     runtime: node
     plan: free   # was: starter ($7/mo)
     rootDir: ree-tracker-backend
-    buildCommand: npm install && npx prisma generate
+    # `prisma db push` applies any schema drift to the DB on every deploy. Without
+    # it, `prisma generate` builds a client that expects columns the database
+    # doesn't have (e.g. QuestionAttempt.clientAttemptId), 500-ing telemetry-bulk.
+    # No --accept-data-loss: additive changes apply; a destructive change safely
+    # fails the deploy instead of silently dropping data.
+    buildCommand: npm install && npx prisma generate && npx prisma db push
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:
