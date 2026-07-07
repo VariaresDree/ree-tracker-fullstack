@@ -20,16 +20,27 @@ const KEEPALIVE_MAX_ATTEMPTS = 100; // keepalive bodies are capped at ~64KB
 
 export function useSyncLifecycle() {
   useEffect(() => {
-    const flush = () => useStore.getState().flushQueueToCloud();
+    // Drain BOTH queues: per-attempt telemetry (syncQueue) AND deferred whole
+    // writes (pendingWrites — session summaries + offline mock-exam telemetry),
+    // so a transient failure self-heals without needing a connectivity toggle.
+    const flush = () => {
+      const s = useStore.getState();
+      s.flushQueueToCloud();
+      if ((s.pendingWrites?.length || 0) > 0) s.flushPendingWrites?.();
+    };
+    const hasPending = () => {
+      const s = useStore.getState();
+      return s.syncQueue.length > 0 || (s.pendingWrites?.length || 0) > 0;
+    };
 
     // 1. Safety-net interval
     const interval = setInterval(() => {
-      if (navigator.onLine && useStore.getState().syncQueue.length > 0) flush();
+      if (navigator.onLine && hasPending()) flush();
     }, 15000);
 
     // 2. Reconnect flush
     const onOnline = () => {
-      if (useStore.getState().syncQueue.length > 0) flush();
+      if (hasPending()) flush();
     };
     window.addEventListener('online', onOnline);
 
