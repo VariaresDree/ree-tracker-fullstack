@@ -18,7 +18,7 @@ The theta-engine unification design ([`docs/superpowers/specs/2026-07-08-theta-e
 | Phase | Gate condition | Status |
 |---|---|---|
 | **0 — Foundation** | Standing CI checks (SQL interpolation, route-auth coverage) pass and fail on violation; IRT engine unit-tested against hand-computed reference values; AI questions no longer land live un-reviewed | **In progress** |
-| **1 — Offline gap-fill** | Offline DoD checklist complete; per-resource Workbox strategies explicit; Dexie migration path documented | Pending |
+| **1 — Offline gap-fill** | Offline DoD checklist complete; per-resource Workbox strategies explicit; Dexie migration path documented | **In progress** (backoff, Workbox strategies, pack checksum/delta, offline flag + discrepancy logging, Dexie doc done; shared-IRT-module deferred to Phase 3) |
 | **2 — UX / accessibility** | Lighthouse CI budgets pass; axe zero critical/serious; design tokens + shared primitives in place | Pending |
 | **3 — Content / assessment** | Syllabus weighting verified vs PRC + applied; recalibration run once on real data; mastery heatmap on a real taxonomy; AI review loop processed one batch | Pending |
 | **4 — Competitive / scale** | Battle scoring server-authoritative under latency; leaderboard aggregated (not live-queried); offline exclusion verified in aggregation | Pending |
@@ -32,9 +32,11 @@ Established 2026-07-08 by reading the actual code. "Adapt/extend," not "build fr
 - Prior audit fixes (PR #40) confirmed intact in `main`: `@@index([isFlagged, subtopic])`, idempotency in-flight `reserve()`, Board-Sim `persistDraft`.
 - **Correctness bug found:** AI-generated questions are marked `status:'quarantined'` client-side but the server drops the field, so they land live and immediately drawable. Fixed in Phase 0 (map to `isFlagged:true`).
 
-### Phase 1 — Offline (ADAPT)
+### Phase 1 — Offline (ADAPT) — mostly DONE
 - **Exists:** outbox (`syncQueue`/`pendingWrites`/`deadLetters`), UUID + content-hash idempotency deduped server-side, connectivity indicator (`OfflineStatusBadge`), `navigator.storage.persist()`, offline client grading with a locally-available answer key, app-kill-durable exam timer (`ree_sim_cache`).
-- **Missing:** exponential backoff (fixed 15s/1.5s/30s cadences today); offline-attempt flag + leaderboard exclusion (offline batches sync through the same path and immediately move `thetaRating`, which drives the leaderboard); content-pack checksum + delta (monolithic blob, hardcoded `version:1`, full-overwrite refresh, idb-keyval not Cache Storage); explicit per-resource Workbox strategies; a shared client+server IRT module (three divergent estimators today).
+- **Filled this phase:** exponential backoff (2s→60s cap in the outbox retry/interval); per-resource Workbox `runtimeCaching` (API=NetworkFirst, images/fonts=CacheFirst); content-pack checksum + delta via a cheap `/api/questions/pack-manifest` (re-download only changed subjects); offline-attempt flag (`QuestionAttempt.offline`) + client/server grading-discrepancy logging; Dexie migration path documented ([docs/offline/dexie-migration-path.md](./docs/offline/dexie-migration-path.md)).
+- **Clarified:** "leaderboard exclusion" is already **structural** — offline attempts live only in the client outbox until they sync, so they have zero leaderboard effect until synced + server-re-graded. The offline flag adds audit + discrepancy visibility.
+- **Deferred to Phase 3:** the shared client+server IRT module — building it around the currently-divergent estimators would be throwaway work; it lands with the theta-engine unification.
 
 ### Phase 2 — UX / accessibility
 - **Exists:** design tokens (Tailwind v4 `@theme` + CSS vars in `styles/index.css`), shared UI primitives barrel (`components/ui`), distraction-free `ExamLayout` (wraps `/simulator` + Gauntlet), `prefers-reduced-motion`, modal focus trap.

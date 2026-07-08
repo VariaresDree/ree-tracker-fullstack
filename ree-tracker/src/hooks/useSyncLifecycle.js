@@ -33,13 +33,16 @@ export function useSyncLifecycle() {
       return s.syncQueue.length > 0 || (s.pendingWrites?.length || 0) > 0;
     };
 
-    // 1. Safety-net interval
+    // 1. Safety-net interval — respects the store's exponential backoff so a
+    // persistently-failing backend isn't re-hit every 15s.
     const interval = setInterval(() => {
-      if (navigator.onLine && hasPending()) flush();
+      if (navigator.onLine && hasPending() && useStore.getState().canAttemptSync()) flush();
     }, 15000);
 
-    // 2. Reconnect flush
+    // 2. Reconnect flush — a fresh `online` event is a strong signal, so clear
+    // any accrued backoff and try immediately (bypassing the interval gate).
     const onOnline = () => {
+      useStore.getState().resetSyncBackoff();
       if (hasPending()) flush();
     };
     window.addEventListener('online', onOnline);

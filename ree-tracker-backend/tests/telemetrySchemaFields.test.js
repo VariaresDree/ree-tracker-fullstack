@@ -15,6 +15,13 @@ describe('telemetryBulkSchema — clientAttemptId dedupe handle', () => {
     const parsed = telemetryBulkSchema.parse({ attempts: [{ questionId: 'q1' }] });
     expect(parsed.attempts[0].clientAttemptId).toBeUndefined();
   });
+
+  it('accepts and preserves the offline flag (defaults false)', () => {
+    const on = telemetryBulkSchema.parse({ attempts: [{ questionId: 'q1', offline: true }] });
+    expect(on.attempts[0].offline).toBe(true);
+    const off = telemetryBulkSchema.parse({ attempts: [{ questionId: 'q1' }] });
+    expect(off.attempts[0].offline).toBe(false);
+  });
 });
 
 describe('telemetryBulkSchema — payload bounds', () => {

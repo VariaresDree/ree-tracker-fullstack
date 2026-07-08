@@ -37,6 +37,23 @@ const MAX_DEAD_LETTERS = 50;
 // window. Recovered + merged back in onRehydrateStorage below.
 const OFFLINE_MIRROR_KEY = 'ree_pending_sync';
 
+// Capped exponential backoff for the safety-net sync retry. A persistently
+// failing backend used to be re-hit every 15s forever; now failed flushes back
+// off 2s → 4s → 8s … capped at 60s. The interval in useSyncLifecycle consults
+// syncBackoff.canAttempt() before flushing; a fresh `online` event bypasses it.
+const BACKOFF_BASE_MS = 1000;
+const BACKOFF_MAX_MS = 60000;
+let syncRetryCount = 0;
+let nextSyncAllowedAt = 0;
+const syncBackoff = {
+  canAttempt: () => Date.now() >= nextSyncAllowedAt,
+  reset: () => { syncRetryCount = 0; nextSyncAllowedAt = 0; },
+  recordFailure: () => {
+    syncRetryCount = Math.min(syncRetryCount + 1, 16);
+    nextSyncAllowedAt = Date.now() + Math.min(BACKOFF_BASE_MS * 2 ** syncRetryCount, BACKOFF_MAX_MS);
+  },
+};
+
 const newId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 // HIGH-PERFORMANCE ASYNC STORAGE ADAPTER
@@ -329,13 +346,16 @@ export const useStore = create(
                 }
               };
             });
+            syncBackoff.reset(); // healthy round-trip — clear any accrued backoff
             return true;
           } catch (error) {
             const status = error?.status;
             const permanent = typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
             if (error.message?.includes('[OFFLINE]') || error.message?.includes('[TIMEOUT]')) {
-              // Transient — preserve the whole batch for the next flush/reconnect.
+              // Transient — preserve the whole batch for the next flush/reconnect,
+              // and back off so we don't hammer a flaky/offline backend.
               console.warn("[SYNC] Backend offline — queue preserved for retry.");
+              syncBackoff.recordFailure();
               set({ syncStatus: 'offline_queued' });
             } else if (permanent) {
               // Non-retryable rejection (e.g. a malformed batch). Quarantine it so
@@ -352,8 +372,9 @@ export const useStore = create(
                 syncStatus: 'error',
               }));
             } else {
-              // Unknown/5xx — treat as transient, keep the batch.
+              // Unknown/5xx — treat as transient, keep the batch and back off.
               console.error("[SYNC FATAL ERROR] Processing batch data failed:", error);
+              syncBackoff.recordFailure();
               set({ syncStatus: 'error' });
             }
             return false;
@@ -374,6 +395,13 @@ export const useStore = create(
           await getStore().flushQueueToCloud();
         }
       },
+
+      // Backoff gate for the safety-net interval (useSyncLifecycle). Returns
+      // false while we're inside a post-failure backoff window; a fresh `online`
+      // event flushes directly and bypasses this. resetSyncBackoff lets the
+      // reconnect handler clear the window on a fresh connectivity signal.
+      canAttemptSync: () => syncBackoff.canAttempt(),
+      resetSyncBackoff: () => syncBackoff.reset(),
 
       // Defer a full write (endpoint + body) until we're back online. Used for
       // session summaries and offline mock-exam telemetry so nothing is dropped
