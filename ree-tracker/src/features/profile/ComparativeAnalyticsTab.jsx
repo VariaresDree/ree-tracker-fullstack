@@ -78,7 +78,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
           <div className="relative w-56 h-56 flex items-center justify-center z-10">
             <svg className="w-full h-full -rotate-90 transform drop-shadow-md" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="45" fill="none" stroke="var(--border-light)" strokeWidth="8" />
-              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--brand-cyan, #06b6d4)" strokeWidth="8" strokeDasharray={typeof rank === 'number' && totalAgents > 0 ? `${((totalAgents - rank + 1) / totalAgents) * 282.7} 282.7` : '0 282.7'} className="transition-all duration-1000 ease-out" />
+              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--color-reeCyan)" strokeWidth="8" strokeDasharray={typeof rank === 'number' && totalAgents > 0 ? `${((totalAgents - rank + 1) / totalAgents) * 282.7} 282.7` : '0 282.7'} className="transition-all duration-1000 ease-out" />
             </svg>
             <div className="absolute flex flex-col items-center px-4 text-center">
               {typeof rank === 'number' ? (

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTelemetrySlice } from '../store/slices';
 import toast from 'react-hot-toast';
-import { Panel, Button, Skeleton, Modal } from './ui';
+import { Panel, Button, Skeleton, Modal, ProgressIndicator } from './ui';
 import { ClipboardList, Settings2, RefreshCw, Trash2 } from './ui/icons';
 
 // `stats` comes from the PARENT (Dashboard's merged activeStats — local
@@ -132,24 +132,19 @@ export default function MissionControl({ stats, onPurgeRequest }) {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {QUOTAS.map((q) => {
-            const pct = Math.min((q.cur / (q.goal || 1)) * 100, 100);
-            return (
-              <div key={q.label} className="rounded-xl border border-border bg-surface2/30 p-4">
-                <div className="flex justify-between items-center mb-3 gap-2">
-                  <span className="text-[11px] font-medium uppercase tracking-wider truncate" style={{ color: q.color }}>
-                    {q.label}
-                  </span>
-                  <span className="text-[11px] text-muted2 tabular-nums shrink-0">
-                    {q.cur} / {q.goal}
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-surface3 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${pct}%`, background: q.color }} />
-                </div>
+          {QUOTAS.map((q) => (
+            <div key={q.label} className="rounded-xl border border-border bg-surface2/30 p-4">
+              <div className="flex justify-between items-center mb-3 gap-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider truncate" style={{ color: q.color }}>
+                  {q.label}
+                </span>
+                <span className="text-[11px] text-muted2 tabular-nums shrink-0">
+                  {q.cur} / {q.goal}
+                </span>
               </div>
-            );
-          })}
+              <ProgressIndicator value={q.cur} max={q.goal || 1} color={q.color} ariaLabel={`${q.label}: ${q.cur} of ${q.goal}`} />
+            </div>
+          ))}
         </div>
       </Panel>
 

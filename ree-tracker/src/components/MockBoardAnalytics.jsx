@@ -207,9 +207,9 @@ export default function MockBoardAnalytics() {
                     <Cell key={`cell-${index}`} fill={entry.overall >= 70 ? 'rgba(52, 211, 153, 0.18)' : 'rgba(255, 77, 109, 0.18)'} />
                   ))}
                 </Bar>
-                <Line type="monotone" dataKey="math" name="Math" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                <Line type="monotone" dataKey="esas" name="ESAS" stroke="#a855f7" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                <Line type="monotone" dataKey="ee" name="EE" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                <Line type="monotone" dataKey="math" name="Math" stroke="var(--color-reeCyan)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                <Line type="monotone" dataKey="esas" name="ESAS" stroke="var(--color-reePurple)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                <Line type="monotone" dataKey="ee" name="EE" stroke="var(--color-reeAmber)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

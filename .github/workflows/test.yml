@@ -85,3 +85,30 @@ jobs:
 
       - name: Test
         run: npm test
+
+  lighthouse:
+    name: Lighthouse CI (entry-path budgets)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ree-tracker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ree-tracker/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Budgets: a11y >=0.95 hard-fails; LCP/CLS/TBT are warnings (CI is noisy).
+      # Only the auth-gated entry/login path is reachable in CI (see lighthouserc.cjs).
+      - name: Lighthouse CI
+        run: npx --yes @lhci/cli@0.14.x autorun

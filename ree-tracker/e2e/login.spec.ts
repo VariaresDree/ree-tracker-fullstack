@@ -1,10 +1,21 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 // Auth-independent smoke. The app gates the entire router behind Firebase
 // auth, so Login is the only surface we can verify without provisioning a
 // test user. These tests catch render regressions and a11y basics.
 
 test.describe('Login screen', () => {
+  test('has no critical/serious accessibility violations (real axe scan)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByLabel(/Email Address/i)).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const seriousOrWorse = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+    expect(seriousOrWorse, JSON.stringify(seriousOrWorse.map((v) => v.id), null, 2)).toEqual([]);
+  });
+
   test('renders the brand + email/password fields', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText(/REE\.?ai Core/)).toBeVisible();
