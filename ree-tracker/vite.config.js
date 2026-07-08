@@ -91,7 +91,13 @@ export default defineConfig(async () => ({
       workbox: {
         // Caches all core structural files for offline UI rendering
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        cleanupOutdatedCaches: true
+        cleanupOutdatedCaches: true,
+        // Raise the precache size cap above Workbox's 2 MiB default: the heavy
+        // vendor chunks (charts/recharts, LatexRenderer/KaTeX, jspdf, pdfjs) can
+        // approach it, and any chunk over the cap is SILENTLY excluded from the
+        // precache manifest — which breaks the offline app-shell boot. 5 MiB
+        // leaves headroom without precaching anything unreasonable.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       }
     })
   ],

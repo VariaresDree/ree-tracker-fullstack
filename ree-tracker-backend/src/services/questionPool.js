@@ -15,7 +15,12 @@ const { getSubjectFilter } = require('../utils/subject');
 // SQL-injection note: the template fragments are static; all user-derived
 // values go through positional parameters, and `cap` is coerced to a number.
 async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50 }) {
-    const cap = Math.min(parseInt(limit) || 50, 2000);
+    // `parseInt(limit) || 50` silently turned a legitimate limit:0 (a subject
+    // whose blended share rounds to 0) into 50, and let a negative limit through
+    // as `LIMIT -5` (a Postgres error). Coerce numerically: honor 0, default on
+    // null/undefined/NaN/negative.
+    const n = Number(limit);
+    const cap = limit == null || !Number.isFinite(n) || n < 0 ? 50 : Math.min(Math.floor(n), 2000);
     let rows;
     if (subtopic) {
         rows = await prisma.$queryRawUnsafe(

@@ -17,6 +17,25 @@ describe('telemetryBulkSchema — clientAttemptId dedupe handle', () => {
   });
 });
 
+describe('telemetryBulkSchema — payload bounds', () => {
+  it('accepts a full 500-item batch', () => {
+    const attempts = Array.from({ length: 500 }, (_, i) => ({ questionId: `q${i}` }));
+    expect(telemetryBulkSchema.safeParse({ attempts }).success).toBe(true);
+  });
+
+  it('rejects an oversized (>500) attempts array', () => {
+    const attempts = Array.from({ length: 501 }, (_, i) => ({ questionId: `q${i}` }));
+    expect(telemetryBulkSchema.safeParse({ attempts }).success).toBe(false);
+  });
+
+  it('rejects a multi-KB userAnswer (per-field cap)', () => {
+    const r = telemetryBulkSchema.safeParse({
+      attempts: [{ questionId: 'q1', userAnswer: 'x'.repeat(501) }],
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
 describe('gradeSchema — must not strip gauntlet confidence/time', () => {
   it('preserves confidenceLevel and timeSpentMs (validate() replaces req.body)', () => {
     const parsed = gradeSchema.parse({

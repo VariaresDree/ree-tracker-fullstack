@@ -13,7 +13,7 @@
 //   - One place to enforce the confidence + correctness color semantics
 //   - Removes ~300 lines of duplicated JSX from MCQMode/SimulatorActive/Gauntlet
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
 
@@ -107,6 +107,30 @@ export default function QuestionCard({
     return question.subtopic ? `${question.subject} › ${question.subtopic}` : question.subject;
   }, [question?.subject, question?.subtopic]);
 
+  // Roving-tabindex radiogroup: only one option sits in the Tab order; Arrow/
+  // Home/End move focus between choices (the proper ARIA radiogroup pattern,
+  // which the plain-buttons grid lacked). Selection stays on Enter/Space (native
+  // button activation) rather than firing on arrow — in this app selecting an
+  // option COMMITS the answer, so auto-selecting on navigation would lock it in
+  // by accident.
+  const optionRefs = useRef([]);
+  const [activeOption, setActiveOption] = useState(0);
+  useEffect(() => { setActiveOption(0); }, [prompt]);
+
+  const onOptionsKeyDown = (e) => {
+    if (isReviewing || options.length === 0) return;
+    const count = options.length;
+    let next = null;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = (activeOption + 1) % count;
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') next = (activeOption - 1 + count) % count;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = count - 1;
+    if (next == null) return;
+    e.preventDefault();
+    setActiveOption(next);
+    optionRefs.current[next]?.focus();
+  };
+
   return (
     <div className={`flex flex-col gap-6 relative z-10 ${className}`}>
       {/* Eyebrow: Item N + subject/subtopic + optional header slot */}
@@ -176,7 +200,7 @@ export default function QuestionCard({
       )}
 
       {/* Options A–D */}
-      <div className="flex flex-col gap-3.5" role="radiogroup" aria-label="Answer choices">
+      <div className="flex flex-col gap-3.5" role="radiogroup" aria-label="Answer choices" onKeyDown={onOptionsKeyDown}>
         {options.map((opt, i) => (
           <OptionRow
             key={i}
@@ -187,6 +211,8 @@ export default function QuestionCard({
             isReviewing={isReviewing}
             onClick={() => handleSelect(opt)}
             reduceMotion={reduceMotion}
+            tabIndex={i === activeOption ? 0 : -1}
+            innerRef={(el) => { optionRefs.current[i] = el; }}
           />
         ))}
       </div>
@@ -194,7 +220,7 @@ export default function QuestionCard({
   );
 }
 
-function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onClick, reduceMotion }) {
+function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onClick, reduceMotion, tabIndex, innerRef }) {
   // Visual semantics:
   //   answering + selected      → blue ring (locked-in choice)
   //   answering + idle          → muted hover
@@ -239,6 +265,8 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       aria-checked={isSelected}
       disabled={isReviewing}
       onClick={onClick}
+      ref={innerRef}
+      tabIndex={tabIndex}
       className={`group p-5 sm:p-6 rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-velocity)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
     >
       <span className={`w-8 shrink-0 font-black font-mono text-base sm:text-lg tracking-wider transition-colors duration-200 ${letterColor}`}>

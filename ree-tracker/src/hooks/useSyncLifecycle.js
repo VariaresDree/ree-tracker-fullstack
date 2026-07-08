@@ -47,6 +47,17 @@ export function useSyncLifecycle() {
     // 3. Last-gasp flush on hide/close
     const onHide = () => {
       const { syncQueue, currentSessionId, currentSessionMode, currentSubject } = useStore.getState();
+
+      // Durability FIRST, offline-safe: mirror the live queue to localStorage
+      // (a SYNCHRONOUS API) so a fast close can't lose the last attempt(s) in
+      // the async IDB-persist window. Recovered + merged in the store's
+      // onRehydrateStorage on next open. Runs regardless of connectivity.
+      try {
+        if (syncQueue.length > 0) {
+          localStorage.setItem('ree_pending_sync', JSON.stringify(syncQueue.slice(-5000)));
+        }
+      } catch (_) { /* quota/serialization — best effort */ }
+
       const user = auth.currentUser;
       if (!user || syncQueue.length === 0 || !navigator.onLine) return;
 

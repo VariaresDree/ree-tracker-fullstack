@@ -25,8 +25,10 @@ function normCdf(x, mu = 0, sigma = 1) {
  * estimate (theta, se). Right-tail of a Normal(theta, se^2).
  */
 function probAboveCutoff(theta, se, cutoff) {
-  const sigma = Math.max(0.05, se);
-  return 1 - normCdf(cutoff, theta, sigma);
+  const t = Number.isFinite(theta) ? theta : 0;
+  const s = Number.isFinite(se) ? se : 1;
+  const sigma = Math.max(0.05, s);
+  return 1 - normCdf(cutoff, t, sigma);
 }
 
 /**
@@ -107,12 +109,18 @@ function buildPrescription(weakTopics) {
  * ForecastSnapshot row.
  */
 function buildForecast({ ability, topicAbilities = [] }) {
-  const probs = probabilities(ability);
+  // Sanitize the ability snapshot up front — a non-finite theta/se would flow
+  // through normCdf(NaN) = NaN into a persisted NaN expectedRank/probabilities.
+  const safeAbility = {
+    theta: Number.isFinite(ability?.theta) ? ability.theta : 0,
+    se: Number.isFinite(ability?.se) ? ability.se : 1,
+  };
+  const probs = probabilities(safeAbility);
   const weakTopics = rankWeakTopics(topicAbilities);
   const recommendedActions = buildPrescription(weakTopics);
   // Naive percentile rank from theta + cutoff distribution.
   // Assumes board cohort theta ~ Normal(0, 1).
-  const expectedRank = Math.round(100 * (1 - normCdf(ability.theta, 0, 1)));
+  const expectedRank = Math.round(100 * (1 - normCdf(safeAbility.theta, 0, 1)));
   return {
     passProbability: probs.passProbability,
     topnotcherProbability: probs.topnotcherProbability,

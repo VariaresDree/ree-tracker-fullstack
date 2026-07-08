@@ -43,8 +43,12 @@ function expected(rA, rOppMean) {
 // Actual normalized score from a 1-based placement, N participants.
 function actualFromPlacement(placement, n) {
     if (n <= 1) return 0.5;
+    // Clamp placement into [1, n] so a bad value can't push the "actual" score
+    // outside [0,1] (placement 0 -> >1, placement > n -> negative), which would
+    // otherwise produce an inflated/negative rating delta.
+    const p = Math.min(Math.max(placement, 1), n);
     // 1st => 1.0, last => 0.0; linear interpolation in between.
-    return (n - placement) / (n - 1);
+    return (n - p) / (n - 1);
 }
 
 /**
@@ -69,6 +73,18 @@ function recomputeRatings(participants) {
     const n = participants.length;
     return participants.map((p) => {
         const others = participants.filter((q) => q.userId !== p.userId);
+        // Guard: if every participant shares a userId (duplicate/undefined ids),
+        // `others` is empty and oppMean would be 0/0 = NaN, writing a NaN rating.
+        if (others.length === 0) {
+            return {
+                userId: p.userId,
+                ratingBefore: p.rating,
+                ratingAfter: p.rating,
+                delta: 0,
+                tierBefore: tierFor(p.rating),
+                tierAfter: tierFor(p.rating),
+            };
+        }
         const oppMean = others.reduce((acc, q) => acc + q.rating, 0) / others.length;
         const exp = expected(p.rating, oppMean);
         const act = actualFromPlacement(p.placement, n);

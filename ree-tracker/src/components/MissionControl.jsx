@@ -1,9 +1,8 @@
 // src/components/MissionControl.jsx
 import React, { useState, useEffect } from 'react';
 import { useTelemetrySlice } from '../store/slices';
-import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
-import { Panel, Button, Card, Skeleton } from './ui';
+import { Panel, Button, Skeleton, Modal } from './ui';
 import { ClipboardList, Settings2, RefreshCw, Trash2 } from './ui/icons';
 
 // `stats` comes from the PARENT (Dashboard's merged activeStats — local
@@ -154,26 +153,29 @@ export default function MissionControl({ stats, onPurgeRequest }) {
         </div>
       </Panel>
 
-      {showResetModal && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={showResetModal}>
-            <Card elevated className="p-6 max-w-sm w-full modal-entrance">
-              <h3 className="text-lg font-semibold text-reeAmber mb-2 flex items-center gap-2">
-                <RefreshCw size={18} strokeWidth={2} /> Reset today's targets?
-              </h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">
-                This reverts today's Math, ESAS, and EE counts to 0. Your streak and deep analytics are unaffected.
-              </p>
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" size="sm" data-close-modal onClick={() => setShowResetModal(false)}>
-                  Cancel
-                </Button>
-                <Button variant="primary" size="sm" onClick={executeDailyReset}>Reset</Button>
-              </div>
-            </Card>
-          </FocusTrap>
-        </div>
-      )}
+      {/* Uses the shared Modal primitive — one dialog contract with role="dialog",
+          aria-modal, labelledby, Escape-to-close, backdrop, and body scroll lock,
+          instead of a hand-rolled overlay that had none of those. */}
+      <Modal
+        open={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        title="Reset today's targets?"
+        icon={RefreshCw}
+        tone="amber"
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-3 w-full">
+            <Button variant="secondary" size="sm" onClick={() => setShowResetModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={executeDailyReset}>Reset</Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">
+          This reverts today's Math, ESAS, and EE counts to 0. Your streak and deep analytics are unaffected.
+        </p>
+      </Modal>
     </>
   );
 }

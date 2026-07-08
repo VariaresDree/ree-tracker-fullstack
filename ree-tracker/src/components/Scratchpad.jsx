@@ -6,15 +6,22 @@ export default function Scratchpad({ isOpen, onClose }) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [context, setContext] = useState(null);
 
+  // Canvas 2D can't resolve CSS variables directly, so read the design-system
+  // accent once and pass the computed color (keeps the stroke themable instead
+  // of a hardcoded hex). Falls back to the previous cyan if the var is unset.
+  const accentColor = () =>
+    getComputedStyle(canvasRef.current || document.documentElement)
+      .getPropertyValue('--accent-signal').trim() || '#06b6d4';
+
   useEffect(() => {
     if (isOpen && canvasRef.current) {
       const canvas = canvasRef.current;
       canvas.width = canvas.parentElement.clientWidth;
       canvas.height = canvas.parentElement.clientHeight;
-      
+
       const ctx = canvas.getContext("2d");
       ctx.lineCap = "round";
-      ctx.strokeStyle = "#06b6d4"; 
+      ctx.strokeStyle = accentColor();
       ctx.lineWidth = 3;
       setContext(ctx);
     }
@@ -40,7 +47,7 @@ export default function Scratchpad({ isOpen, onClose }) {
 
         // 3. Re-apply the context configurations (resizing clears them)
         context.lineCap = "round";
-        context.strokeStyle = "#06b6d4"; 
+        context.strokeStyle = accentColor();
         context.lineWidth = 3;
 
         // 4. Paint the saved drawing back onto the resized canvas

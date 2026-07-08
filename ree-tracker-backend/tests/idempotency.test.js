@@ -67,4 +67,43 @@ describe('idempotency middleware', () => {
         idempotency()(req, res, () => { called = true; });
         expect(called).toBe(true);
     });
+
+    it('does NOT cache a non-2xx response, so a corrected retry runs', () => {
+        const { req, res } = makeReqRes({ key: 'err1', body: { x: 1 } });
+        idempotency()(req, res, () => { res.status(400).json({ error: 'bad' }); });
+        expect(res.body).toEqual({ error: 'bad' });
+
+        // Same key retried after fixing the payload — must run, not replay the 400.
+        const second = makeReqRes({ key: 'err1', body: { x: 1 } });
+        let nextCalled = false;
+        idempotency()(second.req, second.res, () => { nextCalled = true; second.res.status(200).json({ ok: true }); });
+        expect(nextCalled).toBe(true);
+        expect(second.res.body).toEqual({ ok: true });
+    });
+
+    it('409s a concurrent duplicate while the first request is still in flight', () => {
+        // First request reserves the key but has not finished (no res.json yet).
+        const first = makeReqRes({ key: 'inflight', body: { x: 1 } });
+        let firstNext = false;
+        idempotency()(first.req, first.res, () => { firstNext = true; /* handler still running */ });
+        expect(firstNext).toBe(true);
+
+        // A genuinely simultaneous identical request sees the reservation.
+        const second = makeReqRes({ key: 'inflight', body: { x: 1 } });
+        let secondNext = false;
+        idempotency()(second.req, second.res, () => { secondNext = true; });
+        expect(secondNext).toBe(false);
+        expect(second.res.statusCode).toBe(409);
+    });
+
+    it('releases the reservation after a 5xx so a later retry can run', () => {
+        const first = makeReqRes({ key: 'rel', body: { x: 1 } });
+        idempotency()(first.req, first.res, () => { first.res.status(500).json({ error: 'boom' }); });
+
+        const retry = makeReqRes({ key: 'rel', body: { x: 1 } });
+        let retryNext = false;
+        idempotency()(retry.req, retry.res, () => { retryNext = true; retry.res.status(200).json({ ok: true }); });
+        expect(retryNext).toBe(true);
+        expect(retry.res.body).toEqual({ ok: true });
+    });
 });

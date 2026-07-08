@@ -87,3 +87,17 @@ describe('buildForecast end-to-end', () => {
     expect(out.modelVersion).toBe('v1');
   });
 });
+
+describe('buildForecast — non-finite ability guard', () => {
+  it('produces finite probabilities and rank for a NaN ability', () => {
+    const out = buildForecast({ ability: { theta: NaN, se: NaN }, topicAbilities: [] });
+    expect(Number.isFinite(out.passProbability)).toBe(true);
+    expect(Number.isFinite(out.topnotcherProbability)).toBe(true);
+    expect(Number.isFinite(out.expectedRank)).toBe(true);
+  });
+
+  it('produces finite output for a missing se', () => {
+    const out = buildForecast({ ability: { theta: 0.5 }, topicAbilities: [] });
+    expect(Number.isFinite(out.expectedRank)).toBe(true);
+  });
+});

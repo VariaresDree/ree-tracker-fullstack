@@ -22,12 +22,18 @@ function HeatmapChart({ stats }) {
     return m;
   }, [microTopics]);
 
-  const displayedTopics = (safeTOS[activeTab] || [])
-    .map((topicName) => ({
-      name: topicName,
-      data: microByNorm[normKey(topicName)] || { attempts: 0, correct: 0, totalTime: 0 },
-    }))
-    .sort((a, b) => b.data.attempts - a.data.attempts);
+  // Memoized so it doesn't re-map + re-sort the whole TOS on every render —
+  // notably the Accuracy/Speed toggle (viewMode) doesn't affect this list at all.
+  const displayedTopics = useMemo(
+    () =>
+      (safeTOS[activeTab] || [])
+        .map((topicName) => ({
+          name: topicName,
+          data: microByNorm[normKey(topicName)] || { attempts: 0, correct: 0, totalTime: 0 },
+        }))
+        .sort((a, b) => b.data.attempts - a.data.attempts),
+    [safeTOS, activeTab, microByNorm],
+  );
 
   const targetLimit = activeTab === 'EE' ? 216 : 144;
 
@@ -69,7 +75,7 @@ function HeatmapChart({ stats }) {
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-1.5 flex flex-col gap-2 min-h-0 stagger-fade-in">
-        {displayedTopics.map((item, idx) => {
+        {displayedTopics.map((item) => {
           const hasData = item.data.attempts > 0;
           const pct = hasData ? Math.round((item.data.correct / item.data.attempts) * 100) : 0;
           // Average over ONLY the attempts that had plausible timing (corrupt
@@ -107,7 +113,7 @@ function HeatmapChart({ stats }) {
           }
 
           return (
-            <div key={idx} className={`p-3.5 rounded-xl border flex justify-between items-center transition-all shrink-0 ${bgClass}`}>
+            <div key={item.name} className={`p-3.5 rounded-xl border flex justify-between items-center transition-all shrink-0 ${bgClass}`}>
               <div className="flex flex-col min-w-0 pr-4">
                 <div className={`text-sm font-semibold truncate ${hasData ? 'text-textMain' : 'text-muted'}`} title={item.name}>
                   {item.name}

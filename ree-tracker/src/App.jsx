@@ -42,7 +42,7 @@ const SecureAppTerminal = () => {
 
   return (
     <Router>
-      <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#1a2235', color: '#f1f5f9' } }} />
+      <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }} />
       
       {/* Neutral fallback for all routes; the dashboard nests its own
           skeleton so only "/" shows the dashboard-shaped placeholder. */}

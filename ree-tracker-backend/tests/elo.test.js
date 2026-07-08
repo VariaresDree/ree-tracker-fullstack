@@ -93,3 +93,27 @@ describe('recomputeRatings', () => {
         expect(a.ratingAfter).toBeGreaterThanOrEqual(0);
     });
 });
+
+describe('recomputeRatings — non-finite / out-of-range guards', () => {
+    it('never writes a NaN rating when all participants share a userId', () => {
+        const ratings = recomputeRatings([
+            { userId: 'dup', rating: 1200, placement: 1 },
+            { userId: 'dup', rating: 1200, placement: 2 },
+        ]);
+        for (const r of ratings) {
+            expect(Number.isFinite(r.ratingAfter)).toBe(true);
+            expect(Number.isFinite(r.delta)).toBe(true);
+        }
+    });
+
+    it('clamps an out-of-range placement so the delta stays finite/bounded', () => {
+        const ratings = recomputeRatings([
+            { userId: 'a', rating: 1200, placement: 0 },   // < 1
+            { userId: 'b', rating: 1200, placement: 9 },   // > n
+        ]);
+        for (const r of ratings) {
+            expect(Number.isFinite(r.delta)).toBe(true);
+            expect(r.ratingAfter).toBeGreaterThanOrEqual(0);
+        }
+    });
+});

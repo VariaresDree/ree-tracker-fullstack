@@ -15,10 +15,16 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
       const pts = buckets
         .map((b) => {
           const conf = CONFIDENCE_MAP[String(b.confidence || '').toUpperCase()];
-          if (conf == null || !b.total) return null;
+          const rawAcc = Number(b.accuracy);
+          if (conf == null || !b.total || !Number.isFinite(rawAcc)) return null;
+          // The server may send accuracy as a fraction [0,1] or a percent
+          // [0,100]. Normalize to the 0–100 scale that the YAxis, the attempts
+          // branch, and the ECE/Brier math below all assume — otherwise fractional
+          // buckets collapsed to the axis floor and ECE mixed 0–100 vs 0–1 units.
+          const accPct = rawAcc > 1 ? rawAcc : rawAcc * 100;
           return {
             confidence: Number((conf * 100).toFixed(1)),
-            accuracy: Number(b.accuracy ?? 0),
+            accuracy: Number(accPct.toFixed(1)),
             n: b.total,
           };
         })

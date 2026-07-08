@@ -274,8 +274,20 @@ export const useReviewSession = (currentUser, isOnline) => {
 
                 // Rehydrate from the canonical backend so any drift between
                 // optimistic local stats and the server state is reconciled.
+                // Merge the profile the same way the simulator does — setStats
+                // is a FULL replace, so passing the raw { profile, activityCalendar,
+                // microTopics, matrix } wrapper here used to overwrite `stats`
+                // with the wrong shape and corrupt local counters.
                 const freshProfile = await getAnalyticsProfile(currentUser.uid);
-                if (freshProfile?.data) setStats(freshProfile.data);
+                if (freshProfile?.data?.profile) {
+                    setStats({
+                        ...useStore.getState().stats,
+                        ...freshProfile.data.profile,
+                        activityCalendar: freshProfile.data.activityCalendar,
+                        microTopics: freshProfile.data.microTopics,
+                        matrix: freshProfile.data.matrix,
+                    });
+                }
                 toast.success("Session data synced.", { id: toastId });
             } else {
                 // Per-attempt telemetry is already queued via recordAttempt; also
