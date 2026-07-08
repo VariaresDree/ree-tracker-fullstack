@@ -24,6 +24,9 @@ const telemetryBulkSchema = z.object({
         // Client-generated per-attempt id — the server's durable dedupe handle
         // against replayed batches (unique per user among non-null values).
         clientAttemptId: z.string().min(8).max(80).optional(),
+        // Answered offline and synced later. Stored for audit; the server still
+        // re-grades authoritatively and logs any client/server disagreement.
+        offline: z.boolean().optional().default(false),
     // Cap the batch: unbounded, one request could open a huge write transaction
     // (findMany over thousands of ids + createMany + per-topic upserts). The
     // client coalesces answers but a full PRC exam is 100 items; 500 is ample.

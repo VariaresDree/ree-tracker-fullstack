@@ -89,7 +89,8 @@ export default defineConfig(async () => ({
         ]
       },
       workbox: {
-        // Caches all core structural files for offline UI rendering
+        // APP SHELL (JS/CSS/HTML/icons/fonts): precached, i.e. CacheFirst with
+        // revision-based invalidation — the shell must boot with zero network.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
         // Raise the precache size cap above Workbox's 2 MiB default: the heavy
@@ -98,6 +99,43 @@ export default defineConfig(async () => ({
         // precache manifest — which breaks the offline app-shell boot. 5 MiB
         // leaves headroom without precaching anything unreasonable.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Explicit per-resource-type runtime strategies (not one blanket policy):
+        runtimeCaching: [
+          {
+            // API content JSON (questions / reference / metadata / config): feels
+            // LIVE when online, degrades to cache when the network is slow/absent.
+            urlPattern: ({ url }) => /\/api\/(questions|reference|metadata|config)/.test(url.pathname),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-content',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Question / explanation images: cache-first with a bounded, expiring
+            // cache so storage can't grow without limit on a low-end device.
+            urlPattern: ({ request }) => request.destination === 'image',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'images',
+              expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Google Fonts CSS + font files (loaded from index.html) so typography
+            // survives offline first-loads instead of falling back to system fonts.
+            urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       }
     })
   ],

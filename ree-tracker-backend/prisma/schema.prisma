@@ -151,6 +151,11 @@ model QuestionAttempt {
   // Which surface produced this attempt: ACTIVE_REVIEW | BOARD_SIM | GAUNTLET
   // | COMBAT | BATTLE | LEGACY. Indexed for dashboard mode-breakdown queries.
   mode            String   @default("LEGACY")
+  // True when this attempt was answered offline and synced later. The server
+  // still re-grades it authoritatively on sync (it's never on the leaderboard
+  // until then, since it only exists in the client outbox pre-sync); the flag is
+  // for audit + surfacing client/server grading discrepancies.
+  offline         Boolean  @default(false)
   createdAt       DateTime @default(now())
 
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)

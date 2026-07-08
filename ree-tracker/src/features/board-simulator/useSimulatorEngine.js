@@ -399,6 +399,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             // BOARD_SIM mode, subject, and deterministic clientAttemptIds, so it
             // replays exactly-once even hours later.
             const bulkBody = { sessionId, targetSubject: config.subject, mode: 'BOARD_SIM', attempts: attemptsPayload };
+            // Deferred (offline / circuit-breaker) submits are tagged offline so
+            // the server flags the rows and logs any client/server grading
+            // discrepancy when it re-grades on sync.
+            const offlineBulkBody = { ...bulkBody, attempts: attemptsPayload.map((a) => ({ ...a, offline: true })) };
 
             if (isOnline) {
                 try {
@@ -417,7 +421,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                     console.warn("Cloud Sync Failed", syncError);
                     if (syncError?.message === '[OFFLINE]') {
                         // Circuit breaker tripped despite navigator.onLine — defer.
-                        useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', bulkBody);
+                        useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                         toast('Offline — exam queued; analytics will sync on reconnect.', { icon: '📡' });
                     } else {
                         toast.error(`Telemetry sync failed: ${syncError?.message || 'unknown'}. Results saved locally.`);
@@ -426,7 +430,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             } else {
                 // Fully offline mock exam — defer the batch with its correct
                 // session + mode so it lands exactly like an online submit later.
-                useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', bulkBody);
+                useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                 toast('Offline — exam saved locally; analytics will sync on reconnect.', { icon: '📡' });
             }
         }

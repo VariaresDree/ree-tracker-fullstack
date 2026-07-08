@@ -201,30 +201,55 @@ export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 
 // online (see useOfflinePack) and on manual "Download".
 export const refreshOfflinePack = async ({ perSubject = 400 } = {}) => {
     if (!navigator.onLine) return getOfflinePackMeta();
-    // Fetch subjects in parallel — 3 sequential round-trips collapse to 1
-    // wall-clock. Each mapper catches its own failure, so Promise.all won't reject.
-    const entries = await Promise.all(OFFLINE_SUBJECTS.map(async (subj) => {
+
+    const existing = (await getOfflinePack()) || {};
+    const existingSubjects = existing.subjects || {};
+    const existingChecksums = existing.checksums || {};
+
+    // Cheap manifest → per-subject content checksums, so we re-download ONLY the
+    // subjects whose questions actually changed (delta), not the whole bank. If
+    // the manifest is unavailable we fall back to a full refresh.
+    let manifest = null;
+    try {
+        const m = await apiRequest('/api/questions/pack-manifest');
+        manifest = m?.subjects || null;
+    } catch { /* no manifest → full refresh below */ }
+
+    const subjects = { ...existingSubjects };
+    const checksums = { ...existingChecksums };
+
+    // Fetch subjects in parallel; each mapper catches its own failure so
+    // Promise.all won't reject, and unchanged subjects are skipped entirely.
+    await Promise.all(OFFLINE_SUBJECTS.map(async (subj) => {
+        const serverSum = manifest?.[subj]?.checksum;
+        const haveCached = Array.isArray(existingSubjects[subj]) && existingSubjects[subj].length > 0;
+        // Delta: a subject whose server checksum matches what we already cached
+        // is up to date — skip the download.
+        if (serverSum && haveCached && existingChecksums[subj] === serverSum) return;
         try {
             const qp = new URLSearchParams({ subject: subj, subtopic: 'All', limit: perSubject, sort: 'random' });
             const data = await apiRequest(`/api/questions?${qp.toString()}`);
-            return [subj, normalizeQuestions(data)];
+            subjects[subj] = normalizeQuestions(data);
+            // Store the SERVER checksum so the next refresh can compare. null when
+            // no manifest was available → forces a re-check next time (safe).
+            checksums[subj] = serverSum || null;
         } catch {
             // Preserve whatever we already cached for this subject on failure.
-            return [subj, await getOfflineQuestions(subj, 'All', perSubject)];
+            subjects[subj] = existingSubjects[subj] || [];
         }
     }));
 
-    const subjects = {};
-    let fetched = 0;
-    for (const [subj, list] of entries) {
-        subjects[subj] = list;
-        fetched += list.length;
-    }
     // Don't overwrite a good pack with an all-empty one (e.g. auth token not
     // ready, or every request failed) — that would suppress auto-retry for a day.
-    if (fetched === 0) return getOfflinePackMeta();
+    const total = OFFLINE_SUBJECTS.reduce((n, s) => n + (subjects[s]?.length || 0), 0);
+    if (total === 0) return getOfflinePackMeta();
 
-    await writeOfflinePack({ version: 1, fetchedAt: Date.now(), subjects });
+    await writeOfflinePack({
+        version: (existing.version || 0) + 1, // monotonic, so a change is observable
+        fetchedAt: Date.now(),
+        subjects,
+        checksums,
+    });
     return getOfflinePackMeta();
 };
 

@@ -10,6 +10,7 @@ const { calculateUpdatedTheta } = require('../utils/irtMath');
 const { partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
 const dashboardCache = require('./dashboardCache');
 const readinessCache = require('./readinessCache');
+const logger = require('../utils/logger');
 
 // Canonical subject naming lives in one place now (utils/subject); kept aliased
 // as canonicalSubject for this module's internal uses and its export.
@@ -66,11 +67,20 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     const qMap = Object.create(null);
     for (const q of masterQuestions) qMap[q.id] = q;
 
+    const gradeDiscrepancies = [];
     const mapped = attempts
         .filter((a) => a.questionId && qMap[a.questionId])
         .map((a) => {
             const m = qMap[a.questionId];
-            const isCorrect = a.userAnswer != null ? m.answer === a.userAnswer : !!a.isCorrect;
+            const serverGraded = a.userAnswer != null;
+            const isCorrect = serverGraded ? m.answer === a.userAnswer : !!a.isCorrect;
+            // Discrepancy signal: the client sent both a userAnswer (which we
+            // re-grade) AND its own isCorrect, and they disagree → the client's
+            // (offline) answer key has drifted from the master. The SERVER score
+            // is canonical; we just log the drift so it's visible, not silent.
+            if (serverGraded && typeof a.isCorrect === 'boolean' && a.isCorrect !== isCorrect) {
+                gradeDiscrepancies.push({ questionId: a.questionId, client: a.isCorrect, server: isCorrect, offline: !!a.offline });
+            }
             return {
                 userId,
                 questionId: a.questionId,
@@ -80,11 +90,18 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 confidenceLevel: String(a.confidenceLevel || 'LOW').toUpperCase(),
                 timeSpentMs: parseInt(a.timeSpentMs) || 0,
                 clientAttemptId: a.clientAttemptId || null,
+                offline: !!a.offline,
                 sessionId,
                 mode,
                 _difficulty: m.difficulty || 0.0,
             };
         });
+
+    if (gradeDiscrepancies.length > 0) {
+        logger.warn('telemetry grading discrepancy (server score is canonical)', {
+            userId, mode, count: gradeDiscrepancies.length, samples: gradeDiscrepancies.slice(0, 10),
+        });
+    }
 
     // `skipped` makes silent drops observable: attempts whose questionId
     // isn't in the Question table (e.g. unsaved AI-generated items) used to

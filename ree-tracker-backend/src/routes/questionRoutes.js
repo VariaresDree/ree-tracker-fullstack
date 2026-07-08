@@ -26,6 +26,31 @@ router.get('/stats', authMiddleware, async (req, res) => {
     }
 });
 
+// 0b. OFFLINE-PACK MANIFEST — cheap per-subject content checksums so the client
+// can delta-refresh its offline pack (re-download only the subjects whose
+// questions actually changed), instead of re-fetching the whole bank every time.
+// The checksum folds in id + answer, so an added/removed question or a corrected
+// answer key changes it. Raw SQL uses a fully-static string + bound param.
+router.get('/pack-manifest', authMiddleware, async (req, res) => {
+    try {
+        const subjects = ['Mathematics', 'ESAS', 'EE'];
+        const manifest = {};
+        for (const subj of subjects) {
+            const filter = getSubjectFilter(subj);
+            const vals = filter ? (filter.in || [filter]) : [subj];
+            const [row] = await prisma.$queryRawUnsafe(
+                'SELECT count(*)::int AS count, md5(coalesce(string_agg("id" || \'~\' || "answer", \',\' ORDER BY "id"), \'\')) AS checksum FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[])',
+                vals,
+            );
+            manifest[subj] = { count: row?.count ?? 0, checksum: row?.checksum ?? '' };
+        }
+        return res.status(200).json({ subjects: manifest, generatedAt: Date.now() });
+    } catch (error) {
+        logger.error('pack-manifest error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to build pack manifest.' });
+    }
+});
+
 // 1. FETCH QUESTIONS
 // Stratified random sampling lives in services/questionPool (shared with
 // battle creation) — see that module for the randomization rationale.
