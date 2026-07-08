@@ -4,7 +4,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
-const { questionCreateSchema, questionUpdateSchema } = require('../schemas/questionSchemas');
+const { questionCreateSchema, questionUpdateSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -133,7 +133,10 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
                 fixedExplanation: data.fixedExplanation || null,
                 source: data.source || 'manual',
                 type: data.type || 'calculation',
-                isFlagged: data.isFlagged || false,
+                // Quarantined (AI/vision) questions are flagged so pool sampling
+                // skips them and they route into the /quarantine review queue
+                // instead of going live un-reviewed.
+                isFlagged: isPendingReview(data) || data.isFlagged || false,
                 bloomLevel: data.bloomLevel || 'REMEMBER',
                 difficultyTier: data.difficultyTier || 1,
                 competencyArea: data.competencyArea || null

@@ -13,7 +13,10 @@
     "db:push": "prisma db push",
     "wipe:test-data": "node scripts/wipe-test-data.js --confirm=WIPE",
     "calibrate": "node scripts/calibrate.js",
-    "calibrate:dry": "node scripts/calibrate.js --dry-run"
+    "calibrate:dry": "node scripts/calibrate.js --dry-run",
+    "audit:sql": "node scripts/audit-sql-interpolation.js",
+    "audit:auth": "node scripts/audit-route-auth.js",
+    "audit:all": "npm run audit:sql && npm run audit:auth"
   },
   "keywords": [],
   "author": "",

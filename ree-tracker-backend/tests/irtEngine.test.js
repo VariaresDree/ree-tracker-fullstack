@@ -91,15 +91,30 @@ describe('selectNextItem — maximum Fisher information', () => {
   });
 });
 
+// Deterministic PRNG (mulberry32) so the calibration recovery test is
+// reproducible — the previous Math.random() made it a stochastic band that
+// could pass or fail run-to-run, which is not a real regression signal.
+function seededRng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 describe('calibrateItem — grid-search MLE', () => {
-  it('recovers difficulty within ±0.5 of the seed when given enough samples', () => {
-    // simulate 200 attempts against an item with known params at varying thetas
+  it('recovers difficulty within ±0.5 of the seed (deterministic responses)', () => {
+    // Simulate 300 attempts against an item with known params at varying thetas,
+    // using a SEEDED rng so the recovered estimate is identical every run.
     const true_ = { a: 1.2, b: 0.5, c: 0.2 };
+    const rng = seededRng(0x1234abcd);
     const samples = [];
-    for (let i = 0; i < 200; i++) {
-      const theta = -2 + (4 * i) / 199;
+    for (let i = 0; i < 300; i++) {
+      const theta = -2 + (4 * i) / 299;
       const p = p3pl(theta, true_);
-      samples.push({ theta, correct: Math.random() < p });
+      samples.push({ theta, correct: rng() < p });
     }
     const est = calibrateItem(samples);
     expect(est).not.toBeNull();
