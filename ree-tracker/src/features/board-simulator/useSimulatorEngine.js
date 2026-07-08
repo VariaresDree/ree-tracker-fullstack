@@ -39,8 +39,41 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const timeSpentPerQuestion = useRef({});
   const lastActiveTime = useRef(Date.now());
   const totalExamTime = useRef(0);
-  const currentAnswersRef = useRef({}); 
+  const currentAnswersRef = useRef({});
   const currentConfidencesRef = useRef({});
+
+  // Refs mirror the mutable pieces of exam state so the autosave draft never
+  // closes over a stale snapshot. The timer effect below only re-subscribes on
+  // isActive/isFinished, so without these refs its interval kept persisting the
+  // INITIAL empty-answers `session` — a crash-resume then restored zero answers.
+  const currentIndexRef = useRef(0);
+  const configRef = useRef(config);
+  const bookmarksRef = useRef(bookmarks);
+  useEffect(() => { configRef.current = config; }, [config]);
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+  useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
+
+  // Single source of truth for the resumable draft. Reads ONLY refs, so it is
+  // safe to call from anywhere (timer tick, per-answer, index change) without
+  // stale-closure risk, and it persists currentIndex so resume lands on the
+  // right item. Skipped for battles (server-authoritative, not resumable here).
+  const persistDraft = () => {
+    if (configRef.current?.battleId) return;
+    if (!questionsRef.current?.length) return;
+    try {
+      localStorage.setItem('ree_sim_cache', JSON.stringify({
+        config: configRef.current,
+        questions: questionsRef.current,
+        answers: currentAnswersRef.current,
+        confidences: currentConfidencesRef.current,
+        currentIndex: currentIndexRef.current,
+        totalExamTime: totalExamTime.current,
+        endTime: endTimeRef.current,
+        bookmarks: Array.from(bookmarksRef.current || []),
+        savedAt: Date.now(),
+      }));
+    } catch (_) { /* quota / serialization — best effort */ }
+  };
 
   // 🚀 ABSOLUTE TIMER: Decoupled from React State Loop
   useEffect(() => {
@@ -61,9 +94,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             endTimeRef.current = null;
             setTimeIsUp(true); 
         } else if (timeLeft % 5 === 0) {
-            localStorage.setItem('ree_sim_cache', JSON.stringify({ 
-                config, session, totalExamTime: totalExamTime.current, endTime: endTimeRef.current, bookmarks: Array.from(bookmarks) 
-            }));
+            persistDraft();
         }
       }, 1000);
     } else {
@@ -180,9 +211,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setBookmarks(new Set());
       setIsSubmitting(false);
       
-      localStorage.setItem('ree_sim_cache', JSON.stringify({ 
-          config, session: newState, totalExamTime: timeLimitSecs, endTime: endTimeRef.current, bookmarks: [] 
-      }));
+      currentIndexRef.current = 0;
+      bookmarksRef.current = new Set();
+      configRef.current = config;
+      persistDraft();
       setHasSavedSession(true);
     } catch (err) {
       setSession(prev => ({ ...prev, loading: false, error: err.message }));
@@ -192,59 +224,84 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
   const resumeSimulation = () => {
     const saved = localStorage.getItem('ree_sim_cache');
-    if (saved) {
+    if (!saved) return;
+    try {
       const parsed = JSON.parse(saved);
+      // Back-compat: older drafts nested everything under `session`; newer ones
+      // store questions/answers/confidences/currentIndex at the top level.
+      const legacy = parsed.session || {};
+      const questions = parsed.questions || legacy.questions || [];
+      const answers = parsed.answers || legacy.answers || {};
+      const confidences = parsed.confidences || legacy.confidences || {};
+      const resumedIndex = parsed.currentIndex || 0;
+
       setConfig(parsed.config);
-      setSession(parsed.session);
-      setCurrentIndex(parsed.currentIndex || 0);
-      
+      configRef.current = parsed.config;
+      setSession({
+        isActive: true, isFinished: false, questions, answers, confidences,
+        loading: false, error: '', diagnostics: null,
+      });
+      setCurrentIndex(resumedIndex);
+      currentIndexRef.current = resumedIndex;
+
       if (parsed.endTime) {
-          const timeLeft = Math.max(0, Math.round((parsed.endTime - Date.now()) / 1000));
-          setTimeRemaining(timeLeft);
-          endTimeRef.current = parsed.endTime;
+        const timeLeft = Math.max(0, Math.round((parsed.endTime - Date.now()) / 1000));
+        setTimeRemaining(timeLeft);
+        endTimeRef.current = parsed.endTime;
       } else {
-          setTimeRemaining(parsed.session.timeRemaining || parsed.timeRemaining);
-          endTimeRef.current = Date.now() + (parsed.session.timeRemaining || parsed.timeRemaining) * 1000;
+        const fallback = legacy.timeRemaining || parsed.timeRemaining || 0;
+        setTimeRemaining(fallback);
+        endTimeRef.current = Date.now() + fallback * 1000;
       }
-      
-      totalExamTime.current = parsed.totalExamTime || timeRemaining; 
-      questionsRef.current = parsed.session.questions || [];
-      currentAnswersRef.current = parsed.session.answers || {};
-      currentConfidencesRef.current = parsed.session.confidences || {};
-      if (parsed.bookmarks) setBookmarks(new Set(parsed.bookmarks));
-      
+
+      totalExamTime.current = parsed.totalExamTime || timeRemaining;
+      questionsRef.current = questions;
+      currentAnswersRef.current = answers;
+      currentConfidencesRef.current = confidences;
+      const bm = parsed.bookmarks || [];
+      setBookmarks(new Set(bm));
+      bookmarksRef.current = new Set(bm);
+
       lastActiveTime.current = Date.now();
       localStorage.removeItem('ree_sim_cache');
       setHasSavedSession(false);
       toast.success("Matrix restored. Resuming simulation.");
+    } catch (_) {
+      localStorage.removeItem('ree_sim_cache');
+      setHasSavedSession(false);
+      toast.error('Saved simulation was corrupt; starting fresh.');
     }
   };
 
   const handleSelectOption = (opt) => {
       const newAnswers = { ...session.answers, [currentIndex]: opt };
-      currentAnswersRef.current = newAnswers; 
+      currentAnswersRef.current = newAnswers;
       setSession(prev => ({ ...prev, answers: newAnswers }));
+      persistDraft();
   };
 
   const handleSelectConfidence = (level) => {
       currentConfidencesRef.current[currentIndex] = level;
       setSession(prev => ({ ...prev, confidences: { ...prev.confidences, [currentIndex]: level } }));
+      persistDraft();
   };
-  
+
   const handleIndexChange = (newIdx) => {
     const now = Date.now();
     timeSpentPerQuestion.current[currentIndex] = (timeSpentPerQuestion.current[currentIndex] || 0) + (now - lastActiveTime.current);
     setCurrentIndex(newIdx);
+    currentIndexRef.current = newIdx;
     lastActiveTime.current = now;
+    persistDraft();
   };
-  
+
   const toggleBookmark = (idx) => {
-    setBookmarks(prev => {
-      const next = new Set(prev);
-      if (next.has(idx)) { next.delete(idx); toast.success("Removed Bookmark."); } 
-      else { next.add(idx); toast.success("Bookmarked."); }
-      return next;
-    });
+    const next = new Set(bookmarksRef.current);
+    if (next.has(idx)) { next.delete(idx); toast.success("Removed Bookmark."); }
+    else { next.add(idx); toast.success("Bookmarked."); }
+    bookmarksRef.current = next;
+    setBookmarks(next);
+    persistDraft();
   };
 
   const submitExam = async () => {

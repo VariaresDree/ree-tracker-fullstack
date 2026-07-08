@@ -7,27 +7,62 @@ const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSch
 const logger = require('../utils/logger');
 
 // In-memory lobby state (participants, live scores, answer keys).
-// Hard cap prevents unbounded growth if a client spams join-battle with
-// random IDs — old lobbies are evicted FIFO once we exceed the cap.
 const MAX_LOBBIES = 500;
+const MAX_PARTICIPANTS = 32;         // per-lobby cap — a join flood can't balloon one lobby
+const LOBBY_GC_GRACE_MS = 60 * 1000; // drop an abandoned lobby this long after the last player leaves
 const battleLobbies = new Map();
+
+// Per-socket event rate limiter (fixed window). The /battle namespace sits
+// behind no HTTP rate-limit, so without this an authed client can flood
+// battle-answer/join-battle. Transparent to well-behaved clients.
+const RATE_LIMIT = { windowMs: 10 * 1000, max: 150 };
+function rateLimited(socket) {
+    const now = Date.now();
+    const b = socket._rl || (socket._rl = { count: 0, resetAt: now + RATE_LIMIT.windowMs });
+    if (now > b.resetAt) { b.count = 0; b.resetAt = now + RATE_LIMIT.windowMs; }
+    b.count += 1;
+    return b.count > RATE_LIMIT.max;
+}
+
+// Evict ONE lobby when at capacity. Prefer a lobby that is safe to drop
+// (completed or with no connected+unfinished players); only fall back to the
+// least-recently-active if every lobby still has a live player — never blindly
+// FIFO-evict a live battle (which wiped its in-memory scores).
+function evictOneLobby() {
+    let lruKey = null;
+    let lruAt = Infinity;
+    for (const [id, lobby] of battleLobbies) {
+        const hasLivePlayer = Array.from(lobby.participants.values())
+            .some((p) => p.connected && !p.finished);
+        if (!hasLivePlayer) {
+            battleLobbies.delete(id);
+            logger.warn('lobby cache evicted (idle)', { evicted: id });
+            return;
+        }
+        const at = lobby.lastActivity ?? 0;
+        if (at < lruAt) { lruAt = at; lruKey = id; }
+    }
+    if (lruKey) {
+        battleLobbies.delete(lruKey);
+        logger.warn('lobby cache evicted (LRU fallback — live battle)', { evicted: lruKey });
+    }
+}
 
 function getLobby(battleId) {
     if (!battleLobbies.has(battleId)) {
-        if (battleLobbies.size >= MAX_LOBBIES) {
-            const oldest = battleLobbies.keys().next().value;
-            battleLobbies.delete(oldest);
-            logger.warn('lobby cache evicted', { evicted: oldest });
-        }
+        if (battleLobbies.size >= MAX_LOBBIES) evictOneLobby();
         battleLobbies.set(battleId, {
             participants: new Map(),
             startedAt: null,
             answerKey: null,
             questionCount: 0,
             timeLimitSecs: null,
+            lastActivity: Date.now(),
         });
     }
-    return battleLobbies.get(battleId);
+    const lobby = battleLobbies.get(battleId);
+    lobby.lastActivity = Date.now();
+    return lobby;
 }
 
 // Public view of a participant — strips the server-side answers Map.
@@ -79,6 +114,7 @@ function setupBattleSocket(io) {
 
         socket.on('join-battle', async ({ battleId } = {}) => {
             if (!battleId) return;
+            if (rateLimited(socket)) return;
 
             try {
                 const battle = await prisma.battle.findUnique({ where: { id: battleId } });
@@ -86,10 +122,26 @@ function setupBattleSocket(io) {
                     return socket.emit('error', { message: 'Battle not found' });
                 }
 
+                const lobby = getLobby(battleId);
+                const alreadyIn = lobby.participants.has(socket.userId);
+
+                // Authorization: a new player may only join while the battle is
+                // still gathering (WAITING). Once it has started or completed,
+                // only an existing participant may (re)connect. This stops anyone
+                // who guesses the 6-char invite code from injecting themselves
+                // into a live/finished battle and skewing everyone's Elo at
+                // finalize. (A full invited-allowlist with host approval is a
+                // follow-up — it needs a schema field + client UX.)
+                if (!alreadyIn && battle.status && battle.status !== 'WAITING') {
+                    return socket.emit('error', { message: 'This battle is no longer accepting new players.' });
+                }
+                if (!alreadyIn && lobby.participants.size >= MAX_PARTICIPANTS) {
+                    return socket.emit('error', { message: 'This battle is full.' });
+                }
+
                 socket.join(battleId);
                 socket.battleId = battleId;
 
-                const lobby = getLobby(battleId);
                 if (!lobby.answerKey && Array.isArray(battle.questions)) {
                     lobby.answerKey = buildAnswerKey(battle.questions);
                     lobby.explanationKey = buildExplanationKey(battle.questions);
@@ -160,12 +212,18 @@ function setupBattleSocket(io) {
         // Live per-question answer, graded server-side against the lobby's
         // answer key. Replaces the old client-trusted `battle-progress` event.
         socket.on('battle-answer', async (payload) => {
+            if (rateLimited(socket)) return;
             const parsed = battleAnswerSchema.safeParse(payload || {});
             if (!parsed.success) return; // silently drop malformed payloads
             const { battleId, questionId, userAnswer, confidenceLevel, timeSpentMs } = parsed.data;
 
             try {
-                const lobby = getLobby(battleId);
+                // Look up an EXISTING lobby — never getLobby-create here. Creating
+                // on an arbitrary 6-char id let a client flood empty lobbies into
+                // the cache and evict live battles under the cap.
+                const lobby = battleLobbies.get(battleId);
+                if (!lobby) return;
+                lobby.lastActivity = Date.now();
                 const participant = lobby.participants.get(socket.userId);
                 if (!participant || participant.finished) return;
 
@@ -354,7 +412,12 @@ function setupBattleSocket(io) {
                                 }),
                                 prisma.user.update({
                                     where: { id: r.id },
-                                    data: { eloRating: d.ratingAfter, tier: d.tierAfter },
+                                    // Apply the DELTA as an atomic increment rather than
+                                    // writing an absolute value read outside the txn — so
+                                    // if the same user finalizes two battles concurrently,
+                                    // neither delta is lost (the absolute eloBefore/After
+                                    // stored on BattleOutcome is best-effort display).
+                                    data: { eloRating: { increment: d.delta }, tier: d.tierAfter },
                                 }),
                             ];
                         }),
@@ -391,15 +454,36 @@ function setupBattleSocket(io) {
         socket.on('disconnect', () => {
             const battleId = socket.battleId;
             if (battleId) {
-                const lobby = getLobby(battleId);
-                const participant = lobby.participants.get(socket.userId);
-                if (participant) {
-                    participant.connected = false;
-                }
+                const lobby = battleLobbies.get(battleId); // don't re-create on disconnect
+                if (lobby) {
+                    const participant = lobby.participants.get(socket.userId);
+                    if (participant) {
+                        participant.connected = false;
+                    }
 
-                battleNs.to(battleId).emit('lobby-update', {
-                    participants: serializeParticipants(lobby)
-                });
+                    battleNs.to(battleId).emit('lobby-update', {
+                        participants: serializeParticipants(lobby)
+                    });
+
+                    // GC an abandoned lobby: if every participant is now
+                    // disconnected or finished, schedule deletion after a grace
+                    // period. A reconnect within the window bumps lastActivity
+                    // (via getLobby) and cancels the delete. Without this,
+                    // never-started/abandoned lobbies leaked until FIFO pressure.
+                    const anyLive = Array.from(lobby.participants.values()).some((p) => p.connected && !p.finished);
+                    if (!anyLive) {
+                        const scheduledAt = Date.now();
+                        setTimeout(() => {
+                            const cur = battleLobbies.get(battleId);
+                            if (!cur) return;
+                            const stillIdle = Array.from(cur.participants.values()).every((p) => !p.connected || p.finished);
+                            if (stillIdle && (cur.lastActivity ?? 0) <= scheduledAt) {
+                                battleLobbies.delete(battleId);
+                                logger.info('lobby GC (abandoned)', { battleId });
+                            }
+                        }, LOBBY_GC_GRACE_MS);
+                    }
+                }
             }
 
             logger.info('Battle socket disconnected', { userId: socket.userId });

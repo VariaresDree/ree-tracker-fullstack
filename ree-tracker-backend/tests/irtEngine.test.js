@@ -122,3 +122,17 @@ describe('fisherInfo', () => {
     expect(atB).toBeGreaterThan(farHigh);
   });
 });
+
+describe('updateTheta — non-finite prior guard', () => {
+  const item = { a: 1, b: 0, c: 0.2 };
+  it('returns a finite estimate when prior.se is missing', () => {
+    const out = updateTheta({ theta: 0 }, [{ item, correct: true }]);
+    expect(Number.isFinite(out.theta)).toBe(true);
+    expect(Number.isFinite(out.se)).toBe(true);
+  });
+  it('returns a finite estimate when prior.theta is NaN and there are no attempts', () => {
+    const out = updateTheta({ theta: NaN, se: NaN }, []);
+    expect(Number.isFinite(out.theta)).toBe(true);
+    expect(Number.isFinite(out.se)).toBe(true);
+  });
+});

@@ -108,6 +108,11 @@ model Question {
   srsCards         SRSCard[]
 
   @@index([subject, irtB])
+  // Readiness groupBy(['subtopic'], where:{isFlagged:false}) and pool sampling
+  // (WHERE isFlagged=false ORDER BY random()) both filter on these — without an
+  // index they full-scan the question bank on every readiness cache-miss and
+  // every battle create.
+  @@index([isFlagged, subtopic])
 }
 
 // 4. 'simulationHistory' collection

@@ -73,3 +73,21 @@ describe('calculateUpdatedTheta (Rasch 1PL IRT)', () => {
         expect(result).toBeGreaterThan(0.0);
     });
 });
+
+describe('calculateUpdatedTheta — non-finite hardening', () => {
+    it('returns a finite theta for an extreme (overflow-prone) difficulty', () => {
+        // |theta - difficulty| > ~709 overflows the naive logistic to NaN.
+        const out = calculateUpdatedTheta(0, [{ isCorrect: true, questionDifficulty: -800 }]);
+        expect(Number.isFinite(out)).toBe(true);
+    });
+
+    it('sanitizes a NaN currentTheta to a finite value', () => {
+        const out = calculateUpdatedTheta(NaN, [{ isCorrect: true, questionDifficulty: 0 }]);
+        expect(Number.isFinite(out)).toBe(true);
+    });
+
+    it('ignores a non-finite questionDifficulty', () => {
+        const out = calculateUpdatedTheta(0.5, [{ isCorrect: false, questionDifficulty: Infinity }]);
+        expect(Number.isFinite(out)).toBe(true);
+    });
+});

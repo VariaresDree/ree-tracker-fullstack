@@ -67,13 +67,21 @@ function fisherInfo(theta, item) {
  * @returns {{theta:number, se:number}}
  */
 function updateTheta(prior, attempts) {
-  if (!attempts || attempts.length === 0) return { theta: prior.theta, se: prior.se };
+  // Coerce a missing/NaN prior before it can poison the estimate. Math.max(0.01,
+  // NaN) === NaN, so an undefined prior.se used to make priorVar NaN, which
+  // flowed through g/h and clampTheta(NaN) === NaN into a stored {theta:NaN}.
+  const priorTheta = Number.isFinite(prior.theta) ? prior.theta : 0;
+  const priorSe = Number.isFinite(prior.se) ? prior.se : 1.0;
 
-  let theta = prior.theta;
-  const priorVar = Math.max(0.01, prior.se * prior.se);
+  if (!attempts || attempts.length === 0) {
+    return { theta: clampTheta(priorTheta), se: clamp(priorSe, 0.05, 2.5) };
+  }
+
+  let theta = priorTheta;
+  const priorVar = Math.max(0.01, priorSe * priorSe);
 
   for (let iter = 0; iter < 30; iter++) {
-    let g = -(theta - prior.theta) / priorVar; // gradient of prior
+    let g = -(theta - priorTheta) / priorVar; // gradient of prior
     let h = -1 / priorVar; // Hessian of prior (Gaussian)
 
     for (const { item, correct } of attempts) {

@@ -3,10 +3,13 @@
 // /api/exams/grade, and /api/battles/:id/submit so every answered question
 // from anywhere in the app lands in QuestionAttempt + ActivityLog and updates
 // the user's IRT theta + lastActive.
+const { Prisma } = require('@prisma/client');
+const { randomUUID } = require('crypto');
 const prisma = require('../config/db');
 const { calculateUpdatedTheta } = require('../utils/irtMath');
 const { partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
 const dashboardCache = require('./dashboardCache');
+const readinessCache = require('./readinessCache');
 
 // Canonical subject naming lives in one place now (utils/subject); kept aliased
 // as canonicalSubject for this module's internal uses and its export.
@@ -182,23 +185,25 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         // Per-topic rollups feed the forecast/prescription engine — nothing
         // populated UserTopicPerformance before, so "Today's prescription"
         // and weak-topic ranking always came back empty.
-        for (const roll of aggregateTopicRollups(newOnly)) {
-            await db.userTopicPerformance.upsert({
-                where: { userId_topic: { userId, topic: roll.topic } },
-                update: {
-                    attempts: { increment: roll.attempts },
-                    correct: { increment: roll.correct },
-                    totalTime: { increment: roll.totalTimeSecs },
-                },
-                create: {
-                    userId,
-                    subject: roll.subject,
-                    topic: roll.topic,
-                    attempts: roll.attempts,
-                    correct: roll.correct,
-                    totalTime: roll.totalTimeSecs,
-                },
-            });
+        //
+        // Batched into ONE upsert statement instead of a serial await-loop of N
+        // upserts: a blended battle spanning many subtopics used to hold the
+        // write transaction (and its locks) open for N sequential round-trips.
+        // Still inside the transaction, so a SQL error fails safe (whole batch
+        // rolls back — never a partial/corrupt rollup).
+        const rollups = aggregateTopicRollups(newOnly);
+        if (rollups.length > 0) {
+            const now = new Date();
+            const rows = rollups.map((r) => Prisma.sql`(${randomUUID()}, ${userId}, ${r.subject}, ${r.topic}, ${r.attempts}, ${r.correct}, ${r.totalTimeSecs}, ${now})`);
+            await db.$executeRaw`
+                INSERT INTO "UserTopicPerformance" ("id", "userId", "subject", "topic", "attempts", "correct", "totalTime", "updatedAt")
+                VALUES ${Prisma.join(rows)}
+                ON CONFLICT ("userId", "topic") DO UPDATE SET
+                    "attempts"  = "UserTopicPerformance"."attempts"  + EXCLUDED."attempts",
+                    "correct"   = "UserTopicPerformance"."correct"   + EXCLUDED."correct",
+                    "totalTime" = "UserTopicPerformance"."totalTime" + EXCLUDED."totalTime",
+                    "updatedAt" = EXCLUDED."updatedAt"
+            `;
         }
     };
 
@@ -214,6 +219,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     if (newOnly.length === 0) {
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { thetaRating: true } });
         dashboardCache.invalidate(userId);
+        readinessCache.invalidate(userId);
         return {
             written: 0,
             received: attempts.length,
@@ -282,9 +288,11 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
 
     // One choke point for cache freshness: every write surface funnels
     // through recordAttempts (telemetry-bulk, exams/grade, exams/submit,
-    // battle-submit), so the dashboard never serves a stale payload after
-    // ANY kind of session.
+    // battle-submit), so neither the dashboard NOR the readiness score serves a
+    // stale payload after ANY kind of session. readinessCache was never busted
+    // here, so /api/readiness lagged the dashboard by up to 60s post-session.
     dashboardCache.invalidate(userId);
+    readinessCache.invalidate(userId);
 
     return {
         written: newOnly.length,

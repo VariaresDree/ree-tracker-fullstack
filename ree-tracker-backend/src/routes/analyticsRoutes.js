@@ -171,7 +171,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
     }
 });
 
-router.post('/telemetry-bulk', authMiddleware, idempotency(), validate(telemetryBulkSchema), async (req, res) => {
+router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), idempotency(), async (req, res) => {
     try {
         const { attempts, sessionId, mode, targetSubject } = req.body;
         if (!attempts || attempts.length === 0) return res.status(200).json({ success: true, updatedTheta: 0 });

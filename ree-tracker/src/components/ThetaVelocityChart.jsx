@@ -74,11 +74,22 @@ function bucketHistory(history, range) {
 export default function ThetaVelocityChart({ history = [], range = 'day' }) {
   const safeHistory = Array.isArray(history) ? history : [];
 
-  const chartData = useMemo(() => bucketHistory(safeHistory, range).map((h) => ({
-    ...h,
-    theta: Number(Number(h.theta).toFixed(3)),
-    probability: Math.min(100, Math.max(0, ((h.theta + 3) / 6) * 100)),
-  })), [safeHistory, range]);
+  const chartData = useMemo(() => {
+    // Drop rows with a non-finite theta or an unparseable date BEFORE bucketing.
+    // Otherwise Number(null).toFixed → "NaN" → NaN reached Recharts (silent gaps
+    // / broken area fill), and `new Date(undefined)` produced a "NaN-WNaN" bucket.
+    const clean = safeHistory.filter(
+      (h) => h && Number.isFinite(Number(h.theta)) && !Number.isNaN(Date.parse(h.date)),
+    );
+    return bucketHistory(clean, range).map((h) => {
+      const theta = Number(Number(h.theta).toFixed(3));
+      return {
+        ...h,
+        theta,
+        probability: Math.min(100, Math.max(0, ((theta + 3) / 6) * 100)),
+      };
+    });
+  }, [safeHistory, range]);
 
   return (
     <div className="w-full h-full min-h-[220px] min-w-0 relative animate-in fade-in">

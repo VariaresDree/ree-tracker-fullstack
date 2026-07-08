@@ -19,6 +19,24 @@ const DEBOUNCE_FLUSH_MS = 1500;
 // later flush clobber attempts queued during an earlier one's round-trip.
 let inFlightFlush = null;
 
+// Serializes reconnect replays of the durable pendingWrites queue. `online` is
+// handled in two hooks and useNetworkStatus is mounted by many components, so
+// one reconnect used to fire flushPendingWrites 3+ times concurrently, each
+// re-POSTing the same writes off an identical snapshot.
+let inFlightPending = null;
+
+// Safety-valve caps so a poison pill or a long offline stretch can't grow the
+// IDB-persisted queues without bound. Sized far above any real session so
+// normal use never evicts a genuine un-synced attempt.
+const MAX_SYNC_QUEUE = 5000;
+const MAX_PENDING_WRITES = 500;
+const MAX_DEAD_LETTERS = 50;
+
+// Sync mirror of syncQueue written on pagehide/hide (see useSyncLifecycle) so a
+// fast offline tab-close can't lose the last attempt(s) in the async IDB write
+// window. Recovered + merged back in onRehydrateStorage below.
+const OFFLINE_MIRROR_KEY = 'ree_pending_sync';
+
 const newId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 // HIGH-PERFORMANCE ASYNC STORAGE ADAPTER
@@ -53,6 +71,10 @@ export const useStore = create(
       // syncQueue (per-attempt telemetry); replayed by flushPendingWrites on
       // reconnect. Persisted via partialize below.
       pendingWrites: [],
+      // Writes the server permanently rejected (non-retryable 4xx). Quarantined
+      // here so a single poison-pill payload can't wedge the replay queues
+      // forever; kept for diagnostics, capped to the most recent MAX_DEAD_LETTERS.
+      deadLetters: [],
 
       // Session lifecycle — set by startSession() when the user enters a
       // quiz surface (Active Review / Board Sim / Gauntlet / Combat). The
@@ -130,7 +152,7 @@ export const useStore = create(
         };
 
         set((state) => ({
-            syncQueue: [...state.syncQueue, payload],
+            syncQueue: [...state.syncQueue, payload].slice(-MAX_SYNC_QUEUE),
             syncStatus: 'offline_queued'
         }));
       },
@@ -190,7 +212,7 @@ export const useStore = create(
           );
           return {
             stats: updatedStats,
-            syncQueue: [...state.syncQueue, payload],
+            syncQueue: [...state.syncQueue, payload].slice(-MAX_SYNC_QUEUE),
             syncStatus: state.syncStatus === 'syncing' ? 'syncing' : 'offline_queued',
           };
         });
@@ -279,7 +301,11 @@ export const useStore = create(
               })
             });
 
-            if (!response.ok) throw new Error("Backend synchronization transaction rejected.");
+            if (!response.ok) {
+              const err = new Error("Backend synchronization transaction rejected.");
+              err.status = response.status;
+              throw err;
+            }
 
             const serverResult = await response.json();
 
@@ -305,10 +331,28 @@ export const useStore = create(
             });
             return true;
           } catch (error) {
-            if (error.message?.includes('[OFFLINE]')) {
+            const status = error?.status;
+            const permanent = typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
+            if (error.message?.includes('[OFFLINE]') || error.message?.includes('[TIMEOUT]')) {
+              // Transient — preserve the whole batch for the next flush/reconnect.
               console.warn("[SYNC] Backend offline — queue preserved for retry.");
               set({ syncStatus: 'offline_queued' });
+            } else if (permanent) {
+              // Non-retryable rejection (e.g. a malformed batch). Quarantine it so
+              // it can't wedge the queue forever AND keep the optimistic stats
+              // inflated indefinitely — the next session-end reconcile full-
+              // replaces stats from the server, correcting the local counters.
+              console.error(`[SYNC] Batch permanently rejected (${status}); quarantining ${sentIds.size} attempt(s).`, error);
+              set((state) => ({
+                syncQueue: state.syncQueue.filter((a) => !sentIds.has(a.id)),
+                deadLetters: [
+                  ...state.deadLetters,
+                  { type: 'telemetry', ids: [...sentIds], status, error: error.message, at: Date.now() },
+                ].slice(-MAX_DEAD_LETTERS),
+                syncStatus: 'error',
+              }));
             } else {
+              // Unknown/5xx — treat as transient, keep the batch.
               console.error("[SYNC FATAL ERROR] Processing batch data failed:", error);
               set({ syncStatus: 'error' });
             }
@@ -339,26 +383,54 @@ export const useStore = create(
           pendingWrites: [
             ...state.pendingWrites,
             { id: newId(), endpoint, method: method || 'POST', body, createdAt: new Date().toISOString() },
-          ],
+          ].slice(-MAX_PENDING_WRITES),
         }));
       },
 
       // Replays queued writes one at a time on reconnect. apiRequest attaches a
       // stable Idempotency-Key, and each write is removed only on success, so a
       // replay lands at-least-once (practically exactly-once for our writes).
-      // Stops on the first failure to avoid a tight retry loop when still flaky.
+      //
+      // Error handling distinguishes TRANSIENT from PERMANENT failures:
+      //   • transient ([OFFLINE]/[TIMEOUT]/5xx) → stop and keep the whole queue
+      //     so the next reconnect retries it (no tight loop).
+      //   • permanent 4xx (a payload the server will always reject) → quarantine
+      //     that one write and CONTINUE, so a single poison pill can't block
+      //     every later session summary / offline exam batch forever.
+      // Guarded by inFlightPending so the many-mounted reconnect handlers can't
+      // replay the same writes concurrently.
       flushPendingWrites: async () => {
+        if (inFlightPending) { await inFlightPending.catch(() => {}); return; }
         if (!navigator.onLine) return;
         const { pendingWrites } = getStore();
         if (!pendingWrites || pendingWrites.length === 0) return;
-        for (const w of pendingWrites) {
-          try {
-            await apiRequest(w.endpoint, w.method, w.body);
-            set((state) => ({ pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id) }));
-          } catch (_) {
-            break;
+
+        const run = async () => {
+          for (const w of getStore().pendingWrites.slice()) {
+            try {
+              await apiRequest(w.endpoint, w.method, w.body);
+              set((state) => ({ pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id) }));
+            } catch (err) {
+              const status = err?.status;
+              const permanent = typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
+              if (permanent) {
+                console.error(`[SYNC] Pending write permanently rejected (${status}); quarantining.`, w.endpoint, err);
+                set((state) => ({
+                  pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id),
+                  deadLetters: [
+                    ...state.deadLetters,
+                    { type: 'pendingWrite', endpoint: w.endpoint, status, error: err.message, at: Date.now() },
+                  ].slice(-MAX_DEAD_LETTERS),
+                }));
+                continue; // advance past the poison pill
+              }
+              break; // transient — retry the rest on the next reconnect
+            }
           }
-        }
+        };
+
+        inFlightPending = run();
+        try { await inFlightPending; } finally { inFlightPending = null; }
       },
 
       resetDailyQuotas: () => set((state) => {
@@ -402,6 +474,7 @@ export const useStore = create(
             },
             syncQueue: [],
             pendingWrites: [],
+            deadLetters: [],
             syncStatus: 'synced',
         });
       },
@@ -450,12 +523,33 @@ export const useStore = create(
       partialize: (state) => ({
         syncQueue: state.syncQueue,
         pendingWrites: state.pendingWrites,
+        deadLetters: state.deadLetters,
         stats: state.stats,
         pomodoro: state.pomodoro,
         theme: state.theme,
         isAdmin: state.isAdmin,
         dynamicTOS: state.dynamicTOS // 🚀 CRITICAL: Tells the store to remember your changes
-      })
+      }),
+      // Offline tab-close recovery: useSyncLifecycle mirrors the live syncQueue
+      // to localStorage (a SYNC API) on pagehide, because the IDB persist above
+      // is async and a fast close can drop the last attempt(s). This runs AFTER
+      // IDB hydration completes, so merging is race-free; dedupe by id.
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        try {
+          const raw = localStorage.getItem(OFFLINE_MIRROR_KEY);
+          if (raw) {
+            const recovered = JSON.parse(raw);
+            if (Array.isArray(recovered) && recovered.length) {
+              const seen = new Set((state.syncQueue || []).map((a) => a?.id));
+              const merged = [...(state.syncQueue || [])];
+              for (const a of recovered) if (a && a.id && !seen.has(a.id)) merged.push(a);
+              state.syncQueue = merged.slice(-MAX_SYNC_QUEUE);
+            }
+          }
+        } catch (_) { /* corrupt mirror — ignore */ }
+        try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch (_) {}
+      }
     }
   )
 );

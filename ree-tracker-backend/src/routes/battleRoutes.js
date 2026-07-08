@@ -13,7 +13,7 @@ const logger = require('../utils/logger');
 // clients never supply the pool (they'd need answer keys to build one, which
 // is exactly the cheating vector this closes). Always uses the authenticated
 // user as host — never trust a body field for the FK.
-router.post('/', authMiddleware, idempotency(), validate(battleCreateSchema), async (req, res) => {
+router.post('/', authMiddleware, validate(battleCreateSchema), idempotency(), async (req, res) => {
     try {
         const { battleId, config, timeLimitSecs } = req.body;
 
