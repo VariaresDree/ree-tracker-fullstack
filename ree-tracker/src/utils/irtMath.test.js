@@ -6,8 +6,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateUpdatedStats } from './irtMath.js';
+import { todayManila } from './manilaDate';
 
-const TODAY = new Date().toLocaleDateString('en-CA');
+// Match the code under test: calculateUpdatedStats keys every date on Asia/Manila
+// (via todayManila), so the reference date MUST too. Computing it in the runner's
+// local TZ (new Date().toLocaleDateString) made this suite fail whenever the
+// runner's date differed from Manila's — e.g. a UTC CI runner in the evening.
+const TODAY = todayManila();
 
 const emptyStats = () => ({
   globalStreak: 0,
