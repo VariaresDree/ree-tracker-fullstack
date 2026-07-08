@@ -12,38 +12,38 @@ const { getSubjectFilter } = require('../utils/subject');
 // stratify: ROW_NUMBER() partitions by subtopic, then ordering by (rn, random())
 // round-robins one item per subtopic before any subtopic contributes a second,
 // guaranteeing breadth across the subject.
-// SQL-injection note: the template fragments are static; all user-derived
-// values go through positional parameters, and `cap` is coerced to a number.
+//
+// SQL-injection safety: every query below is a FULLY STATIC string literal —
+// there is no `${}` interpolation of any kind (not even the numeric LIMIT).
+// Every value, including `cap`, is bound as a positional parameter. This is
+// what lets scripts/audit-sql-interpolation.js be strict (fail on any `${` in a
+// raw query) with no allowlist. Do not reintroduce template interpolation here.
 async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50 }) {
-    // `parseInt(limit) || 50` silently turned a legitimate limit:0 (a subject
-    // whose blended share rounds to 0) into 50, and let a negative limit through
-    // as `LIMIT -5` (a Postgres error). Coerce numerically: honor 0, default on
-    // null/undefined/NaN/negative.
+    // Coerce numerically: honor 0 (a subject whose blended share rounds to 0),
+    // default on null/undefined/NaN/negative (a negative would be `LIMIT -5`).
     const n = Number(limit);
     const cap = limit == null || !Number.isFinite(n) || n < 0 ? 50 : Math.min(Math.floor(n), 2000);
+
     let rows;
-    if (subtopic) {
+    if (subtopic && subjectValues) {
         rows = await prisma.$queryRawUnsafe(
-            `SELECT id FROM "Question"
-             WHERE "isFlagged" = false
-             ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
-             AND "subtopic" = $${subjectValues ? 2 : 1}
-             ORDER BY random()
-             LIMIT ${cap}`,
-            ...[subjectValues, subtopic].filter((v) => v !== null),
+            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND "subtopic" = $2 ORDER BY random() LIMIT $3',
+            subjectValues, subtopic, cap,
+        );
+    } else if (subtopic) {
+        rows = await prisma.$queryRawUnsafe(
+            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subtopic" = $1 ORDER BY random() LIMIT $2',
+            subtopic, cap,
+        );
+    } else if (subjectValues) {
+        rows = await prisma.$queryRawUnsafe(
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[])) t ORDER BY t.rn, random() LIMIT $2',
+            subjectValues, cap,
         );
     } else {
         rows = await prisma.$queryRawUnsafe(
-            `SELECT id FROM (
-                SELECT id,
-                       ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn
-                FROM "Question"
-                WHERE "isFlagged" = false
-                ${subjectValues ? `AND "subject" = ANY($1::text[])` : ''}
-             ) t
-             ORDER BY t.rn, random()
-             LIMIT ${cap}`,
-            ...[subjectValues].filter((v) => v !== null),
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false) t ORDER BY t.rn, random() LIMIT $1',
+            cap,
         );
     }
     return rows.map((r) => r.id);

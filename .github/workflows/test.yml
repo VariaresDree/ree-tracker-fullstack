@@ -12,6 +12,27 @@ on:
     branches: [main]
 
 jobs:
+  guards:
+    name: Standing checks (SQL interpolation + route auth)
+    runs-on: ubuntu-latest
+    # Both scripts use only Node builtins (fs/path) — no install, no DB, fast.
+    defaults:
+      run:
+        working-directory: ree-tracker-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: SQL interpolation guard
+        run: node scripts/audit-sql-interpolation.js
+
+      - name: Route auth-coverage guard
+        run: node scripts/audit-route-auth.js
+
   frontend:
     name: Frontend (vitest)
     runs-on: ubuntu-latest
