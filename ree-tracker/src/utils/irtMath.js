@@ -102,9 +102,12 @@ let microTopics = { ...(currentStats?.microTopics || {}) };
         ? (confidence === 'high' ? 0.05 : confidence === 'med' ? 0.03 : 0.01)
         : (confidence === 'high' ? -0.05 : confidence === 'med' ? -0.03 : -0.01);
     
+    // Clamp to the 3PL scale (±4) that the server now persists — this optimistic
+    // value is a throwaway placeholder reconciled server-side on session end; only
+    // its display scale needs to match so the chart doesn't briefly clip.
     newTheta += thetaShift;
-    if (newTheta > 3.0) newTheta = 3.0;
-    if (newTheta < -3.0) newTheta = -3.0;
+    if (newTheta > 4.0) newTheta = 4.0;
+    if (newTheta < -4.0) newTheta = -4.0;
     newTheta = parseFloat(newTheta.toFixed(3));
 
     let history = [...(currentStats?.thetaHistory || [])];

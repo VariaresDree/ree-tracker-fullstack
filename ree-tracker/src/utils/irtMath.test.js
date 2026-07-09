@@ -47,14 +47,14 @@ describe('calculateUpdatedStats', () => {
     expect(low).toBeGreaterThan(0);
   });
 
-  it('clamps theta to [-3, 3]', () => {
-    const high = { ...emptyStats(), irt: { ...emptyStats().irt, theta: 2.99 } };
+  it('clamps theta to [-4, 4] (3PL scale)', () => {
+    const high = { ...emptyStats(), irt: { ...emptyStats().irt, theta: 3.99 } };
     const next = calculateUpdatedStats(high, true, 'high', 't', 'EE', 'q1');
-    expect(next.irt.theta).toBeLessThanOrEqual(3.0);
+    expect(next.irt.theta).toBeLessThanOrEqual(4.0);
 
-    const low = { ...emptyStats(), irt: { ...emptyStats().irt, theta: -2.99 } };
+    const low = { ...emptyStats(), irt: { ...emptyStats().irt, theta: -3.99 } };
     const nextLow = calculateUpdatedStats(low, false, 'high', 't', 'EE', 'q1');
-    expect(nextLow.irt.theta).toBeGreaterThanOrEqual(-3.0);
+    expect(nextLow.irt.theta).toBeGreaterThanOrEqual(-4.0);
   });
 
   it('routes daily quotas by subject', () => {

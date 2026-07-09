@@ -16,6 +16,13 @@
 
 const SCALE = 1.7; // logistic-normal scaling (Birnbaum constant)
 
+// Floor on the posterior SE. A naive Bayesian 3PL posterior converges (se→0) and
+// theta gets "sticky", which is wrong for a months-long review journey where the
+// true ability keeps improving. Flooring se keeps ~65% responsiveness to each new
+// session while still letting the forecast confidence band tighten from ~0.5 → 0.35.
+// (A time-based se-inflation / Glicko-style decay is the principled future upgrade.)
+const SE_FLOOR = 0.35;
+
 /** Sigmoid. */
 function sigmoid(z) {
   if (z >= 0) {
@@ -109,7 +116,7 @@ function updateTheta(prior, attempts) {
   for (const { item } of attempts) totalInfo += fisherInfo(theta, item);
   const se = 1 / Math.sqrt(Math.max(1e-6, totalInfo));
 
-  return { theta: clampTheta(theta), se: clamp(se, 0.05, 2.5) };
+  return { theta: clampTheta(theta), se: clamp(se, SE_FLOOR, 2.5) };
 }
 
 /**

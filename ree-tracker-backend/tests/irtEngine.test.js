@@ -151,3 +151,23 @@ describe('updateTheta — non-finite prior guard', () => {
     expect(Number.isFinite(out.se)).toBe(true);
   });
 });
+
+describe('updateTheta — SE floor keeps the posterior responsive', () => {
+  const item = { a: 1, b: 0, c: 0 };
+  it('never lets se drop below the 0.35 floor, even after many correct answers', () => {
+    let prior = { theta: 0, se: 1.0 };
+    for (let batch = 0; batch < 40; batch++) {
+      prior = updateTheta(prior, Array.from({ length: 10 }, () => ({ item, correct: true })));
+      expect(prior.se).toBeGreaterThanOrEqual(0.35);
+    }
+  });
+
+  it('still moves theta upward on new correct answers after long history (no lock-in)', () => {
+    // Simulate a converged user, then feed a run of correct answers on hard items.
+    let prior = { theta: 0.5, se: 0.35 };
+    const before = prior.theta;
+    const hard = { a: 1, b: 1.5, c: 0 };
+    prior = updateTheta(prior, Array.from({ length: 12 }, () => ({ item: hard, correct: true })));
+    expect(prior.theta).toBeGreaterThan(before + 0.05); // meaningful, not stuck
+  });
+});
