@@ -121,6 +121,18 @@ const normalizeQuestions = (data) => {
 // 1. Analytics Profile & Telemetry (RESTORED MISSING EXPORTS)
 // ----------------------------------------------------------------------
 export const getAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
+
+// PRC board TOS blend, read from the server config table so the exam builder and
+// the server sampler agree. Never throws — falls back to the default blend.
+export const SYLLABUS_WEIGHTS_FALLBACK = { Mathematics: 0.25, ESAS: 0.30, EE: 0.45 };
+export const fetchSyllabusWeights = async () => {
+    try {
+        const r = await apiRequest('/api/config/syllabus-weights');
+        return r?.weights || SYLLABUS_WEIGHTS_FALLBACK;
+    } catch {
+        return SYLLABUS_WEIGHTS_FALLBACK;
+    }
+};
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
 export const logSRSRecord = async (uid, questionId, payload) => apiRequest('/api/srs/review', 'POST', { questionId, ...payload });
 export const updateAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
