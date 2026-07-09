@@ -6,7 +6,11 @@
 const { Prisma } = require('@prisma/client');
 const { randomUUID } = require('crypto');
 const prisma = require('../config/db');
-const { calculateUpdatedTheta } = require('../utils/irtMath');
+// Single canonical ability estimator: the 3PL Bayesian MLE (engine/irt.updateTheta),
+// replacing the old Rasch gradient step (utils/irtMath.calculateUpdatedTheta). This
+// puts User.thetaRating + standardError on the same scale the CAT prior and the
+// forecast already assume, and populates the (previously never-written) standardError.
+const { updateTheta } = require('../engine/irt');
 const { partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
 const dashboardCache = require('./dashboardCache');
 const readinessCache = require('./readinessCache');
@@ -61,7 +65,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     const masterQuestions = questionIds.length
         ? await client.question.findMany({
             where: { id: { in: questionIds } },
-            select: { id: true, answer: true, difficulty: true, subject: true, subtopic: true },
+            select: { id: true, answer: true, difficulty: true, subject: true, subtopic: true, irtA: true, irtB: true, irtC: true },
         })
         : [];
     const qMap = Object.create(null);
@@ -94,6 +98,12 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 sessionId,
                 mode,
                 _difficulty: m.difficulty || 0.0,
+                // 3PL item params for the theta estimator (stripped before the
+                // QuestionAttempt write). irtB falls back to legacy difficulty;
+                // a/c to sane 3PL defaults for uncalibrated items.
+                _a: m.irtA,
+                _b: m.irtB,
+                _c: m.irtC,
             };
         });
 
@@ -178,7 +188,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         if (newOnly.length === 0) return; // pure replay — nothing to write
 
         resolvedSessionId = await ensureSession(db, newOnly);
-        const attemptsData = newOnly.map(({ _difficulty, sessionId: _s, ...rest }) => ({
+        const attemptsData = newOnly.map(({ _difficulty, _a, _b, _c, sessionId: _s, ...rest }) => ({
             ...rest,
             sessionId: resolvedSessionId,
         }));
@@ -254,15 +264,21 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     // read-modify-write against `prisma` directly, so the last writer silently
     // clobbered the other's theta/streak. FOR UPDATE serializes them. Kept
     // separate from runWrites so the attempt-write lock window stays short.
-    const irtInput = newOnly.map((m) => ({
-        isCorrect: m.isCorrect,
-        questionDifficulty: m._difficulty,
+    // 3PL estimator input: each new attempt's item params (with fallbacks for
+    // uncalibrated items) + correctness. updateTheta folds these onto the prior
+    // posterior (theta, se) — a proper Bayesian update, not a fixed gradient step.
+    const pairs = newOnly.map((m) => ({
+        item: { a: m._a ?? 1, b: m._b ?? m._difficulty ?? 0, c: m._c ?? 0.2 },
+        correct: m.isCorrect,
     }));
     let updatedTheta = 0.0;
+    let updatedSe = 0.5;
     await prisma.$transaction(async (db) => {
-        const [user] = await db.$queryRaw`SELECT "thetaRating", "globalStreak" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
-        const currentTheta = user?.thetaRating ?? 0.0;
-        updatedTheta = calculateUpdatedTheta(currentTheta, irtInput);
+        const [user] = await db.$queryRaw`SELECT "thetaRating", "standardError", "globalStreak" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+        const prior = { theta: user?.thetaRating ?? 0.0, se: user?.standardError ?? 0.5 };
+        const est = updateTheta(prior, pairs);
+        updatedTheta = est.theta;
+        updatedSe = est.se;
 
         // Global Active Streak — advances at most once per Manila day. On the first
         // answered question of a new day we increment if yesterday also had
@@ -282,7 +298,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
 
         await db.user.update({
             where: { id: userId },
-            data: { thetaRating: updatedTheta, lastActive: new Date(), globalStreak: newStreak },
+            data: { thetaRating: updatedTheta, standardError: updatedSe, lastActive: new Date(), globalStreak: newStreak },
         });
 
         // θ-history — one point per Manila day, updated in place within the day so

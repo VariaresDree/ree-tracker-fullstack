@@ -4,7 +4,6 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
-const { calculateUpdatedTheta } = require('../utils/irtMath');
 const { getSubjectFilter } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { selectNextItem, updateTheta } = require('../engine/irt');

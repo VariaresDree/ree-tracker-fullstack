@@ -86,7 +86,9 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
       return {
         ...h,
         theta,
-        probability: Math.min(100, Math.max(0, ((theta + 3) / 6) * 100)),
+        // theta is now on the 3PL scale (±4). Rough visual pass-% only; the
+        // authoritative pass probability is the forecast's normCdf.
+        probability: Math.min(100, Math.max(0, ((theta + 4) / 8) * 100)),
       };
     });
   }, [safeHistory, range]);
@@ -117,9 +119,9 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
                         dy={10} 
                         tick={{ fill: 'var(--text-muted)', fontWeight: 600 }}
                     />
-                    <YAxis 
-                        domain={[-3, 3]} 
-                        stroke="var(--text-muted)" 
+                    <YAxis
+                        domain={[-4, 4]}
+                        stroke="var(--text-muted)"
                         fontSize={10} 
                         tickLine={false} 
                         axisLine={false} 
@@ -127,10 +129,12 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
                     />
                     <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(6, 182, 212, 0.2)', strokeWidth: 2, strokeDasharray: '4 4' }} />
                     <ReferenceLine y={0} stroke="rgba(148, 163, 184, 0.2)" strokeWidth={1} />
-                    {/* The 70% threshold roughly translates to a Theta of 1.2 in this visual scale */}
-                    <ReferenceLine 
-                        y={1.2} 
-                        stroke="var(--accent-success)" 
+                    {/* Readiness marker on the 3PL scale (θ≈1.0 ≈ ~84th percentile,
+                        comfortably above the θ=0 pass cutoff). The forecast card is
+                        the authoritative pass-probability source. */}
+                    <ReferenceLine
+                        y={1.0}
+                        stroke="var(--accent-success)"
                         strokeDasharray="4 4" 
                         strokeWidth={1.5}
                         strokeOpacity={0.5}

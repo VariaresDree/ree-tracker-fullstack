@@ -101,3 +101,14 @@ describe('buildForecast — non-finite ability guard', () => {
     expect(Number.isFinite(out.expectedRank)).toBe(true);
   });
 });
+
+describe('forecast — confidence band tightens as SE drops', () => {
+  it('a smaller se yields a more confident pass probability for theta above the cutoff', () => {
+    // theta above the pass cutoff (0): as se shrinks 0.5 -> 0.35 (the new floor),
+    // the estimate is more certain the true ability clears the cutoff → higher P.
+    const wide = probabilities({ theta: 0.5, se: 0.5 }).passProbability;
+    const tight = probabilities({ theta: 0.5, se: 0.35 }).passProbability;
+    expect(tight).toBeGreaterThan(wide);
+    expect(tight).toBeLessThanOrEqual(1);
+  });
+});
