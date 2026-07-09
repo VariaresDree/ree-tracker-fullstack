@@ -64,12 +64,37 @@ async function samplePool({ subject = null, subtopic = null, limit = 50 } = {}) 
     return questions;
 }
 
-// PRC board TOS blend: 25% Math / 30% ESAS / 45% EE (matches the 25/30/45
-// split the Arena lobby used when it still assembled pools client-side).
+// PRC board Table-of-Specifications default blend, used as a fallback when the
+// SyllabusWeight config table is empty/unreachable.
+const DEFAULT_SYLLABUS_WEIGHTS = { Mathematics: 0.25, ESAS: 0.30, EE: 0.45 };
+
+// Pure: turn SyllabusWeight rows into a {subject: weight} map, backfilling any
+// missing canonical subject from the default so callers always get all three.
+function normalizeSyllabusWeights(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return { ...DEFAULT_SYLLABUS_WEIGHTS };
+    const out = {};
+    for (const r of rows) if (r && r.subject) out[r.subject] = r.weight;
+    for (const k of Object.keys(DEFAULT_SYLLABUS_WEIGHTS)) {
+        if (typeof out[k] !== 'number' || !Number.isFinite(out[k])) out[k] = DEFAULT_SYLLABUS_WEIGHTS[k];
+    }
+    return out;
+}
+
+// Read the runtime syllabus weights; never throws (falls back to the default).
+async function getSyllabusWeights() {
+    try {
+        return normalizeSyllabusWeights(await prisma.syllabusWeight.findMany());
+    } catch {
+        return { ...DEFAULT_SYLLABUS_WEIGHTS };
+    }
+}
+
+// PRC board TOS blend, driven by the SyllabusWeight config table (Math/ESAS/EE).
 async function sampleBlendedPool(totalCount = 100) {
-    const mathN = Math.round(totalCount * 0.25);
-    const esasN = Math.round(totalCount * 0.30);
-    const eeN = Math.max(0, totalCount - mathN - esasN);
+    const w = await getSyllabusWeights();
+    const mathN = Math.round(totalCount * w.Mathematics);
+    const esasN = Math.round(totalCount * w.ESAS);
+    const eeN = Math.max(0, totalCount - mathN - esasN); // remainder to EE so counts sum exactly
     const [math, esas, ee] = await Promise.all([
         samplePool({ subject: 'Mathematics', limit: mathN }),
         samplePool({ subject: 'ESAS', limit: esasN }),
@@ -78,4 +103,7 @@ async function sampleBlendedPool(totalCount = 100) {
     return [...math, ...esas, ...ee];
 }
 
-module.exports = { getSubjectFilter, sampleQuestionIds, samplePool, sampleBlendedPool };
+module.exports = {
+    getSubjectFilter, sampleQuestionIds, samplePool, sampleBlendedPool,
+    getSyllabusWeights, normalizeSyllabusWeights, DEFAULT_SYLLABUS_WEIGHTS,
+};

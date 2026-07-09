@@ -4,7 +4,7 @@ import { generateQuestionsAI, generateMasterExplanation } from '../../services/g
 import {
   updateQuestionCache, updateQuestionInBank, fetchVaultQuestions,
   saveSimulationRecord, syncTelemetryBatch, getAnalyticsProfile,
-  fetchMultiplayerBattle
+  fetchMultiplayerBattle, fetchSyllabusWeights
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
@@ -136,7 +136,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
       if (config.source === 'library') {
           if (config.mode === 'blended') {
-              const dist = { Mathematics: Math.round(totalCount * 0.25), ESAS: Math.round(totalCount * 0.30), EE: Math.round(totalCount * 0.45) };
+              // Blend by the PRC syllabus weights (server config, one source of
+              // truth shared with the backend sampler); falls back to 25/30/45.
+              const w = await fetchSyllabusWeights();
+              const dist = { Mathematics: Math.round(totalCount * w.Mathematics), ESAS: Math.round(totalCount * w.ESAS), EE: Math.round(totalCount * w.EE) };
               for (const subj of ['Mathematics', 'ESAS', 'EE']) {
                   // Direct Deep Fetch: Pulling 2000 ensures we have enough data even after filtering
                   const raw = await fetchVaultQuestions(subj, 'All', 2000);

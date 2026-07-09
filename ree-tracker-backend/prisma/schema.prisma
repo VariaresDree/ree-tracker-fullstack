@@ -409,3 +409,16 @@ model ReadinessSnapshot {
 
   @@index([userId, createdAt])
 }
+
+// PRC REE board-exam Table of Specifications — subject-level weights that
+// constrain Board Simulator / blended-pool composition (Mathematics 25% / ESAS
+// 30% / EE 45%). A runtime config table (seeded via scripts/seedSyllabusWeights.js)
+// so the blend is editable without a deploy, and both the server sampler and the
+// client exam builder read ONE source. Subtopics live in the Topic taxonomy
+// (roadmap 3.3), not here — PRC publishes weights per subject, not per subtopic.
+model SyllabusWeight {
+  subject   String   @id // canonical: 'Mathematics' | 'ESAS' | 'EE'
+  weight    Float        // fraction of the exam; rows should sum to ~1.0
+  label     String?
+  updatedAt DateTime @updatedAt
+}
