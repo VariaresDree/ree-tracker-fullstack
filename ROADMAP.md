@@ -19,7 +19,7 @@ The theta-engine unification design ([`docs/superpowers/specs/2026-07-08-theta-e
 |---|---|---|
 | **0 — Foundation** | Standing CI checks (SQL interpolation, route-auth coverage) pass and fail on violation; IRT engine unit-tested against hand-computed reference values; AI questions no longer land live un-reviewed | **In progress** |
 | **1 — Offline gap-fill** | Offline DoD checklist complete; per-resource Workbox strategies explicit; Dexie migration path documented | **In progress** (backoff, Workbox strategies, pack checksum/delta, offline flag + discrepancy logging, Dexie doc done; shared-IRT-module deferred to Phase 3) |
-| **2 — UX / accessibility** | Lighthouse CI budgets pass; axe zero critical/serious; design tokens + shared primitives in place | Pending |
+| **2 — UX / accessibility** | Lighthouse CI budgets pass; axe zero critical/serious; design tokens + shared primitives in place | **In progress** (component-axe tests, ProgressIndicator, token cleanup, Lighthouse CI + login axe done; authed-screen a11y/perf is a documented manual step — hard auth gate) |
 | **3 — Content / assessment** | Syllabus weighting verified vs PRC + applied; recalibration run once on real data; mastery heatmap on a real taxonomy; AI review loop processed one batch | Pending |
 | **4 — Competitive / scale** | Battle scoring server-authoritative under latency; leaderboard aggregated (not live-queried); offline exclusion verified in aggregation | Pending |
 

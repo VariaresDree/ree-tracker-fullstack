@@ -103,34 +103,34 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
                 <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
                     <defs>
                         <linearGradient id="colorTheta" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                            <stop offset="5%" stopColor="var(--accent-signal)" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="var(--accent-signal)" stopOpacity={0.0} />
                         </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.08)" vertical={false} />
                     <XAxis 
                         dataKey="name" 
-                        stroke="#64748b" 
+                        stroke="var(--text-muted)" 
                         fontSize={10} 
                         tickLine={false} 
                         axisLine={false} 
                         dy={10} 
-                        tick={{ fill: '#64748b', fontWeight: 600 }}
+                        tick={{ fill: 'var(--text-muted)', fontWeight: 600 }}
                     />
                     <YAxis 
                         domain={[-3, 3]} 
-                        stroke="#64748b" 
+                        stroke="var(--text-muted)" 
                         fontSize={10} 
                         tickLine={false} 
                         axisLine={false} 
-                        tick={{ fill: '#64748b', fontWeight: 600 }}
+                        tick={{ fill: 'var(--text-muted)', fontWeight: 600 }}
                     />
                     <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(6, 182, 212, 0.2)', strokeWidth: 2, strokeDasharray: '4 4' }} />
                     <ReferenceLine y={0} stroke="rgba(148, 163, 184, 0.2)" strokeWidth={1} />
                     {/* The 70% threshold roughly translates to a Theta of 1.2 in this visual scale */}
                     <ReferenceLine 
                         y={1.2} 
-                        stroke="#22c55e" 
+                        stroke="var(--accent-success)" 
                         strokeDasharray="4 4" 
                         strokeWidth={1.5}
                         strokeOpacity={0.5}
@@ -138,7 +138,7 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
                     <Area 
                         type="monotone" 
                         dataKey="theta" 
-                        stroke="#06b6d4" 
+                        stroke="var(--accent-signal)" 
                         strokeWidth={3} 
                         fill="url(#colorTheta)" 
                         animationDuration={1500}
