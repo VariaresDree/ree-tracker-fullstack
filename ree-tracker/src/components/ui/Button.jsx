@@ -24,8 +24,11 @@ const base =
   'disabled:opacity-50 disabled:pointer-events-none';
 
 const variants = {
+  // Darken the accent 12% for the fill so white text clears WCAG AA (4.5:1):
+  // the raw --accent-velocity (#7c5cff) gave white text only 4.34:1. Scoped to
+  // the button fill so the brand accent stays as-is for rings/links/headings.
   primary:
-    'bg-[var(--btn-accent)] text-white hover:brightness-110 elevate-1',
+    'bg-[color-mix(in_srgb,var(--btn-accent)_88%,black)] text-white hover:brightness-110 elevate-1',
   secondary:
     'bg-surface2 text-textMain hover:bg-surface3 border border-border',
   ghost:

@@ -20,7 +20,7 @@ test.describe('Login screen', () => {
     await page.goto('/');
     await expect(page.getByText(/REE\.?ai Core/)).toBeVisible();
     await expect(page.getByLabel(/Email Address/i)).toBeVisible();
-    await expect(page.getByLabel(/Password/i)).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
   });
 
   test('toggles between sign-in and registration affordances', async ({ page }) => {
