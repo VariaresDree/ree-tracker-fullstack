@@ -199,6 +199,7 @@ async function bootstrap() {
     app.use('/api/forecast', require('./src/routes/forecastRoutes'));
     app.use('/api/reference', require('./src/routes/referenceRoutes'));
     app.use('/api/admin', require('./src/routes/adminRoutes'));
+    app.use('/api/review', require('./src/routes/reviewRoutes'));
 
     app.get('/health', (req, res) => res.status(200).json({ status: 'Assessment Core is Online' }));
 

@@ -157,6 +157,52 @@ model Question {
   @@index([topicId])
 }
 
+// Phase 3.6: AI content review loop. AI/vision submissions land HERE, never in
+// the live Question table — pool samplers can't leak an unreviewed item even if
+// a query forgets a filter. Approve promotes into Question via the same create
+// path as manual creation; reject is a SOFT state (auditable), never a delete.
+model QuestionPendingReview {
+  id                 String    @id @default(uuid())
+  subject            String
+  subtopic           String
+  text               String
+  options            String[]
+  answer             String
+  difficulty         Float     @default(2.0)
+  fixedExplanation   String?
+  source             String?   @default("ai")
+  type               String?   @default("conceptual")
+  bloomLevel         String?   @default("REMEMBER")
+  difficultyTier     Int?      @default(1)
+  status             String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewNote         String?
+  submittedBy        String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  promotedQuestionId String?   // live Question created on approve
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// Phase 3.6: audit trail — review-stage lifecycle (SUBMITTED/EDITED/APPROVED/
+// REJECTED, keyed by reviewId) and live-question edits (LIVE_EDIT, keyed by
+// questionId, snapshot = the row BEFORE the edit). A wrong "correct answer"
+// fix must always be traceable to who changed what, when.
+model QuestionVersion {
+  id         String   @id @default(uuid())
+  questionId String?
+  reviewId   String?
+  action     String   // SUBMITTED | EDITED | APPROVED | REJECTED | LIVE_EDIT
+  editor     String?  // uid; null for system/AI submission
+  snapshot   Json
+  createdAt  DateTime @default(now())
+
+  @@index([questionId, createdAt])
+  @@index([reviewId, createdAt])
+}
+
 // 4. 'simulationHistory' collection
 model ExamSession {
   id             String   @id @default(uuid())

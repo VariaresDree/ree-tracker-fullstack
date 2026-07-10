@@ -3,8 +3,9 @@ const { questionCreateSchema, isPendingReview } = require('../src/schemas/questi
 
 // Regression guard for the AI-quarantine bug: AI/vision ingestion sends
 // status:'quarantined', but the schema used to DROP the field so those questions
-// were created live and immediately drawable. Now the field survives validation
-// and drives isFlagged so they route into the /quarantine review queue.
+// were created live and immediately drawable. Since Phase 3.6, isPendingReview
+// routes quarantined submissions into the QuestionPendingReview table (they
+// never touch the live Question table until an admin approves them).
 
 const goodQuestion = {
   subject: 'EE',
@@ -41,10 +42,12 @@ describe('isPendingReview — routes quarantined questions away from live', () =
     expect(isPendingReview(null)).toBe(false);
   });
 
-  it('the handler maps a quarantined create to isFlagged=true', () => {
-    // Mirrors questionRoutes POST: isFlagged: isPendingReview(data) || data.isFlagged || false
-    const data = questionCreateSchema.parse({ ...goodQuestion, status: 'quarantined' });
-    const isFlagged = isPendingReview(data) || data.isFlagged || false;
-    expect(isFlagged).toBe(true);
+  it('the POST handler routes a quarantined create to the pending-review path', () => {
+    // Mirrors questionRoutes POST (Phase 3.6): isPendingReview(data) branches to
+    // a QuestionPendingReview create; everything else goes live.
+    const quarantined = questionCreateSchema.parse({ ...goodQuestion, status: 'quarantined' });
+    const manual = questionCreateSchema.parse(goodQuestion);
+    expect(isPendingReview(quarantined)).toBe(true);
+    expect(isPendingReview(manual)).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
 const { resolveTopic } = require('../services/topicResolver');
+const { buildVersionSnapshot, createLiveQuestion } = require('../services/reviewService');
 
 // 0. FETCH GLOBAL QUESTION STATS 
 router.get('/stats', authMiddleware, async (req, res) => {
@@ -107,13 +108,22 @@ router.get('/quarantine', authMiddleware, async (req, res) => {
     }
 });
 
-// 1.6. APPROVE QUARANTINED ITEM
+// 1.6. APPROVE QUARANTINED ITEM (legacy path — pre-3.6 flagged rows; new AI
+// submissions go through /api/review). Versioned for auditability like every
+// other mutation of a live question.
 router.put('/quarantine/:id/approve', authMiddleware, requireAdmin, async (req, res) => {
     try {
-        await prisma.question.update({
-            where: { id: req.params.id },
-            data: { isFlagged: false, subject: req.body.subject, subtopic: req.body.subtopic }
-        });
+        const previous = await prisma.question.findUnique({ where: { id: req.params.id } });
+        if (!previous) return res.status(404).json({ error: 'Question not found.' });
+        await prisma.$transaction([
+            prisma.question.update({
+                where: { id: req.params.id },
+                data: { isFlagged: false, subject: req.body.subject, subtopic: req.body.subtopic }
+            }),
+            prisma.questionVersion.create({
+                data: { questionId: previous.id, action: 'APPROVED', editor: req.user?.id || null, snapshot: buildVersionSnapshot(previous) },
+            }),
+        ]);
         res.status(200).json({ success: true });
     } catch (err) {
         res.status(500).json({ error: "Approval validation failed." });
@@ -149,32 +159,37 @@ router.get('/flagged', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res) => {
     try {
         const data = req.body;
-        // Taxonomy FK (Phase 3.3): resolve the submitted subtopic label to a
-        // Topic. Unresolved labels (e.g. free-typed AI output) keep the string
-        // with a NULL FK — same visibility semantics as before, and the
-        // migration/admin can map them later.
-        const topic = await resolveTopic(data.subject, data.subtopic);
-        const newQuestion = await prisma.question.create({
-            data: {
-                subject: data.subject || 'Unknown',
-                subtopic: topic?.name || data.subtopic || 'General',
-                topicId: topic?.id ?? null,
-                text: data.text || '',
-                options: Array.isArray(data.options) ? data.options : [],
-                answer: data.answer || '',
-                difficulty: parseFloat(data.difficulty) || 2.0,
-                fixedExplanation: data.fixedExplanation || null,
-                source: data.source || 'manual',
-                type: data.type || 'calculation',
-                // Quarantined (AI/vision) questions are flagged so pool sampling
-                // skips them and they route into the /quarantine review queue
-                // instead of going live un-reviewed.
-                isFlagged: isPendingReview(data) || data.isFlagged || false,
-                bloomLevel: data.bloomLevel || 'REMEMBER',
-                difficultyTier: data.difficultyTier || 1,
-                competencyArea: data.competencyArea || null
-            }
-        });
+
+        // Phase 3.6: quarantined (AI/vision) submissions land in the
+        // pending-review table — NEVER in the live Question table — so a query
+        // that forgets an isFlagged filter can't leak an unreviewed item. They
+        // go live only through the /api/review approve path.
+        if (isPendingReview(data)) {
+            const review = await prisma.questionPendingReview.create({
+                data: {
+                    subject: data.subject || 'Unknown',
+                    subtopic: data.subtopic || 'General',
+                    text: data.text || '',
+                    options: Array.isArray(data.options) ? data.options : [],
+                    answer: data.answer || '',
+                    difficulty: parseFloat(data.difficulty) || 2.0,
+                    fixedExplanation: data.fixedExplanation || null,
+                    source: data.source || 'ai',
+                    type: data.type || 'conceptual',
+                    bloomLevel: data.bloomLevel || 'REMEMBER',
+                    difficultyTier: data.difficultyTier || 1,
+                    submittedBy: req.user?.id || null,
+                },
+            });
+            await prisma.questionVersion.create({
+                data: { reviewId: review.id, action: 'SUBMITTED', editor: req.user?.id || null, snapshot: buildVersionSnapshot(review) },
+            });
+            return res.status(201).json({ success: true, id: review.id, pendingReview: true });
+        }
+
+        // Manual/live creation — the same shared path review approval uses
+        // (topic resolution + defaults live in reviewService.createLiveQuestion).
+        const newQuestion = await createLiveQuestion({ ...data, isFlagged: data.isFlagged || false });
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {
@@ -187,6 +202,11 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 router.put('/:id', authMiddleware, validate(questionUpdateSchema), async (req, res) => {
     try {
         const data = req.body;
+        // Phase 3.6 auditability: snapshot the row BEFORE the edit so a wrong
+        // "correct answer" fix is always traceable (who, when, from what).
+        const previous = await prisma.question.findUnique({ where: { id: req.params.id } });
+        if (!previous) return res.status(404).json({ error: 'Question not found.' });
+
         // Choice-label sanitisation ("A."/"b)" prefixes) is applied by the Zod
         // transform in questionUpdateSchema via the validate() middleware above.
         // questionUpdateSchema is a .partial() — absent fields stay undefined,
@@ -196,20 +216,25 @@ router.put('/:id', authMiddleware, validate(questionUpdateSchema), async (req, r
         const topic = data.subtopic !== undefined
             ? await resolveTopic(data.subject, data.subtopic)
             : undefined;
-        await prisma.question.update({
-            where: { id: req.params.id },
-            data: {
-                subject: data.subject,
-                subtopic: topic !== undefined ? (topic?.name || data.subtopic) : undefined,
-                topicId: topic !== undefined ? (topic?.id ?? null) : undefined,
-                text: data.text,
-                options: data.options,
-                answer: data.answer,
-                difficulty: data.difficulty,
-                fixedExplanation: data.fixedExplanation,
-                isFlagged: data.isFlagged
-            }
-        });
+        await prisma.$transaction([
+            prisma.question.update({
+                where: { id: req.params.id },
+                data: {
+                    subject: data.subject,
+                    subtopic: topic !== undefined ? (topic?.name || data.subtopic) : undefined,
+                    topicId: topic !== undefined ? (topic?.id ?? null) : undefined,
+                    text: data.text,
+                    options: data.options,
+                    answer: data.answer,
+                    difficulty: data.difficulty,
+                    fixedExplanation: data.fixedExplanation,
+                    isFlagged: data.isFlagged
+                }
+            }),
+            prisma.questionVersion.create({
+                data: { questionId: previous.id, action: 'LIVE_EDIT', editor: req.user?.id || null, snapshot: buildVersionSnapshot(previous) },
+            }),
+        ]);
 
         return res.status(200).json({ success: true });
     } catch (error) {
