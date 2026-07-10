@@ -11,7 +11,7 @@ const prisma = require('../config/db');
 // puts User.thetaRating + standardError on the same scale the CAT prior and the
 // forecast already assume, and populates the (previously never-written) standardError.
 const { updateTheta } = require('../engine/irt');
-const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
+const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject } = require('./telemetryHelpers');
 const { resolveTopic } = require('./topicResolver');
 const dashboardCache = require('./dashboardCache');
 const readinessCache = require('./readinessCache');
@@ -247,10 +247,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     // 3PL estimator input: each new attempt's item params (with fallbacks for
     // uncalibrated items) + correctness. updateTheta folds these onto the prior
     // posterior (theta, se) — a proper Bayesian update, not a fixed gradient step.
-    const pairs = newOnly.map((m) => ({
-        item: { a: m._a ?? 1, b: m._b ?? m._difficulty ?? 0, c: m._c ?? 0.2 },
-        correct: m.isCorrect,
-    }));
+    const pairs = newOnly.map(toEstimatorPair);
     let updatedTheta = 0.0;
     let updatedSe = 0.5;
     await prisma.$transaction(async (db) => {
@@ -296,6 +293,27 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             });
         } else {
             await db.thetaHistory.create({ data: { userId, theta: updatedTheta } });
+        }
+
+        // Per-subject ability (Phase 3.4): the same 3PL estimator, sliced by
+        // canonical subject, so the forecast's UserAbility rows stay fresh
+        // between nightly recalibrations (which rewrite them batch-consistently).
+        // First-ever row for a subject seeds from the global posterior.
+        const bySubject = groupPairsBySubject(newOnly);
+        for (const [subject, subjectPairs] of Object.entries(bySubject)) {
+            const existing = await db.userAbility.findUnique({
+                where: { userId_subject: { userId, subject } },
+                select: { theta: true, se: true },
+            });
+            const subjectPrior = existing
+                ? { theta: existing.theta, se: existing.se }
+                : { theta: user?.thetaRating ?? 0, se: user?.standardError ?? 1.0 };
+            const subjectEst = updateTheta(subjectPrior, subjectPairs);
+            await db.userAbility.upsert({
+                where: { userId_subject: { userId, subject } },
+                update: { theta: subjectEst.theta, se: subjectEst.se },
+                create: { userId, subject, theta: subjectEst.theta, se: subjectEst.se },
+            });
         }
     });
 

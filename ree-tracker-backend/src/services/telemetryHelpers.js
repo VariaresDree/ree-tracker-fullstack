@@ -102,4 +102,33 @@ function aggregateTopicRollups(attempts) {
     return Array.from(byTopic.values());
 }
 
-module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups };
+// Subjects that get a per-subject UserAbility row (Phase 3.4). 'General' and
+// stray labels are excluded — they'd dilute the forecast with junk rows.
+const ABILITY_SUBJECTS = new Set(['Mathematics', 'ESAS', 'EE']);
+
+/**
+ * Mapped attempt row → the {item, correct} pair shape the 3PL estimator
+ * consumes, with the same fallbacks the global theta path has always used.
+ */
+function toEstimatorPair(m) {
+    return {
+        item: { a: m._a ?? 1, b: m._b ?? m._difficulty ?? 0, c: m._c ?? 0.2 },
+        correct: !!m.isCorrect,
+    };
+}
+
+/**
+ * Group a mapped batch into per-subject estimator pairs (canonical subjects
+ * only) for the UserAbility incremental updates.
+ * @returns {Object<string, Array>} subject -> pairs
+ */
+function groupPairsBySubject(mapped) {
+    const bySubject = {};
+    for (const m of mapped || []) {
+        if (!ABILITY_SUBJECTS.has(m.subject)) continue;
+        (bySubject[m.subject] ||= []).push(toEstimatorPair(m));
+    }
+    return bySubject;
+}
+
+module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, ABILITY_SUBJECTS };

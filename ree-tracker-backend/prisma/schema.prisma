@@ -127,11 +127,21 @@ model Question {
 
   // Phase 4: IRT 3PL parameters. Nullable so legacy items can be drawn
   // at random until they accumulate enough attempts for calibration.
+  // Since Phase 3.4 these hold the SERVED values: the author-blended result
+  // of the recalibration pipeline (w = n/(n+30) toward the empirical fit).
   irtA             Float?   // discrimination
   irtB             Float?   // difficulty (replaces overloaded `difficulty` over time)
   irtC             Float?   @default(0.20) // guess
   calibrationN     Int      @default(0)    // attempt count rolled into params
   lastCalibratedAt DateTime?
+
+  // Phase 3.4: raw JMLE estimates from real response data. irtA/irtB above
+  // hold the author-blended SERVED values; these keep the unblended empirical
+  // estimate inspectable and let the blend be recomputed without re-running
+  // JMLE. empiricalN = first-attempt responses behind the estimate.
+  empiricalA       Float?
+  empiricalB       Float?
+  empiricalN       Int      @default(0)
 
   attempts         QuestionAttempt[]
   bookmarks        Bookmark[]

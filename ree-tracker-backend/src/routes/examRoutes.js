@@ -4,7 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
-const { getSubjectFilter } = require('../utils/subject');
+const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { selectNextItem, updateTheta } = require('../engine/irt');
 const prisma = require('../config/db');
@@ -247,6 +247,17 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
         });
 
         let prior = { theta: user?.thetaRating ?? 0, se: user?.standardError ?? 1 };
+
+        // Phase 3.4: a subject-scoped session starts from the per-subject
+        // ability when one exists (populated by telemetry + the nightly
+        // recalibration) — the global theta stays the fallback.
+        if (subject && subject !== 'All' && subject !== 'Blended') {
+            const ability = await prisma.userAbility.findUnique({
+                where: { userId_subject: { userId: req.user.id, subject: normalizeSubject(subject) } },
+                select: { theta: true, se: true },
+            });
+            if (ability) prior = { theta: ability.theta, se: ability.se };
+        }
 
         // Refine prior with this session's attempts so consecutive picks
         // converge faster than waiting for /submit.
