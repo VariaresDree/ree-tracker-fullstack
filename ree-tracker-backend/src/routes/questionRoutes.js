@@ -9,6 +9,7 @@ const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
+const { resolveTopic } = require('../services/topicResolver');
 
 // 0. FETCH GLOBAL QUESTION STATS 
 router.get('/stats', authMiddleware, async (req, res) => {
@@ -29,8 +30,9 @@ router.get('/stats', authMiddleware, async (req, res) => {
 // 0b. OFFLINE-PACK MANIFEST — cheap per-subject content checksums so the client
 // can delta-refresh its offline pack (re-download only the subjects whose
 // questions actually changed), instead of re-fetching the whole bank every time.
-// The checksum folds in id + answer, so an added/removed question or a corrected
-// answer key changes it. Raw SQL uses a fully-static string + bound param.
+// The checksum folds in id + answer + subtopic, so an added/removed question,
+// a corrected answer key, or a taxonomy re-tag (Phase 3.3 canonicalization)
+// changes it. Raw SQL uses a fully-static string + bound param.
 router.get('/pack-manifest', authMiddleware, async (req, res) => {
     try {
         const subjects = ['Mathematics', 'ESAS', 'EE'];
@@ -39,7 +41,7 @@ router.get('/pack-manifest', authMiddleware, async (req, res) => {
             const filter = getSubjectFilter(subj);
             const vals = filter ? (filter.in || [filter]) : [subj];
             const [row] = await prisma.$queryRawUnsafe(
-                'SELECT count(*)::int AS count, md5(coalesce(string_agg("id" || \'~\' || "answer", \',\' ORDER BY "id"), \'\')) AS checksum FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[])',
+                'SELECT count(*)::int AS count, md5(coalesce(string_agg("id" || \'~\' || "answer" || \'~\' || "subtopic", \',\' ORDER BY "id"), \'\')) AS checksum FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[])',
                 vals,
             );
             manifest[subj] = { count: row?.count ?? 0, checksum: row?.checksum ?? '' };
@@ -147,10 +149,16 @@ router.get('/flagged', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res) => {
     try {
         const data = req.body;
+        // Taxonomy FK (Phase 3.3): resolve the submitted subtopic label to a
+        // Topic. Unresolved labels (e.g. free-typed AI output) keep the string
+        // with a NULL FK — same visibility semantics as before, and the
+        // migration/admin can map them later.
+        const topic = await resolveTopic(data.subject, data.subtopic);
         const newQuestion = await prisma.question.create({
             data: {
                 subject: data.subject || 'Unknown',
-                subtopic: data.subtopic || 'General',
+                subtopic: topic?.name || data.subtopic || 'General',
+                topicId: topic?.id ?? null,
                 text: data.text || '',
                 options: Array.isArray(data.options) ? data.options : [],
                 answer: data.answer || '',
@@ -183,11 +191,17 @@ router.put('/:id', authMiddleware, validate(questionUpdateSchema), async (req, r
         // transform in questionUpdateSchema via the validate() middleware above.
         // questionUpdateSchema is a .partial() — absent fields stay undefined,
         // which Prisma skips (the old parseFloat(undefined) wrote NaN).
+        // Re-resolve the taxonomy FK only when the subtopic is actually being
+        // changed (undefined must stay undefined so Prisma skips the columns).
+        const topic = data.subtopic !== undefined
+            ? await resolveTopic(data.subject, data.subtopic)
+            : undefined;
         await prisma.question.update({
             where: { id: req.params.id },
             data: {
                 subject: data.subject,
-                subtopic: data.subtopic,
+                subtopic: topic !== undefined ? (topic?.name || data.subtopic) : undefined,
+                topicId: topic !== undefined ? (topic?.id ?? null) : undefined,
                 text: data.text,
                 options: data.options,
                 answer: data.answer,

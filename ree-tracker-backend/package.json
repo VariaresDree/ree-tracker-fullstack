@@ -16,6 +16,8 @@
     "calibrate:dry": "node scripts/calibrate.js --dry-run",
     "recompute:theta": "node scripts/recomputeTheta.js",
     "seed:syllabus": "node scripts/seedSyllabusWeights.js",
+    "migrate:taxonomy": "node scripts/migrateTaxonomy.js",
+    "migrate:taxonomy:dry": "node scripts/migrateTaxonomy.js --dry-run",
     "audit:sql": "node scripts/audit-sql-interpolation.js",
     "audit:auth": "node scripts/audit-route-auth.js",
     "audit:all": "npm run audit:sql && npm run audit:auth"

@@ -1,26 +1,34 @@
 // src/config/constants.js
 
+// Offline / pre-fetch fallback TOS. Canonical PRC REE board-exam subtopics —
+// MUST mirror the backend seed (ree-tracker-backend/src/config/prcTaxonomy.js);
+// the live list is served from the Topic taxonomy via GET /api/config/tos.
 export const TOS = {
   Mathematics: [
-    'Algebra & Complex Numbers', 'Trigonometry', 'Analytic Geometry', 
-    'Probability & Statistics', 'Calculus 1', 'Calculus 2', 
-    'Engineering Data Analytics', 'Differential Equations', 'Numerical Methods & Analysis'
+    'Algebra', 'Trigonometry', 'Analytic Geometry',
+    'Differential Calculus', 'Integral Calculus',
+    'Complex Numbers and Space Vectors', 'Probability and Statistics',
+    'Matrices and Determinants', 'Sequences and Series',
+    'Other Engineering Mathematics'
   ],
   ESAS: [
-    'Chemistry for Engineers', 'Physics for Engineers', 'Computer Programming', 
-    'Microprocessor Systems and Logic Circuits', 'Material Science', 
-    'Environmental Science & Engineering', 'Fluid Mechanics', 
-    'Fundamentals of Deformable Bodies', 'Basic Thermodynamics', 
-    'EE Laws, Codes, & Professional Ethics', 'Engineering Economics', 
-    'Technopreneurship & Project Management'
+    'General Chemistry', 'College Physics', 'Engineering Materials',
+    'Engineering Mechanics', 'Thermodynamics', 'Fluid Mechanics',
+    'Engineering Economics and Management',
+    'Electrical Engineering Law and Code of Ethics',
+    'Contracts and Specifications', 'Computer Fundamentals and Programming',
+    'Philippine Electrical Code Parts 1 and 2'
   ],
   EE: [
-    'Electromagnetism', 'Electric Circuits 1', 'Electric Circuits 2', 
-    'Fundamentals of Electronic Communications', 'Electronics 1 and 2', 
-    'Electrical Apparatus & Devices', 'Industrial Electronics', 
-    'Electrical Machinery 1', 'Electrical Machinery 2', 'Instrumentation & Control', 
-    'Feedback Control Systems', 'Electrical System & Illumination Design', 
-    'Power Plant Engineering', 'Distribution Systems & Substation Design', 
-    'Power System Analysis'
+    'Quantities/Units/Constants', 'Electrical Materials',
+    'Passive Circuit Elements', 'Active Circuit Elements', 'AC Impedance',
+    'Instruments and Measurements', 'DC Electric Circuits',
+    'Transient Response', 'Magnetic Circuits', 'AC Electric Circuits',
+    'AC Generators', 'DC Generators', 'Energy Sources', 'Energy Conversion',
+    'Prime Movers', 'Rotating Electric Machinery', 'Power System Components',
+    'AC Transmission', 'DC Transmission', 'Power System Interconnection',
+    'Substation Design', 'Power Distribution', 'Wiring Design for Buildings',
+    'Power Electronics', 'Industrial Electronics', 'Illumination',
+    'Telecommunications', 'Computer Application in Electrical Power Industry'
   ],
 };
