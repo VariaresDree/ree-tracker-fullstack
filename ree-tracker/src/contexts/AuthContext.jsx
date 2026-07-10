@@ -9,7 +9,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 // 🚀 NEW: Import the TOS fetch function
-import { getAnalyticsProfile, fetchDynamicTOS } from '../services/dbQueries'; 
+import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags } from '../services/dbQueries';
 import { useStore } from '../store/useStore';
 
 const MASTER_ADMIN_EMAILS = [
@@ -53,6 +53,17 @@ export const AuthProvider = ({ children }) => {
               }
           } catch (tosError) {
               console.warn("Failed to fetch cloud TOS, maintaining local cached state.");
+          }
+
+          // Feature flags (Phase 4.1) — refresh the last-known map; a failed
+          // fetch keeps the persisted state (missing keys read as disabled).
+          try {
+              const flags = await fetchFeatureFlags();
+              if (flags && useStore.getState) {
+                  useStore.getState().setFeatureFlags(flags);
+              }
+          } catch (flagError) {
+              console.warn("Failed to fetch feature flags, keeping cached state.");
           }
 
         } catch (err) {

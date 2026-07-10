@@ -78,6 +78,12 @@ export const useStore = create(
       dynamicTOS: fallbackTOS,
       setDynamicTOS: (newTOS) => set({ dynamicTOS: newTOS }),
 
+      // Feature flags (Phase 4.1): { [key]: { enabled, payload } }, fetched at
+      // auth and persisted so offline sessions keep the last-known state.
+      // Missing keys read as disabled.
+      featureFlags: {},
+      setFeatureFlags: (flags) => set({ featureFlags: flags || {} }),
+
       // 2. TELEMETRY & STATS SLICE
       stats: null,
       syncStatus: 'synced',
@@ -556,7 +562,8 @@ export const useStore = create(
         pomodoro: state.pomodoro,
         theme: state.theme,
         isAdmin: state.isAdmin,
-        dynamicTOS: state.dynamicTOS // 🚀 CRITICAL: Tells the store to remember your changes
+        dynamicTOS: state.dynamicTOS, // 🚀 CRITICAL: Tells the store to remember your changes
+        featureFlags: state.featureFlags // last-known flags survive offline restarts
       }),
       // Offline tab-close recovery: useSyncLifecycle mirrors the live syncQueue
       // to localStorage (a SYNC API) on pagehide, because the IDB persist above

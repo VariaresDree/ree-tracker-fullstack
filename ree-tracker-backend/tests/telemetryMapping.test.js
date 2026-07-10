@@ -47,6 +47,43 @@ describe('mapAttemptRows — server-canonical naming', () => {
   });
 });
 
+describe('mapAttemptRows — offline-credit hardening (Phase 4.1 gate)', () => {
+  // Leaderboard integrity: theta (→ leaderboard rank) must derive exclusively
+  // from server-verifiable evidence. An offline attempt without a re-gradable
+  // userAnswer can never claim credit, no matter what the client asserts.
+  it('an offline attempt claiming isCorrect WITHOUT a userAnswer is zeroed', () => {
+    const { mapped } = mapAttemptRows(
+      [{ questionId: 'q1', isCorrect: true, offline: true }], // tampered payload
+      qMap, ctx,
+    );
+    expect(mapped[0].isCorrect).toBe(false);
+  });
+
+  it('an offline attempt WITH a userAnswer is server-graded normally', () => {
+    const { mapped } = mapAttemptRows(
+      [{ questionId: 'q1', userAnswer: 'A', isCorrect: false, offline: true }],
+      qMap, ctx,
+    );
+    expect(mapped[0].isCorrect).toBe(true); // master answer is 'A'
+  });
+
+  it('an ONLINE attempt without a userAnswer keeps the legacy trust path', () => {
+    const { mapped } = mapAttemptRows(
+      [{ questionId: 'q1', isCorrect: true }],
+      qMap, ctx,
+    );
+    expect(mapped[0].isCorrect).toBe(true); // unchanged for non-offline surfaces
+  });
+
+  it('an unanswered offline item stays wrong (legit-client behavior unchanged)', () => {
+    const { mapped } = mapAttemptRows(
+      [{ questionId: 'q1', isCorrect: false, offline: true }],
+      qMap, ctx,
+    );
+    expect(mapped[0].isCorrect).toBe(false);
+  });
+});
+
 describe('mapAttemptRows — grading + shape (unchanged behavior)', () => {
   it('re-grades from the master answer and reports client drift', () => {
     const { mapped, gradeDiscrepancies } = mapAttemptRows(

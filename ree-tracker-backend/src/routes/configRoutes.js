@@ -6,6 +6,7 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { diffTaxonomySync, invalidateTopicCache } = require('../services/topicResolver');
+const { featureFlagSchema } = require('../schemas/configSchemas');
 
 // TOS = { subject: [topicName, ...] }. Since Phase 3.3 the source of truth is
 // the Topic taxonomy table; the legacy SystemConfig.tos JSON is only served
@@ -82,6 +83,43 @@ router.get('/syllabus-weights', authMiddleware, async (req, res) => {
     } catch (error) {
         logger.error('syllabus-weights fetch error', { error: error.message });
         return res.status(500).json({ error: 'Failed to fetch syllabus weights.' });
+    }
+});
+
+// Feature flags (Phase 4.1) — the runtime rollout lever for later phases
+// (e.g. the Capacitor/FCM wrapper in 4.2). Clients read the whole map once at
+// auth; admins toggle per key. An empty table = all flags off.
+router.get('/flags', authMiddleware, async (req, res) => {
+    try {
+        const rows = await prisma.featureFlag.findMany();
+        const flags = {};
+        for (const f of rows) flags[f.key] = { enabled: f.enabled, payload: f.payload ?? null };
+        return res.status(200).json({ flags });
+    } catch (error) {
+        logger.error('flags fetch error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to fetch feature flags.' });
+    }
+});
+
+router.put('/flags/:key', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const parsed = featureFlagSchema.safeParse(req.body || {});
+        if (!parsed.success) {
+            return res.status(400).json({ error: 'Expected { enabled: boolean, payload?, description? }.' });
+        }
+        const key = String(req.params.key).trim().slice(0, 80);
+        if (!key) return res.status(400).json({ error: 'Flag key required.' });
+
+        const { enabled, payload, description } = parsed.data;
+        const flag = await prisma.featureFlag.upsert({
+            where: { key },
+            update: { enabled, payload: payload ?? undefined, description: description ?? undefined },
+            create: { key, enabled, payload: payload ?? null, description: description ?? null },
+        });
+        return res.status(200).json({ success: true, flag });
+    } catch (error) {
+        logger.error('flag update error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to update feature flag.' });
     }
 });
 

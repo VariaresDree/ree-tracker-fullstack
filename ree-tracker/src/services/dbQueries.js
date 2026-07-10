@@ -381,6 +381,14 @@ export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battl
 export const fetchDynamicTOS = async () => {
     try { return await apiRequest('/api/config/tos'); } catch (e) { return null; }
 };
+// Feature flags (Phase 4.1): { [key]: { enabled, payload } }. Null on failure —
+// callers keep whatever cached flags the store already holds (flags default off).
+export const fetchFeatureFlags = async () => {
+    try {
+        const res = await apiRequest('/api/config/flags');
+        return res?.flags ?? null;
+    } catch (e) { return null; }
+};
 export const updateDynamicTOS = async (newTOS) => apiRequest('/api/config/tos', 'PUT', newTOS);
 export const saveBookmark = async (uid, itemData) => apiRequest('/api/bookmarks', 'POST', itemData);
 export const removeBookmark = async (uid, itemId) => apiRequest(`/api/bookmarks/${itemId}`, 'DELETE');

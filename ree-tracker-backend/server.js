@@ -237,6 +237,16 @@ async function bootstrap() {
         console.warn('[BOOT] Battle socket NOT initialized — firebase or db unavailable.');
     }
 
+    // Phase 4.1: materialized leaderboard — immediate snapshot build + steady
+    // interval refresh (default 45s; env LEADERBOARD_REFRESH_MS). Routes fall
+    // back to the legacy live query while the snapshot is missing/stale.
+    if (readiness.db === 'ok') {
+        const { startLeaderboardRefresh } = require('./src/services/leaderboardService');
+        startLeaderboardRefresh();
+    } else {
+        console.warn('[BOOT] Leaderboard refresh NOT started — db unavailable (routes will live-query).');
+    }
+
     const PORT = process.env.PORT || 5000;
     httpServer.listen(PORT, () => {
         logger.info(`Assessment Engine initialized on port ${PORT}`);
