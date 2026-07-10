@@ -14,10 +14,12 @@ import {
 
 // Curated "should be covered" reference targets — drives the verification view.
 const REQUIRED_CONSTANT_CATEGORIES = ['Physical Constants', 'Equipment Standards', 'PEC Wiring (THHN)', 'Regulatory', 'Conversions'];
+// Canonical PRC TOS names (Phase 3.3) — formula subtopic tags are
+// canonicalized in useReferenceData, so coverage matches these labels.
 const REQUIRED_FORMULA_COVERAGE = {
-    Mathematics: ['Algebra & Complex Numbers', 'Trigonometry', 'Analytic Geometry', 'Calculus 1', 'Calculus 2', 'Differential Equations', 'Probability & Statistics', 'Numerical Methods & Analysis'],
-    ESAS: ['Engineering Economics', 'Physics for Engineers', 'Fluid Mechanics', 'Basic Thermodynamics'],
-    EE: ['Electric Circuits 1', 'Electric Circuits 2', 'Power System Analysis', 'Electrical Machinery 1', 'Electrical Machinery 2'],
+    Mathematics: ['Algebra', 'Trigonometry', 'Analytic Geometry', 'Differential Calculus', 'Integral Calculus', 'Other Engineering Mathematics', 'Probability and Statistics'],
+    ESAS: ['Engineering Economics and Management', 'College Physics', 'Fluid Mechanics', 'Thermodynamics'],
+    EE: ['DC Electric Circuits', 'AC Electric Circuits', 'Power System Interconnection', 'DC Generators', 'AC Generators'],
 };
 const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 
@@ -173,7 +175,7 @@ export default function ReferenceAdmin() {
                     </select>
                     <input className={inputCls} placeholder="Title (e.g. Ohm's Law (Impedance))" value={fForm.title} onChange={(e) => setFForm({ ...fForm, title: e.target.value })} />
                     <input className={`${inputCls} sm:col-span-2`} placeholder="Equation LaTeX (e.g. $$V = I \\times Z$$)" value={fForm.eq} onChange={(e) => setFForm({ ...fForm, eq: e.target.value })} />
-                    <input className={`${inputCls} sm:col-span-2`} placeholder="Subtopics, comma-separated (e.g. Electric Circuits 1, General)" value={fForm.subtopics} onChange={(e) => setFForm({ ...fForm, subtopics: e.target.value })} />
+                    <input className={`${inputCls} sm:col-span-2`} placeholder="Subtopics, comma-separated (e.g. DC Electric Circuits, General)" value={fForm.subtopics} onChange={(e) => setFForm({ ...fForm, subtopics: e.target.value })} />
                     <button type="submit" disabled={busy} className="sm:col-span-2 py-2.5 bg-reePurple hover:brightness-110 text-white font-bold rounded-lg text-xs uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50">➕ Add Formula</button>
                 </form>
             )}

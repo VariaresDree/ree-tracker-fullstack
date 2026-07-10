@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { EE_CONSTANTS } from '../config/knowledgeBase';
 import { OFFLINE_FORMULAS } from '../config/formulaSeed';
+import { canonicalizeTopicLabels } from '../config/legacyTopicAliases';
 import { fetchConstants, fetchFormulas } from '../services/dbQueries';
 
 const constKey = (c) => `${(c.category || '').trim().toLowerCase()}|||${(c.name || '').trim().toLowerCase()}`;
@@ -13,9 +14,12 @@ const formulaKey = (f) => `${(f.subject || '').trim().toLowerCase()}|||${(f.titl
 
 // Bundled seed flattened to the shared shape (a `subject` on every formula, and
 // a `_seed` marker so the admin UI can show what's read-only baseline vs DB).
+// Subtopic tags are canonicalized to PRC TOS names so the Reference Hub's
+// topic filter (fed by the Topic taxonomy since Phase 3.3) still matches
+// formulas tagged with pre-migration curriculum labels.
 const bundledConstants = EE_CONSTANTS.map((c) => ({ ...c, _seed: true }));
 const bundledFormulas = Object.entries(OFFLINE_FORMULAS).flatMap(([subject, arr]) =>
-    arr.map((f) => ({ ...f, subject, _seed: true })),
+    arr.map((f) => ({ ...f, subject, subtopics: canonicalizeTopicLabels(f.subtopics), _seed: true })),
 );
 
 export function useReferenceData() {
@@ -49,7 +53,7 @@ export function useReferenceData() {
     const mergedFormulas = useMemo(() => {
         const keys = new Set(dbFormulas.map(formulaKey));
         return [
-            ...dbFormulas.map((f) => ({ ...f, _seed: false, subtopics: f.subtopics || [] })),
+            ...dbFormulas.map((f) => ({ ...f, _seed: false, subtopics: canonicalizeTopicLabels(f.subtopics) })),
             ...bundledFormulas.filter((f) => !keys.has(formulaKey(f))),
         ];
     }, [dbFormulas]);

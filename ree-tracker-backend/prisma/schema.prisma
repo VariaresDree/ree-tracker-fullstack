@@ -72,11 +72,41 @@ model User {
   @@index([eloRating])
 }
 
+// Phase 3.3: canonical topic taxonomy (PRC REE board-exam TOS). One row per
+// subtopic; Question.topicId points here. `aliases` carries legacy/curriculum
+// labels ("Calculus 1") that resolve to the canonical topic ("Differential
+// Calculus"), so historical strings keep attributing correctly. `curated:false`
+// marks topics auto-created from unmatched legacy strings during migration —
+// visible in the UI but pending an admin merge/rename.
+model Topic {
+  id        String   @id @default(uuid())
+  subject   String            // canonical: 'Mathematics' | 'ESAS' | 'EE'
+  name      String            // canonical display label (PRC TOS)
+  normKey   String            // trim+lowercase name, the resolution key
+  aliases   String[] @default([])  // legacy labels that resolve to this topic
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  curated   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions         Question[]
+  topicPerformances UserTopicPerformance[]
+
+  @@unique([subject, normKey])
+  @@index([subject, active, sortOrder])
+}
+
 // 3. 'questions' collection (Exact Firebase Names Restored)
 model Question {
   id               String   @id @default(uuid())
   subject          String
   subtopic         String
+  // Phase 3.3: FK into the Topic taxonomy. Nullable so unmigrated/unresolved
+  // questions stay fully functional through the legacy `subtopic` string
+  // (which is rewritten to the canonical topic name once mapped).
+  topicId          String?
+  topic            Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
   text             String
   options          String[]
   answer           String
@@ -113,6 +143,8 @@ model Question {
   // index they full-scan the question bank on every readiness cache-miss and
   // every battle create.
   @@index([isFlagged, subtopic])
+  // Analytics/readiness aggregate attempts through Question→Topic joins.
+  @@index([topicId])
 }
 
 // 4. 'simulationHistory' collection
@@ -253,7 +285,11 @@ model UserTopicPerformance {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   subject     String   // e.g., "Mathematics", "ESAS", "EE Professional"
-  topic       String   // e.g., "AC Circuits", "Symmetrical Components"
+  topic       String   // canonical Topic.name once migrated; legacy string otherwise
+  // Phase 3.3: FK into the taxonomy (nullable — legacy strings that never map
+  // keep working through `topic`). The unique key stays [userId, topic].
+  topicId     String?
+  topicRef    Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
   attempts    Int      @default(0)
   correct     Int      @default(0)
   totalTime   Int      @default(0) // Stored in seconds
@@ -261,6 +297,7 @@ model UserTopicPerformance {
 
   @@unique([userId, topic])
   @@index([userId, subject])
+  @@index([topicId])
 }
 
 model ThetaHistory {

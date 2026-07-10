@@ -20,15 +20,32 @@ router.get('/', authMiddleware, async (req, res) => {
             select: { thetaRating: true, standardError: true }
         });
 
-        // groupBy pushes the DISTINCT down to Postgres and returns one row per
-        // subtopic — the old findMany+distinct pulled full row sets first.
-        const [totalSubtopics, coveredSubtopics] = await Promise.all([
-            prisma.question.groupBy({ by: ['subtopic'], where: { isFlagged: false } }),
-            prisma.questionAttempt.groupBy({ by: ['subtopic'], where: { userId: req.user.id } })
+        // Coverage counts TOPICS via the taxonomy (Phase 3.3), not raw attempt
+        // strings: after the canonicalization migration a user's pre-rename
+        // attempts ("Calculus 1") and post-rename attempts ("Differential
+        // Calculus") would otherwise count as two covered topics. Attempts
+        // attribute through their question's topicId; unmapped/legacy rows
+        // COALESCE back to the stored label. Tagged templates = bound params.
+        const [[totalRow], [coveredRow]] = await Promise.all([
+            prisma.$queryRaw`
+                SELECT COUNT(DISTINCT COALESCE(t."name", q."subtopic"))::int AS "n"
+                FROM "Question" q
+                LEFT JOIN "Topic" t ON t."id" = q."topicId"
+                WHERE q."isFlagged" = false
+            `,
+            prisma.$queryRaw`
+                SELECT COUNT(DISTINCT COALESCE(t."name", qa."subtopic"))::int AS "n"
+                FROM "QuestionAttempt" qa
+                JOIN "Question" q ON q."id" = qa."questionId"
+                LEFT JOIN "Topic" t ON t."id" = q."topicId"
+                WHERE qa."userId" = ${req.user.id}
+            `,
         ]);
+        const totalTopicCount = totalRow?.n ?? 0;
+        const coveredTopicCount = coveredRow?.n ?? 0;
 
-        const topicCoverage = totalSubtopics.length > 0
-            ? coveredSubtopics.length / totalSubtopics.length
+        const topicCoverage = totalTopicCount > 0
+            ? coveredTopicCount / totalTopicCount
             : 0;
 
         const [totalAttempts, correctAttempts] = await Promise.all([
@@ -55,27 +72,27 @@ router.get('/', authMiddleware, async (req, res) => {
             consistency = Math.min(1, uniqueDays.size / 7);
         }
 
-        const subtopicPerf = await prisma.questionAttempt.groupBy({
-            by: ['subtopic'],
-            where: { userId: req.user.id },
-            _count: { id: true }
-        });
-
-        const correctBySubtopic = await prisma.questionAttempt.groupBy({
-            by: ['subtopic'],
-            where: { userId: req.user.id, isCorrect: true },
-            _count: { id: true }
-        });
-
-        const correctMap = {};
-        correctBySubtopic.forEach(c => { correctMap[c.subtopic] = c._count.id; });
+        // Same taxonomy attribution as coverage — one query replaces the two
+        // string groupBys, so a topic's accuracy is never split across a legacy
+        // label and its canonical name.
+        const topicPerf = await prisma.$queryRaw`
+            SELECT
+                COALESCE(t."name", qa."subtopic") AS "topic",
+                COUNT(*)::int AS "attempts",
+                (COUNT(*) FILTER (WHERE qa."isCorrect"))::int AS "correct"
+            FROM "QuestionAttempt" qa
+            JOIN "Question" q ON q."id" = qa."questionId"
+            LEFT JOIN "Topic" t ON t."id" = q."topicId"
+            WHERE qa."userId" = ${req.user.id}
+            GROUP BY 1
+        `;
 
         let blindSpotCount = 0;
-        subtopicPerf.forEach(s => {
-            const acc = (correctMap[s.subtopic] || 0) / s._count.id;
-            if (acc < 0.4 && s._count.id >= 3) blindSpotCount++;
+        topicPerf.forEach(s => {
+            const acc = s.correct / s.attempts;
+            if (acc < 0.4 && s.attempts >= 3) blindSpotCount++;
         });
-        const blindSpotRatio = subtopicPerf.length > 0 ? blindSpotCount / subtopicPerf.length : 0;
+        const blindSpotRatio = topicPerf.length > 0 ? blindSpotCount / topicPerf.length : 0;
 
         // Composite score: topic coverage (30%), accuracy (30%), theta (20%), consistency (10%), blind spots (10%)
         const score = Math.round((
@@ -95,8 +112,8 @@ router.get('/', authMiddleware, async (req, res) => {
                 consistency: Math.round(consistency * 100),
                 blindSpotRatio: Math.round(blindSpotRatio * 100),
                 blindSpotCount,
-                totalSubtopics: totalSubtopics.length,
-                coveredSubtopics: coveredSubtopics.length
+                totalSubtopics: totalTopicCount,
+                coveredSubtopics: coveredTopicCount
             }
         };
         readinessCache.set(req.user.id, payload);

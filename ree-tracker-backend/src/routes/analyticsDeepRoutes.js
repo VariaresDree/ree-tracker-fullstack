@@ -4,23 +4,32 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 
-// GET /api/analytics/deep/time-analysis — time-per-question by subtopic.
+// GET /api/analytics/deep/time-analysis — time-per-question by topic.
 // Excludes corrupt timing rows (0ms/inflated) so the averages are truthful.
+// Attempts attribute through Question→Topic (Phase 3.3), falling back to the
+// attempt's stored label for unmapped rows, so a topic's timing never splits
+// across a legacy string and its canonical name. Tagged template = bound params.
 router.get('/time-analysis', authMiddleware, async (req, res) => {
     try {
-        const data = await prisma.questionAttempt.groupBy({
-            by: ['subtopic'],
-            where: { userId: req.user.id, timeSpentMs: { gte: TIME_MIN_MS, lte: TIME_MAX_MS } },
-            _avg: { timeSpentMs: true },
-            _count: { id: true },
-            _sum: { timeSpentMs: true }
-        });
+        const data = await prisma.$queryRaw`
+            SELECT
+                COALESCE(t."name", qa."subtopic") AS "subtopic",
+                ROUND(AVG(qa."timeSpentMs"))::int AS "avgTimeMs",
+                SUM(qa."timeSpentMs")::bigint     AS "totalTimeMs",
+                COUNT(*)::int                     AS "count"
+            FROM "QuestionAttempt" qa
+            JOIN "Question" q ON q."id" = qa."questionId"
+            LEFT JOIN "Topic" t ON t."id" = q."topicId"
+            WHERE qa."userId" = ${req.user.id}
+              AND qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}
+            GROUP BY 1
+        `;
 
         const result = data.map(d => ({
             subtopic: d.subtopic,
-            avgTimeMs: Math.round(d._avg.timeSpentMs || 0),
-            totalTimeMs: d._sum.timeSpentMs || 0,
-            count: d._count.id
+            avgTimeMs: d.avgTimeMs || 0,
+            totalTimeMs: Number(d.totalTimeMs) || 0,
+            count: d.count
         })).sort((a, b) => b.avgTimeMs - a.avgTimeMs);
 
         res.status(200).json({ items: result });

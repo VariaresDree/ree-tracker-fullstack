@@ -62,39 +62,39 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         const activityCalendar = {};
         activityLogs.forEach(log => activityCalendar[log.date] = log.count);
 
-        // Counts/accuracy use EVERY attempt. Timing is aggregated separately
-        // and bounded to plausible values — the live DB has corrupted rows
+        // Per-topic rollup through the taxonomy (Phase 3.3): attempts attribute
+        // to their question's CURRENT topic (COALESCE back to the attempt's
+        // stored label for unmapped/legacy rows), so re-tagging a question
+        // retroactively corrects its history instead of stranding it under a
+        // renamed string. Counts/accuracy use EVERY attempt; timing is bounded
+        // to plausible values via FILTER — the live DB has corrupted rows
         // (0ms "instant" answers and ~1000x-inflated times) that would poison
-        // the Speed Mapping averages. We exclude them here rather than
-        // destructively rewriting history.
-        const [topicAgg, timeAgg] = await Promise.all([
-            prisma.questionAttempt.groupBy({
-                by: ['subject', 'subtopic', 'isCorrect'],
-                where: { userId: uid },
-                _count: { id: true },
-            }),
-            prisma.questionAttempt.groupBy({
-                by: ['subtopic'],
-                where: { userId: uid, timeSpentMs: { gte: TIME_MIN_MS, lte: TIME_MAX_MS } },
-                _sum: { timeSpentMs: true },
-                _count: { id: true },
-            }),
-        ]);
+        // the Speed Mapping averages. Tagged template = every value is a bound
+        // parameter (fully guard-safe, no string interpolation into SQL).
+        const topicRows = await prisma.$queryRaw`
+            SELECT
+                COALESCE(t."name", qa."subtopic")   AS "topic",
+                COALESCE(t."subject", qa."subject") AS "subject",
+                COUNT(*)::int                                       AS "totalAttempts",
+                (COUNT(*) FILTER (WHERE qa."isCorrect"))::int       AS "correctHits",
+                COALESCE(SUM(qa."timeSpentMs") FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}), 0)::bigint AS "totalTimeMs",
+                (COUNT(*) FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}))::int AS "timedAttempts"
+            FROM "QuestionAttempt" qa
+            JOIN "Question" q ON q."id" = qa."questionId"
+            LEFT JOIN "Topic" t ON t."id" = q."topicId"
+            WHERE qa."userId" = ${uid}
+            GROUP BY 1, 2
+        `;
 
         const microTopics = {};
-        topicAgg.forEach(group => {
-            const sub = group.subtopic;
-            if (!microTopics[sub]) {
-                microTopics[sub] = { subject: group.subject, totalAttempts: 0, correctHits: 0, totalTimeSecs: 0, timedAttempts: 0 };
-            }
-            microTopics[sub].totalAttempts += group._count.id;
-            if (group.isCorrect) microTopics[sub].correctHits += group._count.id;
-        });
-        timeAgg.forEach(group => {
-            const sub = group.subtopic;
-            if (!microTopics[sub]) return; // no counts row shouldn't happen, but guard
-            microTopics[sub].totalTimeSecs += Math.floor((group._sum.timeSpentMs || 0) / 1000);
-            microTopics[sub].timedAttempts += group._count.id;
+        topicRows.forEach((r) => {
+            // Merge rather than overwrite: the same label can surface under two
+            // subjects (legacy attempt rows) — first-seen subject wins, counts add.
+            const agg = microTopics[r.topic] ||= { subject: r.subject, totalAttempts: 0, correctHits: 0, totalTimeSecs: 0, timedAttempts: 0 };
+            agg.totalAttempts += r.totalAttempts;
+            agg.correctHits += r.correctHits;
+            agg.totalTimeSecs += Math.floor(Number(r.totalTimeMs) / 1000);
+            agg.timedAttempts += r.timedAttempts;
         });
 
         const matrixAgg = await prisma.questionAttempt.groupBy({

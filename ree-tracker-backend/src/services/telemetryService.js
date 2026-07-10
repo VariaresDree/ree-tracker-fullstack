@@ -11,7 +11,8 @@ const prisma = require('../config/db');
 // puts User.thetaRating + standardError on the same scale the CAT prior and the
 // forecast already assume, and populates the (previously never-written) standardError.
 const { updateTheta } = require('../engine/irt');
-const { partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
+const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups } = require('./telemetryHelpers');
+const { resolveTopic } = require('./topicResolver');
 const dashboardCache = require('./dashboardCache');
 const readinessCache = require('./readinessCache');
 const logger = require('../utils/logger');
@@ -71,41 +72,12 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     const qMap = Object.create(null);
     for (const q of masterQuestions) qMap[q.id] = q;
 
-    const gradeDiscrepancies = [];
-    const mapped = attempts
-        .filter((a) => a.questionId && qMap[a.questionId])
-        .map((a) => {
-            const m = qMap[a.questionId];
-            const serverGraded = a.userAnswer != null;
-            const isCorrect = serverGraded ? m.answer === a.userAnswer : !!a.isCorrect;
-            // Discrepancy signal: the client sent both a userAnswer (which we
-            // re-grade) AND its own isCorrect, and they disagree → the client's
-            // (offline) answer key has drifted from the master. The SERVER score
-            // is canonical; we just log the drift so it's visible, not silent.
-            if (serverGraded && typeof a.isCorrect === 'boolean' && a.isCorrect !== isCorrect) {
-                gradeDiscrepancies.push({ questionId: a.questionId, client: a.isCorrect, server: isCorrect, offline: !!a.offline });
-            }
-            return {
-                userId,
-                questionId: a.questionId,
-                subject: canonicalSubject(a.subject || m.subject || 'General'),
-                subtopic: a.subtopic || m.subtopic || 'General',
-                isCorrect,
-                confidenceLevel: String(a.confidenceLevel || 'LOW').toUpperCase(),
-                timeSpentMs: parseInt(a.timeSpentMs) || 0,
-                clientAttemptId: a.clientAttemptId || null,
-                offline: !!a.offline,
-                sessionId,
-                mode,
-                _difficulty: m.difficulty || 0.0,
-                // 3PL item params for the theta estimator (stripped before the
-                // QuestionAttempt write). irtB falls back to legacy difficulty;
-                // a/c to sane 3PL defaults for uncalibrated items.
-                _a: m.irtA,
-                _b: m.irtB,
-                _c: m.irtC,
-            };
-        });
+    // Mapping is a pure helper (telemetryHelpers.mapAttemptRows) so the
+    // server-canonical naming/grading rules are unit-testable: master-question
+    // subject/subtopic win over the client's copy (Phase 3.3 — a stale offline
+    // pack may still send a pre-taxonomy label), and grading discrepancies are
+    // surfaced, not silent.
+    const { mapped, gradeDiscrepancies } = mapAttemptRows(attempts, qMap, { userId, sessionId, mode });
 
     if (gradeDiscrepancies.length > 0) {
         logger.warn('telemetry grading discrepancy (server score is canonical)', {
@@ -221,14 +193,22 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         const rollups = aggregateTopicRollups(newOnly);
         if (rollups.length > 0) {
             const now = new Date();
-            const rows = rollups.map((r) => Prisma.sql`(${randomUUID()}, ${userId}, ${r.subject}, ${r.topic}, ${r.attempts}, ${r.correct}, ${r.totalTimeSecs}, ${now})`);
+            // Attach the taxonomy FK where the topic label resolves (Phase 3.3).
+            // Resolution reads a TTL-cached index — a miss just leaves topicId
+            // NULL, it never blocks or fails the telemetry write.
+            const withTopicIds = await Promise.all(rollups.map(async (r) => ({
+                ...r,
+                topicId: (await resolveTopic(r.subject, r.topic))?.id ?? null,
+            })));
+            const rows = withTopicIds.map((r) => Prisma.sql`(${randomUUID()}, ${userId}, ${r.subject}, ${r.topic}, ${r.topicId}, ${r.attempts}, ${r.correct}, ${r.totalTimeSecs}, ${now})`);
             await db.$executeRaw`
-                INSERT INTO "UserTopicPerformance" ("id", "userId", "subject", "topic", "attempts", "correct", "totalTime", "updatedAt")
+                INSERT INTO "UserTopicPerformance" ("id", "userId", "subject", "topic", "topicId", "attempts", "correct", "totalTime", "updatedAt")
                 VALUES ${Prisma.join(rows)}
                 ON CONFLICT ("userId", "topic") DO UPDATE SET
                     "attempts"  = "UserTopicPerformance"."attempts"  + EXCLUDED."attempts",
                     "correct"   = "UserTopicPerformance"."correct"   + EXCLUDED."correct",
                     "totalTime" = "UserTopicPerformance"."totalTime" + EXCLUDED."totalTime",
+                    "topicId"   = COALESCE(EXCLUDED."topicId", "UserTopicPerformance"."topicId"),
                     "updatedAt" = EXCLUDED."updatedAt"
             `;
         }
