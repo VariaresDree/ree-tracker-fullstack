@@ -131,4 +131,27 @@ function groupPairsBySubject(mapped) {
     return bySubject;
 }
 
-module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, ABILITY_SUBJECTS };
+/**
+ * Group a mapped batch into per-topic ORDERED correctness observations for the
+ * BKT mastery fold (Phase 3.5). Unlike aggregateTopicRollups (which sums
+ * counts), BKT is sequential — order within the batch must be preserved, so
+ * this keeps the attempts in their original array order per topic.
+ *
+ * @param {Array<{subtopic, subject, isCorrect}>} mapped
+ * @returns {Map<string, {subject, observations: boolean[]}>} keyed by topic
+ */
+function orderedObservationsByTopic(mapped) {
+    const byTopic = new Map();
+    for (const m of mapped || []) {
+        const topic = m.subtopic || 'General';
+        let entry = byTopic.get(topic);
+        if (!entry) {
+            entry = { subject: m.subject || 'General', observations: [] };
+            byTopic.set(topic, entry);
+        }
+        entry.observations.push(!!m.isCorrect);
+    }
+    return byTopic;
+}
+
+module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic, ABILITY_SUBJECTS };

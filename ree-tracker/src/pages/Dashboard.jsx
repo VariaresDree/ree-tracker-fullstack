@@ -75,6 +75,7 @@ export default function Dashboard() {
             safeTOS[subject].forEach((subtopic) => {
               normalizedMicroTopics[subtopic] = {
                 subject, subtopic, attempts: 0, correct: 0, totalTime: 0, timedAttempts: 0,
+                mastery: null, masteryN: 0,
               };
             });
           });
@@ -93,6 +94,9 @@ export default function Dashboard() {
                 // How many of those attempts had usable timing (rest excluded
                 // as corrupt) — the heatmap averages over this count.
                 timedAttempts: rawData.timedAttempts || 0,
+                // BKT P(mastery) 0..1 (null until first observation) + count.
+                mastery: rawData.mastery ?? null,
+                masteryN: rawData.masteryN || 0,
               };
             }
           });

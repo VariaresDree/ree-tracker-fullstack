@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-const { partitionNewAttempts, aggregateTopicRollups } = require('../src/services/telemetryHelpers');
+const { partitionNewAttempts, aggregateTopicRollups, orderedObservationsByTopic } = require('../src/services/telemetryHelpers');
 
 describe('partitionNewAttempts', () => {
   it('treats all rows as new when none are already recorded', () => {
@@ -52,5 +52,23 @@ describe('aggregateTopicRollups', () => {
   it('defaults a missing subtopic to General', () => {
     const [roll] = aggregateTopicRollups([{ subject: 'EE', isCorrect: true, timeSpentMs: 3000 }]);
     expect(roll.topic).toBe('General');
+  });
+});
+
+describe('orderedObservationsByTopic (BKT fold input)', () => {
+  it('groups by topic and PRESERVES attempt order within each topic', () => {
+    const byTopic = orderedObservationsByTopic([
+      { subject: 'EE', subtopic: 'AC Circuits', isCorrect: true },
+      { subject: 'Mathematics', subtopic: 'Algebra', isCorrect: false },
+      { subject: 'EE', subtopic: 'AC Circuits', isCorrect: false },
+      { subject: 'EE', subtopic: 'AC Circuits', isCorrect: true },
+    ]);
+    expect(byTopic.get('AC Circuits')).toMatchObject({ subject: 'EE', observations: [true, false, true] });
+    expect(byTopic.get('Algebra')).toMatchObject({ subject: 'Mathematics', observations: [false] });
+  });
+
+  it('defaults a missing subtopic to General and coerces truthiness to boolean', () => {
+    const byTopic = orderedObservationsByTopic([{ subject: 'EE', isCorrect: 1 }]);
+    expect(byTopic.get('General').observations).toEqual([true]);
   });
 });

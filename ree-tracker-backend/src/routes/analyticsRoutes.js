@@ -90,12 +90,25 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         topicRows.forEach((r) => {
             // Merge rather than overwrite: the same label can surface under two
             // subjects (legacy attempt rows) — first-seen subject wins, counts add.
-            const agg = microTopics[r.topic] ||= { subject: r.subject, totalAttempts: 0, correctHits: 0, totalTimeSecs: 0, timedAttempts: 0 };
+            const agg = microTopics[r.topic] ||= { subject: r.subject, totalAttempts: 0, correctHits: 0, totalTimeSecs: 0, timedAttempts: 0, mastery: null, masteryN: 0 };
             agg.totalAttempts += r.totalAttempts;
             agg.correctHits += r.correctHits;
             agg.totalTimeSecs += Math.floor(Number(r.totalTimeMs) / 1000);
             agg.timedAttempts += r.timedAttempts;
         });
+
+        // BKT mastery (Phase 3.5) lives on UserTopicPerformance, keyed by the
+        // canonical topic name — merge P(mastery) onto each microTopic. Matched
+        // case/whitespace-insensitively, the same way the heatmap resolves tiles.
+        const masteryRows = await prisma.userTopicPerformance.findMany({
+            where: { userId: uid },
+            select: { topic: true, pMastery: true, masteryN: true },
+        });
+        const masteryByNorm = new Map(masteryRows.map((m) => [String(m.topic || '').trim().toLowerCase(), m]));
+        for (const [topic, agg] of Object.entries(microTopics)) {
+            const m = masteryByNorm.get(String(topic).trim().toLowerCase());
+            if (m) { agg.mastery = m.pMastery; agg.masteryN = m.masteryN; }
+        }
 
         const matrixAgg = await prisma.questionAttempt.groupBy({
             by: ['confidenceLevel', 'isCorrect'],
