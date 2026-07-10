@@ -201,6 +201,165 @@ function logLikelihood(samples, item) {
   return s;
 }
 
+// ---- Phase 3.4: empirical recalibration numerics --------------------------
+
+// Bounds for the 2PL item fit. `a` outside these is almost always a fitting
+// artifact on small samples; `b` beyond ±3.5 is off the usable theta range.
+const A_BOUNDS = [0.4, 2.5];
+const B_BOUNDS = [-3.5, 3.5];
+
+/**
+ * Fit one item's (a, b) by bounded MLE over (theta, correct) samples, with c
+ * FIXED (2PL on top of a guessing floor — c isn't estimable from small N).
+ * Coarse grid seed, then damped coordinate-wise Newton refinement using the
+ * expected information — deterministic (no RNG), so calibration runs and
+ * tests are reproducible.
+ *
+ * @param {Array<{theta:number, correct:boolean}>} samples
+ * @param {{c?:number, minN?:number, seed?:{a?:number,b?:number}}} [options]
+ * @returns {{a:number, b:number, c:number}|null} null when under minN
+ */
+function fitItem2pl(samples, options = {}) {
+  const minN = options.minN ?? 10;
+  if (!samples || samples.length < minN) return null;
+  const c = clamp(options.c ?? 0.20, 0, 0.5);
+
+  // Seed: coarse grid (plus the caller's seed as a candidate) so Newton starts
+  // near the global optimum instead of a flat tail.
+  let a = clamp(options.seed?.a ?? 1, A_BOUNDS[0], A_BOUNDS[1]);
+  let b = clamp(options.seed?.b ?? 0, B_BOUNDS[0], B_BOUNDS[1]);
+  let bestLL = logLikelihood(samples, { a, b, c });
+  for (const ga of [0.5, 1.0, 1.5, 2.0]) {
+    for (const gb of linspace(-3, 3, 13)) {
+      const ll = logLikelihood(samples, { a: ga, b: gb, c });
+      if (ll > bestLL) { bestLL = ll; a = ga; b = gb; }
+    }
+  }
+
+  // Damped Newton, one coordinate at a time. dP/db = -SCALE·a·(P-c)(1-P)/(1-c),
+  // dP/da = SCALE·(θ-b)·(P-c)(1-P)/(1-c); score = Σ (u-P)/(P(1-P))·dP/dx and
+  // expected information I = Σ (dP/dx)²/(P(1-P)).
+  for (let iter = 0; iter < 40; iter++) {
+    let gB = 0, iB = 1e-6, gA = 0, iA = 1e-6;
+    for (const { theta, correct } of samples) {
+      const p = p3pl(theta, { a, b, c });
+      if (p <= c + 1e-9 || p >= 1 - 1e-9) continue;
+      const pq = p * (1 - p);
+      const core = ((p - c) * (1 - p)) / (1 - c);
+      const dpDb = -SCALE * a * core;
+      const dpDa = SCALE * (theta - b) * core;
+      const u = correct ? 1 : 0;
+      const resid = (u - p) / pq;
+      gB += resid * dpDb;
+      iB += (dpDb * dpDb) / pq;
+      gA += resid * dpDa;
+      iA += (dpDa * dpDa) / pq;
+    }
+    const stepB = clamp(gB / iB, -0.5, 0.5);
+    b = clamp(b + stepB, B_BOUNDS[0], B_BOUNDS[1]);
+    const stepA = clamp(gA / iA, -0.25, 0.25);
+    a = clamp(a + stepA, A_BOUNDS[0], A_BOUNDS[1]);
+    if (Math.abs(stepB) < 1e-4 && Math.abs(stepA) < 1e-4) break;
+  }
+
+  return { a, b, c };
+}
+
+/**
+ * Bayesian-anchored JMLE (MAP joint estimation) over a response matrix.
+ *
+ * Classic JMLE identifies the theta/b scale by mean-centering person thetas —
+ * with a small user base that pins "average user = 0" and corrupts item
+ * estimates. Here the person step instead estimates each person with their
+ * LIVE (theta, se) as the prior (via updateTheta), anchoring the item scale
+ * to the scale the app already serves; it converges to standard JMLE as data
+ * grows. Author-shrinkage is deliberately NOT applied here — the caller
+ * blends the returned empirical params with the author estimate by n.
+ *
+ * @param {object} input
+ * @param {Array<{personId:string, itemId:string, correct:boolean}>} input.responses
+ *   One response per (person, item) — caller dedupes to first attempts.
+ * @param {Object<string,{theta:number,se:number}>} [input.personPriors]
+ *   Live ability priors; missing persons default to {theta:0, se:1}.
+ * @param {Object<string,{a?:number,b?:number}>} [input.itemSeeds]
+ *   Initial params per item (e.g. current blend or author b); default {1, 0}.
+ * @param {{c?:number, minItemN?:number, maxRounds?:number, tol?:number}} [options]
+ * @returns {{items:Object<string,{a:number,b:number,n:number}>, persons:Object<string,{theta:number,se:number}>}}
+ *   `items` contains only items that met minItemN and were fitted.
+ */
+function jmleCalibrate({ responses, personPriors = {}, itemSeeds = {} }, options = {}) {
+  const c = clamp(options.c ?? 0.20, 0, 0.5);
+  const minItemN = options.minItemN ?? 10;
+  const maxRounds = options.maxRounds ?? 8;
+  const tol = options.tol ?? 1e-3;
+
+  const byPerson = new Map();
+  const byItem = new Map();
+  for (const r of responses || []) {
+    if (!r || !r.personId || !r.itemId) continue;
+    if (!byPerson.has(r.personId)) byPerson.set(r.personId, []);
+    byPerson.get(r.personId).push(r);
+    if (!byItem.has(r.itemId)) byItem.set(r.itemId, []);
+    byItem.get(r.itemId).push(r);
+  }
+
+  // State: item params (seeded), person thetas (from priors).
+  const items = new Map();
+  for (const itemId of byItem.keys()) {
+    const seed = itemSeeds[itemId] || {};
+    items.set(itemId, {
+      a: clamp(Number.isFinite(seed.a) ? seed.a : 1, A_BOUNDS[0], A_BOUNDS[1]),
+      b: clamp(Number.isFinite(seed.b) ? seed.b : 0, B_BOUNDS[0], B_BOUNDS[1]),
+      fitted: false,
+    });
+  }
+  const persons = new Map();
+  for (const personId of byPerson.keys()) {
+    const prior = personPriors[personId] || {};
+    persons.set(personId, {
+      theta: Number.isFinite(prior.theta) ? prior.theta : 0,
+      se: Number.isFinite(prior.se) ? prior.se : 1.0,
+    });
+  }
+
+  for (let round = 0; round < maxRounds; round++) {
+    // Person step: MAP theta per person against current item params. Every
+    // response participates — unfitted items contribute through their seeds.
+    for (const [personId, rows] of byPerson) {
+      const prior = personPriors[personId] || { theta: 0, se: 1.0 };
+      const pairs = rows.map((r) => {
+        const it = items.get(r.itemId);
+        return { item: { a: it.a, b: it.b, c }, correct: !!r.correct };
+      });
+      persons.set(personId, updateTheta(prior, pairs));
+    }
+
+    // Item step: bounded MLE per item with enough responses.
+    let maxDeltaB = 0;
+    for (const [itemId, rows] of byItem) {
+      if (rows.length < minItemN) continue;
+      const cur = items.get(itemId);
+      const samples = rows.map((r) => ({
+        theta: persons.get(r.personId).theta,
+        correct: !!r.correct,
+      }));
+      const fit = fitItem2pl(samples, { c, minN: minItemN, seed: cur });
+      if (!fit) continue;
+      maxDeltaB = Math.max(maxDeltaB, Math.abs(fit.b - cur.b));
+      items.set(itemId, { a: fit.a, b: fit.b, fitted: true });
+    }
+    if (maxDeltaB < tol) break;
+  }
+
+  const itemsOut = {};
+  for (const [itemId, it] of items) {
+    if (it.fitted) itemsOut[itemId] = { a: it.a, b: it.b, n: byItem.get(itemId).length };
+  }
+  const personsOut = {};
+  for (const [personId, p] of persons) personsOut[personId] = { theta: p.theta, se: p.se };
+  return { items: itemsOut, persons: personsOut };
+}
+
 // ---- helpers ----
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
@@ -222,6 +381,8 @@ module.exports = {
   updateTheta,
   selectNextItem,
   calibrateItem,
+  fitItem2pl,
+  jmleCalibrate,
   // exposed for tests
   _internals: { sigmoid, logLikelihood },
 };
