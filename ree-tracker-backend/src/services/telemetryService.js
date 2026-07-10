@@ -11,7 +11,9 @@ const prisma = require('../config/db');
 // puts User.thetaRating + standardError on the same scale the CAT prior and the
 // forecast already assume, and populates the (previously never-written) standardError.
 const { updateTheta } = require('../engine/irt');
-const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject } = require('./telemetryHelpers');
+const { bktSequence } = require('../engine/bkt');
+const { paramsForTopic } = require('../config/bktParams');
+const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic } = require('./telemetryHelpers');
 const { resolveTopic } = require('./topicResolver');
 const dashboardCache = require('./dashboardCache');
 const readinessCache = require('./readinessCache');
@@ -211,6 +213,31 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                     "topicId"   = COALESCE(EXCLUDED."topicId", "UserTopicPerformance"."topicId"),
                     "updatedAt" = EXCLUDED."updatedAt"
             `;
+
+            // BKT mastery fold (Phase 3.5). The rollup above upserted a row for
+            // every topic in this batch; now advance each topic's P(mastery) by
+            // folding the batch's ORDERED observations through BKT, seeded at the
+            // stored value (or pInit on first sight). Sequential — can't be an
+            // additive SQL upsert like the counts, so it's a small read→fold→write
+            // per topic (a batch spans few topics). Same transaction: fails safe.
+            const obsByTopic = orderedObservationsByTopic(newOnly);
+            const topicNames = [...obsByTopic.keys()];
+            const existingMastery = await db.userTopicPerformance.findMany({
+                where: { userId, topic: { in: topicNames } },
+                select: { topic: true, pMastery: true, masteryN: true },
+            });
+            const masteryByTopic = new Map(existingMastery.map((r) => [r.topic, r]));
+            for (const [topic, { observations }] of obsByTopic) {
+                const prev = masteryByTopic.get(topic);
+                const params = paramsForTopic(topic);
+                const seed = prev && prev.pMastery != null ? prev.pMastery : params.pInit;
+                const { pMastery } = bktSequence(observations, params, seed);
+                // subject/topicId already persisted by the rollup upsert above.
+                await db.userTopicPerformance.update({
+                    where: { userId_topic: { userId, topic } },
+                    data: { pMastery, masteryN: { increment: observations.length } },
+                });
+            }
         }
     };
 

@@ -2,13 +2,18 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store/useStore';
 import { Panel } from './ui';
-import { Flame, Timer } from './ui/icons';
+import { Flame, Timer, Target } from './ui/icons';
 
 const normKey = (s) => String(s || '').trim().toLowerCase();
 
+const VIEW_MODES = ['mastery', 'accuracy', 'speed'];
+const VIEW_LABEL = { mastery: 'Mastery', accuracy: 'Accuracy', speed: 'Speed' };
+const VIEW_ICON = { mastery: Target, accuracy: Flame, speed: Timer };
+
 function HeatmapChart({ stats }) {
   const [activeTab, setActiveTab] = useState('Mathematics');
-  const [viewMode, setViewMode] = useState('accuracy');
+  // BKT P(mastery) is the headline signal (roadmap 3.5) — default view.
+  const [viewMode, setViewMode] = useState('mastery');
 
   const { dynamicTOS } = useStore();
   const safeTOS = dynamicTOS || {};
@@ -23,34 +28,51 @@ function HeatmapChart({ stats }) {
   }, [microTopics]);
 
   // Memoized so it doesn't re-map + re-sort the whole TOS on every render —
-  // notably the Accuracy/Speed toggle (viewMode) doesn't affect this list at all.
+  // the viewMode toggle doesn't affect this list at all.
   const displayedTopics = useMemo(
     () =>
       (safeTOS[activeTab] || [])
         .map((topicName) => ({
           name: topicName,
-          data: microByNorm[normKey(topicName)] || { attempts: 0, correct: 0, totalTime: 0 },
+          data: microByNorm[normKey(topicName)] || { attempts: 0, correct: 0, totalTime: 0, mastery: null, masteryN: 0 },
         }))
         .sort((a, b) => b.data.attempts - a.data.attempts),
     [safeTOS, activeTab, microByNorm],
   );
 
   const targetLimit = activeTab === 'EE' ? 216 : 144;
+  const title =
+    viewMode === 'accuracy' ? 'Accuracy by subtopic'
+    : viewMode === 'speed' ? `Speed vs ${targetLimit}s limit`
+    : 'Mastery by subtopic';
 
   return (
     <Panel
-      icon={viewMode === 'accuracy' ? Flame : Timer}
+      icon={VIEW_ICON[viewMode]}
       eyebrow="Topic mastery"
-      title={viewMode === 'accuracy' ? 'Accuracy by subtopic' : `Speed vs ${targetLimit}s limit`}
+      title={title}
       className="h-full"
       bodyClassName="flex flex-col gap-3 min-h-0"
       action={
-        <button
-          onClick={() => setViewMode(viewMode === 'accuracy' ? 'speed' : 'accuracy')}
-          className="text-[0.7rem] px-3 py-1.5 rounded-lg border border-border bg-surface2 hover:bg-surface3 text-textMain cursor-pointer font-medium transition-colors shrink-0"
-        >
-          {viewMode === 'accuracy' ? 'Speed' : 'Accuracy'}
-        </button>
+        <div className="flex gap-1 shrink-0" role="group" aria-label="Heatmap metric">
+          {VIEW_MODES.map((mode) => {
+            const on = viewMode === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                aria-pressed={on}
+                className={`text-[0.7rem] px-2.5 py-1.5 rounded-lg border cursor-pointer font-medium transition-colors ${
+                  on
+                    ? 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent)]'
+                    : 'border-border bg-surface2 hover:bg-surface3 text-muted'
+                }`}
+              >
+                {VIEW_LABEL[mode]}
+              </button>
+            );
+          })}
+        </div>
       }
     >
       <div className="flex gap-2 shrink-0" role="tablist" aria-label="Subject">
@@ -83,13 +105,27 @@ function HeatmapChart({ stats }) {
           // otherwise the average is diluted toward zero.
           const timedCount = item.data.timedAttempts || 0;
           const avgTime = timedCount > 0 ? Math.round(item.data.totalTime / 1000 / timedCount) : 0;
+          // BKT P(mastery): server-authoritative, null until first observation.
+          const masteryVal = item.data.mastery;
+          const masteryHasData = (item.data.masteryN || 0) > 0 && masteryVal != null;
 
           let bgClass = 'bg-bg/60 border-border opacity-50';
           let textClass = 'text-muted';
           let metricDisplay = '—';
           let subLabel = 'No data yet';
 
-          if (hasData) {
+          if (viewMode === 'mastery') {
+            if (masteryHasData) {
+              const mPct = Math.round(masteryVal * 100);
+              metricDisplay = `${mPct}%`;
+              // Bands mirror the BKT mastery tiers: Mastered / Proficient /
+              // Developing / Novice — the interpretable per-topic signal.
+              if (mPct >= 85) { bgClass = 'bg-reeGreen/10 border-reeGreen/40'; textClass = 'text-reeGreen'; subLabel = 'Mastered'; }
+              else if (mPct >= 65) { bgClass = 'bg-green-400/10 border-green-400/30'; textClass = 'text-green-400'; subLabel = 'Proficient'; }
+              else if (mPct >= 45) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber'; subLabel = 'Developing'; }
+              else { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed'; subLabel = 'Novice'; }
+            }
+          } else if (hasData) {
             if (viewMode === 'accuracy') {
               metricDisplay = `${pct}%`;
               subLabel = `${item.data.correct} / ${item.data.attempts} correct`;
@@ -112,10 +148,12 @@ function HeatmapChart({ stats }) {
             }
           }
 
+          const tileActive = viewMode === 'mastery' ? masteryHasData : hasData;
+
           return (
             <div key={item.name} className={`p-3.5 rounded-xl border flex justify-between items-center transition-all shrink-0 ${bgClass}`}>
               <div className="flex flex-col min-w-0 pr-4">
-                <div className={`text-sm font-semibold truncate ${hasData ? 'text-textMain' : 'text-muted'}`} title={item.name}>
+                <div className={`text-sm font-semibold truncate ${tileActive ? 'text-textMain' : 'text-muted'}`} title={item.name}>
                   {item.name}
                 </div>
                 <div className={`text-[11px] uppercase tracking-wider mt-0.5 font-medium ${textClass}`}>{subLabel}</div>
