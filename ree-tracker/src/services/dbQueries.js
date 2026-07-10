@@ -174,6 +174,19 @@ export const saveQuestionToBank = async (questionObject) => {
 };
 export const fetchQuarantineQueue = async () => normalizeQuestions(await apiRequest('/api/questions/quarantine'));
 export const approveQuarantinedQuestion = async (id, subject, subtopic) => apiRequest(`/api/questions/quarantine/${id}/approve`, 'PUT', { subject, subtopic });
+
+// AI review loop (Phase 3.6). New AI/vision submissions live in the
+// pending-review table until an admin approves/edits/rejects them here; the
+// queue also carries legacy isFlagged questions (item.legacy === true), which
+// keep using the quarantine endpoints above.
+export const fetchReviewQueue = async () => {
+    const data = await apiRequest('/api/review/queue');
+    return Array.isArray(data?.items) ? data.items : [];
+};
+export const updateReviewItem = async (id, fields) => apiRequest(`/api/review/${id}`, 'PUT', fields);
+// `edits` (optional) ride along so a fixed answer/text applies at promotion.
+export const approveReviewItem = async (id, edits = {}) => apiRequest(`/api/review/${id}/approve`, 'PUT', edits);
+export const rejectReviewItem = async (id, reviewNote) => apiRequest(`/api/review/${id}/reject`, 'PUT', reviewNote ? { reviewNote } : {});
 export const fetchServerStats = async () => safeApiRequest('/api/questions/stats', 'GET', null, null);
 
 // `cursor` is an integer offset (or null for the first page). `sort` is one of

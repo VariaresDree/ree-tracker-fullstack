@@ -29,7 +29,27 @@ const baseQuestionSchema = z.object({
 // the quiz UI never renders a duplicate label. Runs on every validated POST.
 const questionCreateSchema = baseQuestionSchema.transform(sanitizeQuestionShape);
 
-const questionUpdateSchema = baseQuestionSchema.partial().transform(sanitizeQuestionShape);
+// TRUE partial for updates — built without .default()s. Zod's .partial() on
+// defaulted fields still INJECTS the defaults on parse ({} came back with
+// subject:'Unknown', difficulty:0, isFlagged:false, …), so any partial edit
+// silently reset fields the caller never sent — including UN-flagging a
+// flagged question. Absent must mean absent (Prisma then skips the column).
+const questionUpdateSchema = z.object({
+    subject: z.string().min(1).optional(),
+    subtopic: z.string().min(1).optional(),
+    text: z.string().min(1).optional(),
+    options: z.array(z.string()).min(2).max(6).optional(),
+    answer: z.string().min(1).optional(),
+    difficulty: z.number().optional(),
+    fixedExplanation: z.string().nullable().optional(),
+    source: z.string().optional(),
+    type: z.string().optional(),
+    isFlagged: z.boolean().optional(),
+    status: z.enum(['live', 'quarantined']).optional(),
+    bloomLevel: z.enum(BLOOM_LEVELS).optional(),
+    difficultyTier: z.number().int().min(1).max(3).optional(),
+    competencyArea: z.string().nullable().optional(),
+}).transform(sanitizeQuestionShape);
 
 // A question submitted as 'quarantined' (AI/vision ingestion) must not go live.
 // Callers flag it so pool sampling (WHERE isFlagged=false) skips it and it lands
