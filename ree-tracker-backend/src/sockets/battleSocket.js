@@ -3,6 +3,10 @@ const prisma = require('../config/db');
 const { recordAttempts } = require('../services/telemetryService');
 const { recomputeRatings } = require('../engine/elo');
 const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitizer');
+// Pure scoring rules live in utils/battleLogic (Phase 4.1) so they're
+// verifiable under simulated latency without a socket — see
+// tests/battleLatency.test.js. Handlers here stay thin callers.
+const { applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants } = require('../utils/battleLogic');
 const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSchemas');
 const logger = require('../utils/logger');
 
@@ -85,10 +89,6 @@ async function ensureAnswerKey(lobby, battleId) {
     lobby.questionCount = battle.questions.length;
     lobby.timeLimitSecs = battle.timeLimitSecs;
     return lobby.answerKey;
-}
-
-function gradeAnswer(answerKey, questionId, userAnswer) {
-    return userAnswer != null && answerKey[questionId] === userAnswer;
 }
 
 function setupBattleSocket(io) {
@@ -228,20 +228,15 @@ function setupBattleSocket(io) {
                 if (!participant || participant.finished) return;
 
                 const answerKey = await ensureAnswerKey(lobby, battleId);
-                if (!answerKey || !(questionId in answerKey)) return;
+                if (!answerKey) return;
 
-                // Upsert-by-questionId: changing an answer replaces the old one.
-                participant.answers.set(questionId, {
-                    questionId,
-                    userAnswer,
-                    isCorrect: gradeAnswer(answerKey, questionId, userAnswer),
-                    confidenceLevel,
-                    timeSpentMs,
-                });
-                participant.itemsAnswered = participant.answers.size;
-                let liveScore = 0;
-                for (const a of participant.answers.values()) if (a.isCorrect) liveScore++;
-                participant.score = liveScore;
+                // Upsert-by-questionId, graded server-side (utils/battleLogic).
+                const applied = applyAnswer(
+                    participant,
+                    { questionId, userAnswer, confidenceLevel, timeSpentMs },
+                    answerKey,
+                );
+                if (!applied) return;
 
                 socket.to(battleId).emit('opponent-progress', {
                     id: socket.userId,
@@ -270,30 +265,17 @@ function setupBattleSocket(io) {
                 }
 
                 // Merge client-carried attempts only for questions the server
-                // never saw live (covers brief disconnects). They are graded
-                // right here against the server's key — the client's own
+                // never saw live (covers brief disconnects). Graded against the
+                // server's key inside mergeSubmitAttempts — the client's own
                 // isCorrect flags are never read.
-                for (const a of clientAttempts) {
-                    if (!(a.questionId in answerKey) || participant.answers.has(a.questionId)) continue;
-                    participant.answers.set(a.questionId, {
-                        questionId: a.questionId,
-                        userAnswer: a.userAnswer,
-                        isCorrect: gradeAnswer(answerKey, a.questionId, a.userAnswer),
-                        confidenceLevel: a.confidenceLevel,
-                        timeSpentMs: a.timeSpentMs,
-                    });
-                }
+                mergeSubmitAttempts(participant, clientAttempts, answerKey);
 
                 const finalAttempts = Array.from(participant.answers.values());
                 const total = lobby.questionCount || Object.keys(answerKey).length;
 
                 // Server-authoritative timing: never trust a client-supplied
                 // duration. Clamped to the battle's time limit.
-                const elapsedSecs = lobby.startedAt
-                    ? Math.floor((Date.now() - lobby.startedAt) / 1000)
-                    : 0;
-                const limit = lobby.timeLimitSecs ?? elapsedSecs;
-                const timeTakenSecs = Math.max(0, Math.min(elapsedSecs, limit));
+                const timeTakenSecs = computeElapsedSecs(lobby.startedAt, Date.now(), lobby.timeLimitSecs);
 
                 // Persist per-question attempts so battle results feed the
                 // dashboard/profile analytics. recordAttempts re-grades against
@@ -363,8 +345,7 @@ function setupBattleSocket(io) {
                     });
                     if (count !== 1) return;
 
-                    const ranked = serializeParticipants(lobby)
-                        .sort((a, b) => b.score - a.score || a.timeTakenSecs - b.timeTakenSecs);
+                    const ranked = rankParticipants(serializeParticipants(lobby));
 
                     // Phase 6 — ELO + ranked tiers. Pull each participant's
                     // current rating, recompute, persist BattleOutcome rows,

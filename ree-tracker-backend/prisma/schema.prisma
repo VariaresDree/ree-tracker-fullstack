@@ -293,8 +293,36 @@ model Bookmark {
 // 7 & 8. 'systemConfig' and 'metadata' collections
 model SystemConfig {
   id          String   @id @default("global_config")
-  tos         Json?    
-  metadata    Json?    
+  tos         Json?
+  metadata    Json?
+  updatedAt   DateTime @updatedAt
+}
+
+// Phase 4.1: materialized leaderboard snapshot — rebuilt on an interval by
+// services/leaderboardService (default every 45s; env LEADERBOARD_REFRESH_MS).
+// Read endpoints serve THIS table instead of sorting/counting the live User
+// table per request; a stale/empty snapshot falls back to the legacy live
+// query once and triggers a refresh.
+model LeaderboardEntry {
+  rank         Int      @id
+  userId       String   @unique
+  displayName  String?
+  role         String   @default("USER")
+  thetaRating  Float
+  eloRating    Int      @default(1200)
+  tier         String   @default("BRONZE")
+  globalStreak Int      @default(0)
+  lastActive   DateTime
+  snapshotAt   DateTime
+}
+
+// Phase 4.1: runtime feature flags — the rollout lever for later phases
+// (e.g. Capacitor/FCM in 4.2). Read by all authed clients; admin-managed.
+model FeatureFlag {
+  key         String   @id
+  enabled     Boolean  @default(false)
+  payload     Json?
+  description String?
   updatedAt   DateTime @updatedAt
 }
 

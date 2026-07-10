@@ -56,6 +56,12 @@ export const useSessionSlice = () =>
 export const useTOSSlice = () =>
   useStore(useShallow((s) => ({ dynamicTOS: s.dynamicTOS, setDynamicTOS: s.setDynamicTOS })));
 
+// --- Feature flags (Phase 4.1) ---
+// Missing keys read as disabled. Usage: const battlesV2 = useFlag('battles-v2');
+export const useFlag = (key) => useStore((s) => s.featureFlags?.[key]?.enabled ?? false);
+export const useFlagsSlice = () =>
+  useStore(useShallow((s) => ({ featureFlags: s.featureFlags, setFeatureFlags: s.setFeatureFlags })));
+
 // --- Theme / preferences ---
 export const useThemeSlice = () =>
   useStore(useShallow((s) => ({ theme: s.theme, setTheme: s.setTheme })));

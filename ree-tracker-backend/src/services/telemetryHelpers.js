@@ -22,7 +22,17 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
         .map((a) => {
             const m = qMap[a.questionId];
             const serverGraded = a.userAnswer != null;
-            const isCorrect = serverGraded ? m.answer === a.userAnswer : !!a.isCorrect;
+            // Offline-credit hardening (Phase 4.1 — leaderboard integrity):
+            // an attempt tagged offline can NEVER claim credit without a
+            // server-gradable userAnswer. Legit clients send userAnswer for
+            // every answered item (it's omitted only for unanswered ones,
+            // which are already isCorrect:false); only a tampered "trust me,
+            // it was right" payload is zeroed here. Theta — and therefore the
+            // leaderboard aggregation — derives exclusively from
+            // server-verifiable evidence.
+            const isCorrect = serverGraded
+                ? m.answer === a.userAnswer
+                : (a.offline ? false : !!a.isCorrect);
             // Discrepancy signal: the client sent both a userAnswer (which we
             // re-grade) AND its own isCorrect, and they disagree → the client's
             // (offline) answer key has drifted from the master. The SERVER score
