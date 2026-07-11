@@ -6,6 +6,7 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { diffTaxonomySync, invalidateTopicCache } = require('../services/topicResolver');
+const { invalidateFlagCache } = require('../services/featureFlags');
 const { featureFlagSchema } = require('../schemas/configSchemas');
 
 // TOS = { subject: [topicName, ...] }. Since Phase 3.3 the source of truth is
@@ -116,6 +117,9 @@ router.put('/flags/:key', authMiddleware, requireAdmin, async (req, res) => {
             update: { enabled, payload: payload ?? undefined, description: description ?? undefined },
             create: { key, enabled, payload: payload ?? null, description: description ?? null },
         });
+        // Server-side readers (pushService et al.) cache flags briefly — make
+        // an admin toggle take effect immediately in this process.
+        invalidateFlagCache();
         return res.status(200).json({ success: true, flag });
     } catch (error) {
         logger.error('flag update error', { error: error.message });

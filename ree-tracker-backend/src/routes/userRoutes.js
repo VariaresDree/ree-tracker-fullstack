@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { validate } = require('../middlewares/validate');
-const { profileUpdateSchema, settingsUpdateSchema } = require('../schemas/userSchemas');
+const { profileUpdateSchema, settingsUpdateSchema, deviceTokenSchema } = require('../schemas/userSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -69,6 +69,37 @@ router.put('/settings', authMiddleware, validate(settingsUpdateSchema), async (r
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Settings update failed.' });
+    }
+});
+
+// FCM device tokens (Phase 4.2) — registered by the Capacitor native app.
+// Upsert-by-token: re-registration by a DIFFERENT user reassigns the token
+// (the device changed hands), so a stale owner never receives another user's
+// notifications.
+router.post('/device-token', authMiddleware, validate(deviceTokenSchema), async (req, res) => {
+    try {
+        const { token, platform } = req.body;
+        await prisma.deviceToken.upsert({
+            where: { token },
+            update: { userId: req.user.id, platform },
+            create: { userId: req.user.id, token, platform },
+        });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        logger.error('device-token register failed', { error: error.message });
+        res.status(500).json({ error: 'Device token registration failed.' });
+    }
+});
+
+// Logout hook: only the token's current owner may release it.
+router.delete('/device-token', authMiddleware, validate(deviceTokenSchema), async (req, res) => {
+    try {
+        const { token } = req.body;
+        await prisma.deviceToken.deleteMany({ where: { token, userId: req.user.id } });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        logger.error('device-token unregister failed', { error: error.message });
+        res.status(500).json({ error: 'Device token removal failed.' });
     }
 });
 

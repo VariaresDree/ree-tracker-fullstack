@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 // 🚀 NEW: Import the TOS fetch function
 import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags } from '../services/dbQueries';
+import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
 
 const MASTER_ADMIN_EMAILS = [
@@ -66,6 +67,17 @@ export const AuthProvider = ({ children }) => {
               console.warn("Failed to fetch feature flags, keeping cached state.");
           }
 
+          // FCM push (Phase 4.2) — no-op on the web; on the Capacitor native
+          // app this registers the device token, gated by the rollout flag.
+          try {
+              const flags = useStore.getState?.().featureFlags || {};
+              await initPushNotifications(user.uid, {
+                  flagEnabled: !!flags['push-notifications']?.enabled,
+              });
+          } catch (pushError) {
+              console.warn('Push registration skipped:', pushError?.message);
+          }
+
         } catch (err) {
           console.warn("Clearance authorization query tracking failure. Defaulting to whitelist check.", err);
           
@@ -102,6 +114,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     setLoading(true);
+    // Release this device's FCM token BEFORE the auth session dies (the
+    // unregister call needs a valid ID token). No-op on the web.
+    try { await teardownPushNotifications(); } catch { /* best-effort */ }
     await signOut(auth);
     setCurrentUser(null);
     setIsAdmin(false);

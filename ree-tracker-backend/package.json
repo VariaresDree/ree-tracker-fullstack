@@ -20,6 +20,8 @@
     "migrate:taxonomy:dry": "node scripts/migrateTaxonomy.js --dry-run",
     "backfill:mastery": "node scripts/backfillMastery.js",
     "backfill:mastery:dry": "node scripts/backfillMastery.js --dry-run",
+    "push:streaks": "node scripts/sendStreakReminders.js",
+    "push:streaks:dry": "node scripts/sendStreakReminders.js --dry-run",
     "audit:sql": "node scripts/audit-sql-interpolation.js",
     "audit:auth": "node scripts/audit-route-auth.js",
     "audit:all": "npm run audit:sql && npm run audit:auth"

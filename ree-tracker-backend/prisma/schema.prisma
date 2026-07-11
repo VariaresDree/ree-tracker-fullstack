@@ -67,9 +67,28 @@ model User {
   gauntletLevel      Int       @default(1)
   battleOutcomes     BattleOutcome[]
 
+  // --- V7: Phase 4.2 — FCM push (Capacitor native app) ---
+  deviceTokens       DeviceToken[]
+
   @@index([thetaRating])
   @@index([lastActive])
   @@index([eloRating])
+}
+
+// Phase 4.2: FCM registration tokens, one row per device. A token is globally
+// unique; re-registration by a different user reassigns it (device changed
+// hands). Dead tokens are pruned by pushService when FCM reports them
+// unregistered.
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   @default("android") // android | ios | web
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // Phase 3.3: canonical topic taxonomy (PRC REE board-exam TOS). One row per
