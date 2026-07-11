@@ -13,4 +13,11 @@ const settingsUpdateSchema = z.object({
     { message: 'No valid settings provided.' },
 );
 
-module.exports = { profileUpdateSchema, settingsUpdateSchema };
+// POST/DELETE /api/user/device-token — FCM registration tokens are opaque
+// strings (~150-300 chars today); bound generously but firmly.
+const deviceTokenSchema = z.object({
+    token: z.string().trim().min(20).max(4096),
+    platform: z.enum(['android', 'ios', 'web']).optional().default('android'),
+});
+
+module.exports = { profileUpdateSchema, settingsUpdateSchema, deviceTokenSchema };

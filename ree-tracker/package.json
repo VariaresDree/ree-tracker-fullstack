@@ -12,9 +12,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "cap:sync": "npm run build && cap sync android",
+    "cap:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/push-notifications": "^8.1.1",
     "@google/genai": "^2.6.0",
     "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.3.0",
@@ -41,6 +46,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
+    "@capacitor/cli": "^8.4.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.0",
