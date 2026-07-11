@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "790731362636",
+    "project_id": "ree-topnotcher-tracker",
+    "storage_bucket": "ree-topnotcher-tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:790731362636:android:e705a782ff547f1d4ebfe9",
+        "android_client_info": {
+          "package_name": "com.reetracker.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzIU_pfPLY5g6d4jvPWeywmurCFuiZEK4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
