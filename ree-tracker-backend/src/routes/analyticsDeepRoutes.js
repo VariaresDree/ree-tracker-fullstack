@@ -3,6 +3,12 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
+const { buildScoreProgression, aggregateDailyStudy } = require('../services/deepAnalyticsHelpers');
+
+// Manila calendar date of an instant — same formatter the telemetry service
+// keys ActivityLog on, so "a study day" means the same thing everywhere.
+const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
+const manilaDateOf = (d) => MANILA_FMT.format(new Date(d));
 
 // GET /api/analytics/deep/time-analysis — time-per-question by topic.
 // Excludes corrupt timing rows (0ms/inflated) so the averages are truthful.
@@ -99,45 +105,47 @@ router.get('/subject-radar', authMiddleware, async (req, res) => {
     }
 });
 
-// GET /api/analytics/deep/study-time — daily/weekly aggregations
+// GET /api/analytics/deep/study-time — daily totals keyed by MANILA date,
+// merging Active Review sessions with exam-session time (aggregation logic in
+// deepAnalyticsHelpers so the day-keying is unit-tested — UTC keying used to
+// shift evening sessions onto the wrong day, and simulator time never showed).
 router.get('/study-time', authMiddleware, async (req, res) => {
     try {
-        const sessions = await prisma.studySession.findMany({
-            where: { userId: req.user.id },
-            orderBy: { createdAt: 'desc' },
-            take: 90,
-            select: { createdAt: true, durationSecs: true, mode: true }
-        });
+        const [studySessions, examSessions] = await Promise.all([
+            prisma.studySession.findMany({
+                where: { userId: req.user.id },
+                orderBy: { createdAt: 'desc' },
+                take: 90,
+                select: { createdAt: true, durationSecs: true },
+            }),
+            prisma.examSession.findMany({
+                where: { userId: req.user.id },
+                orderBy: { createdAt: 'desc' },
+                take: 90,
+                select: { createdAt: true, timeTakenSecs: true, totalQuestions: true },
+            }),
+        ]);
 
-        const dailyMap = {};
-        sessions.forEach(s => {
-            const day = s.createdAt.toISOString().split('T')[0];
-            if (!dailyMap[day]) dailyMap[day] = { totalSecs: 0, sessions: 0 };
-            dailyMap[day].totalSecs += s.durationSecs;
-            dailyMap[day].sessions += 1;
-        });
-
-        const daily = Object.entries(dailyMap)
-            .map(([date, data]) => ({ date, ...data }))
-            .sort((a, b) => a.date.localeCompare(b.date));
-
+        const daily = aggregateDailyStudy(studySessions, examSessions, manilaDateOf);
         res.status(200).json({ daily });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch study time data.' });
     }
 });
 
-// GET /api/analytics/deep/score-progression — exam scores over time
+// GET /api/analytics/deep/score-progression — REAL exams only (Board Sim /
+// Gauntlet), with the percentage computed server-side. ExamSession.score is a
+// raw correct count; the old payload let the UI render "7%" for 7/10.
 router.get('/score-progression', authMiddleware, async (req, res) => {
     try {
         const exams = await prisma.examSession.findMany({
             where: { userId: req.user.id },
             orderBy: { createdAt: 'asc' },
-            take: 50,
-            select: { score: true, totalQuestions: true, targetSubject: true, createdAt: true, verdict: true }
+            take: 100,
+            select: { score: true, totalQuestions: true, targetSubject: true, createdAt: true, verdict: true, mode: true }
         });
 
-        res.status(200).json({ items: exams });
+        res.status(200).json({ items: buildScoreProgression(exams) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch score progression.' });
     }

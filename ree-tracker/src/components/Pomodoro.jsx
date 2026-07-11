@@ -1,60 +1,18 @@
 // src/components/Pomodoro.jsx
-import { useState, useEffect } from 'react';
+// Sidebar Pomodoro panel. Purely a VIEW over the store's timestamp-based
+// timer (utils/pomodoroLogic) — the countdown itself lives in `endsAt`, so
+// closing the sidebar or navigating away no longer resets anything. The
+// floating widget (FloatingPomodoro) renders the same state.
+import { useState } from 'react';
 import { useSessionSlice } from '../store/slices';
+import { usePomodoroClock, formatClock } from '../hooks/usePomodoroClock';
 import { Button } from './ui';
 import { Settings2, Play, Pause, RotateCcw } from './ui/icons';
 
 export default function Pomodoro() {
-  const { pomodoro, updatePomodoro, switchPomodoroMode } = useSessionSlice();
-
-  // Local state isolates the 1-second re-renders to just this component!
-  const [localTimeLeft, setLocalTimeLeft] = useState(pomodoro.timeLeft);
+  const { updatePomodoro, startPomodoro, pausePomodoro, resetPomodoro } = useSessionSlice();
+  const { pomodoro, remaining } = usePomodoroClock();
   const [isEditing, setIsEditing] = useState(false);
-
-  // Sync local state when global state changes (e.g., from reset or mode switch)
-  useEffect(() => {
-    setLocalTimeLeft(pomodoro.timeLeft);
-  }, [pomodoro.timeLeft, pomodoro.isWork]);
-
-  // The Isolated Ticking Engine
-  useEffect(() => {
-    let interval = null;
-    if (pomodoro.isRunning && localTimeLeft > 0) {
-      interval = setInterval(() => {
-        setLocalTimeLeft((prev) => {
-          if (prev <= 1) {
-            switchPomodoroMode(); // Timer hit 0, switch mode
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (!pomodoro.isRunning && localTimeLeft !== pomodoro.timeLeft) {
-      // Sync the paused time back to global state so it persists on refresh
-      updatePomodoro({ timeLeft: localTimeLeft });
-    }
-    return () => clearInterval(interval);
-  }, [pomodoro.isRunning, localTimeLeft, pomodoro.timeLeft, switchPomodoroMode, updatePomodoro]);
-
-  const togglePomodoro = () => {
-    if (pomodoro.isRunning) {
-      updatePomodoro({ isRunning: false, timeLeft: localTimeLeft });
-    } else {
-      updatePomodoro({ isRunning: true });
-    }
-  };
-
-  const resetPomodoro = () => {
-    const resetTime = pomodoro.isWork ? pomodoro.workDuration * 60 : pomodoro.breakDuration * 60;
-    updatePomodoro({ isRunning: false, timeLeft: resetTime });
-    setLocalTimeLeft(resetTime);
-  };
-
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
 
   if (isEditing) {
     return (
@@ -110,15 +68,15 @@ export default function Pomodoro() {
 
       {/* Amplified High-Visibility Clock digits */}
       <div
-        className={`font-mono text-3xl font-bold tabular-nums tracking-widest my-1 ${pomodoro.isRunning && localTimeLeft < 60 ? 'animate-pulse' : 'text-textMain'}`}
-        style={pomodoro.isRunning && localTimeLeft < 60 ? { color: 'var(--accent-danger)' } : undefined}
+        className={`font-mono text-3xl font-bold tabular-nums tracking-widest my-1 ${pomodoro.isRunning && remaining < 60 ? 'animate-pulse' : 'text-textMain'}`}
+        style={pomodoro.isRunning && remaining < 60 ? { color: 'var(--accent-danger)' } : undefined}
       >
-        {formatTime(localTimeLeft)}
+        {formatClock(remaining)}
       </div>
 
       {/* Controls */}
       <div className="flex justify-center items-center gap-2 w-full border-t border-border2/30 pt-2">
-        <Button size="sm" variant="ghost" onClick={togglePomodoro} className="text-muted2 hover:text-textMain">
+        <Button size="sm" variant="ghost" onClick={pomodoro.isRunning ? pausePomodoro : startPomodoro} className="text-muted2 hover:text-textMain">
           {pomodoro.isRunning
             ? <><Pause size={14} strokeWidth={1.75} aria-hidden="true" /> Pause</>
             : <><Play size={14} strokeWidth={1.75} aria-hidden="true" /> Start</>}

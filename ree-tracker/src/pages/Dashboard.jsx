@@ -1,6 +1,6 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useTelemetrySlice, useTOSSlice } from '../store/slices';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,8 +34,43 @@ const SYNC_META = {
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const { stats, purgeAnalytics, setStats, syncStatus } = useTelemetrySlice();
   const { dynamicTOS } = useTOSSlice();
+
+  // "Today's prescription" Start routing. Forecast topics are either a subject
+  // ('Mathematics'/'ESAS'/'EE' — from per-subject UserAbility) or a subtopic
+  // (from UserTopicPerformance rollups) — resolve to a ReviewSetup-shaped
+  // session preset; READ actions route to the materials library instead.
+  const handlePrescriptionAction = (action) => {
+    const topic = action?.payload?.topic;
+    if (action?.type === 'READ') {
+      toast(`Open your ${topic || 'weak-topic'} materials and read for ${action?.payload?.durationMin || 25} minutes.`, { icon: '📚' });
+      navigate('/materials');
+      return;
+    }
+
+    const safeTOS = dynamicTOS || {};
+    const isSubject = topic && Object.prototype.hasOwnProperty.call(safeTOS, topic);
+    const parentSubject = isSubject
+      ? topic
+      : Object.keys(safeTOS).find((subj) => (safeTOS[subj] || []).some(
+          (sub) => sub.trim().toLowerCase() === String(topic || '').trim().toLowerCase(),
+        ));
+
+    const preset = {
+      sessionMode: action?.type === 'SRS_REVIEW' ? 'flashcard' : 'mcq',
+      cognitiveFocus: 'mixed',
+      source: 'library',
+      count: action?.payload?.count || action?.payload?.cardCount || 10,
+      ...(parentSubject && !isSubject
+        ? { studyMode: 'subtopic', subject: parentSubject, subtopic: topic }
+        : { studyMode: 'interleaved', subject: isSubject ? topic : 'All', subtopic: 'All' }),
+    };
+
+    toast(`Starting a ${preset.count}-item ${preset.sessionMode === 'flashcard' ? 'flashcard' : 'drill'} session${topic ? ` on ${topic}` : ''}.`, { icon: '🎯' });
+    navigate('/review', { state: { preset } });
+  };
 
   const [sqlData, setSqlData] = useState(null);
   const [isFetchingSQL, setIsFetchingSQL] = useState(true);
@@ -387,7 +422,7 @@ export default function Dashboard() {
 
       {/* Action: prescription + critical focus */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <PrescriptionPanel />
+        <PrescriptionPanel onAction={handlePrescriptionAction} />
         <RecommendedModule stats={activeStats} />
       </div>
 

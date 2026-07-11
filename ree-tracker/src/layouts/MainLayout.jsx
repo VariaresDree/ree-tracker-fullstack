@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import Pomodoro from '../components/Pomodoro';
+import FloatingPomodoro from '../components/FloatingPomodoro';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Modal } from '../components/ui';
@@ -249,6 +250,11 @@ export default function MainLayout({ children }) {
       >
         {children}
       </main>
+
+      {/* Floating Pomodoro pill — always mounted (owns the completion tick),
+          renders only while running or pinned. Absent from ExamLayout routes
+          by construction, keeping the exam screens distraction-free. */}
+      <FloatingPomodoro />
 
       {/* MOBILE BOTTOM NAV */}
       <nav

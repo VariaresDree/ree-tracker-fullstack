@@ -34,15 +34,39 @@ const idempotencyKey = (method, body) => {
 // `timeoutMs`; those aborts do NOT trip the circuit breaker.
 const REQUEST_TIMEOUT_MS = 12_000;
 
+// Firebase's token refresh throws a RAW "Firebase: Error
+// (auth/network-request-failed)" when the cached ID token has expired and the
+// device is offline. That message isn't the '[OFFLINE]' sentinel, so the
+// offline-pack fallback and outbox deferral never engaged and users saw the
+// Firebase error toasted mid-review. Classify + normalize it here.
+export const isNetworkAuthError = (err) => {
+    const code = err?.code || '';
+    const msg = err?.message || '';
+    return code === 'auth/network-request-failed' || msg.includes('network-request-failed');
+};
+
+export const getAuthToken = async (user) => {
+    try {
+        return await user.getIdToken();
+    } catch (err) {
+        if (isNetworkAuthError(err)) throw new Error('[OFFLINE]');
+        throw err;
+    }
+};
+
 export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS } = {}) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
+
+    // Known-offline: fail fast with the sentinel every offline consumer
+    // (pack fallback, outbox) understands — before auth can throw raw.
+    if (!navigator.onLine) throw new Error('[OFFLINE]');
 
     if (!_backendUp && Date.now() - _lastCheck < COOLDOWN) {
         throw new Error('[OFFLINE]');
     }
 
-    const token = await user.getIdToken();
+    const token = await getAuthToken(user);
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
 
     const headers = {
@@ -409,7 +433,7 @@ export const updateBookmarkCache = async (uid, itemId, aiExplanation) => {
 export const uploadMaterial = async (file, folderId, subject) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Authentication required.");
-    const token = await user.getIdToken();
+    const token = await getAuthToken(user);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folderId', folderId || '');
