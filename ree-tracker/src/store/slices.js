@@ -48,7 +48,12 @@ export const useSessionSlice = () =>
     useShallow((s) => ({
       pomodoro: s.pomodoro,
       updatePomodoro: s.updatePomodoro,
+      startPomodoro: s.startPomodoro,
+      pausePomodoro: s.pausePomodoro,
+      resetPomodoro: s.resetPomodoro,
       switchPomodoroMode: s.switchPomodoroMode,
+      pomodoroWidget: s.pomodoroWidget,
+      setPomodoroWidget: s.setPomodoroWidget,
     })),
   );
 

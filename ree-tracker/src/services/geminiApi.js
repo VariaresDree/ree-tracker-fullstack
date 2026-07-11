@@ -11,6 +11,64 @@ const cleanJsonPayload = (text) => {
     return clean.trim();
 };
 
+// Gemini is instructed to double-escape LaTeX inside JSON strings (\\times),
+// but it regularly emits single backslashes. Two failure classes:
+//   1. ILLEGAL JSON escapes (\pi, \sqrt, \() — JSON.parse crashes with
+//      "Bad escaped character" (the reported AI-generation outage).
+//   2. LaTeX that COLLIDES with legal escapes (\times → tab+"imes",
+//      \frac → formfeed+"rac") — parses fine but silently corrupts the math.
+// Repair rules (domain-tuned for board-exam LaTeX):
+//   • \" \\ \/ and \uXXXX are always kept (never LaTeX).
+//   • \t \f \r \b followed by a LETTER are LaTeX commands (\times, \frac,
+//     \rho, \beta …) — literal tab/formfeed/CR/backspace immediately followed
+//     by a letter never occurs intentionally in this content. Doubled.
+//   • \n is kept: real newlines in explanations are frequent and usually
+//     followed by a letter, so it stays ambiguous — the rare \nabla/\neq
+//     degrades to a newline rather than risking every multi-line explanation.
+//   • Any other \x (illegal escape) is doubled.
+// Compliant payloads (already double-escaped) come out byte-identical.
+// Exported for tests.
+const KEEP_ALWAYS = new Set(['"', '\\', '/', 'n']);
+const CONTROL_VS_LATEX = new Set(['t', 'f', 'r', 'b']);
+export const repairJsonEscapes = (text) => {
+    let out = '';
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch !== '\\') { out += ch; continue; }
+        const next = text[i + 1];
+        if (KEEP_ALWAYS.has(next)) {
+            out += ch + next;
+            i += 1;
+        } else if (next === 'u' && /^[0-9a-fA-F]{4}$/.test(text.slice(i + 2, i + 6))) {
+            out += text.slice(i, i + 6);
+            i += 5;
+        } else if (CONTROL_VS_LATEX.has(next) && !/[a-zA-Z]/.test(text[i + 2] ?? '')) {
+            out += ch + next; // genuine control escape (e.g. "\t" before a digit/quote)
+            i += 1;
+        } else {
+            // LaTeX command or illegal escape — keep the literal backslash.
+            out += '\\\\';
+        }
+    }
+    return out;
+};
+
+// Parse Gemini's JSON output: try as-is first (a compliant payload must never
+// be altered), then retry with repaired escapes before giving up with a
+// message the UI can toast meaningfully.
+export const parseAiJson = (rawText) => {
+    const clean = cleanJsonPayload(rawText);
+    try {
+        return JSON.parse(clean);
+    } catch (firstErr) {
+        try {
+            return JSON.parse(repairJsonEscapes(clean));
+        } catch {
+            throw new Error(`AI returned malformed JSON (${firstErr.message}). Regenerate and try again.`);
+        }
+    }
+};
+
 // Gemini generation regularly takes 15-40s server-side. The default 12s
 // apiRequest timeout aborted healthy AI calls with [OFFLINE] AND tripped the
 // 30s circuit breaker, blocking every other request. AI calls get a 90s
@@ -28,8 +86,7 @@ async function callAI(prompt, isJson = false, config = {}) {
     }, { timeoutMs: AI_TIMEOUT_MS });
 
     if (isJson) {
-        const cleanText = cleanJsonPayload(response.text);
-        return JSON.parse(cleanText);
+        return parseAiJson(response.text);
     }
     return response.text;
 }

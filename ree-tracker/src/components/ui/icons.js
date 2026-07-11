@@ -61,6 +61,8 @@ export {
   Copy,
   Play,
   Pause,
+  Pin,
+  PinOff,
   RotateCcw,
   Eye,
   EyeOff,

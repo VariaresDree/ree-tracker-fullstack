@@ -4,9 +4,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { auth } from '../config/firebaseDb';
 import { TOS as fallbackTOS } from '../config/constants';
-import { updateCommandParameters, apiRequest } from '../services/dbQueries';
+import { updateCommandParameters, apiRequest, getAuthToken } from '../services/dbQueries';
 import { calculateUpdatedStats } from '../utils/irtMath';
 import { stableBatchKey } from '../utils/contentHash';
+import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro } from '../utils/pomodoroLogic';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
 // Lives outside the store so multiple resets just call clearTimeout on the
@@ -291,7 +292,10 @@ export const useStore = create(
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("No authenticated session located.");
 
-            const token = await currentUser.getIdToken();
+            // getAuthToken maps an offline token-refresh failure to the
+            // '[OFFLINE]' sentinel so the transient-vs-permanent triage below
+            // requeues instead of surfacing a raw Firebase error.
+            const token = await getAuthToken(currentUser);
             const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
             // currentSessionId is populated by startSession() when a quiz surface
@@ -475,7 +479,7 @@ export const useStore = create(
       purgeAnalytics: async () => {
         const currentUser = auth.currentUser;
         if (!currentUser) throw new Error('Authentication required.');
-        const token = await currentUser.getIdToken();
+        const token = await getAuthToken(currentUser);
         const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
         const resp = await fetch(`${apiUrl}/api/analytics/purge`, {
             method: 'DELETE',
@@ -513,25 +517,24 @@ export const useStore = create(
         });
       },
 
-      // 3. POMODORO PROTOCOL SLICE
-      pomodoro: { workDuration: 25, breakDuration: 5, timeLeft: 25 * 60, isRunning: false, isWork: true },
+      // 3. POMODORO PROTOCOL SLICE — timestamp model (utils/pomodoroLogic).
+      // Remaining time is DERIVED from `endsAt`, never ticked into the store,
+      // so the timer survives sidebar unmounts, route changes, and reloads.
+      pomodoro: { workDuration: 25, breakDuration: 5, isWork: true, isRunning: false, endsAt: null, pausedRemaining: 25 * 60 },
       updatePomodoro: (config) => set((state) => ({ pomodoro: { ...state.pomodoro, ...config } })),
-      togglePomodoro: () => set((state) => ({ pomodoro: { ...state.pomodoro, isRunning: !state.pomodoro.isRunning } })),
-      resetPomodoro: () => set((state) => ({
-        pomodoro: { ...state.pomodoro, isRunning: false, timeLeft: state.pomodoro.isWork ? state.pomodoro.workDuration * 60 : state.pomodoro.breakDuration * 60 }
+      startPomodoro: () => set((state) => ({
+        pomodoro: startTimer(state.pomodoro),
+        // A fresh start un-dismisses the floating widget.
+        pomodoroWidget: { ...state.pomodoroWidget, dismissed: false },
       })),
-      tickPomodoro: () => set((state) => {
-        const p = state.pomodoro;
-        if (!p.isRunning || p.timeLeft <= 0) return state;
-        return { pomodoro: { ...p, timeLeft: p.timeLeft - 1 } };
-      }),
-      switchPomodoroMode: () => set((state) => {
-        const p = state.pomodoro;
-        const nextMode = !p.isWork;
-        return {
-          pomodoro: { ...p, isWork: nextMode, timeLeft: nextMode ? p.workDuration * 60 : p.breakDuration * 60, isRunning: false }
-        };
-      }),
+      pausePomodoro: () => set((state) => ({ pomodoro: pauseTimer(state.pomodoro) })),
+      resetPomodoro: () => set((state) => ({ pomodoro: resetTimer(state.pomodoro) })),
+      switchPomodoroMode: () => set((state) => ({ pomodoro: switchMode(state.pomodoro) })),
+
+      // Floating timer widget: pin keeps it visible while paused; dismissed
+      // hides it until the next start; x/y persist the dragged position.
+      pomodoroWidget: { pinned: false, dismissed: false, x: null, y: null },
+      setPomodoroWidget: (patch) => set((state) => ({ pomodoroWidget: { ...state.pomodoroWidget, ...patch } })),
 
       // 4. UI & UX STATE SLICE 
       isSidebarOpen: false, 
@@ -560,6 +563,7 @@ export const useStore = create(
         deadLetters: state.deadLetters,
         stats: state.stats,
         pomodoro: state.pomodoro,
+        pomodoroWidget: state.pomodoroWidget,
         theme: state.theme,
         isAdmin: state.isAdmin,
         dynamicTOS: state.dynamicTOS, // 🚀 CRITICAL: Tells the store to remember your changes
@@ -571,6 +575,9 @@ export const useStore = create(
       // IDB hydration completes, so merging is race-free; dedupe by id.
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // Legacy pomodoro shape ({ timeLeft } counter) → timestamp model, and
+        // clean up a block that expired while the app was closed.
+        state.pomodoro = migratePomodoro(state.pomodoro);
         try {
           const raw = localStorage.getItem(OFFLINE_MIRROR_KEY);
           if (raw) {

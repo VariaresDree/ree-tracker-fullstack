@@ -1,6 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { fetchAnalyticsDeep } from '../../services/dbQueries';
 import { CalibrationCurve } from './CalibrationCurve';
+
+// 'YYYY-MM-DD' (Manila-keyed by the server) → 'Jul 3' without a timezone
+// round-trip: new Date('YYYY-MM-DD') is UTC midnight and re-localizing can
+// shift the label a day. Format from the string parts instead.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const shortDay = (isoDate) => {
+  const [, m, d] = String(isoDate).split('-').map(Number);
+  return m >= 1 && m <= 12 ? `${MONTHS[m - 1]} ${d}` : isoDate;
+};
+// Zero-fill a trailing window of Manila days so "Last 14 days" is a real
+// calendar window, not "the last 14 ACTIVE days".
+const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
+const lastManilaDays = (n) => {
+  const days = [];
+  for (let i = n - 1; i >= 0; i--) days.push(MANILA_FMT.format(new Date(Date.now() - i * 86400000)));
+  return days;
+};
+
+const VERDICT_STYLE = {
+  PASSED: { border: 'border-reeGreen/30 bg-reeGreen/5', text: 'text-reeGreen' },
+  'CONDITIONAL PASS': { border: 'border-reeAmber/30 bg-reeAmber/5', text: 'text-reeAmber' },
+  FAILED: { border: 'border-reeRed/30 bg-reeRed/5', text: 'text-reeRed' },
+};
 
 function StatCard({ label, value, sub, color = 'text-textMain' }) {
   return (
@@ -141,65 +165,108 @@ export default function AnalyticsDeepDive() {
         </div>
       )}
 
-      {!loading && activeTab === 'study' && (
-        <div className="bg-surface border border-border2/60 rounded-xl p-6">
-          <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2">
-            <span>📅</span> Daily Study Time
-          </h3>
-          {studyData.length === 0 ? (
-            <div className="text-xs text-muted2 p-4">Complete a review or simulator session to track study time.</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <StatCard label="Total Study Days" value={studyData.length} color="text-reeBlue" />
-              <StatCard label="Total Study Time" value={`${Math.round(studyData.reduce((a, d) => a + d.totalSecs, 0) / 3600)}h`} color="text-reeGreen" />
-              <StatCard label="Avg per Day" value={`${Math.round(studyData.reduce((a, d) => a + d.totalSecs, 0) / studyData.length / 60)}min`} color="text-reeCyan" />
-            </div>
-          )}
-          {studyData.length > 0 && (
-            <div className="mt-6 space-y-2">
-              <div className="text-[11px] font-black text-muted uppercase tracking-widest">Last 14 days (minutes)</div>
-              <BarChart
-                items={studyData.slice(-14).map(d => {
-                  const dt = new Date(d.date);
-                  const short = Number.isNaN(dt.getTime())
-                    ? d.date
-                    : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  return { ...d, minutes: Math.round(d.totalSecs / 60), shortDate: short };
-                })}
-                valueKey="minutes"
-                labelKey="shortDate"
-                color="bg-reeBlue"
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {!loading && activeTab === 'scores' && (
-        <div className="bg-surface border border-border2/60 rounded-xl p-6">
-          <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2">
-            <span>📈</span> Exam Score Progression
-          </h3>
-          {scoreData.length === 0 ? (
-            <div className="text-xs text-muted2 p-4">Complete a board simulator exam to track score progression.</div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {scoreData.map((exam, idx) => (
-                <div key={idx} className={`p-4 rounded-xl border flex items-center justify-between ${exam.verdict === 'PASSED' ? 'border-reeGreen/30 bg-reeGreen/5' : exam.verdict === 'CONDITIONAL PASS' ? 'border-reeAmber/30 bg-reeAmber/5' : 'border-reeRed/30 bg-reeRed/5'}`}>
-                  <div>
-                    <div className="text-sm font-bold text-textMain">{exam.targetSubject}</div>
-                    <div className="text-[11px] text-muted2">{new Date(exam.createdAt).toLocaleDateString()}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-xl font-black ${exam.verdict === 'PASSED' ? 'text-reeGreen' : exam.verdict === 'CONDITIONAL PASS' ? 'text-reeAmber' : 'text-reeRed'}`}>{exam.score}%</div>
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted">{exam.totalQuestions} items</div>
-                  </div>
+      {!loading && activeTab === 'study' && (() => {
+        // Zero-filled true 14-day Manila window (the server keys days in
+        // Manila too) — a skipped day shows as an empty bar, not a gap.
+        const byDate = Object.fromEntries(studyData.map(d => [d.date, d]));
+        const window14 = lastManilaDays(14).map(date => ({
+          date,
+          shortDate: shortDay(date),
+          minutes: Math.round((byDate[date]?.totalSecs || 0) / 60),
+          sessions: byDate[date]?.sessions || 0,
+        }));
+        const activeDays = window14.filter(d => d.minutes > 0).length;
+        const totalSecsAll = studyData.reduce((a, d) => a + d.totalSecs, 0);
+        const window14Secs = window14.reduce((a, d) => a + d.minutes * 60, 0);
+        return (
+          <div className="bg-surface border border-border2/60 rounded-xl p-6">
+            <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2">
+              <span>📅</span> Daily Study Time
+            </h3>
+            {studyData.length === 0 ? (
+              <div className="text-xs text-muted2 p-4">Complete a review or simulator session to track study time.</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <StatCard label="Active Days (last 14)" value={`${activeDays} / 14`} color="text-reeBlue" />
+                  <StatCard
+                    label="Time (last 14 days)"
+                    value={window14Secs >= 3600 ? `${(window14Secs / 3600).toFixed(1)}h` : `${Math.round(window14Secs / 60)}min`}
+                    sub={`All time: ${Math.round(totalSecsAll / 3600)}h`}
+                    color="text-reeGreen"
+                  />
+                  <StatCard
+                    label="Avg per Active Day"
+                    value={activeDays > 0 ? `${Math.round(window14Secs / 60 / activeDays)}min` : '—'}
+                    color="text-reeCyan"
+                  />
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                <div className="mt-6 space-y-2">
+                  <div className="text-[11px] font-black text-muted uppercase tracking-widest">Last 14 days (minutes)</div>
+                  <BarChart items={window14} valueKey="minutes" labelKey="shortDate" color="bg-reeBlue" />
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
+
+      {!loading && activeTab === 'scores' && (() => {
+        const trend = scoreData.map((exam, idx) => ({
+          ...exam,
+          idx,
+          label: new Date(exam.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' }),
+        }));
+        return (
+          <div className="bg-surface border border-border2/60 rounded-xl p-6">
+            <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2">
+              <span>📈</span> Exam Score Progression
+            </h3>
+            {scoreData.length === 0 ? (
+              <div className="text-xs text-muted2 p-4">Complete a board simulator exam to track score progression.</div>
+            ) : (
+              <>
+                {trend.length >= 2 && (
+                  <div className="h-56 mb-6">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trend} margin={{ top: 8, right: 12, bottom: 0, left: -18 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={{ stroke: 'var(--border)' }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} unit="%" />
+                        <Tooltip
+                          contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                          labelStyle={{ color: 'var(--text-muted)' }}
+                          formatter={(value, _name, { payload }) => [`${value}% (${payload.score}/${payload.totalQuestions})`, payload.targetSubject]}
+                        />
+                        {/* The board pass mark — the only line that matters. */}
+                        <ReferenceLine y={70} stroke="var(--accent-success)" strokeDasharray="4 4" label={{ value: 'Pass 70%', position: 'insideTopRight', fontSize: 10, fill: 'var(--accent-success)' }} />
+                        <Line type="monotone" dataKey="pct" stroke="var(--accent)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  {[...trend].reverse().map((exam) => {
+                    const style = VERDICT_STYLE[exam.verdict] || VERDICT_STYLE.FAILED;
+                    return (
+                      <div key={exam.idx} className={`p-4 rounded-xl border flex items-center justify-between ${style.border}`}>
+                        <div>
+                          <div className="text-sm font-bold text-textMain">{exam.targetSubject}</div>
+                          <div className="text-[11px] text-muted2">{exam.label} · {exam.verdict}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`text-xl font-black ${style.text}`}>{exam.pct}%</div>
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-muted">{exam.score} / {exam.totalQuestions} items</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

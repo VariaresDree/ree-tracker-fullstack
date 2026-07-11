@@ -1,5 +1,6 @@
 // src/pages/ActiveReview.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import LatexRenderer from '../components/LatexRenderer';
@@ -24,6 +25,21 @@ export default function ActiveReview() {
 
   const [showScratchpad, setShowScratchpad] = useState(false);
   const currentQ = session.questions[session.currentIndex];
+
+  // Prescription deep-link: the dashboard's "Today's prescription" Start
+  // buttons navigate here with a session preset in router state. Auto-start
+  // once, then clear the state so back-navigation doesn't relaunch it.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const presetLaunched = useRef(false);
+  useEffect(() => {
+    const preset = location.state?.preset;
+    if (!preset || presetLaunched.current || session.isActive || session.loading) return;
+    presetLaunched.current = true;
+    navigate(location.pathname, { replace: true, state: null });
+    startSession(preset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
