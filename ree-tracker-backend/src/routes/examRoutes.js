@@ -144,6 +144,11 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
                 subject: sub,
                 subtopic: masterQ?.subtopic || attempt.subtopic || 'General',
                 isCorrect: isCorrect,
+                // Forwarded so recordAttempts() re-grades against the master key
+                // (single source of truth) and marks the row server-graded —
+                // otherwise the theta estimator, which now consumes server-graded
+                // rows only, would wrongly drop every board-sim attempt.
+                userAnswer: attempt.userAnswer,
                 confidenceLevel: attempt.confidence || 'LOW',
                 timeSpentMs: (attempt.timeSpentSecs || 0) * 1000,
                 clientAttemptId: attempt.clientAttemptId,
@@ -193,6 +198,7 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
                 attempts: parsedAttempts.map((a) => ({
                     questionId: a.questionId,
                     isCorrect: a.isCorrect,
+                    userAnswer: a.userAnswer,
                     subject: a.subject,
                     subtopic: a.subtopic,
                     confidenceLevel: a.confidenceLevel,
@@ -202,6 +208,10 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
             });
             if (telemetry?.updatedTheta != null) newTheta = telemetry.updatedTheta;
         }
+
+        // Build questionId -> original-index once (O(n)) so the diagnostics
+        // below are O(n) instead of O(n^2) (findIndex-in-map over `attempts`).
+        const idxByQid = new Map(attempts.map((at, i) => [at.questionId, i]));
 
         res.status(200).json({
             success: true,
@@ -213,8 +223,8 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
                 verdictColor: verdictColor,
                 timeTaken: timeTakenSecs,
                 subjTracker: subjectPerformance,
-                timeSinks: parsedAttempts.filter(a => a.timeSpentMs > 180000).map(a => ({ idx: attempts.findIndex(at => at.questionId === a.questionId), time: Math.floor(a.timeSpentMs / 1000) })),
-                blindSpots: parsedAttempts.filter(a => a.confidenceLevel === 'HIGH' && !a.isCorrect).map(a => attempts.findIndex(at => at.questionId === a.questionId))
+                timeSinks: parsedAttempts.filter(a => a.timeSpentMs > 180000).map(a => ({ idx: idxByQid.get(a.questionId), time: Math.floor(a.timeSpentMs / 1000) })),
+                blindSpots: parsedAttempts.filter(a => a.confidenceLevel === 'HIGH' && !a.isCorrect).map(a => idxByQid.get(a.questionId))
             },
             newStats: {
                 irt: { theta: newTheta },

@@ -4,7 +4,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
-const { questionCreateSchema, questionUpdateSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -198,8 +198,14 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
     }
 });
 
-// 3. UPDATE AN EXISTING QUESTION
-router.put('/:id', authMiddleware, validate(questionUpdateSchema), async (req, res) => {
+// 3. UPDATE AN EXISTING QUESTION — admin only. This handler writes the master
+// answer key (data.answer, line ~228); leaving it open to any authenticated
+// user let a non-admin rewrite the correct answer of any shared question and
+// defeat the server-authoritative grading that /grade, /submit and battles all
+// rely on. The only client caller passing edit fields is the admin vault-edit
+// grid (useVaultGrid.handleUpdateSubmit); user "report anomaly" uses
+// PATCH /:id/flag and explanation caching uses PUT /:id/cache — neither hits this.
+router.put('/:id', authMiddleware, requireAdmin, validate(questionUpdateSchema), async (req, res) => {
     try {
         const data = req.body;
         // Phase 3.6 auditability: snapshot the row BEFORE the edit so a wrong
@@ -244,7 +250,7 @@ router.put('/:id', authMiddleware, validate(questionUpdateSchema), async (req, r
 });
 
 // 4. UPDATE CACHED EXPLANATION
-router.put('/:id/cache', authMiddleware, async (req, res) => {
+router.put('/:id/cache', authMiddleware, validate(questionCacheSchema), async (req, res) => {
     try {
         const { cachedExplanation, fixedExplanation } = req.body;
         await prisma.question.update({

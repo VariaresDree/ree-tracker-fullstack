@@ -6,7 +6,8 @@ export default function ManualIngestionForm({
     manualQ, setManualQ,
     genSubject, setGenSubject,
     genSubtopic, setGenSubtopic,
-    handleManualSubmit
+    handleManualSubmit,
+    isSubmitting = false
 }) {
     // 🚀 Connect the dropdowns directly to the cloud-synced Dynamic TOS
     const { dynamicTOS } = useStore();
@@ -117,8 +118,8 @@ export default function ManualIngestionForm({
                 </FormField>
 
                 <div className="pt-4 border-t border-border mt-2">
-                    <Button type="submit" fullWidth>
-                        Add to vault
+                    <Button type="submit" fullWidth loading={isSubmitting} disabled={isSubmitting}>
+                        {isSubmitting ? 'Adding…' : 'Add to vault'}
                     </Button>
                 </div>
             </form>

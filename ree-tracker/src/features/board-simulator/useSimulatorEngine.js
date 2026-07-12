@@ -7,12 +7,15 @@ import {
   fetchMultiplayerBattle, fetchSyllabusWeights, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
+import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
 import { computeBattleDiagnostics } from './battleGrades';
 import toast from 'react-hot-toast';
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
-  const { dynamicTOS, setStats, startSession: startStoreSession, endSession: endStoreSession } = useStore();
+  // Narrow, stable-reference slice — no whole-store subscription on the
+  // per-answer hot path (see useEngineActionsSlice).
+  const { dynamicTOS, setStats, startSession: startStoreSession, endSession: endStoreSession } = useEngineActionsSlice();
 
   const [config, setConfig] = useState({
     mode: 'subject', subject: 'EE', count: 20, isPrcStandard: false, source: 'library', timeLimitMins: 30, cognitiveFocus: 'mixed'

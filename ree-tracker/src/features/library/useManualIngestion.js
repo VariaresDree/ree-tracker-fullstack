@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 
 export const useManualIngestion = (onSuccessCallback) => {
     const [manualMode, setManualMode] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [manualQ, setManualQ] = useState({
         type: 'calculation', 
         difficulty: '2', 
@@ -17,7 +18,10 @@ export const useManualIngestion = (onSuccessCallback) => {
     });
 
     const handleManualSubmit = async (e, subject, subtopic) => {
-        e.preventDefault(); 
+        e.preventDefault();
+
+        // Guard against a double-tap on a slow write minting duplicate questions.
+        if (isSubmitting) return;
 
         // 🚀 FIXED: Bulletproof validation that safely handles numeric strings and whitespace
         const requiredFields = [manualQ.text, manualQ.answer, manualQ.distractor1, manualQ.distractor2, manualQ.distractor3];
@@ -47,21 +51,24 @@ export const useManualIngestion = (onSuccessCallback) => {
             isFlagged: false 
         };
 
+        setIsSubmitting(true);
         try {
             await saveQuestionToBank(payload);
             toast.success("Question injected successfully into the Matrix.");
-            
-            setManualQ({ 
-                type: 'calculation', difficulty: '2', text: '', answer: '', 
-                distractor1: '', distractor2: '', distractor3: '', fixedExplanation: '' 
+
+            setManualQ({
+                type: 'calculation', difficulty: '2', text: '', answer: '',
+                distractor1: '', distractor2: '', distractor3: '', fixedExplanation: ''
             });
-            
+
             if (onSuccessCallback) onSuccessCallback();
         } catch (err) {
             toast.error("Failed to inject question.");
             console.error(err);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
-    return { manualMode, setManualMode, manualQ, setManualQ, handleManualSubmit };
+    return { manualMode, setManualMode, manualQ, setManualQ, handleManualSubmit, isSubmitting };
 };

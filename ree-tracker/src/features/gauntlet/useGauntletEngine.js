@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useEngineActionsSlice } from '../../store/slices';
 import { apiRequest, getAnalyticsProfile } from '../../services/dbQueries';
 import { auth } from '../../config/firebaseDb';
 import toast from 'react-hot-toast';
@@ -13,7 +14,11 @@ const GAUNTLET_TIERS = {
 };
 
 export const useGauntletEngine = (level) => {
-    const { stats, setStats, startSession: startStoreSession, endSession: endStoreSession } = useStore();
+    // Actions come from the stable-reference engine slice; `stats` is the one
+    // live value the submit closure reads, so subscribe to just it (not the
+    // whole store, which re-rendered on every syncQueue/syncStatus flip).
+    const { setStats, startSession: startStoreSession, endSession: endStoreSession } = useEngineActionsSlice();
+    const stats = useStore((s) => s.stats);
     const navigate = useNavigate();
     const [status, setStatus] = useState('loading');
     const [questions, setQuestions] = useState([]);

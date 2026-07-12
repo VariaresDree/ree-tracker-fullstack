@@ -3,23 +3,11 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { GoogleGenAI } = require('@google/genai');
 const logger = require('../utils/logger');
-
-// Real, currently-shipping, free-tier Gemini IDs ordered from most capable
-// to lightest. Override at runtime via MODEL_TIERS env (comma-separated) —
-// useful when Google ships new IDs and we don't want to redeploy just to
-// add them. (The previous defaults included ids that don't exist —
-// 'gemini-3.5-flash', 'gemini-3.1-flash-lite' — so every request burned two
-// 404s before reaching a real model.)
-const DEFAULT_MODEL_TIERS = [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-];
-
-const MODEL_TIERS = (process.env.MODEL_TIERS
-    ? process.env.MODEL_TIERS.split(',').map((s) => s.trim()).filter(Boolean)
-    : DEFAULT_MODEL_TIERS);
+const { validate } = require('../middlewares/validate');
+const { aiGenerateSchema } = require('../schemas/aiSchemas');
+// Model tier list now lives in config/aiModels so the request schema can
+// allowlist against the same source without a circular import.
+const { MODEL_TIERS } = require('../config/aiModels');
 
 // Real question generation (5-10 items with LaTeX + validation rules) can
 // take 15-40s — the old 10s ceiling timed out healthy requests and marched
@@ -80,7 +68,7 @@ function classifyError(err) {
     return 'other';
 }
 
-router.post('/generate', authMiddleware, async (req, res) => {
+router.post('/generate', authMiddleware, validate(aiGenerateSchema), async (req, res) => {
     const ai = getAI();
     if (!ai) {
         logger.warn('AI generate called but GEMINI_API_KEY is missing');

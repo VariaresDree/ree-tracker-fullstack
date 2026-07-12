@@ -51,6 +51,11 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
   const tone = ece == null ? 'neutral' : ece < 0.1 ? 'success' : ece < 0.2 ? 'signal' : 'danger';
   const calibLabel = ece == null ? 'No data' : `ECE ${(ece * 100).toFixed(1)}%`;
 
+  // Text alternative for the SVG reliability diagram (WCAG 1.1.1).
+  const calibSummary = ece == null
+    ? 'Calibration reliability chart: no data yet.'
+    : `Calibration reliability chart across ${points.length} confidence buckets (n=${total}). Expected calibration error ${(ece * 100).toFixed(1)} percent. Points above the diagonal are under-confident, below are over-confident.`;
+
   return (
     <Card elevated>
       <CardHeader>
@@ -65,7 +70,7 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
           <span>Brier {brier == null ? '—' : brier.toFixed(3)}</span>
           <span>n = {total}</span>
         </div>
-        <div className="h-56">
+        <div className="h-56" role="img" aria-label={calibSummary}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
               <XAxis

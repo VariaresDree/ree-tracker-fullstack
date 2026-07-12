@@ -49,25 +49,33 @@ router.get('/time-analysis', authMiddleware, async (req, res) => {
 router.get('/confidence-calibration', authMiddleware, async (req, res) => {
     try {
         const levels = ['LOW', 'MED', 'HIGH'];
-        const result = [];
 
-        for (const level of levels) {
-            const [total, correct] = await Promise.all([
-                prisma.questionAttempt.count({
-                    where: { userId: req.user.id, confidenceLevel: level }
-                }),
-                prisma.questionAttempt.count({
-                    where: { userId: req.user.id, confidenceLevel: level, isCorrect: true }
-                })
-            ]);
+        // One groupBy instead of 6 round-trips (2 counts × 3 levels). Matches the
+        // matrix aggregation pattern used in analyticsRoutes; served by the
+        // (userId, confidenceLevel, isCorrect) index.
+        const rows = await prisma.questionAttempt.groupBy({
+            by: ['confidenceLevel', 'isCorrect'],
+            where: { userId: req.user.id },
+            _count: { _all: true },
+        });
 
-            result.push({
+        const tally = Object.fromEntries(levels.map((l) => [l, { total: 0, correct: 0 }]));
+        for (const r of rows) {
+            const bucket = tally[r.confidenceLevel];
+            if (!bucket) continue; // ignore any stray/legacy confidence labels
+            bucket.total += r._count._all;
+            if (r.isCorrect) bucket.correct += r._count._all;
+        }
+
+        const result = levels.map((level) => {
+            const { total, correct } = tally[level];
+            return {
                 confidence: level,
                 total,
                 correct,
-                accuracy: total > 0 ? Math.round((correct / total) * 100) : 0
-            });
-        }
+                accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
+            };
+        });
 
         res.status(200).json({ items: result });
     } catch (error) {

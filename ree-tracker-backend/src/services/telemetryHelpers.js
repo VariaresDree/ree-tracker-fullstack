@@ -22,17 +22,20 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
         .map((a) => {
             const m = qMap[a.questionId];
             const serverGraded = a.userAnswer != null;
-            // Offline-credit hardening (Phase 4.1 — leaderboard integrity):
-            // an attempt tagged offline can NEVER claim credit without a
-            // server-gradable userAnswer. Legit clients send userAnswer for
-            // every answered item (it's omitted only for unanswered ones,
-            // which are already isCorrect:false); only a tampered "trust me,
-            // it was right" payload is zeroed here. Theta — and therefore the
-            // leaderboard aggregation — derives exclusively from
-            // server-verifiable evidence.
+            // Leaderboard integrity (Phase 4.1): the ranked theta estimator must
+            // derive EXCLUSIVELY from server-verifiable evidence. The old
+            // `a.offline ? false : !!a.isCorrect` fallback only zeroed attempts
+            // tagged offline — so a payload that simply omitted the flag (or the
+            // legit self-graded flashcard path, which never sends userAnswer)
+            // fed a client-asserted isCorrect straight into theta. We now enforce
+            // that invariant DOWNSTREAM instead: `_serverGraded` is stamped on the
+            // row and the estimator (telemetryService) consumes server-graded rows
+            // only. Self-graded correctness is still recorded on the QuestionAttempt
+            // for the user's OWN mastery/confidence-matrix/streak surfaces, but it
+            // can never move thetaRating or the leaderboard.
             const isCorrect = serverGraded
                 ? m.answer === a.userAnswer
-                : (a.offline ? false : !!a.isCorrect);
+                : !!a.isCorrect;
             // Discrepancy signal: the client sent both a userAnswer (which we
             // re-grade) AND its own isCorrect, and they disagree → the client's
             // (offline) answer key has drifted from the master. The SERVER score
@@ -46,6 +49,9 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
                 subject: normalizeSubject(m.subject || a.subject || 'General'),
                 subtopic: m.subtopic || a.subtopic || 'General',
                 isCorrect,
+                // Provenance for the estimator gate (stripped before the DB write):
+                // true only when the server re-graded against the master key.
+                _serverGraded: serverGraded,
                 confidenceLevel: String(a.confidenceLevel || 'LOW').toUpperCase(),
                 timeSpentMs: parseInt(a.timeSpentMs) || 0,
                 clientAttemptId: a.clientAttemptId || null,

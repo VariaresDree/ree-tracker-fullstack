@@ -61,6 +61,27 @@ export const useSessionSlice = () =>
 export const useTOSSlice = () =>
   useStore(useShallow((s) => ({ dynamicTOS: s.dynamicTOS, setDynamicTOS: s.setDynamicTOS })));
 
+// --- Session-engine actions (Board Sim / Active Review / Gauntlet hot path) ---
+// These engines run the per-answer loop. Subscribing to the WHOLE store made
+// them re-render on every recordAttempt() set() and every syncStatus/syncQueue
+// flip — ~300-400 forced re-renders of the question + LaTeX tree over one
+// 100-item exam, none of which read those keys. Zustand actions are stable
+// references and dynamicTOS changes rarely, so useShallow here is effectively
+// re-render-free during a session. Read live VALUES (stats) with a separate
+// narrow selector where actually needed.
+export const useEngineActionsSlice = () =>
+  useStore(
+    useShallow((s) => ({
+      dynamicTOS: s.dynamicTOS,
+      setStats: s.setStats,
+      recordAttempt: s.recordAttempt,
+      scheduleDebouncedFlush: s.scheduleDebouncedFlush,
+      queuePendingWrite: s.queuePendingWrite,
+      startSession: s.startSession,
+      endSession: s.endSession,
+    })),
+  );
+
 // --- Feature flags (Phase 4.1) ---
 // Missing keys read as disabled. Usage: const battlesV2 = useFlag('battles-v2');
 export const useFlag = (key) => useStore((s) => s.featureFlags?.[key]?.enabled ?? false);
