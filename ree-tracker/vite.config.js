@@ -39,6 +39,13 @@ export default defineConfig(async () => ({
           if (id.includes('firebase')) return 'firebase';
           if (id.includes('pdfjs-dist')) return 'pdf';
           if (id.includes('socket.io-client')) return 'socket';
+          // KaTeX + the markdown pipeline that renders it: ~400KB pulled by
+          // LatexRenderer, which nearly every answering surface imports. Its
+          // own chunk keeps it out of the shared vendor chunk on the home route.
+          if (/[\\/](katex|react-markdown|remark-math|rehype-katex|micromark|mdast|hast|unist|property-information|space-separated-tokens|comma-separated-tokens)/.test(id)) return 'latex';
+          // PDF/screenshot export path — only loaded when a user exports.
+          if (id.includes('jspdf') || id.includes('html2canvas')) return 'pdf-export';
+          if (id.includes('motion')) return 'motion';
           return undefined;
         },
       },

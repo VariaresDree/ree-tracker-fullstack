@@ -166,7 +166,7 @@ export default function ActiveReview() {
                       <Button
                           variant="outline"
                           className="flex-1"
-                          onClick={fetchOrToggleAI}
+                          onClick={() => fetchOrToggleAI(false)}
                           loading={session.aiLoading}
                           disabled={session.aiLoading || (!isOnline && !currentQ.cachedExplanation)}
                           title={!isOnline && !currentQ.cachedExplanation ? 'Needs a connection' : undefined}
@@ -185,8 +185,18 @@ export default function ActiveReview() {
 
                   {session.showAi && session.aiResponse && (
                       <div className="p-6 rounded-[var(--radius-lg)] bg-surface2/40 border shadow-inner" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 30%, transparent)' }}>
-                          <div className="text-eyebrow mb-3 flex items-center gap-2" style={{ color: 'var(--accent-velocity)' }}>
-                              <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
+                          <div className="text-eyebrow mb-3 flex items-center justify-between gap-2" style={{ color: 'var(--accent-velocity)' }}>
+                              <span className="flex items-center gap-2">
+                                  <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
+                              </span>
+                              <button
+                                  onClick={() => fetchOrToggleAI(true)}
+                                  disabled={session.aiLoading || !isOnline}
+                                  title={!isOnline ? 'Needs a connection' : 'Generate a fresh explanation'}
+                                  className="text-[0.65rem] font-medium normal-case tracking-normal px-2.5 py-1 rounded-md border border-border bg-surface2 hover:bg-surface3 text-muted hover:text-textMain transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                  ↻ Regenerate
+                              </button>
                           </div>
                           <div className="text-sm text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0"><LatexRenderer content={session.aiResponse} /></div>
                       </div>

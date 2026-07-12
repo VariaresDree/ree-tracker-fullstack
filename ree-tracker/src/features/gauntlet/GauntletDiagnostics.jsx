@@ -1,8 +1,9 @@
 // src/features/gauntlet/GauntletDiagnostics.jsx
 import React from 'react';
+import LatexRenderer from '../../components/LatexRenderer';
 
 export default function GauntletDiagnostics({ diagnostics, level, navigate, formatTime }) {
-    const { scorePct, correctCount, totalItems, isPassed, failedSubtopics, timeUsedSecs, isTimeOut } = diagnostics;
+    const { scorePct, correctCount, totalItems, isPassed, failedSubtopics, review = [], timeUsedSecs, isTimeOut } = diagnostics;
 
     // Sort subtopics by most failed
     const weakTopics = Object.entries(failedSubtopics).sort((a, b) => b[1] - a[1]);
@@ -54,6 +55,37 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
                             <div key={i} className="flex justify-between items-center p-3 bg-bg border border-border2 rounded-lg">
                                 <span className="text-sm font-bold text-textMain">{topic}</span>
                                 <span className="text-[11px] font-bold text-reeRed uppercase tracking-widest bg-reeRed/10 px-2 py-1 rounded">{errors} Errors</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Missed-question review — the diagnostics used to render no answer
+                key, so a failed gauntlet gave the user nothing to learn from. */}
+            {review.length > 0 && (
+                <div className="bg-surface border border-border2 rounded-2xl p-6 text-left shadow-sm">
+                    <h3 className="text-sm font-black text-textMain uppercase tracking-widest flex items-center gap-2 mb-4">
+                        <span className="text-reeRed">✗</span> Missed questions ({review.length})
+                    </h3>
+                    <div className="flex flex-col gap-4 max-h-[560px] overflow-y-auto pr-2 custom-scrollbar">
+                        {review.map((item, i) => (
+                            <div key={item.questionId || i} className="p-4 bg-bg border border-border2 rounded-xl flex flex-col gap-3">
+                                <div className="text-[0.6rem] font-black text-muted uppercase tracking-widest">{item.subtopic}</div>
+                                <div className="text-sm text-textMain [&_p]:!m-0"><LatexRenderer content={item.text} /></div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-border2/50">
+                                    <div className="rounded-lg p-3 border border-reeRed/30 bg-reeRed/5">
+                                        <div className="text-[0.6rem] font-black text-reeRed uppercase tracking-widest mb-1">Your answer</div>
+                                        <div className="text-sm text-textMain/90 line-through [&_p]:!m-0"><LatexRenderer content={item.userAnswer || 'No answer'} /></div>
+                                    </div>
+                                    <div className="rounded-lg p-3 border border-reeGreen/30 bg-reeGreen/5">
+                                        <div className="text-[0.6rem] font-black text-reeGreen uppercase tracking-widest mb-1">Correct answer</div>
+                                        <div className="text-sm font-bold text-textMain [&_p]:!m-0"><LatexRenderer content={item.correctAnswer || '—'} /></div>
+                                    </div>
+                                </div>
+                                {item.explanation && (
+                                    <div className="text-xs text-muted2 leading-relaxed pt-2 border-t border-border2/40 [&_p]:!m-0"><LatexRenderer content={item.explanation} /></div>
+                                )}
                             </div>
                         ))}
                     </div>

@@ -1,7 +1,9 @@
 // src/utils/certificateEngine.js
-import { jsPDF } from 'jspdf';
+// jsPDF (~400KB) is dynamically imported so it only loads when a user actually
+// downloads a certificate — it's no longer in any eagerly-loaded route chunk.
 
-export const generateCertificate = (currentUser, readinessScore) => {
+export const generateCertificate = async (currentUser, readinessScore) => {
+  const { jsPDF } = await import('jspdf');
   // A4 Landscape
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const width = doc.internal.pageSize.getWidth();

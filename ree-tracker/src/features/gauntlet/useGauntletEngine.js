@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { apiRequest, getAnalyticsProfile } from '../../services/dbQueries';
 import { auth } from '../../config/firebaseDb';
@@ -13,6 +14,7 @@ const GAUNTLET_TIERS = {
 
 export const useGauntletEngine = (level) => {
     const { stats, setStats, startSession: startStoreSession, endSession: endStoreSession } = useStore();
+    const navigate = useNavigate();
     const [status, setStatus] = useState('loading');
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
@@ -34,19 +36,24 @@ export const useGauntletEngine = (level) => {
                 return;
             }
 
-            const lockUntil = stats?.gauntletLockUntil;
-            const totalAnswered = stats?.totalAnswered || 0;
-            const currentLevel = stats?.gauntletLevel || 1;
+            // Read the gate values from the store at boot time (getState), NOT
+            // from the closed-over `stats` — submitExam calls setStats mid-run,
+            // and depending on `stats` here re-ran the whole boot effect
+            // (refetching questions, resetting the timer) during the attempt.
+            const s = useStore.getState().stats || {};
+            const lockUntil = s.gauntletLockUntil;
+            const totalAnswered = s.totalAnswered || 0;
+            const currentLevel = s.gauntletLevel || 1;
 
             if (lockUntil && lockUntil > Date.now()) {
                 toast.error("Security Breach: System is currently on a cooldown lock.");
-                window.location.href = '/arena';
+                navigate('/arena');
                 return;
             }
 
             if (totalAnswered < tier.reqQs || currentLevel < parseInt(level)) {
                 toast.error("Security Breach: You lack the required telemetry to enter this sector.");
-                window.location.href = '/arena';
+                navigate('/arena');
                 return;
             }
 
@@ -81,7 +88,8 @@ export const useGauntletEngine = (level) => {
             }
         };
         bootGauntlet();
-    }, [level, stats]);
+        // Boot ONCE per level — not on every stats change (see getState above).
+    }, [level, navigate]);
 
     useEffect(() => {
         if (status !== 'active') return;
@@ -129,16 +137,36 @@ export const useGauntletEngine = (level) => {
             const gradeResult = await apiRequest('/api/exams/grade', 'POST', { answers: gradePayload, mode: 'GAUNTLET' });
             const results = gradeResult?.results || [];
 
+            // Key results by questionId — the server returns each result WITH
+            // its questionId and doesn't promise input order, so the old
+            // results[idx]→questions[idx] mapping could mis-attribute a
+            // correct/wrong verdict to the wrong item.
+            const resultByQ = {};
+            results.forEach(r => { if (r.questionId) resultByQ[r.questionId] = r; });
+
             let correctCount = 0;
             const failedSubtopics = {};
+            // Per-question review rows (missed items) for the diagnostics screen —
+            // previously the screen was passed questions/answers but rendered no
+            // answer key, so a failed gauntlet showed no way to learn from it.
+            const review = [];
 
-            results.forEach((r, idx) => {
-                if (r.isCorrect) {
+            questions.forEach((q, idx) => {
+                const r = resultByQ[q.id];
+                const isCorrect = !!r?.isCorrect;
+                if (isCorrect) {
                     correctCount++;
                 } else {
-                    const subtopic = questions[idx]?.subtopic || 'Unknown';
-                    if (!failedSubtopics[subtopic]) failedSubtopics[subtopic] = 0;
-                    failedSubtopics[subtopic]++;
+                    const subtopic = q.subtopic || 'Unknown';
+                    failedSubtopics[subtopic] = (failedSubtopics[subtopic] || 0) + 1;
+                    review.push({
+                        questionId: q.id,
+                        text: q.text || q.question,
+                        subtopic,
+                        userAnswer: answers[idx] || null,
+                        correctAnswer: r?.correctAnswer ?? q.answer ?? null,
+                        explanation: r?.explanation || q.fixedExplanation || null,
+                    });
                 }
             });
 
@@ -151,6 +179,7 @@ export const useGauntletEngine = (level) => {
                 totalItems: tier.items,
                 isPassed,
                 failedSubtopics,
+                review,
                 timeUsedSecs: tier.timeLimitSecs - timeLeft,
                 isTimeOut
             });

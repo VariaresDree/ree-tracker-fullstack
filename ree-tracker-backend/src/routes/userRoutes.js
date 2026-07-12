@@ -59,6 +59,23 @@ router.put('/profile', authMiddleware, validate(profileUpdateSchema), async (req
     }
 });
 
+// Account deletion — purge the CALLER's Postgres record (self only; the id
+// comes from the verified token, never the body). Every dependent table
+// cascades via the schema's onDelete: Cascade relations. The client calls
+// this right before deleting the Firebase Auth identity; previously no such
+// route existed, so "Delete account" left the whole server record orphaned.
+router.delete('/profile', authMiddleware, async (req, res) => {
+    try {
+        await prisma.user.delete({ where: { id: req.user.id } });
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        // P2025 = no row to delete (account never synced) — nothing to purge.
+        if (error.code === 'P2025') return res.status(200).json({ success: true });
+        logger.error('Account deletion failed', { error: error.message, uid: req.user.id });
+        return res.status(500).json({ error: 'Account deletion failed.' });
+    }
+});
+
 router.put('/settings', authMiddleware, validate(settingsUpdateSchema), async (req, res) => {
     try {
         const { examDate, dailyTarget } = req.body;

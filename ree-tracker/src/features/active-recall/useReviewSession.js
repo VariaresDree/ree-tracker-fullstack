@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, saveQuestionToBank } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, saveQuestionToBank, saveBookmark, removeBookmark } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
 import { stratifiedSample } from '../../utils/shuffle';
@@ -307,15 +307,37 @@ export const useReviewSession = (currentUser, isOnline) => {
         }
     };
 
-    const toggleBookmark = () => {
+    // PERSISTED bookmark toggle. This used to mutate only the local Set —
+    // nothing ever reached /api/bookmarks, which is why the Materials hub's
+    // Bookmark Vault stayed empty no matter how much you bookmarked here.
+    // Optimistic Set update, rolled back if the API rejects.
+    const toggleBookmark = async () => {
         const currentQ = session.questions[session.currentIndex];
-        if (!currentQ) return;
-        setBookmarks(prev => {
-            const next = new Set(prev);
-            if (next.has(currentQ.id)) { next.delete(currentQ.id); toast.success("Removed Bookmark"); }
-            else { next.add(currentQ.id); toast.success("Bookmarked"); }
+        if (!currentQ?.id) return toast.error("Can't bookmark dynamic items.");
+        const had = bookmarks.has(currentQ.id);
+        const flip = (set, add) => {
+            const next = new Set(set);
+            if (add) next.add(currentQ.id); else next.delete(currentQ.id);
             return next;
-        });
+        };
+        setBookmarks(prev => flip(prev, !had));
+        try {
+            if (had) {
+                await removeBookmark(currentUser?.uid, currentQ.id);
+                toast.success("Removed bookmark");
+            } else {
+                await saveBookmark(currentUser?.uid, { questionId: currentQ.id });
+                toast.success("Bookmarked — find it in Materials › Bookmark Vault");
+            }
+        } catch (err) {
+            // 409 = the server already has it (e.g. bookmarked in another
+            // session) — the optimistic "on" state is correct, keep it.
+            if (!had && err?.status === 409) return;
+            setBookmarks(prev => flip(prev, had));
+            toast.error(err?.message === '[OFFLINE]'
+                ? "Offline — bookmarking needs a connection."
+                : "Bookmark failed.");
+        }
     };
 
     const handleFlagQuestion = async () => {
@@ -332,10 +354,12 @@ export const useReviewSession = (currentUser, isOnline) => {
         } catch (err) { toast.error("Flag failed."); }
     };
 
-    const fetchOrToggleAI = async () => {
-        if (session.showAi) { setSession(prev => ({ ...prev, showAi: false })); return; }
+    // `force` = Regenerate: skip the cached short-circuit and overwrite the
+    // stored explanation (the server PUT is an idempotent overwrite).
+    const fetchOrToggleAI = async (force = false) => {
+        if (!force && session.showAi) { setSession(prev => ({ ...prev, showAi: false })); return; }
         const currentQ = session.questions[session.currentIndex];
-        if (currentQ.cachedExplanation) {
+        if (!force && currentQ.cachedExplanation) {
             setSession(prev => ({ ...prev, showAi: true, aiResponse: currentQ.cachedExplanation })); return;
         }
 

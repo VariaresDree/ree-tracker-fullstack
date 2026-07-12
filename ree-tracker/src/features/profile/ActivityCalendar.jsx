@@ -1,8 +1,15 @@
 // src/features/profile/ActivityCalendar.jsx
 import React, { useState } from 'react';
+import { todayManila } from '../../utils/manilaDate';
 
 export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 50 }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Every key in activityCalendar is an Asia/Manila YYYY-MM-DD (that's how the
+  // server's ActivityLog and the optimistic mirror both write). The calendar
+  // therefore navigates and highlights in MANILA dates too — the old
+  // browser-local `new Date()` drifted a day near midnight for non-PH users.
+  const manilaToday = todayManila(); // 'YYYY-MM-DD'
+  const [tYear, tMonth] = manilaToday.split('-').map(Number);
+  const [currentDate, setCurrentDate] = useState(new Date(tYear, tMonth - 1, 1));
 
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
@@ -15,7 +22,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
   const blanks = Array(firstDay).fill(null);
   const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
 
-  const today = new Date();
+  const atCurrentMonth = currentDate.getMonth() === tMonth - 1 && currentDate.getFullYear() === tYear;
 
   // Color Intensity Logic based on Question Count Target
   const getIntensityClass = (count) => {
@@ -44,7 +51,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
            <div className="w-40 text-center font-bold text-sm uppercase tracking-widest text-textMain">
               {currentDate.toLocaleString('default', { month: 'long' })} {currentDate.getFullYear()}
            </div>
-           <button onClick={nextMonth} disabled={currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear()} className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black disabled:opacity-30 disabled:cursor-not-allowed">&gt;</button>
+           <button onClick={nextMonth} disabled={atCurrentMonth} className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black disabled:opacity-30 disabled:cursor-not-allowed">&gt;</button>
         </div>
       </div>
 
@@ -69,9 +76,10 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
                 
                 const count = activityCalendar[dateString] || 0;
                 const colorClass = getIntensityClass(count);
-                
+                const isToday = dateString === manilaToday;
+
                 return (
-                    <div key={d} className={`aspect-square border-r border-b border-border2/50 relative transition-all group ${colorClass}`}>
+                    <div key={d} className={`aspect-square border-r border-b border-border2/50 relative transition-all group ${colorClass} ${isToday ? 'ring-2 ring-inset ring-[var(--accent)]' : ''}`}>
                         <span className="absolute top-1 left-1.5 text-[11px] md:text-sm font-bold opacity-80">{d}</span>
                         {count > 0 && (
                             <span className="absolute bottom-1 right-1.5 text-[11px] md:text-xs font-mono opacity-90">{count}</span>

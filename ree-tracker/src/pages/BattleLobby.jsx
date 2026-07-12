@@ -156,6 +156,9 @@ export default function BattleLobby() {
                     <h3 className="text-lg font-semibold text-textMain mb-4 flex items-center gap-2">
                         <Trophy size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> Final scores
                     </h3>
+                    <p className="text-xs text-muted2 mb-4">
+                        Results are recorded. Dashboard analytics can take a minute to catch up after a multiplayer exam.
+                    </p>
                     <div className="flex flex-col gap-3">
                         {results.map((r, idx) => (
                             <div key={r.id} className={`flex items-center justify-between p-4 rounded-[var(--radius-lg)] border ${
@@ -212,7 +215,10 @@ export default function BattleLobby() {
                     </span>
                 )}
 
-                {(battleStatus === 'IN_PROGRESS' || battleStatus === 'WAITING') && (
+                {/* Only enter the exam room once the battle has actually STARTED.
+                    Entering during WAITING dropped a non-host into the simulator
+                    before `battle-started` fired (host still assembling the lobby). */}
+                {battleStatus === 'IN_PROGRESS' && (
                     <Button tone="danger" className="flex-1" onClick={handleEnterChamber}>
                         Enter exam room
                     </Button>

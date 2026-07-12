@@ -53,23 +53,20 @@ export default function BoardSimulator() {
     }
   }, [engine.session.answers, activeBattleId, battleConnected]);
 
-  // FULLY WIRED BOOKMARK HANDLER WITH COMPLETE PAYLOAD
+  // Bookmark handler. The server keys bookmarks by `questionId` (the row is a
+  // (userId, questionId) join — question content is joined at read time). The
+  // old payload sent `id` + a copied snapshot, which the schema-strict route
+  // rejected with 400 every single time — nothing ever reached the vault.
   const handleBookmark = async (question) => {
     if (!currentUser?.uid || !question?.id) return;
     try {
-        await saveBookmark(currentUser.uid, {
-            id: question.id,
-            type: 'Question',
-            subject: question.subject || 'General',
-            subtopic: question.subtopic || 'Uncategorized',
-            content: question.text || question.question || "Encrypted Content",
-            options: question.options || [],
-            answer: question.answer || null,
-            fixedExplanation: question.fixedExplanation || null,
-        });
+        await saveBookmark(currentUser.uid, { questionId: question.id });
         toast.success("Secured in Bookmark Vault.");
     } catch (error) {
-        toast.error("Failed to secure bookmark.");
+        if (error?.status === 409) { toast.success("Already in your vault."); return; }
+        toast.error(error?.message === '[OFFLINE]'
+            ? "Offline — bookmarking needs a connection."
+            : "Failed to secure bookmark.");
     }
   };
 
@@ -144,11 +141,10 @@ export default function BoardSimulator() {
       )}
 
 {engine.session.isFinished && (
-        <SimulatorDiagnostics 
-            session={engine.session} 
-            formatTime={formatTimerVerbose} 
-            setCurrentIndex={engine.setCurrentIndex}
-            onBookmark={handleBookmark} 
+        <SimulatorDiagnostics
+            session={engine.session}
+            engine={engine}
+            isBattle={!!activeBattleId}
         />
       )}
 

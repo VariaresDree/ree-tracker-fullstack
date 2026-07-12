@@ -423,9 +423,8 @@ export const fetchBookmarks = async () => {
     const data = await safeApiRequest('/api/bookmarks', 'GET', null, null);
     return normalizeQuestions(data);
 };
-export const updateBookmarkCache = async (uid, itemId, aiExplanation) => {
-    return await apiRequest(`/api/bookmarks/${itemId}/cache`, 'PUT', { cachedAiExplanation: aiExplanation });
-};
+// (updateBookmarkCache removed — it targeted a /api/bookmarks/:id/cache route
+// that never existed; vault explanations persist via updateQuestionCache.)
 
 // ----------------------------------------------------------------------
 // 7. Study Materials & Files

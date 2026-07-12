@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
 import StudyPlanGenerator from '../study-plan/StudyPlanGenerator';
+import { todayManila } from '../../utils/manilaDate';
 
 export default function StrategicPlannerTab({ currentUser }) {
   const [tasks, setTasks] = useState([]);
@@ -71,7 +72,9 @@ export default function StrategicPlannerTab({ currentUser }) {
   const renderCalendar = () => {
       const daysInMonth = getDaysInMonth(currentDate);
       const firstDay = getFirstDayOfMonth(currentDate);
-      const today = new Date();
+      // Manila "today", like every daily boundary in the app — a browser-local
+      // Date drifted the highlight and overdue line near midnight elsewhere.
+      const [tYear, tMonth, tDay] = todayManila().split('-').map(Number);
       const blanks = Array(firstDay).fill(null);
       const days = Array.from({length: daysInMonth}, (_, i) => i + 1);
 
@@ -90,7 +93,7 @@ export default function StrategicPlannerTab({ currentUser }) {
               <div className="grid grid-cols-7 gap-1 text-center">
                   {blanks.map((_, i) => <div key={`blank-${i}`} className="p-2"></div>)}
                   {days.map(d => {
-                      const isToday = d === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
+                      const isToday = d === tDay && currentDate.getMonth() === tMonth - 1 && currentDate.getFullYear() === tYear;
                       const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                       const hasTask = tasks.some(t => t.dueDate === dateString && !t.completed);
 
@@ -161,7 +164,7 @@ export default function StrategicPlannerTab({ currentUser }) {
                     </div>
                 ) : (
                     sortedTasks.map(task => {
-                        const today = new Date().toISOString().split('T')[0];
+                        const today = todayManila();
                         let statusColor = 'border-border2';
                         let dateBadge = null;
 

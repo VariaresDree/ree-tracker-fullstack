@@ -8,6 +8,7 @@ import { updateProfile, deleteUser } from 'firebase/auth';
 import { Skeleton, Button, Modal, FormField, Input, Tabs, StatusPill } from '../components/ui';
 import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settings2, Cloud, TriangleAlert } from '../components/ui/icons';
 import toast from 'react-hot-toast';
+import { syncDashboardStats } from '../services/analyticsSync';
 
 // Decoupled Components
 import ComparativeAnalyticsTab from '../features/profile/ComparativeAnalyticsTab';
@@ -45,8 +46,18 @@ export default function Profile() {
   
   // UI States
   const [activeTab, setActiveTab] = useState('analytics');
-  const [activeModal, setActiveModal] = useState(null); 
+  const [activeModal, setActiveModal] = useState(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  // Hydrate the store with the server's dashboard aggregate on mount, exactly
+  // like the Dashboard does — the Consistency Matrix, milestones, and streak
+  // read store stats, which used to hold only locally-accumulated values (so
+  // a new device rendered an empty Profile even with months of server data).
+  useEffect(() => {
+    if (currentUser?.uid && navigator.onLine) {
+      syncDashboardStats(currentUser.uid).catch(() => {});
+    }
+  }, [currentUser?.uid]);
   
   // Editing States
   const [isEditing, setIsEditing] = useState(false);
@@ -135,32 +146,14 @@ export default function Profile() {
 
       try {
           if (type === 'Pull') {
-              const token = await currentUser.getIdToken();
-              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-              
-              // Pull directly from our new high-speed PostgreSQL dashboard aggregation
-              const res = await fetch(`${backendUrl}/api/analytics/dashboard/${currentUser.uid}`, {
-                  headers: { 'Authorization': `Bearer ${token}` }
-              });
-
-              if (res.ok) {
-                  const json = await res.json();
-                  if (json.success && json.data) {
-                      // Merge the cloud truth with local frontend UI preferences
-                      const restoredStats = {
-                          ...stats,
-                          irt: { ...stats?.irt, theta: json.data.profile?.thetaRating || 0 },
-                          globalStreak: json.data.profile?.globalStreak || 0,
-                          matrix: json.data.matrix,
-                          cloudTimestamp: Date.now()
-                      };
-                      setStats(restoredStats);
-                      toast.success("Restored from cloud backup.", { id: toastId });
-                  } else {
-                      toast.error("No cloud backup found for this account.", { id: toastId });
-                  }
+              // Same shared sync the Dashboard uses — restores EVERYTHING the
+              // server has (calendar, matrix, microTopics, streak, theta,
+              // history), not just the three fields the old handler copied.
+              const restored = await syncDashboardStats(currentUser.uid);
+              if (restored) {
+                  toast.success("Restored from cloud backup.", { id: toastId });
               } else {
-                  toast.error("The server refused the restore request.", { id: toastId });
+                  toast.error("No cloud backup found for this account.", { id: toastId });
               }
           }
       } catch (err) {
