@@ -11,6 +11,7 @@ import {
     createFormula, deleteFormula,
     importReferenceLibrary,
 } from '../../services/dbQueries';
+import { generateReferenceAI } from '../../services/geminiApi';
 
 // Curated "should be covered" reference targets — drives the verification view.
 const REQUIRED_CONSTANT_CATEGORIES = ['Physical Constants', 'Equipment Standards', 'PEC Wiring (THHN)', 'Regulatory', 'Conversions'];
@@ -37,6 +38,56 @@ export default function ReferenceAdmin() {
     // --- forms ---
     const [cForm, setCForm] = useState({ category: '', name: '', value: '', keyword: '', subject: '' });
     const [fForm, setFForm] = useState({ subject: 'EE', title: '', eq: '', subtopics: '' });
+
+    // --- AI generation (preview → select → insert) ---
+    const [aiSubject, setAiSubject] = useState('EE');
+    const [aiCategory, setAiCategory] = useState('');
+    const [aiRows, setAiRows] = useState([]);       // generated, pending review
+    const [aiSelected, setAiSelected] = useState(new Set());
+    const [aiBusy, setAiBusy] = useState(false);
+
+    const handleGenerateAI = async () => {
+        setAiBusy(true);
+        setAiRows([]); setAiSelected(new Set());
+        const toastId = toast.loading('Generating with AI…');
+        try {
+            const rows = await generateReferenceAI(panel, aiSubject, aiCategory.trim(), 10);
+            // Keep only rows that satisfy the backend schema's required fields,
+            // so a partial hallucination can't be selected into a 400.
+            const valid = (rows || []).filter((r) => panel === 'constants'
+                ? r.category && r.name && r.value
+                : r.title && r.eq);
+            if (valid.length === 0) throw new Error('No valid entries returned.');
+            setAiRows(valid);
+            setAiSelected(new Set(valid.map((_, i) => i))); // default: all selected
+            toast.success(`Generated ${valid.length} — review and insert.`, { id: toastId });
+        } catch (err) {
+            toast.error(err?.message === '[OFFLINE]' ? 'AI needs a connection.' : (err.message || 'Generation failed.'), { id: toastId });
+        } finally { setAiBusy(false); }
+    };
+
+    const toggleAiRow = (i) => setAiSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(i)) next.delete(i); else next.add(i);
+        return next;
+    });
+
+    const handleInsertSelected = async () => {
+        const chosen = aiRows.filter((_, i) => aiSelected.has(i));
+        if (chosen.length === 0) return toast.error('Select at least one entry.');
+        setAiBusy(true);
+        const toastId = toast.loading(`Inserting ${chosen.length}…`);
+        try {
+            const payload = panel === 'constants'
+                ? { constants: chosen.map(({ category, name, value, keyword, subject }) => ({ category, name, value, keyword: keyword || null, subject: subject || aiSubject })) }
+                : { formulas: chosen.map(({ subject, title, eq, subtopics }) => ({ subject: subject || aiSubject, title, eq, subtopics: Array.isArray(subtopics) ? subtopics : [] })) };
+            const res = await importReferenceLibrary(payload);
+            toast.success(`Inserted ${res.constantsAdded ?? 0} constants, ${res.formulasAdded ?? 0} formulas (duplicates skipped).`, { id: toastId });
+            setAiRows([]); setAiSelected(new Set());
+            await reload();
+        } catch (err) { toast.error(err.message || 'Insert failed.', { id: toastId }); }
+        finally { setAiBusy(false); }
+    };
 
     // --- coverage ---
     const constCoverage = useMemo(() => REQUIRED_CONSTANT_CATEGORIES.map((cat) => {
@@ -157,6 +208,53 @@ export default function ReferenceAdmin() {
                         ? `${mergedConstants.length} total (${dbConstants.length} in DB · ${bundledConstants.length} bundled seed)`
                         : `${mergedFormulas.length} total (${dbFormulas.length} in DB · ${bundledFormulas.length} bundled seed)`}
                 </div>
+            </div>
+
+            {/* Generate with AI — preview + selective insert */}
+            <div className="p-4 bg-surface border border-reePurple/30 rounded-xl flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-[0.65rem] font-black text-reePurple uppercase tracking-widest">✨ Generate {panel} with AI</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <select className={`${inputCls} !w-auto`} value={aiSubject} onChange={(e) => setAiSubject(e.target.value)}>
+                            {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <input className={`${inputCls} !w-44`} placeholder={panel === 'constants' ? 'Category (optional)' : 'Focus (optional)'} value={aiCategory} onChange={(e) => setAiCategory(e.target.value)} />
+                        <button onClick={handleGenerateAI} disabled={aiBusy}
+                            className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-reePurple/15 border border-reePurple/40 text-reePurple hover:bg-reePurple/25 transition-all cursor-pointer disabled:opacity-50">
+                            {aiBusy ? 'Working…' : 'Generate 10'}
+                        </button>
+                    </div>
+                </div>
+
+                {aiRows.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-[0.6rem] text-muted2 uppercase tracking-widest">
+                            <span>{aiSelected.size} of {aiRows.length} selected · review before inserting</span>
+                            <button onClick={handleInsertSelected} disabled={aiBusy || aiSelected.size === 0}
+                                className="px-3 py-1.5 rounded-lg font-bold bg-reePurple hover:brightness-110 text-white transition-all cursor-pointer disabled:opacity-50">
+                                ➕ Insert selected
+                            </button>
+                        </div>
+                        <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                            {aiRows.map((r, i) => (
+                                <label key={i} className={`flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${aiSelected.has(i) ? 'bg-reePurple/5 border-reePurple/30' : 'bg-surface2/40 border-border2 opacity-60'}`}>
+                                    <input type="checkbox" checked={aiSelected.has(i)} onChange={() => toggleAiRow(i)} className="mt-1 accent-reePurple cursor-pointer" />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-xs font-bold text-textMain">
+                                            <LatexRenderer content={panel === 'constants' ? r.name : r.title} />
+                                        </div>
+                                        <div className="text-[11px] text-muted2 mt-0.5">
+                                            <LatexRenderer content={panel === 'constants' ? r.value : r.eq} />
+                                        </div>
+                                        <div className="text-[0.6rem] text-muted mt-1 uppercase tracking-wide">
+                                            {panel === 'constants' ? (r.category || '—') : (Array.isArray(r.subtopics) ? r.subtopics.join(' · ') : '—')}
+                                        </div>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Add form */}

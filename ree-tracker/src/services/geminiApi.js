@@ -215,6 +215,47 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
     }
 };
 
+// Generate reference-library rows (engineering constants or formulas) with AI,
+// shaped to match the backend referenceSchemas so they insert cleanly through
+// the existing idempotent import route. Reuses callAI's LaTeX-safe JSON parse.
+//   kind: 'constants' | 'formulas'
+// Returns a raw array (the admin UI previews + lets the user select before insert).
+export const generateReferenceAI = async (kind, subject, category = '', count = 10) => {
+    const seed = Math.floor(Math.random() * 10000);
+    const subtopics = TOS[subject] ? TOS[subject].join(', ') : 'General';
+
+    const schemaBlock = kind === 'constants'
+        ? `Each object MUST have exactly these fields:
+      {
+        "category": "A grouping label (e.g. 'Physical Constants', 'PEC Ampacity', 'Conversions')${category ? ` — use "${category}"` : ''}",
+        "name": "The constant's name (e.g. 'Speed of Light', 'Copper Resistivity')",
+        "value": "The value WITH units as a LaTeX string (e.g. '$3 \\\\times 10^8\\\\ \\\\text{m/s}$')",
+        "keyword": "one short search keyword",
+        "subject": "${subject}"
+      }`
+        : `Each object MUST have exactly these fields:
+      {
+        "title": "The formula's name (e.g. 'Ohm's Law', 'Three-Phase Real Power')",
+        "eq": "The equation as a LaTeX string (e.g. '$$P = \\\\sqrt{3}\\\\,V_L I_L \\\\cos\\\\theta$$')",
+        "subject": "${subject}",
+        "subtopics": ["one or more of these EXACT strings: ${subtopics}"]
+      }`;
+
+    const prompt = `You are compiling an authoritative reference sheet for the Philippine Registered Electrical Engineer (REE) Board Exam.
+    Generate EXACTLY ${count} ${kind === 'constants' ? 'engineering constants/standard values' : 'engineering formulas'} for the subject: ${subject}${category ? `, category: ${category}` : ''}.
+
+    CRITICAL RULES:
+    1. Return ONLY a raw JSON array of objects — no markdown fences, no prose.
+    2. ${schemaBlock}
+    3. All math/units MUST be valid LaTeX. Use standard engineering values; DO NOT round standard constants.
+    4. ZERO HALLUCINATION: only well-established, board-relevant ${kind}. No invented values.
+
+    VARIANCE [Seed: ${seed}]: cover distinct, non-duplicate entries.`;
+
+    const rows = await callAI(prompt, true);
+    return Array.isArray(rows) ? rows : [];
+};
+
 export const generateQuestionsFromImages = async (base64Images, subject, subtopic, count = 3) => {
     const imageParts = base64Images.map(base64Data => ({
         inlineData: {

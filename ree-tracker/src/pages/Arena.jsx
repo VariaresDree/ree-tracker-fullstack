@@ -1,5 +1,5 @@
 // src/pages/Arena.jsx
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMultiplayerBattle, fetchPaginatedLeaderboard } from '../services/dbQueries';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +14,49 @@ const GAUNTLET_TIERS = [
   { level: 3, name: 'Architect Core', reqQs: 1000, items: 100, timeLimit: 150 },
   { level: 4, name: 'Apex Agent', reqQs: 2000, items: 100, timeLimit: 120 }
 ];
+
+const rankBadge = (index) => {
+  if (index === 0) return 'bg-[#facc15]/20 border-[#facc15] text-[#facc15]';
+  if (index === 1) return 'bg-[#d1d5db]/20 border-[#d1d5db] text-[#d1d5db]';
+  if (index === 2) return 'bg-[#b45309]/20 border-[#b45309] text-[#b45309]';
+  return 'bg-surface2 border-border2 text-muted';
+};
+
+// Extracted + memoized so the infinite-scroll leaderboard re-renders only the
+// rows whose data actually changed, not the whole (growing) list on each page.
+const LeaderboardRow = memo(function LeaderboardRow({ agent, idx, isMe, rowRef }) {
+  return (
+    <div
+      ref={rowRef}
+      className={`grid grid-cols-12 gap-3 p-3 items-center rounded-[var(--radius-default)] mb-1 transition-colors hover-glow border ${isMe ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)] shadow-sm' : 'hover:bg-surface2 border-transparent'}`}
+    >
+      <div className="col-span-2 sm:col-span-1 flex justify-center">
+        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rankBadge(idx)}`}>
+          {idx + 1}
+        </div>
+      </div>
+      <div className="col-span-4 sm:col-span-5 flex items-center gap-3">
+        <div className="flex flex-col min-w-0">
+          <span className={`text-sm font-bold truncate flex items-center gap-2 ${isMe ? 'text-[var(--accent)]' : 'text-textMain'}`}>
+            {agent.displayName}
+            {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
+          </span>
+          <span className="text-[11px] text-muted font-mono opacity-60 truncate">ID: {agent.uid.slice(0, 8)}</span>
+        </div>
+      </div>
+      <div className="col-span-2 flex justify-center items-center">
+        <Badge tone="velocity" className="uppercase tabular-nums">Lvl {agent.gauntletLevel || 1}</Badge>
+      </div>
+      <div className="col-span-2 text-right">
+        <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(3)}</span>
+      </div>
+      <div className="col-span-2 text-right">
+        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{agent.streak || 0}</span>
+        <span className="text-xs text-muted ml-1 hidden sm:inline">days</span>
+      </div>
+    </div>
+  );
+});
 
 export default function Arena() {
   const { currentUser } = useAuth();
@@ -130,13 +173,6 @@ export default function Arena() {
 
   // Podium colors are data-viz (gold/silver/bronze), kept as literal values on
   // purpose — they encode rank, not brand.
-  const getRankBadge = (index) => {
-    if (index === 0) return "bg-[#facc15]/20 border-[#facc15] text-[#facc15]";
-    if (index === 1) return "bg-[#d1d5db]/20 border-[#d1d5db] text-[#d1d5db]";
-    if (index === 2) return "bg-[#b45309]/20 border-[#b45309] text-[#b45309]";
-    return "bg-surface2 border-border2 text-muted";
-  };
-
   const handleDeployLobby = async () => {
       const toastId = toast.loading("Creating your lobby…");
       try {
@@ -370,45 +406,15 @@ export default function Arena() {
               />
             ) : (
               <>
-                {(leaderboard || []).map((agent, idx) => {
-                  const isMe = agent.uid === currentUser?.uid;
-                  const isLastElement = idx === (leaderboard || []).length - 1;
-
-                  return (
-                    <div 
-                      key={agent.uid} 
-                      ref={isLastElement ? lastElementRef : null} 
-                      className={`grid grid-cols-12 gap-3 p-3 items-center rounded-[var(--radius-default)] mb-1 transition-colors hover-glow border ${isMe ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)] shadow-sm' : 'hover:bg-surface2 border-transparent'}`}
-                    >
-                      <div className="col-span-2 sm:col-span-1 flex justify-center">
-                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${getRankBadge(idx)}`}>
-                          {idx + 1}
-                        </div>
-                      </div>
-                      <div className="col-span-4 sm:col-span-5 flex items-center gap-3">
-                        <div className="flex flex-col min-w-0">
-                          <span className={`text-sm font-bold truncate flex items-center gap-2 ${isMe ? 'text-[var(--accent)]' : 'text-textMain'}`}>
-                            {agent.displayName}
-                            {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
-                          </span>
-                          <span className="text-[11px] text-muted font-mono opacity-60 truncate">ID: {agent.uid.slice(0, 8)}</span>
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 flex justify-center items-center">
-                          <Badge tone="velocity" className="uppercase tabular-nums">Lvl {agent.gauntletLevel || 1}</Badge>
-                      </div>
-
-                      <div className="col-span-2 text-right">
-                        <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(3)}</span>
-                      </div>
-                      <div className="col-span-2 text-right">
-                        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{agent.streak || 0}</span>
-                        <span className="text-xs text-muted ml-1 hidden sm:inline">days</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                {(leaderboard || []).map((agent, idx) => (
+                  <LeaderboardRow
+                    key={agent.uid}
+                    agent={agent}
+                    idx={idx}
+                    isMe={agent.uid === currentUser?.uid}
+                    rowRef={idx === (leaderboard || []).length - 1 ? lastElementRef : null}
+                  />
+                ))}
 
                 {isFetchingMore && (
                   <div className="flex items-center justify-center py-6 animate-in fade-in text-[var(--color-reeAmber)]">

@@ -1,19 +1,35 @@
 // src/features/profile/CredentialsTab.jsx
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { generateCertificate } from '../../utils/certificateEngine';
+import { fetchReadinessScore } from '../../services/dbQueries';
 
 export default function CredentialsTab({ currentUser, stats }) {
   const currentTheta = stats?.irt?.theta || 0;
-  const readinessScore = useMemo(() => Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100))), [currentTheta]);
+  // Certificate unlock uses the SAME composite readiness the Dashboard KPI
+  // shows (/api/readiness: coverage + accuracy + θ + consistency + blind
+  // spots). The old pure-θ formula here could disagree with the dashboard —
+  // it remains only as the offline fallback until the fetch resolves.
+  const [readiness, setReadiness] = useState(null);
+  useEffect(() => {
+    fetchReadinessScore().then((r) => { if (r) setReadiness(r); }).catch(() => {});
+  }, []);
+  const thetaFallback = useMemo(() => Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100))), [currentTheta]);
+  const readinessScore = readiness?.score ?? thetaFallback;
 
   const handleIssueCertificate = () => {
     if (readinessScore < 70) {
         toast.error("Access Denied: Required Readiness Score is 70%.");
         return;
     }
-    toast.loading("Generating Secure Certificate...", { duration: 1500 });
-    setTimeout(() => generateCertificate(currentUser, readinessScore), 1500);
+    const toastId = toast.loading("Generating Secure Certificate...");
+    // generateCertificate is async now (it dynamic-imports jsPDF) — surface a
+    // failure instead of an unhandled rejection with a stale loading toast.
+    setTimeout(() => {
+      generateCertificate(currentUser, readinessScore)
+        .then(() => toast.success("Certificate downloaded.", { id: toastId }))
+        .catch(() => toast.error("Couldn't generate the certificate. Try again.", { id: toastId }));
+    }, 300);
   };
 
   return (

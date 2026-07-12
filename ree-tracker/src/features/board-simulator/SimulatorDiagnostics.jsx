@@ -1,12 +1,14 @@
 // src/features/board-simulator/SimulatorDiagnostics.jsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Button, Modal } from '../../components/ui';
 import { Shield, Zap, Clock, TriangleAlert } from '../../components/ui/icons';
 
-export default function SimulatorDiagnostics({ session, setSession, engine }) {
+export default function SimulatorDiagnostics({ session, setSession, engine, isBattle = false }) {
     const { diagnostics } = session;
     const [showExitConfirm, setShowExitConfirm] = useState(false);
+    const navigate = useNavigate();
 
     if (!diagnostics) return null;
 
@@ -21,12 +23,12 @@ export default function SimulatorDiagnostics({ session, setSession, engine }) {
     };
 
     const handleExit = () => {
-        if (engine && typeof engine.setSession === 'function') {
-            engine.setSession(s => ({ ...s, isActive: false, isFinished: false, diagnostics: null, questions: [] }));
-        } else if (typeof setSession === 'function') {
-            setSession(s => ({ ...s, isActive: false, isFinished: false, diagnostics: null, questions: [] }));
-        }
-        window.location.href = '/dashboard';
+        const reset = (s) => ({ ...s, isActive: false, isFinished: false, diagnostics: null, questions: [] });
+        if (engine && typeof engine.setSession === 'function') engine.setSession(reset);
+        else if (typeof setSession === 'function') setSession(reset);
+        // SPA navigation home (there is no '/dashboard' route — the old
+        // window.location.href hard-reloaded and dropped in-memory state).
+        navigate('/');
     };
 
     const scrollbarClasses = '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted/60 [&::-webkit-scrollbar-thumb]:rounded-full';
@@ -84,6 +86,13 @@ export default function SimulatorDiagnostics({ session, setSession, engine }) {
                                 <span className="text-2xl font-bold text-textMain tabular-nums">{formatTime(diagnostics.timeTakenSecs)}</span>
                             </div>
                         </div>
+
+                        {isBattle && (
+                            <div className="mt-8 max-w-lg mx-auto text-xs text-muted2 bg-bg/50 border border-border2/50 rounded-[var(--radius-default)] px-5 py-3 flex items-center gap-2 justify-center">
+                                <Clock size={14} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} />
+                                Your result is recorded. Dashboard analytics can take a minute to catch up after a multiplayer exam.
+                            </div>
+                        )}
                     </div>
                 </div>
 

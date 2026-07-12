@@ -1,7 +1,7 @@
 // src/features/vault/BookmarkVaultTab.jsx
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { fetchBookmarks, removeBookmark, updateBookmarkCache } from '../../services/dbQueries'; 
+import { fetchBookmarks, removeBookmark, updateQuestionCache } from '../../services/dbQueries';
 import * as geminiApi from '../../services/geminiApi'; 
 import SmartText from '../../components/SmartText';           
 import LatexRenderer from '../../components/LatexRenderer';
@@ -73,11 +73,14 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     setShowAiFor(prev => ({ ...prev, [item.id]: true }));
     
     try {
-        const responseText = await geminiApi.generateDeepExplanation(item.content || item.question, item.answer, item.options);
-        
-        // Save to Firebase so it's permanently available offline next time
-        await updateBookmarkCache(currentUser.uid, item.id, responseText);
-        
+        const responseText = await geminiApi.generateDeepExplanation(item.text || item.content || item.question, item.answer, item.options);
+
+        // Persist onto the QUESTION record (vault items are questions — their
+        // `id` IS the question id). The old updateBookmarkCache targeted a
+        // /api/bookmarks/:id/cache route that never existed, so every save
+        // 404'd silently and regenerated on the next visit.
+        await updateQuestionCache(item.id, responseText).catch(() => {});
+
         setBookmarks(prev => prev.map(b => b.id === item.id ? { ...b, cachedAiExplanation: responseText } : b));
         setAiResponses(prev => ({ ...prev, [item.id]: responseText }));
     } catch (error) {

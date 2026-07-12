@@ -12,9 +12,13 @@ router.get('/', authMiddleware, async (req, res) => {
             where: { userId: req.user.id },
             include: {
                 question: {
+                    // answer + fixedExplanation are part of the vault's purpose
+                    // (post-study review of saved items) — the tab rendered
+                    // both from fields this select used to omit.
                     select: {
                         id: true, subject: true, subtopic: true,
-                        text: true, options: true, difficulty: true, type: true
+                        text: true, options: true, difficulty: true, type: true,
+                        answer: true, fixedExplanation: true,
                     }
                 }
             },
@@ -27,7 +31,7 @@ router.get('/', authMiddleware, async (req, res) => {
         if (hasMore) bookmarks.pop();
 
         res.status(200).json({
-            items: bookmarks.map(b => ({ ...b.question, bookmarkId: b.id })),
+            items: bookmarks.map(b => ({ ...b.question, bookmarkId: b.id, bookmarkedAt: b.createdAt })),
             nextCursor: hasMore ? bookmarks[bookmarks.length - 1].id : null
         });
     } catch (error) {

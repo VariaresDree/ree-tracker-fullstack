@@ -14,6 +14,7 @@ import QuestionCard from '../quiz/QuestionCard';
 import { Button, Modal, StatusPill, Badge } from '../../components/ui';
 import { Pencil, Flag, Bookmark, Eye, EyeOff, TriangleAlert, Sparkles } from '../../components/ui/icons';
 import { generateMasterExplanation } from '../../services/geminiApi';
+import { updateQuestionCache } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
 
 export default function SimulatorActive({ engine, requestTerminate, isOnline }) {
@@ -69,16 +70,20 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
       : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleToggleAI = async () => {
-    if (activeSolution === 'ai') { setActiveSolution(null); return; }
+  // `force` = Regenerate: skip the cached short-circuit and overwrite. The
+  // fresh explanation is ALSO persisted server-side now (updateQuestionCache)
+  // — simulator-generated explanations previously lived only in this tab.
+  const handleToggleAI = async (force = false) => {
+    if (!force && activeSolution === 'ai') { setActiveSolution(null); return; }
     setActiveSolution('ai');
-    if (q.cachedExplanation || aiResponse) return;
+    if (!force && (q.cachedExplanation || aiResponse)) return;
 
     setAiLoading(true);
     try {
       const resp = await generateMasterExplanation(q);
       setAiResponse(resp);
       q.cachedExplanation = resp;
+      if (q.id) updateQuestionCache(q.id, resp).catch(() => {});
     } catch (err) {
       toast.error('AI Core unreachable.');
       setActiveSolution(null);
@@ -279,7 +284,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={handleToggleAI}
+                  onClick={() => handleToggleAI(false)}
                   loading={aiLoading}
                   disabled={!isOnline && !q.cachedExplanation && !aiResponse}
                   title={!isOnline && !q.cachedExplanation && !aiResponse ? 'Needs a connection' : undefined}
@@ -304,6 +309,14 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
                     <div className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-velocity)' }}>
                       <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
                     </div>
+                    <button
+                      onClick={() => handleToggleAI(true)}
+                      disabled={aiLoading || !isOnline}
+                      title={!isOnline ? 'Needs a connection' : 'Generate a fresh explanation'}
+                      className="text-[0.65rem] font-medium px-2.5 py-1 rounded-md border border-border bg-surface2 hover:bg-surface3 text-muted hover:text-textMain transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ↻ Regenerate
+                    </button>
                   </div>
                   <div className="text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     <LatexRenderer content={aiResponse || q.cachedExplanation} />

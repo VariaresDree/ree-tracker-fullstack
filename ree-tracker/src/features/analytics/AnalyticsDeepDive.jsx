@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { fetchAnalyticsDeep } from '../../services/dbQueries';
 import { CalibrationCurve } from './CalibrationCurve';
@@ -54,28 +54,48 @@ function BarChart({ items, valueKey, labelKey, maxVal, color = 'bg-reeBlue' }) {
   );
 }
 
+const TYPE_MAP = { time: 'time-analysis', confidence: 'confidence-calibration', subjects: 'subject-radar', study: 'study-time', scores: 'score-progression' };
+
 export default function AnalyticsDeepDive() {
   const [activeTab, setActiveTab] = useState('time');
   const [data, setData] = useState({});
-  const [loading, setLoading] = useState(false);
+  // Per-endpoint status ('loading' | 'loaded' | 'error'). The old cache check
+  // was `if (data[type]) return` — a failed/offline fetch stored nothing, so
+  // the tab silently refetched forever and an error looked identical to
+  // "no data yet". Now failures are distinct and get an explicit retry UI.
+  const [status, setStatus] = useState({});
+  // Ref mirror so the guard reads the latest status WITHOUT `status` being a
+  // dep of loadData — otherwise every setStatus makes a new loadData identity,
+  // the effect re-runs, and a terminal 'error' (not caught by the guard) would
+  // refetch in a tight loop, defeating the Retry UI it was meant to add.
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
-  const loadData = useCallback(async (type) => {
-    if (data[type]) return;
-    setLoading(true);
+  const loadData = useCallback(async (type, force = false) => {
+    const st = statusRef.current[type];
+    // Auto-load skips anything already loaded, in-flight, OR errored — only the
+    // explicit Retry button (force=true) re-attempts a failed endpoint.
+    if (!force && (st === 'loaded' || st === 'loading' || st === 'error')) return;
+    setStatus(prev => ({ ...prev, [type]: 'loading' }));
     try {
       const result = await fetchAnalyticsDeep(type);
+      // safeApiRequest resolves null on offline/timeout — that's a failure,
+      // not an empty dataset (real empties are `{items: []}`).
+      if (result == null) throw new Error('unreachable');
       setData(prev => ({ ...prev, [type]: result }));
+      setStatus(prev => ({ ...prev, [type]: 'loaded' }));
     } catch (err) {
-      // Analytics fetch failed silently — tab will show empty state
-    } finally {
-      setLoading(false);
+      setStatus(prev => ({ ...prev, [type]: 'error' }));
     }
-  }, [data]);
+  }, []);
 
   useEffect(() => {
-    const typeMap = { time: 'time-analysis', confidence: 'confidence-calibration', subjects: 'subject-radar', study: 'study-time', scores: 'score-progression' };
-    loadData(typeMap[activeTab]);
+    loadData(TYPE_MAP[activeTab]);
   }, [activeTab, loadData]);
+
+  const activeType = TYPE_MAP[activeTab];
+  const loading = status[activeType] === 'loading';
+  const loadFailed = status[activeType] === 'error';
 
   const tabs = [
     { id: 'time', label: 'Time Analysis', icon: '⏱️' },
@@ -116,7 +136,19 @@ export default function AnalyticsDeepDive() {
         </div>
       )}
 
-      {!loading && activeTab === 'time' && (
+      {!loading && loadFailed && (
+        <div className="bg-surface border border-border2/60 rounded-xl p-8 flex flex-col items-center gap-3 text-center">
+          <div className="text-sm text-muted2">Couldn't reach the analytics service — check your connection.</div>
+          <button
+            onClick={() => loadData(activeType, true)}
+            className="px-4 py-2 rounded-lg text-[0.7rem] font-black uppercase tracking-wider bg-reeBlue/10 border border-reeBlue/50 text-reeBlue hover:bg-reeBlue/20 transition-colors cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !loadFailed && activeTab === 'time' && (
         <div className="bg-surface border border-border2/60 rounded-xl p-6">
           <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2">
             <span>⏱️</span> Average Time per Question by Subtopic
@@ -130,7 +162,7 @@ export default function AnalyticsDeepDive() {
         </div>
       )}
 
-      {!loading && activeTab === 'confidence' && (
+      {!loading && !loadFailed && activeTab === 'confidence' && (
         <div className="flex flex-col gap-6">
           {confData.length > 0 && <CalibrationCurve buckets={confData} />}
         <div className="bg-surface border border-border2/60 rounded-xl p-6">
@@ -156,7 +188,7 @@ export default function AnalyticsDeepDive() {
         </div>
       )}
 
-      {!loading && activeTab === 'subjects' && (
+      {!loading && !loadFailed && activeTab === 'subjects' && (
         <div className="bg-surface border border-border2/60 rounded-xl p-6">
           <h3 className="text-xs font-black uppercase tracking-widest text-textMain mb-4 flex items-center gap-2">
             <span>📊</span> Accuracy by Subject
@@ -165,7 +197,7 @@ export default function AnalyticsDeepDive() {
         </div>
       )}
 
-      {!loading && activeTab === 'study' && (() => {
+      {!loading && !loadFailed && activeTab === 'study' && (() => {
         // Zero-filled true 14-day Manila window (the server keys days in
         // Manila too) — a skipped day shows as an empty bar, not a gap.
         const byDate = Object.fromEntries(studyData.map(d => [d.date, d]));
@@ -211,7 +243,7 @@ export default function AnalyticsDeepDive() {
         );
       })()}
 
-      {!loading && activeTab === 'scores' && (() => {
+      {!loading && !loadFailed && activeTab === 'scores' && (() => {
         const trend = scoreData.map((exam, idx) => ({
           ...exam,
           idx,

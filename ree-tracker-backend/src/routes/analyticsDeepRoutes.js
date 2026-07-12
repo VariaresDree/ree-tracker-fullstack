@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { buildScoreProgression, aggregateDailyStudy } = require('../services/deepAnalyticsHelpers');
+const { normalizeSubject } = require('../utils/subject');
 
 // Manila calendar date of an instant — same formatter the telemetry service
 // keys ActivityLog on, so "a study day" means the same thing everywhere.
@@ -89,14 +90,24 @@ router.get('/subject-radar', authMiddleware, async (req, res) => {
             _count: { id: true }
         });
 
+        // Re-bucket by CANONICAL subject: legacy attempt rows carry historical
+        // spellings ('Math' vs 'Mathematics'), which used to render as separate
+        // radar rows and disagree with the dashboard's normalized numbers.
+        const buckets = new Map();
+        const addTo = (subject, totals, correct) => {
+            const key = normalizeSubject(subject);
+            const b = buckets.get(key) || { subject: key, total: 0, correct: 0 };
+            b.total += totals;
+            b.correct += correct;
+            buckets.set(key, b);
+        };
         const correctMap = {};
         correctBySubject.forEach(c => { correctMap[c.subject] = c._count.id; });
+        subjects.forEach(s => addTo(s.subject, s._count.id, correctMap[s.subject] || 0));
 
-        const result = subjects.map(s => ({
-            subject: s.subject,
-            total: s._count.id,
-            correct: correctMap[s.subject] || 0,
-            accuracy: Math.round(((correctMap[s.subject] || 0) / s._count.id) * 100)
+        const result = [...buckets.values()].map(b => ({
+            ...b,
+            accuracy: b.total > 0 ? Math.round((b.correct / b.total) * 100) : 0,
         }));
 
         res.status(200).json({ items: result });

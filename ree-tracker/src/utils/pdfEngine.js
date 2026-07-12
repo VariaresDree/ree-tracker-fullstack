@@ -1,8 +1,11 @@
 // src/utils/pdfEngine.js
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+// jsPDF + html2canvas (~800KB combined) are dynamically imported so this heavy
+// export path only loads when a user generates/exports a PDF.
 
 export const generateDiagnosticReport = async (user, stats) => {
+    const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import('jspdf'), import('html2canvas'),
+    ]);
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     let cursorY = 20;
@@ -94,7 +97,8 @@ export const generateDiagnosticReport = async (user, stats) => {
 // ============================================================================
 // OFFLINE BOARD EXAM EXPORT ENGINE (AUTHENTIC PRC COMPRESSED LAYOUT)
 // ============================================================================
-export const generateOfflineExamPDF = (questions, configTitle) => {
+export const generateOfflineExamPDF = async (questions, configTitle) => {
+    const { default: jsPDF } = await import('jspdf');
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();

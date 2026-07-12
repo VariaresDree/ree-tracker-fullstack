@@ -1,19 +1,22 @@
 // src/pages/Dashboard.jsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useStore } from '../store/useStore';
 import { useTelemetrySlice, useTOSSlice } from '../store/slices';
 import { useAuth } from '../contexts/AuthContext';
 import MissionControl from '../components/MissionControl';
-import ThetaVelocityChart from '../components/ThetaVelocityChart';
 import ConfidenceMatrix from '../components/ConfidenceMatrix';
 import HeatmapChart from '../components/HeatmapChart';
 import RecommendedModule from '../components/RecommendedModule';
-import MockBoardAnalytics from '../components/MockBoardAnalytics';
 import FocusTrap from '../components/FocusTrap';
+import { SkeletonChart } from '../components/SkeletonLoaders';
+// Recharts (~400KB) only powers these two cards — lazy-load them so the
+// `charts` chunk leaves the home route's critical path and loads after paint.
+const ThetaVelocityChart = lazy(() => import('../components/ThetaVelocityChart'));
+const MockBoardAnalytics = lazy(() => import('../components/MockBoardAnalytics'));
 import { generateBoardReadinessReport } from '../services/geminiApi';
 
-import { apiRequest, fetchReadinessScore } from '../services/dbQueries';
+import { fetchReadinessScore } from '../services/dbQueries';
+import { syncDashboardStats, mergeServerIntoStats } from '../services/analyticsSync';
 import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
@@ -35,7 +38,7 @@ const SYNC_META = {
 export default function Dashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const { stats, purgeAnalytics, setStats, syncStatus } = useTelemetrySlice();
+  const { stats, purgeAnalytics, syncStatus } = useTelemetrySlice();
   const { dynamicTOS } = useTOSSlice();
 
   // "Today's prescription" Start routing. Forecast topics are either a subject
@@ -100,52 +103,12 @@ export default function Dashboard() {
     const fetchSQLAnalytics = async () => {
       if (!currentUser?.uid) return;
       try {
-        const json = await apiRequest(`/api/analytics/dashboard/${currentUser.uid}`);
-        if (json && json.data) {
-          const rawMicroTopics = json.data.microTopics || {};
-          const normalizedMicroTopics = {};
-          const safeTOS = useStore.getState().dynamicTOS || {};
-
-          Object.keys(safeTOS).forEach((subject) => {
-            safeTOS[subject].forEach((subtopic) => {
-              normalizedMicroTopics[subtopic] = {
-                subject, subtopic, attempts: 0, correct: 0, totalTime: 0, timedAttempts: 0,
-                mastery: null, masteryN: 0,
-              };
-            });
-          });
-
-          Object.keys(rawMicroTopics).forEach((backendKey) => {
-            const rawData = rawMicroTopics[backendKey];
-            const actualSubtopicName = rawData.subtopic || backendKey.split('_').pop();
-            if (actualSubtopicName) {
-              normalizedMicroTopics[actualSubtopicName] = {
-                subject: rawData.subject || 'Unknown',
-                subtopic: actualSubtopicName,
-                attempts: rawData.totalAttempts || rawData.attempts || 0,
-                correct: rawData.correctHits || rawData.correct || 0,
-                // ms, matching the local optimistic microTopics shape.
-                totalTime: (rawData.totalTimeSecs || 0) * 1000,
-                // How many of those attempts had usable timing (rest excluded
-                // as corrupt) — the heatmap averages over this count.
-                timedAttempts: rawData.timedAttempts || 0,
-                // BKT P(mastery) 0..1 (null until first observation) + count.
-                mastery: rawData.mastery ?? null,
-                masteryN: rawData.masteryN || 0,
-              };
-            }
-          });
-
-          setSqlData({ ...json.data, microTopics: normalizedMicroTopics });
-
-          const currentState = useStore.getState().stats || {};
-          setStats({
-            ...currentState,
-            role: json.data.profile?.role || currentState.role || 'USER',
-            dailyTarget: json.data.profile?.dailyTarget || currentState.dailyTarget || 50,
-            examDate: json.data.profile?.examDate || currentState.examDate || null,
-          });
-        }
+        // One shared sync (services/analyticsSync): fetches, normalizes
+        // microTopics, reconciles with the optimistic local stats, and
+        // HYDRATES the store — so Profile (Consistency Matrix, milestones,
+        // Credentials) reads the same reconciled numbers this page shows.
+        const normalized = await syncDashboardStats(currentUser.uid);
+        if (normalized) setSqlData(normalized);
       } catch (error) {
         // SQL sync failed silently — dashboard will show cached data
       } finally {
@@ -157,61 +120,12 @@ export default function Dashboard() {
     // Composite readiness is computed per-request on the backend — refetch on
     // the same triggers so the KPI is always as fresh as the rest.
     fetchReadinessScore().then((r) => { if (r) setReadiness(r); }).catch(() => {});
-  }, [currentUser, dynamicTOS, setStats, syncTick]);
+  }, [currentUser, dynamicTOS, syncTick]);
 
-  const activeStats = useMemo(() => {
-    if (!stats && !sqlData) return null;
-    if (!sqlData) return stats;
-
-    // sqlData.microTopics was ALREADY normalized at fetch time to
-    // { subject, subtopic, attempts, correct, totalTime(ms) }. The old code
-    // re-read the RAW backend field names (totalAttempts/correctHits/
-    // totalTimeSecs) off the normalized objects — everything came out zero,
-    // which is why the heatmap and speed view looked dead.
-    const sqlMicroTopics = sqlData.microTopics || {};
-
-    const mergedMicroTopics = { ...sqlMicroTopics };
-    const localMicroTopics = stats?.microTopics || {};
-    Object.entries(localMicroTopics).forEach(([topic, local]) => {
-      const sql = sqlMicroTopics[topic];
-      if (!sql || (local?.attempts || 0) > (sql.attempts || 0)) {
-        mergedMicroTopics[topic] = { ...sql, ...local };
-      }
-    });
-
-    const sqlMatrix = sqlData.matrix || { hc: 0, hw: 0, lc: 0, lw: 0 };
-    const localMatrix = stats?.matrix || { hc: 0, hw: 0, lc: 0, lw: 0 };
-    const sqlTotal = (sqlMatrix.hc || 0) + (sqlMatrix.hw || 0) + (sqlMatrix.lc || 0) + (sqlMatrix.lw || 0);
-    const localTotal = (localMatrix.hc || 0) + (localMatrix.hw || 0) + (localMatrix.lc || 0) + (localMatrix.lw || 0);
-    const matrix = localTotal > sqlTotal ? localMatrix : sqlMatrix;
-
-    const todayStats = sqlData.dailyStats || sqlData.profile?.dailyStats || {};
-    const pickMax = (...vals) => Math.max(...vals.map((v) => Number(v) || 0));
-
-    return {
-      ...stats,
-      irt: { ...stats?.irt, theta: sqlData.profile?.thetaRating ?? stats?.irt?.theta ?? 0 },
-      matrix,
-      microTopics: mergedMicroTopics,
-      // Server history is canonical whenever we have it — a LONGER stale
-      // local array used to win and lag the chart behind the fresh KPI.
-      thetaHistory: sqlData.thetaHistory?.length
-        ? sqlData.thetaHistory
-        : stats?.thetaHistory || [],
-      activityCalendar: { ...(sqlData.activityCalendar || {}), ...(stats?.activityCalendar || {}) },
-      dailyMath: pickMax(todayStats.Math, sqlData.profile?.dailyMath, stats?.dailyMath),
-      dailyESAS: pickMax(todayStats.ESAS, sqlData.profile?.dailyESAS, stats?.dailyESAS),
-      dailyEE: pickMax(todayStats.EE, sqlData.profile?.dailyEE, stats?.dailyEE),
-      globalStreak: pickMax(sqlData.profile?.globalStreak, stats?.globalStreak),
-      totalAnswered: pickMax(sqlData.profile?.totalAnswered, stats?.totalAnswered),
-      totalCorrect: pickMax(
-        stats?.totalCorrect,
-        Object.values(mergedMicroTopics).reduce((s, t) => s + (t.correct || 0), 0),
-      ),
-      examDate: stats?.examDate || sqlData.profile?.examDate || null,
-      dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50,
-    };
-  }, [stats, sqlData]);
+  // Merge logic lives in services/analyticsSync (shared with Profile). The
+  // store is already hydrated with the merged result at fetch time; re-merging
+  // here keeps fresh optimistic answers (recorded after the fetch) on top.
+  const activeStats = useMemo(() => mergeServerIntoStats(stats, sqlData), [stats, sqlData]);
 
   const currentTheta = activeStats?.irt?.theta || 0;
   // Composite score from /api/readiness; falls back to the θ-linear map only
@@ -407,7 +321,9 @@ export default function Dashboard() {
             </div>
           }
         >
-          <ThetaVelocityChart history={activeStats?.thetaHistory} range={velocityRange} />
+          <Suspense fallback={<SkeletonChart />}>
+            <ThetaVelocityChart history={activeStats?.thetaHistory} range={velocityRange} />
+          </Suspense>
         </Panel>
         <TrajectoryCard />
       </div>
@@ -427,7 +343,9 @@ export default function Dashboard() {
       </div>
 
       {/* Pre-board simulation ledger */}
-      <MockBoardAnalytics />
+      <Suspense fallback={<SkeletonChart />}>
+        <MockBoardAnalytics />
+      </Suspense>
 
       {/* MODALS */}
       {showAiModal && (
