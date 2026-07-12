@@ -4,7 +4,7 @@ import { generateQuestionsAI, generateMasterExplanation } from '../../services/g
 import {
   updateQuestionCache, updateQuestionInBank, fetchVaultQuestions,
   saveSimulationRecord, syncTelemetryBatch, getAnalyticsProfile,
-  fetchMultiplayerBattle, fetchSyllabusWeights
+  fetchMultiplayerBattle, fetchSyllabusWeights, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
@@ -299,12 +299,32 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   };
 
   const toggleBookmark = (idx) => {
+    // The Set holds indices for the in-exam UI state (draft-persisted so a
+    // reload keeps the marks). Also PERSIST to /api/bookmarks so the item
+    // actually reaches the Materials → Bookmark Vault — the local Set alone
+    // never left the client.
+    const had = bookmarksRef.current.has(idx);
     const next = new Set(bookmarksRef.current);
-    if (next.has(idx)) { next.delete(idx); toast.success("Removed Bookmark."); }
-    else { next.add(idx); toast.success("Bookmarked."); }
+    if (had) next.delete(idx); else next.add(idx);
     bookmarksRef.current = next;
     setBookmarks(next);
     persistDraft();
+
+    const q = session.questions?.[idx];
+    if (!q?.id) { toast.success(had ? "Removed Bookmark." : "Bookmarked."); return; }
+    const write = had ? removeBookmark(currentUser?.uid, q.id) : saveBookmark(currentUser?.uid, { questionId: q.id });
+    write
+      .then(() => toast.success(had ? "Removed Bookmark." : "Bookmarked — in Materials › Bookmark Vault."))
+      .catch((err) => {
+        if (!had && err?.status === 409) return; // already saved server-side
+        // Roll the UI Set back to match the server.
+        const revert = new Set(bookmarksRef.current);
+        if (had) revert.add(idx); else revert.delete(idx);
+        bookmarksRef.current = revert;
+        setBookmarks(revert);
+        persistDraft();
+        toast.error(err?.message === '[OFFLINE]' ? "Offline — bookmarking needs a connection." : "Bookmark failed.");
+      });
   };
 
   const submitExam = async () => {

@@ -22,8 +22,14 @@ export default function CredentialsTab({ currentUser, stats }) {
         toast.error("Access Denied: Required Readiness Score is 70%.");
         return;
     }
-    toast.loading("Generating Secure Certificate...", { duration: 1500 });
-    setTimeout(() => generateCertificate(currentUser, readinessScore), 1500);
+    const toastId = toast.loading("Generating Secure Certificate...");
+    // generateCertificate is async now (it dynamic-imports jsPDF) — surface a
+    // failure instead of an unhandled rejection with a stale loading toast.
+    setTimeout(() => {
+      generateCertificate(currentUser, readinessScore)
+        .then(() => toast.success("Certificate downloaded.", { id: toastId }))
+        .catch(() => toast.error("Couldn't generate the certificate. Try again.", { id: toastId }));
+    }, 300);
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { fetchAnalyticsDeep } from '../../services/dbQueries';
 import { CalibrationCurve } from './CalibrationCurve';
@@ -64,9 +64,18 @@ export default function AnalyticsDeepDive() {
   // the tab silently refetched forever and an error looked identical to
   // "no data yet". Now failures are distinct and get an explicit retry UI.
   const [status, setStatus] = useState({});
+  // Ref mirror so the guard reads the latest status WITHOUT `status` being a
+  // dep of loadData — otherwise every setStatus makes a new loadData identity,
+  // the effect re-runs, and a terminal 'error' (not caught by the guard) would
+  // refetch in a tight loop, defeating the Retry UI it was meant to add.
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   const loadData = useCallback(async (type, force = false) => {
-    if (!force && (status[type] === 'loaded' || status[type] === 'loading')) return;
+    const st = statusRef.current[type];
+    // Auto-load skips anything already loaded, in-flight, OR errored — only the
+    // explicit Retry button (force=true) re-attempts a failed endpoint.
+    if (!force && (st === 'loaded' || st === 'loading' || st === 'error')) return;
     setStatus(prev => ({ ...prev, [type]: 'loading' }));
     try {
       const result = await fetchAnalyticsDeep(type);
@@ -78,7 +87,7 @@ export default function AnalyticsDeepDive() {
     } catch (err) {
       setStatus(prev => ({ ...prev, [type]: 'error' }));
     }
-  }, [status]);
+  }, []);
 
   useEffect(() => {
     loadData(TYPE_MAP[activeTab]);

@@ -12,7 +12,7 @@ import { Button, Modal } from '../components/ui';
 import { TriangleAlert } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 
-import { saveBookmark, getAnalyticsProfile } from '../services/dbQueries';
+import { getAnalyticsProfile } from '../services/dbQueries';
 import { useStore } from '../store/useStore';
 
 const formatTimerMinutes = (s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`;
@@ -53,22 +53,9 @@ export default function BoardSimulator() {
     }
   }, [engine.session.answers, activeBattleId, battleConnected]);
 
-  // Bookmark handler. The server keys bookmarks by `questionId` (the row is a
-  // (userId, questionId) join — question content is joined at read time). The
-  // old payload sent `id` + a copied snapshot, which the schema-strict route
-  // rejected with 400 every single time — nothing ever reached the vault.
-  const handleBookmark = async (question) => {
-    if (!currentUser?.uid || !question?.id) return;
-    try {
-        await saveBookmark(currentUser.uid, { questionId: question.id });
-        toast.success("Secured in Bookmark Vault.");
-    } catch (error) {
-        if (error?.status === 409) { toast.success("Already in your vault."); return; }
-        toast.error(error?.message === '[OFFLINE]'
-            ? "Offline — bookmarking needs a connection."
-            : "Failed to secure bookmark.");
-    }
-  };
+  // Bookmark persistence lives in the engine's toggleBookmark (it owns the
+  // in-exam bookmark Set + draft), so it saves to /api/bookmarks directly —
+  // no separate handler is threaded down here.
 
   // On finish, hand the server the full attempt list (covers answers it may
   // have missed during a disconnect). The server re-grades everything and
@@ -150,12 +137,11 @@ export default function BoardSimulator() {
 
       {(engine.session.isActive || engine.session.isFinished) && (
         <div className={engine.session.isFinished ? "mt-4" : ""}>
-          <SimulatorActive 
-            engine={engine} 
-            formatTime={formatTimerMinutes} 
-            requestTerminate={() => setShowTerminateModal(true)} 
+          <SimulatorActive
+            engine={engine}
+            formatTime={formatTimerMinutes}
+            requestTerminate={() => setShowTerminateModal(true)}
             isOnline={isOnline}
-            onBookmark={handleBookmark} 
         />
         </div>
       )}

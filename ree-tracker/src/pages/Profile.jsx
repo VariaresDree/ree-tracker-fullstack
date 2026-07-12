@@ -123,10 +123,17 @@ export default function Profile() {
           const token = await currentUser.getIdToken();
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
           
-          await fetch(`${backendUrl}/api/user/profile`, {
+          // Purge the Postgres record FIRST and require it to succeed — if we
+          // wiped the Firebase identity on a failed purge, the server row would
+          // be orphaned with no way to re-authenticate and retry. A network
+          // error or non-2xx aborts before the irreversible Auth deletion.
+          const purgeRes = await fetch(`${backendUrl}/api/user/profile`, {
               method: 'DELETE',
               headers: { 'Authorization': `Bearer ${token}` }
-          }).catch(() => console.warn("Backend purge failed or route missing. Proceeding with Auth wipe."));
+          });
+          if (!purgeRes.ok) {
+              throw new Error('Server could not delete your account data. Please try again.');
+          }
 
           // 2. Terminate the Firebase Authentication Identity
           await deleteUser(currentUser);
