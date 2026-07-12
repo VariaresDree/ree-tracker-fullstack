@@ -162,7 +162,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         if (newOnly.length === 0) return; // pure replay — nothing to write
 
         resolvedSessionId = await ensureSession(db, newOnly);
-        const attemptsData = newOnly.map(({ _difficulty, _a, _b, _c, sessionId: _s, ...rest }) => ({
+        const attemptsData = newOnly.map(({ _difficulty, _a, _b, _c, _serverGraded, sessionId: _s, ...rest }) => ({
             ...rest,
             sessionId: resolvedSessionId,
         }));
@@ -271,16 +271,23 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     // read-modify-write against `prisma` directly, so the last writer silently
     // clobbered the other's theta/streak. FOR UPDATE serializes them. Kept
     // separate from runWrites so the attempt-write lock window stays short.
-    // 3PL estimator input: each new attempt's item params (with fallbacks for
-    // uncalibrated items) + correctness. updateTheta folds these onto the prior
-    // posterior (theta, se) — a proper Bayesian update, not a fixed gradient step.
-    const pairs = newOnly.map(toEstimatorPair);
+    // 3PL estimator input: each SERVER-GRADED attempt's item params (with
+    // fallbacks for uncalibrated items) + correctness. updateTheta folds these
+    // onto the prior posterior (theta, se) — a proper Bayesian update, not a
+    // fixed gradient step. Self-graded rows (flashcard ratings, or any attempt
+    // without a server-gradable userAnswer) are excluded here: they still count
+    // toward streak/activity/mastery above, but must never move ranked ability
+    // or the leaderboard, which is exactly the integrity invariant the mapping
+    // comment promises. A flashcard-only batch leaves theta unchanged.
+    const gradedForTheta = newOnly.filter((m) => m._serverGraded);
+    const pairs = gradedForTheta.map(toEstimatorPair);
     let updatedTheta = 0.0;
     let updatedSe = 0.5;
     await prisma.$transaction(async (db) => {
         const [user] = await db.$queryRaw`SELECT "thetaRating", "standardError", "globalStreak" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
         const prior = { theta: user?.thetaRating ?? 0.0, se: user?.standardError ?? 0.5 };
-        const est = updateTheta(prior, pairs);
+        // No server-verifiable evidence in this batch ⇒ ability is unchanged.
+        const est = pairs.length ? updateTheta(prior, pairs) : prior;
         updatedTheta = est.theta;
         updatedSe = est.se;
 
@@ -326,7 +333,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         // canonical subject, so the forecast's UserAbility rows stay fresh
         // between nightly recalibrations (which rewrite them batch-consistently).
         // First-ever row for a subject seeds from the global posterior.
-        const bySubject = groupPairsBySubject(newOnly);
+        const bySubject = groupPairsBySubject(gradedForTheta);
         for (const [subject, subjectPairs] of Object.entries(bySubject)) {
             const existing = await db.userAbility.findUnique({
                 where: { userId_subject: { userId, subject } },

@@ -3,11 +3,14 @@ import { useState, useRef, useEffect } from 'react';
 import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, saveQuestionToBank, saveBookmark, removeBookmark } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
+import { useEngineActionsSlice } from '../../store/slices';
 import { stratifiedSample } from '../../utils/shuffle';
 import toast from 'react-hot-toast';
 
 export const useReviewSession = (currentUser, isOnline) => {
-    const { dynamicTOS, setStats, recordAttempt, queuePendingWrite, startSession: startStoreSession, endSession: endStoreSession } = useStore();
+    // Narrow, stable-reference slice on the per-answer hot path (avoids the
+    // whole-store re-render storm); useStore.getState() below stays imperative.
+    const { dynamicTOS, setStats, recordAttempt, queuePendingWrite, startSession: startStoreSession, endSession: endStoreSession } = useEngineActionsSlice();
     const safeTOS = dynamicTOS || {};
 
     const [config, setConfig] = useState({

@@ -46,7 +46,7 @@ export default function Library() {
 
   // 3. Manual Form Sub-Engine
   const {
-    manualMode, setManualMode, manualQ, setManualQ, handleManualSubmit
+    manualMode, setManualMode, manualQ, setManualQ, handleManualSubmit, isSubmitting: isManualSubmitting
   } = useManualIngestion(initializeVault);
 
   return (
@@ -82,6 +82,7 @@ export default function Library() {
             genSubject={genSubject} setGenSubject={setGenSubject}
             genSubtopic={genSubtopic} setGenSubtopic={setGenSubtopic}
             handleManualSubmit={(e) => handleManualSubmit(e, genSubject, genSubtopic)}
+            isSubmitting={isManualSubmitting}
           />
         ) : (
           <div className="p-4 border-2 border-dashed border-border2 rounded-[var(--radius-lg)]">

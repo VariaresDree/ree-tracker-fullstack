@@ -47,40 +47,45 @@ describe('mapAttemptRows — server-canonical naming', () => {
   });
 });
 
-describe('mapAttemptRows — offline-credit hardening (Phase 4.1 gate)', () => {
-  // Leaderboard integrity: theta (→ leaderboard rank) must derive exclusively
-  // from server-verifiable evidence. An offline attempt without a re-gradable
-  // userAnswer can never claim credit, no matter what the client asserts.
-  it('an offline attempt claiming isCorrect WITHOUT a userAnswer is zeroed', () => {
+describe('mapAttemptRows — leaderboard-integrity gate (SEC-2)', () => {
+  // Theta (→ leaderboard rank) must derive exclusively from server-verifiable
+  // evidence. Rather than zeroing an ungradable attempt's isCorrect at mapping
+  // time (which also corrupted the user's own mastery signals), we now stamp
+  // `_serverGraded`: any attempt without a re-gradable userAnswer is marked
+  // NOT server-graded, and telemetryService excludes those rows from the theta
+  // estimator — regardless of the `offline` flag a client may or may not send.
+  it('an attempt claiming isCorrect WITHOUT a userAnswer is excluded from theta (offline flag irrelevant)', () => {
     const { mapped } = mapAttemptRows(
-      [{ questionId: 'q1', isCorrect: true, offline: true }], // tampered payload
+      [{ questionId: 'q1', isCorrect: true, offline: true }], // tampered/self-graded payload
       qMap, ctx,
     );
-    expect(mapped[0].isCorrect).toBe(false);
+    expect(mapped[0]._serverGraded).toBe(false); // never reaches the ranked estimator
   });
 
-  it('an offline attempt WITH a userAnswer is server-graded normally', () => {
+  it('the same holds when the offline flag is omitted entirely (the old bypass)', () => {
+    const { mapped } = mapAttemptRows(
+      [{ questionId: 'q1', isCorrect: true }], // no userAnswer, no offline flag
+      qMap, ctx,
+    );
+    expect(mapped[0]._serverGraded).toBe(false);
+  });
+
+  it('an attempt WITH a userAnswer is server-graded and eligible for theta', () => {
     const { mapped } = mapAttemptRows(
       [{ questionId: 'q1', userAnswer: 'A', isCorrect: false, offline: true }],
       qMap, ctx,
     );
-    expect(mapped[0].isCorrect).toBe(true); // master answer is 'A'
+    expect(mapped[0].isCorrect).toBe(true);      // master answer is 'A'
+    expect(mapped[0]._serverGraded).toBe(true);
   });
 
-  it('an ONLINE attempt without a userAnswer keeps the legacy trust path', () => {
-    const { mapped } = mapAttemptRows(
-      [{ questionId: 'q1', isCorrect: true }],
-      qMap, ctx,
-    );
-    expect(mapped[0].isCorrect).toBe(true); // unchanged for non-offline surfaces
-  });
-
-  it('an unanswered offline item stays wrong (legit-client behavior unchanged)', () => {
+  it('an unanswered item stays wrong (legit-client behavior unchanged)', () => {
     const { mapped } = mapAttemptRows(
       [{ questionId: 'q1', isCorrect: false, offline: true }],
       qMap, ctx,
     );
     expect(mapped[0].isCorrect).toBe(false);
+    expect(mapped[0]._serverGraded).toBe(false);
   });
 });
 

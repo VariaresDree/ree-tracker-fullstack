@@ -93,6 +93,15 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
     });
   }, [safeHistory, range]);
 
+  // Text alternative for the SVG chart (WCAG 1.1.1): a screen-reader user gets
+  // the trend + endpoints instead of an unlabelled graphic.
+  const rangeWord = range === 'week' ? 'weeks' : range === 'month' ? 'months' : 'days';
+  const first = chartData[0]?.theta ?? 0;
+  const last = chartData.at(-1)?.theta ?? 0;
+  const trend = last > first ? 'rising' : last < first ? 'falling' : 'flat';
+  const fmt = (n) => `${n > 0 ? '+' : ''}${n}`;
+  const chartSummary = `Ability (theta) over the last ${chartData.length} ${rangeWord}: ${trend}, from ${fmt(first)} to ${fmt(last)} on a −4 to +4 scale.`;
+
   return (
     <div className="w-full h-full min-h-[220px] min-w-0 relative animate-in fade-in">
         {chartData.length === 0 ? (
@@ -100,7 +109,7 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
                  <span className="text-[11px] text-muted font-mono uppercase tracking-widest">Awaiting Velocity Data</span>
             </div>
         ) : (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0" role="img" aria-label={chartSummary}>
             <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
                     <defs>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-const { partitionNewAttempts, aggregateTopicRollups, orderedObservationsByTopic } = require('../src/services/telemetryHelpers');
+const { partitionNewAttempts, aggregateTopicRollups, orderedObservationsByTopic, mapAttemptRows, groupPairsBySubject } = require('../src/services/telemetryHelpers');
 
 describe('partitionNewAttempts', () => {
   it('treats all rows as new when none are already recorded', () => {
@@ -70,5 +70,49 @@ describe('orderedObservationsByTopic (BKT fold input)', () => {
   it('defaults a missing subtopic to General and coerces truthiness to boolean', () => {
     const byTopic = orderedObservationsByTopic([{ subject: 'EE', isCorrect: 1 }]);
     expect(byTopic.get('General').observations).toEqual([true]);
+  });
+});
+
+// SEC-2 (leaderboard integrity): the ranked theta estimator must derive
+// exclusively from server-verifiable evidence. mapAttemptRows stamps
+// `_serverGraded`, and telemetryService feeds only those rows to the estimator.
+describe('mapAttemptRows — grading provenance (SEC-2 trust boundary)', () => {
+  const qMap = {
+    q1: { id: 'q1', subject: 'EE', subtopic: 'Circuits', answer: 'B', difficulty: 1, irtA: 1, irtB: 0, irtC: 0.2 },
+    q2: { id: 'q2', subject: 'EE', subtopic: 'Machines', answer: 'C', difficulty: 1, irtA: 1, irtB: 0, irtC: 0.2 },
+  };
+  const ctx = { userId: 'u1', sessionId: null, mode: 'BOARD_SIM' };
+
+  it('server-grades an answered item against the master key and marks it _serverGraded', () => {
+    const { mapped } = mapAttemptRows([{ questionId: 'q1', userAnswer: 'B' }], qMap, ctx);
+    expect(mapped[0].isCorrect).toBe(true);
+    expect(mapped[0]._serverGraded).toBe(true);
+  });
+
+  it('never trusts a client isCorrect over the master key', () => {
+    const { mapped } = mapAttemptRows([{ questionId: 'q1', userAnswer: 'A', isCorrect: true }], qMap, ctx);
+    expect(mapped[0].isCorrect).toBe(false);
+    expect(mapped[0]._serverGraded).toBe(true);
+  });
+
+  it('marks a self-graded attempt (no userAnswer) as NOT server-graded', () => {
+    const { mapped } = mapAttemptRows([{ questionId: 'q1', isCorrect: true }], qMap, ctx);
+    // Still recorded for the user's own mastery/matrix surfaces…
+    expect(mapped[0].isCorrect).toBe(true);
+    // …but flagged so the theta estimator excludes it.
+    expect(mapped[0]._serverGraded).toBe(false);
+  });
+
+  it('excludes forged self-graded rows from the estimator input once gated', () => {
+    const { mapped } = mapAttemptRows([
+      { questionId: 'q1', userAnswer: 'B' },   // real correct   → counts toward theta
+      { questionId: 'q2', isCorrect: true },   // forged correct → excluded from theta
+    ], qMap, ctx);
+
+    const gradedForTheta = mapped.filter((m) => m._serverGraded);
+    const bySubject = groupPairsBySubject(gradedForTheta);
+
+    expect(bySubject.EE).toHaveLength(1);
+    expect(bySubject.EE[0].correct).toBe(true);
   });
 });

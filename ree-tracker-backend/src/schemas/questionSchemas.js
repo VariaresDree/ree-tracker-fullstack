@@ -56,4 +56,13 @@ const questionUpdateSchema = z.object({
 // in the existing /quarantine admin review queue for approve/reject.
 const isPendingReview = (data) => data?.status === 'quarantined';
 
-module.exports = { questionCreateSchema, questionUpdateSchema, isPendingReview };
+// Explanation-cache write (PUT /:id/cache) — a legit per-user AI-explanation
+// cache, so it stays authenticated (not admin-gated), but it was the only
+// question-mutation route with NO validate(). Constrain it so it can only ever
+// touch the explanation, never smuggle other columns, and bound the size.
+const questionCacheSchema = z.object({
+    cachedExplanation: z.string().max(20000).optional(),
+    fixedExplanation: z.string().max(20000).optional(),
+}).strip();
+
+module.exports = { questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
