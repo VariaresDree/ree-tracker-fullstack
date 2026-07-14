@@ -3,6 +3,7 @@ import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMultiplayerBattle, fetchPaginatedLeaderboard } from '../services/dbQueries';
 import { useAuth } from '../contexts/AuthContext';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useStore } from '../store/useStore';
 import { Button, FormField, Input, Select, Modal, Tabs, StatusPill, Badge, EmptyState, cn } from '../components/ui';
 import { Check, Swords, Settings2, Landmark, Scale, Shield, Trophy, Lock } from '../components/ui/icons';
@@ -62,6 +63,7 @@ export default function Arena() {
   const { currentUser } = useAuth();
   const stats = useStore((s) => s.stats);
   const navigate = useNavigate();
+  const isOnline = useNetworkStatus();
   
   const [activeTab, setActiveTab] = useState('terminal'); 
   const [leaderboard, setLeaderboard] = useState([]);
@@ -151,6 +153,7 @@ export default function Arena() {
       e.preventDefault();
       const code = inviteCode.trim().toUpperCase();
       if (code.length !== 6) return toast.error("Invite code must be exactly 6 characters.");
+      if (!isOnline) return toast.error("You're offline — joining a battle needs a connection.");
 
       setIsJoining(true);
       try {
@@ -158,8 +161,13 @@ export default function Arena() {
           toast.success("Code accepted — entering lobby.");
           navigate(`/battle/${code}`);
       } catch (error) {
-          toast.error("That code is invalid or expired.");
-          setInviteCode(''); 
+          // Don't mislabel a dropped connection as a bad code.
+          if (error?.message === '[OFFLINE]') {
+              toast.error("You're offline — joining a battle needs a connection.");
+          } else {
+              toast.error("That code is invalid or expired.");
+              setInviteCode('');
+          }
       }
       setIsJoining(false);
   };
@@ -171,9 +179,26 @@ export default function Arena() {
       navigate(`/gauntlet/${level}`);
   };
 
+  // Retry the global-rankings load after an offline/failed fetch (the initial
+  // load effect only fires while the list is empty, so it won't self-retry).
+  const retryRankings = async () => {
+      if (!navigator.onLine) return toast.error("Still offline — reconnect and try again.");
+      setIsLoadingRankings(true);
+      try {
+          const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(20, null);
+          setLeaderboard(agents || []);
+          setLastDoc(newLastDoc);
+          setHasMore((agents || []).length === 20);
+      } catch {
+          toast.error("Couldn't load rankings — try again.");
+      }
+      setIsLoadingRankings(false);
+  };
+
   // Podium colors are data-viz (gold/silver/bronze), kept as literal values on
   // purpose — they encode rank, not brand.
   const handleDeployLobby = async () => {
+      if (!isOnline) return toast.error("You're offline — hosting a battle needs a connection.");
       const toastId = toast.loading("Creating your lobby…");
       try {
           const { createMultiplayerBattle } = await import('../services/dbQueries');
@@ -198,7 +223,11 @@ export default function Arena() {
           setShowHostModal(false);
           navigate(`/battle/${battleId}`);
       } catch (error) {
-          toast.error(error.message || "Failed to generate lobby.", { id: toastId });
+          // Map the raw [OFFLINE] sentinel to human copy instead of leaking it.
+          const msg = error?.message === '[OFFLINE]'
+              ? "You're offline — hosting a battle needs a connection."
+              : (error?.message || "Failed to generate lobby.");
+          toast.error(msg, { id: toastId });
       }
   };
 
@@ -389,7 +418,7 @@ export default function Arena() {
                 <Trophy size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> Global rankings
               </h2>
             </div>
-            <StatusPill tone="signal">Live</StatusPill>
+            <StatusPill tone={isOnline ? 'signal' : 'danger'}>{isOnline ? 'Live' : 'Offline'}</StatusPill>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-2 stagger-fade-in">
@@ -399,11 +428,20 @@ export default function Arena() {
                 <span className="text-xs font-bold text-muted2 uppercase tracking-widest animate-pulse">Loading rankings…</span>
               </div>
             ) : (leaderboard || []).length === 0 ? (
-              <EmptyState
-                icon={Trophy}
-                title="No rankings yet"
-                description="Rankings appear once reviewers start answering questions."
-              />
+              !isOnline ? (
+                <EmptyState
+                  icon={Trophy}
+                  title="You're offline"
+                  description="Reconnect to view the global rankings."
+                  action={<Button onClick={retryRankings}>Retry</Button>}
+                />
+              ) : (
+                <EmptyState
+                  icon={Trophy}
+                  title="No rankings yet"
+                  description="Rankings appear once reviewers start answering questions."
+                />
+              )
             ) : (
               <>
                 {(leaderboard || []).map((agent, idx) => (

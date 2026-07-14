@@ -231,6 +231,9 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             Export exam paper (PDF)
           </Button>
         </div>
+        <p className="text-[11px] text-muted2 mt-2">
+          Exports a printable packet: questionnaire, a bubble answer sheet with a scannable set QR, and a column-major answer key.
+        </p>
       </Card>
 
       <Modal

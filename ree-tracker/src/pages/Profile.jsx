@@ -9,6 +9,7 @@ import { Skeleton, Button, Modal, FormField, Input, Tabs, StatusPill } from '../
 import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settings2, Cloud, TriangleAlert } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 import { syncDashboardStats } from '../services/analyticsSync';
+import { updateUserProfile } from '../services/dbQueries';
 
 // Decoupled Components
 import ComparativeAnalyticsTab from '../features/profile/ComparativeAnalyticsTab';
@@ -87,10 +88,23 @@ export default function Profile() {
     }
   }, [stats?.tasks]);
 
+  // Shared fallback so an un-named user shows the SAME handle here and on the
+  // Arena leaderboard (which falls back to `Agent-<uid6>` — dbQueries.normalizeAgent
+  // / leaderboardRoutes.toAgent). Previously Profile used 'Reviewer'/'V', so a
+  // nameless user saw two different identities.
+  const displayName = currentUser?.displayName
+    || (currentUser?.uid ? `Agent-${currentUser.uid.slice(0, 6)}` : 'Agent');
+
   // Handlers
   const handleSaveProfile = async () => {
       try {
           if (editForm.displayName !== currentUser.displayName) {
+              // Write the Postgres User row FIRST (the leaderboard's source of
+              // truth) so the Arena name can never drift from the Profile name.
+              // If offline this throws [OFFLINE] and we update NEITHER source,
+              // keeping them consistent. Then mirror to the Firebase Auth profile
+              // (used by certificates + the Profile header).
+              await updateUserProfile({ displayName: editForm.displayName });
               await updateProfile(currentUser, { displayName: editForm.displayName });
           }
           if (editForm.targetBoardDate !== stats?.examDate) {
@@ -101,7 +115,8 @@ export default function Profile() {
           toast.success("Profile updated.");
           setIsEditing(false);
       } catch (error) {
-          toast.error(`Update failed: ${error.message}`);
+          const offline = error?.message === '[OFFLINE]';
+          toast.error(offline ? 'Reconnect to change your name.' : `Update failed: ${error.message}`);
       }
   };
 
@@ -180,7 +195,7 @@ export default function Profile() {
             className="w-20 h-20 shrink-0 rounded-[var(--radius-lg)] flex items-center justify-center text-white font-bold text-3xl elevate-glow"
             style={{ background: 'linear-gradient(to top right, var(--accent), var(--accent-signal))' }}
           >
-            {currentUser?.displayName?.charAt(0).toUpperCase() || 'V'}
+            {displayName.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 w-full">
               {isEditing ? (
@@ -198,7 +213,7 @@ export default function Profile() {
                   </div>
               ) : (
                   <div className="animate-in fade-in flex flex-col">
-                      <h2 className="text-display text-3xl text-textMain tracking-tight mb-1">{currentUser?.displayName || 'Reviewer'}</h2>
+                      <h2 className="text-display text-3xl text-textMain tracking-tight mb-1">{displayName}</h2>
                       <div className="text-eyebrow flex items-center gap-2 mb-2">
                           <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--accent-success)' }}></span>
                           ID: {currentUser?.uid.slice(0, 10)}

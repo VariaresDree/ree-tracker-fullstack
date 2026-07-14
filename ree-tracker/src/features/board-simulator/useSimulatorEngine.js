@@ -615,15 +615,12 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     }).catch(() => {});
   };
 
-  // Offline reviewer PDF — pulls the same question pool the user would face
-  // if they hit "Initiate Simulation" right now, and dumps it to a printable
-  // PDF (one question per page, four options labelled A-D, blank answer key
-  // page at the end). LaTeX delimiters are stripped to plain text since
-  // jsPDF cannot render KaTeX glyphs; this is a study-on-paper artefact,
-  // not a perfect render of the on-screen exam.
-  // Export a print-ready PRC-style board-exam packet (questionnaire + answer
-  // sheet + answer key). Heavy PDF/layout code lives in ./examPaper and is
-  // dynamically imported so jsPDF stays out of the simulator's initial chunk.
+  // Export a print-ready PRC-style board-exam packet: questionnaire (2-column
+  // options, continuous flow) + answer sheet (bubble grid + a QR encoding the
+  // set id / key version) + a COLUMN-MAJOR answer key. LaTeX is flattened to
+  // WinAnsi-safe text since jsPDF can't render KaTeX — a study-on-paper artefact,
+  // not a pixel render of the on-screen exam. Heavy PDF/layout code lives in
+  // ./examPaper and is dynamically imported so jsPDF stays out of the initial chunk.
   const exportOfflinePDF = async () => {
     if (isExporting) return;
     setIsExporting(true);
@@ -639,7 +636,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
       const { generateExamPaper } = await import('./examPaper');
       const res = await generateExamPaper({ pool, subject, config });
-      toast.success(`Exam paper ready — ${res.items} items, ${res.pages} pages (${res.setLabel}).`, { id: toastId });
+      if (res.unmatched > 0) {
+        // Don't silently ship a key with '-' entries — tell the user which
+        // items need a fix (usually a stored answer that isn't verbatim one of
+        // its options).
+        toast(`Exam paper ready (${res.items} items, ${res.setLabel}) — but ${res.unmatched} answer${res.unmatched === 1 ? '' : 's'} couldn't be matched to an option and show "-" in the key. Review those items.`, { id: toastId, icon: '⚠️', duration: 8000 });
+      } else {
+        toast.success(`Exam paper ready — ${res.items} items, ${res.pages} pages (${res.setLabel}).`, { id: toastId });
+      }
     } catch (err) {
       console.error('Exam paper export failed:', err);
       toast.error(err?.message || 'Failed to export exam paper.', { id: toastId });

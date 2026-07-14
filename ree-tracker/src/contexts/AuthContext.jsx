@@ -9,7 +9,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 // 🚀 NEW: Import the TOS fetch function
-import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags } from '../services/dbQueries';
+import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags, updateUserProfile } from '../services/dbQueries';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
 
@@ -32,8 +32,21 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       clearTimeout(timeout);
       setCurrentUser(user);
-      
+
       if (user) {
+        // Mirror the Firebase display name into the Postgres User row (the
+        // leaderboard's source of truth) once per session, so a name set at
+        // signup — or edited on another device — propagates to the Arena and
+        // can't drift from the Profile header. Best-effort: offline/failed
+        // writes are swallowed and retried next session. Runs regardless of the
+        // admin/profile fetch below so drift heals even if that request fails.
+        try {
+          if (user.displayName && !sessionStorage.getItem('dn_mirrored')) {
+            sessionStorage.setItem('dn_mirrored', '1');
+            updateUserProfile({ displayName: user.displayName }).catch(() => {});
+          }
+        } catch { /* sessionStorage unavailable (private mode) — skip */ }
+
         try {
           const profileResponse = await getAnalyticsProfile(user.uid);
           const dbRole = profileResponse?.data?.profile?.role;
@@ -117,6 +130,9 @@ export const AuthProvider = ({ children }) => {
     // Release this device's FCM token BEFORE the auth session dies (the
     // unregister call needs a valid ID token). No-op on the web.
     try { await teardownPushNotifications(); } catch { /* best-effort */ }
+    // Clear the display-name mirror guard so the next user to sign in on this
+    // tab re-mirrors their own name (the flag is per-session, not per-user).
+    try { sessionStorage.removeItem('dn_mirrored'); } catch { /* ignore */ }
     await signOut(auth);
     setCurrentUser(null);
     setIsAdmin(false);
