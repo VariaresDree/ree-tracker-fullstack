@@ -52,16 +52,25 @@ function s3Client() {
     return _s3Client;
 }
 
-// Generate a path-safe key with a short hash to defeat name collisions.
-// Sanitization strips path separators, collapses runs of dots (defends
-// against `../..` traversal), and caps length.
-function makeKey(folderId, originalName) {
-    const safe = String(originalName || 'file')
+// Strip path separators, collapse runs of dots (defends against `../..`
+// traversal), and cap length. Applied to BOTH the filename AND the folderId —
+// folderId is caller-supplied (req.body) and was previously interpolated raw,
+// so a value like `../../../../tmp/x` escaped LOCAL_DIR via path.join and wrote
+// files outside the uploads dir.
+function sanitizeSegment(value, fallback, max) {
+    const cleaned = String(value == null ? '' : value)
         .replace(/[^a-zA-Z0-9._-]/g, '_')
         .replace(/\.{2,}/g, '_')
-        .slice(0, 80);
+        .slice(0, max);
+    return cleaned || fallback;
+}
+
+// Generate a path-safe key with a short hash to defeat name collisions.
+function makeKey(folderId, originalName) {
+    const safe = sanitizeSegment(originalName, 'file', 80);
+    const folder = sanitizeSegment(folderId, 'root', 80);
     const tag = crypto.randomBytes(4).toString('hex');
-    return `${folderId || 'root'}/${tag}-${safe}`;
+    return `${folder}/${tag}-${safe}`;
 }
 
 async function ensureLocalDir(dir) {

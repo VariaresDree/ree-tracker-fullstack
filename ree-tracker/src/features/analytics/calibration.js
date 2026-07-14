@@ -55,7 +55,13 @@ export function brierScore(attempts) {
 export function expectedCalibrationError(attempts, bins = 5) {
   const curve = buildCalibrationCurve(attempts, bins);
   if (curve.points.length === 0) return null;
-  const total = curve.n;
+  // Weight each bin by its share of the LABELED attempts (Σ p.n), not the raw
+  // attempts.length: bins skip attempts with a null/invalid confidenceLevel, so
+  // dividing by the full count made the weights sum to <1 and under-reported ECE
+  // (a user with unlabeled attempts looked ~2× better calibrated). This also
+  // matches the server-buckets path and brierScore's valid-only denominator.
+  const total = curve.points.reduce((s, p) => s + p.n, 0);
+  if (total === 0) return null;
   let ece = 0;
   for (const p of curve.points) ece += (p.n / total) * Math.abs(p.confidence - p.accuracy);
   return ece;

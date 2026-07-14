@@ -25,15 +25,21 @@ export function useBattleSocket(battleId) {
         if (!battleId) return;
 
         setConnectionFailed(false);
+        // Guards the async gap below: if the effect is torn down (unmount /
+        // battleId change) during `getIdToken()`, we must NOT open a socket —
+        // otherwise cleanup (which already ran) can't disconnect it, leaking a
+        // phantom connection that keeps calling setState on the unmounted hook.
+        let cancelled = false;
         // If we haven't connected within 10s (offline / server unreachable),
         // surface a failure state so the UI can offer a retry.
-        let failTimer = setTimeout(() => setConnectionFailed(true), 10000);
+        let failTimer = setTimeout(() => { if (!cancelled) setConnectionFailed(true); }, 10000);
 
         const connect = async () => {
             const user = auth.currentUser;
-            if (!user) { clearTimeout(failTimer); setConnectionFailed(true); return; }
+            if (!user) { clearTimeout(failTimer); if (!cancelled) setConnectionFailed(true); return; }
 
             const token = await user.getIdToken();
+            if (cancelled) return; // torn down during the await — don't open a socket
 
             const socket = io(`${BACKEND_URL}/battle`, {
                 auth: { token },
@@ -103,6 +109,7 @@ export function useBattleSocket(battleId) {
         connect();
 
         return () => {
+            cancelled = true;
             clearTimeout(failTimer);
             if (socketRef.current) {
                 socketRef.current.disconnect();

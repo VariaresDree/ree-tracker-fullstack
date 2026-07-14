@@ -32,6 +32,11 @@ export const useGauntletEngine = (level) => {
     // visibility tracking); zero defaults are safe — the analytics ignores 0ms.
     const lastAnswerTimestampRef = useRef(Date.now());
     const timeSpentPerQuestionRef = useRef({});
+    // Absolute end-time anchor. The countdown reads the wall clock against this
+    // instead of blindly decrementing, so background-tab setInterval throttling
+    // can't pause a timed exam and per-tick drift can't accumulate (matches the
+    // Board Simulator / Active Review engines).
+    const endTimeRef = useRef(null);
 
     useEffect(() => {
         const bootGauntlet = async () => {
@@ -63,6 +68,7 @@ export const useGauntletEngine = (level) => {
             }
 
             setTimeLeft(tier.timeLimitSecs);
+            endTimeRef.current = Date.now() + tier.timeLimitSecs * 1000;
 
             try {
                 const data = await apiRequest(`/api/exams?limit=${tier.items * 2}`);
@@ -102,7 +108,15 @@ export const useGauntletEngine = (level) => {
             submitExam(true);
             return;
         }
-        const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
+        // Derive remaining time from the absolute end-time each tick — on return
+        // from a throttled/backgrounded tab this jumps straight to the correct
+        // value (and hits 0 → auto-submit) instead of resuming a stale count.
+        const timer = setInterval(() => {
+            const left = endTimeRef.current
+                ? Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000))
+                : 0;
+            setTimeLeft(left);
+        }, 1000);
         return () => clearInterval(timer);
     }, [status, timeLeft]);
 

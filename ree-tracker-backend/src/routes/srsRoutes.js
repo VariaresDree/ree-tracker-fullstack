@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { validate } = require('../middlewares/validate');
+const { srsReviewSchema } = require('../schemas/srsSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -34,15 +36,12 @@ router.get('/due', authMiddleware, async (req, res) => {
 });
 
 // Record a review action (updates SRS scheduling)
-router.post('/review', authMiddleware, async (req, res) => {
+router.post('/review', authMiddleware, validate(srsReviewSchema), async (req, res) => {
     try {
-        const { questionId, quality, easeFactor, interval, repetitions } = req.body;
+        const { questionId, easeFactor, interval, repetitions } = req.body;
 
-        if (!questionId || quality === undefined) {
-            return res.status(400).json({ error: 'questionId and quality are required.' });
-        }
-
-        // SM-2 algorithm: calculate next review date from interval (in days)
+        // SM-2 algorithm: calculate next review date from interval (in days).
+        // interval is now schema-validated to a finite int, so no Invalid Date.
         const nextReviewDate = new Date();
         nextReviewDate.setDate(nextReviewDate.getDate() + (interval || 1));
 
