@@ -141,4 +141,14 @@ describe('expectedCalibrationError', () => {
     expect(ece).toBeGreaterThan(0);
     expect(ece).toBeLessThanOrEqual(1);
   });
+
+  it('does not dilute ECE with unlabeled attempts (weights by labeled count)', () => {
+    // 100 HIGH attempts, 50 correct → HIGH bin accuracy 0.5, gap |0.85-0.5| = 0.35.
+    // Plus 100 attempts with NO confidence label (excluded from every bin).
+    // True ECE over labeled attempts = (100/100)*0.35 = 0.35. The old code
+    // divided by attempts.length (200) and reported 0.175 — half the real value.
+    const labeled = [...Array(50).fill(HIGH_CORRECT), ...Array(50).fill(HIGH_WRONG)];
+    const unlabeled = Array(100).fill({ isCorrect: true }); // no confidenceLevel
+    expect(expectedCalibrationError([...labeled, ...unlabeled])).toBeCloseTo(0.35, 5);
+  });
 });

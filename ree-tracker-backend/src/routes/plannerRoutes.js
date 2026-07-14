@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { validate } = require('../middlewares/validate');
+const { plannerTaskCreateSchema, plannerTaskUpdateSchema } = require('../schemas/plannerSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -19,18 +21,14 @@ router.get('/tasks', authMiddleware, async (req, res) => {
 });
 
 // Create a planner task
-router.post('/tasks', authMiddleware, async (req, res) => {
+router.post('/tasks', authMiddleware, validate(plannerTaskCreateSchema), async (req, res) => {
     try {
-        const { text, dueDate } = req.body;
-
-        if (!text || text.trim().length === 0) {
-            return res.status(400).json({ error: 'Task text is required.' });
-        }
+        const { text, dueDate } = req.body; // text is schema-trimmed + non-empty
 
         const task = await prisma.plannerTask.create({
             data: {
                 userId: req.user.id,
-                text: text.trim(),
+                text,
                 dueDate: dueDate || null
             }
         });
@@ -42,12 +40,12 @@ router.post('/tasks', authMiddleware, async (req, res) => {
 });
 
 // Update a planner task
-router.put('/tasks/:id', authMiddleware, async (req, res) => {
+router.put('/tasks/:id', authMiddleware, validate(plannerTaskUpdateSchema), async (req, res) => {
     try {
-        const { text, dueDate, completed } = req.body;
+        const { text, dueDate, completed } = req.body; // text is schema-trimmed
         const data = {};
 
-        if (text !== undefined) data.text = text.trim();
+        if (text !== undefined) data.text = text;
         if (dueDate !== undefined) data.dueDate = dueDate;
         if (completed !== undefined) data.completed = completed;
 

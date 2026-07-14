@@ -7,6 +7,12 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const readinessCache = require('../services/readinessCache');
 
+// Manila calendar date of an instant — same formatter telemetryService keys
+// ActivityLog/streaks on, so "an active study day" means the same thing here.
+// Was toISOString() (UTC), which mis-dated every session in 00:00–08:00 Manila
+// to the previous day and skewed the consistency term.
+const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
+
 // GET /api/readiness — compute composite readiness score
 router.get('/', authMiddleware, async (req, res) => {
     try {
@@ -55,7 +61,9 @@ router.get('/', authMiddleware, async (req, res) => {
         const accuracyRate = totalAttempts > 0 ? correctAttempts / totalAttempts : 0;
 
         const theta = user?.thetaRating || 0;
-        const normalizedTheta = Math.min(1, Math.max(0, (theta + 3) / 6));
+        // θ is clamped to [-4, 4] by the estimator (irt.clampTheta); normalize on
+        // that scale so the top/bottom of the ability range doesn't saturate early.
+        const normalizedTheta = Math.min(1, Math.max(0, (theta + 4) / 8));
 
         const recentSessions = await prisma.studySession.findMany({
             where: { userId: req.user.id },
@@ -67,7 +75,7 @@ router.get('/', authMiddleware, async (req, res) => {
         let consistency = 0;
         if (recentSessions.length >= 2) {
             const uniqueDays = new Set(recentSessions.map(s =>
-                s.createdAt.toISOString().split('T')[0]
+                MANILA_FMT.format(s.createdAt)
             ));
             consistency = Math.min(1, uniqueDays.size / 7);
         }

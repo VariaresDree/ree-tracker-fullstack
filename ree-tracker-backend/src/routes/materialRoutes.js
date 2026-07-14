@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { requireAdmin } = require('../middlewares/roleMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -21,7 +22,11 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // --- FOLDER CRUD ---
-router.post('/folders', authMiddleware, idempotency(), async (req, res) => {
+// Materials + folders are a SHARED, global vault (no userId scoping) and are
+// admin-managed in the UI (CloudVaultTab gates every mutation on isAdmin), so
+// every write is admin-only here too — matching referenceRoutes. Reads (GET /)
+// stay open to all authed users.
+router.post('/folders', authMiddleware, requireAdmin, idempotency(), async (req, res) => {
     try {
         const { name, parentId } = req.body || {};
         if (!name || String(name).trim().length === 0) return res.status(400).json({ error: 'Folder name required.' });
@@ -35,7 +40,7 @@ router.post('/folders', authMiddleware, idempotency(), async (req, res) => {
     }
 });
 
-router.patch('/folders/:id', authMiddleware, async (req, res) => {
+router.patch('/folders/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
         const { name, parentId } = req.body || {};
         const folder = await prisma.folder.update({
@@ -53,7 +58,7 @@ router.patch('/folders/:id', authMiddleware, async (req, res) => {
     }
 });
 
-router.delete('/folders/:id', authMiddleware, async (req, res) => {
+router.delete('/folders/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
         // Delete contained materials' blobs first, then cascade Prisma rows.
         const contained = await prisma.material.findMany({
@@ -80,6 +85,7 @@ router.delete('/folders/:id', authMiddleware, async (req, res) => {
 router.post(
     '/upload',
     authMiddleware,
+    requireAdmin,
     idempotency(),
     express.json({ limit: '8mb' }),
     async (req, res) => {
@@ -116,7 +122,7 @@ router.post(
     },
 );
 
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
         const mat = await prisma.material.findUnique({ where: { id: req.params.id } });
         if (!mat) return res.status(404).json({ error: 'Material not found.' });

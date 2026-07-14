@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { validate } = require('../middlewares/validate');
+const { bookmarkCreateSchema } = require('../schemas/bookmarkSchemas');
 const prisma = require('../config/db');
 
 router.get('/', authMiddleware, async (req, res) => {
@@ -39,10 +41,9 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, validate(bookmarkCreateSchema), async (req, res) => {
     try {
         const { questionId } = req.body;
-        if (!questionId) return res.status(400).json({ error: 'questionId is required.' });
 
         const bookmark = await prisma.bookmark.create({
             data: { userId: req.user.id, questionId }
@@ -51,6 +52,10 @@ router.post('/', authMiddleware, async (req, res) => {
     } catch (error) {
         if (error.code === 'P2002') {
             return res.status(409).json({ error: 'Already bookmarked.' });
+        }
+        // FK violation → the questionId doesn't exist. Map to 404 instead of 500.
+        if (error.code === 'P2003') {
+            return res.status(404).json({ error: 'Question not found.' });
         }
         res.status(500).json({ error: 'Failed to create bookmark.' });
     }

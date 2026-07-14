@@ -1,17 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
+const { validate } = require('../middlewares/validate');
+const { studySessionSchema } = require('../schemas/studySessionSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
 // Record a completed study session
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, validate(studySessionSchema), async (req, res) => {
     try {
+        // Fields are schema-validated + coerced to numbers/bounded strings.
         const { mode, subject, subtopic, totalQuestions, correctAnswers, durationSecs } = req.body;
-
-        if (!mode || !subject || totalQuestions === undefined) {
-            return res.status(400).json({ error: 'mode, subject, and totalQuestions are required.' });
-        }
 
         const session = await prisma.studySession.create({
             data: {
@@ -19,9 +18,9 @@ router.post('/', authMiddleware, async (req, res) => {
                 mode,
                 subject,
                 subtopic: subtopic || null,
-                totalQuestions: parseInt(totalQuestions),
-                correctAnswers: parseInt(correctAnswers) || 0,
-                durationSecs: parseInt(durationSecs) || 0
+                totalQuestions,
+                correctAnswers,
+                durationSecs
             }
         });
 

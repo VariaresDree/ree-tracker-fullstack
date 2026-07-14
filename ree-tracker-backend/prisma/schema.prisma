@@ -297,6 +297,9 @@ model Material {
   folderId    String
   createdAt   DateTime @default(now())
   folder      Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  // FK filtered on every folder delete + cascade; Postgres doesn't auto-index FKs.
+  @@index([folderId])
 }
 
 model Bookmark {
