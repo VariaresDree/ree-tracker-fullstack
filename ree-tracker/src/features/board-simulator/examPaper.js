@@ -8,6 +8,7 @@
 //   2. Space efficiency — options are laid out A/C over B/D in two columns and
 //      questions flow continuously across pages (not one-per-page).
 import { stripChoicePrefix } from '../../utils/sanitizeOptions';
+import { fnv1a } from '../../utils/contentHash';
 
 // --- Math → WinAnsi-safe text --------------------------------------------
 const SUP = { 1: '¹', 2: '²', 3: '³' }; // ¹ ² ³ exist in Latin-1
@@ -145,6 +146,48 @@ function formatDuration(mins) {
     return `${r} minutes`;
 }
 
+// --- Answer-key helpers (exported + unit-tested) -------------------------
+// Column-major position: fill each column top-to-bottom before moving right.
+// PH answer-sheet/key convention — e.g. 50 items in 5 cols of 10 → col 0 =
+// items 1..10, col 1 = 11..20, … (this is what the answer SHEET already did;
+// the answer KEY used to be row-major and disagreed with it).
+export function columnMajorPosition(idx, rows) {
+    const r = Math.max(1, rows);
+    return { col: Math.floor(idx / r), row: idx % r };
+}
+
+const normAns = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+// Map a question's stored answer to its option LETTER (A/B/C/…), matching the
+// cleaned option order that gets PRINTED so the key always agrees with the
+// questionnaire. Normalizes whitespace/case before comparing — the old exact
+// string-equality silently emitted '-' on trivial mismatches. Returns
+// { letter, matched } so the caller can warn on unmatched items instead of
+// shipping a silent '-' key. `cleanedOptions` (already mathToText'd) may be
+// passed to avoid recomputing.
+export function answerLetterFor(question, cleanedOptions) {
+    const options = cleanedOptions
+        || (question.options || []).map((o) => mathToText(stripChoicePrefix(o)));
+    const target = mathToText(stripChoicePrefix(question.answer || ''));
+    let idx = options.findIndex((o) => normAns(o) === normAns(target));
+    // Fallback: compare RAW option/answer text (pre-mathToText), in case the
+    // transform diverged between the two sides.
+    if (idx < 0 && Array.isArray(question.options)) {
+        idx = question.options.findIndex((o) => normAns(o) === normAns(question.answer));
+    }
+    return { letter: idx >= 0 ? letterOf(idx) : '-', matched: idx >= 0 };
+}
+
+// Deterministic exam identity for the QR + printed codes. setId binds to the
+// ordered question set; keyVersion is a checksum of the answer key (the LETTERS
+// only — never the answer text), so the QR identifies the correct key page
+// without leaking answers. Same content → same codes on every export.
+export function deriveExamIdentity(pool, answerLetters) {
+    const setId = fnv1a((pool || []).map((q) => q.id || q.text || '').join('|'));
+    const keyVersion = fnv1a((answerLetters || []).join(''));
+    return { setId, keyVersion };
+}
+
 // --- main builder ---------------------------------------------------------
 export async function generateExamPaper({ pool, subject = 'EE', config = {}, output = null }) {
     if (!pool || pool.length === 0) throw new Error('No questions available for the selected configuration.');
@@ -160,22 +203,32 @@ export async function generateExamPaper({ pool, subject = 'EE', config = {}, out
     const bottomLimit = pageH - 14;     // leave room for footer
 
     const code = SUBJECT_CODE[subject] || String(subject || 'EE').toUpperCase();
-    const setLabel = 'SET ' + letterOf(Math.floor(Math.random() * 4)); // SET A–D
     const duration = formatDuration(config.timeLimitMins || (config.isPrcStandard ? (subject === 'EE' ? 360 : 240) : pool.length * 2));
 
     // Clean + pre-compute per item so the answer key/sheet stay consistent.
+    // answerLetterFor normalizes before matching and reports mismatches so we
+    // can warn instead of silently shipping a '-' in the key.
+    let unmatched = 0;
     const items = pool.map((q, i) => {
         const options = (q.options || []).map((o) => mathToText(stripChoicePrefix(o)));
-        const cleanAnswer = mathToText(stripChoicePrefix(q.answer || ''));
-        let answerIdx = options.indexOf(cleanAnswer);
-        if (answerIdx < 0 && q.options) answerIdx = q.options.indexOf(q.answer); // fallback on raw
+        const { letter, matched } = answerLetterFor(q, options);
+        if (!matched) unmatched++;
         return {
             n: i + 1,
             stem: mathToText(q.text || q.question || ''),
             options,
-            answerLetter: answerIdx >= 0 ? letterOf(answerIdx) : '-',
+            answerLetter: letter,
         };
     });
+
+    // Deterministic identity + a stable SET letter derived from setId (was a
+    // random label regenerated every export — useless for matching a filled
+    // sheet to its key). idLine is printed on the sheet + key so a grader can
+    // pair a scanned QR with the correct answer-key page.
+    const { setId, keyVersion } = deriveExamIdentity(pool, items.map((it) => it.answerLetter));
+    const setLetterIdx = [...setId].reduce((a, c) => a + c.charCodeAt(0), 0) % 4;
+    const setLabel = 'SET ' + letterOf(setLetterIdx);
+    const idLine = `Set ${setId} · Key v${keyVersion}`;
 
     let y = M;
     const setFont = (pt, style = 'normal') => { doc.setFont('helvetica', style); doc.setFontSize(pt); };
@@ -266,13 +319,40 @@ export async function generateExamPaper({ pool, subject = 'EE', config = {}, out
     // ---- Answer sheet ----
     doc.addPage();
     y = M;
+
+    // QR (top-right): encodes setId + keyVersion so a grader can scan a filled
+    // sheet and match it to the correct printed ANSWER KEY page. It never
+    // contains the answers themselves. Best-effort — a QR failure must not abort
+    // the whole PDF.
+    try {
+        const mod = await import('qrcode');
+        const toDataURL = mod.toDataURL || mod.default?.toDataURL;
+        if (toDataURL) {
+            const qrPayload = `REE|${setId}|v${keyVersion}`;
+            const qrUrl = await toDataURL(qrPayload, { margin: 0, width: 256, errorCorrectionLevel: 'M' });
+            const qrSize = 20;
+            doc.addImage(qrUrl, 'PNG', pageW - M - qrSize, M, qrSize, qrSize);
+            setFont(6.5, 'normal');
+            doc.setTextColor(120);
+            doc.text('Scan to verify set', pageW - M - qrSize / 2, M + qrSize + 2.5, { align: 'center' });
+            doc.setTextColor(0);
+        }
+    } catch { /* qrcode unavailable — the sheet still prints without the QR */ }
+
     setFont(13, 'bold');
     doc.text('ANSWER SHEET', pageW / 2, y + 4, { align: 'center' });
     setFont(9, 'normal');
     y += 9;
     doc.text(`${code}   ${setLabel}`, M, y);
-    doc.text('Name: ____________________________', pageW - M, y, { align: 'right' });
-    y += 4;
+    y += 4.5;
+    setFont(7.5, 'normal');
+    doc.setTextColor(120);
+    doc.text(idLine, M, y);
+    doc.setTextColor(0);
+    y += 5;
+    setFont(9, 'normal');
+    doc.text('Name: ____________________________', M, y);
+    y += 5;
     setFont(7.5, 'normal');
     doc.text('Shade the box of your choice completely. Use pencil no. 2 only. STRICTLY NO ERASURES.', M, y);
     y += 6;
@@ -285,8 +365,7 @@ export async function generateExamPaper({ pool, subject = 'EE', config = {}, out
     const bubbleR = 1.9;
     setFont(8.5, 'normal');
     items.forEach((it, idx) => {
-        const col = Math.floor(idx / asRows);
-        const row = idx % asRows;
+        const { col, row } = columnMajorPosition(idx, asRows);
         let cellY = asStartY + row * asRowH;
         const cellX = M + col * asColW;
         if (cellY + asRowH > pageH - M) return; // guard (100 items fit on one page)
@@ -308,16 +387,23 @@ export async function generateExamPaper({ pool, subject = 'EE', config = {}, out
     setFont(9, 'normal');
     y += 9;
     doc.text(`${code}   ${setLabel}   (${items.length} items)`, M, y);
+    y += 4.5;
+    setFont(7.5, 'normal');
+    doc.setTextColor(120);
+    doc.text(`${idLine}  —  scan the answer-sheet QR to confirm a sheet matches this key`, M, y);
+    doc.setTextColor(0);
     y += 6;
 
-    const akCols = 8;
+    // Column-major (fill each column top-to-bottom), matching the answer sheet
+    // and the PH convention. 5 columns → e.g. 50 items = 5 cols of 10.
+    const akCols = 5;
+    const akRows = Math.ceil(items.length / akCols);
     const akColW = contentW / akCols;
     const akRowH = 6;
     const akStartY = y;
     setFont(9.5, 'normal');
     items.forEach((it, idx) => {
-        const col = idx % akCols;
-        const row = Math.floor(idx / akCols);
+        const { col, row } = columnMajorPosition(idx, akRows);
         const x = M + col * akColW;
         const ry = akStartY + row * akRowH;
         if (ry > pageH - M) return;
@@ -333,16 +419,19 @@ export async function generateExamPaper({ pool, subject = 'EE', config = {}, out
         doc.setPage(p);
         setFont(7.5, 'normal');
         doc.setTextColor(120);
-        doc.text(`REE Pre-board — ${code} — ${setLabel}`, M, footerY);
+        doc.text(`REE Pre-board — ${code} — ${setLabel} — ${setId}`, M, footerY);
         doc.text(`Page ${p} of ${total}`, pageW - M, footerY, { align: 'right' });
         doc.setTextColor(0);
     }
 
     const stamp = new Date().toISOString().slice(0, 10);
     const filename = `REE-${code}-${setLabel.replace(' ', '')}-${stamp}.pdf`;
+    // `unmatched` lets the caller warn when a stored answer couldn't be mapped to
+    // an option (a silent '-' in the key) instead of shipping a broken key.
+    const result = { pages: total, items: items.length, setLabel, setId, keyVersion, unmatched, filename };
     // `output` (e.g. 'arraybuffer'/'blob') returns the bytes instead of triggering
     // a browser download — used by tests/tooling; the UI path leaves it null.
-    if (output) return { pages: total, items: items.length, setLabel, filename, data: doc.output(output) };
+    if (output) return { ...result, data: doc.output(output) };
     doc.save(filename);
-    return { pages: total, items: items.length, setLabel, filename };
+    return result;
 }

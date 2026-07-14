@@ -7,6 +7,10 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 export function useBattleSocket(battleId) {
     const socketRef = useRef(null);
     const [connected, setConnected] = useState(false);
+    // True once we've given up reaching the battle server (offline, no auth, or
+    // no successful connect within the timeout). Lets the lobby show a clear
+    // "can't reach the server" state instead of an infinite "Connecting…" spinner.
+    const [connectionFailed, setConnectionFailed] = useState(false);
     const [participants, setParticipants] = useState([]);
     const [battleStatus, setBattleStatus] = useState(null);
     const [battleConfig, setBattleConfig] = useState(null);
@@ -20,9 +24,14 @@ export function useBattleSocket(battleId) {
     useEffect(() => {
         if (!battleId) return;
 
+        setConnectionFailed(false);
+        // If we haven't connected within 10s (offline / server unreachable),
+        // surface a failure state so the UI can offer a retry.
+        let failTimer = setTimeout(() => setConnectionFailed(true), 10000);
+
         const connect = async () => {
             const user = auth.currentUser;
-            if (!user) return;
+            if (!user) { clearTimeout(failTimer); setConnectionFailed(true); return; }
 
             const token = await user.getIdToken();
 
@@ -34,6 +43,8 @@ export function useBattleSocket(battleId) {
             socketRef.current = socket;
 
             socket.on('connect', () => {
+                clearTimeout(failTimer);
+                setConnectionFailed(false);
                 setConnected(true);
                 socket.emit('join-battle', { battleId });
             });
@@ -92,6 +103,7 @@ export function useBattleSocket(battleId) {
         connect();
 
         return () => {
+            clearTimeout(failTimer);
             if (socketRef.current) {
                 socketRef.current.disconnect();
                 socketRef.current = null;
@@ -118,6 +130,7 @@ export function useBattleSocket(battleId) {
 
     return {
         connected,
+        connectionFailed,
         participants,
         battleStatus,
         battleConfig,

@@ -1,9 +1,11 @@
 // src/features/profile/ComparativeAnalyticsTab.jsx
 import React, { useState, useEffect } from 'react';
 import { fetchGlobalLeaderboard, fetchSimulationLedger, fetchLeaderboardMe } from '../../services/dbQueries';
-import ActivityCalendar from './ActivityCalendar'; 
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import ActivityCalendar from './ActivityCalendar';
 
 export default function ComparativeAnalyticsTab({ currentUser, stats }) {
+  const isOnline = useNetworkStatus();
   const [rank, setRank] = useState(null); // null = loading/unranked; number = real rank
   const [isUnranked, setIsUnranked] = useState(false);
   const [totalAgents, setTotalAgents] = useState(0);
@@ -86,6 +88,13 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
                   <span className="text-6xl font-black text-reeCyan">#{rank}</span>
                   <span className="text-[11px] text-muted font-mono uppercase mt-2">Out of {totalAgents || 1} Agent{totalAgents === 1 ? '' : 's'}</span>
                 </>
+              ) : !isOnline ? (
+                <>
+                  <span className="text-2xl font-black text-reeCyan leading-tight">Offline</span>
+                  <span className="text-[11px] text-muted font-mono uppercase mt-3 max-w-[180px]">
+                    Reconnect to see your global ranking
+                  </span>
+                </>
               ) : isUnranked ? (
                 <>
                   <span className="text-2xl font-black text-reeCyan leading-tight">Unranked</span>
@@ -136,7 +145,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
                           {agent.displayName || 'Agent'}
                       </span>
                   )) : (
-                      <span className="text-xs font-mono text-muted">No other agents detected.</span>
+                      <span className="text-xs font-mono text-muted">{isOnline ? 'No other agents detected.' : 'Offline — reconnect to see active agents.'}</span>
                   )}
               </div>
           </div>

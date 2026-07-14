@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { Button, Badge, StatusPill, Card, EmptyState } from '../components/ui';
 import { ChevronLeft, Swords, Users, Copy, Trophy } from '../components/ui/icons';
 import toast from 'react-hot-toast';
@@ -9,9 +10,11 @@ export default function BattleLobby() {
     const { battleId } = useParams();
     const navigate = useNavigate();
     const { currentUser } = useAuth();
+    const isOnline = useNetworkStatus();
 
     const {
         connected,
+        connectionFailed,
         participants,
         battleStatus,
         battleConfig,
@@ -38,6 +41,27 @@ export default function BattleLobby() {
         navigate(`/simulator?battleId=${battleId}`);
     };
 
+    // Can't reach the battle server (offline, or no connect within the timeout):
+    // show a clear, actionable state instead of an endless "Connecting…" spinner.
+    if (!connected && !results && (!isOnline || connectionFailed)) {
+        return (
+            <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
+                <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/arena')}>
+                    <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Arena
+                </Button>
+                <EmptyState
+                    icon={Swords}
+                    title={isOnline ? "Can't reach the battle server" : "You're offline"}
+                    description={isOnline
+                        ? 'The live battle server is unreachable right now. Check your connection and try again.'
+                        : 'Live battles need an internet connection. Reconnect, then retry.'}
+                    action={<Button onClick={() => window.location.reload()}>Retry</Button>}
+                />
+            </div>
+        );
+    }
+
+    // Still handshaking while online — brief, bounded by the 10s socket timeout.
     if (!connected && !results) {
         return (
             <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-[var(--accent-danger)]">
