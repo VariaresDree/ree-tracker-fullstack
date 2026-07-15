@@ -43,8 +43,10 @@ const ghostToned =
   'text-[var(--btn-accent)] hover:bg-[color-mix(in_srgb,var(--btn-accent)_10%,transparent)]';
 
 const sizes = {
-  sm: 'h-8 px-3 text-sm',
-  md: 'h-10 px-4 text-sm',
+  // pointer-coarse:min-h-11 grows the tap target to the 44px touch minimum on
+  // touch devices only (min-height, so desktop layouts are unchanged).
+  sm: 'h-8 px-3 text-sm pointer-coarse:min-h-11',
+  md: 'h-10 px-4 text-sm pointer-coarse:min-h-11',
   lg: 'h-12 px-5 text-base',
   icon: 'h-9 w-9 p-0 pointer-coarse:h-11 pointer-coarse:w-11',
 };

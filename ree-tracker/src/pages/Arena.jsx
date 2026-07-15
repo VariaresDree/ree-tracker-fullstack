@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useStore } from '../store/useStore';
 import { Button, FormField, Input, Select, Modal, Tabs, StatusPill, Badge, EmptyState, cn } from '../components/ui';
-import { Check, Swords, Settings2, Landmark, Scale, Shield, Trophy, Lock } from '../components/ui/icons';
+import { Check, Swords, Settings2, Landmark, Scale, Shield, Trophy, Lock, Flame, ChevronDown, ChevronUp } from '../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../config/examStandards';
 import toast from 'react-hot-toast';
 
@@ -25,50 +25,73 @@ const rankBadge = (index) => {
   return 'bg-surface2 border-border2 text-muted';
 };
 
+// One expanded-detail stat cell.
+function RankDetailStat({ label, value, accent }) {
+  return (
+    <div className="flex flex-col items-center rounded-[var(--radius-default)] bg-surface2/40 border border-border2/50 py-2">
+      <span className={`text-base font-bold tabular-nums ${accent ? '' : 'text-textMain'}`} style={accent ? { color: `var(--accent-${accent})` } : undefined}>{value}</span>
+      <span className="text-[10px] text-muted uppercase tracking-wide mt-0.5 text-center px-1">{label}</span>
+    </div>
+  );
+}
+
 // Extracted + memoized so the infinite-scroll leaderboard re-renders only the
 // rows whose data actually changed, not the whole (growing) list on each page.
+// The summary keeps the competitive headline (streak + theta) always visible;
+// tapping the row expands the per-user detail (active days / answered / accuracy).
 const LeaderboardRow = memo(function LeaderboardRow({ agent, idx, isMe, rowRef }) {
+  const [open, setOpen] = useState(false);
+  const detailId = `agent-detail-${agent.uid}`;
+
   return (
     <div
       ref={rowRef}
-      className={`grid grid-cols-12 gap-3 p-3 items-center rounded-[var(--radius-default)] mb-1 transition-colors hover-glow border ${isMe ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)] shadow-sm' : 'hover:bg-surface2 border-transparent'}`}
+      className={`rounded-[var(--radius-default)] mb-1 border transition-colors ${isMe ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)] shadow-sm' : 'border-transparent hover:bg-surface2'}`}
     >
-      <div className="col-span-2 sm:col-span-1 flex justify-center">
-        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rankBadge(idx)}`}>
-          {idx + 1}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={detailId}
+        onClick={() => setOpen((o) => !o)}
+        className="w-full grid grid-cols-12 gap-3 p-3 items-center text-left rounded-[var(--radius-default)] cursor-pointer hover-glow"
+      >
+        <div className="col-span-2 sm:col-span-1 flex justify-center">
+          <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rankBadge(idx)}`}>
+            {idx + 1}
+          </div>
         </div>
-      </div>
-      <div className="col-span-4 sm:col-span-5 flex items-center gap-3">
-        <div className="flex flex-col min-w-0">
-          <span className={`text-sm font-bold truncate flex items-center gap-2 ${isMe ? 'text-[var(--accent)]' : 'text-textMain'}`}>
-            {agent.displayName}
-            {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
+        <div className="col-span-5 sm:col-span-6 flex items-center gap-3 min-w-0">
+          <div className="flex flex-col min-w-0">
+            <span className={`text-sm font-bold truncate flex items-center gap-2 ${isMe ? 'text-[var(--accent)]' : 'text-textMain'}`}>
+              {agent.displayName}
+              {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
+            </span>
+            <span className="text-[11px] text-muted font-mono opacity-60 truncate">ID: {agent.uid.slice(0, 8)}</span>
+          </div>
+        </div>
+        {/* Streak + theta stay visible on every screen (the ranked headline). */}
+        <div className="col-span-2 flex flex-col items-end">
+          <span className="text-sm font-bold tabular-nums inline-flex items-center gap-1" style={{ color: 'var(--color-reeAmber)' }}>
+            <Flame size={13} strokeWidth={2} aria-hidden="true" />{agent.streak || 0}
           </span>
-          <span className="text-[11px] text-muted font-mono opacity-60 truncate">ID: {agent.uid.slice(0, 8)}</span>
+          <span className="text-[10px] text-muted uppercase tracking-wide">Streak</span>
         </div>
-      </div>
-      {/* Stat cluster — accuracy + answered always visible; days + theta reveal
-          on larger screens (progressive disclosure). Each cell carries a text
-          label so the metric never reads by color alone; tabular figures avoid
-          layout shift. */}
-      <div className="col-span-6 flex items-center justify-end gap-3 sm:gap-5">
-        <div className="flex flex-col items-end">
-          <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{Math.round((agent.accuracy || 0) * 100)}%</span>
-          <span className="text-[10px] text-muted uppercase tracking-wide">Acc</span>
-        </div>
-        <div className="flex flex-col items-end">
-          <span className="text-sm font-bold tabular-nums text-textMain">{agent.questionsAnswered || 0}</span>
-          <span className="text-[10px] text-muted uppercase tracking-wide">Answered</span>
-        </div>
-        <div className="hidden sm:flex flex-col items-end">
-          <span className="text-sm font-bold tabular-nums text-textMain">{agent.activeDays || 0}</span>
-          <span className="text-[10px] text-muted uppercase tracking-wide">Days</span>
-        </div>
-        <div className="hidden md:flex flex-col items-end">
+        <div className="col-span-2 flex flex-col items-end">
           <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(2)}</span>
           <span className="text-[10px] text-muted uppercase tracking-wide">θ</span>
         </div>
-      </div>
+        <div className="col-span-1 flex justify-end text-muted">
+          {open ? <ChevronUp size={18} strokeWidth={2} aria-hidden="true" /> : <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />}
+        </div>
+      </button>
+
+      {open && (
+        <div id={detailId} className="grid grid-cols-3 gap-2 px-3 pb-3 pt-0.5 animate-in fade-in slide-in-from-top-1">
+          <RankDetailStat label="Active days" value={agent.activeDays || 0} />
+          <RankDetailStat label="Answered" value={agent.questionsAnswered || 0} />
+          <RankDetailStat label="Accuracy" value={`${Math.round((agent.accuracy || 0) * 100)}%`} accent="success" />
+        </div>
+      )}
     </div>
   );
 });
@@ -275,7 +298,7 @@ export default function Arena() {
       {activeTab === 'terminal' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2">
             
-            <div className="p-6 md:p-8 bg-surface border border-reeRed/30 rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[320px]">
+            <div className="p-6 md:p-8 bg-surface border border-reeRed/30 rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between">
                 <div className="absolute top-0 right-0 w-48 h-48 bg-reeRed/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
                 <div>
                   <h3 className="text-lg font-semibold text-textMain tracking-tight mb-1 relative z-10">
@@ -321,15 +344,31 @@ export default function Arena() {
                 </form>
             </div>
 
-            <div className="p-6 md:p-8 bg-surface border border-border2 rounded-2xl shadow-sm flex flex-col justify-between min-h-[320px]">
+            <div className="p-6 md:p-8 bg-surface border border-border2 rounded-2xl shadow-sm flex flex-col">
                  <div>
                    <h3 className="text-lg font-semibold text-textMain tracking-tight mb-1">
                        Host a battle
                    </h3>
-                   <p className="text-sm text-muted2 mb-6 leading-relaxed">
+                   <p className="text-sm text-muted2 mb-5 leading-relaxed">
                       Set the subject, length, and time limit, then share your code with other reviewers.
                    </p>
                  </div>
+                 {/* Mode preview — fills the card and previews the modal's options
+                     so there's no dead space, balanced against the Join form. */}
+                 <ul className="flex flex-col gap-2.5 mb-6">
+                   <li className="flex items-start gap-3 text-sm">
+                     <Settings2 size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                     <span><span className="font-semibold text-textMain">Custom Drill</span> <span className="text-muted2">— your item count + time limit.</span></span>
+                   </li>
+                   <li className="flex items-start gap-3 text-sm">
+                     <Landmark size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                     <span><span className="font-semibold text-textMain">PRC Standard</span> <span className="text-muted2">— 100 items at the fixed 4–6 h board time.</span></span>
+                   </li>
+                   <li className="flex items-start gap-3 text-sm">
+                     <Scale size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                     <span><span className="font-semibold text-textMain">Full Blended</span> <span className="text-muted2">— 100 mixed Math/ESAS/EE items in 5 h.</span></span>
+                   </li>
+                 </ul>
                  <Button variant="secondary" fullWidth className="mt-auto" onClick={() => setShowHostModal(true)}>
                     <Swords size={16} strokeWidth={1.75} aria-hidden="true" />
                     Host a battle

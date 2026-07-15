@@ -8,12 +8,28 @@
 //   isAnswered(idx) -> bool
 //   reviewStateOf(idx) -> 'correct' | 'incorrect' | 'skipped' | null  (review mode)
 //   isMarked(idx) -> bool  (bookmark dot; optional)
+import { useEffect, useRef } from 'react';
 import { Check, X } from '../ui/icons';
 
 export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked }) {
+  const scrollRef = useRef(null);
+
+  // Keep the active item centered in the horizontal strip — otherwise on a phone
+  // (only ~6 cells visible) the current cell scrolls off-screen past item ~7 and
+  // the student loses their place. Mirrors the Board Simulator's behavior.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const activeBtn = container.querySelector(`[data-index="${currentIndex}"]`);
+    if (activeBtn) {
+      const scrollTarget = activeBtn.offsetLeft - container.offsetWidth / 2 + activeBtn.offsetWidth / 2;
+      container.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+    }
+  }, [currentIndex]);
+
   return (
     <div className="bg-surface/80 backdrop-blur-md border border-border2/50 rounded-2xl p-4 shadow-sm relative z-10">
-      <div className="flex overflow-x-auto gap-2.5 pb-4 items-center px-2 scroll-smooth [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 transition-all">
+      <div ref={scrollRef} className="flex overflow-x-auto gap-2.5 pb-4 items-center px-2 scroll-smooth [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 transition-all">
         {Array.from({ length: count }).map((_, idx) => {
           const answered = !!isAnswered?.(idx);
           const isCurrent = idx === currentIndex;

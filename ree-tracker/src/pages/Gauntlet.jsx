@@ -100,17 +100,28 @@ export default function Gauntlet() {
       </Modal>
 
       <div className="flex flex-col gap-4 pb-8">
-        {/* Top toolbar — exit / level / answered count / timer (mirrors Simulator) */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-4 z-50">
-          <Button variant="ghost" tone="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
-            Exit exam
-          </Button>
-          <div className="flex items-center gap-3">
-            <Badge tone="velocity" className="hidden sm:inline-flex">Level {level}</Badge>
-            <StatusPill tone="success" className="hidden sm:inline-flex tabular-nums">
-              {answeredCount} of {questions.length} answered
+        {/* Top toolbar — exit / level / answered count / timer. Two balanced
+            rows on phones (so Level + answered stay visible) collapsing to one
+            row at md. The timer renders in whichever cluster is visible. */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-4 z-50">
+          {/* Row 1 (mobile): exit + timer */}
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" tone="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
+              Exit exam
+            </Button>
+            <div className="md:hidden">
+              <ExamTimer timeRemaining={timeLeft} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
+            </div>
+          </div>
+          {/* Row 2 (mobile) / right cluster (desktop): level + answered + timer */}
+          <div className="flex items-center justify-between md:justify-end gap-3">
+            <Badge tone="velocity">Level {level}</Badge>
+            <StatusPill tone="success" className="tabular-nums">
+              {answeredCount}/{questions.length} answered
             </StatusPill>
-            <ExamTimer timeRemaining={timeLeft} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
+            <div className="hidden md:block">
+              <ExamTimer timeRemaining={timeLeft} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
+            </div>
           </div>
         </div>
 
