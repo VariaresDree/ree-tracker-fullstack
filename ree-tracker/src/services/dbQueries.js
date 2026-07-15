@@ -361,6 +361,10 @@ const normalizeAgent = (a) => ({
     streak: typeof a.streak === 'number' ? a.streak : (a.globalStreak || 0),
     globalStreak: a.globalStreak || a.streak || 0,
     gauntletLevel: a.gauntletLevel || 1,
+    // Ranking stats (Arena). Whitelisted here or they're dropped before the UI.
+    activeDays: typeof a.activeDays === 'number' ? a.activeDays : 0,
+    questionsAnswered: typeof a.questionsAnswered === 'number' ? a.questionsAnswered : 0,
+    accuracy: typeof a.accuracy === 'number' ? a.accuracy : 0,
     lastActive: a.lastActive || null,
 });
 

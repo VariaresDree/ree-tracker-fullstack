@@ -2,16 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useEngineActionsSlice } from '../../store/slices';
-import { apiRequest, getAnalyticsProfile } from '../../services/dbQueries';
+import { apiRequest, getAnalyticsProfile, fetchVaultQuestions } from '../../services/dbQueries';
 import { auth } from '../../config/firebaseDb';
+import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../config/examStandards';
 import toast from 'react-hot-toast';
-
-const GAUNTLET_TIERS = {
-  1: { reqQs: 200, items: 50, timeLimitSecs: 75 * 60 },
-  2: { reqQs: 500, items: 75, timeLimitSecs: 110 * 60 },
-  3: { reqQs: 1000, items: 100, timeLimitSecs: 150 * 60 },
-  4: { reqQs: 2000, items: 100, timeLimitSecs: 120 * 60 }
-};
 
 export const useGauntletEngine = (level) => {
     // Actions come from the stable-reference engine slice; `stats` is the one
@@ -40,11 +34,12 @@ export const useGauntletEngine = (level) => {
 
     useEffect(() => {
         const bootGauntlet = async () => {
-            const tier = GAUNTLET_TIERS[level];
+            const tier = getGauntletTier(level);
             if (!tier) {
                 setStatus('error');
                 return;
             }
+            const subjectTier = isSubjectTier(tier);
 
             // Read the gate values from the store at boot time (getState), NOT
             // from the closed-over `stats` — submitExam calls setStats mid-run,
@@ -61,8 +56,16 @@ export const useGauntletEngine = (level) => {
                 return;
             }
 
-            if (totalAnswered < tier.reqQs || currentLevel < parseInt(level)) {
-                toast.error("Security Breach: You lack the required telemetry to enter this sector.");
+            // Subject board exams (levels 5-7) unlock only after the blended
+            // progression is cleared; blended tiers keep the answered-count +
+            // sequential-level gate.
+            const gateFailed = subjectTier
+                ? currentLevel < SUBJECT_UNLOCK_LEVEL
+                : (totalAnswered < tier.reqQs || currentLevel < parseInt(level));
+            if (gateFailed) {
+                toast.error(subjectTier
+                    ? "Locked: clear the blended Gauntlet tiers first to unlock the subject boards."
+                    : "Security Breach: You lack the required telemetry to enter this sector.");
                 navigate('/arena');
                 return;
             }
@@ -71,11 +74,15 @@ export const useGauntletEngine = (level) => {
             endTimeRef.current = Date.now() + tier.timeLimitSecs * 1000;
 
             try {
-                const data = await apiRequest(`/api/exams?limit=${tier.items * 2}`);
-                const allQs = (data?.items || []).filter(q => !q.isFlagged);
+                // Subject tiers pull a subject-filtered pool (like the Board
+                // Simulator's PRC subject mode); blended tiers pull across all
+                // subjects from the exam bank.
+                const allQs = subjectTier
+                    ? (await fetchVaultQuestions(tier.subject, 'All', tier.items * 2) || []).filter(q => !q.isFlagged)
+                    : ((await apiRequest(`/api/exams?limit=${tier.items * 2}`))?.items || []).filter(q => !q.isFlagged);
 
                 if (allQs.length < tier.items) {
-                    toast.error("Insufficient global bank questions to construct the Gauntlet.");
+                    toast.error("Insufficient bank questions to construct this Gauntlet.");
                     return setStatus('error');
                 }
 
@@ -91,7 +98,7 @@ export const useGauntletEngine = (level) => {
                 // frontend doesn't need to send the sessionId — but tracking
                 // the session lifecycle in the store keeps the UI's sync
                 // status and the dashboard's "session active" UX consistent.
-                startStoreSession({ mode: 'GAUNTLET', subject: 'BLENDED' });
+                startStoreSession({ mode: 'GAUNTLET', subject: tier.subject });
                 setStatus('active');
             } catch (err) {
                 console.error(err);
@@ -135,7 +142,8 @@ export const useGauntletEngine = (level) => {
 
     const submitExam = async (isTimeOut = false) => {
         setStatus('loading');
-        const tier = GAUNTLET_TIERS[level];
+        const tier = getGauntletTier(level);
+        if (!tier) { setStatus('error'); return; }
 
         try {
             // Per-question confidence (silent MED default when skipped under time
@@ -209,6 +217,11 @@ export const useGauntletEngine = (level) => {
                 const uid = auth.currentUser?.uid;
                 if (uid) {
                     const profile = await getAnalyticsProfile(uid);
+                    // Only the BLENDED ladder advances gauntletLevel. Subject
+                    // boards (5-7) are parallel, re-takeable endgame exams — a
+                    // pass just shows the diagnostics, it doesn't bump the level.
+                    const advancesLevel = !isSubjectTier(tier) && stats.gauntletLevel === parseInt(level);
+                    const LOCK_MS = 12 * 60 * 60 * 1000;
                     if (profile?.data?.profile) {
                         setStats({
                             ...stats,
@@ -216,15 +229,13 @@ export const useGauntletEngine = (level) => {
                             globalStreak: profile.data.profile.globalStreak || 0,
                             totalAnswered: (stats?.totalAnswered || 0) + tier.items,
                             ...(isPassed
-                                ? (stats.gauntletLevel === parseInt(level)
-                                    ? { gauntletLevel: parseInt(level) + 1 }
-                                    : {})
-                                : { gauntletLockUntil: Date.now() + (12 * 60 * 60 * 1000) }),
+                                ? (advancesLevel ? { gauntletLevel: parseInt(level) + 1 } : {})
+                                : { gauntletLockUntil: Date.now() + LOCK_MS }),
                         });
-                    } else if (isPassed && stats.gauntletLevel === parseInt(level)) {
+                    } else if (isPassed && advancesLevel) {
                         setStats({ ...stats, gauntletLevel: parseInt(level) + 1 });
                     } else if (!isPassed) {
-                        setStats({ ...stats, gauntletLockUntil: Date.now() + (12 * 60 * 60 * 1000) });
+                        setStats({ ...stats, gauntletLockUntil: Date.now() + LOCK_MS });
                     }
                 }
             } catch (refreshErr) {

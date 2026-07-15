@@ -1,6 +1,6 @@
 // src/components/MediaViewer.jsx
-import React from 'react';
 import ZoomableImage from './ZoomableImage';
+import { normalizePdfUrl } from '../utils/pdfUrl';
 
 const extractYouTubeId = (url) => {
   if (!url) return null;
@@ -51,19 +51,7 @@ export default function MediaViewer({ item }) {
       );
       
     case 'pdf':
-      let pdfUrl = item.url;
-      
-      // Force Drive links into Preview mode
-      if (pdfUrl.includes('drive.google.com')) {
-        const driveIdMatch = pdfUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-        if (driveIdMatch && driveIdMatch[1]) {
-            pdfUrl = `https://drive.google.com/file/d/${driveIdMatch[1]}/preview`;
-        } else {
-            pdfUrl = pdfUrl.replace(/\/(view|edit)(.*)$/g, '/preview');
-        }
-      }
-
-      const finalPdfUrl = pdfUrl.includes('drive.google.com') ? pdfUrl : `${pdfUrl}#toolbar=0`;
+      const finalPdfUrl = normalizePdfUrl(item.url);
 
       return (
         <div className="w-full h-[80vh] rounded-xl overflow-hidden border border-border2 shadow-sm bg-surface2 relative">
