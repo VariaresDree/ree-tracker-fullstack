@@ -37,10 +37,17 @@ const USER_SELECT = {
  * Pure: rank the active users into snapshot rows.
  * Order: thetaRating desc, then lastActive desc, then id (stable determinism —
  * equal-theta users don't shuffle ranks between refreshes).
+ *
+ * `stats` carries the pre-aggregated per-user counters (built once from batched
+ * groupBys in refreshLeaderboard — NOT per user, so no N+1):
+ *   - activeDays: Map<userId, number>        (distinct Manila study days)
+ *   - attempts:   Map<userId, {total,correct}> (questions answered + accuracy)
  */
-function buildEntries(users, now = new Date()) {
+function buildEntries(users, stats = {}, now = new Date()) {
     const cutoff = now.getTime() - ACTIVE_WINDOW_MS;
     const snapshotAt = now;
+    const activeDays = stats.activeDays instanceof Map ? stats.activeDays : new Map();
+    const attempts = stats.attempts instanceof Map ? stats.attempts : new Map();
     return (users || [])
         .filter((u) => u.lastActive && new Date(u.lastActive).getTime() >= cutoff)
         .sort((a, b) =>
@@ -48,29 +55,50 @@ function buildEntries(users, now = new Date()) {
             new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime() ||
             String(a.id).localeCompare(String(b.id)),
         )
-        .map((u, i) => ({
-            rank: i + 1,
-            userId: u.id,
-            displayName: u.displayName ?? null,
-            role: u.role ?? 'USER',
-            thetaRating: u.thetaRating ?? 0,
-            eloRating: u.eloRating ?? 1200,
-            tier: u.tier ?? 'BRONZE',
-            globalStreak: u.globalStreak ?? 0,
-            lastActive: u.lastActive,
-            snapshotAt,
-        }));
+        .map((u, i) => {
+            const at = attempts.get(u.id) || { total: 0, correct: 0 };
+            return {
+                rank: i + 1,
+                userId: u.id,
+                displayName: u.displayName ?? null,
+                role: u.role ?? 'USER',
+                thetaRating: u.thetaRating ?? 0,
+                eloRating: u.eloRating ?? 1200,
+                tier: u.tier ?? 'BRONZE',
+                globalStreak: u.globalStreak ?? 0,
+                activeDays: activeDays.get(u.id) ?? 0,
+                questionsAnswered: at.total,
+                accuracy: at.total > 0 ? at.correct / at.total : 0,
+                lastActive: u.lastActive,
+                snapshotAt,
+            };
+        });
 }
 
 /**
  * Rebuild the snapshot table. Never throws — a failed refresh logs and keeps
  * the previous snapshot (routes fall back to live queries once it goes stale).
+ * Cost per refresh = 1 findMany + 2 whole-table groupBys (constant, not per-user).
  * @returns {Promise<number|null>} row count written, or null on failure
  */
 async function refreshLeaderboard() {
     try {
-        const users = await prisma.user.findMany({ select: USER_SELECT });
-        const entries = buildEntries(users);
+        const [users, dayRows, attemptRows] = await Promise.all([
+            prisma.user.findMany({ select: USER_SELECT }),
+            prisma.activityLog.groupBy({ by: ['userId'], _count: { _all: true } }),
+            prisma.questionAttempt.groupBy({ by: ['userId', 'isCorrect'], _count: { _all: true } }),
+        ]);
+        // active days = one ActivityLog row per Manila day → count of rows.
+        const activeDays = new Map(dayRows.map((r) => [r.userId, r._count._all]));
+        // questions answered + accuracy from the isCorrect split.
+        const attempts = new Map();
+        for (const r of attemptRows) {
+            const cur = attempts.get(r.userId) || { total: 0, correct: 0 };
+            cur.total += r._count._all;
+            if (r.isCorrect) cur.correct += r._count._all;
+            attempts.set(r.userId, cur);
+        }
+        const entries = buildEntries(users, { activeDays, attempts });
         await prisma.$transaction([
             prisma.leaderboardEntry.deleteMany({}),
             prisma.leaderboardEntry.createMany({ data: entries }),

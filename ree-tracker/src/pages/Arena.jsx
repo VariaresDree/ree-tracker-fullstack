@@ -7,14 +7,16 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useStore } from '../store/useStore';
 import { Button, FormField, Input, Select, Modal, Tabs, StatusPill, Badge, EmptyState, cn } from '../components/ui';
 import { Check, Swords, Settings2, Landmark, Scale, Shield, Trophy, Lock } from '../components/ui/icons';
+import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../config/examStandards';
 import toast from 'react-hot-toast';
 
-const GAUNTLET_TIERS = [
-  { level: 1, name: 'Initiate Protocol', reqQs: 200, items: 50, timeLimit: 75 },
-  { level: 2, name: 'Specialist Matrix', reqQs: 500, items: 75, timeLimit: 110 },
-  { level: 3, name: 'Architect Core', reqQs: 1000, items: 100, timeLimit: 150 },
-  { level: 4, name: 'Apex Agent', reqQs: 2000, items: 100, timeLimit: 120 }
-];
+// secs → "Xh Ym" / "Ym" for the tier cards.
+const formatLimit = (secs) => {
+  const m = Math.round((secs || 0) / 60);
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return h ? (r ? `${h}h ${r}m` : `${h}h`) : `${r} min`;
+};
 
 const rankBadge = (index) => {
   if (index === 0) return 'bg-[#facc15]/20 border-[#facc15] text-[#facc15]';
@@ -45,15 +47,27 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, idx, isMe, rowRef }
           <span className="text-[11px] text-muted font-mono opacity-60 truncate">ID: {agent.uid.slice(0, 8)}</span>
         </div>
       </div>
-      <div className="col-span-2 flex justify-center items-center">
-        <Badge tone="velocity" className="uppercase tabular-nums">Lvl {agent.gauntletLevel || 1}</Badge>
-      </div>
-      <div className="col-span-2 text-right">
-        <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(3)}</span>
-      </div>
-      <div className="col-span-2 text-right">
-        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{agent.streak || 0}</span>
-        <span className="text-xs text-muted ml-1 hidden sm:inline">days</span>
+      {/* Stat cluster — accuracy + answered always visible; days + theta reveal
+          on larger screens (progressive disclosure). Each cell carries a text
+          label so the metric never reads by color alone; tabular figures avoid
+          layout shift. */}
+      <div className="col-span-6 flex items-center justify-end gap-3 sm:gap-5">
+        <div className="flex flex-col items-end">
+          <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{Math.round((agent.accuracy || 0) * 100)}%</span>
+          <span className="text-[10px] text-muted uppercase tracking-wide">Acc</span>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-sm font-bold tabular-nums text-textMain">{agent.questionsAnswered || 0}</span>
+          <span className="text-[10px] text-muted uppercase tracking-wide">Answered</span>
+        </div>
+        <div className="hidden sm:flex flex-col items-end">
+          <span className="text-sm font-bold tabular-nums text-textMain">{agent.activeDays || 0}</span>
+          <span className="text-[10px] text-muted uppercase tracking-wide">Days</span>
+        </div>
+        <div className="hidden md:flex flex-col items-end">
+          <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(2)}</span>
+          <span className="text-[10px] text-muted uppercase tracking-wide">θ</span>
+        </div>
       </div>
     </div>
   );
@@ -71,6 +85,11 @@ export default function Arena() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+  // Load the rankings ONCE per tab-entry / reconnect. The old effect depended
+  // on `leaderboard` and re-fired whenever it changed; offline,
+  // fetchPaginatedLeaderboard returns a fresh [] each call, so the empty-array
+  // guard stayed true and the effect looped forever (the reported hang).
+  const rankingsLoadedRef = useRef(false);
   
   const [inviteCode, setInviteCode] = useState('');
   const [isJoining, setIsJoining] = useState(false);
@@ -108,23 +127,29 @@ export default function Arena() {
   }, [stats?.gauntletLockUntil]);
 
   useEffect(() => {
-    // SAFE FALLBACK: Checks if leaderboard exists before reading length
-    if (activeTab === 'leaderboard' && (leaderboard || []).length === 0) {
-        const loadInitialArena = async () => {
-          setIsLoadingRankings(true);
-          try {
-            const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(20, null);
-            setLeaderboard(agents || []);
-            setLastDoc(newLastDoc);
-            setHasMore((agents || []).length === 20);
-          } catch (error) {
-            toast.error("Failed to connect to the Global Matrix.");
-          }
-          setIsLoadingRankings(false);
-        };
-        loadInitialArena();
-    }
-  }, [activeTab, leaderboard]);
+    if (activeTab !== 'leaderboard') return;
+    if (rankingsLoadedRef.current) return;          // load once — never re-fire on `leaderboard` change
+    // Offline: don't fetch. Clear the spinner so the offline EmptyState + Retry
+    // render (the effect deps are [activeTab, isOnline] and neither self-mutates,
+    // so there is no loop). When connectivity returns, isOnline flips and this
+    // effect re-runs to load for real.
+    if (!isOnline) { setIsLoadingRankings(false); return; }
+
+    rankingsLoadedRef.current = true;
+    (async () => {
+      setIsLoadingRankings(true);
+      try {
+        const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(20, null);
+        setLeaderboard(agents || []);
+        setLastDoc(newLastDoc);
+        setHasMore((agents || []).length === 20);
+      } catch (error) {
+        rankingsLoadedRef.current = false;          // transient failure — allow a retry
+        toast.error("Failed to connect to the Global Matrix.");
+      }
+      setIsLoadingRankings(false);
+    })();
+  }, [activeTab, isOnline]);
 
   const observer = useRef();
   const lastElementRef = useCallback(node => {
@@ -189,6 +214,7 @@ export default function Arena() {
           setLeaderboard(agents || []);
           setLastDoc(newLastDoc);
           setHasMore((agents || []).length === 20);
+          rankingsLoadedRef.current = true;         // mark loaded so the effect won't re-fetch
       } catch {
           toast.error("Couldn't load rankings — try again.");
       }
@@ -322,7 +348,9 @@ export default function Arena() {
                     <Shield size={24} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent)' }} /> The Gauntlet
                 </h3>
                 <p className="text-sm text-muted2 relative z-10 leading-relaxed max-w-2xl">
-                    Clear each tier to rank up. Failing a tier locks the Gauntlet for 12 hours.
+                    Clear the four blended tiers to rank up. Once all four are cleared, the per-subject
+                    board exams (Math, ESAS, EE) unlock at their real board time. Failing any exam locks
+                    the Gauntlet for 12 hours.
                 </p>
                 <div className="mt-4 flex gap-4 relative z-10 flex-wrap">
                     <div className="bg-bg border border-border2 px-4 py-2 rounded-[var(--radius-default)] flex flex-col">
@@ -336,75 +364,102 @@ export default function Arena() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {GAUNTLET_TIERS.map((tier) => {
-                    const currentLevel = stats?.gauntletLevel || 1;
-                    const totalAnswered = stats?.totalAnswered || 0;
-                    
-                    const isPassed = currentLevel > tier.level;
-                    const isUnlocked = currentLevel === tier.level && totalAnswered >= tier.reqQs;
-                    const isLocked = !isPassed && !isUnlocked;
-                    const isCoolingDown = isUnlocked && cooldownTimer;
+            {(() => {
+              const currentLevel = stats?.gauntletLevel || 1;
+              const totalAnswered = stats?.totalAnswered || 0;
+              const subjectsUnlocked = currentLevel >= SUBJECT_UNLOCK_LEVEL;
 
-                    return (
-                        <div
-                            key={tier.level}
-                            className={`p-6 rounded-[var(--radius-lg)] border flex flex-col transition-all relative overflow-hidden bg-surface ${isLocked ? 'opacity-60' : ''}`}
-                            style={{
-                                borderColor: isPassed
-                                    ? 'color-mix(in srgb, var(--accent-success) 30%, transparent)'
-                                    : isUnlocked
-                                        ? 'color-mix(in srgb, var(--accent) 50%, transparent)'
-                                        : 'var(--border-main)',
-                            }}
-                        >
-                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                <Badge tone={isPassed ? 'success' : isUnlocked ? 'velocity' : 'neutral'}>Tier {tier.level}</Badge>
-                                <span className="opacity-80" aria-hidden="true">
-                                    {isPassed
-                                        ? <Trophy size={22} strokeWidth={1.75} style={{ color: 'var(--accent-success)' }} />
-                                        : isUnlocked
-                                            ? <Swords size={22} strokeWidth={1.75} style={{ color: 'var(--accent)' }} />
-                                            : <Lock size={22} strokeWidth={1.75} className="text-muted" />}
-                                </span>
-                            </div>
+              const TierCard = (tier) => {
+                const subject = isSubjectTier(tier);
+                const isPassed = !subject && currentLevel > tier.level;
+                const isUnlocked = subject
+                  ? subjectsUnlocked
+                  : (currentLevel === tier.level && totalAnswered >= tier.reqQs);
+                const isLocked = !isPassed && !isUnlocked;
+                const isCoolingDown = isUnlocked && cooldownTimer;
 
-                            <h4 className={`text-xl font-semibold tracking-tight mb-2 relative z-10 ${isPassed || isUnlocked ? 'text-textMain' : 'text-muted'}`}>
-                                {tier.name}
-                            </h4>
+                return (
+                  <div
+                    key={tier.level}
+                    className={`p-6 rounded-[var(--radius-lg)] border flex flex-col transition-all relative overflow-hidden bg-surface ${isLocked ? 'opacity-60' : ''}`}
+                    style={{
+                      borderColor: isPassed
+                        ? 'color-mix(in srgb, var(--accent-success) 30%, transparent)'
+                        : isUnlocked
+                          ? 'color-mix(in srgb, var(--accent) 50%, transparent)'
+                          : 'var(--border-main)',
+                    }}
+                  >
+                    <div className="flex justify-between items-start mb-4 relative z-10">
+                      <Badge tone={isPassed ? 'success' : isUnlocked ? 'velocity' : 'neutral'}>
+                        {subject ? tier.subject : `Tier ${tier.level}`}
+                      </Badge>
+                      <span className="opacity-80" aria-hidden="true">
+                        {isPassed
+                          ? <Trophy size={22} strokeWidth={1.75} style={{ color: 'var(--accent-success)' }} />
+                          : isUnlocked
+                            ? <Swords size={22} strokeWidth={1.75} style={{ color: 'var(--accent)' }} />
+                            : <Lock size={22} strokeWidth={1.75} className="text-muted" />}
+                      </span>
+                    </div>
 
-                            <ul className="flex flex-col gap-1.5 text-xs font-mono text-muted mb-6 relative z-10">
-                                <li className="flex justify-between"><span>Questions</span> <span className="font-bold text-textMain tabular-nums">{tier.items}</span></li>
-                                <li className="flex justify-between"><span>Time limit</span> <span className="font-bold text-textMain tabular-nums">{tier.timeLimit} min</span></li>
-                                <li className="flex justify-between mt-2 pt-2 border-t border-border2/50">
-                                    <span>Required answered</span>
-                                    <span className="font-bold tabular-nums" style={{ color: totalAnswered >= tier.reqQs ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-                                        {totalAnswered} / {tier.reqQs}
-                                    </span>
-                                </li>
-                            </ul>
+                    <h4 className={`text-xl font-semibold tracking-tight mb-2 relative z-10 ${isPassed || isUnlocked ? 'text-textMain' : 'text-muted'}`}>
+                      {tier.name}
+                    </h4>
 
-                            <div className="mt-auto relative z-10 flex justify-center">
-                                {isPassed ? (
-                                    <StatusPill tone="success">Cleared</StatusPill>
-                                ) : isLocked ? (
-                                    <Button fullWidth variant="secondary" disabled>
-                                        Requires {tier.reqQs} answered
-                                    </Button>
-                                ) : isCoolingDown ? (
-                                    <Button fullWidth variant="secondary" disabled>
-                                        <StatusPill tone="danger" dot={false} className="border-0 bg-transparent p-0">Locked — {cooldownTimer}</StatusPill>
-                                    </Button>
-                                ) : (
-                                    <Button fullWidth onClick={() => initiateGauntlet(tier.level)}>
-                                        Start tier {tier.level} exam
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+                    <ul className="flex flex-col gap-1.5 text-xs font-mono text-muted mb-6 relative z-10">
+                      <li className="flex justify-between"><span>Questions</span> <span className="font-bold text-textMain tabular-nums">{tier.items}</span></li>
+                      <li className="flex justify-between"><span>Time limit</span> <span className="font-bold text-textMain tabular-nums">{formatLimit(tier.timeLimitSecs)}</span></li>
+                      {!subject && (
+                        <li className="flex justify-between mt-2 pt-2 border-t border-border2/50">
+                          <span>Required answered</span>
+                          <span className="font-bold tabular-nums" style={{ color: totalAnswered >= tier.reqQs ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                            {totalAnswered} / {tier.reqQs}
+                          </span>
+                        </li>
+                      )}
+                    </ul>
+
+                    <div className="mt-auto relative z-10 flex justify-center">
+                      {isPassed ? (
+                        <StatusPill tone="success">Cleared</StatusPill>
+                      ) : isCoolingDown ? (
+                        <Button fullWidth variant="secondary" disabled>
+                          <StatusPill tone="danger" dot={false} className="border-0 bg-transparent p-0">Locked — {cooldownTimer}</StatusPill>
+                        </Button>
+                      ) : isLocked ? (
+                        <Button fullWidth variant="secondary" disabled>
+                          {subject ? 'Clear the blended tiers first' : `Requires ${tier.reqQs} answered`}
+                        </Button>
+                      ) : (
+                        <Button fullWidth onClick={() => initiateGauntlet(tier.level)}>
+                          {subject ? `Start ${tier.subject} board` : `Start tier ${tier.level} exam`}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              };
+
+              const blended = GAUNTLET_TIERS.filter((t) => !isSubjectTier(t));
+              const subjects = GAUNTLET_TIERS.filter((t) => isSubjectTier(t));
+
+              return (
+                <>
+                  <div>
+                    <p className="text-eyebrow mb-3">Blended tiers</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{blended.map(TierCard)}</div>
+                  </div>
+                  <div>
+                    <p className="text-eyebrow mb-3 flex items-center gap-2">
+                      Subject boards — 100 items each at board time
+                      {!subjectsUnlocked && <Lock size={12} strokeWidth={2} className="text-muted" aria-hidden="true" />}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{subjects.map(TierCard)}</div>
+                  </div>
+                </>
+              );
+            })()}
         </div>
       )}
 

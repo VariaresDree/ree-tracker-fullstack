@@ -21,7 +21,7 @@ const mkUser = (id, theta, lastActiveDays = 1, extra = {}) => ({
 
 describe('leaderboardService.buildEntries', () => {
     it('ranks active users by theta desc with 1-based contiguous ranks', () => {
-        const entries = buildEntries([mkUser('a', 0.5), mkUser('b', 2.1), mkUser('c', -0.3)], NOW);
+        const entries = buildEntries([mkUser('a', 0.5), mkUser('b', 2.1), mkUser('c', -0.3)], {}, NOW);
         expect(entries.map((e) => [e.rank, e.userId])).toEqual([[1, 'b'], [2, 'a'], [3, 'c']]);
         expect(entries.every((e) => e.snapshotAt === NOW)).toBe(true);
     });
@@ -30,22 +30,35 @@ describe('leaderboardService.buildEntries', () => {
         const entries = buildEntries([
             mkUser('fresh', 1.0, 29),
             mkUser('stale', 3.0, 31),   // higher theta but inactive → excluded
-        ], NOW);
+        ], {}, NOW);
         expect(entries.map((e) => e.userId)).toEqual(['fresh']);
         expect(ACTIVE_WINDOW_MS).toBe(30 * 24 * 60 * 60 * 1000);
     });
 
     it('breaks theta ties deterministically (lastActive desc, then id) — ranks don\'t shuffle between refreshes', () => {
         const users = [mkUser('b', 1.0, 5), mkUser('a', 1.0, 5), mkUser('c', 1.0, 2)];
-        const first = buildEntries(users, NOW).map((e) => e.userId);
-        const second = buildEntries([...users].reverse(), NOW).map((e) => e.userId);
+        const first = buildEntries(users, {}, NOW).map((e) => e.userId);
+        const second = buildEntries([...users].reverse(), {}, NOW).map((e) => e.userId);
         expect(first).toEqual(second);
         expect(first[0]).toBe('c'); // most recently active tie-winner
     });
 
     it('fills defensive defaults for sparse rows', () => {
-        const [e] = buildEntries([{ id: 'x', lastActive: daysAgo(1) }], NOW);
+        const [e] = buildEntries([{ id: 'x', lastActive: daysAgo(1) }], {}, NOW);
         expect(e).toMatchObject({ thetaRating: 0, eloRating: 1200, tier: 'BRONZE', globalStreak: 0, role: 'USER', displayName: null });
+    });
+
+    it('merges the pre-aggregated per-user stats (active days / answered / accuracy)', () => {
+        const activeDays = new Map([['a', 12]]);
+        const attempts = new Map([['a', { total: 40, correct: 30 }]]);
+        const [e] = buildEntries([mkUser('a', 1.0)], { activeDays, attempts }, NOW);
+        expect(e).toMatchObject({ activeDays: 12, questionsAnswered: 40 });
+        expect(e.accuracy).toBeCloseTo(0.75, 5);
+    });
+
+    it('defaults the 3 stats to 0 when a user has no aggregates', () => {
+        const [e] = buildEntries([mkUser('z', 1.0)], {}, NOW);
+        expect(e).toMatchObject({ activeDays: 0, questionsAnswered: 0, accuracy: 0 });
     });
 });
 

@@ -334,6 +334,11 @@ model LeaderboardEntry {
   eloRating    Int      @default(1200)
   tier         String   @default("BRONZE")
   globalStreak Int      @default(0)
+  // Ranking stats surfaced in the Arena. activeDays = distinct Manila study
+  // days; questionsAnswered = lifetime QuestionAttempt count; accuracy = 0..1.
+  activeDays        Int   @default(0)
+  questionsAnswered Int   @default(0)
+  accuracy          Float @default(0)
   lastActive   DateTime
   snapshotAt   DateTime
 }

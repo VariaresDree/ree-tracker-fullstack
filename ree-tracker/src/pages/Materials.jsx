@@ -13,19 +13,24 @@ import ReferenceHub from '../components/ReferenceHub';
 import ConstantsMatrix from '../features/materials/ConstantsMatrix';
 import ReferenceAdmin from '../features/materials/ReferenceAdmin';
 import MediaViewer from '../components/MediaViewer';
+import FullscreenPdfViewer from '../components/FullscreenPdfViewer';
 
 export default function Materials() {
   const { currentUser } = useAuth();
-  
+
   // 🚀 FIXED: Grab the flawless boolean directly from the store
   const isAdmin = useStore((state) => state.isAdmin);
   const isOnline = useNetworkStatus();
 
   // State is now strictly routing context
-  const [activeTab, setActiveTab] = useState('cloud_vault'); 
-  
+  const [activeTab, setActiveTab] = useState('cloud_vault');
+
   const [viewingMaterial, setViewingMaterial] = useState(null);
-  const [isFullscreen, setIsFullscreen] = useState(false); 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Chrome-free whole-screen PDF mode (Drive/hosted) with zoom, separate from
+  // the generic media expand above.
+  const [pdfFullscreen, setPdfFullscreen] = useState(false);
+  const isPdf = viewingMaterial?.type === 'pdf';
 
   if (viewingMaterial) {
     return (
@@ -37,11 +42,17 @@ export default function Materials() {
                 <X size={14} strokeWidth={1.75} aria-hidden="true" /> Close viewer
               </Button>
 
-              <Button variant="secondary" size="sm" onClick={() => setIsFullscreen(!isFullscreen)}>
-                {isFullscreen
-                  ? <><Minimize2 size={14} strokeWidth={1.75} aria-hidden="true" /> Exit fullscreen</>
-                  : <><Maximize2 size={14} strokeWidth={1.75} aria-hidden="true" /> Fullscreen</>}
-              </Button>
+              {isPdf ? (
+                <Button variant="secondary" size="sm" onClick={() => setPdfFullscreen(true)}>
+                  <Maximize2 size={14} strokeWidth={1.75} aria-hidden="true" /> Fullscreen PDF
+                </Button>
+              ) : (
+                <Button variant="secondary" size="sm" onClick={() => setIsFullscreen(!isFullscreen)}>
+                  {isFullscreen
+                    ? <><Minimize2 size={14} strokeWidth={1.75} aria-hidden="true" /> Exit fullscreen</>
+                    : <><Maximize2 size={14} strokeWidth={1.75} aria-hidden="true" /> Fullscreen</>}
+                </Button>
+              )}
           </div>
           <div className="flex flex-col items-end">
              <span className="font-bold text-sm text-textMain tracking-wide">{viewingMaterial.name}</span>
@@ -52,7 +63,14 @@ export default function Materials() {
         <div className={`flex-1 bg-bg relative overflow-hidden ${isFullscreen ? '' : 'border-x border-b border-border2 rounded-b-xl'}`}>
           <MediaViewer item={{ type: viewingMaterial.type, url: viewingMaterial.url, title: viewingMaterial.name }} />
         </div>
-        
+
+        {pdfFullscreen && isPdf && (
+          <FullscreenPdfViewer
+            url={viewingMaterial.url}
+            title={viewingMaterial.name}
+            onClose={() => setPdfFullscreen(false)}
+          />
+        )}
       </div>
     );
   }

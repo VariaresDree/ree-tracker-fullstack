@@ -27,6 +27,12 @@ const toAgent = (u) => ({
     thetaRating: u.thetaRating,
     streak: u.globalStreak,
     globalStreak: u.globalStreak,
+    // Ranking stats (default 0 for live-fallback User rows that don't carry
+    // them; the snapshot path threads the real values via entryToAgent, and the
+    // self-row paths merge computeUserStats before calling toAgent).
+    activeDays: u.activeDays ?? 0,
+    questionsAnswered: u.questionsAnswered ?? 0,
+    accuracy: u.accuracy ?? 0,
     lastActive: u.lastActive,
     gauntletLevel: 1,
 });
@@ -38,8 +44,23 @@ const entryToAgent = (e) => toAgent({
     role: e.role,
     thetaRating: e.thetaRating,
     globalStreak: e.globalStreak,
+    activeDays: e.activeDays,
+    questionsAnswered: e.questionsAnswered,
+    accuracy: e.accuracy,
     lastActive: e.lastActive,
 });
+
+// Cheap per-user stats for the SELF row (not N+1 — called once for the one
+// requesting user, not per leaderboard row). Mirrors the snapshot aggregates.
+async function computeUserStats(userId) {
+    const [days, grouped] = await Promise.all([
+        prisma.activityLog.count({ where: { userId } }),
+        prisma.questionAttempt.groupBy({ by: ['isCorrect'], where: { userId }, _count: { _all: true } }),
+    ]);
+    let total = 0, correct = 0;
+    for (const g of grouped) { total += g._count._all; if (g.isCorrect) correct += g._count._all; }
+    return { activeDays: days, questionsAnswered: total, accuracy: total > 0 ? correct / total : 0 };
+}
 
 // "Active" = touched the app in the last 30 days. We surface this as the
 // denominator so a brand-new install isn't stuck on "Out of 0 Agents".
@@ -83,12 +104,21 @@ router.get('/me', authMiddleware, async (req, res) => {
         // (zero or default), or isn't in the active snapshot at all.
         const unranked = !entry || (entry.thetaRating ?? 0) <= 0;
 
+        // Self stats: reuse the snapshot row if present, else a cheap live count.
+        let self = null;
+        if (me) {
+            const s = entry
+                ? { activeDays: entry.activeDays, questionsAnswered: entry.questionsAnswered, accuracy: entry.accuracy }
+                : await computeUserStats(req.user.id);
+            self = toAgent({ id: req.user.id, ...me, ...s });
+        }
+
         res.status(200).json({
             rank: unranked ? null : entry.rank,
             total,
             thetaRating: entry?.thetaRating ?? me?.thetaRating ?? 0,
             unranked,
-            self: me ? toAgent({ id: req.user.id, ...me }) : null,
+            self,
         });
     } catch (error) {
         logger.error('leaderboard/me error', { error: error.message });
@@ -146,11 +176,11 @@ router.get('/paginated', authMiddleware, async (req, res) => {
         if (!afterRank) {
             const meVisible = items.some((u) => u.uid === req.user.id);
             if (!meVisible) {
-                const me = await prisma.user.findUnique({
-                    where: { id: req.user.id },
-                    select: SELECT_FIELDS,
-                });
-                if (me) items = [{ ...toAgent(me), isSelf: true, offBoard: true }, ...items];
+                const [me, meStats] = await Promise.all([
+                    prisma.user.findUnique({ where: { id: req.user.id }, select: SELECT_FIELDS }),
+                    computeUserStats(req.user.id),
+                ]);
+                if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
             }
         }
 
@@ -186,12 +216,16 @@ async function liveFallbackMe(req, res) {
 
         const unranked = !me || (me.thetaRating ?? 0) <= 0;
 
+        const self = me
+            ? toAgent({ id: req.user.id, ...me, ...(await computeUserStats(req.user.id)) })
+            : null;
+
         res.status(200).json({
             rank: unranked ? null : above + 1,
             total,
             thetaRating: me?.thetaRating ?? 0,
             unranked,
-            self: me ? toAgent({ id: req.user.id, ...me }) : null,
+            self,
         });
     } catch (error) {
         logger.error('leaderboard/me fallback error', { error: error.message });
@@ -231,11 +265,11 @@ async function liveFallbackPaginated(req, res, limit) {
         let items = users.map(toAgent);
         const meVisible = items.some((u) => u.uid === req.user.id);
         if (!meVisible) {
-            const me = await prisma.user.findUnique({
-                where: { id: req.user.id },
-                select: SELECT_FIELDS,
-            });
-            if (me) items = [{ ...toAgent(me), isSelf: true, offBoard: true }, ...items];
+            const [me, meStats] = await Promise.all([
+                prisma.user.findUnique({ where: { id: req.user.id }, select: SELECT_FIELDS }),
+                computeUserStats(req.user.id),
+            ]);
+            if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
         }
 
         res.status(200).json({
