@@ -1,2 +1,7 @@
 ree-tracker-backend/firebase-service-account.json.json
 .env
+
+# Claude Code local state — credentials, caches, session history, plans.
+# Ignore everything under .claude/ EXCEPT the shared dev-server launch config.
+.claude/*
+!.claude/launch.json
