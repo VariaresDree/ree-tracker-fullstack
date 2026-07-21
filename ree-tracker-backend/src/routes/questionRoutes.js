@@ -41,8 +41,12 @@ router.get('/pack-manifest', authMiddleware, async (req, res) => {
         for (const subj of subjects) {
             const filter = getSubjectFilter(subj);
             const vals = filter ? (filter.in || [filter]) : [subj];
+            // Fold the MATERIAL fields (text/options/difficulty) into the checksum
+            // via a per-row md5, so editing a live question — not just its answer
+            // or subtopic — changes the subject's checksum and offline clients
+            // delta-re-download it (a same-content re-save leaves it unchanged).
             const [row] = await prisma.$queryRawUnsafe(
-                'SELECT count(*)::int AS count, md5(coalesce(string_agg("id" || \'~\' || "answer" || \'~\' || "subtopic", \',\' ORDER BY "id"), \'\')) AS checksum FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[])',
+                'SELECT count(*)::int AS count, md5(coalesce(string_agg("id" || \'~\' || "answer" || \'~\' || "subtopic" || \'~\' || md5("text" || coalesce("options"::text, \'\') || coalesce("difficulty"::text, \'\')), \',\' ORDER BY "id"), \'\')) AS checksum FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[])',
                 vals,
             );
             manifest[subj] = { count: row?.count ?? 0, checksum: row?.checksum ?? '' };
@@ -193,6 +197,7 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {
+        if (error.code === 'INVALID_TAXONOMY') return res.status(400).json({ error: error.message });
         logger.error('Question create error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to insert question.' });
     }
