@@ -11,7 +11,8 @@ import RouteFallback from './components/RouteFallback';
 import { DashboardSkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
 import ExamLayout from './layouts/ExamLayout';
-import Login from './pages/Login'; 
+import NotificationOptIn from './components/NotificationOptIn';
+import Login from './pages/Login';
 
 // Lazy Loaded Pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -43,7 +44,8 @@ const SecureAppTerminal = () => {
   return (
     <Router>
       <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }} />
-      
+      <NotificationOptIn />
+
       {/* Neutral fallback for all routes; the dashboard nests its own
           skeleton so only "/" shows the dashboard-shaped placeholder. */}
       <Suspense fallback={<RouteFallback />}>

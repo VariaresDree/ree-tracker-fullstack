@@ -99,6 +99,10 @@ export default defineConfig(async () => ({
         // APP SHELL (JS/CSS/HTML/icons/fonts): precached, i.e. CacheFirst with
         // revision-based invalidation — the shell must boot with zero network.
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Adds a `notificationclick` handler to the generated SW (public/) so a
+        // tap on the in-page Pomodoro notification focuses/opens the app. Local
+        // notifications only — no push subscription or FCM involved.
+        importScripts: ['notifications-sw.js'],
         cleanupOutdatedCaches: true,
         // Raise the precache size cap above Workbox's 2 MiB default: the heavy
         // vendor chunks (charts/recharts, LatexRenderer/KaTeX, jspdf, pdfjs) can

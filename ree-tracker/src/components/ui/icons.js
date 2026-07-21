@@ -44,6 +44,7 @@ export {
   Settings2,
   Search,
   Bell,
+  BellOff,
   Menu,
   X,
   ArrowRight,

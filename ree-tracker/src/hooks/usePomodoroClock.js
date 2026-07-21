@@ -13,9 +13,22 @@ import toast from 'react-hot-toast';
 import { useStore } from '../store/useStore';
 import { remainingSecs } from '../utils/pomodoroLogic';
 
+// Best-effort visual "session over" notification via the active service worker
+// registration (the robust path — plain `new Notification()` doesn't work on
+// mobile Chrome). Never prompts (that's the ethical opt-in's job) and never
+// throws; audio was intentionally left out of scope.
+function notifySessionOver(body) {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) => reg.showNotification('REE.ai', { body, tag: 'pomodoro', icon: '/pwa-192x192.png' }))
+        .catch(() => {});
+}
+
 export function usePomodoroClock({ owner = false } = {}) {
     const pomodoro = useStore((s) => s.pomodoro);
     const switchPomodoroMode = useStore((s) => s.switchPomodoroMode);
+    const notificationsEnabled = useStore((s) => s.notifications.enabled);
     const [, force] = useState(0);
     const remaining = remainingSecs(pomodoro);
 
@@ -29,8 +42,10 @@ export function usePomodoroClock({ owner = false } = {}) {
         if (!owner || !pomodoro.isRunning || remaining > 0) return;
         const finishedWork = pomodoro.isWork;
         switchPomodoroMode();
-        toast(finishedWork ? 'Focus block done — break time.' : 'Break over — back to focus.', { icon: '⏱️' });
-    }, [owner, pomodoro.isRunning, remaining, pomodoro.isWork, switchPomodoroMode]);
+        const message = finishedWork ? 'Focus block done — break time.' : 'Break over — back to focus.';
+        toast(message, { icon: '⏱️' });
+        if (notificationsEnabled) notifySessionOver(message);
+    }, [owner, pomodoro.isRunning, remaining, pomodoro.isWork, switchPomodoroMode, notificationsEnabled]);
 
     return { pomodoro, remaining };
 }
