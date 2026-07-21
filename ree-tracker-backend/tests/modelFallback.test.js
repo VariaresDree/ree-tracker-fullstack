@@ -8,9 +8,10 @@ describe('AI model tier list', () => {
     });
 
     it('default tiers are real, shipping Gemini IDs', () => {
-        // Reality-check guard so a future edit can't silently re-introduce
-        // the broken `gemini-3.5-flash` / `gemini-3.1-flash-lite` IDs.
-        const bogus = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
+        // Reality-check guard against obviously-hallucinated IDs. gemini-3.5-flash
+        // and gemini-3.1-flash-lite now ship, so they were removed from this list;
+        // the format check below still catches non-`gemini-` garbage.
+        const bogus = ['gemini-3.5-flash-lite'];
         for (const id of aiRoutes.MODEL_TIERS) {
             expect(bogus).not.toContain(id);
             expect(id.startsWith('gemini-')).toBe(true);
