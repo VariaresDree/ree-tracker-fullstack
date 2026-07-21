@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-const { buildVersionSnapshot, toLiveQuestionData, CONTENT_FIELDS } = require('../src/services/reviewService');
+const { buildVersionSnapshot, toLiveQuestionData, CONTENT_FIELDS, createLiveQuestion } = require('../src/services/reviewService');
 const { reviewEditSchema, reviewApproveSchema, reviewRejectSchema } = require('../src/schemas/reviewSchemas');
+const { normalizeSubject, SUBJECT_VARIANTS } = require('../src/utils/subject');
 
 const reviewRow = {
   id: 'rev-1',
@@ -78,5 +79,30 @@ describe('review schemas', () => {
     expect(reviewRejectSchema.parse({})).toEqual({});
     expect(reviewRejectSchema.parse({ reviewNote: 'wrong answer key' }).reviewNote).toBe('wrong answer key');
     expect(reviewRejectSchema.safeParse({ reviewNote: 'x'.repeat(2001) }).success).toBe(false);
+  });
+});
+
+// Phase 0 (Delta-Sync content delivery): a question cannot be promoted to LIVE
+// without a recognized subject, or it enters syllabus-weighted Board Simulator
+// selection with no/wrong weighting. The gate runs BEFORE any DB access, so
+// these rejections need no database.
+describe('createLiveQuestion — hard taxonomy gate', () => {
+  const expectRejected = (data) =>
+    expect(createLiveQuestion(data)).rejects.toMatchObject({ code: 'INVALID_TAXONOMY' });
+
+  it('rejects a missing subject', () => expectRejected({ text: 'q', answer: 'a' }));
+  it('rejects the "Unknown" default subject', () => expectRejected({ subject: 'Unknown', text: 'q' }));
+  it('rejects an unrecognized subject', () => expectRejected({ subject: 'Chemistry', text: 'q' }));
+
+  it('recognizes exactly the canonical live subjects (the gate predicate), incl. spelling variants', () => {
+    const recognized = (s) => !!SUBJECT_VARIANTS[normalizeSubject(s)];
+    expect(recognized('Mathematics')).toBe(true);
+    expect(recognized('Math')).toBe(true);            // historical spelling normalizes
+    expect(recognized('ESAS')).toBe(true);
+    expect(recognized('Electrical Engineering')).toBe(true);
+    expect(recognized('Unknown')).toBe(false);
+    expect(recognized('Chemistry')).toBe(false);
+    expect(recognized('')).toBe(false);
+    expect(recognized(undefined)).toBe(false);
   });
 });

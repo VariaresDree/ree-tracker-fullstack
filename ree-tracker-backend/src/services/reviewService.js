@@ -5,6 +5,7 @@
 // resolution and field defaults can never diverge between the two paths.
 const prisma = require('../config/db');
 const { resolveTopic } = require('./topicResolver');
+const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
 
 // The content fields that define a question, shared by Question,
 // QuestionPendingReview, and QuestionVersion.snapshot.
@@ -44,6 +45,20 @@ function toLiveQuestionData(reviewRow, edits = {}) {
  * the same defaults the manual POST has always used.
  */
 async function createLiveQuestion(data) {
+    // Hard taxonomy gate at the single promotion choke point: a live question
+    // MUST normalize to a recognized canonical subject (Mathematics/ESAS/EE) or
+    // it enters syllabus-weighted Board Simulator selection with no/wrong
+    // weighting. normalizeSubject maps historical spellings to canonical and
+    // passes unknowns through unchanged; SUBJECT_VARIANTS has an entry only for
+    // the three real subjects, so this rejects 'Unknown'/absent/typo subjects.
+    // Runs BEFORE any DB access so callers can translate it to a 400.
+    // Pending-review drafts don't hit this path, so they can still default.
+    if (!SUBJECT_VARIANTS[normalizeSubject(data.subject)]) {
+        throw Object.assign(
+            new Error('A valid subject (Mathematics, ESAS, or EE) is required to publish a live question.'),
+            { code: 'INVALID_TAXONOMY' },
+        );
+    }
     const topic = await resolveTopic(data.subject, data.subtopic);
     return prisma.question.create({
         data: {
