@@ -44,6 +44,14 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --font-display: 'Fraunces', 'Inter', serif;
 
+  /* Fluid type scale — bounded clamp() (floor + ceiling on each) so text reads
+     comfortably on high-DPI tablets without an unbounded vw term scaling to
+     extremes on an unexpected viewport. Consumed via the .text-fluid-* utilities. */
+  --fluid-fine: clamp(0.72rem, 0.68rem + 0.2vw, 0.8rem);   /* fine print / captions */
+  --fluid-base: clamp(0.85rem, 0.8rem + 0.25vw, 1rem);     /* body */
+  --fluid-lg:   clamp(1.05rem, 0.95rem + 0.5vw, 1.25rem);  /* subhead */
+  --fluid-xl:   clamp(1.3rem, 1.1rem + 1vw, 1.75rem);      /* heading */
+
   /* Motion tokens */
   --ease-spring-soft: cubic-bezier(0.34, 1.2, 0.64, 1);
   --ease-spring-snap: cubic-bezier(0.5, 1.7, 0.5, 1);
@@ -418,13 +426,22 @@
      combinations. Override color with a text-* class when needed. */
   .text-eyebrow {
     font-family: var(--font-mono);
-    font-size: 11px;
+    /* Bounded fluid size: was a fixed 11px that rendered too small on high-DPI
+       tablets. Floor 10px keeps phones legible; ceiling 12px stops it growing. */
+    font-size: clamp(10px, 9.5px + 0.2vw, 12px);
     line-height: 1.4;
     text-transform: uppercase;
     letter-spacing: 0.18em;
     font-weight: 500;
     color: var(--text-muted);
   }
+
+  /* Fluid body/heading utilities (tokens defined in @theme). Use where fixed
+     Tailwind text-* sizes render too small on tablets; opt-in, not global. */
+  .text-fluid-sm { font-size: var(--fluid-fine); }
+  .text-fluid-base { font-size: var(--fluid-base); }
+  .text-fluid-lg { font-size: var(--fluid-lg); line-height: 1.25; }
+  .text-fluid-xl { font-size: var(--fluid-xl); line-height: 1.15; }
 
   /* Editorial elevation classes (token-driven) */
   .elevate-1 { box-shadow: var(--shadow-1); }

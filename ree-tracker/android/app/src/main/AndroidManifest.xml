@@ -38,4 +38,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ runtime permission for the on-device daily review reminder
+         (@capacitor/local-notifications). No FCM / google-services.json needed —
+         reminders are scheduled and fired entirely on-device. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

@@ -244,12 +244,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                     : 'bg-surface border border-border2 hover:border-reeBlue/40 hover:bg-surface2'
                 }`}
               >
-                <div className="flex items-start gap-3 overflow-hidden flex-1 pointer-events-none">
+                <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0 pointer-events-none">
                   <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className="opacity-90 group-hover:scale-110 transition-transform text-[var(--accent)] shrink-0" />
                   {editingItem.id === f.id && editingItem.type === 'folder' ? (
                     <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded outline-none w-full font-bold pointer-events-auto" />
                   ) : (
-                    <span className="font-bold text-sm text-textMain break-words leading-relaxed pt-0.5">{f.name}</span>
+                    <span title={f.name} className="font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5">{f.name}</span>
                   )}
                 </div>
                 {isAdmin && (
@@ -288,7 +288,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
               {editingItem.id === m.id && editingItem.type === 'material' ? (
                 <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} className="bg-bg border border-reeCyan text-sm text-textMain px-2 py-1 rounded outline-none w-full mt-3 font-bold flex-1" />
               ) : (
-                <div className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 pointer-events-none break-words">{m.name}</div>
+                <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 pointer-events-none line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
               )}
               <div className="flex gap-2 mt-4 pt-4 border-t border-border2/50">
                 <Button size="sm" variant="secondary" className="flex-1" onClick={() => onViewMaterial(m)}>

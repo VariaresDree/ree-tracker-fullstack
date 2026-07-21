@@ -57,6 +57,17 @@ export const useSessionSlice = () =>
     })),
   );
 
+// --- Notifications (local + in-page) ---
+export const useNotificationSlice = () =>
+  useStore(
+    useShallow((s) => ({
+      notifications: s.notifications,
+      optInEligible: s.optInEligible,
+      setNotificationPrefs: s.setNotificationPrefs,
+      markOptInPrompted: s.markOptInPrompted,
+    })),
+  );
+
 // --- TOS / metadata ---
 export const useTOSSlice = () =>
   useStore(useShallow((s) => ({ dynamicTOS: s.dynamicTOS, setDynamicTOS: s.setDynamicTOS })));

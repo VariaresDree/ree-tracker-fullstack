@@ -85,7 +85,7 @@ export default function MainLayout({ children }) {
   return (
     <div className="min-h-screen bg-bg flex flex-col md:flex-row font-sans text-textMain relative">
       {/* MOBILE APP HEADER */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-surface border-b border-border2 sticky top-0 z-[40] shadow-sm">
+      <div className="md:hidden flex items-center justify-between px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] bg-surface border-b border-border2 sticky top-0 z-[40] shadow-sm">
         <div className="text-xl font-bold tracking-tight text-[var(--accent)]">
           REE<span className="text-textMain">.ai</span> Core
         </div>

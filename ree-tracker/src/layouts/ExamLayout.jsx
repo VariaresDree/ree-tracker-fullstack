@@ -8,7 +8,7 @@ export default function ExamLayout({ children }) {
           Copy + size step down on phones so it stays one line and doesn't
           double the sticky chrome above the toolbar. */}
       <header
-        className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 py-2 text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase text-white"
+        className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase text-white"
         style={{
           background: 'var(--accent-danger)',
           boxShadow: '0 2px 10px color-mix(in srgb, var(--accent-danger) 30%, transparent)',

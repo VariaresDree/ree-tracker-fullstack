@@ -19,6 +19,7 @@
   "dependencies": {
     "@capacitor/android": "^8.4.1",
     "@capacitor/core": "^8.4.1",
+    "@capacitor/local-notifications": "^8.2.1",
     "@capacitor/push-notifications": "^8.1.1",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-virtual": "^3.14.2",

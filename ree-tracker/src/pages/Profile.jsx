@@ -5,11 +5,14 @@ import { useStore } from '../store/useStore';
 import { useShallow } from 'zustand/react/shallow';
 import { updateProfile, deleteUser } from 'firebase/auth';
 // FIRESTORE IMPORTS COMPLETELY REMOVED
-import { Skeleton, Button, Modal, FormField, Input, Tabs, StatusPill } from '../components/ui';
-import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settings2, Cloud, TriangleAlert } from '../components/ui/icons';
+import { Skeleton, Button, Modal, FormField, Input, Select, SegmentedControl, Tabs, StatusPill } from '../components/ui';
+import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settings2, Cloud, TriangleAlert, Bell, BellOff } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 import { syncDashboardStats } from '../services/analyticsSync';
 import { updateUserProfile } from '../services/dbQueries';
+import { useNotificationSlice } from '../store/slices';
+import { Capacitor } from '@capacitor/core';
+import { scheduleDailyReminder, cancelDailyReminder } from '../services/localReminders';
 
 // Decoupled Components
 import ComparativeAnalyticsTab from '../features/profile/ComparativeAnalyticsTab';
@@ -28,6 +31,13 @@ const TabFallback = () => (
   </div>
 );
 
+// 24h hour → friendly "7:00 PM" label for the reminder-time picker.
+const formatHour = (h) => {
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return `${hr}:00 ${ampm}`;
+};
+
 export default function Profile() {
   const { currentUser, logout, isAdmin } = useAuth();
   
@@ -44,7 +54,9 @@ export default function Profile() {
       syncStatus: s.syncStatus,
     })),
   );
-  
+
+  const { notifications, setNotificationPrefs } = useNotificationSlice();
+
   // UI States
   const [activeTab, setActiveTab] = useState('analytics');
   const [activeModal, setActiveModal] = useState(null);
@@ -67,26 +79,68 @@ export default function Profile() {
       targetBoardDate: stats?.examDate || '2026-04-01'
   });
 
-  // Global Push Notification Engine (Runs in shell to remain constantly active)
+  // Task-due reminder. Fires ONLY when the user has already opted into
+  // notifications (via the contextual opt-in) AND previously granted
+  // permission — it never calls requestPermission() here, since a cold prompt
+  // on page load is the anti-pattern that gets denied permanently.
   useEffect(() => {
+    if (!notifications.enabled) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
     const tasks = stats?.tasks || [];
-    if (tasks.length > 0 && "Notification" in window) {
-      Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-            const today = new Date().toISOString().split('T')[0];
-            const urgentTasks = tasks.filter(t => !t.completed && t.dueDate && t.dueDate <= today);
-            
-            if (urgentTasks.length > 0 && !sessionStorage.getItem('notified_today')) {
-                new Notification("REE.ai Operations", {
-                    body: `Agent, you have ${urgentTasks.length} pending milestone(s) due today or overdue.`,
-                    icon: '/favicon.ico'
-                });
-                sessionStorage.setItem('notified_today', 'true');
-            }
-        }
-      });
+    const today = new Date().toISOString().split('T')[0];
+    const urgentTasks = tasks.filter(t => !t.completed && t.dueDate && t.dueDate <= today);
+    if (urgentTasks.length > 0 && !sessionStorage.getItem('notified_today')) {
+      try {
+        new Notification("REE.ai Operations", {
+          body: `Agent, you have ${urgentTasks.length} pending milestone(s) due today or overdue.`,
+          icon: '/favicon.ico',
+        });
+        sessionStorage.setItem('notified_today', 'true');
+      } catch {
+        // Mobile browsers require SW-based notifications for this API — skip.
+      }
     }
-  }, [stats?.tasks]);
+  }, [stats?.tasks, notifications.enabled]);
+
+  // --- Notification settings handlers ---
+  const isNativePlatform = Capacitor.isNativePlatform();
+
+  const setSessionNotifications = async (on) => {
+    // On the web, turning session alerts on requires Notification permission —
+    // requested here from a real user gesture (not on load).
+    if (on && !isNativePlatform && "Notification" in window && Notification.permission !== 'granted') {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        toast('Notifications are blocked in your browser settings.', { icon: '🔕' });
+        return;
+      }
+    }
+    setNotificationPrefs({ enabled: on });
+  };
+
+  const setDailyReminder = async (on) => {
+    if (on) {
+      const ok = await scheduleDailyReminder({ hour: notifications.reminderHour, minute: notifications.reminderMinute });
+      if (!ok) {
+        toast(isNativePlatform ? 'Enable notifications in your system settings first.' : 'Daily reminders need the installed app.', { icon: '🔕' });
+        return;
+      }
+      setNotificationPrefs({ dailyReminderEnabled: true, enabled: true });
+      toast.success('Daily reminder scheduled.');
+    } else {
+      await cancelDailyReminder();
+      setNotificationPrefs({ dailyReminderEnabled: false });
+    }
+  };
+
+  const changeReminderHour = async (hour) => {
+    setNotificationPrefs({ reminderHour: hour });
+    // Re-arm at the new time if the reminder is already active.
+    if (notifications.dailyReminderEnabled) {
+      await scheduleDailyReminder({ hour, minute: notifications.reminderMinute });
+      toast.success('Reminder time updated.');
+    }
+  };
 
   // Shared fallback so an un-named user shows the SAME handle here and on the
   // Arena leaderboard (which falls back to `Agent-<uid6>` — dbQueries.normalizeAgent
@@ -265,6 +319,65 @@ export default function Profile() {
       {activeTab === 'settings' && (
         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
             <ThemingArchitecture theme={theme} setTheme={setTheme} />
+
+            {/* Notifications */}
+            <div className="bg-surface border border-border p-6 rounded-[var(--radius-lg)] shadow-sm">
+                <h4 className="text-sm font-semibold text-textMain mb-1 flex items-center gap-2">
+                    <Bell size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" /> Notifications
+                </h4>
+                <p className="text-xs text-muted2 mb-5">Session alerts and an optional daily review reminder.</p>
+
+                <div className="flex flex-col gap-5">
+                    {/* Session notifications */}
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium text-textMain">Session notifications</p>
+                            <p className="text-xs text-muted2">A visual alert when a Pomodoro focus block ends.</p>
+                        </div>
+                        <SegmentedControl
+                            size="sm"
+                            label="Session notifications"
+                            value={notifications.enabled ? 'on' : 'off'}
+                            onChange={(v) => setSessionNotifications(v === 'on')}
+                            options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]}
+                        />
+                    </div>
+
+                    {/* Daily review reminder */}
+                    <div className="flex items-center justify-between gap-4 flex-wrap border-t border-border2/60 pt-5">
+                        <div className="min-w-0">
+                            <p className="text-sm font-medium text-textMain flex items-center gap-2">
+                                Daily review reminder
+                                {!isNativePlatform && <BellOff size={13} strokeWidth={1.75} aria-hidden="true" className="text-muted" />}
+                            </p>
+                            <p className="text-xs text-muted2">
+                                {isNativePlatform
+                                    ? 'A daily nudge to run your Active Recall session — even with the app closed.'
+                                    : 'Requires the installed app — add REE.ai to your Home Screen.'}
+                            </p>
+                        </div>
+                        <SegmentedControl
+                            size="sm"
+                            label="Daily review reminder"
+                            value={notifications.dailyReminderEnabled ? 'on' : 'off'}
+                            onChange={(v) => setDailyReminder(v === 'on')}
+                            options={[{ value: 'on', label: 'On', disabled: !isNativePlatform }, { value: 'off', label: 'Off' }]}
+                        />
+                    </div>
+
+                    {notifications.dailyReminderEnabled && (
+                        <div className="max-w-[220px]">
+                            <FormField label="Reminder time">
+                                <Select value={notifications.reminderHour} onChange={(e) => changeReminderHour(Number(e.target.value))}>
+                                    {Array.from({ length: 24 }, (_, h) => (
+                                        <option key={h} value={h}>{formatHour(h)}</option>
+                                    ))}
+                                </Select>
+                            </FormField>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 

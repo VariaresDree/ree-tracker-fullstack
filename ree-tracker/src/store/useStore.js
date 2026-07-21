@@ -141,6 +141,11 @@ export const useStore = create(
         const { syncQueue, flushQueueToCloud } = getStore();
         if (syncQueue.length > 0) await flushQueueToCloud();
         set({ currentSessionId: null, currentSessionMode: null, currentSubject: null });
+        // Contextual notification opt-in: the user just finished a session, so
+        // they've shown intent. Flip the transient eligibility flag (not
+        // persisted) so NotificationOptIn can surface — but only if they haven't
+        // already answered the prompt (`promptedForOptIn` is persisted).
+        if (!getStore().notifications.promptedForOptIn) set({ optInEligible: true });
       },
 
       // SINGLE SOURCE OF TRUTH for the target board-exam date + daily quota.
@@ -552,7 +557,26 @@ export const useStore = create(
           document.documentElement.setAttribute('data-theme', newTheme);
         }
         set({ theme: newTheme });
-      }
+      },
+
+      // 5. NOTIFICATIONS SLICE — prefs for local + in-page notifications.
+      // `enabled` gates the in-page Pomodoro "session over" system notification;
+      // the daily review reminder is native-only (scheduled via
+      // services/localReminders.js using reminderHour/reminderMinute).
+      // `promptedForOptIn` guarantees the contextual opt-in is offered once,
+      // after a real session — never on a cold load.
+      notifications: {
+        enabled: false,
+        dailyReminderEnabled: false,
+        reminderHour: 19,
+        reminderMinute: 0,
+        promptedForOptIn: false,
+      },
+      // Transient (NOT persisted): set true by endSession() once per fresh load
+      // so the contextual opt-in appears in-session, never on a cold start.
+      optInEligible: false,
+      setNotificationPrefs: (patch) => set((state) => ({ notifications: { ...state.notifications, ...patch } })),
+      markOptInPrompted: () => set((state) => ({ notifications: { ...state.notifications, promptedForOptIn: true } })),
     }),
     {
       name: 'ree-tracker-secure-storage',
@@ -565,6 +589,7 @@ export const useStore = create(
         pomodoro: state.pomodoro,
         pomodoroWidget: state.pomodoroWidget,
         theme: state.theme,
+        notifications: state.notifications,
         isAdmin: state.isAdmin,
         dynamicTOS: state.dynamicTOS, // 🚀 CRITICAL: Tells the store to remember your changes
         featureFlags: state.featureFlags // last-known flags survive offline restarts
