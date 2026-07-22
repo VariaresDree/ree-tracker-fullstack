@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-const { buildVersionSnapshot, toLiveQuestionData, CONTENT_FIELDS, createLiveQuestion } = require('../src/services/reviewService');
-const { reviewEditSchema, reviewApproveSchema, reviewRejectSchema } = require('../src/schemas/reviewSchemas');
+const { buildVersionSnapshot, toLiveQuestionData, CONTENT_FIELDS, createLiveQuestion, isBulkEligible } = require('../src/services/reviewService');
+const { reviewEditSchema, reviewApproveSchema, reviewRejectSchema, bulkIdsSchema } = require('../src/schemas/reviewSchemas');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../src/utils/subject');
 
 const reviewRow = {
@@ -104,5 +104,69 @@ describe('createLiveQuestion — hard taxonomy gate', () => {
     expect(recognized('Chemistry')).toBe(false);
     expect(recognized('')).toBe(false);
     expect(recognized(undefined)).toBe(false);
+  });
+});
+
+// "Accept All" clean-item gate: bulk approval carries NO inline edits, so the
+// row itself must satisfy the invariants the inline editor enforces one-by-one.
+// Anything failing stays in the queue for individual review. (The approveBulk
+// DB loop itself follows the untested-by-convention single-approve handler —
+// this predicate is where the decision logic lives.)
+describe('isBulkEligible — the Accept-All clean-item gate', () => {
+  it('accepts a clean row', () => {
+    expect(isBulkEligible(reviewRow)).toBe(true);
+  });
+
+  it('rejects null/undefined rows', () => {
+    expect(isBulkEligible(null)).toBe(false);
+    expect(isBulkEligible(undefined)).toBe(false);
+  });
+
+  it('rejects an unrecognized or missing subject (INVALID_TAXONOMY precheck)', () => {
+    expect(isBulkEligible({ ...reviewRow, subject: 'Chemistry' })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, subject: undefined })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, subject: 'Unknown' })).toBe(false);
+  });
+
+  it('rejects empty/whitespace text', () => {
+    expect(isBulkEligible({ ...reviewRow, text: '' })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, text: '   ' })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, text: null })).toBe(false);
+  });
+
+  it('rejects fewer than two options', () => {
+    expect(isBulkEligible({ ...reviewRow, options: ['only one'] })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, options: [] })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, options: null })).toBe(false);
+  });
+
+  it('rejects an answer that matches no option (exact-match grading invariant)', () => {
+    expect(isBulkEligible({ ...reviewRow, answer: '20 ohms' })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, answer: '' })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, answer: null })).toBe(false);
+  });
+
+  it('matches the answer AFTER choice-label sanitization on both sides', () => {
+    // Raw AI output with baked-in "A."/"B)" labels — sanitizer strips both
+    // sides, so this row IS clean even though the raw strings differ.
+    expect(isBulkEligible({
+      ...reviewRow,
+      options: ['A. 10 ohms', 'B) 0 ohms', '(C) Infinite'],
+      answer: 'a: 10 ohms',
+    })).toBe(true);
+  });
+});
+
+describe('bulkIdsSchema — bounded batch payload', () => {
+  it('accepts 1..200 non-empty ids', () => {
+    expect(bulkIdsSchema.safeParse({ ids: ['a'] }).success).toBe(true);
+    expect(bulkIdsSchema.safeParse({ ids: Array.from({ length: 200 }, (_, i) => `id-${i}`) }).success).toBe(true);
+  });
+
+  it('rejects an empty array, over-cap batches, empty-string ids, and a missing field', () => {
+    expect(bulkIdsSchema.safeParse({ ids: [] }).success).toBe(false);
+    expect(bulkIdsSchema.safeParse({ ids: Array.from({ length: 201 }, (_, i) => `id-${i}`) }).success).toBe(false);
+    expect(bulkIdsSchema.safeParse({ ids: [''] }).success).toBe(false);
+    expect(bulkIdsSchema.safeParse({}).success).toBe(false);
   });
 });

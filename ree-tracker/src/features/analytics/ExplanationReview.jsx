@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPendingExplanations, updateExplanationStatus } from '../../services/dbQueries';
+import { fetchPendingExplanations, updateExplanationStatus, bulkApproveExplanations } from '../../services/dbQueries';
+import { Button, Modal } from '../../components/ui';
+import { CheckCircle2 } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
@@ -21,6 +23,9 @@ export default function ExplanationReview() {
     const [loading, setLoading] = useState(true);
     const [expandedId, setExpandedId] = useState(null);
     const [processing, setProcessing] = useState(null);
+    // "Accept All" batch approval (confirmation-gated, server-reconciled).
+    const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+    const [isBulkApproving, setIsBulkApproving] = useState(false);
 
     useEffect(() => {
         loadPending();
@@ -35,6 +40,27 @@ export default function ExplanationReview() {
             toast.error('Failed to load pending explanations');
         }
         setLoading(false);
+    };
+
+    // ONE batched request; the SERVER response is the source of truth — only
+    // ids it actually approved leave the list, failures stay visible + toast.
+    const handleBulkApprove = async () => {
+        const ids = questions.map((q) => q.id);
+        if (ids.length === 0) { setShowBulkConfirm(false); return; }
+        setIsBulkApproving(true);
+        try {
+            const res = await bulkApproveExplanations(ids);
+            const approvedSet = new Set(res?.approved || []);
+            setQuestions((prev) => prev.filter((q) => !approvedSet.has(q.id)));
+            const failedCount = (res?.failed || []).length;
+            if (approvedSet.size > 0) toast.success(`${approvedSet.size} explanation${approvedSet.size === 1 ? '' : 's'} approved.`);
+            if (failedCount > 0) toast.error(`${failedCount} item${failedCount === 1 ? '' : 's'} failed and stay in the queue.`);
+        } catch {
+            toast.error('Bulk approval failed — nothing was changed.');
+        } finally {
+            setIsBulkApproving(false);
+            setShowBulkConfirm(false);
+        }
     };
 
     const handleAction = async (questionId, status) => {
@@ -83,10 +109,39 @@ export default function ExplanationReview() {
                         rejected explanations are discarded so the question can be re-derived later.
                     </p>
                 </div>
-                <button onClick={loadPending} className="text-xs text-reeBlue hover:underline cursor-pointer shrink-0">
-                    Refresh
-                </button>
+                <div className="flex items-center gap-3 shrink-0">
+                    <Button size="sm" tone="success" onClick={() => setShowBulkConfirm(true)} disabled={isBulkApproving}>
+                        Accept all {questions.length} shown
+                    </Button>
+                    <button onClick={loadPending} className="text-xs text-reeBlue hover:underline cursor-pointer">
+                        Refresh
+                    </button>
+                </div>
             </div>
+
+            {/* Accept-All confirmation — the queue pages 50 at a time, so the
+                count is exactly what's shown, not the whole backlog. */}
+            <Modal
+                open={showBulkConfirm}
+                onClose={() => !isBulkApproving && setShowBulkConfirm(false)}
+                tone="amber"
+                icon={CheckCircle2}
+                title={`Approve all ${questions.length} shown explanation${questions.length === 1 ? '' : 's'}?`}
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowBulkConfirm(false)} disabled={isBulkApproving}>Cancel</Button>
+                        <Button tone="success" onClick={handleBulkApprove} loading={isBulkApproving} disabled={isBulkApproving || questions.length === 0}>
+                            Approve {questions.length}
+                        </Button>
+                    </>
+                }
+            >
+                <p className="text-sm text-muted2">
+                    Each approved explanation becomes the canonical solution users see for that
+                    question. The queue shows up to 50 at a time — refresh afterwards to load any
+                    remaining backlog. Every approval is logged.
+                </p>
+            </Modal>
 
             {questions.map(q => (
                 <div key={q.id} className="bg-surface border border-border2 rounded-xl overflow-hidden">

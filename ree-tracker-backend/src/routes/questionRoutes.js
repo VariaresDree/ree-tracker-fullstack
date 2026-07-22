@@ -4,7 +4,9 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
+const idempotency = require('../middlewares/idempotency');
 const { questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -328,6 +330,45 @@ router.put('/:id/explanation-status', authMiddleware, requireAdmin, async (req, 
     } catch (error) {
         if (error.code === 'P2025') return res.status(404).json({ error: 'Question not found.' });
         res.status(500).json({ error: 'Failed to update explanation status.' });
+    }
+});
+
+// 7.2 BULK APPROVE EXPLANATIONS — "Accept All" over the pending page in one
+// batched request. Only rows still PENDING are touched; ids outside that
+// subset come back in `failed`. Also writes the previously-MISSING audit
+// trail: one QuestionVersion row per approval (who/when + the approved
+// explanation snapshot), matching the question-review gate's traceability.
+router.post('/explanations/approve-bulk', authMiddleware, requireAdmin, validate(bulkIdsSchema), idempotency(), async (req, res) => {
+    try {
+        const uniqueIds = [...new Set(req.body.ids)];
+        const pending = await prisma.question.findMany({
+            where: { id: { in: uniqueIds }, explanationStatus: 'PENDING', fixedExplanation: { not: null } },
+            select: { id: true, fixedExplanation: true },
+        });
+        const pendingIds = pending.map((q) => q.id);
+        const pendingSet = new Set(pendingIds);
+        const failed = uniqueIds.filter((id) => !pendingSet.has(id)).map((id) => ({ id, reason: 'not-pending' }));
+
+        if (pendingIds.length > 0) {
+            await prisma.$transaction([
+                prisma.question.updateMany({
+                    where: { id: { in: pendingIds }, explanationStatus: 'PENDING' },
+                    data: { explanationStatus: 'APPROVED' },
+                }),
+                prisma.questionVersion.createMany({
+                    data: pending.map((q) => ({
+                        questionId: q.id,
+                        action: 'EXPLANATION_APPROVED',
+                        editor: req.user.id,
+                        snapshot: { fixedExplanation: q.fixedExplanation },
+                    })),
+                }),
+            ]);
+        }
+        return res.status(200).json({ success: true, approved: pendingIds, failed });
+    } catch (error) {
+        logger.error('bulk explanation approve failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Bulk explanation approval failed.' });
     }
 });
 

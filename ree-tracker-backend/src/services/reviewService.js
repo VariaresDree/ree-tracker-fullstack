@@ -4,8 +4,10 @@
 // creation (questionRoutes POST) and review approval share — so topic
 // resolution and field defaults can never diverge between the two paths.
 const prisma = require('../config/db');
+const logger = require('../utils/logger');
 const { resolveTopic } = require('./topicResolver');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
+const { sanitizeOptions, stripChoicePrefix } = require('../utils/sanitizeOptions');
 
 // The content fields that define a question, shared by Question,
 // QuestionPendingReview, and QuestionVersion.snapshot.
@@ -80,4 +82,75 @@ async function createLiveQuestion(data) {
     });
 }
 
-module.exports = { CONTENT_FIELDS, buildVersionSnapshot, toLiveQuestionData, createLiveQuestion };
+/**
+ * Pure: is a pending row clean enough for BULK approval? No human edits ride
+ * along in bulk, so the row itself must already satisfy the invariants the
+ * inline editor enforces one-by-one: a real subject, non-empty text, >= 2
+ * options, and a sanitized answer that exactly matches a sanitized option
+ * (the exact-match grading invariant). Anything failing stays in the queue
+ * for individual review — bulk approval only sweeps clean items.
+ */
+function isBulkEligible(row) {
+    if (!row) return false;
+    if (!SUBJECT_VARIANTS[normalizeSubject(row.subject)]) return false;
+    if (typeof row.text !== 'string' || row.text.trim().length === 0) return false;
+    const options = sanitizeOptions(row.options);
+    if (!Array.isArray(options) || options.length < 2) return false;
+    const answer = stripChoicePrefix(row.answer);
+    if (typeof answer !== 'string' || answer.trim().length === 0) return false;
+    return options.includes(answer);
+}
+
+/**
+ * Bulk approve pending review rows — ONE request, batched server-side, with
+ * per-item outcomes so a bad item never blocks the rest. Mirrors the single
+ * approve path exactly: createLiveQuestion runs OUTSIDE the bookkeeping
+ * transaction (same deliberate non-atomicity — a bookkeeping failure surfaces
+ * as `created-bookkeeping-failed` instead of rolling back a published
+ * question), and every approval writes the same QuestionVersion audit row
+ * (who/when/what) as a one-by-one approve.
+ * Returns { approved: [id], failed: [{ id, reason }] }.
+ */
+async function approveBulk(ids, editorId) {
+    const approved = [];
+    const failed = [];
+    const uniqueIds = [...new Set(ids)];
+    const rows = await prisma.questionPendingReview.findMany({ where: { id: { in: uniqueIds } } });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+
+    for (const id of uniqueIds) {
+        const row = byId.get(id);
+        if (!row) { failed.push({ id, reason: 'not-found' }); continue; }
+        if (row.status !== 'PENDING') { failed.push({ id, reason: 'already-reviewed' }); continue; }
+        if (!isBulkEligible(row)) { failed.push({ id, reason: 'invalid' }); continue; }
+
+        const finalData = toLiveQuestionData(row, {});
+        let question;
+        try {
+            question = await createLiveQuestion(finalData);
+        } catch (err) {
+            failed.push({ id, reason: err.code === 'INVALID_TAXONOMY' ? 'invalid' : 'create-failed' });
+            continue;
+        }
+        try {
+            await prisma.$transaction([
+                prisma.questionPendingReview.update({
+                    where: { id: row.id },
+                    data: { status: 'APPROVED', reviewedBy: editorId, reviewedAt: new Date(), promotedQuestionId: question.id },
+                }),
+                prisma.questionVersion.create({
+                    data: { reviewId: row.id, questionId: question.id, action: 'APPROVED', editor: editorId, snapshot: finalData },
+                }),
+            ]);
+            approved.push(id);
+        } catch (bookkeepErr) {
+            logger.error('bulk approve bookkeeping failed (question created)', {
+                reviewId: row.id, questionId: question.id, error: bookkeepErr.message,
+            });
+            failed.push({ id, reason: 'created-bookkeeping-failed', questionId: question.id });
+        }
+    }
+    return { approved, failed };
+}
+
+module.exports = { CONTENT_FIELDS, buildVersionSnapshot, toLiveQuestionData, createLiveQuestion, isBulkEligible, approveBulk };

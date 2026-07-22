@@ -9,10 +9,11 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { requireAdmin } = require('../middlewares/roleMiddleware');
 const { validate } = require('../middlewares/validate');
-const { reviewEditSchema, reviewApproveSchema, reviewRejectSchema } = require('../schemas/reviewSchemas');
+const idempotency = require('../middlewares/idempotency');
+const { reviewEditSchema, reviewApproveSchema, reviewRejectSchema, bulkIdsSchema } = require('../schemas/reviewSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { buildVersionSnapshot, toLiveQuestionData, createLiveQuestion } = require('../services/reviewService');
+const { buildVersionSnapshot, toLiveQuestionData, createLiveQuestion, approveBulk } = require('../services/reviewService');
 
 // Whole surface is admin-only.
 router.use(authMiddleware, requireAdmin);
@@ -104,6 +105,23 @@ router.put('/:id/approve', validate(reviewApproveSchema), async (req, res) => {
         if (error.code === 'INVALID_TAXONOMY') return res.status(400).json({ error: error.message });
         logger.error('review approve failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to approve review item.' });
+    }
+});
+
+// POST /api/review/approve-bulk — "Accept All": approve a set of PENDING items
+// in one batched request. Only CLEAN items are approved (isBulkEligible —
+// real subject, non-empty text, >=2 options, sanitized answer ∈ options);
+// invalid / already-reviewed / legacy items come back in `failed` with a
+// reason and stay in the queue for individual review. Per-item outcomes, so
+// one bad item never blocks the rest. Idempotent via the standard middleware
+// (the client sends content-hash Idempotency-Keys on every mutation).
+router.post('/approve-bulk', validate(bulkIdsSchema), idempotency(), async (req, res) => {
+    try {
+        const result = await approveBulk(req.body.ids, req.user.id);
+        return res.status(200).json({ success: true, ...result });
+    } catch (error) {
+        logger.error('bulk approve failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Bulk approval failed.' });
     }
 });
 
