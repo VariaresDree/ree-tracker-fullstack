@@ -52,14 +52,38 @@ describe('mergeServerIntoStats', () => {
     expect(out.activityCalendar).toEqual({ '2026-07-10': 30, '2026-07-11': 12 });
   });
 
-  it('takes server theta/streak as canonical and max-merges counters', () => {
+  it('takes server theta/streak as canonical, and totalAnswered server-authoritative', () => {
     const out = mergeServerIntoStats(
       { irt: { theta: 0.1 }, globalStreak: 2, totalAnswered: 40 },
       { profile: { thetaRating: 1.4, globalStreak: 5, totalAnswered: 30 }, thetaHistory: [{ date: '2026-07-10', theta: 1.4 }] },
     );
     expect(out.irt.theta).toBe(1.4);
     expect(out.globalStreak).toBe(5);        // max(2, 5)
-    expect(out.totalAnswered).toBe(40);      // max(40, 30)
+    // Server-authoritative: with NO local optimistic calendar excess, the stale
+    // local totalAnswered (40) no longer sticks — the server value (30) wins.
+    // (This is the fix: the old max() kept local inflation forever.)
+    expect(out.totalAnswered).toBe(30);
     expect(out.thetaHistory).toHaveLength(1);
+  });
+
+  it('server wins the calendar when local is NOT ahead (no sticky over-count)', () => {
+    const out = mergeServerIntoStats(
+      { activityCalendar: { '2026-07-11': 3 }, totalAnswered: 99 },
+      { activityCalendar: { '2026-07-11': 8 }, profile: { totalAnswered: 20 } },
+    );
+    // local(3) < server(8) → server value stands; no optimistic delta.
+    expect(out.activityCalendar).toEqual({ '2026-07-11': 8 });
+    expect(out.totalAnswered).toBe(20);
+  });
+
+  it('INVARIANT: totalAnswered === Σ(activityCalendar) after merge, with optimistic overlay', () => {
+    const out = mergeServerIntoStats(
+      // local is one day ahead by 7 (un-synced optimistic answers today)
+      { activityCalendar: { '2026-07-10': 30, '2026-07-11': 12 } },
+      { activityCalendar: { '2026-07-10': 30, '2026-07-11': 5 }, profile: { totalAnswered: 35 } },
+    );
+    const calendarSum = Object.values(out.activityCalendar).reduce((s, n) => s + n, 0);
+    expect(out.totalAnswered).toBe(42);       // server 35 + optimistic delta 7
+    expect(calendarSum).toBe(out.totalAnswered); // the guaranteed invariant
   });
 });

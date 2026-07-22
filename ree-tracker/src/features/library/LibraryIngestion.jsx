@@ -44,7 +44,8 @@ export default function LibraryIngestion({
                     value={genSubject}
                     onChange={e => {
                         setGenSubject(e.target.value);
-                        setGenSubtopic(safeTOS[e.target.value]?.[0] || '');
+                        // Reset to the neutral sentinel, not topic index 0.
+                        setGenSubtopic('All');
                     }}
                 >
                   {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
@@ -52,6 +53,7 @@ export default function LibraryIngestion({
               </FormField>
               <FormField label="Topic">
                 <Select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)}>
+                  <option value="All">All topics</option>
                   {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
                 </Select>
               </FormField>

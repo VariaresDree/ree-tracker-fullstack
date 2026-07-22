@@ -223,11 +223,18 @@ export const useGauntletEngine = (level) => {
                     const advancesLevel = !isSubjectTier(tier) && stats.gauntletLevel === parseInt(level);
                     const LOCK_MS = 12 * 60 * 60 * 1000;
                     if (profile?.data?.profile) {
+                        // FULL server replace — mirror Active Review / Board Sim so
+                        // the calendar + microTopics + totals all move together. The
+                        // old partial update bumped totalAnswered by tier.items but
+                        // left activityCalendar stale, so the Dashboard KPI diverged
+                        // from the Consistency Matrix after every Gauntlet run.
                         setStats({
                             ...stats,
+                            ...profile.data.profile,
                             irt: { theta: profile.data.profile.thetaRating || 0 },
-                            globalStreak: profile.data.profile.globalStreak || 0,
-                            totalAnswered: (stats?.totalAnswered || 0) + tier.items,
+                            activityCalendar: profile.data.activityCalendar,
+                            microTopics: profile.data.microTopics,
+                            matrix: profile.data.matrix,
                             ...(isPassed
                                 ? (advancesLevel ? { gauntletLevel: parseInt(level) + 1 } : {})
                                 : { gauntletLockUntil: Date.now() + LOCK_MS }),

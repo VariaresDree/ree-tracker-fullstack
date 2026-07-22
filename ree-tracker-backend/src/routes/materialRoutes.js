@@ -91,8 +91,9 @@ router.post(
     async (req, res) => {
         try {
             const { folderId, name, type, dataBase64, url } = req.body || {};
-            if (!name || !folderId) return res.status(400).json({ error: 'folderId and name are required.' });
+            if (!name) return res.status(400).json({ error: 'name is required.' });
             if (!dataBase64 && !url) return res.status(400).json({ error: 'Provide dataBase64 or url.' });
+            // folderId is optional now — null/omitted means a root-level material.
 
             let materialUrl = url;
             let storagePath = null;
@@ -111,7 +112,7 @@ router.post(
                     url: materialUrl,
                     type: String(type || 'file').slice(0, 60),
                     storagePath,
-                    folderId,
+                    folderId: folderId || null,
                 },
             });
             return res.status(201).json({ material: mat });
@@ -121,6 +122,25 @@ router.post(
         }
     },
 );
+
+// Rename (name) and/or move (folderId) a material. folderId null = move to root.
+router.patch('/:id', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { name, folderId } = req.body || {};
+        const material = await prisma.material.update({
+            where: { id: req.params.id },
+            data: {
+                ...(name != null ? { name: String(name).slice(0, 200) } : {}),
+                ...(folderId !== undefined ? { folderId: folderId || null } : {}),
+            },
+        });
+        return res.status(200).json({ material });
+    } catch (error) {
+        if (error.code === 'P2025') return res.status(404).json({ error: 'Material not found.' });
+        logger.error('Material update failed', { error: error.message });
+        return res.status(500).json({ error: 'Material update failed.' });
+    }
+});
 
 router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {

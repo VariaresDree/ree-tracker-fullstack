@@ -2,14 +2,17 @@
 import { useState } from 'react';
 import { generateQuestionsAI, generateQuestionsFromText, generateQuestionsFromImages } from '../../services/geminiApi';
 import { saveQuestionToBank } from '../../services/dbQueries';
-import { TOS } from '../../config/constants';
 import toast from 'react-hot-toast';
 import PdfWorker from './pdfWorker?worker';
 
 export const useAIIngestion = (onIngestSuccess) => {
   // --- INGESTION SETTINGS ---
   const [genSubject, setGenSubject] = useState('EE');
-  const [genSubtopic, setGenSubtopic] = useState(TOS['EE'][0]);
+  // Default to the neutral "All" sentinel — NOT a real topic. Previously this
+  // defaulted to TOS['EE'][0] ('Quantities/Units/Constants'), so any generation
+  // launched without opening the Topic dropdown silently targeted that one
+  // topic. getStrictRules() treats 'All' as "categorize into any valid subtopic".
+  const [genSubtopic, setGenSubtopic] = useState('All');
   const [genLoading, setGenLoading] = useState(false);
   const [genStatus, setGenStatus] = useState('');
   const [recentGenerations, setRecentGenerations] = useState([]);

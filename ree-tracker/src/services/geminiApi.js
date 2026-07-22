@@ -220,9 +220,17 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
 // the existing idempotent import route. Reuses callAI's LaTeX-safe JSON parse.
 //   kind: 'constants' | 'formulas'
 // Returns a raw array (the admin UI previews + lets the user select before insert).
-export const generateReferenceAI = async (kind, subject, category = '', count = 10) => {
+export const generateReferenceAI = async (kind, subject, category = '', count = 10, existing = []) => {
     const seed = Math.floor(Math.random() * 10000);
     const subtopics = TOS[subject] ? TOS[subject].join(', ') : 'General';
+
+    // Feed the model what the library ALREADY covers so it spends the batch on
+    // genuine gaps instead of re-emitting stored entries (which the idempotent
+    // import route silently drops — wasting the budget and cluttering review).
+    const names = (existing || []).filter(Boolean).slice(0, 200);
+    const exclusionDirective = names.length > 0
+        ? `\nALREADY IN THE LIBRARY — do NOT generate any of these ${kind}, nor trivial rewordings of them. Produce ONLY new, missing entries:\n${names.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n`
+        : '';
 
     const schemaBlock = kind === 'constants'
         ? `Each object MUST have exactly these fields:
@@ -249,7 +257,7 @@ export const generateReferenceAI = async (kind, subject, category = '', count = 
     2. ${schemaBlock}
     3. All math/units MUST be valid LaTeX. Use standard engineering values; DO NOT round standard constants.
     4. ZERO HALLUCINATION: only well-established, board-relevant ${kind}. No invented values.
-
+    ${exclusionDirective}
     VARIANCE [Seed: ${seed}]: cover distinct, non-duplicate entries.`;
 
     const rows = await callAI(prompt, true);

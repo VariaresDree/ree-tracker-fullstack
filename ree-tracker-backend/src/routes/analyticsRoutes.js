@@ -52,12 +52,13 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             else if (group.subject === 'EE') dailyEE += group._count.id;
         });
 
-        // Bounded to the last ~year — the calendar UI never renders deeper, and
-        // an unbounded scan grows linearly with account age on every dashboard load.
+        // EVERY active day (uncapped). The Consistency Matrix now renders a grand
+        // total, and the tally invariant totalAnswered == Σ(ActivityLog.count)
+        // only holds if we return all days. One small int-per-day row and a
+        // review account spans at most a couple exam cycles, so the scan is cheap.
         const activityLogs = await prisma.activityLog.findMany({
             where: { userId: uid },
             orderBy: { date: 'desc' },
-            take: 365,
         });
         const activityCalendar = {};
         activityLogs.forEach(log => activityCalendar[log.date] = log.count);
