@@ -2,11 +2,12 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore'; // 🚀 FIXED: Dynamic Store Import
 import { useAuth } from '../../contexts/AuthContext';
-import { Button, FormField, Select, Modal, Badge } from '../../components/ui';
+import { Button, FormField, Input, Select, Modal, Badge } from '../../components/ui';
 import { Sparkles, FileText, FileUp, X, TriangleAlert } from '../../components/ui/icons';
 
 export default function LibraryIngestion({
   genSubject, setGenSubject, genSubtopic, setGenSubtopic,
+  genFocus, setGenFocus,
   genLoading, genStatus, parsingPdf, isOnline, selectedPdf,
   isDragging, handleDragOver, handleDragLeave, handleDrop,
   generatedQuestions, showQAModal, setShowQAModal, isCommitting,
@@ -56,6 +57,16 @@ export default function LibraryIngestion({
                   <option value="All">All topics</option>
                   {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
                 </Select>
+              </FormField>
+              <FormField
+                label="Specific focus (optional)"
+                hint="Steer the generator — a finer subtopic or a style of question. Blank = default behavior."
+              >
+                <Input
+                  value={genFocus}
+                  onChange={e => setGenFocus(e.target.value)}
+                  placeholder="e.g. Circle, transformer losses, PEC grounding…"
+                />
               </FormField>
             </div>
           </div>
