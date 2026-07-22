@@ -40,24 +40,28 @@ export default function LibraryIngestion({
             </h3>
             <p className="text-xs text-muted2 mb-5">Generate new questions targeted at a specific topic from the syllabus.</p>
             <div className="flex flex-col gap-3">
-              <FormField label="Subject">
-                <Select
-                    value={genSubject}
-                    onChange={e => {
-                        setGenSubject(e.target.value);
-                        // Reset to the neutral sentinel, not topic index 0.
-                        setGenSubtopic('All');
-                    }}
-                >
-                  {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Topic">
-                <Select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)}>
-                  <option value="All">All topics</option>
-                  {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
-                </Select>
-              </FormField>
+              {/* Subject + Topic share a row on ≥sm so the card stays compact on
+                  desktop (the paired extraction card no longer gets stretched). */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField label="Subject">
+                  <Select
+                      value={genSubject}
+                      onChange={e => {
+                          setGenSubject(e.target.value);
+                          // Reset to the neutral sentinel, not topic index 0.
+                          setGenSubtopic('All');
+                      }}
+                  >
+                    {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
+                  </Select>
+                </FormField>
+                <FormField label="Topic">
+                  <Select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)}>
+                    <option value="All">All topics</option>
+                    {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
+                  </Select>
+                </FormField>
+              </div>
               <FormField
                 label="Specific focus (optional)"
                 hint="Steer the generator — a finer subtopic or a style of question. Blank = default behavior."
@@ -81,8 +85,11 @@ export default function LibraryIngestion({
         </div>
 
         {/* RIGHT PANEL: PDF & image extraction */}
-        <div className="p-6 bg-surface border border-border rounded-[var(--radius-lg)] flex flex-col justify-between shadow-sm">
-          <div>
+        <div className="p-6 bg-surface border border-border rounded-[var(--radius-lg)] flex flex-col shadow-sm">
+          {/* flex-1 chain: the drop zone stretches to absorb whatever height the
+              generation card sets, instead of leaving dead space below it — and a
+              taller drop target is easier to hit. */}
+          <div className="flex flex-col flex-1">
             <h3 className="text-base font-semibold text-textMain flex items-center gap-2 mb-1">
               <FileText size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent)' }} /> PDF & image extraction
             </h3>
@@ -94,7 +101,7 @@ export default function LibraryIngestion({
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => !parsingPdf && fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-[var(--radius-lg)] p-6 flex flex-col items-center justify-center transition-all relative cursor-pointer min-h-[140px] group
+                  className={`border-2 border-dashed rounded-[var(--radius-lg)] p-6 flex flex-col items-center justify-center transition-all relative cursor-pointer min-h-[140px] flex-1 group
                       ${isDragging ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[var(--accent)] scale-[1.02]' : 'bg-bg border-border2 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] hover:bg-surface'}
                   `}
               >
@@ -115,7 +122,7 @@ export default function LibraryIngestion({
                 </div>
               </div>
             ) : (
-              <div className="border rounded-[var(--radius-lg)] p-6 flex flex-col items-center justify-center min-h-[140px] text-center animate-in fade-in relative overflow-hidden"
+              <div className="border rounded-[var(--radius-lg)] p-6 flex flex-col items-center justify-center min-h-[140px] flex-1 text-center animate-in fade-in relative overflow-hidden"
                 style={{
                   borderColor: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)',
                   background: 'color-mix(in srgb, var(--accent-signal) 5%, transparent)',
@@ -142,21 +149,26 @@ export default function LibraryIngestion({
             )}
           </div>
 
-          {(genStatus && !parsingPdf && !showQAModal) && (
-            <div
-              className="mt-4 p-3 rounded-[var(--radius-default)] text-xs font-medium border"
-              style={
-                genStatus.includes('✅')
-                  ? { background: 'color-mix(in srgb, var(--accent-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)', color: 'var(--accent-success)' }
-                  : genStatus.includes('❌')
-                    ? { background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)', color: 'var(--accent-danger)' }
-                    : undefined
-              }
-            >
-              {genStatus}
-            </div>
-          )}
         </div>
+
+        {/* Shared result strip — genStatus is set by BOTH panels (generation and
+            extraction), so it spans the full row instead of dangling at the
+            bottom of the extraction card where left-panel results looked lost. */}
+        {(genStatus && !parsingPdf && !showQAModal) && (
+          <div
+            role="status"
+            className="lg:col-span-2 p-3 rounded-[var(--radius-default)] text-xs font-medium border border-border bg-surface"
+            style={
+              genStatus.includes('✅')
+                ? { background: 'color-mix(in srgb, var(--accent-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)', color: 'var(--accent-success)' }
+                : genStatus.includes('❌')
+                  ? { background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)', color: 'var(--accent-danger)' }
+                  : undefined
+            }
+          >
+            {genStatus}
+          </div>
+        )}
       </div>
 
       {/* Review generated questions before they enter the vault */}
