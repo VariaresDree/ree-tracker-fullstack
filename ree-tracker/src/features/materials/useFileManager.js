@@ -4,7 +4,29 @@ import { storage } from '../../config/firebaseDb';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import toast from 'react-hot-toast';
-import { apiRequest } from '../../services/dbQueries';
+import {
+  apiRequest,
+  createFolder as apiCreateFolder,
+  deleteMaterial, deleteFolder,
+  updateFolder, updateMaterial,
+  commitMaterialLink,
+} from '../../services/dbQueries';
+
+// The vault UI uses a virtual 'root' id; the backend stores root as a null
+// parent/folder FK (the client display filter already maps null → 'root').
+const toBackendFolderId = (fid) => (!fid || fid === 'root' ? null : fid);
+
+// Map a File's MIME type to the material `type` the vault renders/badges by.
+const deriveType = (file) => {
+  const t = file?.type || '';
+  if (t.startsWith('image/')) return 'image';
+  if (t.startsWith('audio/')) return 'audio';
+  if (t.startsWith('video/')) return 'video';
+  if (t === 'application/pdf') return 'pdf';
+  return 'file';
+};
+
+const isOfflineErr = (e) => e?.message?.includes('[OFFLINE]');
 
 export const useFileManager = (currentUser, isAdmin) => {
   const [folders, setFolders] = useState([]);
@@ -50,12 +72,58 @@ export const useFileManager = (currentUser, isAdmin) => {
     setCurrentFolderId(newPath[newPath.length - 1].id);
   };
 
-  // --- CRUD OPERATIONS (PostgreSQL Stubs) ---
-  const createFolder = async (name) => toast.error("Database route pending construction.");
-  const addMaterialRecord = async (materialData) => toast.error("Database route pending construction.");
-  const deleteItem = async (id, isFolder) => toast.error("Database route pending construction.");
-  const renameItem = async (id, isFolder, newName) => toast.error("Database route pending construction.");
-  const moveItem = async (itemId, itemType, targetFolderId) => toast.error("Database route pending construction.");
+  // --- CRUD OPERATIONS (wired to materialRoutes; admin-only server-side) ---
+  const createFolder = async (name) => {
+    try {
+      await apiCreateFolder(name, toBackendFolderId(currentFolderId));
+      await fetchContents();
+      toast.success(`Folder "${name}" created.`);
+    } catch (error) {
+      if (!isOfflineErr(error)) toast.error('Failed to create folder.');
+    }
+  };
+
+  const addMaterialRecord = async ({ name, url, type }) => {
+    try {
+      await commitMaterialLink({ folderId: toBackendFolderId(currentFolderId), name, type: type || 'file', url });
+      await fetchContents();
+      toast.success(`Added "${name}".`);
+    } catch (error) {
+      if (!isOfflineErr(error)) toast.error('Failed to add material.');
+    }
+  };
+
+  const deleteItem = async (id, isFolder) => {
+    try {
+      if (isFolder) await deleteFolder(id); else await deleteMaterial(id);
+      await fetchContents();
+      toast.success('Deleted.');
+    } catch (error) {
+      if (!isOfflineErr(error)) toast.error('Delete failed.');
+    }
+  };
+
+  const renameItem = async (id, isFolder, newName) => {
+    try {
+      if (isFolder) await updateFolder(id, { name: newName });
+      else await updateMaterial(id, { name: newName });
+      await fetchContents();
+    } catch (error) {
+      if (!isOfflineErr(error)) toast.error('Rename failed.');
+    }
+  };
+
+  const moveItem = async (itemId, itemType, targetFolderId) => {
+    try {
+      const folderId = toBackendFolderId(targetFolderId);
+      if (itemType === 'folder') await updateFolder(itemId, { parentId: folderId });
+      else await updateMaterial(itemId, { folderId });
+      await fetchContents();
+      toast.success('Moved.');
+    } catch (error) {
+      if (!isOfflineErr(error)) toast.error('Move failed.');
+    }
+  };
 
   // --- UNIFIED UPLOAD WITH COMPRESSION ---
   const uploadAndCommitMaterial = async (file, customTitle) => {
@@ -92,18 +160,23 @@ export const useFileManager = (currentUser, isAdmin) => {
       async () => {
         try {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          
-          // Phase 3: We will send this payload to the PostgreSQL backend
-          const payload = { 
-              name: cleanTitle.trim(), 
-              url: downloadURL, 
-              folderId: currentFolderId, 
-              storagePath: uploadTask.snapshot.ref.fullPath,
-          };
-          
-          toast.success(`✅ Uploaded to Storage: ${cleanTitle}`);
+          // Persist the Firebase downloadURL to PostgreSQL via the JSON url-branch
+          // of POST /upload, then refresh so the material actually appears. (This
+          // step was previously a discarded `// Phase 3` TODO — the file reached
+          // Storage but was never saved, so nothing showed up in the vault.)
+          await commitMaterialLink({
+            folderId: toBackendFolderId(currentFolderId),
+            name: cleanTitle.trim(),
+            type: deriveType(file),
+            url: downloadURL,
+            storagePath: uploadTask.snapshot.ref.fullPath,
+          });
+          await fetchContents();
+          toast.success(`Uploaded: ${cleanTitle}`);
         } catch (error) {
-          toast.error("Failed to commit media metadata.");
+          toast.error(isOfflineErr(error)
+            ? 'Uploaded to storage — will save the record when you reconnect.'
+            : 'Uploaded to storage, but saving the record failed.');
         } finally {
           setIsUploading(false);
         }

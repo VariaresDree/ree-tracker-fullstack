@@ -292,11 +292,13 @@ model Material {
   id          String   @id @default(uuid())
   name        String
   url         String
-  type        String   
+  type        String
   storagePath String?
-  folderId    String
+  // Nullable = a root-level material (no parent folder). Uploading at the vault
+  // root previously threw a Prisma P2003 FK violation against the virtual 'root'.
+  folderId    String?
   createdAt   DateTime @default(now())
-  folder      Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
   // FK filtered on every folder delete + cascade; Postgres doesn't auto-index FKs.
   @@index([folderId])

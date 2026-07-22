@@ -155,7 +155,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
 
       {/* Middle Section: Full-Width Monthly Calendar Heatmap with explicitly set minHeight */}
       <div className="w-full min-h-[250px]">
-        <ActivityCalendar activityCalendar={stats?.activityCalendar || {}} targetQuota={50} />
+        <ActivityCalendar activityCalendar={stats?.activityCalendar || {}} targetQuota={stats?.dailyTarget || 50} />
       </div>
 
       {/* Bottom Section: Operational Milestones (Locked & Unlocked) */}

@@ -51,7 +51,18 @@ export default function ReferenceAdmin() {
         setAiRows([]); setAiSelected(new Set());
         const toastId = toast.loading('Generating with AI…');
         try {
-            const rows = await generateReferenceAI(panel, aiSubject, aiCategory.trim(), 10);
+            // Tell the model what already exists so it only fills gaps. Constants
+            // are keyed by category+name (filter by category when one is set);
+            // formulas by subject+title.
+            const cat = aiCategory.trim();
+            const existing = panel === 'constants'
+                ? mergedConstants
+                    .filter((c) => !cat || c.category === cat)
+                    .map((c) => c.name)
+                : mergedFormulas
+                    .filter((f) => f.subject === aiSubject)
+                    .map((f) => f.title);
+            const rows = await generateReferenceAI(panel, aiSubject, cat, 10, existing);
             // Keep only rows that satisfy the backend schema's required fields,
             // so a partial hallucination can't be selected into a 400.
             const valid = (rows || []).filter((r) => panel === 'constants'

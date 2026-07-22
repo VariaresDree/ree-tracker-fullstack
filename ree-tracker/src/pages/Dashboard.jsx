@@ -143,7 +143,10 @@ export default function Dashboard() {
       timeMs += t.totalTime || 0;
     });
     return {
-      answered: Math.max(activeStats?.totalAnswered || 0, attempts),
+      // Canonical count — server-authoritative `totalAnswered` (reconciled in
+      // analyticsSync so it equals Σ of the Consistency-Matrix days). No longer
+      // max()'d against Σ microTopics, whose shape varies by hydration path.
+      answered: activeStats?.totalAnswered || 0,
       accuracy: attempts > 0 ? Math.round((correct / attempts) * 100) : 0,
       avgSec: attempts > 0 ? timeMs / attempts / 1000 : 0,
       streak: activeStats?.globalStreak || 0,

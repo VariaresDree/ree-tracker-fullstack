@@ -88,6 +88,28 @@ export function mergeServerIntoStats(stats, sqlData) {
   const todayStats = sqlData.dailyStats || sqlData.profile?.dailyStats || {};
   const pickMax = (...vals) => Math.max(...vals.map((v) => Number(v) || 0));
 
+  // Answered-questions tally: server is the single source of truth. The backend
+  // returns EVERY day uncapped and increments QuestionAttempt + ActivityLog in
+  // lockstep, so server `totalAnswered === Σ(server activityCalendar)`. We overlay
+  // only the LOCAL optimistic EXCESS (attempts answered locally but not yet
+  // aggregated server-side) uniformly onto BOTH the per-day calendar and the
+  // total — so the invariant `totalAnswered === Σ(activityCalendar)` is preserved,
+  // and the Dashboard KPI, the Consistency-Matrix total, and the heatmap-day sum
+  // can never diverge again.
+  const serverCalendar = sqlData.activityCalendar || {};
+  const localCalendar = stats?.activityCalendar || {};
+  const activityCalendar = { ...serverCalendar };
+  let optimisticDelta = 0;
+  for (const [day, raw] of Object.entries(localCalendar)) {
+    const localCount = Number(raw) || 0;
+    const serverCount = Number(serverCalendar[day]) || 0;
+    if (localCount > serverCount) {
+      activityCalendar[day] = localCount;
+      optimisticDelta += localCount - serverCount;
+    }
+  }
+  const totalAnswered = (Number(sqlData.profile?.totalAnswered) || 0) + optimisticDelta;
+
   return {
     ...stats,
     role: sqlData.profile?.role || stats?.role || 'USER',
@@ -99,12 +121,12 @@ export function mergeServerIntoStats(stats, sqlData) {
     thetaHistory: sqlData.thetaHistory?.length
       ? sqlData.thetaHistory
       : stats?.thetaHistory || [],
-    activityCalendar: { ...(sqlData.activityCalendar || {}), ...(stats?.activityCalendar || {}) },
+    activityCalendar,
     dailyMath: pickMax(todayStats.Math, sqlData.profile?.dailyMath, stats?.dailyMath),
     dailyESAS: pickMax(todayStats.ESAS, sqlData.profile?.dailyESAS, stats?.dailyESAS),
     dailyEE: pickMax(todayStats.EE, sqlData.profile?.dailyEE, stats?.dailyEE),
     globalStreak: pickMax(sqlData.profile?.globalStreak, stats?.globalStreak),
-    totalAnswered: pickMax(sqlData.profile?.totalAnswered, stats?.totalAnswered),
+    totalAnswered,
     totalCorrect: pickMax(
       stats?.totalCorrect,
       Object.values(mergedMicroTopics).reduce((s, t) => s + (t.correct || 0), 0),

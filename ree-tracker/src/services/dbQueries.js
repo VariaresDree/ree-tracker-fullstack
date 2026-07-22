@@ -456,6 +456,13 @@ export const fetchMaterials = async (folderId = null) => {
 export const createFolder = async (name, parentId = null) => apiRequest('/api/materials/folders', 'POST', { name, parentId });
 export const deleteMaterial = async (id) => apiRequest(`/api/materials/${id}`, 'DELETE');
 export const deleteFolder = async (id) => apiRequest(`/api/materials/folders/${id}`, 'DELETE');
+// Persist an already-hosted material (e.g. a Firebase Storage downloadURL) via
+// the JSON `url` branch of POST /upload — NOT the multipart `uploadMaterial`
+// helper above, which the express.json() route would reject.
+export const commitMaterialLink = async ({ folderId = null, name, type, url, storagePath = null }) =>
+    apiRequest('/api/materials/upload', 'POST', { folderId, name, type, url, storagePath });
+export const updateMaterial = async (id, data) => apiRequest(`/api/materials/${id}`, 'PATCH', data);
+export const updateFolder = async (id, data) => apiRequest(`/api/materials/folders/${id}`, 'PATCH', data);
 
 // ----------------------------------------------------------------------
 // 8. High-Speed Local Simulation Ledger (IndexedDB)

@@ -24,6 +24,11 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
 
   const atCurrentMonth = currentDate.getMonth() === tMonth - 1 && currentDate.getFullYear() === tYear;
 
+  // Grand total across ALL days — this equals the Dashboard "Questions answered"
+  // KPI and the store's totalAnswered (the backend returns every day uncapped and
+  // analyticsSync reconciles them to one server-authoritative number).
+  const grandTotal = Object.values(activityCalendar).reduce((sum, n) => sum + (Number(n) || 0), 0);
+
   // Color Intensity Logic based on Question Count Target
   const getIntensityClass = (count) => {
       if (!count || count === 0) return 'bg-surface2 border-border2 text-muted2';
@@ -43,6 +48,9 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
             <span>📅</span> Consistency Matrix
           </h3>
           <p className="text-sm text-muted mt-1 font-medium">Calendar Heatmap (Daily Target: {targetQuota} Qs)</p>
+          <p className="text-eyebrow mt-2 text-textMain">
+            {grandTotal.toLocaleString()} questions answered all-time
+          </p>
         </div>
         
         {/* Month Navigation */}
