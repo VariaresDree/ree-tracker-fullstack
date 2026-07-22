@@ -13,6 +13,9 @@ export const useAIIngestion = (onIngestSuccess) => {
   // launched without opening the Topic dropdown silently targeted that one
   // topic. getStrictRules() treats 'All' as "categorize into any valid subtopic".
   const [genSubtopic, setGenSubtopic] = useState('All');
+  // Optional free-text steering finer than the TOS dropdown (a sub-subtopic,
+  // device, or question style). Blank = generation behaves exactly as before.
+  const [genFocus, setGenFocus] = useState('');
   const [genLoading, setGenLoading] = useState(false);
   const [genStatus, setGenStatus] = useState('');
   const [recentGenerations, setRecentGenerations] = useState([]);
@@ -34,7 +37,7 @@ export const useAIIngestion = (onIngestSuccess) => {
     setGenLoading(true);
     setGenStatus(useWeb ? 'Querying grounded web data...' : 'Querying internal logic core...');
     try {
-      const newQs = await generateQuestionsAI(genSubject, genSubtopic, useWeb, 5, recentGenerations);
+      const newQs = await generateQuestionsAI(genSubject, genSubtopic, useWeb, 5, recentGenerations, genFocus.trim() || null);
 
       if (newQs && newQs.length > 0) {
         for (const q of newQs) {
@@ -195,6 +198,7 @@ export const useAIIngestion = (onIngestSuccess) => {
 
   return {
     genSubject, setGenSubject, genSubtopic, setGenSubtopic,
+    genFocus, setGenFocus,
     genLoading, genStatus, parsingPdf, selectedPdf,
     isDragging, handleDragOver, handleDragLeave, handleDrop,
     generatedQuestions, showQAModal, setShowQAModal, isCommitting,
