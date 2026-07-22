@@ -111,6 +111,7 @@ model Topic {
 
   questions         Question[]
   topicPerformances UserTopicPerformance[]
+  referenceCards    ReferenceCard[]
 
   @@unique([subject, normKey])
   @@index([subject, active, sortOrder])
@@ -546,6 +547,80 @@ model EngineeringFormula {
 
   @@unique([subject, title])
   @@index([subject])
+}
+
+// ── Reference flashcard vault (replaces EngineeringConstant/EngineeringFormula) ──
+// The two legacy tables above are DEPRECATED: nothing reads them anymore; their
+// rows are wiped by scripts/wipeReferenceLegacy.js and the tables themselves get
+// dropped in a later manual `db push --accept-data-loss` (the deploy build's
+// plain `db push` intentionally fails on destructive changes).
+
+// An authoritative source a card cites (textbook/edition, code/standard, PEC
+// section) — keeps values traceable and bulk-updatable when a standard revises.
+model ReferenceSource {
+  id        String   @id @default(uuid())
+  title     String            // e.g. "Philippine Electrical Code"
+  kind      String?           // 'textbook' | 'code' | 'standard' | ...
+  edition   String?           // e.g. "2017"
+  section   String?           // e.g. "PEC 2.10.1.2"
+  url       String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cards ReferenceCard[]
+
+  @@unique([title, edition])
+}
+
+// One interactive flashcard: a constant, formula, or concept. Filed under the
+// SHARED question-bank taxonomy (subject + Topic FK — never a parallel one);
+// `subtopicTag` is a free-text finer label for grouping/search, NOT a taxonomy
+// node. Content completeness is enforced by schemas/referenceCardSchemas at
+// every entry point (AI intake, admin create/edit, bulk approve), with
+// `dimensionless` as the controlled exception to the value requirement.
+model ReferenceCard {
+  id             String   @id @default(uuid())
+  kind           String            // 'constant' | 'formula' | 'concept'
+  symbol         String?           // e.g. "X_c"
+  name           String            // e.g. "Capacitive Reactance"
+  formulaLatex   String?           // required for kind='formula'
+  valueUnit      String?           // required for kind='constant' unless dimensionless
+  description    String            // plain-language meaning (required)
+  variables      Json     @default("[]")  // [{ symbol, meaning, unit }] — must cover formulaLatex
+  purposeExamTip String?           // board-exam application + common traps
+  subject        String            // canonical: 'Mathematics' | 'ESAS' | 'EE'
+  topicId        String?
+  topic          Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  subtopicTag    String?
+  dimensionless  Boolean  @default(false)
+  status         String   @default("PENDING") // PENDING | LIVE | REJECTED
+  sourceId       String?
+  source         ReferenceSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  submittedBy    String?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([kind, subject, name])
+  @@index([status, subject])
+  @@index([topicId])
+}
+
+// Audit trail for card lifecycle (mirrors QuestionVersion): who did what, when,
+// with a content snapshot. `cardId` is a plain string (no FK) so the audit
+// history survives a card delete.
+model ReferenceCardVersion {
+  id        String   @id @default(uuid())
+  cardId    String
+  action    String            // SUBMITTED | CREATED | EDITED | APPROVED | REJECTED | DELETED
+  editor    String?           // uid; null = system/AI
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  @@index([cardId, createdAt])
 }
 
 // Phase 3: Weekly readiness score snapshots

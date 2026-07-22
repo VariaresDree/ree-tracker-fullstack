@@ -223,48 +223,53 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
     }
 };
 
-// Generate reference-library rows (engineering constants or formulas) with AI,
-// shaped to match the backend referenceSchemas so they insert cleanly through
-// the existing idempotent import route. Reuses callAI's LaTeX-safe JSON parse.
-//   kind: 'constants' | 'formulas'
-// Returns a raw array (the admin UI previews + lets the user select before insert).
-export const generateReferenceAI = async (kind, subject, category = '', count = 10, existing = []) => {
+// Generate COMPLETE reference flashcards (constants / formulas / concepts)
+// shaped for POST /api/reference-cards/ai-intake. Every field is required — no
+// bare symbols; the client previews + pre-validates, and the server
+// re-validates authoritatively and queues only complete cards for HUMAN review
+// (a wrong constant value is as damaging as a wrong answer key).
+//   kind: 'constant' | 'formula' | 'concept'
+//   topic: an EXACT topic name from the shared taxonomy (dynamicTOS[subject]).
+export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, existingNames = [], specificFocus = null) => {
     const seed = Math.floor(Math.random() * 10000);
-    const subtopics = TOS[subject] ? TOS[subject].join(', ') : 'General';
-
-    // Feed the model what the library ALREADY covers so it spends the batch on
-    // genuine gaps instead of re-emitting stored entries (which the idempotent
-    // import route silently drops — wasting the budget and cluttering review).
-    const names = (existing || []).filter(Boolean).slice(0, 200);
+    const names = (existingNames || []).filter(Boolean).slice(0, 200);
     const exclusionDirective = names.length > 0
-        ? `\nALREADY IN THE LIBRARY — do NOT generate any of these ${kind}, nor trivial rewordings of them. Produce ONLY new, missing entries:\n${names.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n`
+        ? `\nALREADY IN THE LIBRARY — do NOT generate any of these (nor trivial rewordings). Produce ONLY new, missing entries:\n${names.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n`
         : '';
+    const focusDirective = specificFocus
+        ? `\nSPECIFIC FOCUS: center every card on "${specificFocus}" (a finer slice of the topic).\n`
+        : '';
+    const kindNoun = kind === 'constant' ? 'engineering constants/standard values'
+        : kind === 'formula' ? 'engineering formulas'
+        : 'engineering concepts';
 
-    const schemaBlock = kind === 'constants'
-        ? `Each object MUST have exactly these fields:
-      {
-        "category": "A grouping label (e.g. 'Physical Constants', 'PEC Ampacity', 'Conversions')${category ? ` — use "${category}"` : ''}",
-        "name": "The constant's name (e.g. 'Speed of Light', 'Copper Resistivity')",
-        "value": "The value WITH units as a LaTeX string (e.g. '$3 \\\\times 10^8\\\\ \\\\text{m/s}$')",
-        "keyword": "one short search keyword",
-        "subject": "${subject}"
-      }`
-        : `Each object MUST have exactly these fields:
-      {
-        "title": "The formula's name (e.g. 'Ohm's Law', 'Three-Phase Real Power')",
-        "eq": "The equation as a LaTeX string (e.g. '$$P = \\\\sqrt{3}\\\\,V_L I_L \\\\cos\\\\theta$$')",
-        "subject": "${subject}",
-        "subtopics": ["one or more of these EXACT strings: ${subtopics}"]
-      }`;
-
-    const prompt = `You are compiling an authoritative reference sheet for the Philippine Registered Electrical Engineer (REE) Board Exam.
-    Generate EXACTLY ${count} ${kind === 'constants' ? 'engineering constants/standard values' : 'engineering formulas'} for the subject: ${subject}${category ? (kind === 'constants' ? `, category: ${category}` : `, specifically focusing on: ${category}`) : ''}.
-
+    const prompt = `You are compiling an authoritative FLASHCARD reference for the Philippine Registered Electrical Engineer (REE) Board Exam, built for deep comprehension — not bare-symbol memorization.
+    Generate EXACTLY ${count} COMPLETE ${kindNoun} flashcards for Subject: ${subject}, Topic: ${topic}.
+    ${focusDirective}
     CRITICAL RULES:
     1. Return ONLY a raw JSON array of objects — no markdown fences, no prose.
-    2. ${schemaBlock}
-    3. All math/units MUST be valid LaTeX. Use standard engineering values; DO NOT round standard constants.
-    4. ZERO HALLUCINATION: only well-established, board-relevant ${kind}. No invented values.
+    2. Each object MUST include ALL of these fields, fully filled (a bare symbol or empty field is a hard failure):
+      {
+        "kind": "${kind}",
+        "symbol": "short symbol, LaTeX ok (e.g. 'X_c'); null only if the entry truly has none",
+        "name": "Full name (e.g. 'Capacitive Reactance')",
+        "formulaLatex": ${kind === 'formula'
+            ? '"REQUIRED — the expression as LaTeX (e.g. \'X_c = \\\\frac{1}{2\\\\pi f C}\')"'
+            : '"a defining relation as LaTeX, or null"'},
+        "valueUnit": ${kind === 'constant'
+            ? '"REQUIRED — the exact value WITH units as LaTeX (e.g. \'$8.854\\\\times10^{-12}$ F/m\'); if genuinely dimensionless set dimensionless true instead of inventing a value"'
+            : '"the unit of the result (e.g. \'Ohms ($\\\\Omega$)\'), or null"'},
+        "description": "REQUIRED — 1-3 plain-language sentences on what the concept represents",
+        "variables": [ { "symbol": "f", "meaning": "frequency", "unit": "Hz" } ],
+        "purposeExamTip": "REQUIRED — how it is applied in board problem-solving, plus one common trap/mistake to watch for",
+        "subject": "${subject}",
+        "topic": "${topic}",
+        "subtopicTag": "a finer free-text tag within the topic (e.g. 'Capacitance'), or null",
+        "dimensionless": false
+      }
+    3. For formulas: "variables" MUST cover EVERY symbol appearing in formulaLatex (except the defined symbol itself and known constants like \\pi), each with meaning and unit.
+    4. All math/units MUST be valid LaTeX. Use standard engineering values; DO NOT round standard constants. ZERO HALLUCINATION — only well-established, board-relevant content.
+    5. "topic" must be EXACTLY "${topic}" and "subject" EXACTLY "${subject}".
     ${exclusionDirective}
     VARIANCE [Seed: ${seed}]: cover distinct, non-duplicate entries.`;
 

@@ -197,7 +197,8 @@ async function bootstrap() {
     app.use('/api/readiness', require('./src/routes/readinessRoutes'));
     app.use('/api/analytics/deep', require('./src/routes/analyticsDeepRoutes'));
     app.use('/api/forecast', require('./src/routes/forecastRoutes'));
-    app.use('/api/reference', require('./src/routes/referenceRoutes'));
+    // Reference flashcard vault (replaced the legacy /api/reference constants+formulas routes).
+    app.use('/api/reference-cards', require('./src/routes/referenceCardRoutes'));
     app.use('/api/admin', require('./src/routes/adminRoutes'));
     app.use('/api/review', require('./src/routes/reviewRoutes'));
 
