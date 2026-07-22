@@ -37,6 +37,7 @@ export default function Library() {
   // 2. AI Generator Sub-Engine (Passes initializeVault to auto-refresh the grid on QA success)
   const {
     genSubject, setGenSubject, genSubtopic, setGenSubtopic,
+    genFocus, setGenFocus,
     genLoading, genStatus, parsingPdf, selectedPdf,
     isDragging, handleDragOver, handleDragLeave, handleDrop,
     generatedQuestions, showQAModal, setShowQAModal, isCommitting,
@@ -59,6 +60,7 @@ export default function Library() {
       <LibraryIngestion 
         genSubject={genSubject} setGenSubject={setGenSubject}
         genSubtopic={genSubtopic} setGenSubtopic={setGenSubtopic}
+        genFocus={genFocus} setGenFocus={setGenFocus}
         genLoading={genLoading} genStatus={genStatus}
         parsingPdf={parsingPdf} isOnline={isOnline} selectedPdf={selectedPdf} 
         isDragging={isDragging} handleDragOver={handleDragOver} handleDragLeave={handleDragLeave} handleDrop={handleDrop}

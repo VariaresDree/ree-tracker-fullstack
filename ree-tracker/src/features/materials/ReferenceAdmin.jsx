@@ -229,7 +229,7 @@ export default function ReferenceAdmin() {
                         <select className={`${inputCls} !w-auto`} value={aiSubject} onChange={(e) => setAiSubject(e.target.value)}>
                             {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
-                        <input className={`${inputCls} !w-44`} placeholder={panel === 'constants' ? 'Category (optional)' : 'Focus (optional)'} value={aiCategory} onChange={(e) => setAiCategory(e.target.value)} />
+                        <input className={`${inputCls} !w-56`} placeholder={panel === 'constants' ? 'Category (optional)' : 'Specific focus / subtopic (optional)'} value={aiCategory} onChange={(e) => setAiCategory(e.target.value)} />
                         <button onClick={handleGenerateAI} disabled={aiBusy}
                             className="px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-reePurple/15 border border-reePurple/40 text-reePurple hover:bg-reePurple/25 transition-all cursor-pointer disabled:opacity-50">
                             {aiBusy ? 'Working…' : 'Generate 10'}

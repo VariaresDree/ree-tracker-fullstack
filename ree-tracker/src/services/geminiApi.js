@@ -124,16 +124,24 @@ const getStrictRules = (subject, targetSubtopic) => {
     ]`;
 };
 
-export const generateQuestionsAI = async (subject, subtopic, useWeb = false, count = 5, recentContext = []) => {
+export const generateQuestionsAI = async (subject, subtopic, useWeb = false, count = 5, recentContext = [], specificFocus = null) => {
     const randomSeed = Math.floor(Math.random() * 10000);
 
     const exclusionDirective = recentContext.length > 0
         ? `\nCRITICAL ANTI-LOOP DIRECTIVE: You MUST NOT generate questions that are structurally or conceptually identical to these recent outputs:\n${recentContext.map((q, i) => `${i+1}. ${q}`).join('\n')}\n`
         : '';
 
+    // Optional free-text steering (finer than the TOS dropdown): a sub-subtopic
+    // ("Circle"), a device ("transformer losses"), or a question style ("PEC
+    // code questions"). Content-only — the "subtopic" field still obeys
+    // getStrictRules, so stored taxonomy/analytics are unaffected.
+    const focusDirective = specificFocus
+        ? `\nSPECIFIC FOCUS: Center every question on "${specificFocus}" — a finer slice of the target topic (sub-subtopic, device, code article, or question style). The "subtopic" field must STILL obey the rules below.\n`
+        : '';
+
     const prompt = `You are an elite examiner writing questions for the Philippine Registered Electrical Engineer (REE) Board Exam.
     Generate EXACTLY ${count} multiple-choice questions for the subject: ${subject}. Target Focus: ${subtopic}.
-
+    ${focusDirective}
     ${getStrictRules(subject, subtopic)}
     ${exclusionDirective}
 
@@ -250,7 +258,7 @@ export const generateReferenceAI = async (kind, subject, category = '', count = 
       }`;
 
     const prompt = `You are compiling an authoritative reference sheet for the Philippine Registered Electrical Engineer (REE) Board Exam.
-    Generate EXACTLY ${count} ${kind === 'constants' ? 'engineering constants/standard values' : 'engineering formulas'} for the subject: ${subject}${category ? `, category: ${category}` : ''}.
+    Generate EXACTLY ${count} ${kind === 'constants' ? 'engineering constants/standard values' : 'engineering formulas'} for the subject: ${subject}${category ? (kind === 'constants' ? `, category: ${category}` : `, specifically focusing on: ${category}`) : ''}.
 
     CRITICAL RULES:
     1. Return ONLY a raw JSON array of objects — no markdown fences, no prose.
