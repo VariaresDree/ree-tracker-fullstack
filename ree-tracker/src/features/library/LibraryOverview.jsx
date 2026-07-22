@@ -7,9 +7,11 @@ import {
     updateReviewItem,
     approveReviewItem,
     rejectReviewItem,
+    bulkApproveReviewItems,
     approveQuarantinedQuestion,
     deleteQuestionFromBank
 } from '../../services/dbQueries';
+import { sanitizeOptions, stripChoicePrefix } from '../../utils/sanitizeOptions';
 import { Button, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill } from '../../components/ui';
 import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
@@ -20,6 +22,23 @@ const TRACK_ACCENT = {
   Mathematics: 'var(--accent-signal)',
   ESAS: 'var(--accent-velocity)',
   EE: 'var(--color-reeAmber)',
+};
+
+// Client mirror of the server's Accept-All clean-item gate
+// (reviewService.isBulkEligible) — drives the label COUNT and the pre-filter
+// only; the server re-validates authoritatively. Legacy flagged items are
+// always excluded (they use a different approve path and deserve eyes).
+const BULK_OK_SUBJECTS = new Set(['mathematics', 'math', 'esas', 'ee', 'electrical engineering']);
+const isBulkEligibleClient = (q) => {
+  if (!q || q.legacy) return false;
+  if (!BULK_OK_SUBJECTS.has(String(q.subject || '').trim().toLowerCase())) return false;
+  const text = q.text || q.content || '';
+  if (typeof text !== 'string' || text.trim().length === 0) return false;
+  const options = sanitizeOptions(q.options);
+  if (!Array.isArray(options) || options.length < 2) return false;
+  const answer = stripChoicePrefix(q.answer);
+  if (typeof answer !== 'string' || answer.trim().length === 0) return false;
+  return options.includes(answer);
 };
 
 export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaultMetadata, manualMode, setManualMode }) {
@@ -42,6 +61,12 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   // Inline editor: one item at a time; `editDraft` holds the working copy.
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
+  // "Accept All" batch approval (confirmation-gated, server-reconciled).
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
+
+  const bulkEligible = quarantineItems.filter(isBulkEligibleClient);
+  const bulkExcludedCount = quarantineItems.length - bulkEligible.length;
 
   // --- REVIEW QUEUE HANDLERS ---
   const openQuarantineQueue = async () => {
@@ -71,6 +96,29 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           resyncVaultMetadata();
       } catch (err) {
           toast.error("Approval failed.");
+      }
+  };
+
+  // ONE batched request; the SERVER response is the source of truth — we remove
+  // exactly what it approved, and anything it failed visibly stays in the queue
+  // with an error toast. No item is ever optimistically shown as live.
+  const handleBulkApprove = async () => {
+      const ids = quarantineItems.filter(isBulkEligibleClient).map((q) => q.id);
+      if (ids.length === 0) { setShowBulkConfirm(false); return; }
+      setIsBulkApproving(true);
+      try {
+          const res = await bulkApproveReviewItems(ids);
+          const approvedSet = new Set(res?.approved || []);
+          setQuarantineItems((prev) => prev.filter((q) => !approvedSet.has(q.id)));
+          const failedCount = (res?.failed || []).length;
+          if (approvedSet.size > 0) toast.success(`${approvedSet.size} question${approvedSet.size === 1 ? '' : 's'} approved and published.`);
+          if (failedCount > 0) toast.error(`${failedCount} item${failedCount === 1 ? '' : 's'} failed and stay${failedCount === 1 ? 's' : ''} in the queue.`);
+          resyncVaultMetadata();
+      } catch {
+          toast.error('Bulk approval failed — nothing was removed from the queue.');
+      } finally {
+          setIsBulkApproving(false);
+          setShowBulkConfirm(false);
       }
   };
 
@@ -345,6 +393,18 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
             />
         ) : (
             <div className="flex flex-col gap-6">
+                {/* Batch header — hidden entirely when nothing is bulk-eligible. */}
+                {bulkEligible.length > 0 && (
+                    <div className="flex items-center justify-between gap-3 flex-wrap border border-border bg-surface2/40 rounded-[var(--radius-default)] px-4 py-3">
+                        <p className="text-xs text-muted2">
+                            <span className="font-bold text-textMain">{bulkEligible.length}</span> item{bulkEligible.length === 1 ? '' : 's'} pass all checks
+                            {bulkExcludedCount > 0 && <> · <span className="font-bold">{bulkExcludedCount}</span> flagged/legacy need individual review</>}
+                        </p>
+                        <Button size="sm" tone="success" onClick={() => setShowBulkConfirm(true)} disabled={isBulkApproving}>
+                            Accept all {bulkEligible.length} valid
+                        </Button>
+                    </div>
+                )}
                 {quarantineItems.map((q) => {
                     const isEditing = editingId === q.id;
                     return (
@@ -453,6 +513,30 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                 })}
             </div>
         )}
+      </Modal>
+
+      {/* Accept-All confirmation — count reflects only what will actually be
+          approved (clean, non-legacy items), never the raw queue length. */}
+      <Modal
+        open={showBulkConfirm}
+        onClose={() => !isBulkApproving && setShowBulkConfirm(false)}
+        tone="amber"
+        icon={Shield}
+        title={`Approve all ${bulkEligible.length} valid item${bulkEligible.length === 1 ? '' : 's'}?`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowBulkConfirm(false)} disabled={isBulkApproving}>Cancel</Button>
+            <Button tone="success" onClick={handleBulkApprove} loading={isBulkApproving} disabled={isBulkApproving || bulkEligible.length === 0}>
+              Approve {bulkEligible.length}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2">
+          This publishes them to users immediately.
+          {bulkExcludedCount > 0 && ` ${bulkExcludedCount} flagged/legacy item${bulkExcludedCount === 1 ? ' is' : 's are'} excluded and stay${bulkExcludedCount === 1 ? 's' : ''} in the queue for individual review.`}
+          {' '}Every approval is logged.
+        </p>
       </Modal>
     </div>
   );

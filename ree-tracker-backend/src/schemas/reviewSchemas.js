@@ -17,4 +17,10 @@ const reviewRejectSchema = z.object({
     reviewNote: z.string().max(2000).optional(),
 });
 
-module.exports = { reviewEditSchema, reviewApproveSchema, reviewRejectSchema };
+// POST /api/review/approve-bulk and /api/questions/explanations/approve-bulk —
+// one batched request, bounded so a runaway payload can't lock the DB loop.
+const bulkIdsSchema = z.object({
+    ids: z.array(z.string().min(1)).min(1).max(200),
+});
+
+module.exports = { reviewEditSchema, reviewApproveSchema, reviewRejectSchema, bulkIdsSchema };

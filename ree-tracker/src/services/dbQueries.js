@@ -211,6 +211,10 @@ export const updateReviewItem = async (id, fields) => apiRequest(`/api/review/${
 // `edits` (optional) ride along so a fixed answer/text applies at promotion.
 export const approveReviewItem = async (id, edits = {}) => apiRequest(`/api/review/${id}/approve`, 'PUT', edits);
 export const rejectReviewItem = async (id, reviewNote) => apiRequest(`/api/review/${id}/reject`, 'PUT', reviewNote ? { reviewNote } : {});
+// "Accept All": ONE batched request (never a client loop). Server approves only
+// clean PENDING items and returns per-item outcomes so the UI can reconcile:
+// { approved: [id], failed: [{ id, reason }] }.
+export const bulkApproveReviewItems = async (ids) => apiRequest('/api/review/approve-bulk', 'POST', { ids });
 export const fetchServerStats = async () => safeApiRequest('/api/questions/stats', 'GET', null, null);
 
 // `cursor` is an integer offset (or null for the first page). `sort` is one of
@@ -525,6 +529,9 @@ export const fetchAnalyticsDeep = async (type) => safeApiRequest(`/api/analytics
 
 export const fetchPendingExplanations = async () => safeApiRequest('/api/questions/explanations/pending', 'GET', null, null);
 export const updateExplanationStatus = async (questionId, status) => apiRequest(`/api/questions/${questionId}/explanation-status`, 'PUT', { status });
+// Batched "Accept All" over the pending explanations page; server touches only
+// still-PENDING rows and audit-logs each approval. { approved, failed } shape.
+export const bulkApproveExplanations = async (ids) => apiRequest('/api/questions/explanations/approve-bulk', 'POST', { ids });
 
 export const generateStudyPlan = async (examDate, topics) => apiRequest('/api/user/tasks/generate-plan', 'POST', { examDate, topics });
 export const clearStudyPlan = async () => apiRequest('/api/user/tasks/clear-plan', 'DELETE');
