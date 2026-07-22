@@ -4,14 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { Button, Tabs, Badge } from '../components/ui';
-import { X, Maximize2, Minimize2, Cloud, Calculator, BookOpen, Bookmark, Settings2 } from '../components/ui/icons';
+import { X, Maximize2, Minimize2, Cloud, BookOpen, Bookmark, Settings2 } from '../components/ui/icons';
 
 // Extracted Components
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
 import CloudVaultTab from '../features/materials/CloudVaultTab';
-import ReferenceHub from '../components/ReferenceHub';
-import ConstantsMatrix from '../features/materials/ConstantsMatrix';
-import ReferenceAdmin from '../features/materials/ReferenceAdmin';
+import ReferenceCardsTab from '../features/reference/ReferenceCardsTab';
+import ReferenceAdminV2 from '../features/reference/ReferenceAdminV2';
 import MediaViewer from '../components/MediaViewer';
 import FullscreenPdfViewer from '../components/FullscreenPdfViewer';
 
@@ -84,10 +83,9 @@ export default function Materials() {
         onChange={setActiveTab}
         tabs={[
           { id: 'cloud_vault', label: 'Cloud Vault', icon: Cloud },
-          { id: 'constants', label: 'Constants', icon: Calculator },
-          { id: 'matrix', label: 'Formulas', icon: BookOpen },
+          { id: 'reference', label: 'Reference Cards', icon: BookOpen },
           { id: 'bookmarks', label: 'Bookmark Vault', icon: Bookmark },
-          ...(isAdmin ? [{ id: 'manage_ref', label: 'Manage Reference', icon: Settings2 }] : []),
+          ...(isAdmin ? [{ id: 'manage_ref', label: 'Manage References', icon: Settings2 }] : []),
         ]}
       />
 
@@ -95,19 +93,13 @@ export default function Materials() {
         <CloudVaultTab currentUser={currentUser} isAdmin={isAdmin} onViewMaterial={setViewingMaterial} />
       )}
 
-      {activeTab === 'constants' && (
-        <div className="flex-1 min-h-[60vh]">
-          <ConstantsMatrix />
-        </div>
-      )}
-      
-      {activeTab === 'matrix' && (
+      {activeTab === 'reference' && (
         <div className="animate-in fade-in slide-in-from-bottom-2">
           <div className="mb-6">
-            <h2 className="text-display text-2xl text-textMain tracking-tight">Formulas</h2>
-            <p className="text-sm text-muted2 mt-1">Offline reference equations and principles.</p>
+            <h2 className="text-display text-2xl text-textMain tracking-tight">Reference cards</h2>
+            <p className="text-sm text-muted2 mt-1">Constants, formulas, and concepts as interactive flashcards — browse by subject and topic, or search. Tap a card to flip it.</p>
           </div>
-          <ReferenceHub />
+          <ReferenceCardsTab />
         </div>
       )}
 
@@ -118,10 +110,10 @@ export default function Materials() {
       {activeTab === 'manage_ref' && isAdmin && (
         <div className="animate-in fade-in slide-in-from-bottom-2">
           <div className="mb-6">
-            <h2 className="text-2xl font-black text-textMain tracking-tight">Manage Reference Library</h2>
-            <p className="text-sm text-muted2 mt-1">Insert, delete, and verify constants &amp; formulas. Additions sync to all users and cache for offline.</p>
+            <h2 className="text-2xl font-black text-textMain tracking-tight">Manage References</h2>
+            <p className="text-sm text-muted2 mt-1">Review AI-generated flashcards, create and re-categorize cards, manage cited sources, and keep the data debt at zero.</p>
           </div>
-          <ReferenceAdmin />
+          <ReferenceAdminV2 />
         </div>
       )}
 

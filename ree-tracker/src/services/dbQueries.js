@@ -2,7 +2,7 @@
 import { auth } from '../config/firebaseDb';
 import { get, set } from 'idb-keyval';
 import { fnv1a } from '../utils/contentHash';
-import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, OFFLINE_SUBJECTS, getReferenceCache, writeReferenceCache } from './offlinePack';
+import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
 // ============================================================================
 // API CORE: Circuit Breaker + Secure Fetch Wrapper
@@ -537,36 +537,39 @@ export const generateStudyPlan = async (examDate, topics) => apiRequest('/api/us
 export const clearStudyPlan = async () => apiRequest('/api/user/tasks/clear-plan', 'DELETE');
 
 // ----------------------------------------------------------------------
-// 9. Modular Reference Library (Constants & Formulas)
-// GET is cached to IndexedDB so admin-added items still render offline;
-// writes are admin-only (enforced server-side).
+// 9. Reference flashcard vault (replaces the legacy constants/formulas API)
+// LIVE-card GET is cached to IndexedDB so the vault renders offline after a
+// first online fetch; all writes are admin-only (enforced server-side).
 // ----------------------------------------------------------------------
-export const fetchConstants = async () => {
+export const fetchReferenceCards = async () => {
     try {
-        const data = await apiRequest('/api/reference/constants');
+        const data = await apiRequest('/api/reference-cards');
         const items = data?.items || [];
-        await writeReferenceCache({ constants: items });
+        await writeReferenceCardsCache(items);
         return items;
     } catch (err) {
-        if (err.message === '[OFFLINE]') return (await getReferenceCache()).constants || [];
+        if (err.message === '[OFFLINE]') return (await getReferenceCardsCache())?.items || [];
         throw err;
     }
 };
-export const fetchFormulas = async () => {
-    try {
-        const data = await apiRequest('/api/reference/formulas');
-        const items = data?.items || [];
-        await writeReferenceCache({ formulas: items });
-        return items;
-    } catch (err) {
-        if (err.message === '[OFFLINE]') return (await getReferenceCache()).formulas || [];
-        throw err;
-    }
+export const fetchPendingReferenceCards = async () => {
+    const data = await apiRequest('/api/reference-cards/pending');
+    return data?.items || [];
 };
-export const createConstant = (body) => apiRequest('/api/reference/constants', 'POST', body);
-export const updateConstant = (id, body) => apiRequest(`/api/reference/constants/${id}`, 'PUT', body);
-export const deleteConstant = (id) => apiRequest(`/api/reference/constants/${id}`, 'DELETE');
-export const createFormula = (body) => apiRequest('/api/reference/formulas', 'POST', body);
-export const updateFormula = (id, body) => apiRequest(`/api/reference/formulas/${id}`, 'PUT', body);
-export const deleteFormula = (id) => apiRequest(`/api/reference/formulas/${id}`, 'DELETE');
-export const importReferenceLibrary = (payload) => apiRequest('/api/reference/import', 'POST', payload);
+export const fetchReferenceCardDebt = async () => apiRequest('/api/reference-cards/debt');
+export const createReferenceCard = (body) => apiRequest('/api/reference-cards', 'POST', body);
+export const updateReferenceCard = (id, body) => apiRequest(`/api/reference-cards/${id}`, 'PUT', body);
+export const approveReferenceCard = (id) => apiRequest(`/api/reference-cards/${id}/approve`, 'PUT', {});
+export const rejectReferenceCard = (id, reviewNote) => apiRequest(`/api/reference-cards/${id}/reject`, 'PUT', reviewNote ? { reviewNote } : {});
+export const deleteReferenceCard = (id) => apiRequest(`/api/reference-cards/${id}`, 'DELETE');
+// { queued: [ids], rejected: [{index, reasons}] } — incomplete AI output never queues.
+export const intakeReferenceCards = (cards) => apiRequest('/api/reference-cards/ai-intake', 'POST', { cards });
+// { approved, failed:[{id, reason}] } — same Accept-All contract as questions.
+export const bulkApproveReferenceCards = (ids) => apiRequest('/api/reference-cards/approve-bulk', 'POST', { ids });
+export const fetchReferenceSources = async () => {
+    const data = await apiRequest('/api/reference-cards/sources');
+    return data?.items || [];
+};
+export const createReferenceSource = (body) => apiRequest('/api/reference-cards/sources', 'POST', body);
+export const updateReferenceSource = (id, body) => apiRequest(`/api/reference-cards/sources/${id}`, 'PUT', body);
+export const deleteReferenceSource = (id) => apiRequest(`/api/reference-cards/sources/${id}`, 'DELETE');
