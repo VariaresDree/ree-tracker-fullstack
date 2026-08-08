@@ -84,20 +84,21 @@ export const getOfflinePackMeta = async () => {
 
 export const isOfflinePackStale = async () => (await getOfflinePackMeta()).stale;
 
-// ---- REFERENCE LIBRARY CACHE ----------------------------------------------
-// Admin-managed constants/formulas mirrored to IndexedDB so DB additions still
-// render in the Materials Hub when offline (bundled seed already ships in the JS
-// bundle; this covers the delta). Written partially — constants and formulas are
-// fetched/cached independently — hence the shallow merge.
-const REFERENCE_KEY = 'ree_reference_cache_v1';
+// ---- REFERENCE CARDS CACHE ------------------------------------------------
+// LIVE reference flashcards mirrored to IndexedDB so the vault still renders
+// offline after a first online fetch. (The old bundled-seed + split
+// constants/formulas cache is retired — the flashcard vault is DB-only.)
+const REFERENCE_CARDS_KEY = 'ree_reference_cards_v1';
+const LEGACY_REFERENCE_KEY = 'ree_reference_cache_v1';
 
-export const getReferenceCache = async () => {
-    try { return (await get(REFERENCE_KEY)) || {}; } catch { return {}; }
+export const getReferenceCardsCache = async () => {
+    try { return (await get(REFERENCE_CARDS_KEY)) || null; } catch { return null; }
 };
 
-export const writeReferenceCache = async (partial) => {
-    const existing = await getReferenceCache();
-    const merged = { ...existing, ...partial, fetchedAt: Date.now() };
-    await set(REFERENCE_KEY, merged);
-    return merged;
+export const writeReferenceCardsCache = async (items) => {
+    const payload = { items: Array.isArray(items) ? items : [], fetchedAt: Date.now() };
+    await set(REFERENCE_CARDS_KEY, payload);
+    // One-time cleanup of the retired legacy cache key (best-effort).
+    del(LEGACY_REFERENCE_KEY).catch(() => {});
+    return payload;
 };

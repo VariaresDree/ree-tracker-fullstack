@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-const { partitionNewAttempts, aggregateTopicRollups, orderedObservationsByTopic, mapAttemptRows, groupPairsBySubject } = require('../src/services/telemetryHelpers');
+const { partitionNewAttempts, aggregateTopicRollups, orderedObservationsByTopic, mapAttemptRows, groupPairsBySubject, clampAnsweredAt, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS } = require('../src/services/telemetryHelpers');
+const { trimBucketsTo } = require('../src/services/telemetryService');
 
 describe('partitionNewAttempts', () => {
   it('treats all rows as new when none are already recorded', () => {
@@ -114,5 +115,78 @@ describe('mapAttemptRows — grading provenance (SEC-2 trust boundary)', () => {
 
     expect(bySubject.EE).toHaveLength(1);
     expect(bySubject.EE[0].correct).toBe(true);
+  });
+
+  it('carries the clamped answeredAt onto every mapped row (offline-dating fix)', () => {
+    const now = new Date('2026-08-08T12:00:00Z');
+    const answeredYesterday = new Date('2026-08-07T20:00:00Z').toISOString();
+    const { mapped } = mapAttemptRows(
+      [{ questionId: 'q1', isCorrect: true, createdAt: answeredYesterday }],
+      qMap,
+      { ...ctx, now },
+    );
+    expect(mapped[0].answeredAt.toISOString()).toBe(new Date(answeredYesterday).toISOString());
+  });
+});
+
+describe('clampAnsweredAt — offline attempt dating stays trustworthy', () => {
+  const now = new Date('2026-08-08T12:00:00Z');
+
+  it('accepts a plausible recent-past timestamp unchanged', () => {
+    const raw = new Date('2026-08-08T09:00:00Z').toISOString();
+    expect(clampAnsweredAt(raw, now).toISOString()).toBe(new Date(raw).toISOString());
+  });
+
+  it('falls back to now for a missing timestamp', () => {
+    expect(clampAnsweredAt(null, now)).toBe(now);
+    expect(clampAnsweredAt(undefined, now)).toBe(now);
+  });
+
+  it('falls back to now for an unparseable value', () => {
+    expect(clampAnsweredAt('not-a-date', now).getTime()).toBe(now.getTime());
+  });
+
+  it('falls back to now for a timestamp beyond the backdate window (untrusted clock)', () => {
+    const tooOld = new Date(now.getTime() - MAX_BACKDATE_MS - 1000).toISOString();
+    expect(clampAnsweredAt(tooOld, now).getTime()).toBe(now.getTime());
+  });
+
+  it('accepts a timestamp right at the backdate boundary', () => {
+    const atBoundary = new Date(now.getTime() - MAX_BACKDATE_MS + 1000).toISOString();
+    expect(clampAnsweredAt(atBoundary, now).getTime()).toBe(new Date(atBoundary).getTime());
+  });
+
+  it('falls back to now for a timestamp too far in the future', () => {
+    const future = new Date(now.getTime() + MAX_CLOCK_SKEW_MS + 1000).toISOString();
+    expect(clampAnsweredAt(future, now).getTime()).toBe(now.getTime());
+  });
+
+  it('tolerates small forward clock skew', () => {
+    const slightlyAhead = new Date(now.getTime() + MAX_CLOCK_SKEW_MS - 1000).toISOString();
+    expect(clampAnsweredAt(slightlyAhead, now).getTime()).toBe(new Date(slightlyAhead).getTime());
+  });
+});
+
+describe('trimBucketsTo — keeps ActivityLog honest when createMany inserts fewer rows than intended', () => {
+  it('is a no-op when the buckets already sum to the target', () => {
+    const buckets = new Map([['2026-08-07', 2], ['2026-08-08', 3]]);
+    trimBucketsTo(buckets, 5);
+    expect([...buckets.values()].reduce((a, b) => a + b, 0)).toBe(5);
+  });
+
+  it('trims the most recent day(s) first when fewer rows landed than intended', () => {
+    const buckets = new Map([['2026-08-06', 2], ['2026-08-07', 2], ['2026-08-08', 2]]);
+    trimBucketsTo(buckets, 4); // 2 fewer landed than the intended 6
+    expect(buckets.get('2026-08-08')).toBe(0);
+    expect(buckets.get('2026-08-07')).toBe(2);
+    expect(buckets.get('2026-08-06')).toBe(2);
+    expect([...buckets.values()].reduce((a, b) => a + b, 0)).toBe(4);
+  });
+
+  it('spills trimming into an earlier day once the most recent day is exhausted', () => {
+    const buckets = new Map([['2026-08-07', 1], ['2026-08-08', 1]]);
+    trimBucketsTo(buckets, 0); // both rows lost the createMany race
+    expect(buckets.get('2026-08-08')).toBe(0);
+    expect(buckets.get('2026-08-07')).toBe(0);
   });
 });

@@ -52,16 +52,28 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             else if (group.subject === 'EE') dailyEE += group._count.id;
         });
 
-        // EVERY active day (uncapped). The Consistency Matrix now renders a grand
-        // total, and the tally invariant totalAnswered == Σ(ActivityLog.count)
-        // only holds if we return all days. One small int-per-day row and a
-        // review account spans at most a couple exam cycles, so the scan is cheap.
-        const activityLogs = await prisma.activityLog.findMany({
-            where: { userId: uid },
-            orderBy: { date: 'desc' },
-        });
+        // EVERY active day (uncapped), rolled up directly from QuestionAttempt —
+        // the SAME table totalAnswered counts below. This used to read a separate
+        // ActivityLog counter table that drifted from the real attempt count over
+        // time (a skipDuplicates race could insert fewer rows than ActivityLog was
+        // incremented by), so the Dashboard KPI and the Consistency Matrix's own
+        // total could permanently disagree. Deriving both from one query makes
+        // totalAnswered == Σ(activityCalendar) hold BY CONSTRUCTION, not by
+        // careful bookkeeping across two write paths. Bucketed on the day the
+        // question was ANSWERED (COALESCE to createdAt for legacy/unset rows),
+        // not the day the row reached the server — see answeredAt on the model.
+        // ActivityLog itself is now streak-ledger-only (telemetryService); it is
+        // no longer a display source.
+        const dayRows = await prisma.$queryRaw`
+            SELECT to_char(COALESCE(qa."answeredAt", qa."createdAt") AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD') AS day,
+                   COUNT(*)::int AS count
+            FROM "QuestionAttempt" qa
+            WHERE qa."userId" = ${uid}
+            GROUP BY 1
+        `;
         const activityCalendar = {};
-        activityLogs.forEach(log => activityCalendar[log.date] = log.count);
+        let totalAnswered = 0;
+        dayRows.forEach((r) => { activityCalendar[r.day] = r.count; totalAnswered += r.count; });
 
         // Per-topic rollup through the taxonomy (Phase 3.3): attempts attribute
         // to their question's CURRENT topic (COALESCE back to the attempt's
@@ -140,7 +152,13 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             if (g.isCorrect) modeBreakdown[k].correct += g._count.id;
         });
 
-        const totalAnswered = Object.values(modeBreakdown).reduce((s, m) => s + m.attempts, 0);
+        // totalAnswered is NOT re-derived here — it's the same value computed
+        // above from the activityCalendar rollup (Σ of every day), so the
+        // Dashboard KPI and the Consistency Matrix's own total are structurally
+        // guaranteed to agree. (modeBreakdown's own attempt sum happens to equal
+        // it too, since both scan QuestionAttempt unfiltered by date — but
+        // computing it twice from two different queries is exactly the
+        // maintenance hazard that caused the original drift.)
 
         // θ-history powers the Readiness Velocity chart. We store one row per
         // Manila day (telemetryService daily-upsert), so the last ~120 rows give

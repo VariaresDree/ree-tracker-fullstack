@@ -71,9 +71,30 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
     setIsAddingMaterial(false);
   };
 
+  // Deleting a folder now genuinely cascades its whole subtree (server-side
+  // FK, see materialRoutes), so the confirmation should say so — counted
+  // client-side from the already-fetched flat lists, same shape the backend
+  // walks. Materials-only deletes have nothing to count.
+  const countSubtree = (folderId) => {
+    const folderIds = new Set([folderId]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const f of folders) {
+        if (f.parentId && folderIds.has(f.parentId) && !folderIds.has(f.id)) {
+          folderIds.add(f.id);
+          grew = true;
+        }
+      }
+    }
+    const nestedFolders = folderIds.size - 1;
+    const containedMaterials = materials.filter((m) => folderIds.has(m.folderId || 'root')).length;
+    return { nestedFolders, containedMaterials };
+  };
+
   const confirmDelete = (id, type, name) => {
     if (!isAdmin) return;
-    setDeleteModal({ isOpen: true, id, type, name });
+    setDeleteModal({ isOpen: true, id, type, name, ...(type === 'folder' ? countSubtree(id) : {}) });
   };
 
   const executeDeleteClick = async () => {
@@ -318,7 +339,11 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
           </>
         }
       >
-        <p className="text-sm text-muted2 leading-relaxed">This can't be undone.</p>
+        <p className="text-sm text-muted2 leading-relaxed">
+          {deleteModal.type === 'folder' && (deleteModal.nestedFolders > 0 || deleteModal.containedMaterials > 0)
+            ? `This deletes ${deleteModal.nestedFolders > 0 ? `${deleteModal.nestedFolders} nested folder${deleteModal.nestedFolders === 1 ? '' : 's'}` : ''}${deleteModal.nestedFolders > 0 && deleteModal.containedMaterials > 0 ? ' and ' : ''}${deleteModal.containedMaterials > 0 ? `${deleteModal.containedMaterials} file${deleteModal.containedMaterials === 1 ? '' : 's'}` : ''} inside it too. This can't be undone.`
+            : "This can't be undone."}
+        </p>
       </Modal>
     </div>
   );

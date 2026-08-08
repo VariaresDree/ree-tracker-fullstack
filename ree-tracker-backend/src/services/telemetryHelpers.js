@@ -4,6 +4,37 @@
 const { plausibleTimeMs } = require('../config/telemetryBounds');
 const { normalizeSubject } = require('../utils/subject');
 
+// How far back a client-reported answer timestamp may sit. An offline outbox
+// can legitimately hold attempts for days; 90 days covers a full exam cycle of
+// dead-zone study without letting a badly-skewed clock rewrite ancient history.
+const MAX_BACKDATE_MS = 90 * 24 * 60 * 60 * 1000;
+// Small forward tolerance absorbs benign client/server clock skew instead of
+// discarding an otherwise-good timestamp.
+const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * Clamp a client-reported answer timestamp to something trustworthy.
+ *
+ * This value drives the activity calendar, the streak, and (through them) the
+ * user's sense of their own history — so a client clock is untrusted input.
+ * Anything unparseable, in the future beyond tolerable skew, or older than
+ * MAX_BACKDATE_MS falls back to `now`, which is the pre-existing behavior
+ * (createdAt) and therefore never worse than before.
+ *
+ * @param {string|number|Date|null|undefined} raw client-sent timestamp
+ * @param {Date} [now] injectable for tests
+ * @returns {Date}
+ */
+function clampAnsweredAt(raw, now = new Date()) {
+    if (raw == null) return now;
+    const d = raw instanceof Date ? raw : new Date(raw);
+    const t = d.getTime();
+    if (!Number.isFinite(t)) return now;
+    if (t > now.getTime() + MAX_CLOCK_SKEW_MS) return now;
+    if (t < now.getTime() - MAX_BACKDATE_MS) return now;
+    return d;
+}
+
 /**
  * Map a raw client attempt batch onto QuestionAttempt rows using the master
  * questions (qMap by id). Server data is canonical throughout: grading uses
@@ -15,7 +46,7 @@ const { normalizeSubject } = require('../utils/subject');
  *
  * @returns {{ mapped: Array, gradeDiscrepancies: Array }}
  */
-function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGACY' } = {}) {
+function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGACY', now = new Date() } = {}) {
     const gradeDiscrepancies = [];
     const mapped = (attempts || [])
         .filter((a) => a.questionId && qMap[a.questionId])
@@ -56,6 +87,10 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
                 timeSpentMs: parseInt(a.timeSpentMs) || 0,
                 clientAttemptId: a.clientAttemptId || null,
                 offline: !!a.offline,
+                // When the user actually answered (clamped — see clampAnsweredAt).
+                // The calendar/streak roll up on this, so a batch queued offline
+                // on Monday and synced Tuesday still counts as Monday.
+                answeredAt: clampAnsweredAt(a.createdAt ?? a.answeredAt, now),
                 sessionId,
                 mode,
                 _difficulty: m.difficulty || 0.0,
@@ -170,4 +205,4 @@ function orderedObservationsByTopic(mapped) {
     return byTopic;
 }
 
-module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic, ABILITY_SUBJECTS };
+module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic, clampAnsweredAt, ABILITY_SUBJECTS, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS };
