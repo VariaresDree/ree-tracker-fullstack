@@ -118,7 +118,15 @@ export default function QuestionCard({
   useEffect(() => { setActiveOption(0); }, [prompt]);
 
   const onOptionsKeyDown = (e) => {
-    if (isReviewing || options.length === 0) return;
+    // Arrow-key roving stays live in review mode — it only MOVES FOCUS, never
+    // selects (activation is separately no-op'd below via isReviewing), so
+    // it's safe to leave on. Without this, `disabled` used to remove every
+    // option from the tab order in review mode wholesale; even after
+    // switching to aria-disabled (below), the roving pattern's tabIndex=-1 on
+    // every non-active option would still leave only ONE option keyboard-
+    // reachable — a user could Tab to the group but never Arrow through the
+    // rest to hear which one was actually correct.
+    if (options.length === 0) return;
     const count = options.length;
     let next = null;
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = (activeOption + 1) % count;
@@ -244,13 +252,13 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
   } else if (isReviewing) {
     if (isCorrectAnswer) {
       stateClass =
-        'bg-[color-mix(in_srgb,var(--accent-success)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-success)_60%,transparent)] text-[var(--accent-success)] font-bold';
+        'bg-[color-mix(in_srgb,var(--accent-success)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-success)_60%,transparent)] text-[var(--accent-success)] font-bold cursor-default';
       letterColor = 'text-[var(--accent-success)]';
       icon = <CheckIcon />;
       srState = isSelected ? 'Correct answer — you selected this' : 'Correct answer';
     } else if (isSelected) {
       stateClass =
-        'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)] font-semibold';
+        'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)] font-semibold cursor-default';
       letterColor = 'text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)]';
       innerClass = 'line-through decoration-[color-mix(in_srgb,var(--accent-danger)_40%,transparent)]';
       icon = <XIcon />;
@@ -269,7 +277,13 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       type="button"
       role="radio"
       aria-checked={isSelected}
-      disabled={isReviewing}
+      // aria-disabled, NOT the native `disabled` attribute: a disabled button
+      // is pulled out of the tab order entirely, so a keyboard/screen-reader
+      // user could no longer reach ANY option once review started — meaning
+      // they'd never hear the sr-only correct/incorrect state at all.
+      // Activation is still correctly blocked: onClick -> handleSelect
+      // already no-ops when isReviewing (see the click handler above).
+      aria-disabled={isReviewing}
       onClick={onClick}
       ref={innerRef}
       tabIndex={tabIndex}

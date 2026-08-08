@@ -182,9 +182,17 @@ describe('QuestionCard — reviewing state', () => {
     // Confidence row gone
     expect(screen.queryByRole('radiogroup', { name: 'Confidence level' })).not.toBeInTheDocument();
 
-    // All four options disabled
+    // All four options are aria-disabled (activation is a no-op — see
+    // "disables clicks in reviewing state" below) but deliberately NOT
+    // natively `disabled`: a disabled button is pulled out
+    // of the tab order entirely, so a keyboard/screen-reader user could never
+    // reach any option — and never hear which one was actually correct —
+    // once review started.
     const opts = ['A', 'B', 'C', 'D'].map(getOption);
-    for (const o of opts) expect(o).toBeDisabled();
+    for (const o of opts) {
+      expect(o).not.toBeDisabled();
+      expect(o).toHaveAttribute('aria-disabled', 'true');
+    }
 
     // Correct answer (A) is the one styled with the success accent
     const correct = getOption('A');
@@ -224,6 +232,30 @@ describe('QuestionCard — reviewing state', () => {
     fireEvent.keyDown(window, { key: 'w' });
     expect(onSelect).not.toHaveBeenCalled();
     expect(onConfidenceChange).not.toHaveBeenCalled();
+  });
+
+  it('every option stays keyboard-reachable via arrow-key roving in reviewing state', () => {
+    // Regression: options used to be natively `disabled` in review mode,
+    // which pulls a button out of the tab order entirely — a keyboard/
+    // screen-reader user could Tab into the radiogroup but never move past
+    // whichever single option happened to hold roving tabIndex=0, so they
+    // could never reach the others to hear which one was actually correct.
+    Harness({ state: 'reviewing', selectedOption: Q.options[1] });
+    const opts = ['A', 'B', 'C', 'D'].map(getOption);
+
+    // Only option A (index 0, the roving-tabindex default) sits in the Tab
+    // order; the rest are reachable via Arrow keys from there — the standard
+    // ARIA radiogroup pattern — not via Tab directly.
+    expect(opts[0]).toHaveAttribute('tabIndex', '0');
+    for (const o of opts.slice(1)) expect(o).toHaveAttribute('tabIndex', '-1');
+
+    // Arrow-key roving must still move focus during review (it only moves
+    // focus, never selects), so every option is reachable this way.
+    opts[0].focus();
+    fireEvent.keyDown(screen.getByRole('radiogroup', { name: 'Answer choices' }), { key: 'ArrowDown' });
+    expect(opts[1]).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('radiogroup', { name: 'Answer choices' }), { key: 'ArrowDown' });
+    expect(opts[2]).toHaveFocus();
   });
 });
 
