@@ -6,6 +6,7 @@ const idempotency = require('../middlewares/idempotency');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const storage = require('../services/storage');
+const { wouldCreateCycle, subtreeIds } = require('../services/folderTree');
 
 // --- LIST ---
 // GET /api/materials — returns folders + materials in one payload so the
@@ -43,11 +44,27 @@ router.post('/folders', authMiddleware, requireAdmin, idempotency(), async (req,
 router.patch('/folders/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
         const { name, parentId } = req.body || {};
+        const nextParentId = parentId || null;
+
+        // Cycle guard: a folder can never become its own ancestor. Nothing
+        // enforced this before — the FK on parentId only checks the target
+        // row EXISTS, not that following it eventually reaches root — and an
+        // unguarded move is exactly how the vault's folders previously ended
+        // up unreachable (present in the DB, invisible in the app; see
+        // scripts/recoverOrphanedFolders.js for the one-time repair).
+        if (nextParentId !== undefined && nextParentId !== null) {
+            const allFolders = await prisma.folder.findMany({ select: { id: true, parentId: true } });
+            const byId = new Map(allFolders.map((f) => [f.id, f]));
+            if (wouldCreateCycle(req.params.id, nextParentId, byId)) {
+                return res.status(400).json({ error: "Can't move a folder into itself or one of its own subfolders." });
+            }
+        }
+
         const folder = await prisma.folder.update({
             where: { id: req.params.id },
             data: {
                 ...(name != null ? { name: String(name).slice(0, 120) } : {}),
-                ...(parentId !== undefined ? { parentId: parentId || null } : {}),
+                ...(parentId !== undefined ? { parentId: nextParentId } : {}),
             },
         });
         return res.status(200).json({ folder });
@@ -60,16 +77,23 @@ router.patch('/folders/:id', authMiddleware, requireAdmin, async (req, res) => {
 
 router.delete('/folders/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
-        // Delete contained materials' blobs first, then cascade Prisma rows.
+        // Delete blobs for the ENTIRE subtree, not just this folder's direct
+        // materials — onDelete: Cascade now removes every nested Folder/
+        // Material ROW, but a cascade only ever touches SQL rows. Without this
+        // walk, storage objects under nested folders leaked forever.
+        const allFolders = await prisma.folder.findMany({ select: { id: true, parentId: true } });
+        const targetIds = subtreeIds(req.params.id, allFolders);
         const contained = await prisma.material.findMany({
-            where: { folderId: req.params.id },
+            where: { folderId: { in: [...targetIds] } },
             select: { storagePath: true },
         });
         for (const m of contained) {
             if (m.storagePath) await storage.delete(m.storagePath).catch(() => {});
         }
+        // The self-relation FK cascades every descendant Folder row; Material's
+        // existing FK cascades every Material row in the subtree.
         await prisma.folder.delete({ where: { id: req.params.id } });
-        return res.status(200).json({ success: true });
+        return res.status(200).json({ success: true, deletedFolders: targetIds.size, deletedMaterials: contained.length });
     } catch (error) {
         if (error.code === 'P2025') return res.status(404).json({ error: 'Folder not found.' });
         logger.error('Folder delete failed', { error: error.message });

@@ -27,6 +27,12 @@ const telemetryBulkSchema = z.object({
         // Answered offline and synced later. Stored for audit; the server still
         // re-grades authoritatively and logs any client/server disagreement.
         offline: z.boolean().optional().default(false),
+        // When the client says the user actually answered (ISO string). Persisted
+        // as QuestionAttempt.answeredAt so an offline batch lands on the day it
+        // was answered, not the day it synced. Deliberately validated loosely: a
+        // malformed clock value must never 400 a whole batch and lose real
+        // attempts — clampAnsweredAt falls back to server `now` instead.
+        createdAt: z.string().max(40).optional(),
     // Cap the batch: unbounded, one request could open a huge write transaction
     // (findMany over thousands of ids + createMany + per-topic upserts). The
     // client coalesces answers but a full PRC exam is 100 items; 500 is ample.

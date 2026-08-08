@@ -40,6 +40,28 @@ function manilaDateOf(d) {
 }
 
 /**
+ * Reduce per-day buckets so they sum to `total`, trimming the most recent days
+ * first. Used when createMany's skipDuplicates race means fewer rows landed
+ * than we intended to write: the ActivityLog ledger must never claim more
+ * activity than the QuestionAttempt table actually holds. Mutates in place.
+ *
+ * Exact attribution of WHICH rows lost the race isn't recoverable from
+ * createMany's count alone, so this keeps the total honest (the property the
+ * tally depends on) and accepts imprecision in the day split of a rare race.
+ */
+function trimBucketsTo(buckets, total) {
+    let excess = [...buckets.values()].reduce((s, n) => s + n, 0) - total;
+    if (excess <= 0) return buckets;
+    for (const day of [...buckets.keys()].sort().reverse()) {
+        if (excess <= 0) break;
+        const take = Math.min(buckets.get(day), excess);
+        buckets.set(day, buckets.get(day) - take);
+        excess -= take;
+    }
+    return buckets;
+}
+
+/**
  * Record a batch of answered questions for a user.
  *
  * Important: if a non-null `sessionId` is provided but no matching ExamSession
@@ -169,19 +191,44 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         // skipDuplicates backstops the race where two identical batches pass
         // the pre-select simultaneously — the (userId, clientAttemptId) unique
         // index turns the loser's insert into a no-op.
-        await db.questionAttempt.createMany({ data: attemptsData, skipDuplicates: true });
+        //
+        // `count` is how many rows were ACTUALLY inserted, which can be fewer
+        // than newOnly.length when that race fires. The ActivityLog increments
+        // below MUST use it: incrementing by the intended count instead was how
+        // the streak ledger drifted permanently above the real attempt count.
+        const { count: insertedCount } = await db.questionAttempt.createMany({
+            data: attemptsData,
+            skipDuplicates: true,
+        });
+
+        // Bucket the inserted rows by the Manila day they were ANSWERED, not the
+        // day they synced — an offline batch can legitimately span days. Only
+        // rows that actually landed are counted (see insertedCount above); when
+        // the race trims some, we scale the buckets down proportionally rather
+        // than over-crediting a day.
+        const buckets = new Map();
+        for (const row of attemptsData) {
+            const day = manilaDateOf(row.answeredAt || new Date());
+            buckets.set(day, (buckets.get(day) || 0) + 1);
+        }
+        if (insertedCount < attemptsData.length) {
+            trimBucketsTo(buckets, insertedCount);
+        }
 
         const existingToday = await db.activityLog.findUnique({
             where: { userId_date: { userId, date: today } },
             select: { userId: true },
         });
-        isFirstActivityToday = !existingToday;
+        isFirstActivityToday = !existingToday && buckets.has(today);
 
-        await db.activityLog.upsert({
-            where: { userId_date: { userId, date: today } },
-            update: { count: { increment: newOnly.length } },
-            create: { userId, date: today, count: newOnly.length },
-        });
+        for (const [day, count] of buckets) {
+            if (count <= 0) continue;
+            await db.activityLog.upsert({
+                where: { userId_date: { userId, date: day } },
+                update: { count: { increment: count } },
+                create: { userId, date: day, count },
+            });
+        }
 
         // Per-topic rollups feed the forecast/prescription engine — nothing
         // populated UserTopicPerformance before, so "Today's prescription"
@@ -372,4 +419,4 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     };
 }
 
-module.exports = { recordAttempts, canonicalSubject, todayManila };
+module.exports = { recordAttempts, canonicalSubject, todayManila, manilaDateOf, trimBucketsTo };
