@@ -113,11 +113,16 @@ export function TrajectoryCard() {
 
         <div className="flex items-center justify-between text-[10px] text-muted2 font-mono">
           <span>Model {snapshot?.modelVersion ?? 'v1'}</span>
+          {/* Measured 54x15px at 360px. Kept as an inline text-link visually —
+              bumping this to a full 44px button would look broken next to
+              10px caption text — but the tap AREA grows to 44px on touch via
+              padding + matching negative margin, so the hit target is real
+              without changing how it looks or reflowing the row. */}
           <button
             type="button"
             onClick={recompute}
             disabled={loading}
-            className="underline-offset-2 hover:underline focus-visible:outline-none disabled:opacity-50"
+            className="underline-offset-2 hover:underline focus-visible:outline-none disabled:opacity-50 pointer-coarse:p-4 pointer-coarse:-m-4"
           >
             {loading ? 'Retrying…' : 'Recompute'}
           </button>

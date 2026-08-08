@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { Badge } from '../../components/ui';
 import LatexRenderer from '../../components/LatexRenderer';
+import { withMathDelimiters } from '../../utils/mathDelimiters';
 
 const KIND_TONE = { constant: 'signal', formula: 'velocity', concept: 'neutral' };
 
@@ -37,7 +38,7 @@ export default function Flashcard({ card }) {
             <div className="min-w-0">
               {card.symbol && (
                 <div className="text-fluid-lg font-bold text-[var(--accent)] [&_p]:!mb-0">
-                  <LatexRenderer content={card.symbol.includes('$') ? card.symbol : `$${card.symbol}$`} />
+                  <LatexRenderer content={withMathDelimiters(card.symbol)} />
                 </div>
               )}
               <div className="text-fluid-base font-bold text-textMain line-clamp-2 [overflow-wrap:anywhere]" title={card.name}>
@@ -49,7 +50,7 @@ export default function Flashcard({ card }) {
 
           {(card.formulaLatex || card.valueUnit) && (
             <div className="bg-bg border border-border rounded-[var(--radius-default)] px-3 py-4 math-scroll-mobile min-w-0">
-              <LatexRenderer content={card.formulaLatex || card.valueUnit} />
+              <LatexRenderer content={withMathDelimiters(card.formulaLatex || card.valueUnit)} />
             </div>
           )}
 
@@ -69,7 +70,7 @@ export default function Flashcard({ card }) {
             <div>
               <div className="text-eyebrow mb-1">Value / unit</div>
               <div className="text-fluid-base text-textMain math-scroll-mobile min-w-0 [&_p]:!mb-0">
-                <LatexRenderer content={card.valueUnit} />
+                <LatexRenderer content={withMathDelimiters(card.valueUnit)} />
               </div>
             </div>
           )}
@@ -89,10 +90,18 @@ export default function Flashcard({ card }) {
                 {card.variables.map((v, i) => (
                   <div key={i} className="flex items-baseline gap-2 text-fluid-sm min-w-0">
                     <span className="font-mono font-bold text-[var(--accent)] shrink-0 [&_p]:!mb-0">
-                      <LatexRenderer content={v.symbol?.includes('$') ? v.symbol : `$${v.symbol}$`} />
+                      <LatexRenderer content={withMathDelimiters(v.symbol)} />
                     </span>
                     <span className="text-muted2 min-w-0 [overflow-wrap:anywhere]">
-                      {v.meaning}{v.unit ? <span className="text-muted"> ({v.unit})</span> : null}
+                      {v.meaning}
+                      {v.unit ? (
+                        // Units carry LaTeX too (`\Omega`, `m^2`) and were rendering
+                        // as source. Inline-block keeps the parenthesised unit on the
+                        // same baseline as the meaning text.
+                        <span className="text-muted [&_p]:!m-0 [&>div]:inline-block">
+                          {' ('}<LatexRenderer content={withMathDelimiters(v.unit)} className="!inline-block" />{')'}
+                        </span>
+                      ) : null}
                     </span>
                   </div>
                 ))}

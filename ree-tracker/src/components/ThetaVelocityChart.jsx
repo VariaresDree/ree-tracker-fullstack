@@ -109,7 +109,17 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
                  <span className="text-[11px] text-muted font-mono uppercase tracking-widest">Awaiting Velocity Data</span>
             </div>
         ) : (
-          <div className="absolute inset-0" role="img" aria-label={chartSummary}>
+          /* Measured live: Recharts' ResponsiveContainer can settle on an
+             SVG wider than the box it's told to fill (493px content in a
+             287px box at 360px, confirmed via scrollWidth), with every
+             ancestor `overflow-x: visible` — so part of the chart was
+             silently clipped with no way to reach it. min-w-[340px] on the
+             inner element gives the chart a sane floor and the
+             math-scroll-mobile wrapper (same pattern already used for long
+             formulas) turns any remaining overflow into a real horizontal
+             scroll instead of an invisible clip. */
+          <div className="absolute inset-0 math-scroll-mobile" role="img" aria-label={chartSummary}>
+            <div className="h-full w-full min-w-[340px]">
             <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
                     <defs>
@@ -159,6 +169,7 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
                     />
                 </AreaChart>
             </ResponsiveContainer>
+            </div>
           </div>
         )}
     </div>

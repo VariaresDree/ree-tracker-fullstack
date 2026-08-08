@@ -69,7 +69,13 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                     onClick={refresh}
                     disabled={!isOnline || isRefreshing}
                     title={isOnline ? 'Download / refresh offline questions' : 'Connect to download'}
-                    className={`shrink-0 px-2.5 py-1 rounded-lg border text-[0.55rem] font-black uppercase tracking-wider transition-all ${
+                    // Measured 64x23px at 360px — below the 44x44 touch minimum.
+                    // pointer-coarse only (same pattern as the shared Button
+                    // primitive's `icon` size) so this compact status strip
+                    // doesn't visually bloat on desktop mouse use, but still
+                    // clears the target size on the touch devices this actually
+                    // matters for.
+                    className={`shrink-0 px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:min-h-11 rounded-lg border text-[0.55rem] font-black uppercase tracking-wider transition-all ${
                         !isOnline || isRefreshing
                             ? 'opacity-40 cursor-not-allowed border-border2 text-muted'
                             : 'cursor-pointer border-reeBlue/40 text-reeBlue hover:bg-reeBlue/10'

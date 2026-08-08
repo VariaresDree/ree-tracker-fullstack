@@ -3,7 +3,8 @@ import { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore'; // 🚀 FIXED: Dynamic Store Import
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, FormField, Input, Select, Modal, Badge } from '../../components/ui';
-import { Sparkles, FileText, FileUp, X, TriangleAlert } from '../../components/ui/icons';
+import { Sparkles, FileText, FileUp, X, TriangleAlert, Check } from '../../components/ui/icons';
+import LatexRenderer from '../../components/LatexRenderer';
 
 export default function LibraryIngestion({
   genSubject, setGenSubject, genSubtopic, setGenSubtopic,
@@ -221,29 +222,46 @@ export default function LibraryIngestion({
                           <Badge tone="neutral" className="truncate max-w-[160px]">{q.subtopic}</Badge>
                       </div>
 
-                      <div className="text-sm font-medium text-textMain mb-4 leading-relaxed bg-bg p-3 rounded-[var(--radius-default)] border border-border/50">
-                          {q.question}
+                      {/* This modal is the admin's quality gate before AI content
+                          enters the bank — it MUST render math the same way the
+                          student will see it. It previously printed raw source
+                          (`\frac{...}`), which made malformed formulas impossible
+                          to spot at exactly the moment they should be caught. */}
+                      <div className="text-sm font-medium text-textMain mb-4 leading-relaxed bg-bg p-3 rounded-[var(--radius-default)] border border-border/50 math-scroll-mobile min-w-0 [&_p]:!m-0">
+                          <LatexRenderer content={q.question} />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                          {q.options?.map((opt, optIdx) => (
+                          {q.options?.map((opt, optIdx) => {
+                              const isAnswer = opt === q.answer;
+                              return (
                               <div
                                 key={optIdx}
-                                className="p-2.5 rounded-[var(--radius-default)] border text-xs"
-                                style={opt === q.answer
+                                className="p-2.5 rounded-[var(--radius-default)] border text-xs flex items-center gap-2 min-w-0"
+                                style={isAnswer
                                   ? { background: 'color-mix(in srgb, var(--accent-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)', color: 'var(--accent-success)', fontWeight: 700 }
                                   : undefined}
                               >
-                                  <span className="mr-2 font-mono opacity-50">{String.fromCharCode(65 + optIdx)}.</span>
-                                  {opt}
+                                  <span className="font-mono opacity-50 shrink-0">{String.fromCharCode(65 + optIdx)}.</span>
+                                  <span className="min-w-0 flex-1 math-scroll-mobile [&_p]:!m-0">
+                                      <LatexRenderer content={opt} />
+                                  </span>
+                                  {/* Correct answer was signalled by colour alone. */}
+                                  {isAnswer && (
+                                      <>
+                                          <Check size={14} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />
+                                          <span className="sr-only">Correct answer</span>
+                                      </>
+                                  )}
                               </div>
-                          ))}
+                              );
+                          })}
                       </div>
 
                       {q.fixedExplanation && (
-                          <div className="text-xs text-muted bg-surface2/50 p-3 rounded-[var(--radius-default)] border border-border leading-relaxed">
+                          <div className="text-xs text-muted bg-surface2/50 p-3 rounded-[var(--radius-default)] border border-border leading-relaxed math-scroll-mobile min-w-0">
                               <strong className="text-eyebrow mr-2" style={{ color: 'var(--accent-signal)' }}>Explanation</strong>
-                              {q.fixedExplanation}
+                              <span className="[&_p]:!m-0"><LatexRenderer content={q.fixedExplanation} /></span>
                           </div>
                       )}
                   </div>

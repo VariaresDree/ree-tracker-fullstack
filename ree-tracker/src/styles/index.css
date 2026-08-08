@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* `pointer-coarse:` is used in several places (Button.jsx's `icon` size, the
+   touch-target fixes below) to grow a hit target on touch devices without
+   bloating it for mouse users. It is NOT a Tailwind v4 built-in variant — it
+   was being written as if it were, and Tailwind was silently dropping every
+   use of it. Confirmed nothing in the compiled stylesheet ever generated a
+   `pointer: coarse` media rule despite the class existing throughout the
+   codebase since before this session. Registering it here makes all of that
+   already-intended behavior actually work, not just the fixes added now. */
+@custom-variant pointer-coarse (@media (pointer: coarse));
+
 @theme {
   /* Dynamic Theme Colors mapping to CSS Variables */
   --color-bg: var(--bg-primary);
@@ -112,7 +122,10 @@
   --bg-surface2: #18181b;
   --bg-surface3: #27272a;
   --text-main: #fafafa;
-  --text-muted: #71717a;
+  /* Lightened from #71717a (3.67:1 on surface2 — fails AA) to clear 4.5:1 for
+     small eyebrow/secondary labels; same fix already applied to the default
+     theme. */
+  --text-muted: #808089;
   --text-muted2: #a1a1aa;
   --border-main: rgba(255, 255, 255, 0.05);
   --border-light: rgba(255, 255, 255, 0.1);
@@ -153,7 +166,8 @@
   --bg-surface2: #581c87;
   --bg-surface3: #7e22ce;
   --text-main: #fdf4ff;
-  --text-muted: #f472b6;
+  /* Lightened from #f472b6 (4.11:1 on surface2 — fails AA) to clear 4.5:1. */
+  --text-muted: #f580bd;
   --text-muted2: #fbcfe8;
   --border-main: rgba(244, 114, 182, 0.2);
   --border-light: rgba(34, 211, 238, 0.3);
@@ -182,7 +196,9 @@
   --bg-surface2: #0e7490;
   --bg-surface3: #0891b2;
   --text-main: #e0f2fe;
-  --text-muted: #7dd3fc;
+  /* Lightened from #7dd3fc (3.21:1 on surface2 — the worst AA failure of any
+     theme) to clear 4.5:1. */
+  --text-muted: #d7f1fe;
   --text-muted2: #bae6fd;
   --border-main: rgba(125, 211, 252, 0.15);
   --border-light: rgba(125, 211, 252, 0.3);
@@ -195,7 +211,9 @@
   --bg-surface2: #fbcfe8;
   --bg-surface3: #f9a8d4;
   --text-main: #831843;
-  --text-muted: #be185d;
+  /* Darkened from #be185d (4.37:1 on surface2 — fails AA) to clear 4.5:1.
+     Light theme, so darker = more contrast. */
+  --text-muted: #b9175b;
   --text-muted2: #db2777;
   --border-main: rgba(190, 24, 93, 0.1);
   --border-light: rgba(190, 24, 93, 0.2);
@@ -225,7 +243,8 @@
   --bg-surface2: #991b1b;
   --bg-surface3: #b91c1c;
   --text-main: #fef2f2;
-  --text-muted: #fca5a5;
+  /* Lightened from #fca5a5 (4.38:1 on surface2 — fails AA) to clear 4.5:1. */
+  --text-muted: #fcaaaa;
   --text-muted2: #fecaca;
   --border-main: rgba(252, 165, 165, 0.2);
   --border-light: rgba(252, 165, 165, 0.4);
@@ -239,7 +258,8 @@
   --bg-surface2: #1d4ed8;
   --bg-surface3: #2563eb;
   --text-main: #eff6ff;
-  --text-muted: #93c5fd;
+  /* Lightened from #93c5fd (3.72:1 on surface2 — fails AA) to clear 4.5:1. */
+  --text-muted: #b6d8fe;
   --text-muted2: #bfdbfe;
   --border-main: rgba(255, 255, 255, 0.2);
   --border-light: rgba(255, 255, 255, 0.4);

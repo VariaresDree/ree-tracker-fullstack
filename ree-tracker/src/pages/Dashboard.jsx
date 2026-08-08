@@ -270,9 +270,16 @@ export default function Dashboard() {
         </div>
         <Card elevated glow className="p-6 flex flex-col gap-4 justify-between grain-overlay bg-gradient-to-br from-surface to-surface2/50">
           <div>
-            <div className="inline-flex items-center gap-2 text-[var(--accent)]">
-              <Sparkles size={16} strokeWidth={2} />
-              <span className="text-[11px] font-mono uppercase tracking-[0.18em]">AI diagnostics</span>
+            <div className="inline-flex items-center gap-2">
+              {/* Icon stays brand-accent (icons only need the 3:1 UI-component
+                  threshold, which this clears); the label was inheriting that
+                  same purple and measured 4.08:1 — below the 4.5:1 small-text
+                  minimum. This hand-rolled font-mono/uppercase/tracking combo
+                  is otherwise identical to the shared `.text-eyebrow` utility
+                  (clamp(10px,9.5px+0.2vw,12px), same tracking, var(--text-muted))
+                  — using it fixes the contrast and removes a one-off dupe. */}
+              <Sparkles size={16} strokeWidth={2} className="text-[var(--accent)]" />
+              <span className="text-eyebrow">AI diagnostics</span>
             </div>
             <h3 className="text-display text-textMain text-xl mt-3 leading-snug">Unlock your board report</h3>
             <p className="text-sm text-muted2 mt-2 leading-relaxed">

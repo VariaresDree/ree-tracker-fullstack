@@ -251,16 +251,16 @@ export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, 
     2. Each object MUST include ALL of these fields, fully filled (a bare symbol or empty field is a hard failure):
       {
         "kind": "${kind}",
-        "symbol": "short symbol, LaTeX ok (e.g. 'X_c'); null only if the entry truly has none",
+        "symbol": "short symbol wrapped in $ delimiters (e.g. '$X_c$'); null only if the entry truly has none",
         "name": "Full name (e.g. 'Capacitive Reactance')",
         "formulaLatex": ${kind === 'formula'
-            ? '"REQUIRED — the expression as LaTeX (e.g. \'X_c = \\\\frac{1}{2\\\\pi f C}\')"'
-            : '"a defining relation as LaTeX, or null"'},
+            ? '"REQUIRED — the expression as LaTeX, WRAPPED IN $ DELIMITERS so it renders (e.g. \'$X_c = \\\\frac{1}{2\\\\pi f C}$\')"'
+            : '"a defining relation as LaTeX WRAPPED IN $ DELIMITERS, or null"'},
         "valueUnit": ${kind === 'constant'
-            ? '"REQUIRED — the exact value WITH units as LaTeX (e.g. \'$8.854\\\\times10^{-12}$ F/m\'); if genuinely dimensionless set dimensionless true instead of inventing a value"'
-            : '"the unit of the result (e.g. \'Ohms ($\\\\Omega$)\'), or null"'},
+            ? '"REQUIRED — the exact value WITH units as LaTeX, WRAPPED IN $ DELIMITERS (e.g. \'$8.854\\\\times10^{-12}$ F/m\'); if genuinely dimensionless set dimensionless true instead of inventing a value"'
+            : '"the unit of the result WRAPPED IN $ DELIMITERS (e.g. \'$\\\\Omega$\'), or null"'},
         "description": "REQUIRED — 1-3 plain-language sentences on what the concept represents",
-        "variables": [ { "symbol": "f", "meaning": "frequency", "unit": "Hz" } ],
+        "variables": [ { "symbol": "$f$", "meaning": "frequency", "unit": "$\\\\text{Hz}$" } ],
         "purposeExamTip": "REQUIRED — how it is applied in board problem-solving, plus one common trap/mistake to watch for",
         "subject": "${subject}",
         "topic": "${topic}",
@@ -268,7 +268,7 @@ export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, 
         "dimensionless": false
       }
     3. For formulas: "variables" MUST cover EVERY symbol appearing in formulaLatex (except the defined symbol itself and known constants like \\pi), each with meaning and unit.
-    4. All math/units MUST be valid LaTeX. Use standard engineering values; DO NOT round standard constants. ZERO HALLUCINATION — only well-established, board-relevant content.
+    4. All math/units MUST be valid LaTeX AND wrapped in $ delimiters (e.g. "$V = IR$", never bare "V = IR") — the renderer only typesets delimited expressions; anything else displays as literal source text to the student. Use standard engineering values; DO NOT round standard constants. ZERO HALLUCINATION — only well-established, board-relevant content.
     5. "topic" must be EXACTLY "${topic}" and "subject" EXACTLY "${subject}".
     ${exclusionDirective}
     VARIANCE [Seed: ${seed}]: cover distinct, non-duplicate entries.`;
