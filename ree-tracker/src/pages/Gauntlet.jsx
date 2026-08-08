@@ -16,17 +16,19 @@ import ExamNavigator from '../components/exam/ExamNavigator';
 import ExamTimer from '../components/exam/ExamTimer';
 import { formatExamTime } from '../utils/examFormat';
 import { Button, Modal, EmptyState, Badge, StatusPill } from '../components/ui';
-import { TriangleAlert } from '../components/ui/icons';
+import { TriangleAlert, Flag, Bookmark, WifiOff } from '../components/ui/icons';
 
 export default function Gauntlet() {
   const { level } = useParams();
   const navigate = useNavigate();
   const {
     status, questions, answers, confidences, timeLeft, diagnostics,
+    currentIndex, setCurrentIndex,
+    bookmarks, toggleBookmark, flags, toggleFlag,
+    resumeGauntlet, discardAndStartFresh,
     handleAnswer, handleConfidence, submitExam,
   } = useGauntletEngine(level);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [showTime, setShowTime] = useState(true);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -36,6 +38,43 @@ export default function Gauntlet() {
       <div className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent)]">
         <span className="telemetry-spinner !w-12 !h-12 border-t-transparent"></span>
         <span className="text-sm font-semibold animate-pulse">Building your exam…</span>
+      </div>
+    );
+  }
+
+  // A saved draft for THIS level exists — offer resume instead of silently
+  // discarding it and building a brand new set of questions. Connection loss
+  // mid-exam, a killed tab, or a crash all land here on the next visit.
+  if (status === 'resume') {
+    return (
+      <div className="flex items-center justify-center h-[70vh] page-fade-in">
+        <EmptyState
+          icon={TriangleAlert}
+          title="Resume your last attempt?"
+          description="You have an unfinished Gauntlet run saved on this device for this level."
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button tone="amber" onClick={resumeGauntlet}>Resume run</Button>
+              <Button variant="secondary" onClick={discardAndStartFresh}>Start fresh</Button>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
+  // Submitted while offline (or the connection dropped mid-submit) — queued
+  // in the durable outbox; a blended run can't be graded on-device (the exam
+  // pool intentionally never carries answer keys), so no score is invented.
+  if (status === 'pending') {
+    return (
+      <div className="flex items-center justify-center h-[70vh] page-fade-in">
+        <EmptyState
+          icon={WifiOff}
+          title="Submitted — grading when you reconnect"
+          description="Your answers are saved and queued. This run is done; you don't need to retry or stay on this screen — the score posts to your Dashboard once you're back online."
+          action={<Button onClick={() => navigate('/arena')}>Back to Arena</Button>}
+        />
       </div>
     );
   }
@@ -59,6 +98,21 @@ export default function Gauntlet() {
 
   const currentQ = questions[currentIndex];
   const answeredCount = Object.keys(answers).length;
+  const isBookmarked = bookmarks.has(currentIndex);
+  const isFlagged = flags.has(currentIndex) || !!currentQ?.isFlagged;
+
+  // Bookmark + flag-for-review, mirroring the Board Simulator's itemActions
+  // pattern (SimulatorActive.jsx) — injected into QuestionCard's headerSlot.
+  const itemActions = (
+    <div className="flex gap-2">
+      <Button size="icon" variant="ghost" tone="danger" onClick={() => toggleFlag(currentIndex)} disabled={isFlagged} aria-label={isFlagged ? 'Already flagged' : 'Flag question'} className={isFlagged ? '' : 'text-muted'}>
+        <Flag size={16} strokeWidth={1.75} aria-hidden="true" />
+      </Button>
+      <Button size="icon" variant="ghost" tone="amber" onClick={() => toggleBookmark(currentIndex)} aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'} className={isBookmarked ? '' : 'text-muted'}>
+        <Bookmark size={16} strokeWidth={1.75} fill={isBookmarked ? 'currentColor' : 'none'} aria-hidden="true" />
+      </Button>
+    </div>
+  );
 
   // Adopts the Board Simulator's exam chrome: ExamLayout + a top toolbar with a
   // show/hide timer, the shared horizontal ExamNavigator, the shared
@@ -147,22 +201,28 @@ export default function Gauntlet() {
             index={currentIndex}
             onSelect={(opt) => handleAnswer(currentIndex, opt)}
             onConfidenceChange={(lvl) => handleConfidence?.(currentIndex, lvl)}
+            headerSlot={itemActions}
           />
         </div>
 
-        {/* Controls: previous / next / submit */}
+        {/* Controls: previous / next, with Submit REPLACING Next only on the
+            last item (mirrors the Board Simulator's SimulatorActive.jsx) —
+            it was previously always visible right next to Next, one misclick
+            away at every question. Reaching the last item via the navigator
+            or Next is now the only path to seeing Submit at all. */}
         <div className="flex justify-between items-center gap-3">
           <Button variant="secondary" onClick={() => setCurrentIndex((c) => Math.max(0, c - 1))} disabled={currentIndex === 0}>
             Previous
           </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => setCurrentIndex((c) => Math.min(questions.length - 1, c + 1))} disabled={currentIndex === questions.length - 1}>
-              Next
-            </Button>
-            <Button onClick={() => setShowSubmitConfirm(true)}>
+          {currentIndex === questions.length - 1 ? (
+            <Button tone="danger" size="lg" onClick={() => setShowSubmitConfirm(true)}>
               Submit exam
             </Button>
-          </div>
+          ) : (
+            <Button variant="secondary" onClick={() => setCurrentIndex((c) => Math.min(questions.length - 1, c + 1))}>
+              Next
+            </Button>
+          )}
         </div>
       </div>
     </ExamLayout>
