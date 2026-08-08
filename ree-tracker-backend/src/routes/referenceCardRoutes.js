@@ -16,6 +16,7 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { resolveTopic } = require('../services/topicResolver');
 const { normalizeSubject } = require('../utils/subject');
+const { withMathDelimiters } = require('../utils/mathDelimiters');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const {
     referenceCardCreateSchema,
@@ -57,15 +58,26 @@ async function toCardData(payload) {
         if (!topicRow) reasons.push('unknown-topic');
     }
     if (reasons.length > 0) return { reasons };
+    // Normalize math delimiters ONCE, at the single write choke point shared
+    // by manual create / AI intake / edit — see utils/mathDelimiters.js for
+    // why. Render-time defense in Flashcard.jsx stays; this stops new rows
+    // from needing it.
+    const variables = Array.isArray(payload.variables)
+        ? payload.variables.map((v) => ({
+            ...v,
+            symbol: withMathDelimiters(v?.symbol),
+            unit: withMathDelimiters(v?.unit),
+        }))
+        : [];
     return {
         data: {
             kind: payload.kind,
-            symbol: payload.symbol ?? null,
+            symbol: withMathDelimiters(payload.symbol) ?? null,
             name: String(payload.name).trim(),
-            formulaLatex: payload.formulaLatex ?? null,
-            valueUnit: payload.valueUnit ?? null,
+            formulaLatex: withMathDelimiters(payload.formulaLatex) ?? null,
+            valueUnit: withMathDelimiters(payload.valueUnit) ?? null,
             description: payload.description,
-            variables: Array.isArray(payload.variables) ? payload.variables : [],
+            variables,
             purposeExamTip: payload.purposeExamTip ?? null,
             subject: normalizeSubject(payload.subject),
             topicId: topicRow?.id ?? null,
