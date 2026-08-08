@@ -232,6 +232,10 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
   let letterColor = 'text-muted/60 group-hover:text-[var(--accent)]';
   let innerClass = '';
   let icon = null;
+  // Colour + icon convey this visually, but aria-checked only reports what the
+  // user PICKED — a screen-reader user in review mode had no way to learn which
+  // option was actually correct. Announced via sr-only below.
+  let srState = null;
 
   if (!isReviewing && isSelected) {
     stateClass =
@@ -243,12 +247,14 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
         'bg-[color-mix(in_srgb,var(--accent-success)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-success)_60%,transparent)] text-[var(--accent-success)] font-bold';
       letterColor = 'text-[var(--accent-success)]';
       icon = <CheckIcon />;
+      srState = isSelected ? 'Correct answer — you selected this' : 'Correct answer';
     } else if (isSelected) {
       stateClass =
         'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)] font-semibold';
       letterColor = 'text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)]';
       innerClass = 'line-through decoration-[color-mix(in_srgb,var(--accent-danger)_40%,transparent)]';
       icon = <XIcon />;
+      srState = 'Incorrect — you selected this';
     } else {
       stateClass = 'bg-surface/10 border-border2/20 text-muted opacity-40 cursor-not-allowed';
       letterColor = 'text-muted/40';
@@ -275,6 +281,7 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       <div className={`flex-1 flex items-center overflow-x-auto math-scroll-mobile [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0 ${innerClass}`}>
         <LatexRenderer content={opt} />
       </div>
+      {srState && <span className="sr-only">{srState}</span>}
       {icon && <div className={`ml-4 ${!reduceMotion ? 'animate-in zoom-in duration-200' : ''}`}>{icon}</div>}
     </button>
   );

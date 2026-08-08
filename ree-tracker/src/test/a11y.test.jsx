@@ -95,4 +95,19 @@ describe('a11y — QuestionCard answer surface', () => {
       <QuestionCard question={QUESTION} selectedOption={'$1$'} state="reviewing" onSelect={() => {}} />,
     );
   });
+
+  // axe cannot catch this: colour + a Check/X icon (aria-hidden) are the ONLY
+  // signal for which option was correct, and aria-checked reports what the user
+  // PICKED, not what was RIGHT. A screen-reader user reviewing thousands of
+  // questions over a study season had no way to learn the correct answer.
+  it('reviewing state announces correctness to screen readers, not just colour', async () => {
+    const { container } = render(
+      <QuestionCard question={QUESTION} selectedOption={'$1$'} state="reviewing" onSelect={() => {}} />,
+    );
+    const text = container.textContent;
+    // The wrongly-picked option ('$1$') and the actually-correct option
+    // ('$2\sin x\cos x$') must each have an accessible-text distinction.
+    expect(text).toMatch(/Correct answer/);
+    expect(text).toMatch(/Incorrect — you selected this/);
+  });
 });
