@@ -443,6 +443,33 @@
   .text-fluid-lg { font-size: var(--fluid-lg); line-height: 1.25; }
   .text-fluid-xl { font-size: var(--fluid-xl); line-height: 1.15; }
 
+  /* 3D flashcard flip (Reference vault). Pure CSS — zero JS/bundle weight for
+     low-end Android. Faces are GRID-STACKED (both occupy 1/1) so the card
+     sizes itself to the taller face — no absolute-position height hacks.
+     Reduced-motion users get a cross-fade instead of the rotation. */
+  .flip-scene { perspective: 1200px; }
+  .flip-inner {
+    display: grid;
+    transform-style: preserve-3d;
+    transition: transform var(--duration-slow) var(--ease-out-quart);
+  }
+  .flip-inner.is-flipped { transform: rotateY(180deg); }
+  .flip-face {
+    grid-area: 1 / 1;
+    min-width: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .flip-back { transform: rotateY(180deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .flip-inner,
+    .flip-inner.is-flipped { transform: none; transform-style: flat; }
+    .flip-face { transition: opacity var(--duration-base) ease; }
+    .flip-back { transform: none; opacity: 0; pointer-events: none; }
+    .is-flipped .flip-back { opacity: 1; pointer-events: auto; }
+    .is-flipped .flip-front { opacity: 0; pointer-events: none; }
+  }
+
   /* Editorial elevation classes (token-driven) */
   .elevate-1 { box-shadow: var(--shadow-1); }
   .elevate-2 { box-shadow: var(--shadow-2); }
