@@ -61,7 +61,11 @@ export default function Pomodoro() {
         <span className="text-eyebrow" style={{ color: pomodoro.isWork ? 'var(--color-reeAmber)' : 'var(--accent-success)' }}>
           {pomodoro.isWork ? 'Focus' : 'Break'}
         </span>
-        <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)} aria-label="Timer settings" className="!h-7 !w-7 text-muted hover:text-textMain">
+        {/* The shared Button primitive's `icon` size already handles the
+            44x44 touch target correctly (h-9 w-9, pointer-coarse:h-11 w-11)
+            — the !h-7 !w-7 override here was defeating it, measuring 28x28
+            live at 360px. */}
+        <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)} aria-label="Timer settings" className="text-muted hover:text-textMain">
           <Settings2 size={14} strokeWidth={1.75} aria-hidden="true" />
         </Button>
       </div>

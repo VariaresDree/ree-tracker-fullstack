@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* `pointer-coarse:` is used in several places (Button.jsx's `icon` size, the
+   touch-target fixes below) to grow a hit target on touch devices without
+   bloating it for mouse users. It is NOT a Tailwind v4 built-in variant — it
+   was being written as if it were, and Tailwind was silently dropping every
+   use of it. Confirmed nothing in the compiled stylesheet ever generated a
+   `pointer: coarse` media rule despite the class existing throughout the
+   codebase since before this session. Registering it here makes all of that
+   already-intended behavior actually work, not just the fixes added now. */
+@custom-variant pointer-coarse (@media (pointer: coarse));
+
 @theme {
   /* Dynamic Theme Colors mapping to CSS Variables */
   --color-bg: var(--bg-primary);

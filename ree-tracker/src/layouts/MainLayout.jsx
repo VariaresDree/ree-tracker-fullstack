@@ -117,10 +117,14 @@ export default function MainLayout({ children }) {
           <div className="text-xl font-bold tracking-tight text-[var(--accent)]">
             REE<span className="text-textMain">.ai</span>
           </div>
+          {/* p-1 around a 24px icon measured 32x32 at 360px — mobile-only
+              (md:hidden) with a full-width row to spare, so bumping padding
+              to clear 44x44 costs nothing layout-wise. -m-2.5 keeps the
+              icon's visual position unchanged; only the hit area grows. */}
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close navigation menu"
-            className="text-muted hover:text-textMain p-1 cursor-pointer"
+            className="text-muted hover:text-textMain p-2.5 -m-2.5 cursor-pointer"
           >
             <X className="w-6 h-6" strokeWidth={1.75} />
           </button>
