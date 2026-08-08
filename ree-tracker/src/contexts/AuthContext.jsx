@@ -12,6 +12,8 @@ import {
 import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags, updateUserProfile } from '../services/dbQueries';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
+import { Button } from '../components/ui';
+import { WifiOff } from '../components/ui/icons';
 
 const MASTER_ADMIN_EMAILS = [
     'admin@example.com',
@@ -21,17 +23,38 @@ const MASTER_ADMIN_EMAILS = [
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
+// Last-resort safety net ONLY — onAuthStateChanged resolves from Firebase's
+// local persistence and reliably fires near-instantly for a returning user,
+// even offline, with no network round-trip required. This is not a normal
+// "network is slow" timer; it only matters if the auth SDK callback never
+// fires at all. 25s (vs. the old 5s) leaves comfortable room for a genuinely
+// slow device/connection before treating it as stuck, and firing it NEVER
+// treats "unresolved" as "logged out" — see authStalled below.
+const AUTH_STALL_MS = 25000;
+
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  // True only if onAuthStateChanged hasn't fired AT ALL after AUTH_STALL_MS —
+  // distinct from `loading`, which now clears the instant the callback fires
+  // (see below). Drives a reconnecting/retry screen, never the Login form.
+  const [authStalled, setAuthStalled] = useState(false);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 5000);
+    const stallTimer = setTimeout(() => setAuthStalled(true), AUTH_STALL_MS);
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      clearTimeout(timeout);
+      clearTimeout(stallTimer);
+      setAuthStalled(false);
       setCurrentUser(user);
+      // onAuthStateChanged IS the authority on "resolved" — the moment it
+      // fires (with a user OR null), loading ends. Everything below (admin
+      // role lookup, TOS, feature flags, push registration) is enrichment
+      // that used to run BEFORE this, holding the whole app on the "Securing
+      // Session…" screen for as long as the slowest of four awaited network
+      // calls took — now it resolves in the background instead.
+      setLoading(false);
 
       if (user) {
         // Mirror the Firebase display name into the Postgres User row (the
@@ -107,12 +130,10 @@ export const AuthProvider = ({ children }) => {
             useStore.getState().setIsAdmin(false);
         }
       }
-      
-      setLoading(false);
     });
-    
+
     return () => {
-      clearTimeout(timeout);
+      clearTimeout(stallTimer);
       unsubscribe();
     };
   }, []);
@@ -142,7 +163,22 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ currentUser, isAdmin, login, register, logout, loading }}>
-      {!loading ? children : (
+      {!loading ? children : authStalled ? (
+        // AUTH_STALL_MS elapsed with no onAuthStateChanged callback at all —
+        // NOT the same as "logged out". A weak connection must never eject an
+        // authenticated user to the Login form; it gets a reconnecting state
+        // it can retry from instead.
+        <div className="flex flex-col justify-center items-center h-screen bg-bg text-textMain gap-4 px-6 text-center">
+          <WifiOff size={32} strokeWidth={1.75} className="text-muted2" aria-hidden="true" />
+          <div className="flex flex-col gap-1">
+            <p className="font-semibold tracking-tight">Still trying to reach your session…</p>
+            <p className="text-sm text-muted2 max-w-xs">
+              This is taking longer than usual. Your session isn't lost — check your connection and retry.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      ) : (
         <div className="flex justify-center items-center h-screen bg-bg text-textMain">
           <span className="animate-pulse font-mono tracking-widest text-sm uppercase">Securing Session...</span>
         </div>

@@ -73,7 +73,13 @@ router.put('/:id', validate(reviewEditSchema), async (req, res) => {
 });
 
 // PUT /api/review/:id/approve — promote to a live Question (optional inline
-// edits ride along). Atomic: create live + mark APPROVED + version, or nothing.
+// edits ride along). create live + mark APPROVED + version is NOT atomic
+// (same deliberate non-atomicity as approveBulk — see reviewService.js): if
+// the question publishes but the bookkeeping transaction then fails, a naive
+// retry of this same endpoint would call createLiveQuestion again and publish
+// a duplicate. Guarded the same way: a row that already carries
+// promotedQuestionId (persisted best-effort below on a prior failed attempt)
+// skips straight to retrying the bookkeeping.
 router.put('/:id/approve', validate(reviewApproveSchema), async (req, res) => {
     try {
         const row = await prisma.questionPendingReview.findUnique({ where: { id: req.params.id } });
@@ -81,26 +87,43 @@ router.put('/:id/approve', validate(reviewApproveSchema), async (req, res) => {
         if (row.status !== 'PENDING') return res.status(409).json({ error: `Item is already ${row.status}.` });
 
         const finalData = toLiveQuestionData(row, req.body);
-        const question = await createLiveQuestion(finalData);
+        let questionId = row.promotedQuestionId || null;
+        if (!questionId) {
+            const question = await createLiveQuestion(finalData);
+            questionId = question.id;
+        }
         try {
             await prisma.$transaction([
                 prisma.questionPendingReview.update({
                     where: { id: row.id },
-                    data: { ...finalData, status: 'APPROVED', reviewedBy: req.user.id, reviewedAt: new Date(), promotedQuestionId: question.id },
+                    data: { ...finalData, status: 'APPROVED', reviewedBy: req.user.id, reviewedAt: new Date(), promotedQuestionId: questionId },
                 }),
                 prisma.questionVersion.create({
-                    data: { reviewId: row.id, questionId: question.id, action: 'APPROVED', editor: req.user.id, snapshot: finalData },
+                    data: { reviewId: row.id, questionId, action: 'APPROVED', editor: req.user.id, snapshot: finalData },
                 }),
             ]);
         } catch (bookkeepErr) {
             // The live question exists but the bookkeeping failed — surface it
             // loudly rather than leave a silent half-state.
             logger.error('review approve bookkeeping failed (question created)', {
-                reviewId: row.id, questionId: question.id, error: bookkeepErr.message,
+                reviewId: row.id, questionId, error: bookkeepErr.message,
             });
-            return res.status(500).json({ error: 'Question created but review bookkeeping failed — refresh the queue.', questionId: question.id });
+            if (!row.promotedQuestionId) {
+                try {
+                    await prisma.questionPendingReview.update({ where: { id: row.id }, data: { promotedQuestionId: questionId } });
+                } catch (persistErr) {
+                    logger.error('review approve: best-effort promotedQuestionId persist failed', {
+                        reviewId: row.id, questionId, error: persistErr.message,
+                    });
+                }
+            }
+            return res.status(500).json({
+                error: 'Question published, but review bookkeeping failed — retry approval to finish (it will not publish a duplicate).',
+                reason: 'published-pending-recordkeeping',
+                questionId,
+            });
         }
-        return res.status(200).json({ success: true, questionId: question.id });
+        return res.status(200).json({ success: true, questionId });
     } catch (error) {
         if (error.code === 'INVALID_TAXONOMY') return res.status(400).json({ error: error.message });
         logger.error('review approve failed', { error: error.message, stack: error.stack });

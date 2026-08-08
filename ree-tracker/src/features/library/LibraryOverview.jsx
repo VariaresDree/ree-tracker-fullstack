@@ -12,7 +12,7 @@ import {
     deleteQuestionFromBank
 } from '../../services/dbQueries';
 import { sanitizeOptions, stripChoicePrefix } from '../../utils/sanitizeOptions';
-import { Button, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill } from '../../components/ui';
+import { Button, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill, ProgressIndicator } from '../../components/ui';
 import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
@@ -29,6 +29,14 @@ const TRACK_ACCENT = {
 // only; the server re-validates authoritatively. Legacy flagged items are
 // always excluded (they use a different approve path and deserve eyes).
 const BULK_OK_SUBJECTS = new Set(['mathematics', 'math', 'esas', 'ee', 'electrical engineering']);
+
+// apiRequest hard-aborts at 12s (dbQueries.js) and a large Accept-All queue
+// approves serially on the server (reviewService.approveBulk) — one request
+// covering hundreds of items reliably blows that budget, so the client
+// reports "failed" while the server keeps going and finishes anyway. Chunking
+// keeps each request comfortably inside the timeout; 25 is well under the
+// 200-id server cap (bulkIdsSchema) with headroom.
+const BULK_CHUNK_SIZE = 25;
 const isBulkEligibleClient = (q) => {
   if (!q || q.legacy) return false;
   if (!BULK_OK_SUBJECTS.has(String(q.subject || '').trim().toLowerCase())) return false;
@@ -61,9 +69,13 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   // Inline editor: one item at a time; `editDraft` holds the working copy.
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState(null);
-  // "Accept All" batch approval (confirmation-gated, server-reconciled).
+  // "Accept All" batch approval (confirmation-gated, server-reconciled,
+  // chunked). bulkProgress is null when idle; while running it's
+  // { done, total } counting IDS SENT so far (not approved — a chunk can
+  // partially fail), driving the progress bar in the confirm modal.
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [isBulkApproving, setIsBulkApproving] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(null);
 
   const bulkEligible = quarantineItems.filter(isBulkEligibleClient);
   const bulkExcludedCount = quarantineItems.length - bulkEligible.length;
@@ -93,31 +105,85 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           }
           setQuarantineItems(prev => prev.filter(q => q.id !== item.id));
           toast.success("Question approved.");
-          resyncVaultMetadata();
+          // Fire-and-forget — a failure here (e.g. the 12s/30s breaker tripped
+          // right after a slow approve) must not surface as an unhandled
+          // rejection or a false "approval failed" toast; the vault counts
+          // just stay stale until the next resync.
+          resyncVaultMetadata().catch(() => {});
       } catch (err) {
           toast.error("Approval failed.");
       }
   };
 
-  // ONE batched request; the SERVER response is the source of truth — we remove
-  // exactly what it approved, and anything it failed visibly stays in the queue
-  // with an error toast. No item is ever optimistically shown as live.
+  // Chunked, SEQUENTIAL Accept All. apiRequest hard-aborts at 12s and
+  // reviewService.approveBulk approves serially on the server, so one request
+  // covering a large queue reliably blows the client's timeout budget while
+  // the server keeps going and finishes anyway — that's the reported
+  // "it said failed but a refresh shows everything was tallied." Splitting
+  // into BULK_CHUNK_SIZE batches keeps each request comfortably inside the
+  // budget. Each chunk's SERVER response is still the only source of truth —
+  // an item is removed from the queue only once ITS OWN chunk confirms it,
+  // never optimistically, and a chunk that never gets a verdict (network
+  // throw) stops the run rather than guessing about it or the ones after it.
   const handleBulkApprove = async () => {
       const ids = quarantineItems.filter(isBulkEligibleClient).map((q) => q.id);
       if (ids.length === 0) { setShowBulkConfirm(false); return; }
+
+      const chunks = [];
+      for (let i = 0; i < ids.length; i += BULK_CHUNK_SIZE) chunks.push(ids.slice(i, i + BULK_CHUNK_SIZE));
+
       setIsBulkApproving(true);
+      setBulkProgress({ done: 0, total: ids.length });
+
+      let approvedTotal = 0;
+      let failedTotal = 0;
+      // Published live, but the audit/bookkeeping write failed — distinct from
+      // a genuine failure (reviewService: 'published-pending-recordkeeping').
+      let recordkeepingPendingTotal = 0;
+      let sentCount = 0;
+      let stoppedEarly = false;
+
       try {
-          const res = await bulkApproveReviewItems(ids);
-          const approvedSet = new Set(res?.approved || []);
-          setQuarantineItems((prev) => prev.filter((q) => !approvedSet.has(q.id)));
-          const failedCount = (res?.failed || []).length;
-          if (approvedSet.size > 0) toast.success(`${approvedSet.size} question${approvedSet.size === 1 ? '' : 's'} approved and published.`);
-          if (failedCount > 0) toast.error(`${failedCount} item${failedCount === 1 ? '' : 's'} failed and stay${failedCount === 1 ? 's' : ''} in the queue.`);
-          resyncVaultMetadata();
-      } catch {
-          toast.error('Bulk approval failed — nothing was removed from the queue.');
+          for (const chunk of chunks) {
+              let res;
+              try {
+                  res = await bulkApproveReviewItems(chunk);
+              } catch {
+                  stoppedEarly = true;
+                  break;
+              }
+              sentCount += chunk.length;
+              const approvedSet = new Set(res?.approved || []);
+              const failedItems = res?.failed || [];
+              recordkeepingPendingTotal += failedItems.filter((f) => f.reason === 'published-pending-recordkeeping').length;
+              failedTotal += failedItems.length;
+              approvedTotal += approvedSet.size;
+
+              setQuarantineItems((prev) => prev.filter((q) => !approvedSet.has(q.id)));
+              setBulkProgress({ done: sentCount, total: ids.length });
+          }
+
+          if (approvedTotal > 0) {
+              toast.success(`${approvedTotal} question${approvedTotal === 1 ? '' : 's'} approved and published.`);
+          }
+          if (recordkeepingPendingTotal > 0) {
+              toast(
+                  `${recordkeepingPendingTotal} item${recordkeepingPendingTotal === 1 ? '' : 's'} published but still need${recordkeepingPendingTotal === 1 ? 's' : ''} a bookkeeping retry — reopen the queue and Accept All again (it will not duplicate).`,
+                  { icon: '⚠️', duration: 8000 },
+              );
+          }
+          const plainFailedTotal = failedTotal - recordkeepingPendingTotal;
+          if (plainFailedTotal > 0) {
+              toast.error(`${plainFailedTotal} item${plainFailedTotal === 1 ? '' : 's'} failed and stay${plainFailedTotal === 1 ? 's' : ''} in the queue.`);
+          }
+          if (stoppedEarly) {
+              const remaining = ids.length - sentCount;
+              toast.error(`Connection dropped partway — ${approvedTotal} approved, ${remaining} item${remaining === 1 ? '' : 's'} not yet sent. Reopen the queue to continue.`);
+          }
+          if (approvedTotal > 0 || recordkeepingPendingTotal > 0) resyncVaultMetadata().catch(() => {});
       } finally {
           setIsBulkApproving(false);
+          setBulkProgress(null);
           setShowBulkConfirm(false);
       }
   };
@@ -537,6 +603,23 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           {bulkExcludedCount > 0 && ` ${bulkExcludedCount} flagged/legacy item${bulkExcludedCount === 1 ? ' is' : 's are'} excluded and stay${bulkExcludedCount === 1 ? 's' : ''} in the queue for individual review.`}
           {' '}Every approval is logged.
         </p>
+        {/* Large queues send in chunks (see BULK_CHUNK_SIZE) so no single
+            request can time out — this is the true count of items SENT so
+            far, reconciled against the server after every chunk. */}
+        {isBulkApproving && bulkProgress && (
+          <div className="mt-4">
+            <ProgressIndicator
+              value={bulkProgress.done}
+              max={bulkProgress.total}
+              tone="amber"
+              showValue
+              ariaLabel="Accept All progress"
+            />
+            <p className="text-xs text-muted2 mt-1.5">
+              Approving {bulkProgress.done} / {bulkProgress.total}…
+            </p>
+          </div>
+        )}
       </Modal>
     </div>
   );

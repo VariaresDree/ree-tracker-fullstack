@@ -92,4 +92,5 @@ export {
   Shuffle,
   Layers,
   Sigma,
+  WifiOff,
 } from 'lucide-react';

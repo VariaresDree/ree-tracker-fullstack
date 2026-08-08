@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import FocusTrap from '../FocusTrap';
 import { Card, CardFooter } from './Card';
@@ -11,6 +11,27 @@ import { cn } from './cn';
 // backdrop click, body scroll lock, max-height with a scrollable body
 // (small screens could not reach the footer before), and dialog ARIA.
 // Rendered through a portal so it never fights page stacking contexts.
+//
+// Body scroll lock is a MODULE-LEVEL open-modal counter, not a per-instance
+// save/restore. Two things broke the old per-instance version:
+//   1. Every call site passes an inline `onClose` arrow, which used to sit in
+//      this effect's deps — so a parent re-render (e.g. Accept All's
+//      isBulkApproving/setQuarantineItems churn) tore the effect down and
+//      re-ran it on every render, not just open/close.
+//   2. Save/restore of a single global value isn't composable across NESTED
+//      modals (the review queue modal open behind the bulk-approve confirm
+//      modal): a re-render during that nesting runs
+//      destroy(inner) -> destroy(outer) -> setup(outer) -> setup(inner), and
+//      destroy(inner) already left 'hidden' on the body, so setup(outer)
+//      captures 'hidden' as "the value to restore" instead of the page's
+//      real pre-modal overflow. Closing the outer modal then "restores"
+//      hidden — the page can never scroll again.
+// A counter sidesteps both: the lock engages on the 0->1 transition and the
+// ORIGINAL pre-lock value (captured once, at that transition) is restored on
+// the 1->0 transition, regardless of how many modals stack or in what order
+// they close.
+let openModalCount = 0;
+let preLockOverflow = '';
 
 const SIZES = {
   sm: 'max-w-md',
@@ -39,20 +60,34 @@ export function Modal({
   className,
 }) {
   const titleId = useId();
+  // onClose lives in a ref, not the effect's deps — the effect below must NOT
+  // re-run just because a parent re-render handed us a new inline arrow.
+  // Assigning ref.current belongs in an effect, not during render (React
+  // flags render-time ref writes) — this dedicated effect has no deps, so it
+  // commits the latest onClose after every render without gating the lock
+  // effect below on it.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
     document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
+
+    if (openModalCount === 0) preLockOverflow = document.body.style.overflow;
+    openModalCount += 1;
     document.body.style.overflow = 'hidden';
+
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (openModalCount === 0) document.body.style.overflow = preLockOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

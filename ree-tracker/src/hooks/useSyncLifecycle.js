@@ -11,14 +11,35 @@
 //      closes or backgrounds. The queue is NOT cleared optimistically; the
 //      server's clientAttemptId dedupe makes the next-open re-flush harmless
 //      whether or not this delivery succeeded.
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { auth } from '../config/firebaseDb';
 import { stableBatchKey } from '../utils/contentHash';
+import { syncDashboardStats } from '../services/analyticsSync';
 
 const KEEPALIVE_MAX_ATTEMPTS = 100; // keepalive bodies are capped at ~64KB
 
 export function useSyncLifecycle() {
+  // A background flush here (15s safety net / reconnect / pagehide, all
+  // below) used to update ONLY stats.thetaRating on success — the full
+  // aggregate reconcile (activityCalendar/microTopics/matrix/totalAnswered)
+  // happened ONLY as a side effect of Dashboard.jsx's own local `syncTick`
+  // effect, which watches syncStatus but only exists while Dashboard is
+  // mounted. So an offline batch that synced while the user was on Review,
+  // Profile, or Arena left those surfaces' cached numbers stale until the
+  // user happened to visit Dashboard again — read as "offline answers don't
+  // tally." This mirrors Dashboard's exact syncing->synced watch, but here,
+  // mounted once app-wide in App.jsx regardless of route.
+  const syncStatus = useStore((s) => s.syncStatus);
+  const prevSyncStatusRef = useRef(syncStatus);
+  useEffect(() => {
+    if (prevSyncStatusRef.current === 'syncing' && syncStatus === 'synced') {
+      const uid = auth.currentUser?.uid;
+      if (uid) syncDashboardStats(uid).catch(() => { /* best-effort — the next successful sync retries */ });
+    }
+    prevSyncStatusRef.current = syncStatus;
+  }, [syncStatus]);
+
   useEffect(() => {
     // Drain BOTH queues: per-attempt telemetry (syncQueue) AND deferred whole
     // writes (pendingWrites — session summaries + offline mock-exam telemetry),

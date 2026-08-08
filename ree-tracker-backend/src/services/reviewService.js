@@ -104,12 +104,23 @@ function isBulkEligible(row) {
 /**
  * Bulk approve pending review rows — ONE request, batched server-side, with
  * per-item outcomes so a bad item never blocks the rest. Mirrors the single
- * approve path exactly: createLiveQuestion runs OUTSIDE the bookkeeping
- * transaction (same deliberate non-atomicity — a bookkeeping failure surfaces
- * as `created-bookkeeping-failed` instead of rolling back a published
- * question), and every approval writes the same QuestionVersion audit row
- * (who/when/what) as a one-by-one approve.
- * Returns { approved: [id], failed: [{ id, reason }] }.
+ * approve path: createLiveQuestion runs OUTSIDE the bookkeeping transaction
+ * (same deliberate non-atomicity), and every approval writes the same
+ * QuestionVersion audit row (who/when/what) as a one-by-one approve.
+ *
+ * Retry-safe against partial failure: if a prior run published the question
+ * (createLiveQuestion succeeded) but the bookkeeping transaction then failed,
+ * the row is left PENDING with no promotedQuestionId — so a naive retry would
+ * call createLiveQuestion AGAIN and publish a duplicate. To prevent that:
+ *   1. On a bookkeeping failure, best-effort persist promotedQuestionId onto
+ *      the row in its own write, OUTSIDE the failed transaction.
+ *   2. On the next run, a row that already carries promotedQuestionId skips
+ *      createLiveQuestion entirely and only retries the bookkeeping against
+ *      that existing question id.
+ * A row stuck in this state is reported as `published-pending-recordkeeping`,
+ * not a generic failure — the question IS live; only the queue bookkeeping
+ * needs a retry.
+ * Returns { approved: [id], failed: [{ id, reason, questionId? }] }.
  */
 async function approveBulk(ids, editorId) {
     const approved = [];
@@ -122,32 +133,58 @@ async function approveBulk(ids, editorId) {
         const row = byId.get(id);
         if (!row) { failed.push({ id, reason: 'not-found' }); continue; }
         if (row.status !== 'PENDING') { failed.push({ id, reason: 'already-reviewed' }); continue; }
-        if (!isBulkEligible(row)) { failed.push({ id, reason: 'invalid' }); continue; }
 
+        // Already published by a prior partial run — skip straight to
+        // bookkeeping instead of re-validating (isBulkEligible re-checks
+        // CONTENT, not publication state) and re-publishing.
+        let questionId = row.promotedQuestionId || null;
         const finalData = toLiveQuestionData(row, {});
-        let question;
-        try {
-            question = await createLiveQuestion(finalData);
-        } catch (err) {
-            failed.push({ id, reason: err.code === 'INVALID_TAXONOMY' ? 'invalid' : 'create-failed' });
-            continue;
+
+        if (!questionId) {
+            if (!isBulkEligible(row)) { failed.push({ id, reason: 'invalid' }); continue; }
+            try {
+                const question = await createLiveQuestion(finalData);
+                questionId = question.id;
+            } catch (err) {
+                failed.push({ id, reason: err.code === 'INVALID_TAXONOMY' ? 'invalid' : 'create-failed' });
+                continue;
+            }
         }
+
         try {
             await prisma.$transaction([
                 prisma.questionPendingReview.update({
                     where: { id: row.id },
-                    data: { status: 'APPROVED', reviewedBy: editorId, reviewedAt: new Date(), promotedQuestionId: question.id },
+                    data: { status: 'APPROVED', reviewedBy: editorId, reviewedAt: new Date(), promotedQuestionId: questionId },
                 }),
                 prisma.questionVersion.create({
-                    data: { reviewId: row.id, questionId: question.id, action: 'APPROVED', editor: editorId, snapshot: finalData },
+                    data: { reviewId: row.id, questionId, action: 'APPROVED', editor: editorId, snapshot: finalData },
                 }),
             ]);
             approved.push(id);
         } catch (bookkeepErr) {
             logger.error('bulk approve bookkeeping failed (question created)', {
-                reviewId: row.id, questionId: question.id, error: bookkeepErr.message,
+                reviewId: row.id, questionId, error: bookkeepErr.message,
             });
-            failed.push({ id, reason: 'created-bookkeeping-failed', questionId: question.id });
+            // Best-effort, OUTSIDE the failed transaction: mark the row as
+            // already-published so the NEXT retry detects it via
+            // row.promotedQuestionId above instead of re-publishing. Skipped
+            // when we already read a promotedQuestionId this run (nothing new
+            // to persist). Swallow failure here — worst case the admin sees
+            // this reason again and retries, still without duplicating.
+            if (!row.promotedQuestionId) {
+                try {
+                    await prisma.questionPendingReview.update({
+                        where: { id: row.id },
+                        data: { promotedQuestionId: questionId },
+                    });
+                } catch (persistErr) {
+                    logger.error('bulk approve: best-effort promotedQuestionId persist failed', {
+                        reviewId: row.id, questionId, error: persistErr.message,
+                    });
+                }
+            }
+            failed.push({ id, reason: 'published-pending-recordkeeping', questionId });
         }
     }
     return { approved, failed };
