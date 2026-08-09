@@ -26,6 +26,7 @@ export function KpiTile({
   tone = 'velocity',
   hint,
   className,
+  iconGlow = false,
 }) {
   const accent = TONE_VAR[tone] || TONE_VAR.velocity;
   const hasDelta = delta !== undefined && delta !== null && !Number.isNaN(Number(delta));
@@ -35,8 +36,16 @@ export function KpiTile({
   return (
     <Card elevated className={cn('p-4 sm:p-5 flex flex-col gap-3 hover-glow', className)}>
       <div className="flex items-center justify-between gap-2">
+        {/* iconGlow: pulse-glow lives on the icon chip, not the Card (see
+            Dashboard.jsx's Day Streak tile) — it used to be on the Card
+            itself, which collided with .stagger-fade-in's `animation`
+            shorthand on the SAME element and stranded the tile at permanent
+            opacity:0 (see the fix note in styles/index.css). Putting it on a
+            child the stagger animation doesn't target sidesteps that whole
+            class of collision, and reads better anyway — a pulsing icon
+            chip, not the entire card glowing. */}
         <span
-          className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] shrink-0"
+          className={`inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] shrink-0 ${iconGlow ? 'pulse-glow' : ''}`}
           style={{ background: `color-mix(in srgb, ${accent} 14%, transparent)`, color: accent }}
         >
           {Icon ? <Icon size={18} strokeWidth={1.75} aria-hidden="true" /> : null}
@@ -76,8 +85,17 @@ export function KpiTile({
           AFTER that decision, leaving the label stuck with the leftover
           sliver again. Stacking unconditionally (flex-col) removes the
           ambiguity entirely — label and hint each always get the tile's
-          full width, deterministically. */}
-      <div className="flex flex-col gap-0.5">
+          full width, deterministically.
+
+          `mt-auto`: only 2 of the 5 dashboard tiles pass a `hint`, so
+          without this the label block sat at inconsistent distances from
+          the card's bottom edge — measured live, 21px on a hinted tile vs.
+          39-42px on the rest, a visibly ragged row (Card is flex-col with no
+          `justify`, so content packs upward and any height difference shows
+          up as bottom-edge drift instead). Pushing this block to the bottom
+          unconditionally means every tile's label sits flush with the card
+          bottom regardless of whether a hint is present. */}
+      <div className="mt-auto flex flex-col gap-0.5">
         <span className="text-eyebrow">{label}</span>
         {hint && <span className="text-[11px] text-muted2 tabular-nums">{hint}</span>}
       </div>

@@ -51,7 +51,12 @@ export default function BoardSimulator() {
       if (lastSentAnswersRef.current[idx] === ans) continue;
       lastSentAnswersRef.current[idx] = ans;
       const q = engine.session.questions[idx];
-      if (q?.id) sendAnswer(q.id, ans, engine.session.confidences?.[idx] || 'MED');
+      // getElapsedMs: every Battle attempt in production recorded
+      // timeSpentMs=0 (100%, confirmed against the live DB) — sendAnswer's
+      // parameter defaulted to 0 and this call site never passed anything,
+      // because the engine's internal timing ref wasn't exposed at all until
+      // now. Number(idx) since Object.entries keys are strings.
+      if (q?.id) sendAnswer(q.id, ans, engine.session.confidences?.[idx] || 'MED', engine.getElapsedMs(Number(idx)));
     }
   }, [engine.session.answers, activeBattleId, battleConnected]);
 

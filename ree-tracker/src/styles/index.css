@@ -342,10 +342,22 @@
     to { transform: rotate(360deg); }
   }
 
-  /* Staggered list entrance */
+  /* Staggered list entrance.
+     `both` (not a bare `opacity:0` + `forwards`) is deliberate: it applies
+     the FROM keyframe's opacity only during the delay window before the
+     animation starts, via the CASCADE of the animation itself — not as a
+     separate always-on property. A static `opacity: 0` here plus a
+     later, more-specific rule that overrides just `animation` (as
+     `.pulse-glow` on the Day Streak KpiTile did — same specificity, same
+     layer, declared later, so it won the `animation` shorthand and replaced
+     fadeSlideUp with pulseGlow) left that opacity:0 with nothing to ever
+     bring it back to 1: the tile rendered permanently invisible whenever its
+     value was nonzero. With `both` and no separate opacity declaration, an
+     element that loses this animation entirely just falls back to its
+     normal cascade opacity (1) — a utility that can only fail towards
+     *visible*, not invisible. */
   .stagger-fade-in > * {
-    opacity: 0;
-    animation: fadeSlideUp 0.4s ease-out forwards;
+    animation: fadeSlideUp 0.4s ease-out both;
   }
   .stagger-fade-in > *:nth-child(1) { animation-delay: 0ms; }
   .stagger-fade-in > *:nth-child(2) { animation-delay: 60ms; }
@@ -529,16 +541,36 @@
      measured live, 422px of dead space (67% of the card) on a real front
      face while the back face's content set the row height. overflow:hidden
      clips the now-off-size inactive face rather than letting it spill past
-     the explicitly-sized box. Reduced-motion users get a cross-fade instead
-     of the rotation (the height transition stays either way — it's a
-     correctness fix, not decorative motion). */
-  .flip-scene { perspective: 1200px; }
+     the explicitly-sized box.
+
+     `overflow: hidden` and the measured `height` live on `.flip-scene`, NOT
+     `.flip-inner` — they were both put on `.flip-inner` in the dead-space fix
+     above, which broke the flip itself: per CSS Transforms Level 2, a
+     computed `overflow` other than `visible` forces the USED value of
+     `transform-style` to `flat`, silently overriding the `preserve-3d`
+     declared one line below it. Confirmed live: after clicking to flip,
+     `aria-hidden` correctly toggled (front hidden, back visible) but
+     `elementsFromPoint` at the card's center still hit `.flip-front` — the
+     back face never actually took over the screen position, because a flat
+     3D context flattens each face's OWN rotateY() independent of the
+     parent's flip state instead of compounding them (see git history:
+     pre-dead-space-fix, `.flip-inner` had neither property and flipped
+     correctly). `.flip-scene` only ever sets `perspective`, never
+     `transform-style`, so clipping/sizing there is free of this trap —
+     `.flip-inner` keeps a clean `preserve-3d` and just fills it (height:100%).
+     Reduced-motion users get a cross-fade instead of the rotation (the height
+     transition stays either way — it's a correctness fix, not decorative
+     motion). */
+  .flip-scene {
+    perspective: 1200px;
+    overflow: hidden;
+    transition: height var(--duration-slow) var(--ease-out-quart);
+  }
   .flip-inner {
     display: grid;
-    overflow: hidden;
+    height: 100%;
     transform-style: preserve-3d;
-    transition: transform var(--duration-slow) var(--ease-out-quart),
-      height var(--duration-slow) var(--ease-out-quart);
+    transition: transform var(--duration-slow) var(--ease-out-quart);
   }
   .flip-inner.is-flipped { transform: rotateY(180deg); }
   .flip-face {

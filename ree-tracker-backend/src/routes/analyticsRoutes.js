@@ -8,6 +8,8 @@ const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { recordAttempts, todayManila } = require('../services/telemetryService');
+const { Prisma } = require('@prisma/client');
+const { manilaDaySql } = require('../utils/manilaDate');
 // Shared cache module — recordAttempts invalidates it for EVERY write surface
 // (telemetry-bulk, exams/grade, exams/submit, battle-submit), so battles and
 // gauntlet runs no longer leave the dashboard stale for up to 30s.
@@ -64,8 +66,19 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // not the day the row reached the server — see answeredAt on the model.
         // ActivityLog itself is now streak-ledger-only (telemetryService); it is
         // no longer a display source.
+        //
+        // BUG FIXED HERE (data-correctness, not display): this used to read
+        // `... AT TIME ZONE 'Asia/Manila'` directly on the naive-UTC column,
+        // which Postgres treats as LOCALIZING the value (assume it's already
+        // Manila time) rather than CONVERTING it — a 16-hour error in the
+        // wrong direction. Proven live: 826 of 1049 attempts (79%) were
+        // misdated, everything answered before 16:00 Manila landing on the
+        // previous day. manilaDaySql() does the correct two-step cast — see
+        // utils/manilaDate.js for the full explanation. The stored instants
+        // were always correct, so this alone retroactively fixes every
+        // existing row; no backfill needed.
         const dayRows = await prisma.$queryRaw`
-            SELECT to_char(COALESCE(qa."answeredAt", qa."createdAt") AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD') AS day,
+            SELECT ${manilaDaySql(Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`)} AS day,
                    COUNT(*)::int AS count
             FROM "QuestionAttempt" qa
             WHERE qa."userId" = ${uid}

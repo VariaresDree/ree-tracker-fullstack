@@ -13,6 +13,7 @@ import { updateUserProfile } from '../services/dbQueries';
 import { useNotificationSlice } from '../store/slices';
 import { Capacitor } from '@capacitor/core';
 import { scheduleDailyReminder, cancelDailyReminder } from '../services/localReminders';
+import { todayManila } from '../utils/manilaDate';
 
 // Decoupled Components
 import ComparativeAnalyticsTab from '../features/profile/ComparativeAnalyticsTab';
@@ -87,7 +88,11 @@ export default function Profile() {
     if (!notifications.enabled) return;
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     const tasks = stats?.tasks || [];
-    const today = new Date().toISOString().split('T')[0];
+    // Manila, not browser-local UTC — dueDate strings are Manila-anchored
+    // (plannerRoutes.js generates them from todayManila()), so comparing
+    // against a UTC "today" mis-fired/mis-missed this reminder for up to 8
+    // hours around the day boundary.
+    const today = todayManila();
     const urgentTasks = tasks.filter(t => !t.completed && t.dueDate && t.dueDate <= today);
     if (urgentTasks.length > 0 && !sessionStorage.getItem('notified_today')) {
       try {
