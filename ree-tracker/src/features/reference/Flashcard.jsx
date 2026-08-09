@@ -134,16 +134,19 @@ export default function Flashcard({ card }) {
                 {card.variables.map((v, i) => (
                   <div key={i} className="flex items-baseline gap-2 text-fluid-sm min-w-0">
                     <span className="font-mono font-bold text-[var(--accent)] shrink-0 [&_p]:!mb-0">
-                      <LatexRenderer content={withMathDelimiters(v.symbol)} />
+                      <LatexRenderer compact content={withMathDelimiters(v.symbol)} />
                     </span>
                     <span className="text-muted2 min-w-0 [overflow-wrap:anywhere]">
                       {v.meaning}
                       {v.unit ? (
                         // Units carry LaTeX too (`\Omega`, `m^2`) and were rendering
                         // as source. Inline-block keeps the parenthesised unit on the
-                        // same baseline as the meaning text.
+                        // same baseline as the meaning text. `compact`: measured live,
+                        // the default math-scroll-mobile wrapper's non-visible overflow
+                        // + 8px padding-bottom pushed these short tokens 14px above the
+                        // row's baseline instead of sitting on it — see LatexRenderer.
                         <span className="text-muted [&_p]:!m-0 [&>div]:inline-block">
-                          {' ('}<LatexRenderer content={withMathDelimiters(v.unit)} className="!inline-block" />{')'}
+                          {' ('}<LatexRenderer compact content={withMathDelimiters(v.unit)} className="!inline-block" />{')'}
                         </span>
                       ) : null}
                     </span>

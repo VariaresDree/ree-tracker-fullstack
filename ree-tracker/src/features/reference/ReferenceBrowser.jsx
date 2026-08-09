@@ -90,6 +90,16 @@ export default function ReferenceBrowser() {
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedSubtopic, setSelectedSubtopic] = useState(null); // may be UNTAGGED
   const [studying, setStudying] = useState(false);
+  // Which cards a study session covers. Was hardcoded to `leafCards`, so
+  // studying was only ever reachable after drilling all the way to a single
+  // subtopic — the whole point of grouping by subject (EE/Math/ESAS) was to
+  // let a set that large be studied as one set too, so a session can now
+  // start from either the subject-level topic grid or the subtopic leaf.
+  const [studyCards, setStudyCards] = useState([]);
+  const startStudying = (cardsToStudy) => {
+    setStudyCards(cardsToStudy);
+    setStudying(true);
+  };
 
   const kindFiltered = useMemo(
     () => (kind === 'all' ? cards : cards.filter((c) => c.kind === kind)),
@@ -242,7 +252,9 @@ export default function ReferenceBrowser() {
 
       {!isSearching && <Breadcrumb items={breadcrumbItems} onNavigate={navigateBreadcrumb} />}
 
-      {isSearching ? (
+      {studying ? (
+        <ReferenceStudyMode cards={studyCards} onExit={() => setStudying(false)} />
+      ) : isSearching ? (
         searchResults.length === 0 ? (
           <EmptyState
             icon={BookOpen}
@@ -268,11 +280,25 @@ export default function ReferenceBrowser() {
         (safeTOS[selectedSubject] || []).length === 0 ? (
           <EmptyState icon={BookOpen} title="No topics configured" description="This subject has no syllabus topics yet." />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(safeTOS[selectedSubject] || []).map((t) => (
-              <BrowseTile key={t} label={t} count={topicCounts[t] || 0} onClick={() => handleSelectTopic(t)} />
-            ))}
-          </div>
+          <>
+            {/* Study the WHOLE subject in one session — previously the only
+                entry point into study mode was after drilling to a single
+                subtopic, so studying everything under e.g. EE meant either
+                repeating a session per subtopic or never doing it at all. */}
+            {cardsInSubject.length > 0 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-eyebrow">{countLabel(cardsInSubject.length)} in {selectedSubject}</p>
+                <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInSubject)}>
+                  <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study this set
+                </Button>
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(safeTOS[selectedSubject] || []).map((t) => (
+                <BrowseTile key={t} label={t} count={topicCounts[t] || 0} onClick={() => handleSelectTopic(t)} />
+              ))}
+            </div>
+          </>
         )
       ) : !atLeaf ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -298,13 +324,11 @@ export default function ReferenceBrowser() {
           title="No cards here yet"
           description="Try a different kind filter, or check back once more content passes review."
         />
-      ) : studying ? (
-        <ReferenceStudyMode cards={leafCards} onExit={() => setStudying(false)} />
       ) : (
         <>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <p className="text-eyebrow">{countLabel(leafCards.length)}</p>
-            <Button size="sm" variant="secondary" onClick={() => setStudying(true)}>
+            <Button size="sm" variant="secondary" onClick={() => startStudying(leafCards)}>
               <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study this set
             </Button>
           </div>
