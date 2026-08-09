@@ -60,12 +60,12 @@ function Breadcrumb({ items, onNavigate }) {
       {items.map((it, i) => {
         const isLast = i === items.length - 1;
         return (
-          <span key={i} className="flex items-center gap-1.5">
-            {i > 0 && <ChevronRight size={13} strokeWidth={1.75} aria-hidden="true" className="text-muted" />}
+          <span key={i} className="flex items-center gap-1.5 min-w-0 max-w-full">
+            {i > 0 && <ChevronRight size={13} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0" />}
             {isLast ? (
-              <span className="font-semibold text-textMain">{it.label}</span>
+              <span className="font-semibold text-textMain min-w-0 [overflow-wrap:anywhere]">{it.label}</span>
             ) : (
-              <button type="button" onClick={() => onNavigate(i)} className="text-muted2 hover:text-textMain transition-colors cursor-pointer">
+              <button type="button" onClick={() => onNavigate(i)} className="text-muted2 hover:text-textMain transition-colors cursor-pointer min-w-0 [overflow-wrap:anywhere]">
                 {it.label}
               </button>
             )}

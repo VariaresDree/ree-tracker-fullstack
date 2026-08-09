@@ -141,7 +141,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
               </div>
               <div className="flex flex-wrap gap-2 overflow-y-auto max-h-24 custom-scrollbar pr-2 relative z-10">
                   {onlineAgentsList.length > 0 ? onlineAgentsList.map((agent, i) => (
-                      <span key={i} className="text-[11px] font-bold uppercase tracking-widest bg-reeGreen/10 text-reeGreen border border-reeGreen/20 px-2 py-1 rounded-md shadow-sm">
+                      <span key={i} className="text-[11px] font-bold uppercase tracking-widest bg-reeGreen/10 text-reeGreen border border-reeGreen/20 px-2 py-1 rounded-md shadow-sm truncate max-w-[160px]">
                           {agent.displayName || 'Agent'}
                       </span>
                   )) : (
@@ -176,14 +176,14 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
           {ALL_MILESTONES.map((badge) => {
             const isUnlocked = badge.condition;
             return (
-              <div key={badge.id} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${isUnlocked ? `${badge.color} shadow-sm` : 'bg-surface2 border-border2 opacity-60 grayscale'}`}>
-                <div className="text-3xl relative">
+              <div key={badge.id} className={`flex items-center gap-4 p-4 rounded-xl border transition-all min-w-0 ${isUnlocked ? `${badge.color} shadow-sm` : 'bg-surface2 border-border2 opacity-60 grayscale'}`}>
+                <div className="text-3xl relative shrink-0">
                    {badge.icon}
                    {!isUnlocked && <span className="absolute -bottom-1 -right-1 text-xs bg-bg rounded-full p-0.5 shadow">🔒</span>}
                 </div>
-                <div className="flex flex-col">
-                  <span className={`text-sm font-black uppercase tracking-wide ${isUnlocked ? 'text-inherit' : 'text-muted'}`}>{badge.name}</span>
-                  <span className={`text-[11px] font-bold uppercase tracking-widest mt-0.5 ${isUnlocked ? 'opacity-80' : 'text-muted2'}`}>{badge.desc}</span>
+                <div className="flex flex-col min-w-0">
+                  <span className={`text-sm font-black uppercase tracking-wide [overflow-wrap:anywhere] ${isUnlocked ? 'text-inherit' : 'text-muted'}`}>{badge.name}</span>
+                  <span className={`text-[11px] font-bold uppercase tracking-widest mt-0.5 [overflow-wrap:anywhere] ${isUnlocked ? 'opacity-80' : 'text-muted2'}`}>{badge.desc}</span>
                 </div>
               </div>
             );

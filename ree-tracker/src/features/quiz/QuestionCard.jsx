@@ -152,7 +152,7 @@ export default function QuestionCard({
             )}
             {subjectLabel && (
               <span
-                className="text-eyebrow px-3 py-1 rounded-[var(--radius-sm)] border"
+                className="text-eyebrow px-3 py-1 rounded-[var(--radius-sm)] border min-w-0 max-w-full [overflow-wrap:anywhere]"
                 style={{
                   color: 'var(--accent-signal)',
                   background: 'color-mix(in srgb, var(--accent-signal) 10%, transparent)',
