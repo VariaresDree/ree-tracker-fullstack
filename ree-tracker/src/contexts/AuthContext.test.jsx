@@ -10,7 +10,7 @@
 //   2. loading clears the INSTANT onAuthStateChanged fires (user or null),
 //      without waiting on the profile/TOS/flags/push chain — so a slow
 //      backend (not a slow auth SDK) can no longer hold the whole app on the
-//      "Securing Session…" screen either.
+//      boot screen either.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { AuthProvider } from './AuthContext';
@@ -72,8 +72,8 @@ describe('AuthProvider — weak-connection reload never ejects to login', () => 
       </AuthProvider>,
     );
 
-    // Initial state: securing session, definitely not stalled yet.
-    expect(screen.getByText(/securing session/i)).toBeInTheDocument();
+    // Initial state: the branded boot screen, definitely not stalled yet.
+    expect(screen.getByText(/preparing your session/i)).toBeInTheDocument();
     expect(screen.queryByText('APP CONTENT')).not.toBeInTheDocument();
 
     // Advance past the stall window with onAuthStateChanged never firing.
@@ -82,12 +82,12 @@ describe('AuthProvider — weak-connection reload never ejects to login', () => 
     });
 
     // A reconnecting/retry state, NOT children (App.jsx would render <Login/>
-    // for children with a null currentUser) and not the plain "Securing
-    // Session" spinner either.
+    // for children with a null currentUser) and not the boot screen either —
+    // the stall path must fully replace it, not sit alongside it.
     expect(screen.getByText(/still trying to reach your session/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
     expect(screen.queryByText('APP CONTENT')).not.toBeInTheDocument();
-    expect(screen.queryByText(/^securing session/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/preparing your session/i)).not.toBeInTheDocument();
   });
 
   it('clears loading the instant onAuthStateChanged resolves with a user, without waiting on profile/TOS/flags/push', async () => {
