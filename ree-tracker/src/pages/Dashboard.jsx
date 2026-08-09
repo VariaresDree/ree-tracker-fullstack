@@ -261,16 +261,23 @@ export default function Dashboard() {
         <KpiTile icon={Gauge} tone="success" label="Global accuracy" value={kpi.accuracy} suffix="%" />
         <KpiTile icon={ListChecks} tone="signal" label="Questions answered" value={kpi.answered} />
         <KpiTile icon={Timer} tone="signal" label="Avg time / question" value={kpi.avgSec} precision={1} suffix="s" />
-        {/* A live streak is the app's main motivational hook, so it gets a
-            gentle pulse — but only while it's actually running. A streak of 0
-            pulsing would be celebrating nothing. */}
+        {/* A live streak is the app's main motivational hook, so its icon
+            chip gets a gentle pulse — but only while it's actually running (a
+            streak of 0 pulsing would be celebrating nothing). This used to be
+            `pulse-glow` on the Card itself, which shared the SAME element as
+            .stagger-fade-in's `animation` shorthand and silently overrode it,
+            permanently stranding the tile at opacity:0 — see the fix note on
+            .stagger-fade-in in styles/index.css. `iconGlow` puts the pulse on
+            a child element instead, so the two animations no longer compete
+            for the same `animation` property. */}
         <KpiTile
           icon={Flame}
           tone="amber"
           label="Day streak"
           value={kpi.streak}
           hint="days"
-          className={`col-span-2 md:col-span-1 ${kpi.streak > 0 ? 'pulse-glow' : ''}`}
+          className="col-span-2 md:col-span-1"
+          iconGlow={kpi.streak > 0}
         />
       </div>
 

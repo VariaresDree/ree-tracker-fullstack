@@ -342,10 +342,22 @@
     to { transform: rotate(360deg); }
   }
 
-  /* Staggered list entrance */
+  /* Staggered list entrance.
+     `both` (not a bare `opacity:0` + `forwards`) is deliberate: it applies
+     the FROM keyframe's opacity only during the delay window before the
+     animation starts, via the CASCADE of the animation itself — not as a
+     separate always-on property. A static `opacity: 0` here plus a
+     later, more-specific rule that overrides just `animation` (as
+     `.pulse-glow` on the Day Streak KpiTile did — same specificity, same
+     layer, declared later, so it won the `animation` shorthand and replaced
+     fadeSlideUp with pulseGlow) left that opacity:0 with nothing to ever
+     bring it back to 1: the tile rendered permanently invisible whenever its
+     value was nonzero. With `both` and no separate opacity declaration, an
+     element that loses this animation entirely just falls back to its
+     normal cascade opacity (1) — a utility that can only fail towards
+     *visible*, not invisible. */
   .stagger-fade-in > * {
-    opacity: 0;
-    animation: fadeSlideUp 0.4s ease-out forwards;
+    animation: fadeSlideUp 0.4s ease-out both;
   }
   .stagger-fade-in > *:nth-child(1) { animation-delay: 0ms; }
   .stagger-fade-in > *:nth-child(2) { animation-delay: 60ms; }
