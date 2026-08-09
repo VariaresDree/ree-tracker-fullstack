@@ -15,11 +15,18 @@ export default function ExamLayout({
           this layout is shared with Gauntlet, which was getting that same
           "board simulation... real-time penalties" text unconditionally on
           desktop (only the mobile string was generic enough to read as
-          accurate there). Gauntlet now passes its own pair. */}
+          accurate there). Gauntlet now passes its own pair.
+          Background is a darkened accent-danger, not the raw token: measured
+          white-on-raw-accent-danger at ~3.2:1, under the 4.5:1 AA floor for
+          text this size (12.8px semibold doesn't qualify as "large text").
+          Mixing in 25% black brings it to ~5.3:1 without touching the shared
+          --accent-danger variable, which reads fine elsewhere because those
+          usages put the accent color as TEXT on a low-opacity tint, not white
+          text on a full-strength fill — a different contrast pair entirely. */}
       <header
         className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase text-white"
         style={{
-          background: 'var(--accent-danger)',
+          background: 'color-mix(in srgb, var(--accent-danger) 75%, black)',
           boxShadow: '0 2px 10px color-mix(in srgb, var(--accent-danger) 30%, transparent)',
         }}
       >
