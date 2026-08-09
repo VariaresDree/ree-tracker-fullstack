@@ -13,6 +13,8 @@
     "db:push": "prisma db push",
     "wipe:test-data": "node scripts/wipe-test-data.js --confirm=WIPE",
     "wipe:reference-legacy": "node scripts/wipeReferenceLegacy.js",
+    "wipe:telemetry": "node scripts/wipeTelemetry.js --confirm=WIPE",
+    "wipe:telemetry:dry": "node scripts/wipeTelemetry.js --dry-run",
     "calibrate": "node scripts/calibrate.js",
     "calibrate:dry": "node scripts/calibrate.js --dry-run",
     "recompute:theta": "node scripts/recomputeTheta.js",

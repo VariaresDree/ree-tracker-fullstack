@@ -286,6 +286,21 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       persistDraft();
   };
 
+  // Elapsed ms for question `idx` as of RIGHT NOW — the accumulated total
+  // from prior visits (timeSpentPerQuestion.current, only flushed on
+  // handleIndexChange/submitExam) PLUS the running delta since the question
+  // became active, mirroring the flush math above rather than duplicating a
+  // second copy of it. Exists so callers outside this hook (multiplayer
+  // Battle's live per-question `sendAnswer`) can attach a real timing value
+  // instead of silently defaulting to 0 — every recorded Battle attempt was
+  // 0ms before this, because `useBattleSocket.sendAnswer`'s only caller never
+  // had access to this internal ref at all.
+  const getElapsedMs = (idx) => {
+    const banked = timeSpentPerQuestion.current[idx] || 0;
+    const running = idx === currentIndex ? Date.now() - lastActiveTime.current : 0;
+    return banked + running;
+  };
+
   const handleSelectConfidence = (level) => {
       currentConfidencesRef.current[currentIndex] = level;
       setSession(prev => ({ ...prev, confidences: { ...prev.confidences, [currentIndex]: level } }));
@@ -657,7 +672,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     currentIndex, setCurrentIndex, timeRemaining, showTime, setShowTime,
     bookmarks, toggleBookmark, startSimulation, startMultiplayerBattle, handleSelectOption,
     handleSelectConfidence, handleIndexChange, submitExam, applyServerScore, applyBattleGrades,
-    hasSavedSession, resumeSimulation, handleFlagQuestion,
+    hasSavedSession, resumeSimulation, handleFlagQuestion, getElapsedMs,
     exportOfflinePDF, isExporting, isSubmitting
   };
 };
