@@ -15,7 +15,15 @@
  *
  * This rebuilds every user's ActivityLog rows from a fresh rollup of their
  * actual QuestionAttempt history, bucketed the same way the dashboard route
- * now buckets it: COALESCE(answeredAt, createdAt) AT TIME ZONE 'Asia/Manila'.
+ * now buckets it: COALESCE(answeredAt, createdAt), correctly converted to a
+ * Manila calendar day (see utils/manilaDate.js's manilaDaySql).
+ *
+ * FIXED: this script previously used a single-step `AT TIME ZONE 'Asia/Manila'`
+ * on the naive-UTC column, which LOCALIZES rather than CONVERTS — a 16-hour
+ * error that misdated the majority of rows (confirmed live: 79%) in the
+ * ActivityLog it wrote. Any ledger produced by a prior run of this script is
+ * corrupted; re-running with the fix rebuilds it correctly from the
+ * (unaffected) QuestionAttempt source of truth.
  *
  * Usage:
  *   node scripts/repairActivityLog.js            # apply
@@ -26,6 +34,8 @@
  */
 require('dotenv').config();
 const prisma = require('../src/config/db');
+const { Prisma } = require('@prisma/client');
+const { manilaDaySql } = require('../src/utils/manilaDate');
 
 function parseArgs(argv) {
   const out = { dryRun: false };
@@ -41,7 +51,7 @@ async function main() {
   const rows = await prisma.$queryRaw`
     SELECT
       qa."userId" AS "userId",
-      to_char(COALESCE(qa."answeredAt", qa."createdAt") AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD') AS "day",
+      ${manilaDaySql(Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`)} AS "day",
       COUNT(*)::int AS "count"
     FROM "QuestionAttempt" qa
     GROUP BY 1, 2

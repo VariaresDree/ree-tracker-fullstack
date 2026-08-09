@@ -5,6 +5,7 @@ const { validate } = require('../middlewares/validate');
 const { plannerTaskCreateSchema, plannerTaskUpdateSchema } = require('../schemas/plannerSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const { todayManila } = require('../utils/manilaDate');
 
 // Get all planner tasks for user
 router.get('/tasks', authMiddleware, async (req, res) => {
@@ -88,10 +89,18 @@ router.post('/tasks/generate-plan', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'examDate and topics array are required.' });
         }
 
-        const startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
+        // Anchor "today" to the Manila calendar day, not the server process's
+        // local/UTC day — `new Date(); setHours(0,0,0,0)` zeroed to whatever
+        // timezone the server happens to run in (Render defaults to UTC,
+        // Manila 08:00), which shifted every generated due-date by 8 hours of
+        // day-boundary error for plans generated 00:00-07:59 Manila. Building
+        // from the Manila Y-M-D string and doing all arithmetic with UTC
+        // getters/setters below keeps the calendar math exact and independent
+        // of the server's runtime timezone.
+        const [mYear, mMonth, mDay] = todayManila().split('-').map(Number);
+        const startDate = new Date(Date.UTC(mYear, mMonth - 1, mDay));
         const endDate = new Date(examDate);
-        endDate.setHours(0, 0, 0, 0);
+        endDate.setUTCHours(0, 0, 0, 0);
 
         const totalDays = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
 
@@ -134,7 +143,7 @@ router.post('/tasks/generate-plan', authMiddleware, async (req, res) => {
         for (let i = 0; i < Math.min(totalDays, sortedTopics.length * 2); i++) {
             const topic = sortedTopics[i % sortedTopics.length];
             const dueDate = new Date(today);
-            dueDate.setDate(dueDate.getDate() + i);
+            dueDate.setUTCDate(dueDate.getUTCDate() + i);
             const dueDateStr = dueDate.toISOString().split('T')[0];
 
             const perf = perfMap[topic.subtopic];

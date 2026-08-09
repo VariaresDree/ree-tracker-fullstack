@@ -23,21 +23,11 @@ const logger = require('../utils/logger');
 // as canonicalSubject for this module's internal uses and its export.
 const { normalizeSubject: canonicalSubject } = require('../utils/subject');
 
-// Single shared formatter — en-CA yields the YYYY-MM-DD shape ActivityLog keys on.
-const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
-function todayManila() {
-    return MANILA_FMT.format(new Date());
-}
-// Manila "yesterday". Manila is a fixed UTC+8 with no DST, so subtracting a flat
-// 24h is always correct (no spring-forward/fall-back edge cases).
-function yesterdayManila() {
-    return MANILA_FMT.format(new Date(Date.now() - 86400000));
-}
-// Manila calendar date of an arbitrary instant — used to dedupe ThetaHistory to
-// one point per day.
-function manilaDateOf(d) {
-    return MANILA_FMT.format(d);
-}
+// Manila calendar-day helpers — single source of truth in utils/manilaDate.js
+// (also used by the raw-SQL bucketing in analyticsRoutes.js, which needs a
+// different, two-step expression than these JS-side ones do — see that file
+// for why).
+const { todayManila, yesterdayManila, manilaDateOf } = require('../utils/manilaDate');
 
 /**
  * Reduce per-day buckets so they sum to `total`, trimming the most recent days

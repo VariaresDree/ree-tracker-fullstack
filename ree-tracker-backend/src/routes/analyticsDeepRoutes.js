@@ -5,11 +5,9 @@ const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { buildScoreProgression, aggregateDailyStudy } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
-
-// Manila calendar date of an instant — same formatter the telemetry service
-// keys ActivityLog on, so "a study day" means the same thing everywhere.
-const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
-const manilaDateOf = (d) => MANILA_FMT.format(new Date(d));
+// Manila calendar date of an instant — same helper telemetryService keys
+// ActivityLog on, so "a study day" means the same thing everywhere.
+const { manilaDateOf } = require('../utils/manilaDate');
 
 // GET /api/analytics/deep/time-analysis — time-per-question by topic.
 // Excludes corrupt timing rows (0ms/inflated) so the averages are truthful.
