@@ -464,18 +464,36 @@
   .text-fluid-xl { font-size: var(--fluid-xl); line-height: 1.15; }
 
   /* 3D flashcard flip (Reference vault). Pure CSS — zero JS/bundle weight for
-     low-end Android. Faces are GRID-STACKED (both occupy 1/1) so the card
-     sizes itself to the taller face — no absolute-position height hacks.
-     Reduced-motion users get a cross-fade instead of the rotation. */
+     low-end Android. Faces are GRID-STACKED (both occupy 1/1) so the flip has
+     no layout jump. Height is set explicitly (Flashcard.jsx measures each
+     face via ResizeObserver and applies the ACTIVE one) rather than left to
+     auto-size to the taller face — grid's default auto-sizing meant the
+     shorter, VISIBLE face always sat inside a box sized for the taller one:
+     measured live, 422px of dead space (67% of the card) on a real front
+     face while the back face's content set the row height. overflow:hidden
+     clips the now-off-size inactive face rather than letting it spill past
+     the explicitly-sized box. Reduced-motion users get a cross-fade instead
+     of the rotation (the height transition stays either way — it's a
+     correctness fix, not decorative motion). */
   .flip-scene { perspective: 1200px; }
   .flip-inner {
     display: grid;
+    overflow: hidden;
     transform-style: preserve-3d;
-    transition: transform var(--duration-slow) var(--ease-out-quart);
+    transition: transform var(--duration-slow) var(--ease-out-quart),
+      height var(--duration-slow) var(--ease-out-quart);
   }
   .flip-inner.is-flipped { transform: rotateY(180deg); }
   .flip-face {
     grid-area: 1 / 1;
+    /* Grid items default to align-self:stretch — without this override, BOTH
+       faces get stretched to fill the auto-sized row (driven by the taller
+       one), so a face's own scrollHeight reads the STRETCHED box, not its
+       real content height. That defeated the JS height-measurement below:
+       the front face measured ~625px (the row it was stretched to fill)
+       instead of its own ~205px of content, because align-self:stretch was
+       still the default when this rule set only grid-area. */
+    align-self: start;
     min-width: 0;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;

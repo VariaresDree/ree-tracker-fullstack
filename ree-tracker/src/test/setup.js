@@ -25,3 +25,14 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     dispatchEvent: () => false,
   });
 }
+
+// jsdom doesn't ship ResizeObserver (Flashcard.jsx uses it to measure each
+// flip face's height). No-op stub — tests that need to exercise a resize
+// callback trigger it manually, matching how matchMedia is handled above.
+if (typeof window !== 'undefined' && !window.ResizeObserver) {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
