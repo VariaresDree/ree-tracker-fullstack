@@ -47,6 +47,11 @@ const LETTERS = ['A', 'B', 'C', 'D'];
  * @param {function():void} [props.onConfidenceRequiredBlocked] - called when user clicks an option but confidence is required + missing
  * @param {React.ReactNode} [props.headerSlot]    - injected to the right of the eyebrow row
  * @param {string} [props.className]
+ * @param {boolean} [props.plainText=false]       - render prompt/options as plain text instead of
+ *   through LatexRenderer. Additive and off by default so Active Review, Board Simulator, Gauntlet,
+ *   and Combat are unaffected. For third-party content that was never authored as LaTeX/Markdown —
+ *   e.g. the offline quiz launcher's imported files — running it through the markdown+KaTeX pipeline
+ *   is unnecessary risk for zero benefit; this opts out per-instance instead.
  */
 export default function QuestionCard({
   question,
@@ -62,6 +67,7 @@ export default function QuestionCard({
   onConfidenceRequiredBlocked,
   headerSlot,
   className = '',
+  plainText = false,
 }) {
   const reduceMotion = prefersReducedMotion();
   const isReviewing = state === 'reviewing';
@@ -169,7 +175,7 @@ export default function QuestionCard({
 
       {/* Prompt */}
       <div className="text-lg sm:text-xl font-semibold text-textMain leading-relaxed overflow-x-auto math-scroll-mobile [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0">
-        <LatexRenderer content={prompt} />
+        {plainText ? <div className="whitespace-pre-wrap break-words">{prompt}</div> : <LatexRenderer content={prompt} />}
       </div>
 
       {/* Confidence selector */}
@@ -221,6 +227,7 @@ export default function QuestionCard({
             reduceMotion={reduceMotion}
             tabIndex={i === activeOption ? 0 : -1}
             innerRef={(el) => { optionRefs.current[i] = el; }}
+            plainText={plainText}
           />
         ))}
       </div>
@@ -228,7 +235,7 @@ export default function QuestionCard({
   );
 }
 
-function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onClick, reduceMotion, tabIndex, innerRef }) {
+function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onClick, reduceMotion, tabIndex, innerRef, plainText }) {
   // Visual semantics:
   //   answering + selected      → blue ring (locked-in choice)
   //   answering + idle          → muted hover
@@ -293,7 +300,7 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
         {letter}.
       </span>
       <div className={`flex-1 flex items-center overflow-x-auto math-scroll-mobile [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0 ${innerClass}`}>
-        <LatexRenderer content={opt} />
+        {plainText ? <div className="whitespace-pre-wrap break-words">{opt}</div> : <LatexRenderer content={opt} />}
       </div>
       {srState && <span className="sr-only">{srState}</span>}
       {icon && <div className={`ml-4 ${!reduceMotion ? 'animate-in zoom-in duration-200' : ''}`}>{icon}</div>}

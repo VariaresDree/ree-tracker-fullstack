@@ -12,8 +12,9 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Active Review** — per-question reveal MCQ practice with SRS-driven interleaving (`pages/ActiveReview.jsx`, `features/active-recall/{FlashcardMode,MCQMode,ReviewSetup,useReviewSession}.jsx`)
 - [x] **Board Simulator** — full timed mock exam: config → live run → post-exam diagnostics, exportable exam paper PDF (`pages/BoardSimulator.jsx`, `features/board-simulator/{SimulatorConfig,SimulatorActive,SimulatorDiagnostics,useSimulatorEngine,examPaper,battleGrades}.jsx`)
 - [x] **Gauntlet** — distraction-free timed drill with resume-from-cache and its own diagnostics (`pages/Gauntlet.jsx`, `features/gauntlet/{useGauntletEngine,GauntletDiagnostics}.jsx`)
-- [x] **Shared answer surface** — one `QuestionCard` component (prompt, confidence selector, choice grid, hotkeys, reveal animation) reused identically across Active Review, Board Simulator, Gauntlet, and Combat (`features/quiz/QuestionCard.jsx`)
+- [x] **Shared answer surface** — one `QuestionCard` component (prompt, confidence selector, choice grid, hotkeys, reveal animation) reused identically across Active Review, Board Simulator, Gauntlet, Combat, and the offline Quiz Launcher (`features/quiz/QuestionCard.jsx`)
 - [x] **Exam-focus layout** — collapsible high-alert header, distraction-free chrome for any active exam surface (`layouts/ExamLayout.jsx`)
+- [x] **Offline CAQ Quiz Launcher** — import a third-party `.quiz`/`.caq` archive (ZIP) from the user's device and run it as an untimed practice exam entirely client-side: zero server contact, zero telemetry, zero effect on θ/streak/analytics. Parses to a normalized shape, skip-and-counts malformed records rather than failing the file, and collapses byte-identical duplicate answer choices (a real defect observed in third-party files) so the question stays answerable. Statically verified to never import the telemetry/store/scoring modules (`features/quiz-launcher/{caqParser,useCaqSession,QuizFilePicker,QuizLauncherTab,CaqRunner,CaqResults}.js(x)`, entry point: Materials Hub → Quiz Launcher tab, lazy-loaded)
 
 ## Analytics & Forecasting
 

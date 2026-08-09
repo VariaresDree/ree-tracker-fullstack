@@ -1,10 +1,11 @@
 // src/pages/Materials.jsx
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
-import { Button, Tabs, Badge } from '../components/ui';
-import { X, Maximize2, Minimize2, Cloud, BookOpen, Bookmark, Settings2 } from '../components/ui/icons';
+import { Button, Tabs, Badge, Skeleton } from '../components/ui';
+import { X, Maximize2, Minimize2, Cloud, BookOpen, Bookmark, Settings2, FileUp } from '../components/ui/icons';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Extracted Components
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
@@ -13,6 +14,12 @@ import ReferenceBrowser from '../features/reference/ReferenceBrowser';
 import ReferenceAdminV2 from '../features/reference/ReferenceAdminV2';
 import MediaViewer from '../components/MediaViewer';
 import FullscreenPdfViewer from '../components/FullscreenPdfViewer';
+
+// Lazy, not eagerly imported like the tabs above: this pulls in fflate and
+// the CAQ parser, which most Materials visitors will never touch. Keeping it
+// out of Materials' own chunk means it only downloads when this tab is
+// actually opened, not on every cold load of the page.
+const QuizLauncherTab = lazy(() => import('../features/quiz-launcher/QuizLauncherTab'));
 
 export default function Materials() {
   const { currentUser } = useAuth();
@@ -85,6 +92,7 @@ export default function Materials() {
           { id: 'cloud_vault', label: 'Cloud Vault', icon: Cloud },
           { id: 'reference', label: 'Reference Cards', icon: BookOpen },
           { id: 'bookmarks', label: 'Bookmark Vault', icon: Bookmark },
+          { id: 'quiz_launcher', label: 'Quiz Launcher', icon: FileUp },
           ...(isAdmin ? [{ id: 'manage_ref', label: 'Manage References', icon: Settings2 }] : []),
         ]}
       />
@@ -105,6 +113,14 @@ export default function Materials() {
 
       {activeTab === 'bookmarks' && (
         <BookmarkVaultTab currentUser={currentUser} isOnline={isOnline} />
+      )}
+
+      {activeTab === 'quiz_launcher' && (
+        <ErrorBoundary name="Quiz Launcher">
+          <Suspense fallback={<div className="flex flex-col gap-3"><Skeleton className="h-40" /><Skeleton className="h-16" /></div>}>
+            <QuizLauncherTab />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {activeTab === 'manage_ref' && isAdmin && (
