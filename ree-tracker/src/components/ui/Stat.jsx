@@ -1,9 +1,10 @@
 import { useTicker } from '../../motion/useTicker';
 import { cn } from './cn';
 
-// Display-typography hero numeric. Animates from previous render to new value.
-export function Stat({ value, suffix = '', precision = 0, label, className }) {
-  const live = useTicker(Number(value) || 0, 600);
+// Display-typography hero numeric. Animates from previous render to new value,
+// and — with `countUp` — from zero on first paint (see useTicker).
+export function Stat({ value, suffix = '', precision = 0, label, className, countUp = false }) {
+  const live = useTicker(Number(value) || 0, 600, { animateOnMount: countUp });
   return (
     <div className={cn('flex flex-col gap-1', className)}>
       {label && (

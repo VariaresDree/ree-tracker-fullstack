@@ -58,7 +58,11 @@ export function KpiTile({
         )}
       </div>
 
-      <Stat value={value} suffix={suffix} precision={precision} className="[&>span]:text-3xl sm:[&>span]:text-4xl" />
+      {/* countUp: these five are the dashboard's headline figures — the
+          reveal IS the point, so they count up from zero on first paint
+          rather than simply appearing. prefers-reduced-motion still lands
+          straight on the final value (handled in tickTo). */}
+      <Stat countUp value={value} suffix={suffix} precision={precision} className="[&>span]:text-3xl sm:[&>span]:text-4xl" />
 
       {/* `truncate` forced the label to one line + ellipsis regardless of
           available width — measured live, "Board readiness" rendered 30px of

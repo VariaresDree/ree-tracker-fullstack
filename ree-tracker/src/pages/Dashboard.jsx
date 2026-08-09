@@ -253,13 +253,25 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+      {/* KPI strip. stagger-fade-in cascades the five tiles in rather than
+          snapping them all at once — the utility already existed in
+          styles/index.css but was only used in three places app-wide. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 stagger-fade-in">
         <KpiTile icon={Target} tone="velocity" label="Board readiness" value={readinessScore} suffix="%" hint={readiness ? 'coverage · accuracy · θ' : '/ 70% pass'} />
         <KpiTile icon={Gauge} tone="success" label="Global accuracy" value={kpi.accuracy} suffix="%" />
         <KpiTile icon={ListChecks} tone="signal" label="Questions answered" value={kpi.answered} />
         <KpiTile icon={Timer} tone="signal" label="Avg time / question" value={kpi.avgSec} precision={1} suffix="s" />
-        <KpiTile icon={Flame} tone="amber" label="Day streak" value={kpi.streak} hint="days" className="col-span-2 md:col-span-1" />
+        {/* A live streak is the app's main motivational hook, so it gets a
+            gentle pulse — but only while it's actually running. A streak of 0
+            pulsing would be celebrating nothing. */}
+        <KpiTile
+          icon={Flame}
+          tone="amber"
+          label="Day streak"
+          value={kpi.streak}
+          hint="days"
+          className={`col-span-2 md:col-span-1 ${kpi.streak > 0 ? 'pulse-glow' : ''}`}
+        />
       </div>
 
       {/* Daily targets + AI report — pinned near the top so the day's goals
