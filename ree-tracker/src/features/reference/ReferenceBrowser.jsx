@@ -194,7 +194,7 @@ export default function ReferenceBrowser() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
         {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-32" />)}
       </div>
     );
@@ -253,7 +253,7 @@ export default function ReferenceBrowser() {
         ) : (
           <>
             <p className="text-eyebrow">{countLabel(searchResults.length)} matching "{deferredSearch.trim()}"</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
               {searchResults.map((card) => <Flashcard key={card.id} card={card} />)}
             </div>
           </>
@@ -308,7 +308,7 @@ export default function ReferenceBrowser() {
               <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study this set
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
             {leafCards.map((card) => <Flashcard key={card.id} card={card} />)}
           </div>
         </>

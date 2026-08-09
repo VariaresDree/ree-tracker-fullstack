@@ -57,12 +57,12 @@ export default function Flashcard({ card }) {
   }, [measure]);
 
   const faceClasses =
-    'flip-face bg-surface border border-border2 rounded-[var(--radius-lg)] p-5 shadow-sm ' +
-    'flex flex-col gap-3 min-w-0 text-left';
+    'flip-face bg-surface border border-border2 rounded-[var(--radius-lg)] p-6 shadow-sm ' +
+    'flex flex-col gap-4 min-w-0 text-left';
 
   return (
     <div
-      className="flip-scene min-w-0"
+      className="flip-scene min-w-0 w-full max-w-[420px]"
       // Falls back to auto (the old always-tallest behavior) until the first
       // ResizeObserver measurement lands, so there's never a 0-height flash
       // on mount — a percentage height on .flip-inner resolves to `auto`
@@ -124,7 +124,7 @@ export default function Flashcard({ card }) {
 
           <div>
             <div className="text-eyebrow mb-1">What it represents</div>
-            <p className="text-fluid-sm text-muted2 leading-relaxed [overflow-wrap:anywhere]">{card.description}</p>
+            <p className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere]">{card.description}</p>
           </div>
 
           {Array.isArray(card.variables) && card.variables.length > 0 && (
@@ -155,14 +155,14 @@ export default function Flashcard({ card }) {
 
           {card.purposeExamTip && (
             <div
-              className="rounded-[var(--radius-default)] border p-3"
+              className="rounded-[var(--radius-default)] border p-4"
               style={{
                 background: 'color-mix(in srgb, var(--color-reeAmber) 8%, transparent)',
                 borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
               }}
             >
               <div className="text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber)' }}>Board use & traps</div>
-              <p className="text-fluid-sm text-muted2 leading-relaxed [overflow-wrap:anywhere]">{card.purposeExamTip}</p>
+              <p className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere]">{card.purposeExamTip}</p>
             </div>
           )}
 
