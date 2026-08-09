@@ -169,6 +169,22 @@ export default function BattleLobby() {
                             </div>
                         ))
                     )}
+                    {/* Open-seat placeholder: the lobby has no player cap, so this
+                        signals "room for at least one more" rather than a fake N/M
+                        count. Only while genuinely still recruiting — hidden once
+                        the battle has actually started, where a lone player is a
+                        real 1-player match rather than a still-forming lobby. */}
+                    {participants.length === 1 && battleStatus === 'WAITING' && (
+                        <div className="flex items-center justify-between gap-3 p-4 rounded-[var(--radius-lg)] border border-dashed border-border2 bg-surface2/20">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-dashed border-muted2 animate-pulse"></span>
+                                <span className="text-sm font-medium text-muted2">Open seat — send them the code</span>
+                            </div>
+                            <Button size="sm" variant="ghost" onClick={copyInviteLink} className="shrink-0">
+                                <Copy size={14} strokeWidth={1.75} aria-hidden="true" /> Copy code
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </Card>
 
