@@ -148,6 +148,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
               disabled={isBlended}
               value={config.subject}
               onChange={(e) => setConfig({ ...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All' })}
+              className="py-3.5 text-base"
             >
               {Object.keys(safeTOS).map((s) => (
                 <option key={s} value={s}>{s === 'EE' ? 'Electrical Engineering (EE)' : s}</option>
@@ -161,6 +162,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
               <Select
                 value={config.subtopic || 'All'}
                 onChange={(e) => setConfig({ ...config, subtopic: e.target.value })}
+                className="py-3.5 text-base"
               >
                 <option value="All">All topics</option>
                 {(safeTOS[config.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
@@ -178,6 +180,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
               value={config.count}
               onChange={(v) => setConfig({ ...config, count: v })}
               columns={2}
+              size="lg"
               className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
               options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n} questions` }))}
             />
@@ -202,6 +205,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
               label="Question source"
               value={config.source}
               onChange={(v) => setConfig({ ...config, source: v })}
+              size="lg"
               options={[
                 { value: 'library', label: 'Question vault' },
                 { value: 'ai', label: 'AI generated', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },

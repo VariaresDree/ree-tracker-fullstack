@@ -118,7 +118,10 @@ export default function Gauntlet() {
   // show/hide timer, the shared horizontal ExamNavigator, the shared
   // QuestionCard, and linear + submit controls.
   return (
-    <ExamLayout>
+    <ExamLayout
+      shortMessage="Distraction-free exam — timer running"
+      message="Distraction-free Gauntlet run — timer running, failure locks you out for 12 hours"
+    >
       <Modal
         open={showSubmitConfirm}
         onClose={() => setShowSubmitConfirm(false)}

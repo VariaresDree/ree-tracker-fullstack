@@ -1,12 +1,21 @@
 import React from 'react';
 import { ShieldAlert } from '../components/ui/icons';
 
-export default function ExamLayout({ children }) {
+export default function ExamLayout({
+  children,
+  shortMessage = 'Distraction-free exam — timer running',
+  message = 'Distraction-free board simulation active — real-time penalties apply',
+}) {
   return (
     <div className="exam-environment min-h-dvh flex flex-col bg-bg">
       {/* Minimalist high-contrast warning header (sticky so it stays visible).
           Copy + size step down on phones so it stays one line and doesn't
-          double the sticky chrome above the toolbar. */}
+          double the sticky chrome above the toolbar.
+          shortMessage/message default to the original Board Simulator copy —
+          this layout is shared with Gauntlet, which was getting that same
+          "board simulation... real-time penalties" text unconditionally on
+          desktop (only the mobile string was generic enough to read as
+          accurate there). Gauntlet now passes its own pair. */}
       <header
         className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase text-white"
         style={{
@@ -16,8 +25,8 @@ export default function ExamLayout({ children }) {
       >
         <ShieldAlert size={15} strokeWidth={2} className="shrink-0" />
         <span>
-          <span className="sm:hidden">Distraction-free exam — timer running</span>
-          <span className="hidden sm:inline">Distraction-free board simulation active — real-time penalties apply</span>
+          <span className="sm:hidden">{shortMessage}</span>
+          <span className="hidden sm:inline">{message}</span>
         </span>
       </header>
 
