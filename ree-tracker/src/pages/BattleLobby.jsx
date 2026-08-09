@@ -151,13 +151,13 @@ export default function BattleLobby() {
                                     ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
                                     : p.connected ? 'bg-surface2 border-border2' : 'bg-surface2/50 border-border2 opacity-50'
                             }`}>
-                                <div className="flex items-center gap-3">
-                                    <span className={`w-2.5 h-2.5 rounded-full ${p.connected ? 'animate-pulse' : ''}`} style={{ background: p.connected ? 'var(--accent-success)' : 'var(--text-muted)' }}></span>
-                                    <span className="text-sm font-bold text-textMain">{p.displayName}</span>
-                                    {p.isHost && <Badge tone="neutral" className="uppercase">Host</Badge>}
-                                    {p.id === currentUser?.uid && <Badge tone="velocity" className="uppercase">You</Badge>}
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.connected ? 'animate-pulse' : ''}`} style={{ background: p.connected ? 'var(--accent-success)' : 'var(--text-muted)' }}></span>
+                                    <span className="text-sm font-bold text-textMain truncate">{p.displayName}</span>
+                                    {p.isHost && <Badge tone="neutral" className="uppercase shrink-0">Host</Badge>}
+                                    {p.id === currentUser?.uid && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 shrink-0">
                                     {p.finished ? (
                                         <StatusPill tone="success">Finished ({p.score}/{p.total})</StatusPill>
                                     ) : battleStatus === 'IN_PROGRESS' ? (
@@ -193,19 +193,19 @@ export default function BattleLobby() {
                                     borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
                                 } : undefined}
                             >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
                                     <span
-                                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border tabular-nums"
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border tabular-nums shrink-0"
                                         style={idx === 0 ? {
                                             color: 'var(--color-reeAmber)',
                                             background: 'color-mix(in srgb, var(--color-reeAmber) 20%, transparent)',
                                             borderColor: 'var(--color-reeAmber)',
                                         } : { color: 'var(--text-muted)', borderColor: 'var(--border-light)' }}
                                     >{idx + 1}</span>
-                                    <span className="text-sm font-bold text-textMain">{r.displayName}</span>
-                                    {r.id === currentUser?.uid && <Badge tone="velocity" className="uppercase">You</Badge>}
+                                    <span className="text-sm font-bold text-textMain truncate">{r.displayName}</span>
+                                    {r.id === currentUser?.uid && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right shrink-0">
                                     <div className="text-lg font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{r.score}/{r.itemsAnswered}</div>
                                     <div className="text-[11px] text-muted font-mono tabular-nums">{Math.round(r.timeTakenSecs / 60)}m</div>
                                 </div>

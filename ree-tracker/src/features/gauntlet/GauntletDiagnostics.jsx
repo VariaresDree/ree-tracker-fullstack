@@ -52,9 +52,9 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
                     
                     <div className="flex flex-col gap-3">
                         {weakTopics.map(([topic, errors], i) => (
-                            <div key={i} className="flex justify-between items-center p-3 bg-bg border border-border2 rounded-lg">
-                                <span className="text-sm font-bold text-textMain">{topic}</span>
-                                <span className="text-[11px] font-bold text-reeRed uppercase tracking-widest bg-reeRed/10 px-2 py-1 rounded">{errors} Errors</span>
+                            <div key={i} className="flex justify-between items-center gap-2 flex-wrap p-3 bg-bg border border-border2 rounded-lg">
+                                <span className="text-sm font-bold text-textMain min-w-0 [overflow-wrap:anywhere]">{topic}</span>
+                                <span className="text-[11px] font-bold text-reeRed uppercase tracking-widest bg-reeRed/10 px-2 py-1 rounded shrink-0">{errors} Errors</span>
                             </div>
                         ))}
                     </div>

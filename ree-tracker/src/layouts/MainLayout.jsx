@@ -106,9 +106,12 @@ export default function MainLayout({ children }) {
         />
       )}
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR. pl-[env(safe-area-inset-left)] guards the drawer's own edge
+          content in landscape on a notched phone — this is the one fixed
+          left-0 surface in the app, everything else is edge-inset by its own
+          padding already. */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[55] bg-surface border-r border-border2 flex flex-col shrink-0 shadow-2xl md:shadow-none transform transition-all duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-[55] bg-surface border-r border-border2 flex flex-col shrink-0 shadow-2xl md:shadow-none transform transition-all duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 pl-[env(safe-area-inset-left)] ${
           isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
         } ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}
       >
@@ -260,9 +263,12 @@ export default function MainLayout({ children }) {
           by construction, keeping the exam screens distraction-free. */}
       <FloatingPomodoro />
 
-      {/* MOBILE BOTTOM NAV */}
+      {/* MOBILE BOTTOM NAV. Edge-to-edge (inset-x-0) grid of 5 items — the
+          outer two sit directly under a landscape notch/rounded corner
+          without left/right safe-area padding, unlike every other fixed
+          surface in the app which is inset by its own padding already. */}
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-[45] bg-surface/95 backdrop-blur-md border-t border-border2 grid grid-cols-5 pb-[env(safe-area-inset-bottom)]"
+        className="md:hidden fixed bottom-0 inset-x-0 z-[45] bg-surface/95 backdrop-blur-md border-t border-border2 grid grid-cols-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
         aria-label="Primary"
       >
         {BOTTOM_NAV.map((item) => {

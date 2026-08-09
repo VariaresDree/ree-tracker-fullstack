@@ -463,7 +463,12 @@
     font-size: clamp(10px, 9.5px + 0.2vw, 12px);
     line-height: 1.4;
     text-transform: uppercase;
-    letter-spacing: 0.18em;
+    /* Fluid tracking, same pattern as the font-size clamp above: 0.18em of
+       tracking on a long label ("QUESTIONS ANSWERED", 19 chars) adds ~34px of
+       pure whitespace at the 10px mobile floor — the single biggest driver of
+       the KpiTile label overflow fixed in 0.3. Tightens below ~587px viewport
+       width, reaches the original 0.18em by tablet where the room exists. */
+    letter-spacing: clamp(0.1em, 0.1em + 0.15vw, 0.18em);
     font-weight: 500;
     color: var(--text-muted);
   }

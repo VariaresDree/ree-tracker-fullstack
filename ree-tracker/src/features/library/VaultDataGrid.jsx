@@ -242,7 +242,7 @@ export default function VaultDataGrid({
                               )}
                           </div>
 
-                          <div className="text-sm text-textMain leading-relaxed">
+                          <div className="text-sm text-textMain leading-relaxed math-scroll-mobile min-w-0">
                               <LatexRenderer content={q.text} />
                           </div>
                       </div>
