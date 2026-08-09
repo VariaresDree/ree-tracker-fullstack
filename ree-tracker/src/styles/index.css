@@ -550,7 +550,16 @@
     mix-blend-mode: overlay;
     z-index: 0;
   }
-  .grain-overlay > * { position: relative; z-index: 1; }
+  /* Lift children above the ::after grain layer. Wrapped in :where() so the
+     whole selector has ZERO specificity — the plain `.grain-overlay > *`
+     form matched `.absolute` (both 0,1,0) and won on source order, silently
+     forcing position:relative onto absolutely-positioned children. That put
+     decorative absolute elements back in normal flow: measured live in the
+     battle lobby, a `w-64 h-64` blur meant to sit behind the card was
+     contributing 256px of real layout height, pushing all content down and
+     leaving a 304px void above the hero icon. At zero specificity this still
+     applies by default, but ANY explicit positioning utility now wins. */
+  :where(.grain-overlay) > * { position: relative; z-index: 1; }
 }
 
 /* ==========================================================================
