@@ -16,8 +16,18 @@
 // 205px of front-face content — 422px (67%) of dead space on the visible
 // side, because the back face's 537px was setting the row height. Fixed by
 // measuring each face's natural height via ResizeObserver and applying the
-// ACTIVE face's height explicitly to .flip-inner (transitioned in CSS), so
-// the card is only ever as tall as what's actually showing.
+// ACTIVE face's height explicitly to .flip-scene — the OUTER wrapper, not
+// the rotating .flip-inner — transitioned in CSS, so the card is only ever
+// as tall as what's actually showing.
+//
+// That height (and its overflow:hidden clip) belongs on .flip-scene
+// specifically: putting either on .flip-inner forces the used value of
+// `transform-style` to `flat` (CSS Transforms Level 2 — any overflow other
+// than `visible` does this), which silently breaks the 3D flip. Confirmed
+// live: the button's aria-pressed/aria-hidden toggled correctly on click, but
+// elementsFromPoint at the card's center kept hitting .flip-front — the back
+// face never actually took over the screen position. .flip-scene never
+// declares transform-style, so sizing/clipping there is free of the trap.
 import { useState, useRef, useLayoutEffect, useCallback } from 'react';
 import { Badge } from '../../components/ui';
 import LatexRenderer from '../../components/LatexRenderer';
@@ -51,17 +61,20 @@ export default function Flashcard({ card }) {
     'flex flex-col gap-3 min-w-0 text-left';
 
   return (
-    <div className="flip-scene min-w-0">
+    <div
+      className="flip-scene min-w-0"
+      // Falls back to auto (the old always-tallest behavior) until the first
+      // ResizeObserver measurement lands, so there's never a 0-height flash
+      // on mount — a percentage height on .flip-inner resolves to `auto`
+      // against an unsized ancestor, so this fallback is unaffected below.
+      style={activeHeight != null ? { height: `${activeHeight}px` } : undefined}
+    >
       <button
         type="button"
         aria-pressed={flipped}
         aria-label={`${card.name} flashcard — ${flipped ? 'showing details, press to see the front' : 'press to reveal details'}`}
         onClick={() => setFlipped((f) => !f)}
         className={`flip-inner w-full cursor-pointer rounded-[var(--radius-lg)] transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] ${flipped ? 'is-flipped' : ''}`}
-        // Falls back to auto (the old always-tallest behavior) until the
-        // first ResizeObserver measurement lands, so there's never a 0-height
-        // flash on mount.
-        style={activeHeight != null ? { height: `${activeHeight}px` } : undefined}
       >
         {/* FRONT */}
         <div ref={frontRef} className={`flip-front ${faceClasses}`} aria-hidden={flipped}>

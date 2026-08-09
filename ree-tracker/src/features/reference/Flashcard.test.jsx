@@ -8,6 +8,12 @@
 // jsdom doesn't do real layout, so scrollHeight is always 0 — these tests
 // stub scrollHeight per-element (front vs back) to assert the component
 // picks the right one, not any particular pixel value.
+//
+// The measured height is applied to .flip-scene (the outer, non-rotating
+// wrapper), not .flip-inner — a later fix moved it there (along with
+// overflow:hidden) because both properties on .flip-inner forced its
+// transform-style to flat and silently broke the 3D flip. See the note on
+// .flip-scene/.flip-inner in styles/index.css.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Flashcard from './Flashcard';
@@ -50,14 +56,14 @@ describe('Flashcard — active-face height tracking', () => {
     // Trigger the layout effect's measure() again now that heights are stubbed
     // (a resize observer firing is the real-world equivalent).
     fireEvent(window, new Event('resize'));
-    const inner = container.querySelector('.flip-inner');
+    const scene = container.querySelector('.flip-scene');
     // useLayoutEffect ran before the stub was applied (jsdom scrollHeight=0
     // at mount), so re-render by flipping and flipping back to force a fresh
     // measure with the stub in place.
     const btn = screen.getByRole('button');
     fireEvent.click(btn);
     fireEvent.click(btn);
-    expect(inner.style.height).toBe('205px');
+    expect(scene.style.height).toBe('205px');
   });
 
   it('switches to the BACK face height after a flip', () => {
@@ -65,8 +71,8 @@ describe('Flashcard — active-face height tracking', () => {
     stubFaceHeights(container, { front: 205, back: 537 });
     const btn = screen.getByRole('button');
     fireEvent.click(btn); // flip to back
-    const inner = container.querySelector('.flip-inner');
-    expect(inner.style.height).toBe('537px');
+    const scene = container.querySelector('.flip-scene');
+    expect(scene.style.height).toBe('537px');
     expect(btn).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -76,8 +82,8 @@ describe('Flashcard — active-face height tracking', () => {
     const btn = screen.getByRole('button');
     fireEvent.click(btn); // -> back (537)
     fireEvent.click(btn); // -> front (205)
-    const inner = container.querySelector('.flip-inner');
-    expect(inner.style.height).toBe('205px');
+    const scene = container.querySelector('.flip-scene');
+    expect(scene.style.height).toBe('205px');
     expect(btn).toHaveAttribute('aria-pressed', 'false');
   });
 
