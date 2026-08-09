@@ -10,7 +10,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import RouteFallback from './components/RouteFallback';
 import { DashboardSkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
-import ExamLayout from './layouts/ExamLayout';
 import NotificationOptIn from './components/NotificationOptIn';
 import Login from './pages/Login';
 
@@ -57,8 +56,15 @@ const SecureAppTerminal = () => {
           <Route path="/profile" element={<MainLayout><ErrorBoundary name="Profile"><Profile /></ErrorBoundary></MainLayout>} />
           <Route path="/arena" element={<MainLayout><ErrorBoundary name="Arena"><Arena /></ErrorBoundary></MainLayout>} />
           <Route path="/battle/:battleId" element={<MainLayout><ErrorBoundary name="Battle"><BattleLobby /></ErrorBoundary></MainLayout>} />
-          <Route path="/simulator" element={<ExamLayout><ErrorBoundary name="Simulator"><BoardSimulator /></ErrorBoundary></ExamLayout>} />
-          <Route path="/gauntlet/:level" element={<ExamLayout><ErrorBoundary name="Gauntlet"><Gauntlet /></ErrorBoundary></ExamLayout>} />
+          {/* No layout wrapper here — both pages own their layout choice
+              internally now, since Board Simulator needs to switch between
+              MainLayout (setup) and ExamLayout (active exam), which a static
+              route-level wrapper can't express. Was previously double-
+              wrapping Gauntlet (it renders its own ExamLayout) and forcing
+              the "distraction-free exam" banner onto Simulator's setup
+              screen before any exam had started. */}
+          <Route path="/simulator" element={<ErrorBoundary name="Simulator"><BoardSimulator /></ErrorBoundary>} />
+          <Route path="/gauntlet/:level" element={<ErrorBoundary name="Gauntlet"><Gauntlet /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

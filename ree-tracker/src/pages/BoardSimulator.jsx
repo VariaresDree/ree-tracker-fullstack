@@ -8,6 +8,8 @@ import { useBattleSocket } from '../hooks/useBattleSocket';
 import SimulatorConfig from '../features/board-simulator/SimulatorConfig';
 import SimulatorActive from '../features/board-simulator/SimulatorActive';
 import SimulatorDiagnostics from '../features/board-simulator/SimulatorDiagnostics';
+import MainLayout from '../layouts/MainLayout';
+import ExamLayout from '../layouts/ExamLayout';
 import { Button, Modal } from '../components/ui';
 import { TriangleAlert } from '../components/ui/icons';
 import toast from 'react-hot-toast';
@@ -96,7 +98,14 @@ export default function BoardSimulator() {
     }
   }, [answerKey, explanationKey, activeBattleId, engine.session.isFinished]);
 
-  return (
+  // Layout is chosen HERE, not by the route (App.jsx no longer wraps this
+  // page in either layout): setup gets normal navigation chrome, an active
+  // or finished exam gets the distraction-free ExamLayout — so the "exam in
+  // progress" banner is only ever shown when one truly is.
+  const inExamMode = engine.session.isActive || engine.session.isFinished;
+  const Layout = inExamMode ? ExamLayout : MainLayout;
+
+  const content = (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">
 
       {activeBattleId && battleConnected && opponentProgress.length > 0 && engine.session.isActive && !engine.session.isFinished && (
@@ -164,4 +173,6 @@ export default function BoardSimulator() {
 
     </div>
   );
+
+  return <Layout>{content}</Layout>;
 }

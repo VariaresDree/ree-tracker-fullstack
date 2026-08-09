@@ -214,7 +214,15 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-6 border-t border-border">
           <Button
             size="lg"
-            className="flex-1"
+            // NOT bare `flex-1`: this container is `flex-col` on mobile, where
+            // `flex-1` (flex-basis:0) zeroes the button's own preferred main-
+            // size (its height, on that axis) and `min-height:auto` collapses
+            // it to its content minimum — the h-12 utility never wins. Measured
+            // live: 308x24px instead of the intended 48px. `w-full` avoids the
+            // collapse on mobile; `sm:flex-1` restores the intended stretch-to-
+            // fill once the row is horizontal (`sm:flex-row`) and height is the
+            // cross axis again.
+            className="w-full sm:flex-1"
             loading={session?.loading && !engine?.isExporting}
             disabled={session?.loading}
             onClick={handleStart}
