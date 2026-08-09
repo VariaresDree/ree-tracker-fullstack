@@ -26,12 +26,26 @@ function ConfidenceMatrix({ stats }) {
               className="absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl transition-opacity duration-500 opacity-70 group-hover:opacity-100"
               style={{ background: `color-mix(in srgb, ${c.color} 14%, transparent)` }}
             />
-            <div className="relative z-10 flex justify-between items-center">
+            {/* flex-wrap: at very narrow cell widths (2-col grid on a phone)
+                even a wrapped label can't fit alongside the shrink-0 hero
+                number on the same line — measured live, e.g. "Deficient"
+                still clipped at 45/68px. Safe to add here (unlike KpiTile's
+                row): neither child has flex-basis:0, so flex-wrap's overflow
+                check sees each one's real natural size and wraps correctly. */}
+            <div className="relative z-10 flex flex-wrap justify-between items-center gap-x-2">
+              {/* `truncate` on the sub-label clipped it against the big
+                  shrink-0 number sharing this row — measured live, e.g.
+                  "High confidence · correct" rendered 98px of the 132px it
+                  needed. This column is already min-w-0 inside a plain
+                  (non-flex-basis-0) flex-col, so simply dropping truncate
+                  lets it wrap within its already-allocated width instead of
+                  clipping — nothing on this row has flex:1 1 0%, so this
+                  doesn't hit the same wrap-fit footgun KpiTile's row did. */}
               <div className="flex flex-col min-w-0 pr-2">
-                <span className="text-xs font-semibold uppercase tracking-wider truncate" style={{ color: c.color }}>
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: c.color }}>
                   {c.label}
                 </span>
-                <span className="text-[11px] text-muted mt-0.5 truncate">{c.sub}</span>
+                <span className="text-[11px] text-muted mt-0.5">{c.sub}</span>
               </div>
               <div
                 className="text-4xl sm:text-5xl text-display tabular-nums shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5"

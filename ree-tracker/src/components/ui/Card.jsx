@@ -16,9 +16,17 @@ export function Card({ className, elevated = false, glow = false, grain = false,
 }
 
 export function CardHeader({ className, ...rest }) {
+  // flex-wrap: a wide `action` slot (e.g. a Day/Week/Month SegmentedControl)
+  // has no reason to shrink, so on a narrow viewport it was squeezing the
+  // icon+eyebrow+title group down to nothing instead of wrapping below it —
+  // measured live at 390px, the title group collapsed to 16-44px wide (icon
+  // only) and its text overflowed unreadably. The title/eyebrow group keeps
+  // its DEFAULT flex sizing (flex: 0 1 auto, i.e. no explicit basis/grow) —
+  // giving it flex-1 here would zero its hypothetical size the same way
+  // KpiTile's label did, which is what stops flex-wrap from ever triggering.
   return (
     <div
-      className={cn('px-5 pt-5 pb-3 flex items-start justify-between gap-3', className)}
+      className={cn('px-5 pt-5 pb-3 flex flex-wrap items-start justify-between gap-3', className)}
       {...rest}
     />
   );

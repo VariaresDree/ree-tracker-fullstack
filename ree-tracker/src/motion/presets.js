@@ -26,6 +26,18 @@ export const prefersReducedMotion = () =>
 
 // Number ticker — smoothly animates a numeric value over `ms`.
 // Returns a cleanup function. Use in useEffect.
+//
+// Correctness beats smoothness here: this drives numbers a user reads (KPIs,
+// scores, ranks), so it must be IMPOSSIBLE for the animation to strand the UI
+// on a wrong value. requestAnimationFrame is not guaranteed to run — browsers
+// suspend it in background/hidden tabs, and some embedded webviews never
+// composite at all (observed directly: 0 frames in 40s in an automated pane).
+// Without the watchdog below, a dashboard opened in a background tab would sit
+// at its starting value indefinitely. The watchdog force-settles on the real
+// value if the rAF loop hasn't finished in time; if rAF is healthy it always
+// wins the race and the watchdog is a no-op.
+const TICK_WATCHDOG_SLACK = 250;
+
 export function tickTo({ from, to, ms = 600, onUpdate, onDone }) {
   if (prefersReducedMotion()) {
     onUpdate?.(to);
@@ -34,14 +46,32 @@ export function tickTo({ from, to, ms = 600, onUpdate, onDone }) {
   }
   const start = performance.now();
   let raf = 0;
+  let settled = false;
+
+  const settle = () => {
+    if (settled) return;
+    settled = true;
+    onUpdate?.(to);
+    onDone?.();
+  };
+
   const step = (now) => {
+    if (settled) return;
     const t = Math.min(1, (now - start) / ms);
     // outQuart easing
     const eased = 1 - Math.pow(1 - t, 4);
     onUpdate?.(from + (to - from) * eased);
     if (t < 1) raf = requestAnimationFrame(step);
-    else onDone?.();
+    else settle();
   };
+
   raf = requestAnimationFrame(step);
-  return () => cancelAnimationFrame(raf);
+  // setTimeout keeps firing where rAF is suspended, so it can rescue the value.
+  const watchdog = setTimeout(settle, ms + TICK_WATCHDOG_SLACK);
+
+  return () => {
+    settled = true;
+    cancelAnimationFrame(raf);
+    clearTimeout(watchdog);
+  };
 }

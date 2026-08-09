@@ -9,7 +9,16 @@
 // zero-JS for low-end Android. A11y: the card is a real <button aria-pressed>
 // (click/Enter/Space flips), and the hidden face is aria-hidden so screen
 // readers never read both sides at once.
-import { useState } from 'react';
+//
+// Height: grid-stacking both faces (grid-area:1/1, needed so the flip has no
+// layout jump) makes the ROW auto-size to the TALLER face always, even while
+// showing the shorter one. Measured live on a real card: 627px rendered, only
+// 205px of front-face content — 422px (67%) of dead space on the visible
+// side, because the back face's 537px was setting the row height. Fixed by
+// measuring each face's natural height via ResizeObserver and applying the
+// ACTIVE face's height explicitly to .flip-inner (transitioned in CSS), so
+// the card is only ever as tall as what's actually showing.
+import { useState, useRef, useLayoutEffect, useCallback } from 'react';
 import { Badge } from '../../components/ui';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
@@ -18,6 +27,24 @@ const KIND_TONE = { constant: 'signal', formula: 'velocity', concept: 'neutral' 
 
 export default function Flashcard({ card }) {
   const [flipped, setFlipped] = useState(false);
+  const frontRef = useRef(null);
+  const backRef = useRef(null);
+  const [activeHeight, setActiveHeight] = useState(null);
+
+  const measure = useCallback(() => {
+    const el = flipped ? backRef.current : frontRef.current;
+    if (el) setActiveHeight(el.scrollHeight);
+  }, [flipped]);
+
+  // Re-measure on flip, and on any content resize (KaTeX finishing render,
+  // web font swap, viewport width change reflowing text) — not just on mount.
+  useLayoutEffect(() => {
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (frontRef.current) ro.observe(frontRef.current);
+    if (backRef.current) ro.observe(backRef.current);
+    return () => ro.disconnect();
+  }, [measure]);
 
   const faceClasses =
     'flip-face bg-surface border border-border2 rounded-[var(--radius-lg)] p-5 shadow-sm ' +
@@ -31,9 +58,13 @@ export default function Flashcard({ card }) {
         aria-label={`${card.name} flashcard — ${flipped ? 'showing details, press to see the front' : 'press to reveal details'}`}
         onClick={() => setFlipped((f) => !f)}
         className={`flip-inner w-full cursor-pointer rounded-[var(--radius-lg)] transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] ${flipped ? 'is-flipped' : ''}`}
+        // Falls back to auto (the old always-tallest behavior) until the
+        // first ResizeObserver measurement lands, so there's never a 0-height
+        // flash on mount.
+        style={activeHeight != null ? { height: `${activeHeight}px` } : undefined}
       >
         {/* FRONT */}
-        <div className={`flip-front ${faceClasses}`} aria-hidden={flipped}>
+        <div ref={frontRef} className={`flip-front ${faceClasses}`} aria-hidden={flipped}>
           <div className="flex items-start justify-between gap-2 min-w-0">
             <div className="min-w-0">
               {card.symbol && (
@@ -65,7 +96,7 @@ export default function Flashcard({ card }) {
         </div>
 
         {/* BACK */}
-        <div className={`flip-back ${faceClasses}`} aria-hidden={!flipped}>
+        <div ref={backRef} className={`flip-back ${faceClasses}`} aria-hidden={!flipped}>
           {card.valueUnit && (
             <div>
               <div className="text-eyebrow mb-1">Value / unit</div>

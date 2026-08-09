@@ -463,19 +463,94 @@
   .text-fluid-lg { font-size: var(--fluid-lg); line-height: 1.25; }
   .text-fluid-xl { font-size: var(--fluid-xl); line-height: 1.15; }
 
+  /* Indeterminate shuttle for the boot screen. Deliberately not a percentage
+     bar — the duration genuinely isn't knowable, so a filling bar would be
+     fabricated progress. */
+  .boot-shuttle { animation: boot-shuttle 1.4s var(--ease-out-quart) infinite; }
+  @keyframes boot-shuttle {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(320%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .boot-shuttle { animation: none; width: 100%; opacity: 0.5; }
+  }
+
+  /* Animated brand mark (BrandMark.jsx) — a circuit trace that draws itself
+     into a bolt, then breathes. Pure CSS so the loading screen costs no JS on
+     the very frame it's meant to cover. Loops slowly rather than spinning:
+     a spinner reads as "stuck", a drawing trace reads as "working".
+     Reduced-motion collapses everything to the finished state below. */
+  .brand-mark-ring {
+    stroke-dasharray: 170;
+    stroke-dashoffset: 170;
+    animation: brand-draw 1.1s var(--ease-out-quart) forwards,
+      brand-breathe 3.2s ease-in-out 1.4s infinite;
+  }
+  .brand-mark-trace {
+    stroke-dasharray: 6;
+    stroke-dashoffset: 6;
+    animation: brand-draw 0.4s var(--ease-out-quart) 0.9s forwards;
+  }
+  .brand-mark-bolt {
+    stroke-dasharray: 120;
+    stroke-dashoffset: 120;
+    /* fill fades in only after the outline finishes tracing */
+    fill-opacity: 0;
+    animation: brand-draw 0.9s var(--ease-out-quart) 0.35s forwards,
+      brand-fill 0.5s ease-out 1.15s forwards,
+      brand-pulse 3.2s ease-in-out 1.8s infinite;
+  }
+  @keyframes brand-draw { to { stroke-dashoffset: 0; } }
+  @keyframes brand-fill { to { fill-opacity: 0.18; } }
+  @keyframes brand-pulse {
+    0%, 100% { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--accent-velocity) 35%, transparent)); }
+    50% { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent-velocity) 65%, transparent)); }
+  }
+  @keyframes brand-breathe {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 0.8; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .brand-mark-ring,
+    .brand-mark-trace,
+    .brand-mark-bolt {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+    .brand-mark-bolt { fill-opacity: 0.18; }
+  }
+
   /* 3D flashcard flip (Reference vault). Pure CSS — zero JS/bundle weight for
-     low-end Android. Faces are GRID-STACKED (both occupy 1/1) so the card
-     sizes itself to the taller face — no absolute-position height hacks.
-     Reduced-motion users get a cross-fade instead of the rotation. */
+     low-end Android. Faces are GRID-STACKED (both occupy 1/1) so the flip has
+     no layout jump. Height is set explicitly (Flashcard.jsx measures each
+     face via ResizeObserver and applies the ACTIVE one) rather than left to
+     auto-size to the taller face — grid's default auto-sizing meant the
+     shorter, VISIBLE face always sat inside a box sized for the taller one:
+     measured live, 422px of dead space (67% of the card) on a real front
+     face while the back face's content set the row height. overflow:hidden
+     clips the now-off-size inactive face rather than letting it spill past
+     the explicitly-sized box. Reduced-motion users get a cross-fade instead
+     of the rotation (the height transition stays either way — it's a
+     correctness fix, not decorative motion). */
   .flip-scene { perspective: 1200px; }
   .flip-inner {
     display: grid;
+    overflow: hidden;
     transform-style: preserve-3d;
-    transition: transform var(--duration-slow) var(--ease-out-quart);
+    transition: transform var(--duration-slow) var(--ease-out-quart),
+      height var(--duration-slow) var(--ease-out-quart);
   }
   .flip-inner.is-flipped { transform: rotateY(180deg); }
   .flip-face {
     grid-area: 1 / 1;
+    /* Grid items default to align-self:stretch — without this override, BOTH
+       faces get stretched to fill the auto-sized row (driven by the taller
+       one), so a face's own scrollHeight reads the STRETCHED box, not its
+       real content height. That defeated the JS height-measurement below:
+       the front face measured ~625px (the row it was stretched to fill)
+       instead of its own ~205px of content, because align-self:stretch was
+       still the default when this rule set only grid-area. */
+    align-self: start;
     min-width: 0;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
@@ -532,7 +607,16 @@
     mix-blend-mode: overlay;
     z-index: 0;
   }
-  .grain-overlay > * { position: relative; z-index: 1; }
+  /* Lift children above the ::after grain layer. Wrapped in :where() so the
+     whole selector has ZERO specificity — the plain `.grain-overlay > *`
+     form matched `.absolute` (both 0,1,0) and won on source order, silently
+     forcing position:relative onto absolutely-positioned children. That put
+     decorative absolute elements back in normal flow: measured live in the
+     battle lobby, a `w-64 h-64` blur meant to sit behind the card was
+     contributing 256px of real layout height, pushing all content down and
+     leaving a 304px void above the hero icon. At zero specificity this still
+     applies by default, but ANY explicit positioning utility now wins. */
+  :where(.grain-overlay) > * { position: relative; z-index: 1; }
 }
 
 /* ==========================================================================

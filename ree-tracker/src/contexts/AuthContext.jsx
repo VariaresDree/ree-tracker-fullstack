@@ -14,6 +14,7 @@ import { initPushNotifications, teardownPushNotifications } from '../services/pu
 import { useStore } from '../store/useStore';
 import { Button } from '../components/ui';
 import { WifiOff } from '../components/ui/icons';
+import BootSequence from '../components/BootSequence';
 
 const MASTER_ADMIN_EMAILS = [
     'admin@example.com',
@@ -179,9 +180,7 @@ export const AuthProvider = ({ children }) => {
           <Button variant="secondary" onClick={() => window.location.reload()}>Retry</Button>
         </div>
       ) : (
-        <div className="flex justify-center items-center h-screen bg-bg text-textMain">
-          <span className="animate-pulse font-mono tracking-widest text-sm uppercase">Securing Session...</span>
-        </div>
+        <BootSequence label="Preparing your session" />
       )}
     </AuthContext.Provider>
   );

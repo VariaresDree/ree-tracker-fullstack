@@ -51,9 +51,13 @@ export function FormField({ label, hint, error, required, id: idProp, className,
   );
 }
 
+// pointer-coarse:min-h-11 mirrors the same touch-target floor Button's sm/md
+// sizes already use — this shared field base had none. Measured live: a
+// Select rendered 42px tall (py-2.5 + text-sm line-height + border), 2px
+// under the 44px minimum. min-height only (not height), so desktop is unchanged.
 const fieldBase =
   'w-full bg-bg border border-border text-textMain text-sm ' +
-  'rounded-[var(--radius-default)] px-3.5 py-2.5 outline-none ' +
+  'rounded-[var(--radius-default)] px-3.5 py-2.5 outline-none pointer-coarse:min-h-11 ' +
   'focus:border-[var(--accent)] transition-colors ' +
   'disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted';
 

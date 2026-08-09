@@ -58,11 +58,28 @@ export function KpiTile({
         )}
       </div>
 
-      <Stat value={value} suffix={suffix} precision={precision} className="[&>span]:text-3xl sm:[&>span]:text-4xl" />
+      {/* countUp: these five are the dashboard's headline figures — the
+          reveal IS the point, so they count up from zero on first paint
+          rather than simply appearing. prefers-reduced-motion still lands
+          straight on the final value (handled in tickTo). */}
+      <Stat countUp value={value} suffix={suffix} precision={precision} className="[&>span]:text-3xl sm:[&>span]:text-4xl" />
 
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-eyebrow truncate">{label}</span>
-        {hint && <span className="text-[11px] text-muted2 tabular-nums shrink-0">{hint}</span>}
+      {/* `truncate` forced the label to one line + ellipsis regardless of
+          available width — measured live, "Board readiness" rendered 30px of
+          the 140px it needed ("BOA…"). Two live iterations to actually fix:
+          removing `truncate` alone did nothing (the hint, "coverage ·
+          accuracy · θ", squeezed the label to the same ~30px sliver from the
+          same row). `flex-wrap` was the next attempt — also verified NOT to
+          work: with the label's `flex: 1 1 0%`, its hypothetical (pre-growth)
+          main size is 0, so the wrap-fit calculation never sees the line as
+          overflowing and never wraps the hint away; growth only happens
+          AFTER that decision, leaving the label stuck with the leftover
+          sliver again. Stacking unconditionally (flex-col) removes the
+          ambiguity entirely — label and hint each always get the tile's
+          full width, deterministically. */}
+      <div className="flex flex-col gap-0.5">
+        <span className="text-eyebrow">{label}</span>
+        {hint && <span className="text-[11px] text-muted2 tabular-nums">{hint}</span>}
       </div>
     </Card>
   );
