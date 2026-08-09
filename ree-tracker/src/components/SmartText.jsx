@@ -70,7 +70,12 @@ function renderPlainSegment(segment, keyPrefix) {
     if (foundKey) {
       return <GlossaryTerm key={`${keyPrefix}-${i}`} term={part} definition={DICTIONARY[foundKey]} />;
     }
-    return part ? <LatexRenderer key={`${keyPrefix}-${i}`} content={part} className="!inline-block" /> : null;
+    // compact: this segment is KNOWN non-math plain text (see function
+    // comment) — math-scroll-mobile's overflow+padding has no wide-formula
+    // case to protect here, and was measurably misaligning it against
+    // adjacent GlossaryTerm/inline content's baseline (same defect as the
+    // Flashcard variable rows — see LatexRenderer's `compact` doc).
+    return part ? <LatexRenderer compact key={`${keyPrefix}-${i}`} content={part} className="!inline-block" /> : null;
   });
 }
 

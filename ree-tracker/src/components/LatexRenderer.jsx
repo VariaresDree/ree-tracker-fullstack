@@ -31,11 +31,21 @@ class LatexErrorBoundary extends React.Component {
     }
 }
 
-const LatexRenderer = ({ content, className = "" }) => {
+const LatexRenderer = ({ content, className = "", compact = false }) => {
     if (!content) return null;
 
+    // `compact`: skips math-scroll-mobile for short inline tokens (a variable
+    // symbol, a unit in parentheses) sitting next to plain text in a
+    // `flex items-baseline` row. That class sets `overflow: auto hidden` for
+    // wide-formula scrolling, but a non-`visible` overflow forces an
+    // inline-block's baseline to its BOTTOM MARGIN EDGE instead of its actual
+    // text baseline (CSS Inline Layout) — combined with the class's own
+    // 8px padding-bottom, short content rendered measurably 14px above the
+    // row's baseline instead of sitting on it. Block-level math (a formula,
+    // an explanation) has no adjacent baseline to misalign against and
+    // legitimately needs the scroll wrapper, so this stays opt-in.
     return (
-        <div className={`prose prose-invert max-w-none math-scroll-mobile ${className}`}>
+        <div className={`prose prose-invert max-w-none ${compact ? '' : 'math-scroll-mobile'} ${className}`}>
             <LatexErrorBoundary content={content}>
                 <ReactMarkdown
                     remarkPlugins={[remarkMath]}
