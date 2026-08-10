@@ -12,8 +12,23 @@
 // makes "either copy of a duplicate counts as correct" fall out for free,
 // with no special-casing needed at this layer.
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { shuffleArray } from '../../utils/shuffle';
 
-export function useCaqSession(questions) {
+export function useCaqSession(rawQuestions) {
+  // The CAQ source format always lists the correct choice first in the file
+  // (fixed field order from the authoring tool — see caqParser.js), and the
+  // parser preserves that order, so every question's correct answer landed
+  // on option A. Shuffled once per mount via useMemo — CaqRunner remounts
+  // this hook fresh on Retake (key={runKey}), so retaking the same file gets
+  // a new shuffle too, never a stale memoized one. Reuses the same unbiased
+  // Fisher-Yates already trusted by Active Review/Board Simulator instead of
+  // a new implementation. Scoring stays correct across the shuffle because it
+  // compares option TEXT (see `score` below), never position.
+  const questions = useMemo(
+    () => rawQuestions.map((q) => ({ ...q, options: shuffleArray(q.options) })),
+    [rawQuestions],
+  );
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({}); // questionId -> selected option text
   const [finished, setFinished] = useState(false);
@@ -69,6 +84,15 @@ export function useCaqSession(questions) {
   }, [questions, answers]);
 
   return {
+    // The SHUFFLED array, not the caller's raw input — the review screen
+    // must show each question in the exact option order the user actually
+    // answered it in. Handing back the caller's original `rawQuestions`
+    // reference here (or having a caller reuse its own copy instead of this
+    // one) was the bug: the answering screen read from this shuffled array
+    // while the post-submit review re-rendered from the pre-shuffle order,
+    // so the correct answer appeared to "jump" back to option A and no
+    // longer matched what the user remembered selecting.
+    questions,
     currentQuestion,
     currentIndex,
     total: questions.length,

@@ -13,8 +13,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import QuizLauncherTab from './QuizLauncherTab';
+
+// Reads just the answer-text portion of an option row, not the whole button
+// (which also carries the A/B/C/D letter and, in review mode, an sr-only
+// "Correct answer"/"Incorrect" span) — see OptionRow in QuestionCard.jsx.
+function optionText(radio) {
+  return radio.querySelector('.flex-1')?.textContent.trim();
+}
 
 function loadFixtureAsFile(name) {
   const bytes = readFileSync(join(process.cwd(), 'src/features/quiz-launcher/__fixtures__', name));
@@ -71,6 +78,45 @@ describe('QuizLauncherTab — real file through the real UI', () => {
     expect(await screen.findByText(/\/ 36 correct/i)).toBeInTheDocument();
     expect(screen.getByText(/duplicate choice in source/i)).toBeInTheDocument();
     expect(screen.getByText(/nothing here is saved/i)).toBeInTheDocument();
+  });
+
+  it('shows Q1 review in the exact same option order the user actually answered, with their pick preserved', async () => {
+    // Regression: useCaqSession shuffles once per mount, but CaqRunner was
+    // handing CaqResults the pre-shuffle `questions` prop instead of the
+    // hook's shuffled array — so the review screen re-rendered every
+    // question's options in original file order (correct answer always at
+    // A) while the answering screen had shown the shuffled order. A user who
+    // picked option B while answering would return to review and see the
+    // correct answer sitting at A with no memory of B ever existing.
+    render(<QuizLauncherTab />);
+    const file = loadFixtureAsFile('ac-circuits.quiz');
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByText(/36 questions loaded/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /start/i }));
+    await screen.findByText(/the total voltage in a series RL circuit/i);
+
+    // Capture Q1's option order exactly as answered, and deliberately pick a
+    // WRONG choice — the bug was specifically that a non-A pick "reverted"
+    // to looking like A was correct all along.
+    const answeringOrder = screen.getAllByRole('radio').map(optionText);
+    const wrongChoice = answeringOrder.find((t) => t !== 'leads, between 0° to 90°');
+    fireEvent.click(screen.getByText(wrongChoice));
+
+    fireEvent.click(screen.getByRole('button', { name: /question 36/i }));
+    await waitFor(() => expect(screen.getByText(/item 36 \/ 36/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /finish/i }));
+    await screen.findByText(/\/ 36 correct/i);
+
+    // Review renders all 36 questions in order (CaqResults maps `questions`
+    // index-by-index) — the first radiogroup in the document is Q1's.
+    const q1Group = screen.getAllByRole('radiogroup')[0];
+    const reviewRadios = within(q1Group).getAllByRole('radio');
+    const reviewOrder = reviewRadios.map(optionText);
+
+    expect(reviewOrder).toEqual(answeringOrder);
+
+    const selectedInReview = reviewRadios.find((r) => r.getAttribute('aria-checked') === 'true');
+    expect(optionText(selectedInReview)).toBe(wrongChoice);
   });
 
   it('shows a clean, recoverable error for a non-quiz file instead of crashing', async () => {

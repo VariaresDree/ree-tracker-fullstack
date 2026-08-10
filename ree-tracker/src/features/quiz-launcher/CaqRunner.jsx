@@ -37,10 +37,18 @@ export default function CaqRunner({ fileName, questions, warnings, onExit }) {
   );
 }
 
-function CaqRun({ fileName, questions, warnings, onExit, onRetake }) {
-  const session = useCaqSession(questions);
+function CaqRun({ fileName, questions: rawQuestions, warnings, onExit, onRetake }) {
+  const session = useCaqSession(rawQuestions);
+  // `questions` here is the hook's SHUFFLED array, not `rawQuestions` above —
+  // every read below (the jump navigator and the post-submit review) must
+  // come from this one so the option order a user answered with is the exact
+  // order they see when reviewing. Passing `rawQuestions` to CaqResults
+  // instead of this was the bug: the answer surface showed shuffled options
+  // while review re-rendered the pre-shuffle order, so the correct answer
+  // appeared to jump back to option A and no longer matched what the user
+  // remembered picking.
   const {
-    currentQuestion, currentIndex, total, answers, selectAnswer, next, prev, goTo,
+    questions, currentQuestion, currentIndex, total, answers, selectAnswer, next, prev, goTo,
     finished, submit, elapsedMs, startClock, score,
   } = session;
 
