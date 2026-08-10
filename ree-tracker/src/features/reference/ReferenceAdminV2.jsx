@@ -20,6 +20,7 @@ import {
 } from '../../components/ui';
 import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
+import { withMathDelimiters } from '../../utils/mathDelimiters';
 import { generateReferenceCardsAI } from '../../services/geminiApi';
 import {
     fetchReferenceCards, fetchPendingReferenceCards, fetchReferenceCardDebt,
@@ -375,10 +376,16 @@ export default function ReferenceAdminV2() {
             </div>
             {(card.formulaLatex || card.valueUnit) && (
                 <div className="bg-bg border border-border rounded-[var(--radius-default)] px-3 py-2 math-scroll-mobile min-w-0 text-sm">
-                    <LatexRenderer content={card.formulaLatex || card.valueUnit} />
+                    {/* withMathDelimiters here to match Flashcard.jsx's student-facing
+                        render exactly — without it this admin preview could show raw
+                        LaTeX for a card whose formula field lacks $ delimiters even
+                        though the same card renders correctly for students. */}
+                    <LatexRenderer content={withMathDelimiters(card.formulaLatex || card.valueUnit)} />
                 </div>
             )}
-            <p className="text-xs text-muted2 line-clamp-2 [overflow-wrap:anywhere]">{card.description}</p>
+            <div className="text-xs text-muted2 line-clamp-2 [overflow-wrap:anywhere] [&_p]:!m-0">
+                <LatexRenderer content={card.description} />
+            </div>
         </div>
     );
 
@@ -460,10 +467,15 @@ export default function ReferenceAdminV2() {
                                             </div>
                                             {(row.formulaLatex || row.valueUnit) && (
                                                 <div className="mt-2 bg-bg border border-border rounded-[var(--radius-default)] px-3 py-2 math-scroll-mobile min-w-0 text-sm">
-                                                    <LatexRenderer content={row.formulaLatex || row.valueUnit} />
+                                                    {/* Defensive, same as cardRow below: the generation prompt asks
+                                                        for $-delimited output, but an occasional model slip
+                                                        shouldn't show raw LaTeX in the pre-queue preview. */}
+                                                    <LatexRenderer content={withMathDelimiters(row.formulaLatex || row.valueUnit)} />
                                                 </div>
                                             )}
-                                            <p className="text-xs text-muted2 mt-1 line-clamp-2 [overflow-wrap:anywhere]">{row.description}</p>
+                                            <div className="text-xs text-muted2 mt-1 line-clamp-2 [overflow-wrap:anywhere] [&_p]:!m-0">
+                                                <LatexRenderer content={row.description} />
+                                            </div>
                                         </div>
                                     </label>
                                 );
