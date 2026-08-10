@@ -11,14 +11,14 @@
 //   4. Live cards — edit / re-categorize / delete published cards.
 //   5. Sources — CRUD over the authoritative citations (textbook/code/PEC).
 //   6. Data debt — the Pillar-5 report of any card failing required fields.
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
 import {
     Button, Modal, FormField, Input, Select, Textarea,
     SegmentedControl, Badge, StatusPill, EmptyState, Skeleton,
 } from '../../components/ui';
-import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil } from '../../components/ui/icons';
+import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
 import { generateReferenceCardsAI } from '../../services/geminiApi';
@@ -34,6 +34,19 @@ const KINDS = [
     { value: 'constant', label: 'Constant' },
     { value: 'formula', label: 'Formula' },
     { value: 'concept', label: 'Concept' },
+];
+// Live Cards toolbar. "Difficulty / Priority" was requested but ReferenceCard
+// has no such column — Type and Needs-attention are the two sorts that
+// actually read from real fields and are useful for an admin list: group by
+// kind, or surface incomplete cards (via the same quickMissing check the AI
+// preview already uses) so they're the first thing you see.
+const LIVE_SORT_OPTIONS = [
+    { value: 'az', label: 'Alphabetical (A–Z)' },
+    { value: 'subject', label: 'Subject' },
+    { value: 'subtopic', label: 'Subtopic' },
+    { value: 'recent', label: 'Recently added' },
+    { value: 'type', label: 'Card type' },
+    { value: 'attention', label: 'Needs attention first' },
 ];
 const PANELS = [
     { value: 'queue', label: 'Review queue' },
@@ -192,6 +205,12 @@ export default function ReferenceAdminV2() {
     const [sources, setSources] = useState([]);
     const [debt, setDebt] = useState(null);
     const [loadingPanel, setLoadingPanel] = useState(true);
+
+    // Live Cards toolbar — client-side only (live is already fully loaded
+    // per-panel; no new endpoint for a search/sort over data already in hand).
+    const [liveSearch, setLiveSearch] = useState('');
+    const [liveSort, setLiveSort] = useState('recent');
+    const deferredLiveSearch = useDeferredValue(liveSearch);
 
     // Create/edit
     const [form, setForm] = useState(EMPTY_FORM);
@@ -362,15 +381,64 @@ export default function ReferenceAdminV2() {
     const aiTopics = dynamicTOS?.[aiSubject] || [];
     const completeAiCount = useMemo(() => aiRows.filter((r) => quickMissing(r).length === 0).length, [aiRows]);
 
+    // Live Cards: real-time search across name/symbol/subtopicTag/description,
+    // then one of six sorts. Search and sort are independent — a search term
+    // narrows the set, the sort orders whatever's left.
+    const filteredSortedLive = useMemo(() => {
+        const q = deferredLiveSearch.trim().toLowerCase();
+        const filtered = q
+            ? live.filter((c) => [c.name, c.symbol, c.subtopicTag, c.description].some(
+                (f) => typeof f === 'string' && f.toLowerCase().includes(q),
+            ))
+            : live;
+
+        const sorted = [...filtered];
+        switch (liveSort) {
+            case 'az':
+                sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                break;
+            case 'subject':
+                sorted.sort((a, b) => (a.subject || '').localeCompare(b.subject || '') || (a.name || '').localeCompare(b.name || ''));
+                break;
+            case 'subtopic':
+                // Untagged cards sort last within their subject, not first —
+                // "no subtopic yet" isn't alphabetically before real ones.
+                sorted.sort((a, b) => {
+                    const at = a.subtopicTag || '￿';
+                    const bt = b.subtopicTag || '￿';
+                    return at.localeCompare(bt) || (a.name || '').localeCompare(b.name || '');
+                });
+                break;
+            case 'type':
+                sorted.sort((a, b) => (a.kind || '').localeCompare(b.kind || '') || (a.name || '').localeCompare(b.name || ''));
+                break;
+            case 'attention':
+                // Reuses quickMissing (already trusted for the AI-preview
+                // completeness gate) rather than a second definition of
+                // "complete" — most-incomplete first.
+                sorted.sort((a, b) => quickMissing(b).length - quickMissing(a).length);
+                break;
+            case 'recent':
+            default:
+                sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+                break;
+        }
+        return sorted;
+    }, [live, deferredLiveSearch, liveSort]);
+
     const cardRow = (card, actions) => (
-        <div key={card.id} className="bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 min-w-0">
+        <div key={card.id} className="bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 min-w-0 transition-all hover:border-[var(--accent)]/40 hover:shadow-md">
             <div className="flex items-start justify-between gap-3 min-w-0">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                         <Badge tone="velocity" className="uppercase">{card.kind}</Badge>
                         <span className="font-bold text-sm text-textMain line-clamp-1 [overflow-wrap:anywhere]" title={card.name}>{card.name}</span>
                     </div>
-                    <div className="text-eyebrow mt-1">{card.subject} • {card.topic?.name || 'no topic'}{card.subtopicTag ? ` • ${card.subtopicTag}` : ''}</div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                        <Badge tone="neutral">{card.subject}</Badge>
+                        {card.topic?.name && <Badge tone="neutral" className="truncate max-w-[160px]" title={card.topic.name}>{card.topic.name}</Badge>}
+                        {card.subtopicTag && <Badge tone="signal" className="truncate max-w-[120px]" title={card.subtopicTag}>{card.subtopicTag}</Badge>}
+                    </div>
                 </div>
                 <div className="flex gap-2 shrink-0">{actions}</div>
             </div>
@@ -491,13 +559,43 @@ export default function ReferenceAdminV2() {
                     <EmptyState icon={BookOpen} title="No live cards yet" description="Approve cards from the review queue (or create one manually) and they appear here." />
                 ) : (
                     <div className="flex flex-col gap-3">
-                        <p className="text-eyebrow">{live.length} live card{live.length === 1 ? '' : 's'}</p>
-                        {live.map((card) => cardRow(card, (
+                        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                            <FormField label="Search" className="flex-1 min-w-0">
+                                <div className="relative">
+                                    <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                                    <Input
+                                        value={liveSearch}
+                                        onChange={(e) => setLiveSearch(e.target.value)}
+                                        placeholder="Search by name, symbol, subtopic, or description…"
+                                        className="!pl-9"
+                                        aria-label="Search live cards"
+                                    />
+                                </div>
+                            </FormField>
+                            <FormField label="Sort by" className="sm:w-56 shrink-0">
+                                <Select value={liveSort} onChange={(e) => setLiveSort(e.target.value)} aria-label="Sort live cards">
+                                    {LIVE_SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </Select>
+                            </FormField>
+                        </div>
+
+                        {filteredSortedLive.length === 0 ? (
+                            <EmptyState icon={Search} title="No cards match"
+                                description={`Nothing matches "${deferredLiveSearch.trim()}" across name, symbol, subtopic, or description.`}
+                                action={<Button size="sm" variant="ghost" onClick={() => setLiveSearch('')}>Clear search</Button>} />
+                        ) : (
                             <>
-                                <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Edit</Button>
-                                <Button size="sm" variant="outline" tone="danger" onClick={() => handleDelete(card)}>Delete</Button>
+                                <p className="text-eyebrow">
+                                    {filteredSortedLive.length} of {live.length} live card{live.length === 1 ? '' : 's'}
+                                </p>
+                                {filteredSortedLive.map((card) => cardRow(card, (
+                                    <>
+                                        <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Edit</Button>
+                                        <Button size="sm" variant="outline" tone="danger" onClick={() => handleDelete(card)}>Delete</Button>
+                                    </>
+                                )))}
                             </>
-                        )))}
+                        )}
                     </div>
                 )
             )}
