@@ -43,10 +43,11 @@ every feature add, change, or removal, not on a schedule.
 ## Vault & Reference Hub (Materials Hub)
 
 - [x] **Cloud Vault** — folder-structured material upload/organize/rename/move/delete, direct Firebase media storage (`features/materials/{CloudVaultTab,useFileManager}.jsx`, `materialRoutes.js`)
-- [x] **Reference Cards** — taxonomy-driven interactive flashcard vault (constants/formulas/concepts), Subject→Topic→Subtopic drill-down, subject-level and subtopic-level "Study this set" sessions, pure-CSS 3D flip (`features/reference/{ReferenceBrowser,Flashcard,ReferenceStudyMode,useReferenceCards}.jsx`, `referenceCardRoutes.js`)
-- [x] **Reference admin** — create/edit/AI-generate/approve reference cards with required-field validation (`features/reference/ReferenceAdminV2.jsx`)
+- [x] **Reference Cards** — taxonomy-driven interactive flashcard vault (constants/formulas/concepts), Subject→Topic→Subtopic drill-down, subject-level and subtopic-level "Study this set" sessions, pure-CSS 3D flip, full LaTeX rendering across every field including description/board-exam-tip/variable-meaning (`features/reference/{ReferenceBrowser,Flashcard,ReferenceStudyMode,useReferenceCards}.jsx`, `referenceCardRoutes.js`)
+- [x] **Reference admin** — create/edit/AI-generate/approve reference cards with required-field validation; Live Cards panel has real-time search (name/symbol/subtopic/description) and 6-way sort (A-Z, Subject, Subtopic, Recently added, Card type, Needs attention) (`features/reference/ReferenceAdminV2.jsx`)
 - [x] **Bookmark Vault** — save any question for later, review with AI explanation on demand (`features/vault/BookmarkVaultTab.jsx`, `bookmarkRoutes.js`)
-- [x] **Question Library / admin review queue** — AI-generated question ingestion (PDF/image), manual authoring, bulk Accept-All approval with eligibility gating, vault data grid (`pages/Library.jsx`, `features/library/*`, `reviewRoutes.js`, `questionRoutes.js`)
+- [x] **Question Library / admin review queue** — AI-generated question ingestion (PDF/image), manual authoring, vault data grid (`pages/Library.jsx`, `features/library/*`, `reviewRoutes.js`, `questionRoutes.js`)
+- [x] **Accept-All batch approval** — confirmation-gated bulk approve, chunked client-side with a dedicated non-dismissable progress modal ("batch N of M"); server collapses each chunk's question-create + status-update + audit-row writes into one transaction instead of per-item sequential round-trips; 409 (in-flight duplicate) and thrown-error chunks reconcile against the server automatically within the same run rather than requiring a manual retry (`features/library/LibraryOverview.jsx`, `services/reviewService.approveBulk`)
 
 ## Content Pipeline
 
