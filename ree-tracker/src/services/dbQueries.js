@@ -214,7 +214,17 @@ export const rejectReviewItem = async (id, reviewNote) => apiRequest(`/api/revie
 // "Accept All": ONE batched request (never a client loop). Server approves only
 // clean PENDING items and returns per-item outcomes so the UI can reconcile:
 // { approved: [id], failed: [{ id, reason }] }.
-export const bulkApproveReviewItems = async (ids) => apiRequest('/api/review/approve-bulk', 'POST', { ids });
+//
+// Explicit longer timeout: the server now batches a whole chunk into one
+// transaction (see reviewService.approveBulk), which is fast in the normal
+// case, but a cold Supabase connection or a large chunk can still run past
+// the default 12s. Passing timeoutMs > REQUEST_TIMEOUT_MS also changes WHICH
+// error apiRequest throws on abort — [TIMEOUT] instead of [OFFLINE] — which
+// does NOT trip the circuit breaker. That's not incidental: it's what fixes
+// the reported "Couldn't load the review queue" cascade, where a slow Accept
+// All used to take the whole review queue down with it for 30s.
+const BULK_APPROVE_TIMEOUT_MS = 45_000;
+export const bulkApproveReviewItems = async (ids) => apiRequest('/api/review/approve-bulk', 'POST', { ids }, { timeoutMs: BULK_APPROVE_TIMEOUT_MS });
 export const fetchServerStats = async () => safeApiRequest('/api/questions/stats', 'GET', null, null);
 
 // `cursor` is an integer offset (or null for the first page). `sort` is one of

@@ -124,7 +124,14 @@ export default function Flashcard({ card }) {
 
           <div>
             <div className="text-eyebrow mb-1">What it represents</div>
-            <p className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere]">{card.description}</p>
+            {/* Not withMathDelimiters: descriptions already carry properly
+                embedded $…$ pairs where math appears (verified against the
+                live vault — every $ is balanced), and wrapping the WHOLE
+                string would turn an entire paragraph into one math block the
+                moment it contains a bare _ or ^ outside any delimiter. */}
+            <div className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere] [&_p]:!m-0">
+              <LatexRenderer content={card.description} />
+            </div>
           </div>
 
           {Array.isArray(card.variables) && card.variables.length > 0 && (
@@ -137,7 +144,11 @@ export default function Flashcard({ card }) {
                       <LatexRenderer compact content={withMathDelimiters(v.symbol)} />
                     </span>
                     <span className="text-muted2 min-w-0 [overflow-wrap:anywhere]">
-                      {v.meaning}
+                      {/* meaning can carry LaTeX too (e.g. "argument of $\log_{10}$")
+                          and sits in the same items-baseline row as the symbol
+                          and unit — `compact` for the identical reason documented
+                          on the unit render just below. */}
+                      <LatexRenderer compact content={v.meaning} className="!inline-block" />
                       {v.unit ? (
                         // Units carry LaTeX too (`\Omega`, `m^2`) and were rendering
                         // as source. Inline-block keeps the parenthesised unit on the
@@ -165,7 +176,9 @@ export default function Flashcard({ card }) {
               }}
             >
               <div className="text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber)' }}>Board use & traps</div>
-              <p className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere]">{card.purposeExamTip}</p>
+              <div className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere] [&_p]:!m-0">
+                <LatexRenderer content={card.purposeExamTip} />
+              </div>
             </div>
           )}
 
