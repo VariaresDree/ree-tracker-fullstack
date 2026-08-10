@@ -84,6 +84,15 @@ export function useCaqSession(rawQuestions) {
   }, [questions, answers]);
 
   return {
+    // The SHUFFLED array, not the caller's raw input — the review screen
+    // must show each question in the exact option order the user actually
+    // answered it in. Handing back the caller's original `rawQuestions`
+    // reference here (or having a caller reuse its own copy instead of this
+    // one) was the bug: the answering screen read from this shuffled array
+    // while the post-submit review re-rendered from the pre-shuffle order,
+    // so the correct answer appeared to "jump" back to option A and no
+    // longer matched what the user remembered selecting.
+    questions,
     currentQuestion,
     currentIndex,
     total: questions.length,
