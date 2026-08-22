@@ -6,6 +6,7 @@ const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
+const { deriveVerdict, VERDICT } = require('@ree/shared');
 const { selectNextItem, updateTheta } = require('../engine/irt');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -160,15 +161,26 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
         }
 
         const scorePercentage = parsedAttempts.length > 0 ? Math.round((correctCount / parsedAttempts.length) * 100) : 0;
-        let verdict = 'FAILED';
-        let verdictColor = 'text-reeRed';
-        if (scorePercentage >= 70) {
-            verdict = 'PASSED';
-            verdictColor = 'text-reeGreen';
-        } else if (scorePercentage >= 50) {
-            verdict = 'CONDITIONAL PASS';
-            verdictColor = 'text-reeAmber';
+
+        // Per-subject percentages for the PRC subject floor. Subjects the exam
+        // never asked about are absent from subjectPerformance and stay UNRATED —
+        // they must not be scored as zero.
+        const subjectScores = {};
+        for (const [subject, agg] of Object.entries(subjectPerformance)) {
+            if (!agg.total) continue;
+            subjectScores[normalizeSubject(subject)] = Math.round((agg.correct / agg.total) * 100);
         }
+
+        // ONE definition of the rule, shared with the client (@ree/shared).
+        // This block used to band at >= 50 for CONDITIONAL PASS while the client
+        // banded at >= 60, so a 55% board sim was stored as CONDITIONAL PASS and
+        // rendered as FAILED on the results screen — and counted as a pass in the
+        // pass-rate KPI. The shared rule is also the real PRC one: a 70% general
+        // average AND no subject below 50.
+        const verdict = deriveVerdict(scorePercentage, subjectScores);
+        const verdictColor = verdict === VERDICT.PASSED
+            ? 'text-reeGreen'
+            : verdict === VERDICT.CONDITIONAL ? 'text-reeAmber' : 'text-reeRed';
 
         const timeTakenSecs = totalExamTime - timeRemaining;
 
@@ -182,7 +194,13 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
         const session = await prisma.examSession.create({
             data: {
                 userId: req.user.id,
-                mode: config?.mode || 'custom',
+                // 'BOARD_SIM', not config.mode. buildScoreProgression filters on
+                // EXAM_MODES = {BOARD_SIM, GAUNTLET}, but this route stamped the
+                // CONFIG mode ('custom' | 'prc' | 'blended' | 'subject'), so no
+                // session created here ever matched and Score History rendered
+                // empty for every board-sim user. The config mode is preserved in
+                // the `config` JSON below, which is where it belongs.
+                mode: 'BOARD_SIM',
                 targetSubject: config?.subject || 'Blended',
                 score: 0,
                 totalQuestions: 0,

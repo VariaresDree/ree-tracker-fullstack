@@ -7,9 +7,11 @@ import {
   fetchMultiplayerBattle, fetchSyllabusWeights, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
+import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
 import { computeBattleDiagnostics } from './battleGrades';
+import { deriveVerdict, toDisplaySubject } from '@ree/shared';
 import toast from 'react-hot-toast';
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
@@ -423,7 +425,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             const isCorrect = finalAns[idx] === q.answer;
             if (isCorrect) correct++;
 
-            let sKey = q.subject === 'Mathematics' ? 'Math' : q.subject;
+            let sKey = toDisplaySubject(q.subject);
             if (subjBreakdown[sKey]) {
                 subjBreakdown[sKey].t += 1;
                 if (isCorrect) subjBreakdown[sKey].c += 1;
@@ -472,7 +474,16 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                             ...useStore.getState().stats,
                             ...freshProfile.data.profile,
                             activityCalendar: freshProfile.data.activityCalendar,
-                            microTopics: freshProfile.data.microTopics,
+                            // normalizeMicroTopics, not the raw server shape.
+                            // The server sends totalAttempts/correctHits/
+                            // totalTimeSecs keyed by `Subject_Subtopic`; the
+                            // client reads attempts/correct/totalTime keyed by
+                            // subtopic. Writing the raw shape straight into
+                            // stats made "Global accuracy" render 0% and blanked
+                            // every heatmap tile immediately after finishing an
+                            // exam, and mergeServerIntoStats then treated the
+                            // unmatched keys as local-only and kept them forever.
+                            microTopics: normalizeMicroTopics(freshProfile.data.microTopics, useStore.getState().dynamicTOS),
                             matrix: freshProfile.data.matrix
                         });
                     }
@@ -502,14 +513,21 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         }
 
         const score = Math.round((correct / finalQs.length) * 100);
-        const verdict = score >= 70 ? 'PASSED' : (score >= 60 ? 'CONDITIONAL PASS' : 'FAILED');
         const timeTakenActual = totalExamTime.current - timeRemaining;
 
+        // Computed BEFORE the verdict now: the PRC rule needs the per-subject
+        // spread, not just the average. Subjects the exam never asked about stay
+        // null and are left UNRATED rather than scored as zero.
         const subjectScores = {
             Math: subjBreakdown.Math.t > 0 ? Math.round((subjBreakdown.Math.c / subjBreakdown.Math.t) * 100) : null,
             ESAS: subjBreakdown.ESAS.t > 0 ? Math.round((subjBreakdown.ESAS.c / subjBreakdown.ESAS.t) * 100) : null,
             EE: subjBreakdown.EE.t > 0 ? Math.round((subjBreakdown.EE.c / subjBreakdown.EE.t) * 100) : null
         };
+
+        // ONE definition, shared with the API (@ree/shared). This line used to
+        // band CONDITIONAL PASS at >= 60 while the server stored it at >= 50, so
+        // a 55% exam showed FAILED here and CONDITIONAL PASS in history.
+        const verdict = deriveVerdict(score, subjectScores);
 
         const mappedQuestions = finalQs.map((q, idx) => ({ ...q, userAnswer: finalAns[idx] || null, userConf: finalConf[idx] || 'HIGH' }));
 
@@ -621,7 +639,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     setSession(prev => {
       if (!prev.isFinished || !prev.diagnostics?.pending) return prev;
       const pct = total > 0 ? Math.round((score / total) * 100) : 0;
-      const verdict = pct >= 70 ? 'PASSED' : (pct >= 60 ? 'CONDITIONAL PASS' : 'FAILED');
+      // No per-subject breakdown is available yet at this point in a battle —
+      // the full key arrives at battle-complete — so only the general average
+      // can be judged. applyBattleGrades recomputes with the subject spread.
+      const verdict = deriveVerdict(pct);
       return {
         ...prev, score: pct, verdict,
         diagnostics: { ...prev.diagnostics, score: pct, verdict, correctItems: score },

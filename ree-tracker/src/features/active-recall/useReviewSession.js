@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, saveQuestionToBank, saveBookmark, removeBookmark } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
+import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { stratifiedSample } from '../../utils/shuffle';
 import toast from 'react-hot-toast';
@@ -298,7 +299,11 @@ export const useReviewSession = (currentUser, isOnline) => {
                         ...useStore.getState().stats,
                         ...freshProfile.data.profile,
                         activityCalendar: freshProfile.data.activityCalendar,
-                        microTopics: freshProfile.data.microTopics,
+                        // See useSimulatorEngine: the raw server shape uses
+                        // different field names and composite keys, so writing it
+                        // straight into stats zeroes the dashboard KPIs and the
+                        // heatmap until the next syncDashboardStats.
+                        microTopics: normalizeMicroTopics(freshProfile.data.microTopics, useStore.getState().dynamicTOS),
                         matrix: freshProfile.data.matrix,
                     });
                 }

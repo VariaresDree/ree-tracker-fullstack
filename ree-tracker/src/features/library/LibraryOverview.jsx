@@ -1,5 +1,6 @@
 // src/features/library/LibraryOverview.jsx
 import { useState } from 'react';
+import { toDisplaySubject } from '@ree/shared';
 import { useStore } from '../../store/useStore';
 import {
     updateDynamicTOS,
@@ -425,7 +426,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 animate-in fade-in">
         {['Mathematics', 'ESAS', 'EE'].map(s => {
           const accent = TRACK_ACCENT[s];
-          const safeSubj = s === 'Mathematics' ? 'Math' : s;
+          const safeSubj = toDisplaySubject(s);
 
           return (
             <div key={s} className="p-5 bg-surface2 border rounded-[var(--radius-lg)] flex flex-col h-[280px]" style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}>

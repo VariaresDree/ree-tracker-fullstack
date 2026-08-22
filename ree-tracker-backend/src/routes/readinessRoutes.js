@@ -45,13 +45,21 @@ router.get('/', authMiddleware, async (req, res) => {
                 JOIN "Question" q ON q."id" = qa."questionId"
                 LEFT JOIN "Topic" t ON t."id" = q."topicId"
                 WHERE qa."userId" = ${req.user.id}
+                  AND q."isFlagged" = false
             `,
         ]);
         const totalTopicCount = totalRow?.n ?? 0;
         const coveredTopicCount = coveredRow?.n ?? 0;
 
+        // The isFlagged filter is now applied to BOTH sides. Without it the
+        // numerator counted topics the user had attempted INCLUDING flagged
+        // questions while the denominator excluded them, so a topic whose
+        // questions all got flagged stayed in the numerator and left the
+        // denominator — pushing topicCoverage above 1 and inflating the readiness
+        // score by up to 30 points before the final clamp hid it.
+        // Math.min is belt-and-braces for any future asymmetry.
         const topicCoverage = totalTopicCount > 0
-            ? coveredTopicCount / totalTopicCount
+            ? Math.min(1, coveredTopicCount / totalTopicCount)
             : 0;
 
         const [totalAttempts, correctAttempts] = await Promise.all([
@@ -65,20 +73,29 @@ router.get('/', authMiddleware, async (req, res) => {
         // that scale so the top/bottom of the ability range doesn't saturate early.
         const normalizedTheta = Math.min(1, Math.max(0, (theta + 4) / 8));
 
-        const recentSessions = await prisma.studySession.findMany({
-            where: { userId: req.user.id },
-            orderBy: { createdAt: 'desc' },
-            take: 14,
-            select: { createdAt: true }
+        // Two defects fixed here.
+        //
+        // 1. NO TIME WINDOW. `take: 14` bounded the row COUNT, not the period, so
+        //    a user who studied on 14 distinct days six months ago and nothing
+        //    since scored consistency = 1.0 (10% of the composite) forever, while
+        //    someone doing 14 sessions today scored 1/7 = 0.14.
+        // 2. ONLY StudySession COUNTED. Board Sim, Gauntlet and Battle activity
+        //    never writes a StudySession row, so a user doing nothing but mock
+        //    exams scored zero consistency.
+        //
+        // ActivityLog is the right ledger: it already has one row per user per
+        // Manila day, written by recordAttempts for EVERY answering surface.
+        // ActivityLog has no timestamp column — it is keyed by (userId, date)
+        // where `date` is a 'YYYY-MM-DD' Manila string. ISO dates sort
+        // lexicographically, so a string >= comparison IS a date range, and the
+        // existing @@index([userId, date]) serves it.
+        const windowStartDay = manilaDateOf(new Date(Date.now() - 14 * 86400000));
+        const activeDays = await prisma.activityLog.count({
+            where: { userId: req.user.id, date: { gte: windowStartDay } },
         });
 
-        let consistency = 0;
-        if (recentSessions.length >= 2) {
-            const uniqueDays = new Set(recentSessions.map(s =>
-                manilaDateOf(s.createdAt)
-            ));
-            consistency = Math.min(1, uniqueDays.size / 7);
-        }
+        // Studying 7 of the last 14 days is full marks.
+        const consistency = Math.min(1, activeDays / 7);
 
         // Same taxonomy attribution as coverage — one query replaces the two
         // string groupBys, so a topic's accuracy is never split across a legacy

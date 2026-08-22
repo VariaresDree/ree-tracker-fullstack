@@ -2,6 +2,12 @@
 # Kept intentionally lean — no jobs that need secrets, no lint/typecheck for
 # now (we have no TS yet, ESLint is configured but not enforced in CI). When
 # we add those gates, extend the matrix below.
+#
+# This is an npm WORKSPACE repo (root package.json lists ree-tracker,
+# ree-tracker-backend and packages/*). There is exactly ONE lockfile, at the
+# root, and `npm ci` must run from the root — running it inside a workspace
+# child fails, and the per-package lockfiles that used to exist are gone. Jobs
+# therefore install once at the root and then target a workspace by name.
 
 name: tests
 
@@ -13,7 +19,7 @@ on:
 
 jobs:
   guards:
-    name: Standing checks (SQL interpolation + route auth)
+    name: Standing checks (SQL interpolation + route auth/authz)
     runs-on: ubuntu-latest
     # Both scripts use only Node builtins (fs/path) — no install, no DB, fast.
     defaults:
@@ -30,15 +36,14 @@ jobs:
       - name: SQL interpolation guard
         run: node scripts/audit-sql-interpolation.js
 
+      # Checks authentication AND authorization: every write to a resource named
+      # by a path parameter must be owner-scoped, role-gated, or justified.
       - name: Route auth-coverage guard
         run: node scripts/audit-route-auth.js
 
   frontend:
     name: Frontend (vitest)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ree-tracker
     steps:
       - uses: actions/checkout@v4
 
@@ -47,16 +52,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ree-tracker/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install
+      - name: Install workspace
         run: npm ci
 
       - name: Test
-        run: npm test
+        run: npm run test --workspace=ree-tracker
 
       - name: Build
-        run: npm run build
+        run: npm run build --workspace=ree-tracker
 
   backend:
     name: Backend (vitest)
@@ -67,9 +72,6 @@ jobs:
     # hooks), and would fail with PrismaConfigEnvError otherwise.
     env:
       DATABASE_URL: postgresql://localhost:5432/dummy
-    defaults:
-      run:
-        working-directory: ree-tracker-backend
     steps:
       - uses: actions/checkout@v4
 
@@ -78,13 +80,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ree-tracker-backend/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install
+      - name: Install workspace
         run: npm ci
 
       - name: Test
-        run: npm test
+        run: npm run test --workspace=ree-tracker-backend
 
   lighthouse:
     name: Lighthouse CI (entry-path budgets)
@@ -100,10 +102,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ree-tracker/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install
+      - name: Install workspace
         run: npm ci
+        working-directory: .
 
       - name: Build
         run: npm run build

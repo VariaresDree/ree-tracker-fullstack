@@ -21,6 +21,11 @@ services:
     # doesn't have (e.g. QuestionAttempt.clientAttemptId), 500-ing telemetry-bulk.
     # No --accept-data-loss: additive changes apply; a destructive change safely
     # fails the deploy instead of silently dropping data.
+    # This repo is an npm WORKSPACE. `npm install` run from this rootDir walks
+    # up to the root package.json and installs the whole workspace into the root
+    # node_modules — which is what makes `require('@ree/shared')` resolve at
+    # runtime. It also pulls the frontend's dependencies, so the build is slower
+    # than it needs to be; scope it with --workspace if that becomes a problem.
     buildCommand: npm install && npx prisma generate && npx prisma db push
     startCommand: npm start
     healthCheckPath: /healthz

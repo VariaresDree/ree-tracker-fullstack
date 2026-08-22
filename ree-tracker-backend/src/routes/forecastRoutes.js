@@ -53,21 +53,35 @@ async function computeForUser(userId, opts = {}) {
         se: user?.standardError ?? 1,
     };
 
-    // Topic-level abilities — fall back to UserTopicPerformance rollups when
-    // UserAbility hasn't been populated yet.
-    let topicAbilities = abilities.map((a) => ({ topic: a.subject, theta: a.theta, se: a.se }));
+    // Topic-level abilities come from UserTopicPerformance, which is genuinely
+    // per-TOPIC.
+    //
+    // This used to read UserAbility first and label each row's `subject` as a
+    // `topic`. UserAbility is per canonical SUBJECT — only Mathematics, ESAS and
+    // EE exist — and since recordAttempts now always upserts those rows, the
+    // `length === 0` fallback below was dead for every active user. The result:
+    // "weak topics" and the entire recommendedActions prescription returned at
+    // most three entries named "Mathematics", "ESAS" and "EE", which the client
+    // then tried to route DRILL / SRS_REVIEW actions against by payload.topic.
+    //
+    // The subject-level posterior is still the right input for the OVERALL
+    // forecast — that is `ability` above, which is unchanged.
+    const tp = await prisma.userTopicPerformance.findMany({
+        where: { userId, attempts: { gt: 0 } },
+        take: 20,
+        orderBy: { updatedAt: 'desc' },
+    });
+    let topicAbilities = tp.map((t) => ({
+        topic: t.topic,
+        // Crude derivation: log-odds of hit rate, bounded to a sane range.
+        theta: hitRateToTheta(t.correct, t.attempts),
+        se: t.attempts >= 8 ? 0.45 : 0.9,
+    }));
+
+    // Only if the learner has no per-topic history at all do we fall back to the
+    // per-subject posterior, so a brand-new user still gets a coarse forecast.
     if (topicAbilities.length === 0) {
-        const tp = await prisma.userTopicPerformance.findMany({
-            where: { userId },
-            take: 20,
-            orderBy: { updatedAt: 'desc' },
-        });
-        topicAbilities = tp.map((t) => ({
-            topic: t.topic,
-            // Crude derivation: log-odds of hit rate, bounded to a sane range.
-            theta: hitRateToTheta(t.correct, t.attempts),
-            se: t.attempts >= 8 ? 0.45 : 0.9,
-        }));
+        topicAbilities = abilities.map((a) => ({ topic: a.subject, theta: a.theta, se: a.se }));
     }
 
     const payload = buildForecast({ ability, topicAbilities });

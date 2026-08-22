@@ -5,6 +5,21 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(async () => ({
+  // @ree/shared holds the business rules that must agree with the API (verdict
+  // bands, subject naming, syllabus weights, Manila day bucketing). It is a
+  // linked workspace package authored in CommonJS so the CJS backend can
+  // require() it with no build step.
+  //
+  // Vite treats linked workspace packages as SOURCE and does not pre-bundle them
+  // by default, which would leave `module.exports` unhandled in the browser
+  // build. Listing it here forces esbuild to convert it to ESM, so named imports
+  // resolve in dev, in vitest, and in the production bundle alike.
+  optimizeDeps: {
+    include: ['@ree/shared'],
+  },
+  ssr: {
+    noExternal: ['@ree/shared'],
+  },
   // Vitest config. Default environment is jsdom so React component tests can
   // mount; pure-function suites can opt back to node via a per-file
   // `// @vitest-environment node` pragma if they want the speed (but jsdom

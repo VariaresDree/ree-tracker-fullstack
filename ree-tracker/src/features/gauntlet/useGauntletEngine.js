@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import {
     apiRequest, getAnalyticsProfile, fetchVaultQuestions,
@@ -504,7 +505,7 @@ export const useGauntletEngine = (level) => {
                             ...profile.data.profile,
                             irt: { theta: profile.data.profile.thetaRating || 0 },
                             activityCalendar: profile.data.activityCalendar,
-                            microTopics: profile.data.microTopics,
+                            microTopics: normalizeMicroTopics(profile.data.microTopics, useStore.getState().dynamicTOS),
                             matrix: profile.data.matrix,
                             ...(isPassed
                                 ? (advancesLevel ? { gauntletLevel: parseInt(level) + 1 } : {})

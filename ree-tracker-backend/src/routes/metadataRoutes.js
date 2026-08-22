@@ -5,6 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 // 🚀 FIXED: Pointing back to your centralized, working DB configuration
 const prisma = require('../config/db');
+const { toDisplaySubject } = require('@ree/shared');
 const logger = require('../utils/logger');
 
 router.get('/vault', authMiddleware, async (req, res) => {
@@ -18,12 +19,13 @@ router.get('/vault', authMiddleware, async (req, res) => {
         const metadataMap = {};
         
         groupedData.forEach(item => {
-            let safeSubj = item.subject;
-            
-            // Standardize Firebase anomalies to the exact UI mapping
-            if (safeSubj === 'Mathematics' || safeSubj === 'Math') safeSubj = 'Math';
-            else if (safeSubj === 'ESAS' || safeSubj?.includes('Sciences')) safeSubj = 'ESAS';
-            else if (safeSubj === 'EE' || safeSubj?.includes('Electrical')) safeSubj = 'EE';
+            // Shared canonicaliser. This block used to normalise to 'Math' — the
+            // OPPOSITE direction from utils/subject, which canonicalises to
+            // 'Mathematics' — and used substring matching ('Sciences',
+            // 'Electrical') that the canonical table does not. Two opposing
+            // canonical forms chosen per file is what made the same subject show
+            // up as separate analytics rows.
+            const safeSubj = toDisplaySubject(item.subject);
 
             const safeSubtopic = item.subtopic ? item.subtopic.trim() : 'Uncategorized';
 

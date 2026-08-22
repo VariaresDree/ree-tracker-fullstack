@@ -1,5 +1,6 @@
 // src/components/HeatmapChart.jsx
 import React, { useState, useMemo } from 'react';
+import { toDisplaySubject } from '@ree/shared';
 import { useStore } from '../store/useStore';
 import { Panel } from './ui';
 import { Flame, Timer, Target } from './ui/icons';
@@ -90,7 +91,7 @@ function HeatmapChart({ stats }) {
                   : 'bg-surface2/40 border-border text-muted hover:text-textMain'
               }`}
             >
-              {subj === 'Mathematics' ? 'Math' : subj}
+              {toDisplaySubject(subj)}
             </button>
           );
         })}

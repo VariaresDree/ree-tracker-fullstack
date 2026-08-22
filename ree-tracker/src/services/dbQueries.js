@@ -2,6 +2,7 @@
 import { auth } from '../config/firebaseDb';
 import { get, set } from 'idb-keyval';
 import { fnv1a } from '../utils/contentHash';
+import { DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
 // ============================================================================
@@ -152,7 +153,10 @@ export const getAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics
 
 // PRC board TOS blend, read from the server config table so the exam builder and
 // the server sampler agree. Never throws — falls back to the default blend.
-export const SYLLABUS_WEIGHTS_FALLBACK = { Mathematics: 0.25, ESAS: 0.30, EE: 0.45 };
+// Re-exported from @ree/shared so this fallback and the server sampler's cannot
+// drift. Previously four separate literals, one of them UPPERCASE-keyed and
+// therefore incompatible with the other three.
+export const SYLLABUS_WEIGHTS_FALLBACK = DEFAULT_SYLLABUS_WEIGHTS;
 export const fetchSyllabusWeights = async () => {
     try {
         const r = await apiRequest('/api/config/syllabus-weights');

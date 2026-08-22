@@ -10,6 +10,7 @@ every feature add, change, or removal, not on a schedule.
 ## Exam & Practice Modes
 
 - [x] **Active Review** — per-question reveal MCQ practice with SRS-driven interleaving (`pages/ActiveReview.jsx`, `features/active-recall/{FlashcardMode,MCQMode,ReviewSetup,useReviewSession}.jsx`)
+- [x] **PRC board verdict** — one definition of pass/fail, shared by the results screen, exam history and the pass-rate KPI: a 70% general average AND no rated subject below 50%. Subjects an exam never asked about stay unrated rather than counting as zero. Previously five copies with two different thresholds, so a 55% mock showed FAILED on screen and CONDITIONAL PASS in history (`@ree/shared` verdict rule)
 - [x] **Board Simulator** — full timed mock exam: config → live run → post-exam diagnostics, exportable exam paper PDF. Crash-safe: the resumable draft carries answers, confidences, bookmarks, current item **and per-question timing**, is retained through resume, and is cleared only once the attempts are durably synced or queued — a failed submit of any kind (5xx, auth, parse error) defers the batch to the offline outbox instead of discarding it (`pages/BoardSimulator.jsx`, `features/board-simulator/{SimulatorConfig,SimulatorActive,SimulatorDiagnostics,useSimulatorEngine,examPaper,battleGrades}.jsx`)
 - [x] **Gauntlet** — distraction-free timed drill with resume-from-cache and its own diagnostics (`pages/Gauntlet.jsx`, `features/gauntlet/{useGauntletEngine,GauntletDiagnostics}.jsx`)
 - [x] **Shared answer surface** — one `QuestionCard` component (prompt, confidence selector, choice grid, hotkeys, reveal animation) reused identically across Active Review, Board Simulator, Gauntlet, Combat, and the offline Quiz Launcher (`features/quiz/QuestionCard.jsx`)
@@ -34,7 +35,7 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Item Response Theory (3PL)** — stateless per-item ability estimator, single unified θ + standard error per user (`engine/irt.js`)
 - [x] **Bayesian Knowledge Tracing (BKT)** — per-topic P(mastery) driving the topic mastery heatmap, complementary to θ (`engine/bkt.js`)
 - [x] **Elo rating** — multi-player adapted rating for Arena leaderboards and Battle outcomes (`engine/elo.js`)
-- [x] **Forecasting model** — turns θ into pass/topnotcher probability + ranked weak topics (`engine/forecast.js`)
+- [x] **Forecasting model** — turns θ into pass/topnotcher probability + ranked weak topics, drawn from per-topic performance so the prescription names real subtopics instead of the three subject buckets (`engine/forecast.js`, `forecastRoutes.js`)
 - [x] **Shared numerics** — dependency-free math helpers backing the above (`engine/math.js`)
 - [x] **Nightly/on-demand calibration** — recalibrates item difficulty parameters from live attempt data (`services/calibrationService.js`, `npm run calibrate`)
 - [x] **Smart Drill** — adaptive next-question selection targeting weak topics (`smartDrillRoutes.js`, `services/questionPool.js`)
@@ -56,7 +57,8 @@ every feature add, change, or removal, not on a schedule.
 - [x] **PDF/image ingestion** — OCR-adjacent text extraction feeding AI generation (`features/library/pdfWorker.js`)
 - [x] **LaTeX rendering** — KaTeX via remark-math/rehype-katex, with a math-delimiter normalizer at ingestion so malformed LaTeX doesn't reach the database (`components/LatexRenderer.jsx`, `utils/mathDelimiters.js`)
 - [x] **Taxonomy resolver** — shared Subject/Topic/Subtopic hierarchy backing questions, reference cards, and the heatmap (`topicResolver.js`)
-- [x] **PRC syllabus weighting** — dynamic Table-of-Specification weights per subject (`utils/tosWeights.js`, `SyllabusWeight` model)
+- [x] **PRC syllabus weighting** — dynamic Table-of-Specification weights per subject, canonically keyed and sourced from the shared package so the client's weighted rating and the server's blended sampler cannot diverge (`utils/tosWeights.js`, `SyllabusWeight` model, `@ree/shared`)
+- [x] **Shared rules package (`@ree/shared`)** — npm workspace holding every business rule that must agree between client and API: the board verdict, subject naming, syllabus weights, Manila day bucketing, LaTeX/choice-prefix normalisation, and analytics thresholds. Cross-package contract tests assert the same facts from both sides, so a drift or a broken link fails CI (`packages/shared`, `src/test/sharedContract.test.js`, `tests/sharedContract.test.js`)
 
 ## Multiplayer & Social
 

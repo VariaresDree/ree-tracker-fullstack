@@ -1,0 +1,16 @@
+{
+  "name": "ree-tracker-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "REE Tracker — PRC board-exam prep app. Vite/React PWA (ree-tracker) + Express/Prisma API (ree-tracker-backend), sharing business rules through packages/shared.",
+  "workspaces": [
+    "packages/*",
+    "ree-tracker",
+    "ree-tracker-backend"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace=ree-tracker && npm run test --workspace=ree-tracker-backend",
+    "build": "npm run build --workspace=ree-tracker",
+    "audit:all": "npm run audit:all --workspace=ree-tracker-backend"
+  }
+}
