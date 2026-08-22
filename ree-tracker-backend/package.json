@@ -31,7 +31,11 @@
     "push:streaks:dry": "node scripts/sendStreakReminders.js --dry-run",
     "audit:sql": "node scripts/audit-sql-interpolation.js",
     "audit:auth": "node scripts/audit-route-auth.js",
-    "audit:all": "npm run audit:sql && npm run audit:auth"
+    "audit:all": "npm run audit:sql && npm run audit:auth",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "migrate:baseline": "prisma migrate resolve --applied 0_init"
   },
   "keywords": [],
   "author": "",
@@ -56,6 +60,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
+    "supertest": "^7.2.2",
     "vitest": "^4.1.9"
   }
 }

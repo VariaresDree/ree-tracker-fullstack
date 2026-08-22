@@ -21,6 +21,15 @@ services:
     # doesn't have (e.g. QuestionAttempt.clientAttemptId), 500-ing telemetry-bulk.
     # No --accept-data-loss: additive changes apply; a destructive change safely
     # fails the deploy instead of silently dropping data.
+    # STILL `db push`, deliberately. prisma/migrations/ now holds a real baseline
+    # (0_init) and prisma/migrations/README.md has the two-command cutover to
+    # `prisma migrate deploy`. It is NOT switched here because the production
+    # database already contains this schema: `migrate deploy` would try to create
+    # tables that exist and fail the deploy until someone runs
+    # `npm run migrate:baseline` against production first. That is an operator
+    # step that should be done by someone watching, not a surprise on the next
+    # push. Take a backup first — there is no pre-deploy backup step here.
+    #
     # This repo is an npm WORKSPACE. `npm install` run from this rootDir walks
     # up to the root package.json and installs the whole workspace into the root
     # node_modules — which is what makes `require('@ree/shared')` resolve at
