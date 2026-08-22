@@ -39,7 +39,19 @@ services:
         sync: false
       - key: FIREBASE_PRIVATE_KEY
         sync: false
+      # REQUIRED in production. The server now refuses to start without it,
+      # because the previous fallback served an open CORS policy WITH
+      # credentials to every origin behind nothing but a console warning.
       - key: FRONTEND_URL
+        sync: false
+      # Optional but recommended: enable TLS certificate verification on the
+      # database connection. Set DATABASE_CA_CERT to the provider's CA bundle
+      # (PEM), or DATABASE_SSL_STRICT=true if the provider uses a publicly
+      # trusted CA. Without either, the connection is encrypted but the server
+      # is NOT authenticated — see src/config/db.js.
+      - key: DATABASE_CA_CERT
+        sync: false
+      - key: DATABASE_SSL_STRICT
         sync: false
       # Optional R2 / S3 — leave unset to use local-disk driver.
       - key: STORAGE_DRIVER

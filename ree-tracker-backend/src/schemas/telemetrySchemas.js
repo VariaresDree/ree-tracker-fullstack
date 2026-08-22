@@ -4,7 +4,14 @@ const { storableTimeMs } = require('../config/telemetryBounds');
 const VALID_MODES = ['ACTIVE_REVIEW', 'BOARD_SIM', 'GAUNTLET', 'COMBAT', 'BATTLE', 'LEGACY'];
 
 const telemetryBulkSchema = z.object({
-    sessionId: z.string().optional().nullable(),
+    // Length-capped: this value is used as an ExamSession primary key and was
+    // previously an unbounded free-form string. Deliberately NO minimum and no
+    // format constraint — the client's id generator has a Math.random() fallback
+    // that can emit a short string, and rejecting the request would discard the
+    // whole batch, which is the data loss this validation exists to prevent.
+    // Cross-user misuse is stopped by the compound (id, userId) upsert key in
+    // telemetryService, not by guessing at the id's shape here.
+    sessionId: z.string().max(64).optional().nullable(),
     mode: z.enum(VALID_MODES).optional().default('LEGACY'),
     targetSubject: z.string().optional(),
     attempts: z.array(z.object({

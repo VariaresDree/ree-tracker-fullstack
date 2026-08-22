@@ -204,7 +204,17 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             // very next statement. The chunk failed either way — letting it
             // propagate surfaces the real cause instead of a generic 500.
             await db.examSession.upsert({
-                where: { id: sessionId },
+                // Compound (id, userId) — NOT id alone. Keyed on id, a
+                // client-supplied sessionId that matched ANOTHER user's row took
+                // the UPDATE branch and incremented their score, question count
+                // and time, while the attempts written below were parented to
+                // their session via the FK. sessionId arrives straight from the
+                // request body, so this was a cross-tenant write.
+                //
+                // With the compound key a foreign id simply misses and takes the
+                // CREATE branch, which fails on the primary key rather than
+                // silently corrupting someone else's exam history.
+                where: { id_userId: { id: sessionId, userId } },
                 update: {
                     score: { increment: batchCorrect },
                     totalQuestions: { increment: newOnly.length },

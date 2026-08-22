@@ -653,7 +653,12 @@ export const useStore = create(
         pomodoroWidget: state.pomodoroWidget,
         theme: state.theme,
         notifications: state.notifications,
-        isAdmin: state.isAdmin,
+        // isAdmin is deliberately NOT persisted. Rehydrating it meant anyone who
+        // edited the IndexedDB record in DevTools got the full admin UI on the
+        // next load. Server mutations still 403, so this was UI-only exposure —
+        // but it advertised the admin surface, and it combined badly with the
+        // admin-intent read endpoints that are only authenticated, not
+        // authorized. AuthContext sets it from the server role on every boot.
         dynamicTOS: state.dynamicTOS, // 🚀 CRITICAL: Tells the store to remember your changes
         featureFlags: state.featureFlags // last-known flags survive offline restarts
       }),

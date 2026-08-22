@@ -51,7 +51,10 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // GRADE — accepts answers and returns graded results
-router.post('/grade', authMiddleware, idempotency(), validate(gradeSchema), async (req, res) => {
+// idempotency() AFTER validate(), per its own contract: mounted first, a
+// malformed body reserved the key, so the corrected retry — same content hash,
+// same key — got a 409 'duplicate in progress' instead of being graded.
+router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), async (req, res) => {
     try {
         const { answers } = req.body;
         if (!Array.isArray(answers) || answers.length === 0) {
@@ -104,7 +107,7 @@ router.post('/grade', authMiddleware, idempotency(), validate(gradeSchema), asyn
 });
 
 // SUBMIT SIMULATION TELEMETRY (GRADING ENGINE)
-router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema), async (req, res) => {
+router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency(), async (req, res) => {
     try {
         const { attempts, config, timeRemaining, totalExamTime } = req.body;
 
