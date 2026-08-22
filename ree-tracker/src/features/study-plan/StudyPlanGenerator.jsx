@@ -3,6 +3,7 @@ import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
 import { normalizeSubject } from '@ree/shared';
+import { useShallow } from 'zustand/react/shallow';
 import toast from 'react-hot-toast';
 
 // SUBJECT_MAP is gone: it existed only to bridge tosWeights' UPPERCASE keys to
@@ -10,7 +11,9 @@ import toast from 'react-hot-toast';
 // canonically (from @ree/shared), so the subject name indexes it directly.
 
 export default function StudyPlanGenerator({ onPlanGenerated }) {
-    const { dynamicTOS, stats, saveExamConfig } = useStore();
+    const { dynamicTOS, stats, saveExamConfig } = useStore(
+        useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats, saveExamConfig: s.saveExamConfig })),
+    );
     const safeTOS = dynamicTOS || {};
 
     const examDate = stats?.examDate || '';

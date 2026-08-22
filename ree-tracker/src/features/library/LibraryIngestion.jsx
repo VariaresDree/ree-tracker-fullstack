@@ -20,7 +20,7 @@ export default function LibraryIngestion({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // 🚀 FIXED: Pull the live syllabus from global memory
-  const { dynamicTOS } = useStore();
+  const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
 
   const discardBatch = () => {

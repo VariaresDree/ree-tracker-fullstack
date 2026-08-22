@@ -37,7 +37,7 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Elo rating** — multi-player adapted rating for Arena leaderboards and Battle outcomes (`engine/elo.js`)
 - [x] **Forecasting model** — turns θ into pass/topnotcher probability + ranked weak topics, drawn from per-topic performance so the prescription names real subtopics instead of the three subject buckets (`engine/forecast.js`, `forecastRoutes.js`)
 - [x] **Shared numerics** — dependency-free math helpers backing the above (`engine/math.js`)
-- [x] **Nightly/on-demand calibration** — recalibrates item difficulty parameters from live attempt data (`services/calibrationService.js`, `npm run calibrate`)
+- [x] **Nightly/on-demand calibration** — recalibrates item difficulty parameters from live attempt data. Reads the response matrix by keyset pagination rather than loading every attempt into memory, and writes item parameters and abilities in transactional chunks so a crash cannot leave half the bank calibrated (`services/calibrationService.js`, `npm run calibrate`)
 - [x] **Smart Drill** — adaptive next-question selection targeting weak topics (`smartDrillRoutes.js`, `services/questionPool.js`)
 - [x] **Spaced repetition (SRS)** — per-card scheduling for Active Review (`srsRoutes.js`)
 
@@ -62,7 +62,7 @@ every feature add, change, or removal, not on a schedule.
 
 ## Multiplayer & Social
 
-- [x] **Arena** — global peer leaderboard (`pages/Arena.jsx`, `leaderboardRoutes.js`, `services/leaderboardService.js`)
+- [x] **Arena** — global peer leaderboard, served from a periodically rebuilt snapshot. The rebuild is single-flight (concurrent stale requests share one pass instead of each launching a full table aggregate), demand-gated so an idle instance stops re-scanning, and escalates repeated failures instead of silently falling back forever (`pages/Arena.jsx`, `leaderboardRoutes.js`, `services/leaderboardService.js`)
 - [x] **Battle (real-time multiplayer)** — Socket.IO-backed lobby, live opponent state, server-authoritative grading and scoring. Every event is rate-limited per socket; `battle-submit` only ever reads an existing lobby (so a flood of forged ids cannot evict live battles) and requires the battle to be `IN_PROGRESS`; the battle start time is persisted, so a restart mid-match no longer zeroes every participant's elapsed time and randomises Elo placement (`pages/BattleLobby.jsx`, `battleRoutes.js`, `sockets/battleSocket.js`)
 - [x] **Combat mode** — multiplayer answer surface sharing `QuestionCard`
 

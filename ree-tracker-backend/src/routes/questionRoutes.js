@@ -13,6 +13,22 @@ const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
 const { resolveTopic } = require('../services/topicResolver');
 const { buildVersionSnapshot, createLiveQuestion } = require('../services/reviewService');
+const questionBankCache = require('../services/questionBankCache');
+
+// Any successful mutation in this router — publish, edit, delete, approve,
+// flag, explanation change — can move the vault counts or the pack-manifest
+// checksum. Invalidating here, once, is deliberate: the alternative is a call at
+// each of the eight write sites, where one would eventually be missed and the
+// staleness would be silent.
+router.use((req, res, next) => {
+    if (req.method === 'GET') return next();
+    if (typeof res.on === 'function') {
+        res.on('finish', () => {
+            if (res.statusCode < 300) questionBankCache.invalidateAll();
+        });
+    }
+    next();
+});
 
 // 0. FETCH GLOBAL QUESTION STATS 
 router.get('/stats', authMiddleware, async (req, res) => {
@@ -38,6 +54,13 @@ router.get('/stats', authMiddleware, async (req, res) => {
 // changes it. Raw SQL uses a fully-static string + bound param.
 router.get('/pack-manifest', authMiddleware, async (req, res) => {
     try {
+        // Cached: this endpoint ran THREE sequential full scans of the question
+        // bank, each with a per-row md5 and a string_agg, on every call — and
+        // the offline-pack client calls it at startup. The bank only changes on
+        // an admin write, and every such path invalidates this cache.
+        const cached = questionBankCache.get('pack-manifest');
+        if (cached) return res.status(200).json(cached);
+
         const subjects = ['Mathematics', 'ESAS', 'EE'];
         const manifest = {};
         for (const subj of subjects) {
@@ -53,7 +76,9 @@ router.get('/pack-manifest', authMiddleware, async (req, res) => {
             );
             manifest[subj] = { count: row?.count ?? 0, checksum: row?.checksum ?? '' };
         }
-        return res.status(200).json({ subjects: manifest, generatedAt: Date.now() });
+        const payload = { subjects: manifest, generatedAt: Date.now() };
+        questionBankCache.set('pack-manifest', payload);
+        return res.status(200).json(payload);
     } catch (error) {
         logger.error('pack-manifest error', { error: error.message });
         return res.status(500).json({ error: 'Failed to build pack manifest.' });
@@ -104,7 +129,9 @@ router.get('/', authMiddleware, async (req, res) => {
 // 1.5. GET QUARANTINE QUEUE
 router.get('/quarantine', authMiddleware, async (req, res) => {
     try {
+        // Capped: grows with every flagged item and had no limit at all.
         const flagged = await prisma.question.findMany({
+            take: 500,
             where: { isFlagged: true },
             orderBy: { createdAt: 'desc' }
         });

@@ -10,7 +10,10 @@ const { todayManila } = require('../utils/manilaDate');
 // Get all planner tasks for user
 router.get('/tasks', authMiddleware, async (req, res) => {
     try {
+        // Capped: generate-plan can create thousands of rows in one call, and
+        // this endpoint returned all of them.
         const tasks = await prisma.plannerTask.findMany({
+            take: 1000,
             where: { userId: req.user.id },
             orderBy: [{ completed: 'asc' }, { createdAt: 'desc' }]
         });

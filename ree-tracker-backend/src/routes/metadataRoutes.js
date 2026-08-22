@@ -6,10 +6,16 @@ const authMiddleware = require('../middlewares/authMiddleware');
 // 🚀 FIXED: Pointing back to your centralized, working DB configuration
 const prisma = require('../config/db');
 const { toDisplaySubject } = require('@ree/shared');
+const questionBankCache = require('../services/questionBankCache');
 const logger = require('../utils/logger');
 
 router.get('/vault', authMiddleware, async (req, res) => {
     try {
+        // Cached: a groupBy over the entire Question table, uncached, on a path
+        // the app hits on load. Invalidated by every question write.
+        const cached = questionBankCache.get('vault-metadata');
+        if (cached) return res.status(200).json(cached);
+
         const groupedData = await prisma.question.groupBy({
             by: ['subject', 'subtopic'],
             _count: { id: true },
@@ -33,6 +39,7 @@ router.get('/vault', authMiddleware, async (req, res) => {
             metadataMap[key] = (metadataMap[key] || 0) + item._count.id;
         });
 
+        questionBankCache.set('vault-metadata', metadataMap);
         return res.status(200).json(metadataMap);
     } catch (error) {
         logger.error('Vault metadata error', { error: error.message, stack: error.stack });

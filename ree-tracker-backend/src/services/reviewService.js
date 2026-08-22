@@ -76,6 +76,11 @@ function buildQuestionCreateData(data, topic, id) {
  * review-approval promotion. Resolves the taxonomy FK (Phase 3.3) and applies
  * the same defaults the manual POST has always used.
  */
+// Publishing through the review queue changes the live bank just as much as a
+// direct POST does, and it goes through this function rather than
+// questionRoutes' router hook.
+const questionBankCache = require('./questionBankCache');
+
 async function createLiveQuestion(data) {
     // Hard taxonomy gate at the single promotion choke point: a live question
     // MUST normalize to a recognized canonical subject (Mathematics/ESAS/EE) or
@@ -92,7 +97,9 @@ async function createLiveQuestion(data) {
         );
     }
     const topic = await resolveTopic(data.subject, data.subtopic);
-    return prisma.question.create({ data: buildQuestionCreateData(data, topic) });
+    const created = await prisma.question.create({ data: buildQuestionCreateData(data, topic) });
+    questionBankCache.invalidateAll();
+    return created;
 }
 
 /**

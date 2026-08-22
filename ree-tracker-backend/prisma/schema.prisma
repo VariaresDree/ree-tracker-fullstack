@@ -293,6 +293,15 @@ model QuestionAttempt {
   // The activity calendar + totalAnswered both roll up on the answered date
   // (COALESCE(answeredAt, createdAt)) — see analyticsRoutes.
   @@index([userId, answeredAt])
+  // Postgres does NOT auto-index foreign-key columns. Both of these are
+  // ON DELETE CASCADE targets, so without them every `DELETE FROM "Question"`
+  // and every `DELETE FROM "ExamSession"` triggers a full sequential scan of
+  // the attempt table while holding locks. At 100k attempts a single question
+  // delete takes seconds; a bulk quarantine cleanup times out. The composite
+  // indexes above all lead with userId, so none of them can serve a lookup by
+  // questionId or sessionId alone.
+  @@index([questionId])
+  @@index([sessionId])
   @@unique([userId, clientAttemptId])
 }
 
@@ -339,7 +348,11 @@ model Bookmark {
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  @@unique([userId, questionId]) 
+  @@unique([userId, questionId])
+  // The unique above is (userId, questionId) and so cannot serve a lookup by
+  // questionId alone — which is exactly what the ON DELETE CASCADE from
+  // Question does.
+  @@index([questionId])
 }
 
 // 7 & 8. 'systemConfig' and 'metadata' collections
@@ -371,6 +384,13 @@ model LeaderboardEntry {
   accuracy          Float @default(0)
   lastActive   DateTime
   snapshotAt   DateTime
+
+  // snapshotFreshness() runs `findFirst({ orderBy: { snapshotAt: 'desc' } })` on
+  // EVERY /leaderboard/me (polled at up to 60/min/user), /leaderboard and
+  // /paginated request. Unindexed that is a sequential scan plus a sort of the
+  // whole table — and since every row shares the same snapshotAt by
+  // construction, the sort was pure waste.
+  @@index([snapshotAt])
 }
 
 // Phase 4.1: runtime feature flags — the rollout lever for later phases
@@ -491,6 +511,8 @@ model SRSCard {
 
   @@unique([userId, questionId])
   @@index([userId, nextReviewDate])
+  // Same cascade-scan problem as Bookmark and QuestionAttempt.
+  @@index([questionId])
 }
 
 // Phase 2: Active Review session tracking

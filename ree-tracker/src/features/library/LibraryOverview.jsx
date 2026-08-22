@@ -1,6 +1,7 @@
 // src/features/library/LibraryOverview.jsx
 import { useState } from 'react';
 import { toDisplaySubject } from '@ree/shared';
+import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import {
     updateDynamicTOS,
@@ -53,7 +54,13 @@ const isBulkEligibleClient = (q) => {
 export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaultMetadata, manualMode, setManualMode }) {
 
   // 🚀 Reads dynamicTOS and the setter securely from the global store
-  const { isAdmin, dynamicTOS, setDynamicTOS } = useStore();
+  // Shallow slice, not the root object. This file also recomputes bulkEligible
+  // (a full sanitizeOptions pass over the whole review queue) unmemoized in
+  // render, so a root subscription meant that ran on every unrelated store
+  // mutation.
+  const { isAdmin, dynamicTOS, setDynamicTOS } = useStore(
+    useShallow((s) => ({ isAdmin: s.isAdmin, dynamicTOS: s.dynamicTOS, setDynamicTOS: s.setDynamicTOS })),
+  );
   const [isSyncing, setIsSyncing] = useState(false);
 
   // --- TOS MANAGER STATE ---
