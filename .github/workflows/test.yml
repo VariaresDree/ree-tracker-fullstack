@@ -5,9 +5,25 @@
 #
 # This is an npm WORKSPACE repo (root package.json lists ree-tracker,
 # ree-tracker-backend and packages/*). There is exactly ONE lockfile, at the
-# root, and `npm ci` must run from the root — running it inside a workspace
+# root, and installs must run from the root — running them inside a workspace
 # child fails, and the per-package lockfiles that used to exist are gone. Jobs
 # therefore install once at the root and then target a workspace by name.
+#
+# `npm install`, NOT `npm ci`, and that is deliberate.
+#
+# npm 11 writes a lockfile containing only the optional dependencies for the
+# platform it ran on. The lockfile in this repo was generated on Windows, so it
+# records `@rolldown/binding-win32-x64-msvc` and none of the 14 other platform
+# bindings. `npm ci` installs STRICTLY from the lockfile, so on a Linux runner
+# the native binding is simply absent and vitest dies with
+# "Cannot find module '../rolldown-binding.linux-x64-gnu.node'". Regenerating
+# the lockfile does not help — npm prunes to the host platform again, and the
+# --os/--cpu flags do not produce a superset.
+#
+# `npm install` resolves the missing platform binary and installs it. It also
+# matches what actually runs in production: both vercel.json and render.yaml use
+# `npm install`, so CI now exercises the same install path as the deploys rather
+# than a stricter one that no deploy uses.
 
 name: tests
 
@@ -44,6 +60,14 @@ jobs:
   frontend:
     name: Frontend (vitest)
     runs-on: ubuntu-latest
+    # vite.config.js fails a PRODUCTION build when VITE_BACKEND_URL is unset,
+    # because inlining http://localhost:5000 ships an app that cannot reach its
+    # API. CI has no .env (it is gitignored), so it supplies an explicit
+    # placeholder: this job proves the bundle BUILDS, it never deploys. The guard
+    # still protects the real Vercel build, which must get the value from the
+    # project environment.
+    env:
+      VITE_BACKEND_URL: http://localhost:5000
     steps:
       - uses: actions/checkout@v4
 
@@ -55,7 +79,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install workspace
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Test
         run: npm run test --workspace=ree-tracker
@@ -83,7 +107,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install workspace
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Test
         run: npm run test --workspace=ree-tracker-backend
@@ -91,6 +115,9 @@ jobs:
   lighthouse:
     name: Lighthouse CI (entry-path budgets)
     runs-on: ubuntu-latest
+    # See the frontend job: a production build needs an explicit API origin.
+    env:
+      VITE_BACKEND_URL: http://localhost:5000
     defaults:
       run:
         working-directory: ree-tracker
@@ -105,7 +132,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install workspace
-        run: npm ci
+        run: npm install --no-audit --no-fund
         working-directory: .
 
       - name: Build
