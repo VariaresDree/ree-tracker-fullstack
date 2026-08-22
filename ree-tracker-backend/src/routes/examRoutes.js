@@ -6,7 +6,7 @@ const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
-const { deriveVerdict, VERDICT } = require('@ree/shared');
+const { gradeAttempts, buildDiagnostics } = require('../services/examService');
 const { selectNextItem, updateTheta } = require('../engine/irt');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -125,63 +125,23 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
             qMap[q.id] = q;
         });
 
-        let correctCount = 0;
-        let parsedAttempts = [];
-        let subjectPerformance = {};
+        // Grading, the per-subject rollup and the verdict all live in
+        // examService now. They used to be ~60 lines inline here, which is why
+        // they were uncovered — and why this handler's verdict band drifted from
+        // the client's (>= 50 here vs >= 60 there) for long enough to ship.
+        const { correctCount, parsedAttempts, subjectPerformance } =
+            gradeAttempts(attempts, qMap, req.user.id);
 
-        for (let attempt of attempts) {
-            if (!attempt.questionId) continue;
-
-            const masterQ = qMap[attempt.questionId];
-            const isCorrect = masterQ ? (masterQ.answer === attempt.userAnswer) : false;
-
-            if (isCorrect) correctCount++;
-
-            const sub = masterQ?.subject || attempt.subject || 'General';
-            if (!subjectPerformance[sub]) subjectPerformance[sub] = { correct: 0, total: 0 };
-            subjectPerformance[sub].total++;
-            if (isCorrect) subjectPerformance[sub].correct++;
-
-            parsedAttempts.push({
-                userId: req.user.id,
-                questionId: attempt.questionId,
-                subject: sub,
-                subtopic: masterQ?.subtopic || attempt.subtopic || 'General',
-                isCorrect: isCorrect,
-                // Forwarded so recordAttempts() re-grades against the master key
-                // (single source of truth) and marks the row server-graded —
-                // otherwise the theta estimator, which now consumes server-graded
-                // rows only, would wrongly drop every board-sim attempt.
-                userAnswer: attempt.userAnswer,
-                confidenceLevel: attempt.confidence || 'LOW',
-                timeSpentMs: (attempt.timeSpentSecs || 0) * 1000,
-                clientAttemptId: attempt.clientAttemptId,
-                questionDifficulty: masterQ?.difficulty || 0.0
-            });
-        }
-
-        const scorePercentage = parsedAttempts.length > 0 ? Math.round((correctCount / parsedAttempts.length) * 100) : 0;
-
-        // Per-subject percentages for the PRC subject floor. Subjects the exam
-        // never asked about are absent from subjectPerformance and stay UNRATED —
-        // they must not be scored as zero.
-        const subjectScores = {};
-        for (const [subject, agg] of Object.entries(subjectPerformance)) {
-            if (!agg.total) continue;
-            subjectScores[normalizeSubject(subject)] = Math.round((agg.correct / agg.total) * 100);
-        }
-
-        // ONE definition of the rule, shared with the client (@ree/shared).
-        // This block used to band at >= 50 for CONDITIONAL PASS while the client
-        // banded at >= 60, so a 55% board sim was stored as CONDITIONAL PASS and
-        // rendered as FAILED on the results screen — and counted as a pass in the
-        // pass-rate KPI. The shared rule is also the real PRC one: a 70% general
-        // average AND no subject below 50.
-        const verdict = deriveVerdict(scorePercentage, subjectScores);
-        const verdictColor = verdict === VERDICT.PASSED
-            ? 'text-reeGreen'
-            : verdict === VERDICT.CONDITIONAL ? 'text-reeAmber' : 'text-reeRed';
-
+        const diagnostics = buildDiagnostics({
+            attempts,
+            parsedAttempts,
+            correctCount,
+            subjectPerformance,
+            timeTakenSecs: totalExamTime - timeRemaining,
+        });
+        // Only the verdict is needed outside the response — it is persisted on
+        // the ExamSession row below.
+        const { verdict } = diagnostics;
         const timeTakenSecs = totalExamTime - timeRemaining;
 
         // Create the ExamSession first, then route per-question attempts
@@ -236,23 +196,12 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
             if (telemetry?.updatedTheta != null) newTheta = telemetry.updatedTheta;
         }
 
-        // Build questionId -> original-index once (O(n)) so the diagnostics
-        // below are O(n) instead of O(n^2) (findIndex-in-map over `attempts`).
-        const idxByQid = new Map(attempts.map((at, i) => [at.questionId, i]));
-
+        // Built once, above, by examService — including the O(n) index map the
+        // time-sink and blind-spot lists need. The response payload is unchanged
+        // in shape; it just no longer restates the derivation here.
         res.status(200).json({
             success: true,
-            diagnostics: {
-                overallScore: scorePercentage,
-                correctCount: correctCount,
-                totalCount: parsedAttempts.length,
-                verdict: verdict,
-                verdictColor: verdictColor,
-                timeTaken: timeTakenSecs,
-                subjTracker: subjectPerformance,
-                timeSinks: parsedAttempts.filter(a => a.timeSpentMs > 180000).map(a => ({ idx: idxByQid.get(a.questionId), time: Math.floor(a.timeSpentMs / 1000) })),
-                blindSpots: parsedAttempts.filter(a => a.confidenceLevel === 'HIGH' && !a.isCorrect).map(a => idxByQid.get(a.questionId))
-            },
+            diagnostics,
             newStats: {
                 irt: { theta: newTheta },
                 cloudTimestamp: Date.now()

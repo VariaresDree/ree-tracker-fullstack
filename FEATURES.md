@@ -35,6 +35,7 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Item Response Theory (3PL)** — stateless per-item ability estimator, single unified θ + standard error per user (`engine/irt.js`)
 - [x] **Bayesian Knowledge Tracing (BKT)** — per-topic P(mastery) driving the topic mastery heatmap, complementary to θ (`engine/bkt.js`)
 - [x] **Elo rating** — multi-player adapted rating for Arena leaderboards and Battle outcomes (`engine/elo.js`)
+- [x] **Readiness score** — composite of topic coverage, accuracy, θ, consistency and blind spots, with the scoring rule extracted into a pure, unit-tested service (weights, θ normalisation derived from the estimator's own bounds, blind-spot definition and clamps) rather than inline in a route handler (`services/readinessService.js`, `readinessRoutes.js`)
 - [x] **Forecasting model** — turns θ into pass/topnotcher probability + ranked weak topics, drawn from per-topic performance so the prescription names real subtopics instead of the three subject buckets (`engine/forecast.js`, `forecastRoutes.js`)
 - [x] **Shared numerics** — dependency-free math helpers backing the above (`engine/math.js`)
 - [x] **Nightly/on-demand calibration** — recalibrates item difficulty parameters from live attempt data. Reads the response matrix by keyset pagination rather than loading every attempt into memory, and writes item parameters and abilities in transactional chunks so a crash cannot leave half the bank calibrated (`services/calibrationService.js`, `npm run calibrate`)
