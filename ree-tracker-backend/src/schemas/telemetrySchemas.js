@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { storableTimeMs } = require('../config/telemetryBounds');
 
 const VALID_MODES = ['ACTIVE_REVIEW', 'BOARD_SIM', 'GAUNTLET', 'COMBAT', 'BATTLE', 'LEGACY'];
 
@@ -20,7 +21,14 @@ const telemetryBulkSchema = z.object({
         subtopic: z.string().max(120).optional().default('General'),
         isCorrect: z.boolean().optional(),
         confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).optional().default('MED'),
-        timeSpentMs: z.number().nonnegative().optional().default(0),
+        // CLAMPED, not rejected. QuestionAttempt.timeSpentMs is an int4: an
+        // out-of-range value used to throw inside createMany and roll back the
+        // WHOLE batch (up to 500 attempts) on one bad field, and >=1e21
+        // stringifies exponentially so parseInt returned 1ms silently. A
+        // `.max()` here would 400 the batch and lose the same data a different
+        // way, so clamp instead — an implausible duration is still a real
+        // answer worth keeping.
+        timeSpentMs: z.number().optional().default(0).transform(storableTimeMs),
         // Client-generated per-attempt id — the server's durable dedupe handle
         // against replayed batches (unique per user among non-null values).
         clientAttemptId: z.string().min(8).max(80).optional(),

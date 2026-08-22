@@ -10,7 +10,7 @@ every feature add, change, or removal, not on a schedule.
 ## Exam & Practice Modes
 
 - [x] **Active Review** — per-question reveal MCQ practice with SRS-driven interleaving (`pages/ActiveReview.jsx`, `features/active-recall/{FlashcardMode,MCQMode,ReviewSetup,useReviewSession}.jsx`)
-- [x] **Board Simulator** — full timed mock exam: config → live run → post-exam diagnostics, exportable exam paper PDF (`pages/BoardSimulator.jsx`, `features/board-simulator/{SimulatorConfig,SimulatorActive,SimulatorDiagnostics,useSimulatorEngine,examPaper,battleGrades}.jsx`)
+- [x] **Board Simulator** — full timed mock exam: config → live run → post-exam diagnostics, exportable exam paper PDF. Crash-safe: the resumable draft carries answers, confidences, bookmarks, current item **and per-question timing**, is retained through resume, and is cleared only once the attempts are durably synced or queued — a failed submit of any kind (5xx, auth, parse error) defers the batch to the offline outbox instead of discarding it (`pages/BoardSimulator.jsx`, `features/board-simulator/{SimulatorConfig,SimulatorActive,SimulatorDiagnostics,useSimulatorEngine,examPaper,battleGrades}.jsx`)
 - [x] **Gauntlet** — distraction-free timed drill with resume-from-cache and its own diagnostics (`pages/Gauntlet.jsx`, `features/gauntlet/{useGauntletEngine,GauntletDiagnostics}.jsx`)
 - [x] **Shared answer surface** — one `QuestionCard` component (prompt, confidence selector, choice grid, hotkeys, reveal animation) reused identically across Active Review, Board Simulator, Gauntlet, Combat, and the offline Quiz Launcher (`features/quiz/QuestionCard.jsx`)
 - [x] **Exam-focus layout** — collapsible high-alert header, distraction-free chrome for any active exam surface (`layouts/ExamLayout.jsx`)
@@ -66,8 +66,8 @@ every feature add, change, or removal, not on a schedule.
 
 ## Platform & Offline
 
-- [x] **Offline-first sync** — Zustand store with IndexedDB persistence, optimistic local writes reconciled against server-authoritative totals (`store/useStore.js`, `store/slices.js`, `services/analyticsSync.js`)
-- [x] **Offline write outbox** — queued mutations (materials, telemetry) flushed on reconnect (`hooks/useSyncLifecycle.js`)
+- [x] **Offline-first sync** — Zustand store with IndexedDB persistence, optimistic local writes reconciled against server-authoritative totals. Account-scoped: the persisted queue records its owning user, `resetStore()` wipes all local state on logout/account deletion, and a queue whose owner does not match the signed-in user is quarantined to dead letters rather than flushed under the wrong identity (`store/useStore.js`, `store/slices.js`, `services/analyticsSync.js`)
+- [x] **Offline write outbox** — queued mutations (materials, telemetry) flushed on reconnect, with a synchronous localStorage mirror for fast tab-close that is cleared once the queue drains (`hooks/useSyncLifecycle.js`)
 - [x] **PWA** — installable, service-worker precache (`vite-plugin-pwa`)
 - [x] **Native shell (Capacitor)** — Android build target, local + push notifications (`@capacitor/{core,android,local-notifications,push-notifications}`)
 - [x] **Firebase Auth** — session management with stalled-reconnect handling (`contexts/AuthContext.jsx`)
@@ -75,4 +75,5 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Strategic planner** — task/milestone planning tied to the exam countdown (`features/profile/StrategicPlannerTab.jsx`, `plannerRoutes.js`)
 - [x] **Study Plan Generator** — AI-assisted study schedule from readiness data (`features/study-plan/StudyPlanGenerator.jsx`)
 - [x] **Boot sequence & brand identity** — branded loading screen with rotating tips, animated brand mark, replacing a plain spinner (`components/{BootSequence,BrandMark}.jsx`)
-- [x] **Idempotency + circuit breaker** — content-hash idempotency keys and outbox-safe retry on the telemetry write path (`telemetryHelpers.js`, `services/telemetryService.js`)
+- [x] **Idempotency + circuit breaker** — content-hash idempotency keys and outbox-safe retry on the telemetry write path; the telemetry flush runs through the shared API client, so it inherits the request timeout, the circuit breaker and offline-vs-error classification, and its idempotency key is derived from a **persisted** session id so a retry after a restart still replays instead of double-writing (`telemetryHelpers.js`, `services/telemetryService.js`, `services/dbQueries.js`)
+- [x] **Transactional attempt recording** — attempts, activity ledger, topic rollups, BKT mastery, θ/standard error and the daily streak commit as a single transaction per chunk under a `SELECT … FOR UPDATE` row lock, chunked so a large offline flush cannot exceed the transaction budget. Taxonomy resolution is hoisted out of the transaction to keep the connection pool acyclic, and client-supplied durations are clamped at ingest so one malformed value cannot reject an entire batch (`services/telemetryService.js`, `config/telemetryBounds.js`, `config/db.js`)

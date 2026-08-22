@@ -32,7 +32,17 @@ export const useReviewSession = (currentUser, isOnline) => {
     const [bookmarks, setBookmarks] = useState(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // startTimeRef is the PER-QUESTION anchor: loadNextQuestion resets it on
+    // every item so each answer gets its own timeSpentMs. sessionStartRef is
+    // the whole-session anchor and is set once, at session start.
+    //
+    // endSession used to derive durationSecs from startTimeRef, i.e. from the
+    // last question's dwell time — so a 25-minute, 20-question review reported
+    // roughly 40 seconds, and every StudySession row in the database (and the
+    // readiness consistency term built on them) was wrong by an order of
+    // magnitude.
     const startTimeRef = useRef(Date.now());
+    const sessionStartRef = useRef(Date.now());
     const telemetryBatchRef = useRef([]);
 
     // 🚀 High-Performance Absolute Timer
@@ -115,6 +125,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
             telemetryBatchRef.current = [];
             startTimeRef.current = Date.now();
+            sessionStartRef.current = Date.now();
             setElapsedTime(0);
 
             // Bracket the session in the store so the per-answer events know
@@ -256,7 +267,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             // either way this is now the single point of session teardown.
             await endStoreSession();
 
-            const totalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+            const totalDuration = Math.floor((Date.now() - sessionStartRef.current) / 1000);
             const summary = {
                 mode: config.sessionMode,
                 subject: config.subject,

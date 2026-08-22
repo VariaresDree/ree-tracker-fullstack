@@ -9,7 +9,7 @@ import { Skeleton, Button, Modal, FormField, Input, Select, SegmentedControl, Ta
 import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settings2, Cloud, TriangleAlert, Bell, BellOff } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 import { syncDashboardStats } from '../services/analyticsSync';
-import { updateUserProfile } from '../services/dbQueries';
+import { updateUserProfile, deleteAccount } from '../services/dbQueries';
 import { useNotificationSlice } from '../store/slices';
 import { Capacitor } from '@capacitor/core';
 import { scheduleDailyReminder, cancelDailyReminder } from '../services/localReminders';
@@ -182,9 +182,18 @@ export default function Profile() {
   const handleLogout = async () => {
       try {
           await logout();
-          resetStore();
       } catch (error) {
           toast.error("Log out failed.");
+          return;
+      }
+      // Clearing local state is a SEPARATE step from signing out, and it must
+      // not be able to report the sign-out as failed. Previously both lived in
+      // one try block and resetStore did not exist at all, so every successful
+      // logout threw here and toasted "Log out failed" — while leaving the
+      // previous account's stats and un-synced queue on the device for whoever
+      // signed in next.
+      try { await resetStore(); } catch (err) {
+          console.error('[AUTH] Local state was not fully cleared on logout.', err);
       }
   };
 
@@ -193,25 +202,19 @@ export default function Profile() {
       const toastId = toast.loading("Deleting your account…");
       
       try {
-          // 1. Alert the backend to purge the PostgreSQL user record
-          const token = await currentUser.getIdToken();
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          
-          // Purge the Postgres record FIRST and require it to succeed — if we
-          // wiped the Firebase identity on a failed purge, the server row would
-          // be orphaned with no way to re-authenticate and retry. A network
-          // error or non-2xx aborts before the irreversible Auth deletion.
-          const purgeRes = await fetch(`${backendUrl}/api/user/profile`, {
-              method: 'DELETE',
-              headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (!purgeRes.ok) {
-              throw new Error('Server could not delete your account data. Please try again.');
-          }
+          // 1. Purge the Postgres record FIRST and require it to succeed — if
+          // we wiped the Firebase identity on a failed purge, the server row
+          // would be orphaned with no way to re-authenticate and retry. Any
+          // error aborts before the irreversible Auth deletion.
+          //
+          // Routed through the service layer: this was the only page component
+          // in the app issuing raw HTTP, so the most destructive call in the
+          // product ran with no timeout and no offline classification.
+          await deleteAccount();
 
           // 2. Terminate the Firebase Authentication Identity
           await deleteUser(currentUser);
-          resetStore();
+          await resetStore();
           toast.success("Account deleted.", { id: toastId });
       } catch (error) {
           if (error.code === 'auth/requires-recent-login') {

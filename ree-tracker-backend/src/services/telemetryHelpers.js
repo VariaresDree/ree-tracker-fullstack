@@ -1,7 +1,7 @@
 // src/services/telemetryHelpers.js
 // Pure helpers extracted from recordAttempts so the dedupe/rollup/mapping
 // logic is unit-testable without a database.
-const { plausibleTimeMs } = require('../config/telemetryBounds');
+const { plausibleTimeMs, storableTimeMs } = require('../config/telemetryBounds');
 const { normalizeSubject } = require('../utils/subject');
 
 // How far back a client-reported answer timestamp may sit. An offline outbox
@@ -84,7 +84,14 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
                 // true only when the server re-graded against the master key.
                 _serverGraded: serverGraded,
                 confidenceLevel: String(a.confidenceLevel || 'LOW').toUpperCase(),
-                timeSpentMs: parseInt(a.timeSpentMs) || 0,
+                // storableTimeMs, not parseInt: parseInt stringifies its input
+                // first, so any value >= 1e21 became exponential notation and
+                // parseInt("1e+21") returned 1 — a 1ms answer, silently. It also
+                // let values past int4's range through to createMany, where the
+                // range error rolled back the whole batch. Schemas clamp at the
+                // edge; this is the defence-in-depth copy for the non-HTTP
+                // callers (battle socket, scripts) that never pass through Zod.
+                timeSpentMs: storableTimeMs(a.timeSpentMs),
                 clientAttemptId: a.clientAttemptId || null,
                 offline: !!a.offline,
                 // When the user actually answered (clamped — see clampAnsweredAt).

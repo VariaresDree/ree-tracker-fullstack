@@ -4,7 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { auth } from '../config/firebaseDb';
 import { TOS as fallbackTOS } from '../config/constants';
-import { updateCommandParameters, apiRequest, getAuthToken } from '../services/dbQueries';
+import { updateCommandParameters, apiRequest } from '../services/dbQueries';
 import { calculateUpdatedStats } from '../utils/irtMath';
 import { stableBatchKey } from '../utils/contentHash';
 import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro } from '../utils/pomodoroLogic';
@@ -100,6 +100,15 @@ export const useStore = create(
       // forever; kept for diagnostics, capped to the most recent MAX_DEAD_LETTERS.
       deadLetters: [],
 
+      // Which account the persisted queues and stats belong to. Persisted.
+      // The store lives under ONE IndexedDB key with no user scoping, so
+      // without this a device where account A signed out holding un-synced
+      // attempts would flush them under account B's token — A's answers landing
+      // in B's analytics — and B would see A's streak/theta/heatmap until the
+      // first server reconcile. Set on the first staged attempt; checked before
+      // every flush; cleared by resetStore() on logout.
+      ownerUid: null,
+
       // Session lifecycle — set by startSession() when the user enters a
       // quiz surface (Active Review / Board Sim / Gauntlet / Combat). The
       // sessionId rides every staged attempt so the backend can upsert the
@@ -182,7 +191,8 @@ export const useStore = create(
 
         set((state) => ({
             syncQueue: [...state.syncQueue, payload].slice(-MAX_SYNC_QUEUE),
-            syncStatus: 'offline_queued'
+            syncStatus: 'offline_queued',
+            ownerUid: state.ownerUid || auth.currentUser?.uid || null,
         }));
       },
 
@@ -243,6 +253,7 @@ export const useStore = create(
             stats: updatedStats,
             syncQueue: [...state.syncQueue, payload].slice(-MAX_SYNC_QUEUE),
             syncStatus: state.syncStatus === 'syncing' ? 'syncing' : 'offline_queued',
+            ownerUid: state.ownerUid || auth.currentUser?.uid || null,
           };
         });
 
@@ -297,49 +308,65 @@ export const useStore = create(
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("No authenticated session located.");
 
-            // getAuthToken maps an offline token-refresh failure to the
-            // '[OFFLINE]' sentinel so the transient-vs-permanent triage below
-            // requeues instead of surfacing a raw Firebase error.
-            const token = await getAuthToken(currentUser);
-            const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            // Cross-account guard. The persisted queue is one IndexedDB record
+            // with no user scoping, so when account A signed out holding
+            // un-synced attempts and account B signed in on the same device,
+            // this flush POSTed A's answers under B's token and they landed in
+            // B's analytics. Those attempts belong to a user we can no longer
+            // authenticate as, so they cannot be sent at all — quarantine them
+            // visibly rather than mis-attributing them or dropping them silently.
+            const owner = getStore().ownerUid;
+            if (owner && owner !== currentUser.uid) {
+              console.error('[SYNC] Queue belongs to a different account; quarantining.');
+              set((state) => ({
+                syncQueue: [],
+                deadLetters: [
+                  ...state.deadLetters,
+                  { type: 'telemetry-orphaned', ids: [...sentIds], error: 'queue owner mismatch', at: Date.now() },
+                ].slice(-MAX_DEAD_LETTERS),
+                ownerUid: currentUser.uid,
+                syncStatus: 'error',
+              }));
+              return false;
+            }
 
-            // currentSessionId is populated by startSession() when a quiz surface
-            // mounts; we deliberately do NOT mint a fresh UUID per flush, because
-            // each new UUID would create a phantom ExamSession row.
-            const sessionId = getStore().currentSessionId || newId();
+            // currentSessionId is populated by startSession() when a quiz
+            // surface mounts, and is now PERSISTED so a restart mid-queue keeps
+            // the same id. When there genuinely is no session (a stray attempt,
+            // or a queue restored after the session ended) we mint one ONCE and
+            // store it — minting per flush gave every retry a different id,
+            // which both created phantom ExamSession rows and changed the
+            // idempotency key, defeating the exactly-once replay it exists for.
+            let sessionId = getStore().currentSessionId;
+            if (!sessionId) {
+              sessionId = newId();
+              set({ currentSessionId: sessionId });
+            }
             const mode = getStore().currentSessionMode || 'ACTIVE_REVIEW';
             const targetSubject = getStore().currentSubject || 'BLENDED';
 
             // Content-derived key: a RETRY of this exact batch (network flake,
             // timeout abort, app reopen) reuses the identical key, so the
             // server replays the cached response instead of double-writing.
-            // The old random-per-flush key made every retry look like new data.
             const batchKey = stableBatchKey(sessionId, batch.map((a) => a.id));
 
-            const response = await fetch(`${apiUrl}/api/analytics/telemetry-bulk`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'Idempotency-Key': batchKey,
-              },
-              body: JSON.stringify({
-                sessionId,
-                mode,
-                targetSubject,
-                // clientAttemptId gives the server a durable per-attempt dedupe
-                // handle that outlives the idempotency cache's 10-min TTL.
-                attempts: batch.map((a) => ({ ...a, clientAttemptId: a.id })),
-              })
-            });
-
-            if (!response.ok) {
-              const err = new Error("Backend synchronization transaction rejected.");
-              err.status = response.status;
-              throw err;
-            }
-
-            const serverResult = await response.json();
+            // Routed through apiRequest instead of a bare fetch. The bare fetch
+            // had no AbortController, so a stalled backend left this promise —
+            // and therefore `inFlightFlush`, which every subsequent flush awaits
+            // — pending for the OS-level TCP timeout: the queue stopped
+            // draining entirely and "End session" spun forever. It also
+            // bypassed the circuit breaker and never produced the '[OFFLINE]'
+            // sentinel, so the triage below could not recognise a plain
+            // connectivity drop and showed a red "Sync error" instead of the
+            // calm "Offline — changes queued".
+            const serverResult = await apiRequest('/api/analytics/telemetry-bulk', 'POST', {
+              sessionId,
+              mode,
+              targetSubject,
+              // clientAttemptId gives the server a durable per-attempt dedupe
+              // handle that outlives the idempotency record's TTL.
+              attempts: batch.map((a) => ({ ...a, clientAttemptId: a.id })),
+            }, { idempotencyKey: batchKey });
 
             // Surface silent drops (e.g. questions the server couldn't match)
             // instead of letting sessions quietly undercount.
@@ -481,19 +508,46 @@ export const useStore = create(
         return { stats: { ...state.stats, dailyMath: 0, dailyESAS: 0, dailyEE: 0 } };
       }),
 
-      purgeAnalytics: async () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) throw new Error('Authentication required.');
-        const token = await getAuthToken(currentUser);
-        const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        const resp = await fetch(`${apiUrl}/api/analytics/purge`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!resp.ok) {
-            const body = await resp.json().catch(() => ({}));
-            throw new Error(body.error || `Purge failed (${resp.status}).`);
+      // Wipe every trace of the current account from the device. Profile.jsx
+      // has always called this on logout and on account deletion — but the
+      // action did not exist, so the call threw AFTER Firebase had already
+      // signed the user out. Two visible consequences: a successful logout
+      // reported "Log out failed", and nothing was ever cleared, so the next
+      // account on the device inherited the previous user's stats and
+      // un-synced queue.
+      //
+      // Deliberately synchronous-then-async: state is cleared first so no
+      // subsequent flush can observe the old queue, then the IndexedDB record
+      // and the localStorage mirror are removed.
+      resetStore: async () => {
+        if (debouncedFlushHandle) {
+          clearTimeout(debouncedFlushHandle);
+          debouncedFlushHandle = null;
         }
+        inFlightFlush = null;
+        inFlightPending = null;
+        syncBackoff.reset();
+        set({
+          ownerUid: null,
+          stats: null,
+          syncQueue: [],
+          pendingWrites: [],
+          deadLetters: [],
+          syncStatus: 'synced',
+          isAdmin: false,
+          currentSessionId: null,
+          currentSessionMode: null,
+          currentSubject: null,
+        });
+        try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch (_) {}
+        try { await useStore.persist?.clearStorage?.(); } catch (_) {}
+      },
+
+      purgeAnalytics: async () => {
+        // apiRequest, not a bare fetch: this used to duplicate token fetch, URL
+        // resolution and error parsing, and had no timeout or circuit-breaker
+        // participation.
+        await apiRequest('/api/analytics/purge', 'DELETE');
         // Reset to a clean baseline stats object instead of `null`. A null
         // stats traps the Dashboard on its skeleton until the page reloads,
         // because `if (!activeStats) return <DashboardSkeleton />`. Giving
@@ -582,6 +636,15 @@ export const useStore = create(
       name: 'ree-tracker-secure-storage',
       storage: createJSONStorage(() => idbStorage),
       partialize: (state) => ({
+        // Persisted so a flush after a restart can still prove who the queued
+        // attempts belong to.
+        ownerUid: state.ownerUid,
+        // Persisted so a queue restored after a restart keeps the SAME session
+        // id. It used to be transient, so every retry minted a fresh UUID —
+        // which changed stableBatchKey and therefore the Idempotency-Key,
+        // defeating exactly-once replay in precisely the crash-recovery case it
+        // was built for, and creating a phantom ExamSession row per attempt.
+        currentSessionId: state.currentSessionId,
         syncQueue: state.syncQueue,
         pendingWrites: state.pendingWrites,
         deadLetters: state.deadLetters,

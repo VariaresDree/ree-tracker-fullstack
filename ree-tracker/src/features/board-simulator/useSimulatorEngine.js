@@ -70,6 +70,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         answers: currentAnswersRef.current,
         confidences: currentConfidencesRef.current,
         currentIndex: currentIndexRef.current,
+        // Per-question timing MUST be part of the draft. Without it a resumed
+        // exam submitted every pre-crash item with the hardcoded 10s fallback,
+        // poisoning per-topic speed averages, "avg time / question" and the
+        // chrono-anomaly detector. The Gauntlet draft has always carried this.
+        timeSpent: { ...timeSpentPerQuestion.current },
         totalExamTime: totalExamTime.current,
         endTime: endTimeRef.current,
         bookmarks: Array.from(bookmarksRef.current || []),
@@ -268,8 +273,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setBookmarks(new Set(bm));
       bookmarksRef.current = new Set(bm);
 
+      timeSpentPerQuestion.current = parsed.timeSpent || {};
+
       lastActiveTime.current = Date.now();
-      localStorage.removeItem('ree_sim_cache');
+      // The draft is deliberately NOT deleted here. Deleting on resume left a
+      // window (until the next autosave) where a second crash lost the entire
+      // exam. It is cleared only once the attempts are durably synced or
+      // queued, at the end of submitExam. The Gauntlet resume path does the
+      // same, for the same reason.
       setHasSavedSession(false);
       toast.success("Matrix restored. Resuming simulation.");
     } catch (_) {
@@ -351,9 +362,12 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     const loadingToastId = toast.loading("Transmitting telemetry to Assessment Core...");
 
     try {
-        localStorage.removeItem('ree_sim_cache');
-        setHasSavedSession(false);
-
+        // NOTE: the draft in localStorage is intentionally left in place until
+        // the attempts are durably synced or queued (see the end of this try
+        // block). Clearing it here meant a non-network failure — a 500, a 401,
+        // a malformed response — discarded the draft AND the in-memory attempt
+        // payload, losing a full board exam with a toast that claimed results
+        // were "saved locally".
         const now = Date.now();
         timeSpentPerQuestion.current[currentIndex] = (timeSpentPerQuestion.current[currentIndex] || 0) + (now - lastActiveTime.current);
         endTimeRef.current = null; 
@@ -430,7 +444,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 // Date.now() - lastActiveTime). The old `* 1000` inflated it 1000×,
                 // so every attempt recorded ~hours and poisoned the per-question
                 // time averages / Speed Mapping. Send the raw ms; 10s fallback.
-                timeSpentMs: Math.round(timeSpent[idx]) || 10000,
+                // 0, not a fabricated 10000. A missing timing is missing data;
+                // the server's plausibility band already excludes sub-500ms
+                // values from time aggregates, so 0 is correctly ignored rather
+                // than silently inventing a 10-second answer.
+                timeSpentMs: Math.round(timeSpent[idx]) || 0,
                 clientAttemptId: `${sessionId}:${q.id}`,
             };
         });
@@ -460,12 +478,19 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                     }
                 } catch (syncError) {
                     console.warn("Cloud Sync Failed", syncError);
+                    // EVERY failure defers to the durable outbox — not just the
+                    // [OFFLINE] sentinel. The old else-branch merely showed a
+                    // toast, so a 500/401/parse error dropped the whole exam's
+                    // telemetry on the floor: the draft was already deleted and
+                    // attemptsPayload was a local const that got collected.
+                    // queuePendingWrite is IndexedDB-backed, so a queued batch
+                    // survives a reload and replays with its original
+                    // clientAttemptIds (exactly-once on the server).
+                    useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                     if (syncError?.message === '[OFFLINE]') {
-                        // Circuit breaker tripped despite navigator.onLine — defer.
-                        useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                         toast('Offline — exam queued; analytics will sync on reconnect.', { icon: '📡' });
                     } else {
-                        toast.error(`Telemetry sync failed: ${syncError?.message || 'unknown'}. Results saved locally.`);
+                        toast('Sync deferred — exam saved and queued; it will retry automatically.', { icon: '📡' });
                     }
                 }
             } else {
@@ -507,6 +532,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             date: new Date().toISOString(), score, verdict, subjectScores,
             mode: config.mode, targetSubject: config.subject, totalQs: finalQs.length, timeTaken: timeTakenActual
         });
+
+        // Only NOW is the draft safe to drop: the attempts are either synced or
+        // sitting in the IndexedDB-backed outbox, and the score summary is
+        // persisted. If anything above threw, we fall into catch with the draft
+        // still on disk and the Resume affordance still available.
+        try {
+            localStorage.removeItem('ree_sim_cache');
+            setHasSavedSession(false);
+        } catch (_) { /* storage unavailable — nothing left to protect */ }
 
         toast.success('Simulation telemetry verified and saved.', { id: loadingToastId });
 

@@ -183,7 +183,13 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
                 targetSubject: config?.subject || 'Blended',
                 score: 0,
                 totalQuestions: 0,
-                timeTakenSecs: timeTakenSecs,
+                // ZERO, like score and totalQuestions above. recordAttempts'
+                // upsert does `timeTakenSecs: { increment: batchTimeSecs }`, so
+                // pre-filling the wall-clock duration here made every board sim
+                // report roughly DOUBLE its real time (wall clock + the sum of
+                // per-question timings) straight into the study-time chart.
+                // This field was the one the original zeroing fix missed.
+                timeTakenSecs: 0,
                 verdict: verdict,
                 config: config || {},
             },

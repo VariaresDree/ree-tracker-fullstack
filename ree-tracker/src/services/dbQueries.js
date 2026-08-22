@@ -54,7 +54,7 @@ export const getAuthToken = async (user) => {
     }
 };
 
-export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS } = {}) => {
+export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS, idempotencyKey: idempotencyKeyOverride = null } = {}) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
 
@@ -73,7 +73,11 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
     };
-    const idemKey = idempotencyKey(method, body);
+    // Callers with a stronger notion of request identity than "hash of body"
+    // supply their own key. The telemetry flush does: its key is derived from
+    // (sessionId + attempt ids), which stays stable across app restarts, where
+    // a body hash would not (the body carries a re-derived session id).
+    const idemKey = idempotencyKeyOverride || idempotencyKey(method, body);
     if (idemKey) headers['Idempotency-Key'] = idemKey;
 
     const controller = new AbortController();
@@ -583,3 +587,9 @@ export const fetchReferenceSources = async () => {
 export const createReferenceSource = (body) => apiRequest('/api/reference-cards/sources', 'POST', body);
 export const updateReferenceSource = (id, body) => apiRequest(`/api/reference-cards/sources/${id}`, 'PUT', body);
 export const deleteReferenceSource = (id) => apiRequest(`/api/reference-cards/sources/${id}`, 'DELETE');
+
+// Account deletion. Profile.jsx used to inline a bare fetch for this — the only
+// page component in the app doing raw HTTP — which meant no timeout, no
+// circuit-breaker participation and no '[OFFLINE]' classification on the single
+// most destructive call in the product.
+export const deleteAccount = () => apiRequest('/api/user/profile', 'DELETE');
