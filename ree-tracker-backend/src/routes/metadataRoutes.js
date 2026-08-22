@@ -5,10 +5,17 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 // 🚀 FIXED: Pointing back to your centralized, working DB configuration
 const prisma = require('../config/db');
+const { toDisplaySubject } = require('@ree/shared');
+const questionBankCache = require('../services/questionBankCache');
 const logger = require('../utils/logger');
 
 router.get('/vault', authMiddleware, async (req, res) => {
     try {
+        // Cached: a groupBy over the entire Question table, uncached, on a path
+        // the app hits on load. Invalidated by every question write.
+        const cached = questionBankCache.get('vault-metadata');
+        if (cached) return res.status(200).json(cached);
+
         const groupedData = await prisma.question.groupBy({
             by: ['subject', 'subtopic'],
             _count: { id: true },
@@ -18,12 +25,13 @@ router.get('/vault', authMiddleware, async (req, res) => {
         const metadataMap = {};
         
         groupedData.forEach(item => {
-            let safeSubj = item.subject;
-            
-            // Standardize Firebase anomalies to the exact UI mapping
-            if (safeSubj === 'Mathematics' || safeSubj === 'Math') safeSubj = 'Math';
-            else if (safeSubj === 'ESAS' || safeSubj?.includes('Sciences')) safeSubj = 'ESAS';
-            else if (safeSubj === 'EE' || safeSubj?.includes('Electrical')) safeSubj = 'EE';
+            // Shared canonicaliser. This block used to normalise to 'Math' — the
+            // OPPOSITE direction from utils/subject, which canonicalises to
+            // 'Mathematics' — and used substring matching ('Sciences',
+            // 'Electrical') that the canonical table does not. Two opposing
+            // canonical forms chosen per file is what made the same subject show
+            // up as separate analytics rows.
+            const safeSubj = toDisplaySubject(item.subject);
 
             const safeSubtopic = item.subtopic ? item.subtopic.trim() : 'Uncategorized';
 
@@ -31,6 +39,7 @@ router.get('/vault', authMiddleware, async (req, res) => {
             metadataMap[key] = (metadataMap[key] || 0) + item._count.id;
         });
 
+        questionBankCache.set('vault-metadata', metadataMap);
         return res.status(200).json(metadataMap);
     } catch (error) {
         logger.error('Vault metadata error', { error: error.message, stack: error.stack });

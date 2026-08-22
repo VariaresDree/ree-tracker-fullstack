@@ -6,6 +6,7 @@ const { validate } = require('../middlewares/validate');
 const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
+const { gradeAttempts, buildDiagnostics } = require('../services/examService');
 const { selectNextItem, updateTheta } = require('../engine/irt');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
@@ -51,7 +52,10 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // GRADE — accepts answers and returns graded results
-router.post('/grade', authMiddleware, idempotency(), validate(gradeSchema), async (req, res) => {
+// idempotency() AFTER validate(), per its own contract: mounted first, a
+// malformed body reserved the key, so the corrected retry — same content hash,
+// same key — got a 409 'duplicate in progress' instead of being graded.
+router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), async (req, res) => {
     try {
         const { answers } = req.body;
         if (!Array.isArray(answers) || answers.length === 0) {
@@ -104,7 +108,7 @@ router.post('/grade', authMiddleware, idempotency(), validate(gradeSchema), asyn
 });
 
 // SUBMIT SIMULATION TELEMETRY (GRADING ENGINE)
-router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema), async (req, res) => {
+router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency(), async (req, res) => {
     try {
         const { attempts, config, timeRemaining, totalExamTime } = req.body;
 
@@ -121,52 +125,23 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
             qMap[q.id] = q;
         });
 
-        let correctCount = 0;
-        let parsedAttempts = [];
-        let subjectPerformance = {};
+        // Grading, the per-subject rollup and the verdict all live in
+        // examService now. They used to be ~60 lines inline here, which is why
+        // they were uncovered — and why this handler's verdict band drifted from
+        // the client's (>= 50 here vs >= 60 there) for long enough to ship.
+        const { correctCount, parsedAttempts, subjectPerformance } =
+            gradeAttempts(attempts, qMap, req.user.id);
 
-        for (let attempt of attempts) {
-            if (!attempt.questionId) continue;
-
-            const masterQ = qMap[attempt.questionId];
-            const isCorrect = masterQ ? (masterQ.answer === attempt.userAnswer) : false;
-
-            if (isCorrect) correctCount++;
-
-            const sub = masterQ?.subject || attempt.subject || 'General';
-            if (!subjectPerformance[sub]) subjectPerformance[sub] = { correct: 0, total: 0 };
-            subjectPerformance[sub].total++;
-            if (isCorrect) subjectPerformance[sub].correct++;
-
-            parsedAttempts.push({
-                userId: req.user.id,
-                questionId: attempt.questionId,
-                subject: sub,
-                subtopic: masterQ?.subtopic || attempt.subtopic || 'General',
-                isCorrect: isCorrect,
-                // Forwarded so recordAttempts() re-grades against the master key
-                // (single source of truth) and marks the row server-graded —
-                // otherwise the theta estimator, which now consumes server-graded
-                // rows only, would wrongly drop every board-sim attempt.
-                userAnswer: attempt.userAnswer,
-                confidenceLevel: attempt.confidence || 'LOW',
-                timeSpentMs: (attempt.timeSpentSecs || 0) * 1000,
-                clientAttemptId: attempt.clientAttemptId,
-                questionDifficulty: masterQ?.difficulty || 0.0
-            });
-        }
-
-        const scorePercentage = parsedAttempts.length > 0 ? Math.round((correctCount / parsedAttempts.length) * 100) : 0;
-        let verdict = 'FAILED';
-        let verdictColor = 'text-reeRed';
-        if (scorePercentage >= 70) {
-            verdict = 'PASSED';
-            verdictColor = 'text-reeGreen';
-        } else if (scorePercentage >= 50) {
-            verdict = 'CONDITIONAL PASS';
-            verdictColor = 'text-reeAmber';
-        }
-
+        const diagnostics = buildDiagnostics({
+            attempts,
+            parsedAttempts,
+            correctCount,
+            subjectPerformance,
+            timeTakenSecs: totalExamTime - timeRemaining,
+        });
+        // Only the verdict is needed outside the response — it is persisted on
+        // the ExamSession row below.
+        const { verdict } = diagnostics;
         const timeTakenSecs = totalExamTime - timeRemaining;
 
         // Create the ExamSession first, then route per-question attempts
@@ -179,11 +154,23 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
         const session = await prisma.examSession.create({
             data: {
                 userId: req.user.id,
-                mode: config?.mode || 'custom',
+                // 'BOARD_SIM', not config.mode. buildScoreProgression filters on
+                // EXAM_MODES = {BOARD_SIM, GAUNTLET}, but this route stamped the
+                // CONFIG mode ('custom' | 'prc' | 'blended' | 'subject'), so no
+                // session created here ever matched and Score History rendered
+                // empty for every board-sim user. The config mode is preserved in
+                // the `config` JSON below, which is where it belongs.
+                mode: 'BOARD_SIM',
                 targetSubject: config?.subject || 'Blended',
                 score: 0,
                 totalQuestions: 0,
-                timeTakenSecs: timeTakenSecs,
+                // ZERO, like score and totalQuestions above. recordAttempts'
+                // upsert does `timeTakenSecs: { increment: batchTimeSecs }`, so
+                // pre-filling the wall-clock duration here made every board sim
+                // report roughly DOUBLE its real time (wall clock + the sum of
+                // per-question timings) straight into the study-time chart.
+                // This field was the one the original zeroing fix missed.
+                timeTakenSecs: 0,
                 verdict: verdict,
                 config: config || {},
             },
@@ -209,23 +196,12 @@ router.post('/submit', authMiddleware, idempotency(), validate(examSubmitSchema)
             if (telemetry?.updatedTheta != null) newTheta = telemetry.updatedTheta;
         }
 
-        // Build questionId -> original-index once (O(n)) so the diagnostics
-        // below are O(n) instead of O(n^2) (findIndex-in-map over `attempts`).
-        const idxByQid = new Map(attempts.map((at, i) => [at.questionId, i]));
-
+        // Built once, above, by examService — including the O(n) index map the
+        // time-sink and blind-spot lists need. The response payload is unchanged
+        // in shape; it just no longer restates the derivation here.
         res.status(200).json({
             success: true,
-            diagnostics: {
-                overallScore: scorePercentage,
-                correctCount: correctCount,
-                totalCount: parsedAttempts.length,
-                verdict: verdict,
-                verdictColor: verdictColor,
-                timeTaken: timeTakenSecs,
-                subjTracker: subjectPerformance,
-                timeSinks: parsedAttempts.filter(a => a.timeSpentMs > 180000).map(a => ({ idx: idxByQid.get(a.questionId), time: Math.floor(a.timeSpentMs / 1000) })),
-                blindSpots: parsedAttempts.filter(a => a.confidenceLevel === 'HIGH' && !a.isCorrect).map(a => idxByQid.get(a.questionId))
-            },
+            diagnostics,
             newStats: {
                 irt: { theta: newTheta },
                 cloudTimestamp: Date.now()

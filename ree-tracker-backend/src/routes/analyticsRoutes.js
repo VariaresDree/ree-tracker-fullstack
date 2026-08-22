@@ -8,6 +8,7 @@ const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { recordAttempts, todayManila } = require('../services/telemetryService');
+const { normalizeSubject } = require('@ree/shared');
 const { Prisma } = require('@prisma/client');
 const { manilaDaySql } = require('../utils/manilaDate');
 // Shared cache module — recordAttempts invalidates it for EVERY write surface
@@ -41,17 +42,39 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // activity calendar and never miss attempts due to server-TZ drift.
         const utcStartOfDay = new Date(`${todayManila()}T00:00:00+08:00`);
 
+        // Bucketed on answeredAt (falling back to createdAt for rows written
+        // before that column existed) — the SAME column the activity calendar
+        // uses. These two numbers sit on the same screen and used to disagree by
+        // construction: the calendar honoured when the user actually answered,
+        // while this counter honoured when the batch reached the server. A user
+        // who answered 50 questions offline on Monday night and synced Tuesday
+        // morning saw Tuesday's daily target already met without answering
+        // anything on Tuesday, while the heatmap correctly credited Monday.
+        // answeredAt exists precisely to make that distinction (schema.prisma).
         const dailyAgg = await prisma.questionAttempt.groupBy({
             by: ['subject'],
-            where: { userId: uid, createdAt: { gte: utcStartOfDay } },
+            where: {
+                userId: uid,
+                OR: [
+                    { answeredAt: { gte: utcStartOfDay } },
+                    { answeredAt: null, createdAt: { gte: utcStartOfDay } },
+                ],
+            },
             _count: { id: true }
         });
 
+        // Canonicalised through the shared table rather than compared inline.
+        // The old inline form matched only 'Mathematics'/'Math'/'ESAS'/'EE'
+        // exactly, so attempts stored under the long spellings
+        // ('Engineering Sciences and Allied Subjects', 'Electrical Engineering',
+        // 'Electrical Engineering Professional Subjects') were counted in NO
+        // bucket and silently vanished from the daily target ring.
         let dailyMath = 0, dailyESAS = 0, dailyEE = 0;
         dailyAgg.forEach(group => {
-            if (group.subject === 'Mathematics' || group.subject === 'Math') dailyMath += group._count.id;
-            else if (group.subject === 'ESAS') dailyESAS += group._count.id;
-            else if (group.subject === 'EE') dailyEE += group._count.id;
+            const canonical = normalizeSubject(group.subject);
+            if (canonical === 'Mathematics') dailyMath += group._count.id;
+            else if (canonical === 'ESAS') dailyESAS += group._count.id;
+            else if (canonical === 'EE') dailyEE += group._count.id;
         });
 
         // EVERY active day (uncapped), rolled up directly from QuestionAttempt —

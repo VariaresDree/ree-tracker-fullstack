@@ -364,8 +364,15 @@ function jmleCalibrate({ responses, personPriors = {}, itemSeeds = {} }, options
 function clamp(x, lo, hi) {
   return Math.max(lo, Math.min(hi, x));
 }
+// The ability scale's bounds. Named and exported because three other places
+// independently restated "theta is [-4, 4]" — readinessService's normalisation,
+// the client's optimistic estimator, and the chart axis. Widening the scale here
+// must not silently leave any of them behind.
+const THETA_MIN = -4;
+const THETA_MAX = 4;
+
 function clampTheta(t) {
-  return clamp(t, -4, 4);
+  return clamp(t, THETA_MIN, THETA_MAX);
 }
 function linspace(a, b, n) {
   const out = [];
@@ -376,6 +383,9 @@ function linspace(a, b, n) {
 
 module.exports = {
   SCALE,
+  THETA_MIN,
+  THETA_MAX,
+  clampTheta,
   p3pl,
   fisherInfo,
   updateTheta,

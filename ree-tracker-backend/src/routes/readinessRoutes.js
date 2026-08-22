@@ -6,6 +6,7 @@ const { readinessSnapshotSchema } = require('../schemas/readinessSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const readinessCache = require('../services/readinessCache');
+const { computeReadiness, CONSISTENCY_WINDOW_DAYS } = require('../services/readinessService');
 
 // Manila calendar date of an instant — same helper telemetryService keys
 // ActivityLog/streaks on, so "an active study day" means the same thing here.
@@ -45,40 +46,48 @@ router.get('/', authMiddleware, async (req, res) => {
                 JOIN "Question" q ON q."id" = qa."questionId"
                 LEFT JOIN "Topic" t ON t."id" = q."topicId"
                 WHERE qa."userId" = ${req.user.id}
+                  AND q."isFlagged" = false
             `,
         ]);
         const totalTopicCount = totalRow?.n ?? 0;
         const coveredTopicCount = coveredRow?.n ?? 0;
 
-        const topicCoverage = totalTopicCount > 0
-            ? coveredTopicCount / totalTopicCount
-            : 0;
+        // The isFlagged filter is now applied to BOTH sides. Without it the
+        // numerator counted topics the user had attempted INCLUDING flagged
+        // questions while the denominator excluded them, so a topic whose
+        // questions all got flagged stayed in the numerator and left the
+        // denominator — pushing topicCoverage above 1 and inflating the readiness
+        // score by up to 30 points before the final clamp hid it.
+        // Math.min is belt-and-braces for any future asymmetry.
 
         const [totalAttempts, correctAttempts] = await Promise.all([
             prisma.questionAttempt.count({ where: { userId: req.user.id } }),
             prisma.questionAttempt.count({ where: { userId: req.user.id, isCorrect: true } })
         ]);
-        const accuracyRate = totalAttempts > 0 ? correctAttempts / totalAttempts : 0;
 
-        const theta = user?.thetaRating || 0;
-        // θ is clamped to [-4, 4] by the estimator (irt.clampTheta); normalize on
-        // that scale so the top/bottom of the ability range doesn't saturate early.
-        const normalizedTheta = Math.min(1, Math.max(0, (theta + 4) / 8));
 
-        const recentSessions = await prisma.studySession.findMany({
-            where: { userId: req.user.id },
-            orderBy: { createdAt: 'desc' },
-            take: 14,
-            select: { createdAt: true }
+        // Two defects fixed here.
+        //
+        // 1. NO TIME WINDOW. `take: 14` bounded the row COUNT, not the period, so
+        //    a user who studied on 14 distinct days six months ago and nothing
+        //    since scored consistency = 1.0 (10% of the composite) forever, while
+        //    someone doing 14 sessions today scored 1/7 = 0.14.
+        // 2. ONLY StudySession COUNTED. Board Sim, Gauntlet and Battle activity
+        //    never writes a StudySession row, so a user doing nothing but mock
+        //    exams scored zero consistency.
+        //
+        // ActivityLog is the right ledger: it already has one row per user per
+        // Manila day, written by recordAttempts for EVERY answering surface.
+        // ActivityLog has no timestamp column — it is keyed by (userId, date)
+        // where `date` is a 'YYYY-MM-DD' Manila string. ISO dates sort
+        // lexicographically, so a string >= comparison IS a date range, and the
+        // existing @@index([userId, date]) serves it.
+        const windowStartDay = manilaDateOf(new Date(Date.now() - CONSISTENCY_WINDOW_DAYS * 86400000));
+        const activeDays = await prisma.activityLog.count({
+            where: { userId: req.user.id, date: { gte: windowStartDay } },
         });
 
-        let consistency = 0;
-        if (recentSessions.length >= 2) {
-            const uniqueDays = new Set(recentSessions.map(s =>
-                manilaDateOf(s.createdAt)
-            ));
-            consistency = Math.min(1, uniqueDays.size / 7);
-        }
+
 
         // Same taxonomy attribution as coverage — one query replaces the two
         // string groupBys, so a topic's accuracy is never split across a legacy
@@ -95,35 +104,20 @@ router.get('/', authMiddleware, async (req, res) => {
             GROUP BY 1
         `;
 
-        let blindSpotCount = 0;
-        topicPerf.forEach(s => {
-            const acc = s.correct / s.attempts;
-            if (acc < 0.4 && s.attempts >= 3) blindSpotCount++;
+        // This route's job ends here: it has gathered the facts. The scoring rule
+        // — the five term weights, the theta normalisation, the blind-spot
+        // definition and the clamps — lives in readinessService, where it is a
+        // pure function and can be tested without a database. It used to be
+        // inline, which is why it was uncovered and why two defects sat in it.
+        const payload = computeReadiness({
+            coveredTopicCount,
+            totalTopicCount,
+            correctAttempts,
+            totalAttempts,
+            theta: user?.thetaRating ?? 0,
+            activeDays,
+            topicPerf,
         });
-        const blindSpotRatio = topicPerf.length > 0 ? blindSpotCount / topicPerf.length : 0;
-
-        // Composite score: topic coverage (30%), accuracy (30%), theta (20%), consistency (10%), blind spots (10%)
-        const score = Math.round((
-            topicCoverage * 0.30 +
-            accuracyRate * 0.30 +
-            normalizedTheta * 0.20 +
-            consistency * 0.10 +
-            (1 - blindSpotRatio) * 0.10
-        ) * 100);
-
-        const payload = {
-            score: Math.min(100, Math.max(0, score)),
-            breakdown: {
-                topicCoverage: Math.round(topicCoverage * 100),
-                accuracyRate: Math.round(accuracyRate * 100),
-                thetaNormalized: Math.round(normalizedTheta * 100),
-                consistency: Math.round(consistency * 100),
-                blindSpotRatio: Math.round(blindSpotRatio * 100),
-                blindSpotCount,
-                totalSubtopics: totalTopicCount,
-                coveredSubtopics: coveredTopicCount
-            }
-        };
         readinessCache.set(req.user.id, payload);
         res.status(200).json(payload);
     } catch (error) {

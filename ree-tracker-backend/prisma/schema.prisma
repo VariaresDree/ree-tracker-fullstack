@@ -166,6 +166,7 @@ model Question {
   attempts         QuestionAttempt[]
   bookmarks        Bookmark[]
   srsCards         SRSCard[]
+  flags            QuestionFlag[]
 
   @@index([subject, irtB])
   // Readiness groupBy(['subtopic'], where:{isFlagged:false}) and pool sampling
@@ -239,6 +240,11 @@ model ExamSession {
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts       QuestionAttempt[]
 
+  // Lets telemetryService upsert a session scoped to its OWNER. The upsert used
+  // to key on `id` alone, so a client-supplied sessionId that happened to match
+  // another user's row took the UPDATE branch and incremented THEIR score,
+  // question count and time — and parented the attempts to their session.
+  @@unique([id, userId])
   @@index([userId, createdAt])
 }
 
@@ -287,6 +293,15 @@ model QuestionAttempt {
   // The activity calendar + totalAnswered both roll up on the answered date
   // (COALESCE(answeredAt, createdAt)) — see analyticsRoutes.
   @@index([userId, answeredAt])
+  // Postgres does NOT auto-index foreign-key columns. Both of these are
+  // ON DELETE CASCADE targets, so without them every `DELETE FROM "Question"`
+  // and every `DELETE FROM "ExamSession"` triggers a full sequential scan of
+  // the attempt table while holding locks. At 100k attempts a single question
+  // delete takes seconds; a bulk quarantine cleanup times out. The composite
+  // indexes above all lead with userId, so none of them can serve a lookup by
+  // questionId or sessionId alone.
+  @@index([questionId])
+  @@index([sessionId])
   @@unique([userId, clientAttemptId])
 }
 
@@ -333,7 +348,11 @@ model Bookmark {
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  @@unique([userId, questionId]) 
+  @@unique([userId, questionId])
+  // The unique above is (userId, questionId) and so cannot serve a lookup by
+  // questionId alone — which is exactly what the ON DELETE CASCADE from
+  // Question does.
+  @@index([questionId])
 }
 
 // 7 & 8. 'systemConfig' and 'metadata' collections
@@ -365,6 +384,13 @@ model LeaderboardEntry {
   accuracy          Float @default(0)
   lastActive   DateTime
   snapshotAt   DateTime
+
+  // snapshotFreshness() runs `findFirst({ orderBy: { snapshotAt: 'desc' } })` on
+  // EVERY /leaderboard/me (polled at up to 60/min/user), /leaderboard and
+  // /paginated request. Unindexed that is a sequential scan plus a sort of the
+  // whole table — and since every row shares the same snapshotAt by
+  // construction, the sort was pure waste.
+  @@index([snapshotAt])
 }
 
 // Phase 4.1: runtime feature flags — the rollout lever for later phases
@@ -385,8 +411,18 @@ model Battle {
   questions     Json
   timeLimitSecs Int
   status        String   @default("WAITING")
+  // Persisted so it survives a lobby eviction or a process restart. It used to
+  // live only in the in-memory lobby, and ensureAnswerKey did not restore it —
+  // so after a restart mid-battle computeElapsedSecs saw a falsy startedAt and
+  // returned 0 for EVERY submitter. rankParticipants breaks score ties on
+  // timeTakenSecs, so every tied player got an arbitrary placement, and that
+  // placement drove Elo.
+  startedAt     DateTime?
   createdAt     DateTime @default(now())
   outcomes      BattleOutcome[]
+
+  // The finalize guard filters on status; it was unindexed.
+  @@index([status])
 }
 
 // Phase 6: per-participant battle outcomes. Persists ELO deltas so the
@@ -475,6 +511,8 @@ model SRSCard {
 
   @@unique([userId, questionId])
   @@index([userId, nextReviewDate])
+  // Same cascade-scan problem as Bookmark and QuestionAttempt.
+  @@index([questionId])
 }
 
 // Phase 2: Active Review session tracking
@@ -671,4 +709,57 @@ model SyllabusWeight {
   weight    Float        // fraction of the exam; rows should sum to ~1.0
   label     String?
   updatedAt DateTime @updatedAt
+}
+
+// ── PR2: durable idempotency ────────────────────────────────────────────────
+// Replaces the in-process Map in middlewares/idempotency.js.
+//
+// The Map had four holes, all of which let a retry re-execute a handler with
+// full side effects: it did not survive a cold start (Render free spins down),
+// its size-cap eviction could delete an IN-FLIGHT reservation so both
+// duplicates ran, its 30s in-flight TTL was shorter than the real runtime of
+// approve-bulk, and nothing outlived the 10-minute TTL.
+//
+// Here the UNIQUE INSERT ON `key` IS THE LOCK: two concurrent duplicates race
+// to insert, exactly one wins, and the loser reads the winner's row. That is a
+// stronger guarantee than the Map ever gave, with no new infrastructure.
+model IdempotencyRecord {
+  key        String   @id
+  userId     String
+  // IN_FLIGHT while the handler runs; DONE once a successful response is
+  // captured. A DONE row replays its stored response; an IN_FLIGHT row means a
+  // duplicate is still executing.
+  status     String   @default("IN_FLIGHT")
+  httpStatus Int?
+  response   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Swept on an interval; also the scan order for expiry.
+  @@index([createdAt])
+}
+
+// ── PR2: flag accountability ────────────────────────────────────────────────
+// PATCH /api/questions/:id/flag set Question.isFlagged directly, which removes
+// an item from every sampling path for EVERY user. Any authenticated account
+// could therefore empty the live question bank by looping over ids, and only an
+// admin could undo it.
+//
+// Flags are now per-user rows. Question.isFlagged is set only once enough
+// distinct users have flagged the same item (or an admin confirms), so one
+// account can no longer act as a global kill switch, and the flag is
+// attributable.
+model QuestionFlag {
+  id         String   @id @default(uuid())
+  questionId String
+  userId     String
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  // One flag per user per question — a loop from a single account is idempotent.
+  @@unique([questionId, userId])
+  @@index([questionId])
+  @@index([userId, createdAt])
 }

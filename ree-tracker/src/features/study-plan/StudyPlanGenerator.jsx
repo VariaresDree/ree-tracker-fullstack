@@ -2,12 +2,18 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
+import { normalizeSubject } from '@ree/shared';
+import { useShallow } from 'zustand/react/shallow';
 import toast from 'react-hot-toast';
 
-const SUBJECT_MAP = { Mathematics: 'MATHEMATICS', ESAS: 'ESAS', EE: 'EE' };
+// SUBJECT_MAP is gone: it existed only to bridge tosWeights' UPPERCASE keys to
+// the canonical subject names used everywhere else. TOS_WEIGHTS is now keyed
+// canonically (from @ree/shared), so the subject name indexes it directly.
 
 export default function StudyPlanGenerator({ onPlanGenerated }) {
-    const { dynamicTOS, stats, saveExamConfig } = useStore();
+    const { dynamicTOS, stats, saveExamConfig } = useStore(
+        useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats, saveExamConfig: s.saveExamConfig })),
+    );
     const safeTOS = dynamicTOS || {};
 
     const examDate = stats?.examDate || '';
@@ -32,7 +38,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
         const topics = [];
         selectedSubjects.forEach(subject => {
             const subtopics = safeTOS[subject] || [];
-            const weight = TOS_WEIGHTS[SUBJECT_MAP[subject]] || 0.33;
+            const weight = TOS_WEIGHTS[normalizeSubject(subject)] || 0.33;
             subtopics.forEach(subtopic => {
                 topics.push({ subject, subtopic, weight });
             });
@@ -131,7 +137,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                 </label>
                 <div className="flex gap-2 flex-wrap">
                     {Object.keys(safeTOS).map(subject => {
-                        const weight = TOS_WEIGHTS[SUBJECT_MAP[subject]];
+                        const weight = TOS_WEIGHTS[normalizeSubject(subject)];
                         const isSelected = selectedSubjects.includes(subject);
                         const subtopicCount = (safeTOS[subject] || []).length;
                         return (

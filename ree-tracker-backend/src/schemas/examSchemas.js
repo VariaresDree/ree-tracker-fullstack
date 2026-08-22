@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { storableTimeMs } = require('../config/telemetryBounds');
 
 // NOTE: Question IDs are legacy 20-char Firebase push IDs, not UUIDs. A
 // `.uuid()` constraint here 400s every Gauntlet/Board-Sim submission. Accept
@@ -9,7 +10,10 @@ const examSubmitSchema = z.object({
         questionId: z.string().min(1),
         userAnswer: z.string(),
         confidence: z.enum(['LOW', 'MED', 'HIGH']).optional().default('LOW'),
-        timeSpentSecs: z.number().nonnegative().optional().default(0),
+        // Clamped for the same int4 reason as telemetrySchemas.timeSpentMs —
+        // this value is multiplied by 1000 before it reaches the column.
+        timeSpentSecs: z.number().optional().default(0)
+            .transform((s) => storableTimeMs(Number(s) * 1000) / 1000),
         subject: z.string().optional(),
         subtopic: z.string().optional(),
         clientAttemptId: z.string().min(8).max(80).optional()
@@ -20,6 +24,12 @@ const examSubmitSchema = z.object({
     }).optional().default({}),
     timeRemaining: z.number().nonnegative().default(0),
     totalExamTime: z.number().nonnegative().default(0)
+}).refine((v) => v.timeRemaining <= v.totalExamTime, {
+    // examRoutes derives timeTakenSecs as (totalExamTime - timeRemaining).
+    // Validated independently, those two could produce a NEGATIVE duration
+    // that then flowed into ExamSession.timeTakenSecs and the study-time chart.
+    message: 'timeRemaining cannot exceed totalExamTime',
+    path: ['timeRemaining'],
 });
 
 // IMPORTANT: zod's validate() REPLACES req.body with the parsed result, so
@@ -31,7 +41,7 @@ const gradeSchema = z.object({
         questionId: z.string().min(1),
         userAnswer: z.string(),
         confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).optional(),
-        timeSpentMs: z.number().nonnegative().optional(),
+        timeSpentMs: z.number().optional().transform((v) => (v === undefined ? undefined : storableTimeMs(v))),
         clientAttemptId: z.string().min(8).max(80).optional()
     })).min(1),
     mode: z.string().optional()

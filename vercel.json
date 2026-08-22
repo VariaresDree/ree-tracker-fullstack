@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "cd ree-tracker && npm install",
-  "buildCommand": "cd ree-tracker && npm run build",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build --workspace=ree-tracker",
   "outputDirectory": "ree-tracker/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }

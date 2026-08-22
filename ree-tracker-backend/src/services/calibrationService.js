@@ -95,11 +95,31 @@ async function runRecalibration({ dryRun = false, minN = 10 } = {}) {
         const filter = getSubjectFilter(subject);
         const vals = filter?.in || [subject];
 
-        const attempts = await prisma.questionAttempt.findMany({
-            where: { question: { subject: { in: vals } } },
-            orderBy: { createdAt: 'asc' },
-            select: { userId: true, questionId: true, isCorrect: true },
-        });
+        // Paged, not a single unbounded findMany. This loaded EVERY attempt for
+        // the subject into the Node heap at once — three times per run, once per
+        // subject — on a free-tier instance. At a few hundred thousand attempts
+        // that is an OOM waiting to happen, and the relation filter joins
+        // QuestionAttempt -> Question, which needed the questionId index this PR
+        // also adds.
+        //
+        // Keyset pagination on the primary key: stable under concurrent inserts
+        // and it does not degrade the way OFFSET does on later pages.
+        const attempts = [];
+        const PAGE = 5000;
+        let cursor = null;
+        for (;;) {
+            const page = await prisma.questionAttempt.findMany({
+                where: { question: { subject: { in: vals } } },
+                orderBy: { id: 'asc' },
+                take: PAGE,
+                ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+                select: { id: true, userId: true, questionId: true, isCorrect: true },
+            });
+            if (page.length === 0) break;
+            attempts.push(...page);
+            if (page.length < PAGE) break;
+            cursor = page[page.length - 1].id;
+        }
         const responses = buildResponseMatrix(attempts);
         if (responses.length === 0) {
             report.subjects[subject] = { responses: 0, persons: 0, itemsFitted: 0, itemsSkippedLowN: 0, sample: [] };
@@ -139,6 +159,15 @@ async function runRecalibration({ dryRun = false, minN = 10 } = {}) {
         const now = new Date();
         const sample = [];
         let fitted = 0;
+        // Chunked so one transaction never spans the whole bank (Prisma's
+        // interactive-transaction budget) while still being atomic per chunk.
+        const WRITE_CHUNK = 200;
+        const pendingItemWrites = [];
+        const flushItemWrites = async () => {
+            while (pendingItemWrites.length > 0) {
+                await prisma.$transaction(pendingItemWrites.splice(0, WRITE_CHUNK));
+            }
+        };
         for (const [itemId, fit] of Object.entries(items)) {
             const q = qById[itemId];
             const blend = blendParams({
@@ -155,28 +184,47 @@ async function runRecalibration({ dryRun = false, minN = 10 } = {}) {
                 });
             }
             if (!dryRun) {
-                await prisma.question.update({
-                    where: { id: itemId },
-                    data: {
-                        empiricalA: fit.a, empiricalB: fit.b, empiricalN: fit.n,
-                        irtA: blend.a, irtB: blend.b,
-                        calibrationN: fit.n, lastCalibratedAt: now,
-                    },
-                });
+                // Collected and flushed in transactional chunks below rather than
+                // issued as N autocommit statements. A crash midway used to leave
+                // half the bank on new IRT parameters and half on old, with no
+                // way to tell which.
+                pendingItemWrites.push(
+                    prisma.question.update({
+                        where: { id: itemId },
+                        data: {
+                            empiricalA: fit.a, empiricalB: fit.b, empiricalN: fit.n,
+                            irtA: blend.a, irtB: blend.b,
+                            calibrationN: fit.n, lastCalibratedAt: now,
+                        },
+                    }),
+                );
             }
             fitted += 1;
         }
 
+        await flushItemWrites();
+
         // Per-person per-subject ability.
+        //
+        // NOTE: these rows are also written by the ONLINE estimator in
+        // telemetryService on every answered batch. A user answering questions
+        // while this batch runs has their per-subject theta reverted to the
+        // batch value — a lost update across two independent writers. Running
+        // calibration off the request path (see adminRoutes) keeps that window
+        // to a scheduled job rather than an arbitrary admin click, but the
+        // reconciliation itself is a separate piece of work.
         let upserted = 0;
         if (!dryRun) {
-            for (const [personId, p] of Object.entries(persons)) {
-                await prisma.userAbility.upsert({
+            const abilityWrites = Object.entries(persons).map(([personId, p]) =>
+                prisma.userAbility.upsert({
                     where: { userId_subject: { userId: personId, subject } },
                     update: { theta: p.theta, se: p.se },
                     create: { userId: personId, subject, theta: p.theta, se: p.se },
-                });
-                upserted += 1;
+                }),
+            );
+            upserted = abilityWrites.length;
+            while (abilityWrites.length > 0) {
+                await prisma.$transaction(abilityWrites.splice(0, WRITE_CHUNK));
             }
         }
 

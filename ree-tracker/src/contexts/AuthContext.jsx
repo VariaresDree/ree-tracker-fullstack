@@ -16,10 +16,14 @@ import { Button } from '../components/ui';
 import { WifiOff } from '../components/ui/icons';
 import BootSequence from '../components/BootSequence';
 
-const MASTER_ADMIN_EMAILS = [
-    'admin@example.com',
-    'donreydenxprey@gmail.com' 
-];
+// The hardcoded MASTER_ADMIN_EMAILS allowlist that used to live here is gone.
+// It created two problems: a maintainer's personal email address was compiled
+// into the public JS bundle and shipped to every user, and the app carried TWO
+// authorization models — an email allowlist on the client, User.role in Postgres
+// on the server — that could disagree, with the client's deciding what UI
+// rendered. Admin status now comes from the server's role and nothing else. The
+// server was always the real gate (mutations 403 regardless), so this only
+// removes misleading UI, never real access.
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -75,7 +79,7 @@ export const AuthProvider = ({ children }) => {
           const profileResponse = await getAnalyticsProfile(user.uid);
           const dbRole = profileResponse?.data?.profile?.role;
           
-          const isUserAdmin = MASTER_ADMIN_EMAILS.includes(user.email) || dbRole === 'ADMIN' || dbRole === 'admin';
+          const isUserAdmin = dbRole === 'ADMIN' || dbRole === 'admin';
           
           setIsAdmin(isUserAdmin);
           
@@ -116,13 +120,15 @@ export const AuthProvider = ({ children }) => {
           }
 
         } catch (err) {
-          console.warn("Clearance authorization query tracking failure. Defaulting to whitelist check.", err);
-          
-          const isFallbackAdmin = MASTER_ADMIN_EMAILS.includes(user.email);
-          setIsAdmin(isFallbackAdmin);
-          
+          console.warn("Clearance lookup failed; treating this session as non-admin.", err);
+
+          // Fail CLOSED. The old path fell back to the email allowlist on ANY
+          // failure — including the server's own 503 readiness gate — which
+          // meant a backend blip granted the admin UI on the client's say-so.
+          setIsAdmin(false);
+
           if (useStore.getState) {
-              useStore.getState().setIsAdmin(isFallbackAdmin);
+              useStore.getState().setIsAdmin(false);
           }
         }
       } else {

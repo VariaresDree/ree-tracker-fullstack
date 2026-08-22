@@ -21,6 +21,20 @@ services:
     # doesn't have (e.g. QuestionAttempt.clientAttemptId), 500-ing telemetry-bulk.
     # No --accept-data-loss: additive changes apply; a destructive change safely
     # fails the deploy instead of silently dropping data.
+    # STILL `db push`, deliberately. prisma/migrations/ now holds a real baseline
+    # (0_init) and prisma/migrations/README.md has the two-command cutover to
+    # `prisma migrate deploy`. It is NOT switched here because the production
+    # database already contains this schema: `migrate deploy` would try to create
+    # tables that exist and fail the deploy until someone runs
+    # `npm run migrate:baseline` against production first. That is an operator
+    # step that should be done by someone watching, not a surprise on the next
+    # push. Take a backup first — there is no pre-deploy backup step here.
+    #
+    # This repo is an npm WORKSPACE. `npm install` run from this rootDir walks
+    # up to the root package.json and installs the whole workspace into the root
+    # node_modules — which is what makes `require('@ree/shared')` resolve at
+    # runtime. It also pulls the frontend's dependencies, so the build is slower
+    # than it needs to be; scope it with --workspace if that becomes a problem.
     buildCommand: npm install && npx prisma generate && npx prisma db push
     startCommand: npm start
     healthCheckPath: /healthz
@@ -39,7 +53,19 @@ services:
         sync: false
       - key: FIREBASE_PRIVATE_KEY
         sync: false
+      # REQUIRED in production. The server now refuses to start without it,
+      # because the previous fallback served an open CORS policy WITH
+      # credentials to every origin behind nothing but a console warning.
       - key: FRONTEND_URL
+        sync: false
+      # Optional but recommended: enable TLS certificate verification on the
+      # database connection. Set DATABASE_CA_CERT to the provider's CA bundle
+      # (PEM), or DATABASE_SSL_STRICT=true if the provider uses a publicly
+      # trusted CA. Without either, the connection is encrypted but the server
+      # is NOT authenticated — see src/config/db.js.
+      - key: DATABASE_CA_CERT
+        sync: false
+      - key: DATABASE_SSL_STRICT
         sync: false
       # Optional R2 / S3 — leave unset to use local-disk driver.
       - key: STORAGE_DRIVER

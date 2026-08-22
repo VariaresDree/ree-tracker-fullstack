@@ -155,14 +155,18 @@ router.get('/study-time', authMiddleware, async (req, res) => {
 // raw correct count; the old payload let the UI render "7%" for 7/10.
 router.get('/score-progression', authMiddleware, async (req, res) => {
     try {
+        // `desc` + reverse, NOT `asc`. With `orderBy: asc, take: 100` the chart
+        // froze on a user's FIRST hundred sessions and never showed recent
+        // progress again — the opposite of what a progression chart is for.
         const exams = await prisma.examSession.findMany({
             where: { userId: req.user.id },
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: 'desc' },
             take: 100,
             select: { score: true, totalQuestions: true, targetSubject: true, createdAt: true, verdict: true, mode: true }
         });
 
-        res.status(200).json({ items: buildScoreProgression(exams) });
+        // Restore chronological order for the chart.
+        res.status(200).json({ items: buildScoreProgression(exams.reverse()) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch score progression.' });
     }

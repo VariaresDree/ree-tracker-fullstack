@@ -1,105 +1,171 @@
-// Lightweight Idempotency-Key middleware. Keyed on (userId, route, key);
-// caches the SUCCESS response status + body and replays it on duplicate sends.
-// Useful for the offline-sync queue, where a flaky network can produce double
-// submissions of the same telemetry batch.
+// Idempotency-Key middleware. Keyed on (userId, method, route, key); records the
+// SUCCESS response status + body and replays it on a duplicate send. Used by the
+// offline-sync queue, where a flaky network reliably produces double submissions
+// of the same telemetry batch.
 //
-// Two guarantees:
-//   1. Only 2xx responses are cached. Caching 4xx/5xx used to replay a stale
-//      validation error (or a partial-write 500) for the whole TTL, so a
-//      corrected retry with the same key kept getting the old failure.
-//   2. Concurrent duplicates are serialized via an in-flight reservation taken
-//      SYNCHRONOUSLY on a cache miss. Without it, two simultaneous identical
-//      requests both missed the cache and both ran the handler (a TOCTOU gap) —
-//      the exact double-tap / retry-before-first-response case this exists for.
+// DURABLE (Postgres), not in-process. The previous Map had four holes, each of
+// which let a retry re-execute a handler with its full side effects:
 //
-// Backed by an in-memory LRU. For multi-instance backends this should be
-// swapped for Redis; for our single-instance Express deployment it's enough.
-// Mount AFTER validate() so only well-formed requests ever reserve a key.
+//   1. It did not survive a restart. Render's free tier spins down when idle and
+//      restarts on deploy, so a retry crossing either boundary re-ran the
+//      handler. POST /api/exams/submit unconditionally creates an ExamSession,
+//      so that produced a second, permanently 0/0 ghost row in exam history.
+//   2. Size-cap eviction removed the OLDEST entry, which could be a live
+//      IN_FLIGHT reservation — under key pressure the concurrency guard silently
+//      disappeared and both duplicates ran.
+//   3. The 30s in-flight TTL was shorter than the real runtime of
+//      /api/review/approve-bulk, so the reservation expired mid-flight and the
+//      handler could run concurrently with itself.
+//   4. Nothing survived the 10-minute TTL, which is well inside the window an
+//      offline client will retry in.
+//
+// THE UNIQUE INSERT IS THE LOCK. Two concurrent duplicates race to insert the
+// same primary key; exactly one wins, and the loser reads the winner's row. That
+// is a stronger guarantee than the Map's read-then-reserve, which had a TOCTOU
+// gap by construction.
+//
+// Fails OPEN: if the idempotency store itself errors, the request proceeds
+// rather than 500ing. A store outage means the database is unavailable, so the
+// handler is going to fail on its own merits; blocking here would convert a
+// degraded dependency into a hard outage.
+//
+// Mount AFTER authMiddleware (needs req.user.id) and AFTER validate() (so a
+// malformed body never reserves a key).
 
 'use strict';
 
-const TTL_MS = 10 * 60 * 1000;   // 10 minutes — covers retry windows comfortably
-const INFLIGHT_TTL_MS = 30 * 1000; // in-flight reservation — short, so a crashed handler can't wedge the key
-const MAX_ENTRIES = 5000;
+const prisma = require('../config/db');
+const logger = require('../utils/logger');
 
-const store = new Map(); // key -> { status, body, expiresAt } | { inFlight:true, expiresAt }
+// How long a completed response stays replayable. Far longer than the old 10
+// minutes now that it is durable — an offline client can retry hours later, and
+// that is precisely the case the key exists to make safe.
+const TTL_MS = 24 * 60 * 60 * 1000;
 
-function get(key) {
-    const hit = store.get(key);
-    if (!hit) return null;
-    if (hit.expiresAt < Date.now()) {
-        store.delete(key);
-        return null;
-    }
-    // refresh LRU order
-    store.delete(key);
-    store.set(key, hit);
-    return hit;
-}
+// How long a reservation may sit IN_FLIGHT before another request may take it
+// over. Must exceed the slowest guarded handler; approve-bulk over a WAN is the
+// benchmark. A crashed handler wedges the key for at most this long.
+const INFLIGHT_TTL_MS = 5 * 60 * 1000;
 
-function evictIfFull() {
-    if (store.size >= MAX_ENTRIES) {
-        const oldestKey = store.keys().next().value;
-        if (oldestKey) store.delete(oldestKey);
-    }
-}
+// Expired rows are swept opportunistically rather than on a timer, so this
+// module adds no background work to a process that may be spinning down.
+const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+let lastSweepAt = 0;
 
-function set(key, status, body) {
-    evictIfFull();
-    store.set(key, { status, body, expiresAt: Date.now() + TTL_MS });
-}
+/**
+ * Default store, backed by Postgres. Injectable so the middleware can be tested
+ * without a database — the in-memory test double implements the same
+ * insert-or-lose contract.
+ */
+const prismaStore = {
+    async claim(key, userId) {
+        try {
+            await prisma.idempotencyRecord.create({ data: { key, userId, status: 'IN_FLIGHT' } });
+            return { claimed: true };
+        } catch (err) {
+            // P2002 = unique violation, i.e. we lost the race. Any other error is
+            // a real store failure and propagates to the fail-open handler.
+            if (err?.code !== 'P2002') throw err;
 
-function reserve(key) {
-    evictIfFull();
-    store.set(key, { inFlight: true, expiresAt: Date.now() + INFLIGHT_TTL_MS });
-}
+            const existing = await prisma.idempotencyRecord.findUnique({ where: { key } });
+            if (!existing) return { claimed: true, raced: true }; // swept between insert and read
 
-function clear(key) {
-    store.delete(key);
-}
+            if (existing.status === 'DONE') return { claimed: false, record: existing };
 
-// Express middleware factory. Use AFTER authMiddleware (needs req.user.id) and
-// AFTER validate() (so malformed requests never reserve a key or get cached).
-function idempotency() {
-    return (req, res, next) => {
+            // Stale reservation from a handler that died. Take it over — but do
+            // it as a conditional update so that when several requests notice
+            // the same stale row, exactly one wins.
+            const staleBefore = new Date(Date.now() - INFLIGHT_TTL_MS);
+            if (existing.updatedAt < staleBefore) {
+                const { count } = await prisma.idempotencyRecord.updateMany({
+                    where: { key, status: 'IN_FLIGHT', updatedAt: { lt: staleBefore } },
+                    data: { userId },
+                });
+                if (count === 1) return { claimed: true };
+            }
+            return { claimed: false, record: existing };
+        }
+    },
+
+    async complete(key, httpStatus, response) {
+        await prisma.idempotencyRecord.update({
+            where: { key },
+            data: { status: 'DONE', httpStatus, response },
+        });
+    },
+
+    async release(key) {
+        await prisma.idempotencyRecord.deleteMany({ where: { key, status: 'IN_FLIGHT' } });
+    },
+
+    async sweep(before) {
+        await prisma.idempotencyRecord.deleteMany({ where: { createdAt: { lt: before } } });
+    },
+};
+
+/**
+ * @param {object} [opts]
+ * @param {object} [opts.store] — override the persistence layer (tests).
+ */
+function idempotency({ store = prismaStore } = {}) {
+    return async (req, res, next) => {
         const key = req.headers['idempotency-key'];
         if (!key || typeof key !== 'string' || key.length > 200) return next();
 
-        const cacheKey = `${req.user?.id || 'anon'}|${req.method}|${req.originalUrl}|${key}`;
-        const cached = get(cacheKey);
-        if (cached) {
-            if (cached.inFlight) {
-                // A concurrent identical request is still being processed. Tell the
-                // client to retry instead of running the side effect a second time.
-                return res.status(409).json({ error: 'Duplicate request already in progress.' });
-            }
-            res.set('Idempotency-Replay', 'true');
-            return res.status(cached.status).json(cached.body);
+        const recordKey = `${req.user?.id || 'anon'}|${req.method}|${req.originalUrl}|${key}`;
+
+        let outcome;
+        try {
+            outcome = await store.claim(recordKey, req.user?.id || 'anon');
+        } catch (err) {
+            logger.warn('idempotency store unavailable; proceeding without replay protection', { error: err.message });
+            return next();
         }
 
-        // Reserve the key SYNCHRONOUSLY before any async work so a simultaneous
-        // duplicate sees the reservation and 409s rather than double-executing.
-        reserve(cacheKey);
+        if (!outcome.claimed) {
+            const rec = outcome.record;
+            if (rec.status === 'DONE' && Date.now() - new Date(rec.createdAt).getTime() < TTL_MS) {
+                res.set('Idempotency-Replay', 'true');
+                return res.status(rec.httpStatus || 200).json(rec.response);
+            }
+            // A concurrent identical request is still running. Telling the client
+            // to retry is preferable to running the side effect a second time.
+            return res.status(409).json({ error: 'Duplicate request already in progress.' });
+        }
 
-        // Capture res.json so we can stash the body without touching route code.
+        // Opportunistic expiry, after the hot path has already been decided.
+        if (Date.now() - lastSweepAt > SWEEP_INTERVAL_MS) {
+            lastSweepAt = Date.now();
+            store.sweep(new Date(Date.now() - TTL_MS)).catch((err) => {
+                logger.warn('idempotency sweep failed', { error: err.message });
+            });
+        }
+
+        // Capture res.json so the body is recorded without touching route code.
+        let settled = false;
         const origJson = res.json.bind(res);
         res.json = (body) => {
             const status = res.statusCode || 200;
-            if (status < 300) {
-                set(cacheKey, status, body); // cache SUCCESS only
-            } else {
-                clear(cacheKey);             // release so a corrected retry can run
-            }
+            settled = true;
+            const persist = status < 300
+                // Success only. Recording a 4xx/5xx would replay a stale
+                // validation error (or a partial-write 500) for the whole TTL, so
+                // a corrected retry with the same key kept getting the old failure.
+                ? store.complete(recordKey, status, body)
+                // Release, so a corrected retry can run.
+                : store.release(recordKey);
+            persist.catch((err) => logger.warn('idempotency persist failed', { error: err.message }));
             return origJson(body);
         };
 
-        // Safety net: if the response finishes without res.json (res.end/send,
-        // or an error path), release a still-reserved key so it can't wedge.
-        // Guarded so lightweight test stubs without an EventEmitter still work.
+        // Safety net: a response that finishes without res.json (res.end/send, or
+        // an error path) must not leave the key reserved. Guarded so lightweight
+        // test stubs without an EventEmitter still work.
         if (typeof res.on === 'function') {
             res.on('finish', () => {
-                const hit = store.get(cacheKey);
-                if (hit && hit.inFlight) clear(cacheKey);
+                if (!settled) {
+                    store.release(recordKey).catch(() => {});
+                }
             });
         }
 
@@ -108,4 +174,6 @@ function idempotency() {
 }
 
 module.exports = idempotency;
-module.exports._store = store; // exposed for tests
+module.exports._prismaStore = prismaStore; // exposed for tests
+module.exports.TTL_MS = TTL_MS;
+module.exports.INFLIGHT_TTL_MS = INFLIGHT_TTL_MS;

@@ -76,9 +76,21 @@ export function useSyncLifecycle() {
       // (a SYNCHRONOUS API) so a fast close can't lose the last attempt(s) in
       // the async IDB-persist window. Recovered + merged in the store's
       // onRehydrateStorage on next open. Runs regardless of connectivity.
+      // The `else` branch is load-bearing. Without it the mirror was written
+      // on every hide but only ever REMOVED at cold boot, so this sequence
+      // resurrected already-synced attempts: answer 10 -> hide (mirror written)
+      // -> return -> safety-net flush succeeds and empties syncQueue -> close
+      // (queue empty, so the old code skipped the write AND any cleanup, and
+      // the stale mirror survived) -> next open merges those 10 synced attempts
+      // back into the queue. They were re-POSTed, and the pending-count badge
+      // showed a phantom backlog indefinitely. Server-side clientAttemptId
+      // dedupe stopped it corrupting data, but the client was doing needless
+      // at-least-once delivery of work it had already completed.
       try {
         if (syncQueue.length > 0) {
           localStorage.setItem('ree_pending_sync', JSON.stringify(syncQueue.slice(-5000)));
+        } else {
+          localStorage.removeItem('ree_pending_sync');
         }
       } catch (_) { /* quota/serialization — best effort */ }
 
@@ -89,7 +101,14 @@ export function useSyncLifecycle() {
       // getIdToken() is async, but Firebase caches the current token — read
       // the cached accessToken synchronously; if unavailable, skip (the IDB
       // queue re-flushes on next open either way).
-      const token = user.stsTokenManager?.accessToken || user.accessToken;
+      // `user.accessToken` is the supported surface for the cached ID token.
+      // The previous `user.stsTokenManager?.accessToken` reached into an
+      // undocumented SDK internal that can disappear on any minor bump — and
+      // this request is fire-and-forget with an empty catch, so the resulting
+      // 401 would never have been observed. getIdToken() can't be used here:
+      // it's async and pagehide gives us no await budget. The IDB queue remains
+      // the source of truth if this token is stale.
+      const token = user.accessToken;
       if (!token) return;
 
       const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';

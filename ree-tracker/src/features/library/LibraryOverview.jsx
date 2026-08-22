@@ -1,5 +1,7 @@
 // src/features/library/LibraryOverview.jsx
 import { useState } from 'react';
+import { toDisplaySubject } from '@ree/shared';
+import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import {
     updateDynamicTOS,
@@ -52,7 +54,13 @@ const isBulkEligibleClient = (q) => {
 export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaultMetadata, manualMode, setManualMode }) {
 
   // 🚀 Reads dynamicTOS and the setter securely from the global store
-  const { isAdmin, dynamicTOS, setDynamicTOS } = useStore();
+  // Shallow slice, not the root object. This file also recomputes bulkEligible
+  // (a full sanitizeOptions pass over the whole review queue) unmemoized in
+  // render, so a root subscription meant that ran on every unrelated store
+  // mutation.
+  const { isAdmin, dynamicTOS, setDynamicTOS } = useStore(
+    useShallow((s) => ({ isAdmin: s.isAdmin, dynamicTOS: s.dynamicTOS, setDynamicTOS: s.setDynamicTOS })),
+  );
   const [isSyncing, setIsSyncing] = useState(false);
 
   // --- TOS MANAGER STATE ---
@@ -425,7 +433,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 animate-in fade-in">
         {['Mathematics', 'ESAS', 'EE'].map(s => {
           const accent = TRACK_ACCENT[s];
-          const safeSubj = s === 'Mathematics' ? 'Math' : s;
+          const safeSubj = toDisplaySubject(s);
 
           return (
             <div key={s} className="p-5 bg-surface2 border rounded-[var(--radius-lg)] flex flex-col h-[280px]" style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}>
