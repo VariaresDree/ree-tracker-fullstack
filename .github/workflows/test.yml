@@ -9,21 +9,22 @@
 # child fails, and the per-package lockfiles that used to exist are gone. Jobs
 # therefore install once at the root and then target a workspace by name.
 #
-# `npm install`, NOT `npm ci`, and that is deliberate.
+# NOTE for anyone regenerating package-lock.json: delete node_modules FIRST.
 #
-# npm 11 writes a lockfile containing only the optional dependencies for the
-# platform it ran on. The lockfile in this repo was generated on Windows, so it
-# records `@rolldown/binding-win32-x64-msvc` and none of the 14 other platform
-# bindings. `npm ci` installs STRICTLY from the lockfile, so on a Linux runner
-# the native binding is simply absent and vitest dies with
-# "Cannot find module '../rolldown-binding.linux-x64-gnu.node'". Regenerating
-# the lockfile does not help — npm prunes to the host platform again, and the
-# --os/--cpu flags do not produce a superset.
+# npm builds the lockfile from an existing installed tree when one is present.
+# The workspace lockfile was first generated on Windows with the old
+# per-package node_modules still in place, so it recorded only
+# `@rolldown/binding-win32-x64-msvc` — none of the other 14 platform bindings,
+# nor the linux variants of rollup, lightningcss, @tailwindcss/oxide or
+# @napi-rs/canvas. Every job then died on a Linux runner with
+# "Cannot find module '../rolldown-binding.linux-x64-gnu.node'", and `npm
+# install` could not repair it either: it trusts the lockfile's package list and
+# never learns the missing optional dep exists.
 #
-# `npm install` resolves the missing platform binary and installs it. It also
-# matches what actually runs in production: both vercel.json and render.yaml use
-# `npm install`, so CI now exercises the same install path as the deploys rather
-# than a stricter one that no deploy uses.
+# Regenerating with node_modules REMOVED resolves against the registry instead
+# and records all platforms, which is what a lockfile is supposed to do. `npm
+# ci` is therefore correct again — and preferable, since it is deterministic and
+# fails loudly if the lockfile and package.json ever drift apart.
 
 name: tests
 
@@ -79,7 +80,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install workspace
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Test
         run: npm run test --workspace=ree-tracker
@@ -107,7 +108,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install workspace
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Test
         run: npm run test --workspace=ree-tracker-backend
@@ -132,7 +133,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install workspace
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
         working-directory: .
 
       - name: Build
