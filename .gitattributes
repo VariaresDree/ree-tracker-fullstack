@@ -1,0 +1,30 @@
+# Line endings.
+#
+# Without this, each machine's core.autocrlf decides, and Prisma migration
+# checksums are computed over the file BYTES. A migration baselined from a
+# Windows checkout (CRLF) records a different checksum than the same file
+# checked out on a Linux CI runner or deploy host (LF), and `prisma migrate
+# deploy` then refuses with "the migration was modified after it was applied".
+#
+# That is not hypothetical here: the 0_init baseline was first recorded with a
+# CRLF checksum from a Windows machine, which would have failed the very next
+# Render deploy.
+#
+# Migration SQL is the case that actually breaks, but pinning the whole tree to
+# LF keeps checksums, diffs and shell scripts consistent everywhere.
+* text=auto eol=lf
+
+# Never touch these — mangling bytes corrupts them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.keystore binary
+*.jar binary
