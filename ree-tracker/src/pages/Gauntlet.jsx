@@ -13,7 +13,7 @@ import GauntletDiagnostics from '../features/gauntlet/GauntletDiagnostics';
 import QuestionCard from '../features/quiz/QuestionCard';
 import ExamLayout from '../layouts/ExamLayout';
 import ExamNavigator from '../components/exam/ExamNavigator';
-import ExamTimer from '../components/exam/ExamTimer';
+import ExamClock from '../components/exam/ExamClock';
 import { formatExamTime } from '../utils/examFormat';
 import { Button, Modal, EmptyState, Badge, StatusPill } from '../components/ui';
 import { TriangleAlert, Flag, Bookmark, WifiOff } from '../components/ui/icons';
@@ -22,7 +22,7 @@ export default function Gauntlet() {
   const { level } = useParams();
   const navigate = useNavigate();
   const {
-    status, questions, answers, confidences, timeLeft, diagnostics,
+    status, questions, answers, confidences, gauntletEndTime, diagnostics,
     currentIndex, setCurrentIndex,
     bookmarks, toggleBookmark, flags, toggleFlag,
     resumeGauntlet, discardAndStartFresh,
@@ -167,7 +167,7 @@ export default function Gauntlet() {
               Exit exam
             </Button>
             <div className="md:hidden">
-              <ExamTimer timeRemaining={timeLeft} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
+              <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
             </div>
           </div>
           {/* Row 2 (mobile) / right cluster (desktop): level + answered + timer */}
@@ -177,7 +177,7 @@ export default function Gauntlet() {
               {answeredCount}/{questions.length} answered
             </StatusPill>
             <div className="hidden md:block">
-              <ExamTimer timeRemaining={timeLeft} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
+              <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
             </div>
           </div>
         </div>

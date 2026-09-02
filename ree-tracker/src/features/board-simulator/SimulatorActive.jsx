@@ -12,14 +12,15 @@ import LatexRenderer from '../../components/LatexRenderer';
 import Scratchpad from '../../components/Scratchpad';
 import QuestionCard from '../quiz/QuestionCard';
 import { Button, Modal, StatusPill, Badge } from '../../components/ui';
-import { Pencil, Flag, Bookmark, Eye, EyeOff, TriangleAlert, Sparkles, Check, X } from '../../components/ui/icons';
+import { Pencil, Flag, Bookmark, TriangleAlert, Sparkles, Check, X } from '../../components/ui/icons';
 import { generateMasterExplanation } from '../../services/geminiApi';
 import { updateQuestionCache } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
+import ExamClock from '../../components/exam/ExamClock';
 
 export default function SimulatorActive({ engine, requestTerminate, isOnline }) {
   const {
-    session, currentIndex, handleIndexChange, timeRemaining, showTime, setShowTime,
+    session, currentIndex, handleIndexChange, examEndTime, showTime, setShowTime,
     handleSelectConfidence, handleSelectOption, bookmarks, toggleBookmark,
     handleFlagQuestion, submitExam,
   } = engine;
@@ -40,7 +41,10 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
   const isCorrect = isReview ? userAns === q?.answer : false;
   const totalQuestions = session.questions.length;
   const isBookmarked = bookmarks.has(currentIndex);
-  const isCriticalTime = timeRemaining < 300;
+  // `isCriticalTime` used to be derived here from a per-second value, which is
+  // what dragged this whole component — and the KaTeX subtree and the ~100-button
+  // navigator below it — into a re-render every second. ExamClock owns both the
+  // countdown and its critical styling now.
 
   // Reset review panels on navigation
   useEffect(() => {
@@ -61,14 +65,9 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
     }
   }, [currentIndex]);
 
-  const formatTime = (secs) => {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return h > 0
-      ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-      : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
+  // The local time formatter is gone with the inline clock — ExamClock uses the
+  // shared formatExamTime helper, so the Gauntlet and the Board Simulator now
+  // render the countdown through exactly one implementation.
 
   // `force` = Regenerate: skip the cached short-circuit and overwrite. The
   // fresh explanation is ALSO persisted server-side now (updateQuestionCache)
@@ -186,20 +185,11 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
             </Badge>
 
             {!isReview && (
-              <div className="flex items-center gap-2">
-                <Button size="icon" variant="ghost" onClick={() => setShowTime(!showTime)} aria-label={showTime ? 'Hide time' : 'Show time'} className="text-muted hover:text-textMain">
-                  {showTime ? <Eye size={16} strokeWidth={1.75} aria-hidden="true" /> : <EyeOff size={16} strokeWidth={1.75} aria-hidden="true" />}
-                </Button>
-                <div className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-widest px-4 py-1 rounded-[var(--radius-default)] border transition-all duration-300 ${!showTime ? 'blur-sm opacity-20' : ''} ${isCriticalTime ? 'animate-pulse' : 'bg-surface/50 text-textMain border-border2/60 shadow-inner'}`}
-                  style={isCriticalTime ? {
-                    color: 'var(--accent-danger)',
-                    background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)',
-                  } : undefined}
-                >
-                  {formatTime(timeRemaining)}
-                </div>
-              </div>
+              <ExamClock
+                endTime={examEndTime}
+                showTime={showTime}
+                onToggleTime={() => setShowTime(!showTime)}
+              />
             )}
           </div>
         </div>

@@ -133,8 +133,13 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(result.current.answers).toEqual({ 0: 'A', 1: 'B' });
     expect(result.current.currentIndex).toBe(2);
     expect(result.current.bookmarks.has(3)).toBe(true);
-    expect(result.current.timeLeft).toBeGreaterThan(0);
-    expect(result.current.timeLeft).toBeLessThanOrEqual(300);
+    // The engine now exposes an absolute deadline rather than a per-second
+    // countdown — the countdown itself belongs to <ExamClock>, so a tick no
+    // longer re-renders this hook's consumer. The restored run must still have
+    // time left, and no more than the cached draft allowed.
+    const restoredSecs = Math.round((result.current.gauntletEndTime - Date.now()) / 1000);
+    expect(restoredSecs).toBeGreaterThan(0);
+    expect(restoredSecs).toBeLessThanOrEqual(300);
 
     // Resume does NOT delete the draft — only a genuine submitExam does.
     expect(localStorage.getItem(CACHE_KEY)).not.toBeNull();
