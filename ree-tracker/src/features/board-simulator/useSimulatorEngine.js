@@ -29,7 +29,29 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(0);
+  // The exam deadline as an ABSOLUTE epoch-ms timestamp. It changes only when a
+  // run starts, resumes or ends — never once per second.
+  //
+  // This replaced a `timeRemaining` state that was set every second. That state
+  // lives in the hook the PAGE consumes, so each tick reconciled the entire exam
+  // tree: SimulatorActive, QuestionCard and its KaTeX subtree, and
+  // ExamNavigator's one button per question (~100 for a PRC mock). At 3,600
+  // ticks an hour for up to six hours, on the low-end Android devices this app
+  // targets, that was the single largest avoidable render cost in the product.
+  // The visible countdown now belongs to <ExamClock>, which derives it from this
+  // value and re-renders only itself.
+  const [examEndTime, setExamEndTime] = useState(null);
+
+  // Wall-clock of the last draft autosave, so the cadence survives tab throttling.
+  const AUTOSAVE_EVERY_MS = 5000;
+  const lastAutosaveRef = useRef(0);
+
+  // Seconds left right now, read imperatively for submit-time arithmetic.
+  // Derived from the deadline rather than from state, so it is correct even
+  // between ticks and after a throttled background tab.
+  const remainingSecsNow = () => (endTimeRef.current
+    ? Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000))
+    : 0);
   const [showTime, setShowTime] = useState(true);
   const [bookmarks, setBookmarks] = useState(new Set()); 
   
@@ -89,21 +111,29 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   useEffect(() => {
     let interval = null;
     if (session.isActive && !session.isFinished) {
-      if (!endTimeRef.current) {
-          endTimeRef.current = Date.now() + timeRemaining * 1000;
+      if (!endTimeRef.current && examEndTime) {
+          endTimeRef.current = examEndTime;
       }
       
+      // Ticks at 1s for accurate expiry, but deliberately sets NO state on a
+      // normal tick — so it costs one comparison and zero re-renders. Expiry and
+      // the periodic autosave are the only things a tick still needs to drive.
       interval = setInterval(() => {
         const now = Date.now();
         const timeLeft = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
-        
-        setTimeRemaining(timeLeft);
-        
+
         if (timeLeft <= 0) {
             clearInterval(interval);
             endTimeRef.current = null;
             setTimeIsUp(true); 
-        } else if (timeLeft % 5 === 0) {
+        } else if (now - lastAutosaveRef.current >= AUTOSAVE_EVERY_MS) {
+            // Elapsed-time check, not `timeLeft % 5 === 0`. Under a hidden tab the
+            // browser throttles this interval to roughly 1/minute, so timeLeft
+            // fell by ~60 per tick and the modulo matched only about a fifth of
+            // the time — the "autosaves every 5s" guarantee quietly did not hold
+            // in exactly the situation (tab in the background) where a crash is
+            // most likely.
+            lastAutosaveRef.current = now;
             persistDraft();
         }
       }, 1000);
@@ -111,7 +141,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         endTimeRef.current = null;
     }
     return () => clearInterval(interval);
-  }, [session.isActive, session.isFinished]);
+    // examEndTime is a real dependency: the effect seeds endTimeRef from it. It
+    // only changes on start/resume/finish — which already flip isActive — so
+    // including it re-arms the interval exactly when the deadline moves and
+    // never mid-exam.
+  }, [session.isActive, session.isFinished, examEndTime]);
 
   useEffect(() => {
       if (timeIsUp) {
@@ -220,7 +254,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
       setSession(newState);
       setCurrentIndex(0); 
-      setTimeRemaining(timeLimitSecs); 
+      setExamEndTime(endTimeRef.current);
       setBookmarks(new Set());
       setIsSubmitting(false);
       
@@ -258,16 +292,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       currentIndexRef.current = resumedIndex;
 
       if (parsed.endTime) {
-        const timeLeft = Math.max(0, Math.round((parsed.endTime - Date.now()) / 1000));
-        setTimeRemaining(timeLeft);
         endTimeRef.current = parsed.endTime;
       } else {
+        // Pre-endTime drafts stored a countdown; rebase it onto a deadline.
         const fallback = legacy.timeRemaining || parsed.timeRemaining || 0;
-        setTimeRemaining(fallback);
         endTimeRef.current = Date.now() + fallback * 1000;
       }
+      setExamEndTime(endTimeRef.current);
 
-      totalExamTime.current = parsed.totalExamTime || timeRemaining;
+      totalExamTime.current = parsed.totalExamTime || remainingSecsNow();
       questionsRef.current = questions;
       currentAnswersRef.current = answers;
       currentConfidencesRef.current = confidences;
@@ -372,7 +405,12 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         // were "saved locally".
         const now = Date.now();
         timeSpentPerQuestion.current[currentIndex] = (timeSpentPerQuestion.current[currentIndex] || 0) + (now - lastActiveTime.current);
-        endTimeRef.current = null; 
+        // Read the remaining time BEFORE the deadline is cleared — the two
+        // timeTakenActual computations below depend on it, and they used to read
+        // a `timeRemaining` state that survived this line.
+        const remainingAtSubmit = remainingSecsNow();
+        endTimeRef.current = null;
+        setExamEndTime(null);
 
         const finalQs = questionsRef.current;
         const finalAns = currentAnswersRef.current;
@@ -386,7 +424,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         // layer (via diagnostics.pendingAttempts), and wait for the server's
         // battle-graded / battle-complete events to fill in the real score.
         if (config.battleId) {
-            const timeTakenActual = totalExamTime.current - timeRemaining;
+            const timeTakenActual = totalExamTime.current - remainingAtSubmit;
             const mappedQuestions = finalQs.map((q, idx) => ({
                 ...q, userAnswer: finalAns[idx] ?? null, userConf: finalConf[idx] || 'HIGH'
             }));
@@ -513,7 +551,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         }
 
         const score = Math.round((correct / finalQs.length) * 100);
-        const timeTakenActual = totalExamTime.current - timeRemaining;
+        const timeTakenActual = totalExamTime.current - remainingAtSubmit;
 
         // Computed BEFORE the verdict now: the PRC rule needs the per-subject
         // spread, not just the average. Subjects the exam never asked about stay
@@ -620,7 +658,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         confidences: {}, loading: false, error: '', diagnostics: null
       });
       setCurrentIndex(0);
-      setTimeRemaining(timeLimitSecs);
+      setExamEndTime(endTimeRef.current);
       setBookmarks(new Set());
       setIsSubmitting(false);
       gradesAppliedRef.current = false;
@@ -724,7 +762,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
   return {
     config, setConfig, session, setSession,
-    currentIndex, setCurrentIndex, timeRemaining, showTime, setShowTime,
+    currentIndex, setCurrentIndex, examEndTime, remainingSecsNow, showTime, setShowTime,
     bookmarks, toggleBookmark, startSimulation, startMultiplayerBattle, handleSelectOption,
     handleSelectConfidence, handleIndexChange, submitExam, applyServerScore, applyBattleGrades,
     hasSavedSession, resumeSimulation, handleFlagQuestion, getElapsedMs,

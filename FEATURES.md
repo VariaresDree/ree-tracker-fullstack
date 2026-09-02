@@ -15,6 +15,7 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Gauntlet** — distraction-free timed drill with resume-from-cache and its own diagnostics (`pages/Gauntlet.jsx`, `features/gauntlet/{useGauntletEngine,GauntletDiagnostics}.jsx`)
 - [x] **Shared answer surface** — one `QuestionCard` component (prompt, confidence selector, choice grid, hotkeys, reveal animation) reused identically across Active Review, Board Simulator, Gauntlet, Combat, and the offline Quiz Launcher (`features/quiz/QuestionCard.jsx`)
 - [x] **Exam-focus layout** — collapsible high-alert header, distraction-free chrome for any active exam surface (`layouts/ExamLayout.jsx`)
+- [x] **Isolated exam clock** — one countdown component shared by Board Simulator and Gauntlet, driven by an absolute deadline so it cannot drift and self-corrects after a throttled background tab. It owns its own interval and re-renders only itself, so a tick no longer reconciles the question, its LaTeX subtree, or the per-question navigator (`components/exam/ExamClock.jsx`)
 - [x] **Offline CAQ Quiz Launcher** — import a third-party `.quiz`/`.caq` archive (ZIP) from the user's device and run it as an untimed practice exam entirely client-side: zero server contact, zero telemetry, zero effect on θ/streak/analytics. Parses to a normalized shape, skip-and-counts malformed records rather than failing the file, and collapses byte-identical duplicate answer choices (a real defect observed in third-party files) so the question stays answerable. Statically verified to never import the telemetry/store/scoring modules (`features/quiz-launcher/{caqParser,useCaqSession,QuizFilePicker,QuizLauncherTab,CaqRunner,CaqResults}.js(x)`, entry point: Materials Hub → Quiz Launcher tab, lazy-loaded)
 
 ## Analytics & Forecasting
@@ -70,6 +71,7 @@ every feature add, change, or removal, not on a schedule.
 ## Platform & Offline
 
 - [x] **Offline-first sync** — Zustand store with IndexedDB persistence, optimistic local writes reconciled against server-authoritative totals. Account-scoped: the persisted queue records its owning user, `resetStore()` wipes all local state on logout/account deletion, and a queue whose owner does not match the signed-in user is quarantined to dead letters rather than flushed under the wrong identity (`store/useStore.js`, `store/slices.js`, `services/analyticsSync.js`)
+- [x] **Sync retry policy** — one classifier decides whether a failed sync is offline, permanently rejected, or worth retrying, plus a capped exponential backoff; both are pure and unit-tested, and shared by the telemetry flush and the write outbox instead of being restated in each (`services/syncPolicy.js`)
 - [x] **Offline write outbox** — queued mutations (materials, telemetry) flushed on reconnect, with a synchronous localStorage mirror for fast tab-close that is cleared once the queue drains (`hooks/useSyncLifecycle.js`)
 - [x] **PWA** — installable, service-worker precache (`vite-plugin-pwa`)
 - [x] **Native shell (Capacitor)** — Android build target, local + push notifications (`@capacitor/{core,android,local-notifications,push-notifications}`)

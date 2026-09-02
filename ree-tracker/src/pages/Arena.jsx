@@ -174,27 +174,49 @@ export default function Arena() {
     })();
   }, [activeTab, isOnline]);
 
-  const observer = useRef();
+  const observer = useRef(null);
+  // Tracks whether this component is still mounted, so an in-flight page fetch
+  // cannot setState after teardown.
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
+    // The ref callback below only runs on unmount when React passes null, and it
+    // used to CONSTRUCT a fresh observer on that call — one that was never
+    // observed and never disconnected. Disconnecting here makes teardown
+    // unconditional.
+    observer.current?.disconnect();
+    observer.current = null;
+  }, []);
+
   const lastElementRef = useCallback(node => {
     if (isLoadingRankings || isFetchingMore) return;
-    if (observer.current) observer.current.disconnect();
-    
+
+    // Always release the previous observer...
+    observer.current?.disconnect();
+    observer.current = null;
+
+    // ...and only build a new one when there is actually a node to watch.
+    // React calls this with null on unmount and when the last row changes; the
+    // old code built an observer on those calls too and dropped it on the floor.
+    if (!node) return;
+
     observer.current = new IntersectionObserver(async entries => {
-      if (entries[0].isIntersecting && hasMore) {
-        setIsFetchingMore(true);
-        try {
-            const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(20, lastDoc);
-            setLeaderboard(prev => [...(prev || []), ...(agents || [])]);
-            setLastDoc(newLastDoc);
-            setHasMore((agents || []).length === 20);
-        } catch (error) {
-            toast.error("Network disruption while fetching rankings.");
-        }
-        setIsFetchingMore(false);
+      if (!entries[0].isIntersecting || !hasMore) return;
+      setIsFetchingMore(true);
+      try {
+        const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(20, lastDoc);
+        if (!mountedRef.current) return;
+        setLeaderboard(prev => [...(prev || []), ...(agents || [])]);
+        setLastDoc(newLastDoc);
+        setHasMore((agents || []).length === 20);
+      } catch (error) {
+        if (mountedRef.current) toast.error("Network disruption while fetching rankings.");
+      } finally {
+        if (mountedRef.current) setIsFetchingMore(false);
       }
     });
-    
-    if (node) observer.current.observe(node);
+
+    observer.current.observe(node);
   }, [isLoadingRankings, isFetchingMore, hasMore, lastDoc]);
 
   const handleJoinBattle = async (e) => {

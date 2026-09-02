@@ -39,7 +39,26 @@ export const useGauntletEngine = (level) => {
     // draft — which must restore the exact item the user left off on — can
     // persist and restore it from inside this hook.
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [timeLeft, setTimeLeft] = useState(0);
+    // Absolute epoch-ms deadline. Changes only on start/resume/finish — never
+    // once per second. The visible countdown belongs to <ExamClock>, which
+    // derives it from this and re-renders only itself; the previous per-second
+    // setTimeLeft lived in the hook the PAGE consumes, so every tick reconciled
+    // the whole Gauntlet screen including the question and its KaTeX subtree.
+    const [gauntletEndTime, setGauntletEndTime] = useState(null);
+
+    // Seconds left right now, read imperatively (submit-time arithmetic, expiry).
+    const remainingSecsNow = () => (endTimeRef.current
+        ? Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000))
+        : 0);
+
+    // Re-entrancy guard for submitExam. A ref, not state, so it takes effect
+    // synchronously: tapping "Submit" as the clock hits zero previously fired
+    // two concurrent POSTs, and the second response overwrote the diagnostics.
+    const submittingRef = useRef(false);
+
+    // Wall-clock of the last draft autosave, so the cadence survives throttling.
+    const AUTOSAVE_EVERY_MS = 5000;
+    const lastAutosaveRef = useRef(0);
     const [diagnostics, setDiagnostics] = useState(null);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [flags, setFlags] = useState(new Set());
@@ -139,8 +158,8 @@ export const useGauntletEngine = (level) => {
             return;
         }
 
-        setTimeLeft(tier.timeLimitSecs);
         endTimeRef.current = Date.now() + tier.timeLimitSecs * 1000;
+        setGauntletEndTime(endTimeRef.current);
 
         try {
             // Subject tiers pull a subject-filtered pool (like the Board
@@ -250,8 +269,8 @@ export const useGauntletEngine = (level) => {
             setFlags(restoredFlags);
 
             const remaining = parsed.endTime ? Math.max(0, Math.round((parsed.endTime - Date.now()) / 1000)) : 0;
-            setTimeLeft(remaining);
             endTimeRef.current = parsed.endTime || (Date.now() + remaining * 1000);
+            setGauntletEndTime(endTimeRef.current);
 
             const tier = getGauntletTier(level);
             startStoreSession({ mode: 'GAUNTLET', subject: tier?.subject });
@@ -277,23 +296,41 @@ export const useGauntletEngine = (level) => {
     };
 
     useEffect(() => {
-        if (status !== 'active') return;
-        if (timeLeft <= 0) {
+        if (status !== 'active') return undefined;
+
+        // Resuming a run whose deadline already passed: submit immediately
+        // rather than arming a timer that would fire on its first tick.
+        if (remainingSecsNow() <= 0) {
             submitExam(true);
-            return;
+            return undefined;
         }
-        // Derive remaining time from the absolute end-time each tick — on return
-        // from a throttled/backgrounded tab this jumps straight to the correct
-        // value (and hits 0 → auto-submit) instead of resuming a stale count.
+
+        // Remaining time is derived from the absolute deadline each tick, so a
+        // throttled/backgrounded tab jumps straight to the correct value (and to
+        // auto-submit) instead of resuming a stale count.
+        //
+        // Sets NO state on a normal tick — one comparison, zero re-renders. The
+        // dependency list is [status, gauntletEndTime], NOT [status, timeLeft]:
+        // the old array changed on every tick, so the interval was torn down and
+        // recreated once a second, resetting its phase each time.
         const timer = setInterval(() => {
-            const left = endTimeRef.current
-                ? Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000))
-                : 0;
-            setTimeLeft(left);
-            if (left > 0 && left % 5 === 0) persistDraft();
+            const left = remainingSecsNow();
+            if (left <= 0) {
+                clearInterval(timer);
+                submitExam(true);
+                return;
+            }
+            // Elapsed-time check rather than `left % 5 === 0`: a hidden tab is
+            // throttled to ~1 tick/minute, so `left` drops ~60 at a time and the
+            // modulo mostly missed — precisely when a crash is most likely.
+            const nowMs = Date.now();
+            if (nowMs - lastAutosaveRef.current >= AUTOSAVE_EVERY_MS) {
+                lastAutosaveRef.current = nowMs;
+                persistDraft();
+            }
         }, 1000);
         return () => clearInterval(timer);
-    }, [status, timeLeft]);
+    }, [status, gauntletEndTime]);
 
     // These three compute `next` synchronously OFF THE REF (not off React's
     // updater-callback `prev`, and not via a setState functional updater) and
@@ -385,6 +422,16 @@ export const useGauntletEngine = (level) => {
     };
 
     const submitExam = async (isTimeOut = false) => {
+        // Guard FIRST. Without it, tapping "Submit" as the clock reached zero
+        // fired the manual submit and the timeout submit concurrently — two
+        // POSTs to /api/exams/grade whose responses raced to set diagnostics.
+        if (submittingRef.current) return;
+        submittingRef.current = true;
+
+        // Captured before the deadline is torn down below.
+        const remainingAtSubmit = remainingSecsNow();
+        endTimeRef.current = null;
+        setGauntletEndTime(null);
         // Teardown FIRST — mirrors useSimulatorEngine.js's submitExam exactly:
         // once submission is initiated the run is considered in flight
         // (either grading live or queued in the durable outbox below), never
@@ -395,7 +442,10 @@ export const useGauntletEngine = (level) => {
 
         setStatus('loading');
         const tier = getGauntletTier(level);
-        if (!tier) { setStatus('error'); return; }
+        // This return is BEFORE the try below, so the finally that releases the
+        // guard does not cover it — release explicitly or a bad level would wedge
+        // submit for the rest of the session.
+        if (!tier) { submittingRef.current = false; setStatus('error'); return; }
 
         // Per-question confidence (silent MED default when skipped under time
         // pressure) and elapsed time go into the grade payload so Gauntlet
@@ -479,7 +529,7 @@ export const useGauntletEngine = (level) => {
                 isPassed,
                 failedSubtopics,
                 review,
-                timeUsedSecs: tier.timeLimitSecs - timeLeft,
+                timeUsedSecs: tier.timeLimitSecs - remainingAtSubmit,
                 isTimeOut
             });
 
@@ -534,12 +584,16 @@ export const useGauntletEngine = (level) => {
                 setStatus('error');
             }
         } finally {
+            // Released on EVERY exit path. A submit that failed must be retryable;
+            // one that succeeded moves to 'diagnostics', where the UI no longer
+            // offers submit at all.
+            submittingRef.current = false;
             try { await endStoreSession(); } catch (_) {}
         }
     };
 
     return {
-        status, questions, answers, confidences, timeLeft, diagnostics,
+        status, questions, answers, confidences, gauntletEndTime, diagnostics,
         currentIndex, setCurrentIndex: handleIndexChange,
         bookmarks, toggleBookmark, flags, toggleFlag,
         hasSavedSession, resumeGauntlet, discardAndStartFresh,
