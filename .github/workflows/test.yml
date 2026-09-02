@@ -2,6 +2,29 @@
 # Kept intentionally lean — no jobs that need secrets, no lint/typecheck for
 # now (we have no TS yet, ESLint is configured but not enforced in CI). When
 # we add those gates, extend the matrix below.
+#
+# This is an npm WORKSPACE repo (root package.json lists ree-tracker,
+# ree-tracker-backend and packages/*). There is exactly ONE lockfile, at the
+# root, and installs must run from the root — running them inside a workspace
+# child fails, and the per-package lockfiles that used to exist are gone. Jobs
+# therefore install once at the root and then target a workspace by name.
+#
+# NOTE for anyone regenerating package-lock.json: delete node_modules FIRST.
+#
+# npm builds the lockfile from an existing installed tree when one is present.
+# The workspace lockfile was first generated on Windows with the old
+# per-package node_modules still in place, so it recorded only
+# `@rolldown/binding-win32-x64-msvc` — none of the other 14 platform bindings,
+# nor the linux variants of rollup, lightningcss, @tailwindcss/oxide or
+# @napi-rs/canvas. Every job then died on a Linux runner with
+# "Cannot find module '../rolldown-binding.linux-x64-gnu.node'", and `npm
+# install` could not repair it either: it trusts the lockfile's package list and
+# never learns the missing optional dep exists.
+#
+# Regenerating with node_modules REMOVED resolves against the registry instead
+# and records all platforms, which is what a lockfile is supposed to do. `npm
+# ci` is therefore correct again — and preferable, since it is deterministic and
+# fails loudly if the lockfile and package.json ever drift apart.
 
 name: tests
 
@@ -13,7 +36,7 @@ on:
 
 jobs:
   guards:
-    name: Standing checks (SQL interpolation + route auth)
+    name: Standing checks (SQL interpolation + route auth/authz)
     runs-on: ubuntu-latest
     # Both scripts use only Node builtins (fs/path) — no install, no DB, fast.
     defaults:
@@ -30,15 +53,22 @@ jobs:
       - name: SQL interpolation guard
         run: node scripts/audit-sql-interpolation.js
 
+      # Checks authentication AND authorization: every write to a resource named
+      # by a path parameter must be owner-scoped, role-gated, or justified.
       - name: Route auth-coverage guard
         run: node scripts/audit-route-auth.js
 
   frontend:
     name: Frontend (vitest)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ree-tracker
+    # vite.config.js fails a PRODUCTION build when VITE_BACKEND_URL is unset,
+    # because inlining http://localhost:5000 ships an app that cannot reach its
+    # API. CI has no .env (it is gitignored), so it supplies an explicit
+    # placeholder: this job proves the bundle BUILDS, it never deploys. The guard
+    # still protects the real Vercel build, which must get the value from the
+    # project environment.
+    env:
+      VITE_BACKEND_URL: http://localhost:5000
     steps:
       - uses: actions/checkout@v4
 
@@ -47,16 +77,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ree-tracker/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install
-        run: npm ci
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
 
       - name: Test
-        run: npm test
+        run: npm run test --workspace=ree-tracker
 
       - name: Build
-        run: npm run build
+        run: npm run build --workspace=ree-tracker
 
   backend:
     name: Backend (vitest)
@@ -67,9 +97,6 @@ jobs:
     # hooks), and would fail with PrismaConfigEnvError otherwise.
     env:
       DATABASE_URL: postgresql://localhost:5432/dummy
-    defaults:
-      run:
-        working-directory: ree-tracker-backend
     steps:
       - uses: actions/checkout@v4
 
@@ -78,17 +105,20 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ree-tracker-backend/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install
-        run: npm ci
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
 
       - name: Test
-        run: npm test
+        run: npm run test --workspace=ree-tracker-backend
 
   lighthouse:
     name: Lighthouse CI (entry-path budgets)
     runs-on: ubuntu-latest
+    # See the frontend job: a production build needs an explicit API origin.
+    env:
+      VITE_BACKEND_URL: http://localhost:5000
     defaults:
       run:
         working-directory: ree-tracker
@@ -100,10 +130,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ree-tracker/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install
-        run: npm ci
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+        working-directory: .
 
       - name: Build
         run: npm run build

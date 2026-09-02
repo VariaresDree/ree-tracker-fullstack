@@ -2,6 +2,7 @@
 import { auth } from '../config/firebaseDb';
 import { get, set } from 'idb-keyval';
 import { fnv1a } from '../utils/contentHash';
+import { DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
 // ============================================================================
@@ -54,7 +55,7 @@ export const getAuthToken = async (user) => {
     }
 };
 
-export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS } = {}) => {
+export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS, idempotencyKey: idempotencyKeyOverride = null } = {}) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Agent session disconnected. Authentication required.");
 
@@ -73,7 +74,11 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
     };
-    const idemKey = idempotencyKey(method, body);
+    // Callers with a stronger notion of request identity than "hash of body"
+    // supply their own key. The telemetry flush does: its key is derived from
+    // (sessionId + attempt ids), which stays stable across app restarts, where
+    // a body hash would not (the body carries a re-derived session id).
+    const idemKey = idempotencyKeyOverride || idempotencyKey(method, body);
     if (idemKey) headers['Idempotency-Key'] = idemKey;
 
     const controller = new AbortController();
@@ -148,7 +153,10 @@ export const getAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics
 
 // PRC board TOS blend, read from the server config table so the exam builder and
 // the server sampler agree. Never throws — falls back to the default blend.
-export const SYLLABUS_WEIGHTS_FALLBACK = { Mathematics: 0.25, ESAS: 0.30, EE: 0.45 };
+// Re-exported from @ree/shared so this fallback and the server sampler's cannot
+// drift. Previously four separate literals, one of them UPPERCASE-keyed and
+// therefore incompatible with the other three.
+export const SYLLABUS_WEIGHTS_FALLBACK = DEFAULT_SYLLABUS_WEIGHTS;
 export const fetchSyllabusWeights = async () => {
     try {
         const r = await apiRequest('/api/config/syllabus-weights');
@@ -583,3 +591,9 @@ export const fetchReferenceSources = async () => {
 export const createReferenceSource = (body) => apiRequest('/api/reference-cards/sources', 'POST', body);
 export const updateReferenceSource = (id, body) => apiRequest(`/api/reference-cards/sources/${id}`, 'PUT', body);
 export const deleteReferenceSource = (id) => apiRequest(`/api/reference-cards/sources/${id}`, 'DELETE');
+
+// Account deletion. Profile.jsx used to inline a bare fetch for this — the only
+// page component in the app doing raw HTTP — which meant no timeout, no
+// circuit-breaker participation and no '[OFFLINE]' classification on the single
+// most destructive call in the product.
+export const deleteAccount = () => apiRequest('/api/user/profile', 'DELETE');

@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const authMiddleware = require('./src/middlewares/authMiddleware');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
@@ -98,10 +100,25 @@ async function bootstrap() {
 
     app.set('trust proxy', 1);
 
+    const isProd = process.env.NODE_ENV === 'production';
+
+    // FRONTEND_URL is declared `sync: false` in render.yaml, i.e. it has to be
+    // pasted into the dashboard by hand. If that step was missed the server
+    // still booted — and makeOriginCheck's non-strict mode allows EVERY origin
+    // WITH credentials, behind nothing but a startup console warning. Refuse to
+    // start instead: a hard failure at deploy time is far cheaper than a
+    // silently open credentialed CORS policy in production.
+    if (isProd && !process.env.FRONTEND_URL) {
+        console.error('[FATAL] FRONTEND_URL is required in production — refusing to start with an open CORS policy.');
+        process.exit(1);
+    }
+
     const allowedOrigins = [
         process.env.FRONTEND_URL,
-        'http://localhost:5173',
-        'http://localhost:4173',
+        // Dev origins only. Production used to accept them unconditionally;
+        // a page cannot forge its Origin, so the practical risk was low, but
+        // there is no reason for production to answer a dev origin at all.
+        ...(isProd ? [] : ['http://localhost:5173', 'http://localhost:4173']),
     ].filter(Boolean);
 
     // Strict when FRONTEND_URL is set (production): unknown origins get no
@@ -111,12 +128,52 @@ async function bootstrap() {
         origin: makeOriginCheck(allowedOrigins, { strict: !!process.env.FRONTEND_URL }),
         credentials: true,
     }));
+
+    // Security headers. The app previously sent NONE: no nosniff, no
+    // frame-ancestors, no HSTS, no referrer policy, no CSP.
+    //
+    // This process serves JSON and (on the local-disk storage driver)
+    // user-uploaded files; it never serves the SPA, which lives on Vercel. So
+    // the CSP is deliberately restrictive — nothing here should ever be treated
+    // as a document with active content.
+    app.use(helmet({
+        contentSecurityPolicy: {
+            useDefaults: false,
+            directives: {
+                defaultSrc: ["'none'"],
+                frameAncestors: ["'none'"],
+                baseUri: ["'none'"],
+                formAction: ["'none'"],
+                // No `sandbox` here: this policy rides every JSON response, and
+                // a sandbox directive is a document-level control that has no
+                // business on an API payload. The /uploads mount sets its own
+                // sandboxed policy, which is where untrusted bytes actually are.
+            },
+        },
+        // The API is same-origin-irrelevant and is fetched cross-origin by the
+        // SPA; COEP would break those fetches without adding anything here.
+        crossOriginEmbedderPolicy: false,
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+        referrerPolicy: { policy: 'no-referrer' },
+        hsts: isProd ? { maxAge: 15552000, includeSubDomains: true } : false,
+    }));
     app.use(express.json({ limit: '2mb' }));
 
     // Static mount for the local-disk storage driver. Harmless when the S3
     // driver is in use — the folder simply stays empty.
     const storage = require('./src/services/storage');
-    app.use('/uploads', express.static(storage.LOCAL_DIR));
+    app.use('/uploads', express.static(storage.LOCAL_DIR, {
+        // These are arbitrary admin-uploaded files served from the API origin.
+        // express.static infers Content-Type from the extension, so an uploaded
+        // .html or .svg was served as an active document on this origin and
+        // would execute. Force a download disposition and forbid MIME sniffing;
+        // the CSP sandbox above is the second layer.
+        setHeaders: (res) => {
+            res.setHeader('Content-Disposition', 'attachment');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+        },
+    }));
 
     const globalLimiter = rateLimit({
         windowMs: 15 * 60 * 1000,
@@ -127,11 +184,17 @@ async function bootstrap() {
     });
     app.use(globalLimiter);
 
+    // Keyed on the caller's identity, not their IP. /api/ai/generate is the only
+    // endpoint that spends money (a shared GEMINI_API_KEY, up to MODEL_TIERS
+    // sequential attempts at a 45s timeout each) and it had the weakest keying:
+    // everyone behind one campus or mobile-carrier NAT shared a 10/min budget,
+    // while a single user on a rotating IPv6 prefix bypassed it entirely.
     const aiLimiter = rateLimit({
         windowMs: 60 * 1000,
         max: 10,
         standardHeaders: true,
         legacyHeaders: false,
+        keyGenerator: (req, res) => req.user?.id || req.headers.authorization || ipKeyGenerator(req, res),
         message: { error: 'AI rate limit exceeded. Try again in a minute.' },
     });
 
@@ -180,7 +243,11 @@ async function bootstrap() {
 
     app.use('/api/exams', require('./src/routes/examRoutes'));
     app.use('/api/analytics', require('./src/routes/analyticsRoutes'));
-    app.use('/api/ai', aiLimiter, require('./src/routes/aiRoutes'));
+    // authMiddleware runs INSIDE aiRoutes, so a limiter mounted here would see
+    // req.user undefined and silently fall back to the Authorization header —
+    // a per-TOKEN budget that resets on Firebase's hourly refresh. Attaching
+    // identity first makes the per-user budget real.
+    app.use('/api/ai', authMiddleware, aiLimiter, require('./src/routes/aiRoutes'));
     app.use('/api/questions', require('./src/routes/questionRoutes'));
     app.use('/api/materials', require('./src/routes/materialRoutes'));
     app.use('/api/metadata', require('./src/routes/metadataRoutes'));

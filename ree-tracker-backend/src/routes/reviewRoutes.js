@@ -23,12 +23,20 @@ router.use(authMiddleware, requireAdmin);
 // using the old /questions/quarantine endpoints for their actions.
 router.get('/queue', async (req, res) => {
     try {
+        // Both list queries are capped. The review queue grows with every AI
+        // ingestion run, and unbounded findMany calls here meant one admin page
+        // load pulled the entire backlog into memory and down the wire. The cap
+        // sits far above a normal batch; the counts below let the client see
+        // when it is looking at a truncated view.
+        const QUEUE_CAP = 500;
         const [pending, legacy] = await Promise.all([
             prisma.questionPendingReview.findMany({
+                take: QUEUE_CAP,
                 where: { status: 'PENDING' },
                 orderBy: { createdAt: 'desc' },
             }),
             prisma.question.findMany({
+                take: QUEUE_CAP,
                 where: { isFlagged: true },
                 orderBy: { createdAt: 'desc' },
             }),

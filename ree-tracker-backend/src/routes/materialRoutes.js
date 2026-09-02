@@ -13,8 +13,10 @@ const { wouldCreateCycle, subtreeIds } = require('../services/folderTree');
 // Materials Hub UI can build its tree without a second roundtrip.
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const folders = await prisma.folder.findMany({ orderBy: { name: 'asc' } });
-        const materials = await prisma.material.findMany({ orderBy: { createdAt: 'desc' } });
+        // Capped: the shared vault grows without bound and this endpoint
+        // returned every folder AND every material on each load.
+        const folders = await prisma.folder.findMany({ take: 2000, orderBy: { name: 'asc' } });
+        const materials = await prisma.material.findMany({ take: 2000, orderBy: { createdAt: 'desc' } });
         return res.status(200).json({ success: true, folders, materials, driver: storage.driverName });
     } catch (error) {
         logger.error('Material fetch error', { error: error.message, stack: error.stack });

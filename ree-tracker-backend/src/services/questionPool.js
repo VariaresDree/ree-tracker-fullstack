@@ -65,8 +65,10 @@ async function samplePool({ subject = null, subtopic = null, limit = 50 } = {}) 
 }
 
 // PRC board Table-of-Specifications default blend, used as a fallback when the
-// SyllabusWeight config table is empty/unreachable.
-const DEFAULT_SYLLABUS_WEIGHTS = { Mathematics: 0.25, ESAS: 0.30, EE: 0.45 };
+// SyllabusWeight config table is empty/unreachable. Sourced from @ree/shared so
+// the client's own fallback cannot drift from this one — there were four copies
+// with two incompatible key casings.
+const { DEFAULT_SYLLABUS_WEIGHTS } = require('@ree/shared');
 
 // Pure: turn SyllabusWeight rows into a {subject: weight} map, backfilling any
 // missing canonical subject from the default so callers always get all three.

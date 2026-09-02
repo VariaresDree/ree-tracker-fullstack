@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { isStale, refreshLeaderboard } = require('../services/leaderboardService');
+const { isStale, refreshLeaderboard, noteLeaderboardDemand } = require('../services/leaderboardService');
 
 // Phase 4.1: reads are served from the materialized LeaderboardEntry snapshot
 // (rebuilt every ~45s by leaderboardService) instead of sorting/counting the
@@ -79,7 +79,10 @@ async function snapshotFreshness() {
 }
 
 // Stale/empty snapshot → serve the legacy live path once and kick a refresh.
+// refreshLeaderboard is single-flight, so N concurrent stale requests share one
+// rebuild instead of launching N of them.
 function kickRefresh() {
+    noteLeaderboardDemand();
     refreshLeaderboard().catch(() => {});
 }
 

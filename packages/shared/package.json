@@ -1,0 +1,12 @@
+{
+  "name": "@ree/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Business rules that MUST agree between the web client and the API. Authored in CommonJS so Node can require() it directly; Vite pre-bundles it for the browser (see optimizeDeps in ree-tracker/vite.config.js).",
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src"]
+}

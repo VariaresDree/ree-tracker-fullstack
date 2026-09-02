@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 
 import { getAnalyticsProfile } from '../services/dbQueries';
 import { useStore } from '../store/useStore';
+import { normalizeMicroTopics } from '../services/analyticsSync';
 
 const formatTimerMinutes = (s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`;
 const formatTimerVerbose = (s) => `${Math.floor(s/60)}m ${(s%60).toString().padStart(2, '0')}s`;
@@ -94,7 +95,7 @@ export default function BoardSimulator() {
               ...useStore.getState().stats,
               ...fresh.data.profile,
               activityCalendar: fresh.data.activityCalendar,
-              microTopics: fresh.data.microTopics,
+              microTopics: normalizeMicroTopics(fresh.data.microTopics, useStore.getState().dynamicTOS),
               matrix: fresh.data.matrix,
             });
           }

@@ -52,13 +52,45 @@ function trimBucketsTo(buckets, total) {
 }
 
 /**
+ * How many attempts are written per transaction. An offline outbox flush can
+ * carry up to 500 attempts (telemetrySchemas cap); writing them in ONE
+ * interactive transaction meant ~45 sequential round-trips (one ActivityLog
+ * upsert per Manila day + one UserTopicPerformance update per topic), which on
+ * a Render->Supabase RTT blew Prisma's transaction budget. The whole batch then
+ * rolled back, the endpoint 500'd, and the client retried the same oversized
+ * batch forever. Chunking bounds the work per transaction so a large flush
+ * makes forward progress instead of failing as a unit.
+ */
+const ATTEMPT_CHUNK_SIZE = 100;
+
+// Interactive-transaction budget. Prisma's defaults (maxWait 2s / timeout 5s)
+// are tuned for same-host Postgres; this service talks to Supabase over the
+// public internet, so a chunk of 100 attempts legitimately needs longer than 5s
+// under load. Explicit values make the budget a decision rather than a default.
+const TX_OPTS = { maxWait: 5_000, timeout: 20_000 };
+
+function chunkRows(rows, size) {
+    const out = [];
+    for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+    return out;
+}
+
+/**
  * Record a batch of answered questions for a user.
  *
- * Important: if a non-null `sessionId` is provided but no matching ExamSession
- * row exists (the common case — frontend mints a UUID per session), we upsert
- * the ExamSession FIRST so the QuestionAttempt FK is satisfied. This is the
- * keystone fix for the "Matrix sync transaction rejected" 500: previously the
- * FK violation propagated as a generic 500 and starved every dashboard widget.
+ * The attempt rows, the ActivityLog ledger, the topic rollups, the BKT fold,
+ * theta and the streak all commit as ONE transaction per chunk, under a
+ * `SELECT ... FOR UPDATE` row lock on the user. Splitting them across two
+ * transactions (the previous design) produced two defects: concurrent first
+ * batches of a Manila day each decided "this is the first activity today"
+ * before either had committed its ActivityLog row and both incremented the
+ * streak; and a failure between the two transactions committed the attempts
+ * but lost the ability update permanently, because the retry saw every row as
+ * a duplicate and took the pure-replay path.
+ *
+ * If a non-null `sessionId` is provided but no matching ExamSession row exists
+ * (the common case — frontend mints a UUID per session), the ExamSession is
+ * upserted FIRST so the QuestionAttempt FK is satisfied.
  *
  * @param {object} opts
  * @param {string} opts.userId
@@ -66,19 +98,16 @@ function trimBucketsTo(buckets, total) {
  * @param {string} [opts.sessionId] — optional ExamSession id; auto-created if needed
  * @param {string} [opts.mode] — quiz mode tag (ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE)
  * @param {string} [opts.targetSubject] — subject the session is targeting (for the auto-created ExamSession)
- * @param {object} [opts.tx] — optional Prisma transaction client
  * @returns {Promise<{ written: number, updatedTheta: number, sessionId: string|null }>}
  */
-async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGACY', targetSubject = null, tx = null }) {
+async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGACY', targetSubject = null }) {
     if (!Array.isArray(attempts) || attempts.length === 0) {
         return { written: 0, updatedTheta: null, sessionId: null, graded: [] };
     }
 
-    const client = tx || prisma;
-
     const questionIds = attempts.map((a) => a.questionId).filter(Boolean);
     const masterQuestions = questionIds.length
-        ? await client.question.findMany({
+        ? await prisma.question.findMany({
             where: { id: { in: questionIds } },
             select: { id: true, answer: true, difficulty: true, subject: true, subtopic: true, irtA: true, irtB: true, irtC: true },
         })
@@ -110,21 +139,82 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
 
     const today = todayManila();
 
-    // Auto-upsert the ExamSession before writing attempts so the FK is always
-    // satisfied. Verdict stays IN_PROGRESS until an end-of-session call
-    // (currently outside recordAttempts; this is forward-compatible).
-    // Increments are computed from the NEW rows only — a replayed batch used
-    // to re-increment these counters, which is how a 10-item session showed
-    // 20/30+ answered.
+    // Resolve taxonomy FKs BEFORE opening any transaction. resolveTopic reads a
+    // TTL-cached index, but a cache miss issues prisma.topic.findMany on the
+    // MODULE-level client — a second pool checkout. Doing that from inside an
+    // interactive transaction (which already holds a connection) deadlocks the
+    // pool once concurrent writers reach its size: every transaction ends up
+    // waiting for a connection only a transaction can release. Resolution reads
+    // slow-moving reference data, so hoisting it costs nothing in correctness
+    // and removes the cycle entirely.
+    const topicIdByKey = new Map();
+    for (const r of aggregateTopicRollups(mapped)) {
+        const key = `${r.subject}\u0000${r.topic}`;
+        if (topicIdByKey.has(key)) continue;
+        topicIdByKey.set(key, (await resolveTopic(r.subject, r.topic))?.id ?? null);
+    }
+
     let resolvedSessionId = sessionId;
-    const ensureSession = async (db, newOnly) => {
-        if (!sessionId) return null;
-        const batchCorrect = newOnly.filter((m) => m.isCorrect).length;
-        const batchTimeSecs = Math.floor(newOnly.reduce((s, m) => s + (m.timeSpentMs || 0), 0) / 1000);
-        const batchTarget = canonicalSubject(targetSubject || newOnly[0]?.subject || 'General');
-        try {
+    let writtenCount = 0;
+    let dedupedCount = 0;
+    let updatedTheta = null;
+    let updatedSe = null;
+    let sawAnyWrite = false;
+
+    /**
+     * Write one chunk. Ordering is load-bearing: the `SELECT ... FOR UPDATE` on
+     * User is taken FIRST, before the ActivityLog read that decides
+     * `isFirstActivityToday`, so a concurrent writer observes this one's
+     * committed ActivityLog row instead of racing it.
+     */
+    const runChunk = async (db, rows) => {
+        // 1. Serialize same-user writers.
+        const [user] = await db.$queryRaw`SELECT "thetaRating", "standardError", "globalStreak" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+
+        // 2. Hard dedupe: rows whose clientAttemptId this user already recorded
+        //    are replays (retry after a timeout the server actually completed,
+        //    app-reopen re-flush, etc.) — grade them, but write NOTHING.
+        const claimedIds = rows.map((m) => m.clientAttemptId).filter(Boolean);
+        const existing = claimedIds.length
+            ? await db.questionAttempt.findMany({
+                where: { userId, clientAttemptId: { in: claimedIds } },
+                select: { clientAttemptId: true },
+            })
+            : [];
+        const partition = partitionNewAttempts(new Set(existing.map((e) => e.clientAttemptId)), rows);
+        const newOnly = partition.newOnly;
+        dedupedCount += partition.duplicates.length;
+
+        if (newOnly.length === 0) return; // pure replay — nothing to write
+
+        sawAnyWrite = true;
+
+        // 3. ExamSession shell, so the QuestionAttempt FK is satisfied.
+        //    Increments are computed from the NEW rows only — a replayed batch
+        //    used to re-increment these counters, which is how a 10-item
+        //    session showed 20/30+ answered.
+        if (sessionId) {
+            const batchCorrect = newOnly.filter((m) => m.isCorrect).length;
+            const batchTimeSecs = Math.floor(newOnly.reduce((s, m) => s + (m.timeSpentMs || 0), 0) / 1000);
+            const batchTarget = canonicalSubject(targetSubject || newOnly[0]?.subject || 'General');
+            // Deliberately NOT wrapped in try/catch: inside an interactive
+            // transaction a failed statement has already aborted the
+            // transaction in Postgres, so swallowing the error and returning
+            // sessionId=null produced "current transaction is aborted" on the
+            // very next statement. The chunk failed either way — letting it
+            // propagate surfaces the real cause instead of a generic 500.
             await db.examSession.upsert({
-                where: { id: sessionId },
+                // Compound (id, userId) — NOT id alone. Keyed on id, a
+                // client-supplied sessionId that matched ANOTHER user's row took
+                // the UPDATE branch and incremented their score, question count
+                // and time, while the attempts written below were parented to
+                // their session via the FK. sessionId arrives straight from the
+                // request body, so this was a cross-tenant write.
+                //
+                // With the compound key a foreign id simply misses and takes the
+                // CREATE branch, which fails on the primary key rather than
+                // silently corrupting someone else's exam history.
+                where: { id_userId: { id: sessionId, userId } },
                 update: {
                     score: { increment: batchCorrect },
                     totalQuestions: { increment: newOnly.length },
@@ -141,39 +231,11 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                     verdict: 'IN_PROGRESS',
                 },
             });
-            return sessionId;
-        } catch (_) {
-            // Defence in depth: if the session upsert ever fails, drop the FK
-            // rather than 500 the whole batch — recording with sessionId=null
-            // is still strictly better than losing the user's attempts.
-            return null;
+            resolvedSessionId = sessionId;
+        } else {
+            resolvedSessionId = null;
         }
-    };
 
-    // Whether this batch is the FIRST answered question for the user today
-    // (Manila). Drives the once-per-day streak advance below.
-    let isFirstActivityToday = false;
-    let newOnly = mapped;
-    let dedupedCount = 0;
-
-    const runWrites = async (db) => {
-        // Hard dedupe: rows whose clientAttemptId this user already recorded
-        // are replays (retry after a timeout the server actually completed,
-        // app-reopen re-flush, etc.) — grade them, but write NOTHING.
-        const claimedIds = mapped.map((m) => m.clientAttemptId).filter(Boolean);
-        const existing = claimedIds.length
-            ? await db.questionAttempt.findMany({
-                where: { userId, clientAttemptId: { in: claimedIds } },
-                select: { clientAttemptId: true },
-            })
-            : [];
-        const partition = partitionNewAttempts(new Set(existing.map((e) => e.clientAttemptId)), mapped);
-        newOnly = partition.newOnly;
-        dedupedCount = partition.duplicates.length;
-
-        if (newOnly.length === 0) return; // pure replay — nothing to write
-
-        resolvedSessionId = await ensureSession(db, newOnly);
         const attemptsData = newOnly.map(({ _difficulty, _a, _b, _c, _serverGraded, sessionId: _s, ...rest }) => ({
             ...rest,
             sessionId: resolvedSessionId,
@@ -190,12 +252,10 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             data: attemptsData,
             skipDuplicates: true,
         });
+        writtenCount += insertedCount;
 
-        // Bucket the inserted rows by the Manila day they were ANSWERED, not the
-        // day they synced — an offline batch can legitimately span days. Only
-        // rows that actually landed are counted (see insertedCount above); when
-        // the race trims some, we scale the buckets down proportionally rather
-        // than over-crediting a day.
+        // 4. Bucket the inserted rows by the Manila day they were ANSWERED, not
+        //    the day they synced — an offline batch can legitimately span days.
         const buckets = new Map();
         for (const row of attemptsData) {
             const day = manilaDateOf(row.answeredAt || new Date());
@@ -205,11 +265,16 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             trimBucketsTo(buckets, insertedCount);
         }
 
+        // Decided INSIDE the user lock — see the ordering note above.
         const existingToday = await db.activityLog.findUnique({
             where: { userId_date: { userId, date: today } },
             select: { userId: true },
         });
-        isFirstActivityToday = !existingToday && buckets.has(today);
+        // `> 0`, not mere key presence: a day trimmed to zero by the
+        // skipDuplicates race writes no ActivityLog row, so treating the key as
+        // activity let a batch advance the streak while recording nothing for
+        // today — and the next batch would then see "first activity" again.
+        const isFirstActivityToday = !existingToday && (buckets.get(today) || 0) > 0;
 
         for (const [day, count] of buckets) {
             if (count <= 0) continue;
@@ -220,29 +285,19 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             });
         }
 
-        // Per-topic rollups feed the forecast/prescription engine — nothing
-        // populated UserTopicPerformance before, so "Today's prescription"
-        // and weak-topic ranking always came back empty.
-        //
-        // Batched into ONE upsert statement instead of a serial await-loop of N
-        // upserts: a blended battle spanning many subtopics used to hold the
-        // write transaction (and its locks) open for N sequential round-trips.
-        // Still inside the transaction, so a SQL error fails safe (whole batch
-        // rolls back — never a partial/corrupt rollup).
+        // 5. Per-topic rollups feed the forecast/prescription engine. Batched
+        //    into ONE upsert statement instead of a serial await-loop.
         const rollups = aggregateTopicRollups(newOnly);
         if (rollups.length > 0) {
             const now = new Date();
-            // Attach the taxonomy FK where the topic label resolves (Phase 3.3).
-            // Resolution reads a TTL-cached index — a miss just leaves topicId
-            // NULL, it never blocks or fails the telemetry write.
-            const withTopicIds = await Promise.all(rollups.map(async (r) => ({
+            const withTopicIds = rollups.map((r) => ({
                 ...r,
-                topicId: (await resolveTopic(r.subject, r.topic))?.id ?? null,
-            })));
-            const rows = withTopicIds.map((r) => Prisma.sql`(${randomUUID()}, ${userId}, ${r.subject}, ${r.topic}, ${r.topicId}, ${r.attempts}, ${r.correct}, ${r.totalTimeSecs}, ${now})`);
+                topicId: topicIdByKey.get(`${r.subject}\u0000${r.topic}`) ?? null,
+            }));
+            const valueRows = withTopicIds.map((r) => Prisma.sql`(${randomUUID()}, ${userId}, ${r.subject}, ${r.topic}, ${r.topicId}, ${r.attempts}, ${r.correct}, ${r.totalTimeSecs}, ${now})`);
             await db.$executeRaw`
                 INSERT INTO "UserTopicPerformance" ("id", "userId", "subject", "topic", "topicId", "attempts", "correct", "totalTime", "updatedAt")
-                VALUES ${Prisma.join(rows)}
+                VALUES ${Prisma.join(valueRows)}
                 ON CONFLICT ("userId", "topic") DO UPDATE SET
                     "attempts"  = "UserTopicPerformance"."attempts"  + EXCLUDED."attempts",
                     "correct"   = "UserTopicPerformance"."correct"   + EXCLUDED."correct",
@@ -251,12 +306,12 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                     "updatedAt" = EXCLUDED."updatedAt"
             `;
 
-            // BKT mastery fold (Phase 3.5). The rollup above upserted a row for
-            // every topic in this batch; now advance each topic's P(mastery) by
-            // folding the batch's ORDERED observations through BKT, seeded at the
-            // stored value (or pInit on first sight). Sequential — can't be an
-            // additive SQL upsert like the counts, so it's a small read→fold→write
-            // per topic (a batch spans few topics). Same transaction: fails safe.
+            // BKT mastery fold (Phase 3.5). Sequential — can't be an additive
+            // SQL upsert like the counts, so it's a small read->fold->write per
+            // topic. Now under the same user lock, so two concurrent batches
+            // touching one topic can no longer both seed from the same stored
+            // pMastery and lose one batch's observations while both increment
+            // masteryN.
             const obsByTopic = orderedObservationsByTopic(newOnly);
             const topicNames = [...obsByTopic.keys()];
             const existingMastery = await db.userTopicPerformance.findMany({
@@ -276,64 +331,32 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 });
             }
         }
-    };
 
-    if (tx) {
-        await runWrites(tx);
-    } else {
-        await prisma.$transaction(async (db) => { await runWrites(db); });
-    }
-
-    // Pure replay: grade from the master answers but leave every aggregate
-    // untouched, and report the user's CURRENT theta so clients don't
-    // clobber their local value with null.
-    if (newOnly.length === 0) {
-        const user = await prisma.user.findUnique({ where: { id: userId }, select: { thetaRating: true } });
-        dashboardCache.invalidate(userId);
-        readinessCache.invalidate(userId);
-        return {
-            written: 0,
-            received: attempts.length,
-            skipped,
-            deduped: dedupedCount,
-            updatedTheta: user?.thetaRating ?? null,
-            sessionId: resolvedSessionId,
-            graded: mapped.map((m) => ({ questionId: m.questionId, isCorrect: m.isCorrect })),
-        };
-    }
-
-    // Recompute theta + streak in a second, short transaction with a row lock
-    // on the user. Concurrent batches for the same user (e.g. a telemetry-bulk
-    // flush landing at the same time as a battle-submit) previously did
-    // read-modify-write against `prisma` directly, so the last writer silently
-    // clobbered the other's theta/streak. FOR UPDATE serializes them. Kept
-    // separate from runWrites so the attempt-write lock window stays short.
-    // 3PL estimator input: each SERVER-GRADED attempt's item params (with
-    // fallbacks for uncalibrated items) + correctness. updateTheta folds these
-    // onto the prior posterior (theta, se) — a proper Bayesian update, not a
-    // fixed gradient step. Self-graded rows (flashcard ratings, or any attempt
-    // without a server-gradable userAnswer) are excluded here: they still count
-    // toward streak/activity/mastery above, but must never move ranked ability
-    // or the leaderboard, which is exactly the integrity invariant the mapping
-    // comment promises. A flashcard-only batch leaves theta unchanged.
-    const gradedForTheta = newOnly.filter((m) => m._serverGraded);
-    const pairs = gradedForTheta.map(toEstimatorPair);
-    let updatedTheta = 0.0;
-    let updatedSe = 0.5;
-    await prisma.$transaction(async (db) => {
-        const [user] = await db.$queryRaw`SELECT "thetaRating", "standardError", "globalStreak" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+        // 6. Ability + streak, under the lock taken in step 1.
+        //    3PL estimator input: each SERVER-GRADED attempt's item params (with
+        //    fallbacks for uncalibrated items) + correctness. updateTheta folds
+        //    these onto the prior posterior (theta, se) — a proper Bayesian
+        //    update, not a fixed gradient step. Self-graded rows (flashcard
+        //    ratings, or any attempt without a server-gradable userAnswer) are
+        //    excluded here: they still count toward streak/activity/mastery
+        //    above, but must never move ranked ability or the leaderboard,
+        //    which is exactly the integrity invariant the mapping comment
+        //    promises. A flashcard-only batch leaves theta unchanged. Because
+        //    the update is Bayesian, folding a large batch in chunks converges
+        //    to the same posterior as folding it whole.
+        const gradedForTheta = newOnly.filter((m) => m._serverGraded);
+        const pairs = gradedForTheta.map(toEstimatorPair);
         const prior = { theta: user?.thetaRating ?? 0.0, se: user?.standardError ?? 0.5 };
-        // No server-verifiable evidence in this batch ⇒ ability is unchanged.
         const est = pairs.length ? updateTheta(prior, pairs) : prior;
         updatedTheta = est.theta;
         updatedSe = est.se;
 
-        // Global Active Streak — advances at most once per Manila day. On the first
-        // answered question of a new day we increment if yesterday also had
-        // activity, otherwise the run is broken and we reset to 1. Later batches the
-        // same day leave the streak untouched (but self-heal to >=1 for legacy rows
-        // that were stuck at 0 despite activity today).
-        let newStreak = user?.globalStreak ?? 0;
+        // Global Active Streak — advances at most once per Manila day. On the
+        // first answered question of a new day we increment if yesterday also
+        // had activity, otherwise the run is broken and we reset to 1. Later
+        // batches the same day leave the streak untouched (but self-heal to >=1
+        // for legacy rows that were stuck at 0 despite activity today).
+        let newStreak;
         if (isFirstActivityToday) {
             const hadYesterday = await db.activityLog.findUnique({
                 where: { userId_date: { userId, date: yesterdayManila() } },
@@ -349,19 +372,16 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             data: { thetaRating: updatedTheta, standardError: updatedSe, lastActive: new Date(), globalStreak: newStreak },
         });
 
-        // θ-history — one point per Manila day, updated in place within the day so
-        // the Readiness Velocity chart gets clean daily samples and the table stays
-        // bounded (one row/day instead of one/batch).
+        // theta-history — one point per Manila day, updated in place within the
+        // day so the Readiness Velocity chart gets clean daily samples and the
+        // table stays bounded (one row/day instead of one/batch).
         const lastTheta = await db.thetaHistory.findFirst({
             where: { userId },
             orderBy: { recordedAt: 'desc' },
             select: { id: true, recordedAt: true },
         });
         if (lastTheta && manilaDateOf(lastTheta.recordedAt) === today) {
-            await db.thetaHistory.update({
-                where: { id: lastTheta.id },
-                data: { theta: updatedTheta },
-            });
+            await db.thetaHistory.update({ where: { id: lastTheta.id }, data: { theta: updatedTheta } });
         } else {
             await db.thetaHistory.create({ data: { userId, theta: updatedTheta } });
         }
@@ -372,12 +392,12 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         // First-ever row for a subject seeds from the global posterior.
         const bySubject = groupPairsBySubject(gradedForTheta);
         for (const [subject, subjectPairs] of Object.entries(bySubject)) {
-            const existing = await db.userAbility.findUnique({
+            const existingAbility = await db.userAbility.findUnique({
                 where: { userId_subject: { userId, subject } },
                 select: { theta: true, se: true },
             });
-            const subjectPrior = existing
-                ? { theta: existing.theta, se: existing.se }
+            const subjectPrior = existingAbility
+                ? { theta: existingAbility.theta, se: existingAbility.se }
                 : { theta: user?.thetaRating ?? 0, se: user?.standardError ?? 1.0 };
             const subjectEst = updateTheta(subjectPrior, subjectPairs);
             await db.userAbility.upsert({
@@ -386,18 +406,38 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 create: { userId, subject, theta: subjectEst.theta, se: subjectEst.se },
             });
         }
-    });
+    };
 
-    // One choke point for cache freshness: every write surface funnels
-    // through recordAttempts (telemetry-bulk, exams/grade, exams/submit,
-    // battle-submit), so neither the dashboard NOR the readiness score serves a
-    // stale payload after ANY kind of session. readinessCache was never busted
-    // here, so /api/readiness lagged the dashboard by up to 60s post-session.
+    for (const rows of chunkRows(mapped, ATTEMPT_CHUNK_SIZE)) {
+        await prisma.$transaction(async (db) => { await runChunk(db, rows); }, TX_OPTS);
+    }
+
+    // One choke point for cache freshness: every write surface funnels through
+    // recordAttempts (telemetry-bulk, exams/grade, exams/submit, battle-submit),
+    // so neither the dashboard NOR the readiness score serves a stale payload
+    // after ANY kind of session. readinessCache was never busted here, so
+    // /api/readiness lagged the dashboard by up to 60s post-session.
     dashboardCache.invalidate(userId);
     readinessCache.invalidate(userId);
 
+    // Pure replay across every chunk: grade from the master answers but leave
+    // every aggregate untouched, and report the user's CURRENT theta so clients
+    // don't clobber their local value with null.
+    if (!sawAnyWrite) {
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { thetaRating: true } });
+        return {
+            written: 0,
+            received: attempts.length,
+            skipped,
+            deduped: dedupedCount,
+            updatedTheta: user?.thetaRating ?? null,
+            sessionId: resolvedSessionId,
+            graded: mapped.map((m) => ({ questionId: m.questionId, isCorrect: m.isCorrect })),
+        };
+    }
+
     return {
-        written: newOnly.length,
+        written: writtenCount,
         received: attempts.length,
         skipped,
         deduped: dedupedCount,

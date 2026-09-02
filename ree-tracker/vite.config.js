@@ -1,10 +1,43 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(async () => ({
+export default defineConfig(async ({ mode, command }) => {
+  // VITE_* values are INLINED at build time, so a missing VITE_BACKEND_URL does
+  // not fail — it silently ships a production bundle pointing at
+  // http://localhost:5000. Every request then dies as a mixed-content or
+  // connection error, the circuit breaker trips, and the app reports itself as
+  // "[OFFLINE]" with nothing anywhere indicating it is a configuration problem.
+  //
+  // Fail the build instead. A red deploy naming the missing variable is far
+  // cheaper than a green deploy of an app that cannot reach its API.
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  if (command === 'build' && mode === 'production' && !env.VITE_BACKEND_URL) {
+    throw new Error(
+      'VITE_BACKEND_URL is not set. A production build without it inlines '
+      + 'http://localhost:5000 as the API origin and ships an app that cannot '
+      + 'reach its backend. Set it in the Vercel project environment.',
+    );
+  }
+
+  return {
+  // @ree/shared holds the business rules that must agree with the API (verdict
+  // bands, subject naming, syllabus weights, Manila day bucketing). It is a
+  // linked workspace package authored in CommonJS so the CJS backend can
+  // require() it with no build step.
+  //
+  // Vite treats linked workspace packages as SOURCE and does not pre-bundle them
+  // by default, which would leave `module.exports` unhandled in the browser
+  // build. Listing it here forces esbuild to convert it to ESM, so named imports
+  // resolve in dev, in vitest, and in the production bundle alike.
+  optimizeDeps: {
+    include: ['@ree/shared'],
+  },
+  ssr: {
+    noExternal: ['@ree/shared'],
+  },
   // Vitest config. Default environment is jsdom so React component tests can
   // mount; pure-function suites can opt back to node via a per-file
   // `// @vitest-environment node` pragma if they want the speed (but jsdom
@@ -150,4 +183,5 @@ export default defineConfig(async () => ({
       }
     })
   ],
-}));
+  };
+});

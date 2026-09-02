@@ -1,36 +1,15 @@
 // src/utils/manilaDate.js
-// Single source of truth for Asia/Manila calendar-day bucketing, backend-wide.
-// Mirrors ree-tracker/src/utils/manilaDate.js (the frontend counterpart) so
-// "today" means the same thing in both places.
+// Asia/Manila calendar-day bucketing for the backend.
 //
-// Three modules (telemetryService, analyticsDeepRoutes, readinessRoutes) used
-// to each declare their own `MANILA_FMT` — harmless on its own, but it meant
-// there was no single place to fix when the raw-SQL sibling bug (below) was
-// found. Collapsed onto this file so there's exactly one Manila-day
-// implementation to reason about.
+// The three JS-side helpers now come from @ree/shared, so "today" cannot mean
+// two different things in the two packages. Each side used to own its own Intl
+// formatter; they agreed, but nothing enforced it — and the locale (en-CA, which
+// yields the ISO-like YYYY-MM-DD shape) and the zone are both load-bearing.
+//
+// manilaDaySql stays HERE, deliberately. It depends on Prisma.sql, and the bug
+// it encodes has no client equivalent, so it is not shared code.
 const { Prisma } = require('@prisma/client');
-
-const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
-
-// YYYY-MM-DD in Manila time (en-CA locale yields the ISO-like shape). Safe to
-// call on a genuine JS Date/instant — Prisma Client always hands back real
-// UTC instants for DateTime columns, so Intl's timeZone conversion is correct
-// here even though the column itself is a naive `timestamp` (see manilaDaySql
-// below for why the RAW-SQL equivalent is not this simple).
-function todayManila() {
-    return MANILA_FMT.format(new Date());
-}
-
-// Manila "yesterday". Manila is a fixed UTC+8 with no DST, so subtracting a
-// flat 24h is always correct (no spring-forward/fall-back edge cases).
-function yesterdayManila() {
-    return MANILA_FMT.format(new Date(Date.now() - 86400000));
-}
-
-// Manila calendar date of an arbitrary Date/instant.
-function manilaDateOf(d) {
-    return MANILA_FMT.format(d instanceof Date ? d : new Date(d));
-}
+const { todayManila, yesterdayManila, manilaDateOf } = require('@ree/shared');
 
 // Manila calendar-day bucketing expression for use INSIDE a $queryRaw tagged
 // template, e.g.:

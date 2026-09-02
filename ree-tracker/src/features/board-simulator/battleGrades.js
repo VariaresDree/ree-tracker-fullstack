@@ -1,4 +1,6 @@
 // src/features/board-simulator/battleGrades.js
+import { deriveVerdict, toDisplaySubject } from '@ree/shared';
+
 // Post-battle grading: battles run with sanitized questions (no answer keys),
 // so the full diagnostics can only be computed once the server reveals the
 // key at battle-complete. Pure function — unit-tested without React.
@@ -17,7 +19,7 @@ export function computeBattleDiagnostics({ questions, answerKey, explanationKey 
     const isCorrect = q.userAnswer != null && q.userAnswer === answer;
     if (isCorrect) correct++;
 
-    const sKey = q.subject === 'Mathematics' ? 'Math' : q.subject;
+    const sKey = toDisplaySubject(q.subject);
     if (subjBreakdown[sKey]) {
       subjBreakdown[sKey].t += 1;
       if (isCorrect) subjBreakdown[sKey].c += 1;
@@ -39,13 +41,15 @@ export function computeBattleDiagnostics({ questions, answerKey, explanationKey 
 
   const totalItems = mappedQuestions.length;
   const score = totalItems > 0 ? Math.round((correct / totalItems) * 100) : 0;
-  const verdict = score >= 70 ? 'PASSED' : (score >= 60 ? 'CONDITIONAL PASS' : 'FAILED');
 
   const subjectScores = {
     Math: subjBreakdown.Math.t > 0 ? Math.round((subjBreakdown.Math.c / subjBreakdown.Math.t) * 100) : null,
     ESAS: subjBreakdown.ESAS.t > 0 ? Math.round((subjBreakdown.ESAS.c / subjBreakdown.ESAS.t) * 100) : null,
     EE: subjBreakdown.EE.t > 0 ? Math.round((subjBreakdown.EE.c / subjBreakdown.EE.t) * 100) : null,
   };
+
+  // ONE definition, shared with the API (@ree/shared).
+  const verdict = deriveVerdict(score, subjectScores);
 
   return {
     mappedQuestions,

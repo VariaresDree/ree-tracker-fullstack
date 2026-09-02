@@ -1,5 +1,6 @@
 // src/components/HeatmapChart.jsx
 import React, { useState, useMemo } from 'react';
+import { toDisplaySubject } from '@ree/shared';
 import { useStore } from '../store/useStore';
 import { Panel } from './ui';
 import { Flame, Timer, Target } from './ui/icons';
@@ -15,7 +16,11 @@ function HeatmapChart({ stats }) {
   // BKT P(mastery) is the headline signal (roadmap 3.5) — default view.
   const [viewMode, setViewMode] = useState('mastery');
 
-  const { dynamicTOS } = useStore();
+  // Narrow selector, not `useStore()`. Zustand v5 compares the whole state
+  // object with Object.is and every set() produces a new one, so subscribing to
+  // the root re-rendered this component on EVERY recordAttempt, syncStatus flip
+  // and syncQueue push — and this one sits on the Dashboard.
+  const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
   const microTopics = stats?.microTopics || {};
 
@@ -90,7 +95,7 @@ function HeatmapChart({ stats }) {
                   : 'bg-surface2/40 border-border text-muted hover:text-textMain'
               }`}
             >
-              {subj === 'Mathematics' ? 'Math' : subj}
+              {toDisplaySubject(subj)}
             </button>
           );
         })}

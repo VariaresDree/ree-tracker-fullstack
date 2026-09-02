@@ -7,9 +7,11 @@ import {
   fetchMultiplayerBattle, fetchSyllabusWeights, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
+import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
 import { computeBattleDiagnostics } from './battleGrades';
+import { deriveVerdict, toDisplaySubject } from '@ree/shared';
 import toast from 'react-hot-toast';
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
@@ -70,6 +72,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         answers: currentAnswersRef.current,
         confidences: currentConfidencesRef.current,
         currentIndex: currentIndexRef.current,
+        // Per-question timing MUST be part of the draft. Without it a resumed
+        // exam submitted every pre-crash item with the hardcoded 10s fallback,
+        // poisoning per-topic speed averages, "avg time / question" and the
+        // chrono-anomaly detector. The Gauntlet draft has always carried this.
+        timeSpent: { ...timeSpentPerQuestion.current },
         totalExamTime: totalExamTime.current,
         endTime: endTimeRef.current,
         bookmarks: Array.from(bookmarksRef.current || []),
@@ -268,8 +275,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setBookmarks(new Set(bm));
       bookmarksRef.current = new Set(bm);
 
+      timeSpentPerQuestion.current = parsed.timeSpent || {};
+
       lastActiveTime.current = Date.now();
-      localStorage.removeItem('ree_sim_cache');
+      // The draft is deliberately NOT deleted here. Deleting on resume left a
+      // window (until the next autosave) where a second crash lost the entire
+      // exam. It is cleared only once the attempts are durably synced or
+      // queued, at the end of submitExam. The Gauntlet resume path does the
+      // same, for the same reason.
       setHasSavedSession(false);
       toast.success("Matrix restored. Resuming simulation.");
     } catch (_) {
@@ -351,9 +364,12 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     const loadingToastId = toast.loading("Transmitting telemetry to Assessment Core...");
 
     try {
-        localStorage.removeItem('ree_sim_cache');
-        setHasSavedSession(false);
-
+        // NOTE: the draft in localStorage is intentionally left in place until
+        // the attempts are durably synced or queued (see the end of this try
+        // block). Clearing it here meant a non-network failure — a 500, a 401,
+        // a malformed response — discarded the draft AND the in-memory attempt
+        // payload, losing a full board exam with a toast that claimed results
+        // were "saved locally".
         const now = Date.now();
         timeSpentPerQuestion.current[currentIndex] = (timeSpentPerQuestion.current[currentIndex] || 0) + (now - lastActiveTime.current);
         endTimeRef.current = null; 
@@ -409,7 +425,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             const isCorrect = finalAns[idx] === q.answer;
             if (isCorrect) correct++;
 
-            let sKey = q.subject === 'Mathematics' ? 'Math' : q.subject;
+            let sKey = toDisplaySubject(q.subject);
             if (subjBreakdown[sKey]) {
                 subjBreakdown[sKey].t += 1;
                 if (isCorrect) subjBreakdown[sKey].c += 1;
@@ -430,7 +446,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 // Date.now() - lastActiveTime). The old `* 1000` inflated it 1000×,
                 // so every attempt recorded ~hours and poisoned the per-question
                 // time averages / Speed Mapping. Send the raw ms; 10s fallback.
-                timeSpentMs: Math.round(timeSpent[idx]) || 10000,
+                // 0, not a fabricated 10000. A missing timing is missing data;
+                // the server's plausibility band already excludes sub-500ms
+                // values from time aggregates, so 0 is correctly ignored rather
+                // than silently inventing a 10-second answer.
+                timeSpentMs: Math.round(timeSpent[idx]) || 0,
                 clientAttemptId: `${sessionId}:${q.id}`,
             };
         });
@@ -454,18 +474,34 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                             ...useStore.getState().stats,
                             ...freshProfile.data.profile,
                             activityCalendar: freshProfile.data.activityCalendar,
-                            microTopics: freshProfile.data.microTopics,
+                            // normalizeMicroTopics, not the raw server shape.
+                            // The server sends totalAttempts/correctHits/
+                            // totalTimeSecs keyed by `Subject_Subtopic`; the
+                            // client reads attempts/correct/totalTime keyed by
+                            // subtopic. Writing the raw shape straight into
+                            // stats made "Global accuracy" render 0% and blanked
+                            // every heatmap tile immediately after finishing an
+                            // exam, and mergeServerIntoStats then treated the
+                            // unmatched keys as local-only and kept them forever.
+                            microTopics: normalizeMicroTopics(freshProfile.data.microTopics, useStore.getState().dynamicTOS),
                             matrix: freshProfile.data.matrix
                         });
                     }
                 } catch (syncError) {
                     console.warn("Cloud Sync Failed", syncError);
+                    // EVERY failure defers to the durable outbox — not just the
+                    // [OFFLINE] sentinel. The old else-branch merely showed a
+                    // toast, so a 500/401/parse error dropped the whole exam's
+                    // telemetry on the floor: the draft was already deleted and
+                    // attemptsPayload was a local const that got collected.
+                    // queuePendingWrite is IndexedDB-backed, so a queued batch
+                    // survives a reload and replays with its original
+                    // clientAttemptIds (exactly-once on the server).
+                    useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                     if (syncError?.message === '[OFFLINE]') {
-                        // Circuit breaker tripped despite navigator.onLine — defer.
-                        useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                         toast('Offline — exam queued; analytics will sync on reconnect.', { icon: '📡' });
                     } else {
-                        toast.error(`Telemetry sync failed: ${syncError?.message || 'unknown'}. Results saved locally.`);
+                        toast('Sync deferred — exam saved and queued; it will retry automatically.', { icon: '📡' });
                     }
                 }
             } else {
@@ -477,14 +513,21 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         }
 
         const score = Math.round((correct / finalQs.length) * 100);
-        const verdict = score >= 70 ? 'PASSED' : (score >= 60 ? 'CONDITIONAL PASS' : 'FAILED');
         const timeTakenActual = totalExamTime.current - timeRemaining;
 
+        // Computed BEFORE the verdict now: the PRC rule needs the per-subject
+        // spread, not just the average. Subjects the exam never asked about stay
+        // null and are left UNRATED rather than scored as zero.
         const subjectScores = {
             Math: subjBreakdown.Math.t > 0 ? Math.round((subjBreakdown.Math.c / subjBreakdown.Math.t) * 100) : null,
             ESAS: subjBreakdown.ESAS.t > 0 ? Math.round((subjBreakdown.ESAS.c / subjBreakdown.ESAS.t) * 100) : null,
             EE: subjBreakdown.EE.t > 0 ? Math.round((subjBreakdown.EE.c / subjBreakdown.EE.t) * 100) : null
         };
+
+        // ONE definition, shared with the API (@ree/shared). This line used to
+        // band CONDITIONAL PASS at >= 60 while the server stored it at >= 50, so
+        // a 55% exam showed FAILED here and CONDITIONAL PASS in history.
+        const verdict = deriveVerdict(score, subjectScores);
 
         const mappedQuestions = finalQs.map((q, idx) => ({ ...q, userAnswer: finalAns[idx] || null, userConf: finalConf[idx] || 'HIGH' }));
 
@@ -507,6 +550,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             date: new Date().toISOString(), score, verdict, subjectScores,
             mode: config.mode, targetSubject: config.subject, totalQs: finalQs.length, timeTaken: timeTakenActual
         });
+
+        // Only NOW is the draft safe to drop: the attempts are either synced or
+        // sitting in the IndexedDB-backed outbox, and the score summary is
+        // persisted. If anything above threw, we fall into catch with the draft
+        // still on disk and the Resume affordance still available.
+        try {
+            localStorage.removeItem('ree_sim_cache');
+            setHasSavedSession(false);
+        } catch (_) { /* storage unavailable — nothing left to protect */ }
 
         toast.success('Simulation telemetry verified and saved.', { id: loadingToastId });
 
@@ -587,7 +639,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     setSession(prev => {
       if (!prev.isFinished || !prev.diagnostics?.pending) return prev;
       const pct = total > 0 ? Math.round((score / total) * 100) : 0;
-      const verdict = pct >= 70 ? 'PASSED' : (pct >= 60 ? 'CONDITIONAL PASS' : 'FAILED');
+      // No per-subject breakdown is available yet at this point in a battle —
+      // the full key arrives at battle-complete — so only the general average
+      // can be judged. applyBattleGrades recomputes with the subject spread.
+      const verdict = deriveVerdict(pct);
       return {
         ...prev, score: pct, verdict,
         diagnostics: { ...prev.diagnostics, score: pct, verdict, correctItems: score },

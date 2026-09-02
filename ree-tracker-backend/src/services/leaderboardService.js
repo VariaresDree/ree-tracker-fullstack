@@ -81,7 +81,35 @@ function buildEntries(users, stats = {}, now = new Date()) {
  * Cost per refresh = 1 findMany + 2 whole-table groupBys (constant, not per-user).
  * @returns {Promise<number|null>} row count written, or null on failure
  */
+// Single-flight guard. refreshLeaderboard is fired from the interval AND from
+// kickRefresh() on every stale observation in /me, / and /paginated — with no
+// guard, N concurrent stale requests launched N full rebuilds, each running two
+// whole-table groupBys and each contending on the same LeaderboardEntry rows in
+// its own transaction. The moment the snapshot fell behind, load amplified
+// instead of recovering. Callers now share one in-flight rebuild.
+let inFlightRefresh = null;
+
+// Consecutive failures. Every failure used to be swallowed at warn level and
+// return null, so a permanently-failing refresh was indistinguishable from a
+// healthy one — the routes just quietly served the live fallback forever.
+let consecutiveFailures = 0;
+
+// Last time a request actually asked for leaderboard data. The interval rebuild
+// used to run every 45 seconds forever whether or not anyone was looking, which
+// on an idle instance is a repeating full scan of the entire attempt table.
+let lastDemandAt = 0;
+function noteLeaderboardDemand() {
+    lastDemandAt = Date.now();
+}
+
 async function refreshLeaderboard() {
+    // Join the in-flight rebuild rather than starting a second one.
+    if (inFlightRefresh) return inFlightRefresh;
+    inFlightRefresh = doRefresh().finally(() => { inFlightRefresh = null; });
+    return inFlightRefresh;
+}
+
+async function doRefresh() {
     try {
         const [users, dayRows, attemptRows] = await Promise.all([
             prisma.user.findMany({ select: USER_SELECT }),
@@ -103,9 +131,18 @@ async function refreshLeaderboard() {
             prisma.leaderboardEntry.deleteMany({}),
             prisma.leaderboardEntry.createMany({ data: entries }),
         ]);
+        consecutiveFailures = 0;
         return entries.length;
     } catch (err) {
-        logger.warn('leaderboard refresh failed — keeping previous snapshot', { error: err.message });
+        consecutiveFailures += 1;
+        // Escalate once this stops looking like a blip. A silently-failing
+        // refresh means every leaderboard request falls back to a live per-user
+        // aggregate forever, which is both slower and invisible.
+        const log = consecutiveFailures >= 3 ? logger.error : logger.warn;
+        log.call(logger, 'leaderboard refresh failed — keeping previous snapshot', {
+            error: err.message,
+            consecutiveFailures,
+        });
         return null;
     }
 }
@@ -121,7 +158,15 @@ function startLeaderboardRefresh(intervalMs = Number(process.env.LEADERBOARD_REF
     refreshLeaderboard().then((n) => {
         if (n != null) logger.info('leaderboard snapshot built', { entries: n });
     });
-    refreshTimer = setInterval(refreshLeaderboard, intervalMs);
+    // Demand-gated: rebuild on the interval only if someone has asked for
+    // leaderboard data within the last few cycles. An idle instance no longer
+    // runs an unfiltered groupBy over the whole QuestionAttempt table every 45
+    // seconds in perpetuity.
+    const idleAfterMs = intervalMs * 4;
+    refreshTimer = setInterval(() => {
+        if (Date.now() - lastDemandAt > idleAfterMs) return;
+        refreshLeaderboard();
+    }, intervalMs);
     // Don't hold the process open for the timer (tests, graceful shutdown).
     if (typeof refreshTimer.unref === 'function') refreshTimer.unref();
     return refreshTimer;
@@ -137,6 +182,7 @@ module.exports = {
     buildEntries,
     refreshLeaderboard,
     startLeaderboardRefresh,
+    noteLeaderboardDemand,
     isStale,
     ACTIVE_WINDOW_MS,
     STALE_AFTER_MS,

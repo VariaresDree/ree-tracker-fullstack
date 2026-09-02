@@ -2,12 +2,17 @@
 // Pure helpers behind /api/analytics/deep/study-time and /score-progression,
 // extracted so the Manila day-keying and score math are unit-testable.
 
-// PASS thresholds mirror examRoutes' verdict computation (70% pass, 60% conditional).
-function deriveVerdict(pct) {
-    if (pct >= 70) return 'PASSED';
-    if (pct >= 60) return 'CONDITIONAL PASS';
-    return 'FAILED';
-}
+// The verdict rule lives in @ree/shared, shared with the client. This file used
+// to carry its own copy banding at >= 60 while examRoutes banded at >= 50, and
+// the comment claimed the two "mirror" each other. They did not: the same exam
+// rendered FAILED on the results screen and CONDITIONAL PASS in history.
+//
+// Per-subject scores are not available on a persisted ExamSession row (only the
+// aggregate score/totalQuestions), so the subject floor cannot be re-evaluated
+// here. Sessions finalised by /exams/submit carry their stored verdict, which WAS
+// computed with the floor; this fallback is only for rows the telemetry upsert
+// created and never finalised.
+const { deriveVerdict } = require('@ree/shared');
 
 /**
  * Score History rows. Only real exam surfaces count (Board Sim / Gauntlet —

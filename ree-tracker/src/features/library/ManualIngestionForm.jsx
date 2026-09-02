@@ -10,7 +10,7 @@ export default function ManualIngestionForm({
     isSubmitting = false
 }) {
     // 🚀 Connect the dropdowns directly to the cloud-synced Dynamic TOS
-    const { dynamicTOS } = useStore();
+    const dynamicTOS = useStore((s) => s.dynamicTOS);
 
     // Safety fallback in case the store hasn't populated yet
     const safeTOS = dynamicTOS || {};

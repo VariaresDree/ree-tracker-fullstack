@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { validate } = require('../middlewares/validate');
-const { plannerTaskCreateSchema, plannerTaskUpdateSchema } = require('../schemas/plannerSchemas');
+const { plannerTaskCreateSchema, plannerTaskUpdateSchema, plannerGenerateSchema } = require('../schemas/plannerSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { todayManila } = require('../utils/manilaDate');
@@ -10,7 +10,10 @@ const { todayManila } = require('../utils/manilaDate');
 // Get all planner tasks for user
 router.get('/tasks', authMiddleware, async (req, res) => {
     try {
+        // Capped: generate-plan can create thousands of rows in one call, and
+        // this endpoint returned all of them.
         const tasks = await prisma.plannerTask.findMany({
+            take: 1000,
             where: { userId: req.user.id },
             orderBy: [{ completed: 'asc' }, { createdAt: 'desc' }]
         });
@@ -65,6 +68,24 @@ router.put('/tasks/:id', authMiddleware, validate(plannerTaskUpdateSchema), asyn
 });
 
 // Delete a planner task
+// REGISTERED BEFORE /tasks/:id ON PURPOSE. Express matches in registration
+// order and :id is a single-segment param that happily matches the literal
+// string "clear-plan" — so with the old ordering every
+// DELETE /api/user/tasks/clear-plan hit the :id handler, ran
+// plannerTask.delete({ where: { id: "clear-plan" } }), threw P2025 and
+// returned 404. The handler below was unreachable, so the client's
+// "regenerate plan" flow never cleared anything and generate-plan appended
+// a duplicate set of tasks on every regeneration.
+// Clear all auto-generated plan tasks (for regeneration)
+router.delete('/tasks/clear-plan', authMiddleware, async (req, res) => {
+    try {
+        const result = await prisma.plannerTask.deleteMany({
+            where: {
+                userId: req.user.id,
+                text: { startsWith: '[' }
+            }
+        });
+
 router.delete('/tasks/:id', authMiddleware, async (req, res) => {
     try {
         await prisma.plannerTask.delete({
@@ -81,7 +102,7 @@ router.delete('/tasks/:id', authMiddleware, async (req, res) => {
 });
 
 // Auto-generate study plan from exam date and mastery data
-router.post('/tasks/generate-plan', authMiddleware, async (req, res) => {
+router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSchema), async (req, res) => {
     try {
         const { examDate, topics } = req.body;
 
@@ -102,7 +123,12 @@ router.post('/tasks/generate-plan', authMiddleware, async (req, res) => {
         const endDate = new Date(examDate);
         endDate.setUTCHours(0, 0, 0, 0);
 
-        const totalDays = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+        // Bounded horizon. The schema already rejects an unparseable examDate, so
+        // this is purely a ceiling on how far ahead a plan may reach — an exam
+        // date of 9999-12-31 would otherwise ask for millions of days.
+        const MAX_PLAN_DAYS = 400;
+        const rawDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+        const totalDays = Math.min(MAX_PLAN_DAYS, Math.max(1, rawDays));
 
         // Fetch user's weak areas to prioritize
         const subtopicPerf = await prisma.questionAttempt.groupBy({
@@ -174,15 +200,6 @@ router.post('/tasks/generate-plan', authMiddleware, async (req, res) => {
     }
 });
 
-// Clear all auto-generated plan tasks (for regeneration)
-router.delete('/tasks/clear-plan', authMiddleware, async (req, res) => {
-    try {
-        const result = await prisma.plannerTask.deleteMany({
-            where: {
-                userId: req.user.id,
-                text: { startsWith: '[' }
-            }
-        });
         res.status(200).json({ success: true, deleted: result.count });
     } catch (error) {
         logger.error('Clear plan error', { error: error.message, stack: error.stack });

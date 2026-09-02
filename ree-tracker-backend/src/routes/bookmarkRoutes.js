@@ -11,6 +11,7 @@ router.get('/', authMiddleware, async (req, res) => {
         const cursor = req.query.cursor;
 
         const bookmarks = await prisma.bookmark.findMany({
+            take: 1000,
             where: { userId: req.user.id },
             include: {
                 question: {

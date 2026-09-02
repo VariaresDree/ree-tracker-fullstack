@@ -27,7 +27,7 @@ const PROFILES = [
 ];
 
 export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine }) {
-  const { dynamicTOS } = useStore();
+  const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
   const isOnline = useNetworkStatus();
   const [showNewExamGuard, setShowNewExamGuard] = useState(false);

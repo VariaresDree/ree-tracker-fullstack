@@ -27,7 +27,7 @@ export default function VaultDataGrid({
   ];
 
   // 🚀 Replaced static import with dynamicTOS from your store
-  const { dynamicTOS } = useStore();
+  const dynamicTOS = useStore((s) => s.dynamicTOS);
 
   const [showOnlyFlagged, setShowOnlyFlagged] = useState(false);
   const [adminFlaggedQs, setAdminFlaggedQs] = useState([]);

@@ -81,13 +81,16 @@ async function ensureAnswerKey(lobby, battleId) {
     if (lobby.answerKey) return lobby.answerKey;
     const battle = await prisma.battle.findUnique({
         where: { id: battleId },
-        select: { questions: true, timeLimitSecs: true },
+        select: { questions: true, timeLimitSecs: true, startedAt: true },
     });
     if (!battle || !Array.isArray(battle.questions)) return null;
     lobby.answerKey = buildAnswerKey(battle.questions);
     lobby.explanationKey = buildExplanationKey(battle.questions);
     lobby.questionCount = battle.questions.length;
     lobby.timeLimitSecs = battle.timeLimitSecs;
+    // Restored too — without it every post-restart submit was timed at 0s and
+    // the score-tie placement (which feeds Elo) became arbitrary.
+    if (!lobby.startedAt && battle.startedAt) lobby.startedAt = battle.startedAt.getTime();
     return lobby.answerKey;
 }
 
@@ -182,6 +185,10 @@ function setupBattleSocket(io) {
 
         socket.on('start-battle', async ({ battleId } = {}) => {
             if (!battleId) return;
+            // Was unthrottled: a flood of start-battle for a battle the caller
+            // hosts issued two DB round-trips per emit with no limiter and no
+            // HTTP rate limit on the namespace.
+            if (rateLimited(socket)) return;
 
             try {
                 const battle = await prisma.battle.findUnique({ where: { id: battleId } });
@@ -190,13 +197,15 @@ function setupBattleSocket(io) {
                     return socket.emit('error', { message: 'Only the host can start the battle' });
                 }
 
-                await prisma.battle.update({
-                    where: { id: battleId },
-                    data: { status: 'IN_PROGRESS' }
-                });
-
                 const lobby = getLobby(battleId);
                 lobby.startedAt = Date.now();
+
+                await prisma.battle.update({
+                    where: { id: battleId },
+                    // startedAt is persisted so a restart or eviction mid-battle
+                    // doesn't zero every participant's elapsed time.
+                    data: { status: 'IN_PROGRESS', startedAt: new Date(lobby.startedAt) }
+                });
 
                 battleNs.to(battleId).emit('battle-started', {
                     startedAt: lobby.startedAt,
@@ -250,14 +259,36 @@ function setupBattleSocket(io) {
         });
 
         socket.on('battle-submit', async (payload) => {
+            // This is the most expensive handler in the process (findUnique,
+            // recordAttempts' transaction, findMany, and a transaction over N
+            // participants) and it was the only one with no limiter.
+            if (rateLimited(socket)) return;
+
             const parsed = battleSubmitSchema.safeParse(payload || {});
             if (!parsed.success) return;
             const { battleId, attempts: clientAttempts } = parsed.data;
 
             try {
-                const lobby = getLobby(battleId);
+                // Look up an EXISTING lobby — never getLobby-create here. This is
+                // the same hardening battle-answer already had: getLobby creates
+                // on miss and evicts at MAX_LOBBIES, whose LRU fallback drops a
+                // LIVE battle. So a client emitting battle-submit with random
+                // valid-format 6-char ids could flood the cache and wipe
+                // in-progress battles' scores and startedAt. battleSubmitSchema
+                // validates the id's FORMAT, not its existence.
+                const lobby = battleLobbies.get(battleId);
+                if (!lobby) return socket.emit('error', { message: 'Battle session expired' });
+                lobby.lastActivity = Date.now();
+
                 const participant = lobby.participants.get(socket.userId);
                 if (!participant || participant.finished) return; // double-submit guard
+
+                // A participant who joined while the battle was WAITING could
+                // submit before start-battle was ever emitted.
+                const state = await prisma.battle.findUnique({ where: { id: battleId }, select: { status: true } });
+                if (state?.status !== 'IN_PROGRESS') {
+                    return socket.emit('error', { message: 'Battle is not in progress' });
+                }
 
                 const answerKey = await ensureAnswerKey(lobby, battleId);
                 if (!answerKey) {
