@@ -240,11 +240,20 @@ model ExamSession {
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempts       QuestionAttempt[]
 
-  // Lets telemetryService upsert a session scoped to its OWNER. The upsert used
-  // to key on `id` alone, so a client-supplied sessionId that happened to match
-  // another user's row took the UPDATE branch and incremented THEIR score,
-  // question count and time — and parented the attempts to their session.
-  @@unique([id, userId])
+  // NOTE: there is deliberately NO @@unique([id, userId]) here.
+  //
+  // Owner-scoping the session write does not need one — `id` is already the
+  // primary key, so (id, userId) is trivially unique and the constraint would
+  // add nothing. `prisma db push` cannot reason about that: it sees "adding a
+  // unique constraint" and refuses the whole deploy with a data-loss warning,
+  // which would have to be waved through with --accept-data-loss. Taking that
+  // flag to satisfy a redundant constraint is exactly the pressure the
+  // migrations README warns about, and it would then apply to every future
+  // push.
+  //
+  // telemetryService scopes the write with an owner-filtered updateMany plus a
+  // create fallback instead, which gives the same protection with no schema
+  // change at all.
   @@index([userId, createdAt])
 }
 

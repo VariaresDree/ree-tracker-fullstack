@@ -35,7 +35,16 @@ function makeTxClient(calls) {
             findMany: () => Promise.resolve([]),          // nothing deduped
             createMany: (args) => { calls.push({ name: 'questionAttempt.createMany', args }); return Promise.resolve({ count: args.data.length }); },
         },
-        examSession: { upsert: rec('examSession.upsert') },
+        examSession: {
+            // Mirrors the real shape: an owner-filtered updateMany, and a create
+            // only when it matched nothing. `count: 0` is the interesting case —
+            // a session id that does not belong to this user.
+            updateMany: (args) => {
+                calls.push({ name: 'examSession.updateMany', args });
+                return Promise.resolve({ count: examSessionUpdateCount });
+            },
+            create: rec('examSession.create'),
+        },
         activityLog: {
             findUnique: () => Promise.resolve(null),      // first activity today
             upsert: rec('activityLog.upsert'),
@@ -49,10 +58,14 @@ function makeTxClient(calls) {
 
 let calls;
 let txCount;
+// How many rows the owner-scoped updateMany matches. 0 = the session does not
+// belong to this caller (or does not exist yet), which is what drives the create.
+let examSessionUpdateCount;
 
 beforeEach(() => {
     calls = [];
     txCount = 0;
+    examSessionUpdateCount = 0;
 
     vi.spyOn(prisma.question, 'findMany').mockResolvedValue([
         { id: 'q1', answer: 'A', difficulty: 1, subject: 'EE', subtopic: 'AC Electric Circuits', irtA: 1, irtB: 0, irtC: 0.2 },
@@ -75,24 +88,45 @@ const oneAttempt = (sessionId) => ({
 });
 
 describe('ExamSession ownership', () => {
-    it('scopes the upsert by (id, userId), never by id alone', async () => {
+    it('carries userId in the update predicate, never keys on id alone', async () => {
         await recordAttempts(oneAttempt('sess-belonging-to-someone-else'));
 
-        const upsert = calls.find((c) => c.name === 'examSession.upsert');
-        expect(upsert).toBeDefined();
+        const update = calls.find((c) => c.name === 'examSession.updateMany');
+        expect(update).toBeDefined();
 
-        // The whole point: a foreign session id must MISS rather than match and
-        // take the UPDATE branch.
-        expect(upsert.args.where).toEqual({
-            id_userId: { id: 'sess-belonging-to-someone-else', userId: USER },
+        // The whole point: a foreign session id must MATCH NOTHING rather than
+        // take an update branch and increment another user's score.
+        expect(update.args.where).toEqual({
+            id: 'sess-belonging-to-someone-else',
+            userId: USER,
         });
-        expect(upsert.args.where.id).toBeUndefined();
-        expect(upsert.args.create.userId).toBe(USER);
+    });
+
+    it('creates the session, owned by the caller, when the update matches nothing', async () => {
+        examSessionUpdateCount = 0;
+        await recordAttempts(oneAttempt('sess-new'));
+
+        const create = calls.find((c) => c.name === 'examSession.create');
+        expect(create).toBeDefined();
+        expect(create.args.data.userId).toBe(USER);
+        // A session id owned by SOMEONE ELSE lands here too — and fails on the
+        // primary key, which is the correct outcome: reject the batch rather
+        // than corrupt their exam history.
+        expect(create.args.data.id).toBe('sess-new');
+    });
+
+    it('does NOT create when the owner-scoped update already applied', async () => {
+        examSessionUpdateCount = 1;
+        await recordAttempts(oneAttempt('sess-mine'));
+
+        expect(calls.find((c) => c.name === 'examSession.updateMany')).toBeDefined();
+        expect(calls.find((c) => c.name === 'examSession.create')).toBeUndefined();
     });
 
     it('writes no session at all when none was supplied', async () => {
         await recordAttempts({ ...oneAttempt(null), sessionId: null });
-        expect(calls.find((c) => c.name === 'examSession.upsert')).toBeUndefined();
+        expect(calls.find((c) => c.name === 'examSession.updateMany')).toBeUndefined();
+        expect(calls.find((c) => c.name === 'examSession.create')).toBeUndefined();
     });
 });
 
