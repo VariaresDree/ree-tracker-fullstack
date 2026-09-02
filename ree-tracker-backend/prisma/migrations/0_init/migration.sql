@@ -553,9 +553,6 @@ CREATE INDEX "QuestionVersion_reviewId_createdAt_idx" ON "QuestionVersion"("revi
 CREATE INDEX "ExamSession_userId_createdAt_idx" ON "ExamSession"("userId", "createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ExamSession_id_userId_key" ON "ExamSession"("id", "userId");
-
--- CreateIndex
 CREATE INDEX "QuestionAttempt_userId_createdAt_idx" ON "QuestionAttempt"("userId", "createdAt");
 
 -- CreateIndex

@@ -203,34 +203,51 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             // sessionId=null produced "current transaction is aborted" on the
             // very next statement. The chunk failed either way — letting it
             // propagate surfaces the real cause instead of a generic 500.
-            await db.examSession.upsert({
-                // Compound (id, userId) — NOT id alone. Keyed on id, a
-                // client-supplied sessionId that matched ANOTHER user's row took
-                // the UPDATE branch and incremented their score, question count
-                // and time, while the attempts written below were parented to
-                // their session via the FK. sessionId arrives straight from the
-                // request body, so this was a cross-tenant write.
-                //
-                // With the compound key a foreign id simply misses and takes the
-                // CREATE branch, which fails on the primary key rather than
-                // silently corrupting someone else's exam history.
-                where: { id_userId: { id: sessionId, userId } },
-                update: {
+            // OWNER-SCOPED, without needing a compound unique key.
+            //
+            // This used to be an upsert keyed on `id` alone. sessionId arrives
+            // straight from the request body, so a client-supplied id that
+            // matched ANOTHER user's row took the UPDATE branch and incremented
+            // their score, question count and time — while the attempts written
+            // below were parented to their session via the FK. A cross-tenant
+            // write.
+            //
+            // updateMany carries `userId` in its predicate, so a foreign id
+            // simply matches nothing. The create fallback then fails on the
+            // PRIMARY KEY, which is the correct outcome: reject the batch rather
+            // than silently corrupt someone else's exam history.
+            //
+            // Not an upsert on @@unique([id, userId]) because that constraint is
+            // redundant (id is already the PK) and `prisma db push` refuses to
+            // add any unique constraint without --accept-data-loss — a flag this
+            // deploy should not be carrying just to satisfy a no-op index.
+            //
+            // The two statements cannot race: the enclosing transaction has
+            // already taken SELECT … FOR UPDATE on this user, so concurrent
+            // batches for the same user are serialized.
+            const { count: sessionUpdated } = await db.examSession.updateMany({
+                where: { id: sessionId, userId },
+                data: {
                     score: { increment: batchCorrect },
                     totalQuestions: { increment: newOnly.length },
                     timeTakenSecs: { increment: batchTimeSecs },
                 },
-                create: {
-                    id: sessionId,
-                    userId,
-                    mode,
-                    targetSubject: batchTarget,
-                    score: batchCorrect,
-                    totalQuestions: newOnly.length,
-                    timeTakenSecs: batchTimeSecs,
-                    verdict: 'IN_PROGRESS',
-                },
             });
+
+            if (sessionUpdated === 0) {
+                await db.examSession.create({
+                    data: {
+                        id: sessionId,
+                        userId,
+                        mode,
+                        targetSubject: batchTarget,
+                        score: batchCorrect,
+                        totalQuestions: newOnly.length,
+                        timeTakenSecs: batchTimeSecs,
+                        verdict: 'IN_PROGRESS',
+                    },
+                });
+            }
             resolvedSessionId = sessionId;
         } else {
             resolvedSessionId = null;
