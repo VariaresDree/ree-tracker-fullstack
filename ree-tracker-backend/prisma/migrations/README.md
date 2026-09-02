@@ -25,14 +25,27 @@ indexes added in PR4).
 
 The production database **already contains this schema**, so `migrate deploy`
 would try to create tables that exist and fail. It has to be told the baseline is
-already applied, once:
+already applied, once.
+
+Use the guarded script rather than the raw Prisma command:
 
 ```bash
-npx prisma migrate resolve --applied 0_init
+npm run migrate:cutover
 ```
 
-Run that against production **once**, with `DATABASE_URL` pointing at it. Then
-change `render.yaml`'s build command from:
+`migrate resolve --applied` is an ASSERTION, not a check — it records the
+baseline without looking at the database. This database was built by successive
+`db push` runs over months, so any drift between it and `schema.prisma` would be
+baselined away silently and the next `migrate deploy` would fail on a mismatch
+that is very hard to diagnose afterwards. The script diffs production against the
+schema first and refuses to baseline unless they already agree, printing the
+exact outstanding DDL if they do not (the fix in that case is one final
+`npx prisma db push` to reconcile, then re-run).
+
+`npm run migrate:cutover:check` does the comparison and writes nothing.
+
+Run it with `DATABASE_URL` pointing at production. Then change `render.yaml`'s
+build command from:
 
 ```
 npm install && npx prisma generate && npx prisma db push
