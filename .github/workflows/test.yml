@@ -58,6 +58,12 @@ jobs:
       - name: Route auth-coverage guard
         run: node scripts/audit-route-auth.js
 
+      # Scans every git-TRACKED file in the repo, not just backend src: a
+      # credential can land anywhere. Enumerating via `git ls-files` means
+      # .gitignore is honoured for free.
+      - name: Committed-secret guard
+        run: node scripts/audit-secrets.js
+
   frontend:
     name: Frontend (vitest)
     runs-on: ubuntu-latest
