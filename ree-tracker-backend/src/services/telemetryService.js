@@ -17,6 +17,7 @@ const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimator
 const { resolveTopic } = require('./topicResolver');
 const dashboardCache = require('./dashboardCache');
 const readinessCache = require('./readinessCache');
+const forecastCache = require('./forecastCache');
 const logger = require('../utils/logger');
 
 // Canonical subject naming lives in one place now (utils/subject); kept aliased
@@ -436,6 +437,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     // /api/readiness lagged the dashboard by up to 60s post-session.
     dashboardCache.invalidate(userId);
     readinessCache.invalidate(userId);
+    forecastCache.invalidate(userId);
 
     // Pure replay across every chunk: grade from the master answers but leave
     // every aggregate untouched, and report the user's CURRENT theta so clients

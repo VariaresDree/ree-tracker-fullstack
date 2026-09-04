@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { buildForecast } = require('../engine/forecast');
+const forecastCache = require('../services/forecastCache');
 
 // GET /api/forecast — latest snapshot for the caller, or recompute on the fly.
 // Recomputes (in-memory) when the cached snapshot predates the user's most
@@ -11,6 +12,12 @@ const { buildForecast } = require('../engine/forecast');
 // instead of freezing on the first snapshot ever persisted.
 router.get('/', authMiddleware, async (req, res) => {
     try {
+        // The staleness test below is true for essentially any active learner,
+        // so this route used to recompute on almost every call — and then threw
+        // the result away. Cache first (services/forecastCache.js).
+        const cached = forecastCache.get(req.user.id);
+        if (cached) return res.status(200).json(cached);
+
         const [user, latest] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.user.id }, select: { lastActive: true } }),
             prisma.forecastSnapshot.findFirst({
@@ -20,10 +27,16 @@ router.get('/', authMiddleware, async (req, res) => {
         ]);
 
         const stale = latest && user?.lastActive && new Date(latest.createdAt) < new Date(user.lastActive);
-        if (latest && !stale) return res.status(200).json({ snapshot: latest, fresh: false });
+        if (latest && !stale) {
+            const body = { snapshot: latest, fresh: false };
+            forecastCache.set(req.user.id, body);
+            return res.status(200).json(body);
+        }
 
         const computed = await computeForUser(req.user.id);
-        return res.status(200).json({ snapshot: computed, fresh: true });
+        const body = { snapshot: computed, fresh: true };
+        forecastCache.set(req.user.id, body);
+        return res.status(200).json(body);
     } catch (error) {
         logger.error('forecast GET failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Forecast unavailable.' });
@@ -34,6 +47,8 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/recompute', authMiddleware, async (req, res) => {
     try {
         const snapshot = await computeForUser(req.user.id, { persist: true });
+        // An explicit recompute must not leave the GET serving the old value.
+        forecastCache.invalidate(req.user.id);
         return res.status(200).json({ snapshot });
     } catch (error) {
         logger.error('forecast recompute failed', { error: error.message, stack: error.stack });
