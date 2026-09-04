@@ -76,8 +76,15 @@ export default defineConfig(async ({ mode, command }) => {
           // LatexRenderer, which nearly every answering surface imports. Its
           // own chunk keeps it out of the shared vendor chunk on the home route.
           if (/[\\/](katex|react-markdown|remark-math|rehype-katex|micromark|mdast|hast|unist|property-information|space-separated-tokens|comma-separated-tokens)/.test(id)) return 'latex';
-          // PDF/screenshot export path — only loaded when a user exports.
-          if (id.includes('jspdf') || id.includes('html2canvas')) return 'pdf-export';
+          // NO manual chunk for the PDF/screenshot export path (jspdf,
+          // html2canvas). Naming a chunk here forces rolldown to emit it as a
+          // STATIC import of the entry, which cancels the `await import()` in
+          // pdfEngine/certificateEngine/examPaper and made index.html
+          // modulepreload 183 kB (606 kB raw) of export-only code on EVERY
+          // route. Verified against the deployed bundle: with this rule the
+          // entry contained `from"./pdf-export-*.js"`; without it the chunk
+          // leaves the preload list entirely and splits into two async chunks
+          // fetched only when a user actually exports.
           if (id.includes('motion')) return 'motion';
           return undefined;
         },

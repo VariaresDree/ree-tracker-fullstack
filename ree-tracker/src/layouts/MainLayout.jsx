@@ -42,7 +42,7 @@ const BOTTOM_NAV = [
 ];
 
 const ACTIVE_LINK =
-  'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent)]';
+  'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent-text)]';
 const IDLE_LINK = 'border-l-transparent text-textMain hover:bg-surface2';
 
 export default function MainLayout({ children }) {
@@ -208,7 +208,7 @@ export default function MainLayout({ children }) {
                           {!isSidebarCollapsed && (
                             <div className="flex flex-col min-w-0 ml-3">
                               <span className="text-sm font-semibold tracking-tight truncate">{item.label}</span>
-                              <span className={`text-[11px] mt-0.5 truncate ${on ? 'text-[color-mix(in_srgb,var(--accent)_75%,var(--text-muted2))]' : 'text-muted2'}`}>
+                              <span className={`text-[11px] mt-0.5 truncate ${on ? 'text-[color-mix(in_srgb,var(--accent-text)_75%,var(--text-muted2))]' : 'text-muted2'}`}>
                                 {item.desc}
                               </span>
                             </div>
@@ -280,7 +280,7 @@ export default function MainLayout({ children }) {
               onClick={(e) => handleNavClick(e, item.path)}
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium tracking-wide transition-colors ${
-                  isActive && item.path !== '/simulator' ? 'text-[var(--accent)]' : 'text-muted hover:text-textMain'
+                  isActive && item.path !== '/simulator' ? 'text-[var(--accent-text)]' : 'text-muted hover:text-textMain'
                 }`
               }
             >

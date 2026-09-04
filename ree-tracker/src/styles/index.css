@@ -94,6 +94,15 @@
   /* Editorial accent layer */
   --accent-velocity: #7c5cff;
   --accent: #7c5cff;
+  /* Accent as TEXT. Not interchangeable with --accent: the brand purple on
+     the 12%-accent active-nav tint measures 3.6:1, below the 4.5:1 AA floor
+     for body text. The share below is the most accent each theme can carry
+     and still clear 4.5:1 against its own tinted surface -- themes with
+     colourful mid-tone surfaces (math, ocean, forest) can hold far less than
+     the dark neutral ones. Backgrounds, borders and the large bold wordmark
+     keep plain --accent: large text needs only 3:1, which it already meets.
+     Recompute if --accent, --text-main or --text-muted2 change here. */
+  --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
   --accent-signal: #22d3ee;
   --accent-danger: #ff4d6d;
   --accent-success: #34d399;
@@ -113,6 +122,7 @@
   --text-muted2: #64748b;
   --border-main: rgba(0, 0, 0, 0.05);
   --border-light: rgba(0, 0, 0, 0.1);
+  --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
 }
 
 /* 3. MIDNIGHT (OLED PURE BLACK) */
@@ -129,6 +139,7 @@
   --text-muted2: #a1a1aa;
   --border-main: rgba(255, 255, 255, 0.05);
   --border-light: rgba(255, 255, 255, 0.1);
+  --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
 }
 
 /* 4. PAPER (WARM SEPIA) */
@@ -142,6 +153,7 @@
   --text-muted2: #92400e;
   --border-main: rgba(69, 26, 3, 0.1);
   --border-light: rgba(69, 26, 3, 0.2);
+  --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
 }
 
 /* 5. CYBERPUNK (NEON GRIT) */
@@ -157,6 +169,7 @@
   --border-light: #2dd4bf60;
   --brand-blue: #22d3ee;
   --brand-purple: #f472b6;
+  --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
 }
 
 /* 6. RETROWAVE (SYNTHWAVE NEON) */
@@ -173,6 +186,7 @@
   --border-light: rgba(34, 211, 238, 0.3);
   --brand-blue: #06b6d4;
   --brand-amber: #fbbf24;
+  --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
 }
 
 /* 7. FOREST (DEEP WOODS) */
@@ -187,6 +201,7 @@
   --border-main: rgba(110, 231, 183, 0.15);
   --border-light: rgba(110, 231, 183, 0.3);
   --brand-blue: #34d399;
+  --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
 }
 
 /* 8. OCEAN (ABYSSAL DEEP) */
@@ -202,6 +217,7 @@
   --text-muted2: #bae6fd;
   --border-main: rgba(125, 211, 252, 0.15);
   --border-light: rgba(125, 211, 252, 0.3);
+  --accent-text: color-mix(in srgb, var(--accent) 40%, var(--text-main));
 }
 
 /* 9. SAKURA / UME (SOFT CHERRY BLOSSOM) */
@@ -218,6 +234,7 @@
   --border-main: rgba(190, 24, 93, 0.1);
   --border-light: rgba(190, 24, 93, 0.2);
   --brand-blue: #db2777;
+  --accent-text: color-mix(in srgb, var(--accent) 60%, var(--text-main));
 }
 
 /* 10. TERMINAL (HACKER MATRIX) */
@@ -234,6 +251,7 @@
   --brand-blue: #22c55e;
   --brand-purple: #4ade80;
   --brand-cyan: #16a34a;
+  --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
 }
 
 /* 11. ORGANS (FLESH & CRIMSON) */
@@ -249,6 +267,7 @@
   --border-main: rgba(252, 165, 165, 0.2);
   --border-light: rgba(252, 165, 165, 0.4);
   --brand-blue: #f87171;
+  --accent-text: color-mix(in srgb, var(--accent) 50%, var(--text-main));
 }
 
 /* 12. MATH (BLUEPRINT GRID) */
@@ -263,6 +282,7 @@
   --text-muted2: #bfdbfe;
   --border-main: rgba(255, 255, 255, 0.2);
   --border-light: rgba(255, 255, 255, 0.4);
+  --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
 }
 
 /* 13. ELECTRICAL (COPPER & AMBER) */
@@ -277,6 +297,7 @@
   --border-main: rgba(252, 211, 77, 0.15);
   --border-light: rgba(252, 211, 77, 0.3);
   --brand-blue: #f59e0b;
+  --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
 }
 
 

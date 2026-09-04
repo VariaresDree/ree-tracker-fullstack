@@ -127,6 +127,15 @@ async function bootstrap() {
     app.use(cors({
         origin: makeOriginCheck(allowedOrigins, { strict: !!process.env.FRONTEND_URL }),
         credentials: true,
+        // Cache the preflight. Without this every cross-origin call pays a
+        // full extra round-trip to Singapore before the real request starts:
+        // a production trace showed 272ms + 601ms + 268ms of pure OPTIONS on
+        // three calls during one page load. 7200s is Chrome's hard ceiling
+        // (it clamps anything larger); Firefox caps at 86400s. This only
+        // caches the CORS *decision* per origin/method/header-set — it does
+        // not cache any response body, and revoking an origin still takes
+        // effect for every new preflight after the window.
+        maxAge: 7200,
     }));
 
     // Security headers. The app previously sent NONE: no nosniff, no
