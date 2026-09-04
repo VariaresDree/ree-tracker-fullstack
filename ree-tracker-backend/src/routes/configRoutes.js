@@ -6,7 +6,8 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { diffTaxonomySync, invalidateTopicCache } = require('../services/topicResolver');
-const { invalidateFlagCache } = require('../services/featureFlags');
+const { invalidateFlagCache, getFlags } = require('../services/featureFlags');
+const { getTos, invalidateTosCache } = require('../services/tosCache');
 const { featureFlagSchema } = require('../schemas/configSchemas');
 
 // TOS = { subject: [topicName, ...] }. Since Phase 3.3 the source of truth is
@@ -15,22 +16,15 @@ const { featureFlagSchema } = require('../schemas/configSchemas');
 // endpoint's shape never changes under the client.
 router.get('/tos', async (req, res) => {
     try {
-        const topics = await prisma.topic.findMany({
-            where: { active: true },
-            orderBy: [{ subject: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
-            select: { subject: true, name: true },
-        });
-        if (topics.length > 0) {
-            const grouped = {};
-            for (const t of topics) (grouped[t.subject] ||= []).push(t.name);
-            return res.status(200).json(grouped);
-        }
-
-        const config = await prisma.systemConfig.findUnique({
-            where: { id: 'global_config' }
-        });
-
-        return res.status(200).json(config ? config.tos : null);
+        const payload = await getTos();
+        // The only endpoint here worth a real freshness lifetime. It is
+        // unauthenticated, identical for every caller, and fetched on every
+        // page load, so `public` lets the browser skip the request entirely
+        // rather than pay a ~200ms revalidation round-trip for a 304. An admin
+        // edit can therefore take up to max-age to reach an open tab, which is
+        // the trade this endpoint can afford and the per-user ones cannot.
+        res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+        return res.status(200).json(payload);
     } catch (error) {
         logger.error('TOS fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch TOS.' });
@@ -62,6 +56,7 @@ router.put('/tos', authMiddleware, requireAdmin, async (req, res) => {
             }
         });
         invalidateTopicCache();
+        invalidateTosCache();
 
         return res.status(200).json({
             success: true,
@@ -92,10 +87,14 @@ router.get('/syllabus-weights', authMiddleware, async (req, res) => {
 // auth; admins toggle per key. An empty table = all flags off.
 router.get('/flags', authMiddleware, async (req, res) => {
     try {
-        const rows = await prisma.featureFlag.findMany();
-        const flags = {};
-        for (const f of rows) flags[f.key] = { enabled: f.enabled, payload: f.payload ?? null };
-        return res.status(200).json({ flags });
+        // Reuses the 60s cache in services/featureFlags.js, which this file
+        // already imported for invalidation but never actually read from — so
+        // every page load ran a whole-table findMany past a warm cache sitting
+        // one import away. getFlags() also fails CLOSED on a DB error (empty
+        // map, not a 500), which is the policy isFlagEnabled has always used
+        // server-side; the client already treats a failed fetch as "no flags",
+        // so this makes one policy out of two.
+        return res.status(200).json({ flags: await getFlags() });
     } catch (error) {
         logger.error('flags fetch error', { error: error.message });
         return res.status(500).json({ error: 'Failed to fetch feature flags.' });
