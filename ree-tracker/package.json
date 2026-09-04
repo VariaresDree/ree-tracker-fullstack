@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "check:bundle": "node scripts/check-eager-bundle.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "analyze": "ANALYZE=1 vite build",

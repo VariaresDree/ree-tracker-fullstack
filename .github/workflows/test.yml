@@ -94,6 +94,13 @@ jobs:
       - name: Build
         run: npm run build --workspace=ree-tracker
 
+      # Reads the BUILT index.html, so it has to run after the build. Catches a
+      # manualChunks rule that quietly turns lazy code into a static entry
+      # import — three such regressions shipped before this existed (#90, #94,
+      # and the 398 kB latex chunk this step was added with).
+      - name: Boot-payload budget
+        run: npm run check:bundle --workspace=ree-tracker
+
   backend:
     name: Backend (vitest)
     runs-on: ubuntu-latest

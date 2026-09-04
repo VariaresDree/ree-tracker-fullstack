@@ -85,10 +85,22 @@ export default defineConfig(async ({ mode, command }) => {
           if (id.includes('firebase')) return 'firebase';
           if (id.includes('pdfjs-dist')) return 'pdf';
           if (id.includes('socket.io-client')) return 'socket';
-          // KaTeX + the markdown pipeline that renders it: ~400KB pulled by
-          // LatexRenderer, which nearly every answering surface imports. Its
-          // own chunk keeps it out of the shared vendor chunk on the home route.
-          if (/[\\/](katex|react-markdown|remark-math|rehype-katex|micromark|mdast|hast|unist|property-information|space-separated-tokens|comma-separated-tokens)/.test(id)) return 'latex';
+          // NO manual chunk for KaTeX + the markdown pipeline. Third time this
+          // trap has been found in this file, and by far the most expensive:
+          // `latex` was 398 kB of JS plus 29 kB of CSS, modulepreloaded on
+          // EVERY route including the dashboard, which renders no maths at all.
+          //
+          // The old comment here argued the chunk "keeps it out of the shared
+          // vendor chunk on the home route" — but naming it is precisely what
+          // put it ON the home route, as a static entry import. LatexRenderer
+          // is statically imported by 13 modules, yet all of them are reached
+          // only through lazy pages, so nothing needed it eagerly.
+          //
+          // Measured, not reasoned: eager payload (entry + every preload and
+          // stylesheet) 1,029,741 -> 611,139 bytes, -40.7%, while total emitted
+          // bytes moved by -523 across 73 -> 71 chunks. Same code, just no
+          // longer on the boot path. KaTeX now sits in one async
+          // LatexRenderer-*.js reached when a maths surface actually renders.
           // NO manual chunk for the PDF/screenshot export path (jspdf,
           // html2canvas). Naming a chunk here forces rolldown to emit it as a
           // STATIC import of the entry, which cancels the `await import()` in
@@ -98,7 +110,16 @@ export default defineConfig(async ({ mode, command }) => {
           // entry contained `from"./pdf-export-*.js"`; without it the chunk
           // leaves the preload list entirely and splits into two async chunks
           // fetched only when a user actually exports.
-          if (id.includes('motion')) return 'motion';
+          // NO manual chunk for motion, for the same reason — and this one only
+          // became visible once `latex` was removed. With `latex` named, motion
+          // was reached dynamically; without it, rolldown re-grouped and the
+          // `motion` rule promoted 128 kB into a STATIC entry import, silently
+          // eating a third of the win above.
+          //
+          // motion/react has exactly two importers, PrescriptionPanel and
+          // TrajectoryCard, both reached only through the lazy Dashboard. So it
+          // is lazy-only code and must not be named. Unnamed, it folds into
+          // Dashboard-*.js, its single consumer path, with no duplication.
           return undefined;
         },
       },
