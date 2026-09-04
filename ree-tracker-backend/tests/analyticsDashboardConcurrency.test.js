@@ -16,6 +16,11 @@ import request from 'supertest';
 // be invoked before any of them resolves. Under the old sequential code exactly
 // one would have been invoked at that point.
 //
+// The count is five, not eight: the daily-subject counter, per-day rollup,
+// confidence matrix and per-mode breakdown were folded into a single statement
+// (one materialised CTE, four aggregates reading it). That merge is a CPU win on
+// a 0.1-CPU instance rather than a latency win — see the note on the query.
+//
 // firebase-admin/auth is patched before the router is required, and the Prisma
 // singleton is spied on — the same pattern as questionRoutes.authz.test.js.
 
@@ -71,8 +76,8 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         };
 
         vi.spyOn(prisma.user, 'findUnique').mockImplementation(makeGate(log, 'user', user));
-        vi.spyOn(prisma.questionAttempt, 'groupBy').mockImplementation(makeGate(log, 'groupBy', []));
         vi.spyOn(prisma, '$queryRaw').mockImplementation(makeGate(log, 'queryRaw', []));
+        const groupBy = vi.spyOn(prisma.questionAttempt, 'groupBy').mockImplementation(makeGate(log, 'groupBy', []));
         vi.spyOn(prisma.userTopicPerformance, 'findMany').mockImplementation(makeGate(log, 'mastery', []));
         vi.spyOn(prisma.thetaHistory, 'findMany').mockImplementation(makeGate(log, 'theta', []));
 
@@ -86,10 +91,14 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         for (let i = 0; i < 50; i += 1) await Promise.resolve();
         await new Promise((r) => setTimeout(r, 50));
 
-        // 8 queries: user, dailyAgg, dayRows, topicRows, mastery, matrix, mode, theta.
-        expect(log.length).toBe(8);
-        expect(log.filter((l) => l === 'groupBy').length).toBe(3); // daily, matrix, mode
-        expect(log.filter((l) => l === 'queryRaw').length).toBe(2); // dayRows, topicRows
+        // 5 queries: user, attemptRollup, topicRows, mastery, theta.
+        expect(log.length).toBe(5);
+        expect(log.filter((l) => l === 'queryRaw').length).toBe(2); // rollup, topicRows
+        // The four attempt aggregates are now ONE statement. Asserting groupBy was
+        // never reached is what stops them being quietly split back apart: doing so
+        // would still produce a correct payload, just with four extra round-trips.
+        expect(groupBy).not.toHaveBeenCalled();
+        expect(log).not.toContain('groupBy');
 
         log.releases.forEach((release) => release());
     });
@@ -100,13 +109,15 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
             id: UID, displayName: 'Dash', role: 'USER', globalStreak: 7, thetaRating: 1.25,
             lastActive: now, examDate: null, dailyTarget: 50, sessions: [],
         });
-        // dailyAgg -> matrixAgg -> modeAgg, in the order Promise.all invokes them.
-        vi.spyOn(prisma.questionAttempt, 'groupBy')
-            .mockResolvedValueOnce([{ subject: 'Mathematics', _count: { id: 4 } }])
-            .mockResolvedValueOnce([{ confidenceLevel: 'high', isCorrect: true, _count: { id: 3 } }])
-            .mockResolvedValueOnce([{ mode: 'BOARD_SIM', isCorrect: true, _count: { id: 3 } }]);
+        // $queryRaw is called twice: the merged attempt rollup, then the topic
+        // rollup — in the order Promise.all invokes them.
         vi.spyOn(prisma, '$queryRaw')
-            .mockResolvedValueOnce([{ day: '2026-09-02', count: 10 }])
+            .mockResolvedValueOnce([
+                { kind: 'day', k1: '2026-09-02', k2: null, n: 10 },
+                { kind: 'daily', k1: 'Mathematics', k2: null, n: 4 },
+                { kind: 'matrix', k1: 'high', k2: true, n: 3 },
+                { kind: 'mode', k1: 'BOARD_SIM', k2: true, n: 3 },
+            ])
             .mockResolvedValueOnce([{
                 topic: 'Algebra', subject: 'Mathematics', totalAttempts: 10,
                 correctHits: 4, totalTimeMs: 90000n, timedAttempts: 9,
@@ -133,7 +144,6 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
 
     it('404s when the user row is missing', async () => {
         vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
-        vi.spyOn(prisma.questionAttempt, 'groupBy').mockResolvedValue([]);
         vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
         vi.spyOn(prisma.userTopicPerformance, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.thetaHistory, 'findMany').mockResolvedValue([]);
