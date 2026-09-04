@@ -1,0 +1,65 @@
+name: Keep backend awake
+
+# Render's free tier stops a web service after ~15 minutes with no traffic, and
+# the next visitor pays a cold boot (tens of seconds) before anything renders.
+# For a study app opened a few times a day that cold boot IS the load time —
+# it dwarfs the ~1.6s warm response the request path was tuned down to.
+#
+# WHY NOT SIMPLY PING ALL DAY:
+# the free plan allows 750 instance-hours per month across all free web
+# services. Running one service 24/7 is ~730h, which fits only barely and
+# leaves nothing for a second service. The window below is 06:00-23:59 Manila
+# (the app's timezone — every date in the product is keyed to it), about 18h a
+# day or ~540h a month, which covers realistic study hours with headroom.
+#
+# CAVEAT WORTH KNOWING: GitHub does not guarantee cron punctuality. Scheduled
+# workflows are queued on shared infrastructure and are regularly late by 10+
+# minutes under load, so an occasional cold boot will still slip through. This
+# reduces cold starts; it does not abolish them. A dedicated uptime pinger is
+# more reliable if that becomes annoying.
+#
+# GitHub also disables scheduled workflows in repositories with no activity for
+# 60 days; a single push re-enables them.
+
+on:
+  schedule:
+    # Every 10 minutes, 22:00-15:59 UTC == 06:00-23:59 Manila (UTC+8).
+    - cron: '*/10 22,23,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 * * *'
+  workflow_dispatch:        # manual trigger, useful for testing the workflow
+
+# No repository contents are needed, and nothing is written back.
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping /healthz
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake the backend
+        # /healthz is the same path render.yaml uses as its healthCheckPath: it
+        # reports subsystem readiness and touches the database, so a successful
+        # response means the instance is genuinely serving, not merely booted.
+        #
+        # A cold start can take well over a minute, so the first attempt gets a
+        # long timeout and two retries. curl --fail turns a 5xx into a non-zero
+        # exit so a broken backend surfaces as a failed run rather than silence.
+        run: |
+          set -euo pipefail
+          URL="https://ree-tracker-backend.onrender.com/healthz"
+          echo "Pinging $URL"
+          body=$(curl --fail --silent --show-error \
+                      --retry 2 --retry-delay 15 --retry-all-errors \
+                      --max-time 120 "$URL")
+          echo "Response: $body"
+          # uptimeSec near zero means this ping is what woke it — useful signal
+          # in the run log when judging whether the schedule is keeping up.
+          uptime=$(printf '%s' "$body" | sed -n 's/.*"uptimeSec":\([0-9]*\).*/\1/p')
+          if [ -n "$uptime" ] && [ "$uptime" -lt 120 ]; then
+            echo "::notice::Backend had just started (uptime ${uptime}s) — this ping likely woke it from a cold stop."
+          fi

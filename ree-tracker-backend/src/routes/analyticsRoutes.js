@@ -58,12 +58,9 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
 
         const [
             user,
-            dailyAgg,
-            dayRows,
+            attemptRollup,
             topicRows,
             masteryRows,
-            matrixAgg,
-            modeAgg,
             thetaRows,
         ] = await Promise.all([
             prisma.user.findUnique({
@@ -71,56 +68,49 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                 include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
             }),
 
-            // Bucketed on answeredAt (falling back to createdAt for rows written
-            // before that column existed) — the SAME column the activity calendar
-            // uses. These two numbers sit on the same screen and used to disagree by
-            // construction: the calendar honoured when the user actually answered,
-            // while this counter honoured when the batch reached the server. A user
-            // who answered 50 questions offline on Monday night and synced Tuesday
-            // morning saw Tuesday's daily target already met without answering
-            // anything on Tuesday, while the heatmap correctly credited Monday.
-            // answeredAt exists precisely to make that distinction (schema.prisma).
-            prisma.questionAttempt.groupBy({
-                by: ['subject'],
-                where: {
-                    userId: uid,
-                    OR: [
-                        { answeredAt: { gte: utcStartOfDay } },
-                        { answeredAt: null, createdAt: { gte: utcStartOfDay } },
-                    ],
-                },
-                _count: { id: true }
-            }),
-
-            // EVERY active day (uncapped), rolled up directly from QuestionAttempt —
-            // the SAME table totalAnswered counts below. This used to read a separate
-            // ActivityLog counter table that drifted from the real attempt count over
-            // time (a skipDuplicates race could insert fewer rows than ActivityLog was
-            // incremented by), so the Dashboard KPI and the Consistency Matrix's own
-            // total could permanently disagree. Deriving both from one query makes
-            // totalAnswered == Σ(activityCalendar) hold BY CONSTRUCTION, not by
-            // careful bookkeeping across two write paths. Bucketed on the day the
-            // question was ANSWERED (COALESCE to createdAt for legacy/unset rows),
-            // not the day the row reached the server — see answeredAt on the model.
-            // ActivityLog itself is now streak-ledger-only (telemetryService); it is
-            // no longer a display source.
+            // ONE statement replacing four that each scanned this user's attempts:
+            // the daily per-subject counter, the all-time per-day rollup, the
+            // confidence matrix and the per-mode breakdown. They shared a WHERE
+            // clause, so the CTE is materialised and index-scanned ONCE and the
+            // four aggregates read it back (verified: `CTE base` + four `CTE Scan`
+            // nodes, 0.6ms total).
             //
-            // BUG FIXED HERE (data-correctness, not display): this used to read
-            // `... AT TIME ZONE 'Asia/Manila'` directly on the naive-UTC column,
-            // which Postgres treats as LOCALIZING the value (assume it's already
-            // Manila time) rather than CONVERTING it — a 16-hour error in the
-            // wrong direction. Proven live: 826 of 1049 attempts (79%) were
-            // misdated, everything answered before 16:00 Manila landing on the
-            // previous day. manilaDaySql() does the correct two-step cast — see
-            // utils/manilaDate.js for the full explanation. The stored instants
-            // were always correct, so this alone retroactively fixes every
-            // existing row; no backfill needed.
+            // Merging was deliberately REJECTED when these queries were first made
+            // concurrent, on the grounds that overlapping requests cost one
+            // round-trip regardless of statement count. That reasoning holds when
+            // latency is the constraint. It does not hold here: this runs on
+            // Render's free tier (0.1 CPU), where each Prisma round-trip costs real
+            // engine time — query building, result deserialisation, BigInt handling.
+            // Ten concurrent /healthz pings (a trivial DB ping) measured 1860ms
+            // against ~200ms for one, which is a starved event loop, not a slow
+            // database. Fewer statements is therefore a CPU win even though it is
+            // no longer a latency win.
+            //
+            // COALESCE(answeredAt, createdAt) is exactly the OR-pair the daily
+            // counter used to express, and the same expression the per-day rollup
+            // already used — see the answeredAt notes on the model for why the day
+            // a question was ANSWERED is not the day its batch reached the server.
             prisma.$queryRaw`
-                SELECT ${manilaDaySql(Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`)} AS day,
-                       COUNT(*)::int AS count
-                FROM "QuestionAttempt" qa
-                WHERE qa."userId" = ${uid}
-                GROUP BY 1
+                WITH base AS (
+                    SELECT "subject", "confidenceLevel", "isCorrect", "mode",
+                           COALESCE("answeredAt", "createdAt") AS at
+                    FROM "QuestionAttempt"
+                    WHERE "userId" = ${uid}
+                )
+                SELECT 'day'::text AS kind,
+                       ${manilaDaySql(Prisma.sql`at`)} AS k1,
+                       NULL::boolean AS k2,
+                       COUNT(*)::int AS n
+                FROM base GROUP BY 2
+                UNION ALL
+                SELECT 'daily', "subject", NULL::boolean, COUNT(*)::int
+                FROM base WHERE at >= ${utcStartOfDay} GROUP BY 2
+                UNION ALL
+                SELECT 'matrix', "confidenceLevel", "isCorrect", COUNT(*)::int
+                FROM base GROUP BY 2, 3
+                UNION ALL
+                SELECT 'mode', "mode", "isCorrect", COUNT(*)::int
+                FROM base GROUP BY 2, 3
             `,
 
             // Per-topic rollup through the taxonomy (Phase 3.3): attempts attribute
@@ -155,21 +145,6 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                 select: { topic: true, pMastery: true, masteryN: true },
             }),
 
-            prisma.questionAttempt.groupBy({
-                by: ['confidenceLevel', 'isCorrect'],
-                where: { userId: uid },
-                _count: { id: true }
-            }),
-
-            // Per-mode breakdown: how many attempts came from each surface
-            // (Active Review, Board Sim, Gauntlet, Combat, Battle). Powers the
-            // dashboard "by mode" view so users can see where their reps land.
-            prisma.questionAttempt.groupBy({
-                by: ['mode', 'isCorrect'],
-                where: { userId: uid },
-                _count: { id: true },
-            }),
-
             // θ-history powers the Readiness Velocity chart. We store one row per
             // Manila day (telemetryService daily-upsert), so the last ~120 rows give
             // ~4 months of daily samples — enough for the Day/Week/Month buckets.
@@ -183,23 +158,49 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
 
         if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
 
-        // Canonicalised through the shared table rather than compared inline.
-        // The old inline form matched only 'Mathematics'/'Math'/'ESAS'/'EE'
-        // exactly, so attempts stored under the long spellings
-        // ('Engineering Sciences and Allied Subjects', 'Electrical Engineering',
-        // 'Electrical Engineering Professional Subjects') were counted in NO
-        // bucket and silently vanished from the daily target ring.
+        // One pass over the merged rollup. `kind` discriminates the four
+        // aggregates that used to be four separate queries; the per-bucket logic
+        // below is unchanged from when each had its own.
         let dailyMath = 0, dailyESAS = 0, dailyEE = 0;
-        dailyAgg.forEach(group => {
-            const canonical = normalizeSubject(group.subject);
-            if (canonical === 'Mathematics') dailyMath += group._count.id;
-            else if (canonical === 'ESAS') dailyESAS += group._count.id;
-            else if (canonical === 'EE') dailyEE += group._count.id;
-        });
-
         const activityCalendar = {};
         let totalAnswered = 0;
-        dayRows.forEach((r) => { activityCalendar[r.day] = r.count; totalAnswered += r.count; });
+        const matrix = { hc: 0, hw: 0, lc: 0, lw: 0 };
+        const modeBreakdown = {};
+
+        attemptRollup.forEach((r) => {
+            switch (r.kind) {
+                case 'daily': {
+                    // Canonicalised through the shared table rather than compared
+                    // inline. The old inline form matched only
+                    // 'Mathematics'/'Math'/'ESAS'/'EE' exactly, so attempts stored
+                    // under the long spellings ('Engineering Sciences and Allied
+                    // Subjects', 'Electrical Engineering', 'Electrical Engineering
+                    // Professional Subjects') were counted in NO bucket and
+                    // silently vanished from the daily target ring.
+                    const canonical = normalizeSubject(r.k1);
+                    if (canonical === 'Mathematics') dailyMath += r.n;
+                    else if (canonical === 'ESAS') dailyESAS += r.n;
+                    else if (canonical === 'EE') dailyEE += r.n;
+                    break;
+                }
+                case 'day':
+                    activityCalendar[r.k1] = r.n;
+                    totalAnswered += r.n;
+                    break;
+                case 'matrix': {
+                    const conf = (r.k1 || '').toLowerCase() === 'high' ? 'h' : 'l';
+                    matrix[`${conf}${r.k2 ? 'c' : 'w'}`] += r.n;
+                    break;
+                }
+                case 'mode': {
+                    const k = r.k1 || 'LEGACY';
+                    if (!modeBreakdown[k]) modeBreakdown[k] = { attempts: 0, correct: 0 };
+                    modeBreakdown[k].attempts += r.n;
+                    if (r.k2) modeBreakdown[k].correct += r.n;
+                    break;
+                }
+            }
+        });
 
         const microTopics = {};
         topicRows.forEach((r) => {
@@ -217,21 +218,6 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             const m = masteryByNorm.get(String(topic).trim().toLowerCase());
             if (m) { agg.mastery = m.pMastery; agg.masteryN = m.masteryN; }
         }
-
-        const matrix = { hc: 0, hw: 0, lc: 0, lw: 0 };
-        matrixAgg.forEach(group => {
-            const conf = (group.confidenceLevel || '').toLowerCase() === 'high' ? 'h' : 'l';
-            const correct = group.isCorrect ? 'c' : 'w';
-            matrix[`${conf}${correct}`] += group._count.id;
-        });
-
-        const modeBreakdown = {};
-        modeAgg.forEach((g) => {
-            const k = g.mode || 'LEGACY';
-            if (!modeBreakdown[k]) modeBreakdown[k] = { attempts: 0, correct: 0 };
-            modeBreakdown[k].attempts += g._count.id;
-            if (g.isCorrect) modeBreakdown[k].correct += g._count.id;
-        });
 
         // totalAnswered is NOT re-derived here — it's the same value computed
         // above from the activityCalendar rollup (Σ of every day), so the
