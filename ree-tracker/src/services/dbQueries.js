@@ -1,5 +1,6 @@
 // src/services/dbQueries.js
 import { auth } from '../config/firebaseDb';
+import { invalidateDashboardSeed } from './dashboardSeed';
 import { get, set } from 'idb-keyval';
 import { fnv1a } from '../utils/contentHash';
 import { DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
@@ -80,6 +81,14 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     // a body hash would not (the body carries a re-derived session id).
     const idemKey = idempotencyKeyOverride || idempotencyKey(method, body);
     if (idemKey) headers['Idempotency-Key'] = idemKey;
+
+    // Any mutation invalidates the boot handoff slot, mirroring what
+    // recordAttempts does to the server's dashboardCache. Done here rather
+    // than at each write surface because there are four of them (telemetry,
+    // exams/grade, exams/submit, battle-submit) and the next one would be
+    // easy to forget. Over-invalidating is free — the fallback is the fetch
+    // that happens today — while under-invalidating serves stale numbers.
+    if (method !== 'GET') invalidateDashboardSeed();
 
     const controller = new AbortController();
     let didTimeout = false;

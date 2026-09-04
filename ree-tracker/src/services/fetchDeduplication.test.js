@@ -30,6 +30,7 @@ const {
     __resetDashboardCache,
 } = await import('./analyticsSync');
 const { loadForecastOnce, __resetForecastInFlight } = await import('../hooks/useForecast');
+const { seedDashboardPayload } = await import('./dashboardSeed');
 
 const payload = { data: { profile: { totalAnswered: 20 }, microTopics: { Algebra: { attempts: 3 } } } };
 
@@ -68,6 +69,31 @@ describe('dashboard aggregate is fetched once per load', () => {
         await syncDashboardStats('uid-1');
         await syncDashboardStats('uid-2');
         expect(apiRequest).toHaveBeenCalledTimes(2);
+    });
+
+    // The boot handoff: AuthContext fetched this endpoint for profile.role a
+    // second earlier, so Dashboard's mount should not fetch it again.
+    it('uses the seeded payload from AuthContext instead of a second request', async () => {
+        apiRequest.mockResolvedValue(payload);
+
+        seedDashboardPayload('uid-1', payload.data);
+        const normalized = await syncDashboardStats('uid-1');
+
+        expect(apiRequest).not.toHaveBeenCalled();   // the whole point
+        expect(normalized).not.toBeNull();
+        expect(normalized.profile.totalAnswered).toBe(20);
+
+        // A seed answers once. Everything after it is a real refresh again.
+        await syncDashboardStats('uid-1');
+        expect(apiRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-normalizes a seeded payload too, when the TOS lands after it', async () => {
+        seedDashboardPayload('uid-1', payload.data);
+        await syncDashboardStats('uid-1');
+
+        expect(renormalizeDashboardStats()).not.toBeNull();
+        expect(apiRequest).not.toHaveBeenCalled();
     });
 
     it('does not cache a failed response', async () => {

@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 // 🚀 NEW: Import the TOS fetch function
 import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags, updateUserProfile } from '../services/dbQueries';
+import { seedDashboardPayload } from '../services/dashboardSeed';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
 import { Button } from '../components/ui';
@@ -96,6 +97,14 @@ export const AuthProvider = ({ children }) => {
           const flagsPromise = fetchFeatureFlags();
 
           const profileResponse = await profilePromise;
+
+          // This response IS the dashboard aggregate — the same endpoint
+          // Dashboard fetches on mount, roughly a second from now. We only
+          // need profile.role here, so hand the rest on instead of letting
+          // that second request go out. Single-use and dropped by any write;
+          // if nothing takes it, it simply expires (services/dashboardSeed.js).
+          seedDashboardPayload(user.uid, profileResponse?.data);
+
           const dbRole = profileResponse?.data?.profile?.role;
           const isUserAdmin = dbRole === 'ADMIN' || dbRole === 'admin';
           setIsAdmin(isUserAdmin);
