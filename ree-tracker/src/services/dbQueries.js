@@ -132,9 +132,9 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     return response.json();
 };
 
-const safeApiRequest = async (endpoint, method = 'GET', body = null, fallback = null) => {
+const safeApiRequest = async (endpoint, method = 'GET', body = null, fallback = null, opts = {}) => {
     try {
-        return await apiRequest(endpoint, method, body);
+        return await apiRequest(endpoint, method, body, opts);
     } catch (err) {
         if (err.message === '[OFFLINE]' || err.message === '[TIMEOUT]') return fallback;
         throw err;
@@ -165,7 +165,22 @@ const normalizeQuestions = (data) => {
 // on a single load. The two dead ones are deleted; keep it that way. If a
 // caller needs the payload hydrated into the store, use
 // analyticsSync.syncDashboardStats rather than adding a wrapper here.
-export const getAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
+// `opts` exists for ONE caller: AuthContext's boot fetch, which passes a longer
+// timeoutMs. Everything else keeps the default 12s — a post-submit refresh that
+// hangs for 30s would be worse than one that gives up.
+export const getAnalyticsProfile = async (uid, opts = {}) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null, opts);
+
+// A sleeping Render free instance takes tens of seconds to answer its first
+// request, so the default 12s abort turns a cold start into a hard failure
+// rather than a slow success — a production trace caught exactly that as a
+// 13,002ms "response", which was the AbortController, not the server.
+//
+// Deliberately ABOVE REQUEST_TIMEOUT_MS: apiRequest treats a longer-than-default
+// timeout as "this request was slow" and raises [TIMEOUT] instead of tripping
+// the circuit breaker. That is the behaviour we want here — a cold instance is
+// waking, not down, and tripping the breaker would block every other call for
+// the next 30s just as the app is trying to start.
+export const BOOT_TIMEOUT_MS = 30_000;
 
 // PRC board TOS blend, read from the server config table so the exam builder and
 // the server sampler agree. Never throws — falls back to the default blend.
