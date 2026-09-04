@@ -18,6 +18,20 @@
 // AuthContext already holds the bytes Dashboard is about to ask for. This
 // module hands them over.
 //
+// IT HOLDS THE IN-FLIGHT PROMISE, NOT THE SETTLED PAYLOAD, and that distinction
+// was learned the hard way. The first version stored the response once it
+// arrived, which made the handoff a race: on production it eliminated the
+// duplicate on one load and missed it on the next. The timings said why —
+// AuthContext's request started at 574ms and took 1740ms, while Dashboard
+// mounted at 1567ms and found an empty slot. The response had not landed yet.
+//
+// That failure mode is backwards: the slower the backend, the more likely the
+// seed misses, so it stopped working exactly when a saved round-trip is worth
+// most. Offering the promise at REQUEST time instead removes the race
+// entirely — a late reader awaits the same request, an early one is impossible
+// because the offer is made before the fetch can resolve, and an
+// already-settled promise resolves instantly.
+//
 // WHY NOT A CACHE. The backend caches this payload for 30s
 // (services/dashboardCache.js) and invalidates it from recordAttempts on every
 // write surface — telemetry-bulk, exams/grade, exams/submit, battle-submit —
@@ -52,28 +66,36 @@
 // several times the ~1s gap actually measured.
 const SEED_MAX_AGE_MS = 10_000;
 
-let slot = null;   // { uid, payload, at } | null
+let slot = null;   // { uid, promise, at } | null
 
 /**
- * Offer a freshly-fetched payload for the next reader. Overwrites any previous
- * offer — the newest response is always the most accurate one to hand on.
- * Ignores empty payloads so a failed fetch cannot seed `undefined`.
+ * Offer an in-flight dashboard request for the next reader. Call this at the
+ * moment the request STARTS, not when it resolves. Overwrites any previous
+ * offer — the newest request is always the one worth sharing.
  */
-export function seedDashboardPayload(uid, payload) {
-    if (!uid || !payload) return;
-    slot = { uid, payload, at: Date.now() };
+export function seedDashboardRequest(uid, promise) {
+    if (!uid || !promise || typeof promise.then !== 'function') return;
+    // The offerer has its own error handling; this keeps an unclaimed
+    // rejection from surfacing as an unhandled one. It does not swallow
+    // anything — the original promise still rejects for whoever awaits it.
+    promise.catch(() => {});
+    slot = { uid, promise, at: Date.now() };
 }
 
 /**
- * Take the payload for `uid` if one is on offer and still valid, else null.
+ * Take the offered request for `uid` if one is valid, else null. The caller
+ * awaits it and must fall back to its own fetch if it rejects.
+ *
  * ALWAYS clears the slot when the uid matches — including when the entry is
- * too old — so a stale seed cannot linger and be re-tested on every later call.
+ * too old — so a stale offer cannot linger and be re-tested on every later
+ * call. Age is measured from the OFFER, which is the only honest reading:
+ * a request made 30s ago is stale whether or not it has come back yet.
  */
 export function takeDashboardSeed(uid) {
     if (!slot || !uid || slot.uid !== uid) return null;
-    const { payload, at } = slot;
+    const { promise, at } = slot;
     slot = null;
-    return Date.now() - at <= SEED_MAX_AGE_MS ? payload : null;
+    return Date.now() - at <= SEED_MAX_AGE_MS ? promise : null;
 }
 
 /** Drop any offer. Called on every mutation; also the test seam. */
