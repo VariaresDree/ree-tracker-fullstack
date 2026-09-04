@@ -29,39 +29,159 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
     }
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: uid },
-            include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
-        });
-
-        if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
-
         // Start of "today" in Manila (UTC+8), expressed as a UTC instant.
         // Uses the SAME Manila date string that telemetryService keys ActivityLog
         // on, so the dashboard's daily Math/ESAS/EE counts always agree with the
         // activity calendar and never miss attempts due to server-TZ drift.
         const utcStartOfDay = new Date(`${todayManila()}T00:00:00+08:00`);
 
-        // Bucketed on answeredAt (falling back to createdAt for rows written
-        // before that column existed) — the SAME column the activity calendar
-        // uses. These two numbers sit on the same screen and used to disagree by
-        // construction: the calendar honoured when the user actually answered,
-        // while this counter honoured when the batch reached the server. A user
-        // who answered 50 questions offline on Monday night and synced Tuesday
-        // morning saw Tuesday's daily target already met without answering
-        // anything on Tuesday, while the heatmap correctly credited Monday.
-        // answeredAt exists precisely to make that distinction (schema.prisma).
-        const dailyAgg = await prisma.questionAttempt.groupBy({
-            by: ['subject'],
-            where: {
-                userId: uid,
-                OR: [
-                    { answeredAt: { gte: utcStartOfDay } },
-                    { answeredAt: null, createdAt: { gte: utcStartOfDay } },
-                ],
-            },
-            _count: { id: true }
-        });
+        // Every query below is independent, so all eight are issued before any
+        // is awaited. They used to run as eight sequential awaits. This service
+        // runs in Render's default region (Oregon) while the database is in
+        // ap-southeast-1 (Singapore), so each await was a ~180ms trans-Pacific
+        // round-trip: ~1.4s of pure network latency before any aggregation
+        // happened. Measured 2.9s end-to-end for a user with 20 attempts, while
+        // the heaviest of these queries executes in 1.9ms (EXPLAIN ANALYZE,
+        // index scans throughout, no sequential scan). The cost was never the
+        // aggregation - it was doing eight round-trips in a row.
+        //
+        // Concurrency is safe HERE specifically because none of these run inside
+        // a transaction: each connection is held only for its own query, and if
+        // the pool (PG_POOL_MAX, default 15) saturates these queue rather than
+        // deadlock. That is NOT true of the telemetry write path, which does
+        // hold an interactive transaction - see config/db.js on why pool sizing
+        // is a correctness concern there, not just a perf knob.
+        //
+        // Merging these into fewer statements would buy almost nothing now that
+        // they overlap: total latency is one round-trip either way. They stay
+        // separate so each keeps the reasoning attached to it.
+
+        const [
+            user,
+            dailyAgg,
+            dayRows,
+            topicRows,
+            masteryRows,
+            matrixAgg,
+            modeAgg,
+            thetaRows,
+        ] = await Promise.all([
+            prisma.user.findUnique({
+                where: { id: uid },
+                include: { sessions: { orderBy: { createdAt: 'desc' }, take: 10 } }
+            }),
+
+            // Bucketed on answeredAt (falling back to createdAt for rows written
+            // before that column existed) — the SAME column the activity calendar
+            // uses. These two numbers sit on the same screen and used to disagree by
+            // construction: the calendar honoured when the user actually answered,
+            // while this counter honoured when the batch reached the server. A user
+            // who answered 50 questions offline on Monday night and synced Tuesday
+            // morning saw Tuesday's daily target already met without answering
+            // anything on Tuesday, while the heatmap correctly credited Monday.
+            // answeredAt exists precisely to make that distinction (schema.prisma).
+            prisma.questionAttempt.groupBy({
+                by: ['subject'],
+                where: {
+                    userId: uid,
+                    OR: [
+                        { answeredAt: { gte: utcStartOfDay } },
+                        { answeredAt: null, createdAt: { gte: utcStartOfDay } },
+                    ],
+                },
+                _count: { id: true }
+            }),
+
+            // EVERY active day (uncapped), rolled up directly from QuestionAttempt —
+            // the SAME table totalAnswered counts below. This used to read a separate
+            // ActivityLog counter table that drifted from the real attempt count over
+            // time (a skipDuplicates race could insert fewer rows than ActivityLog was
+            // incremented by), so the Dashboard KPI and the Consistency Matrix's own
+            // total could permanently disagree. Deriving both from one query makes
+            // totalAnswered == Σ(activityCalendar) hold BY CONSTRUCTION, not by
+            // careful bookkeeping across two write paths. Bucketed on the day the
+            // question was ANSWERED (COALESCE to createdAt for legacy/unset rows),
+            // not the day the row reached the server — see answeredAt on the model.
+            // ActivityLog itself is now streak-ledger-only (telemetryService); it is
+            // no longer a display source.
+            //
+            // BUG FIXED HERE (data-correctness, not display): this used to read
+            // `... AT TIME ZONE 'Asia/Manila'` directly on the naive-UTC column,
+            // which Postgres treats as LOCALIZING the value (assume it's already
+            // Manila time) rather than CONVERTING it — a 16-hour error in the
+            // wrong direction. Proven live: 826 of 1049 attempts (79%) were
+            // misdated, everything answered before 16:00 Manila landing on the
+            // previous day. manilaDaySql() does the correct two-step cast — see
+            // utils/manilaDate.js for the full explanation. The stored instants
+            // were always correct, so this alone retroactively fixes every
+            // existing row; no backfill needed.
+            prisma.$queryRaw`
+                SELECT ${manilaDaySql(Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`)} AS day,
+                       COUNT(*)::int AS count
+                FROM "QuestionAttempt" qa
+                WHERE qa."userId" = ${uid}
+                GROUP BY 1
+            `,
+
+            // Per-topic rollup through the taxonomy (Phase 3.3): attempts attribute
+            // to their question's CURRENT topic (COALESCE back to the attempt's
+            // stored label for unmapped/legacy rows), so re-tagging a question
+            // retroactively corrects its history instead of stranding it under a
+            // renamed string. Counts/accuracy use EVERY attempt; timing is bounded
+            // to plausible values via FILTER — the live DB has corrupted rows
+            // (0ms "instant" answers and ~1000x-inflated times) that would poison
+            // the Speed Mapping averages. Tagged template = every value is a bound
+            // parameter (fully guard-safe, no string interpolation into SQL).
+            prisma.$queryRaw`
+                SELECT
+                    COALESCE(t."name", qa."subtopic")   AS "topic",
+                    COALESCE(t."subject", qa."subject") AS "subject",
+                    COUNT(*)::int                                       AS "totalAttempts",
+                    (COUNT(*) FILTER (WHERE qa."isCorrect"))::int       AS "correctHits",
+                    COALESCE(SUM(qa."timeSpentMs") FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}), 0)::bigint AS "totalTimeMs",
+                    (COUNT(*) FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}))::int AS "timedAttempts"
+                FROM "QuestionAttempt" qa
+                JOIN "Question" q ON q."id" = qa."questionId"
+                LEFT JOIN "Topic" t ON t."id" = q."topicId"
+                WHERE qa."userId" = ${uid}
+                GROUP BY 1, 2
+            `,
+
+            // BKT mastery (Phase 3.5) lives on UserTopicPerformance, keyed by the
+            // canonical topic name — merge P(mastery) onto each microTopic. Matched
+            // case/whitespace-insensitively, the same way the heatmap resolves tiles.
+            prisma.userTopicPerformance.findMany({
+                where: { userId: uid },
+                select: { topic: true, pMastery: true, masteryN: true },
+            }),
+
+            prisma.questionAttempt.groupBy({
+                by: ['confidenceLevel', 'isCorrect'],
+                where: { userId: uid },
+                _count: { id: true }
+            }),
+
+            // Per-mode breakdown: how many attempts came from each surface
+            // (Active Review, Board Sim, Gauntlet, Combat, Battle). Powers the
+            // dashboard "by mode" view so users can see where their reps land.
+            prisma.questionAttempt.groupBy({
+                by: ['mode', 'isCorrect'],
+                where: { userId: uid },
+                _count: { id: true },
+            }),
+
+            // θ-history powers the Readiness Velocity chart. We store one row per
+            // Manila day (telemetryService daily-upsert), so the last ~120 rows give
+            // ~4 months of daily samples — enough for the Day/Week/Month buckets.
+            prisma.thetaHistory.findMany({
+                where: { userId: uid },
+                orderBy: { recordedAt: 'asc' },
+                take: 120,
+                select: { theta: true, recordedAt: true },
+            }),
+        ]);
+
+        if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
 
         // Canonicalised through the shared table rather than compared inline.
         // The old inline form matched only 'Mathematics'/'Math'/'ESAS'/'EE'
@@ -77,63 +197,9 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             else if (canonical === 'EE') dailyEE += group._count.id;
         });
 
-        // EVERY active day (uncapped), rolled up directly from QuestionAttempt —
-        // the SAME table totalAnswered counts below. This used to read a separate
-        // ActivityLog counter table that drifted from the real attempt count over
-        // time (a skipDuplicates race could insert fewer rows than ActivityLog was
-        // incremented by), so the Dashboard KPI and the Consistency Matrix's own
-        // total could permanently disagree. Deriving both from one query makes
-        // totalAnswered == Σ(activityCalendar) hold BY CONSTRUCTION, not by
-        // careful bookkeeping across two write paths. Bucketed on the day the
-        // question was ANSWERED (COALESCE to createdAt for legacy/unset rows),
-        // not the day the row reached the server — see answeredAt on the model.
-        // ActivityLog itself is now streak-ledger-only (telemetryService); it is
-        // no longer a display source.
-        //
-        // BUG FIXED HERE (data-correctness, not display): this used to read
-        // `... AT TIME ZONE 'Asia/Manila'` directly on the naive-UTC column,
-        // which Postgres treats as LOCALIZING the value (assume it's already
-        // Manila time) rather than CONVERTING it — a 16-hour error in the
-        // wrong direction. Proven live: 826 of 1049 attempts (79%) were
-        // misdated, everything answered before 16:00 Manila landing on the
-        // previous day. manilaDaySql() does the correct two-step cast — see
-        // utils/manilaDate.js for the full explanation. The stored instants
-        // were always correct, so this alone retroactively fixes every
-        // existing row; no backfill needed.
-        const dayRows = await prisma.$queryRaw`
-            SELECT ${manilaDaySql(Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`)} AS day,
-                   COUNT(*)::int AS count
-            FROM "QuestionAttempt" qa
-            WHERE qa."userId" = ${uid}
-            GROUP BY 1
-        `;
         const activityCalendar = {};
         let totalAnswered = 0;
         dayRows.forEach((r) => { activityCalendar[r.day] = r.count; totalAnswered += r.count; });
-
-        // Per-topic rollup through the taxonomy (Phase 3.3): attempts attribute
-        // to their question's CURRENT topic (COALESCE back to the attempt's
-        // stored label for unmapped/legacy rows), so re-tagging a question
-        // retroactively corrects its history instead of stranding it under a
-        // renamed string. Counts/accuracy use EVERY attempt; timing is bounded
-        // to plausible values via FILTER — the live DB has corrupted rows
-        // (0ms "instant" answers and ~1000x-inflated times) that would poison
-        // the Speed Mapping averages. Tagged template = every value is a bound
-        // parameter (fully guard-safe, no string interpolation into SQL).
-        const topicRows = await prisma.$queryRaw`
-            SELECT
-                COALESCE(t."name", qa."subtopic")   AS "topic",
-                COALESCE(t."subject", qa."subject") AS "subject",
-                COUNT(*)::int                                       AS "totalAttempts",
-                (COUNT(*) FILTER (WHERE qa."isCorrect"))::int       AS "correctHits",
-                COALESCE(SUM(qa."timeSpentMs") FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}), 0)::bigint AS "totalTimeMs",
-                (COUNT(*) FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}))::int AS "timedAttempts"
-            FROM "QuestionAttempt" qa
-            JOIN "Question" q ON q."id" = qa."questionId"
-            LEFT JOIN "Topic" t ON t."id" = q."topicId"
-            WHERE qa."userId" = ${uid}
-            GROUP BY 1, 2
-        `;
 
         const microTopics = {};
         topicRows.forEach((r) => {
@@ -146,24 +212,11 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             agg.timedAttempts += r.timedAttempts;
         });
 
-        // BKT mastery (Phase 3.5) lives on UserTopicPerformance, keyed by the
-        // canonical topic name — merge P(mastery) onto each microTopic. Matched
-        // case/whitespace-insensitively, the same way the heatmap resolves tiles.
-        const masteryRows = await prisma.userTopicPerformance.findMany({
-            where: { userId: uid },
-            select: { topic: true, pMastery: true, masteryN: true },
-        });
         const masteryByNorm = new Map(masteryRows.map((m) => [String(m.topic || '').trim().toLowerCase(), m]));
         for (const [topic, agg] of Object.entries(microTopics)) {
             const m = masteryByNorm.get(String(topic).trim().toLowerCase());
             if (m) { agg.mastery = m.pMastery; agg.masteryN = m.masteryN; }
         }
-
-        const matrixAgg = await prisma.questionAttempt.groupBy({
-            by: ['confidenceLevel', 'isCorrect'],
-            where: { userId: uid },
-            _count: { id: true }
-        });
 
         const matrix = { hc: 0, hw: 0, lc: 0, lw: 0 };
         matrixAgg.forEach(group => {
@@ -172,14 +225,6 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             matrix[`${conf}${correct}`] += group._count.id;
         });
 
-        // Per-mode breakdown: how many attempts came from each surface
-        // (Active Review, Board Sim, Gauntlet, Combat, Battle). Powers the
-        // dashboard "by mode" view so users can see where their reps land.
-        const modeAgg = await prisma.questionAttempt.groupBy({
-            by: ['mode', 'isCorrect'],
-            where: { userId: uid },
-            _count: { id: true },
-        });
         const modeBreakdown = {};
         modeAgg.forEach((g) => {
             const k = g.mode || 'LEGACY';
@@ -196,15 +241,6 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // computing it twice from two different queries is exactly the
         // maintenance hazard that caused the original drift.)
 
-        // θ-history powers the Readiness Velocity chart. We store one row per
-        // Manila day (telemetryService daily-upsert), so the last ~120 rows give
-        // ~4 months of daily samples — enough for the Day/Week/Month buckets.
-        const thetaRows = await prisma.thetaHistory.findMany({
-            where: { userId: uid },
-            orderBy: { recordedAt: 'asc' },
-            take: 120,
-            select: { theta: true, recordedAt: true },
-        });
         const manilaFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
         const thetaHistory = thetaRows.map((r) => ({
             date: manilaFmt.format(r.recordedAt),
