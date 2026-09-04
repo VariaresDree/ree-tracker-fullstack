@@ -68,7 +68,20 @@ export default defineConfig(async ({ mode, command }) => {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
           if (id.includes('react-router-dom') || /[\\/]react(-dom)?[\\/]/.test(id)) return 'react';
-          if (id.includes('recharts')) return 'charts';
+          // NO manual chunk for recharts, for the same reason as the PDF path
+          // below: naming a chunk makes rolldown emit it as a STATIC import of
+          // the entry, even when every consumer sits behind React.lazy().
+          // All four do — ThetaVelocityChart and MockBoardAnalytics via
+          // Dashboard.jsx, AnalyticsDeepDive via Profile.jsx, CalibrationCurve
+          // via AnalyticsDeepDive — yet index.html still modulepreloaded
+          // 117 kB (416 kB raw) of charting on every route, 52% of it unused.
+          //
+          // PR #90 looked at this and concluded the eager load was correct
+          // "because recharts is statically imported by several components".
+          // That was wrong: those components import it statically, but they
+          // are themselves lazy, so the only thing making it eager was this
+          // line. Verified by build: without it, recharts leaves the preload
+          // list entirely and lands in async-only chunks.
           if (id.includes('firebase')) return 'firebase';
           if (id.includes('pdfjs-dist')) return 'pdf';
           if (id.includes('socket.io-client')) return 'socket';

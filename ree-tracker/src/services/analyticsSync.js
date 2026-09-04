@@ -142,16 +142,45 @@ export function mergeServerIntoStats(stats, sqlData) {
  * return the normalized payload (or null when the server has nothing).
  * Callers: Dashboard mount/sync-tick, Profile mount, "Restore from cloud".
  */
+// Last raw server payload, kept so a later TOS change can be re-applied
+// WITHOUT another round-trip. Dashboard used to list `dynamicTOS` in its fetch
+// effect's deps, so when AuthContext's TOS request resolved — always after the
+// first dashboard fetch — the whole effect re-ran and re-fetched the aggregate
+// and the readiness score. A mobile trace caught it: the dashboard endpoint hit
+// three times and /api/readiness twice on one load. The TOS only affects how
+// microTopics are BUCKETED for display; it is not new server data, so the fix
+// is to re-normalize what we already have.
+let lastRawDashboard = null;
+
+/** Normalize a raw dashboard payload against the current TOS and hydrate. */
+function hydrateFromRaw(raw) {
+  const { dynamicTOS, stats, setStats } = useStore.getState();
+  const normalized = {
+    ...raw,
+    microTopics: normalizeMicroTopics(raw.microTopics || {}, dynamicTOS || {}),
+  };
+  setStats(mergeServerIntoStats(stats || {}, normalized));
+  return normalized;
+}
+
 export async function syncDashboardStats(uid) {
   if (!uid) return null;
   const json = await apiRequest(`/api/analytics/dashboard/${uid}`);
   if (!json?.data) return null;
+  lastRawDashboard = json.data;
+  return hydrateFromRaw(json.data);
+}
 
-  const { dynamicTOS, stats, setStats } = useStore.getState();
-  const normalized = {
-    ...json.data,
-    microTopics: normalizeMicroTopics(json.data.microTopics || {}, dynamicTOS || {}),
-  };
-  setStats(mergeServerIntoStats(stats || {}, normalized));
-  return normalized;
+/**
+ * Re-bucket the LAST fetched payload against the current TOS and re-hydrate.
+ * No network. Returns null before the first successful fetch, so callers can
+ * simply skip. This is what a TOS change should trigger — not a refetch.
+ */
+export function renormalizeDashboardStats() {
+  return lastRawDashboard ? hydrateFromRaw(lastRawDashboard) : null;
+}
+
+/** Test seam: forget the cached payload between cases. */
+export function __resetDashboardCache() {
+  lastRawDashboard = null;
 }
