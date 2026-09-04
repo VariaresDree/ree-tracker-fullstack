@@ -167,15 +167,25 @@ function hydrateFromRaw(raw) {
 export async function syncDashboardStats(uid) {
   if (!uid) return null;
 
-  // AuthContext fetched this same endpoint a moment ago to read profile.role.
-  // If its response is still on offer, use it and skip the round-trip. The
-  // slot is single-use, uid-matched, age-bounded and dropped by any mutation
+  // AuthContext requested this same endpoint a moment ago to read profile.role.
+  // If that request is on offer, join it rather than opening a second one —
+  // whether it has come back yet or is still in flight. The slot is single-use,
+  // uid-matched, age-bounded and dropped by any mutation
   // (services/dashboardSeed.js), so this can only ever replace the ONE
-  // duplicate at boot — never a later, genuinely-needed refresh.
+  // duplicate at boot, never a later refresh that genuinely needs the network.
   const seeded = takeDashboardSeed(uid);
   if (seeded) {
-    lastRawDashboard = seeded;
-    return hydrateFromRaw(seeded);
+    try {
+      const shared = await seeded;
+      if (shared?.data) {
+        lastRawDashboard = shared.data;
+        return hydrateFromRaw(shared.data);
+      }
+      // Empty response — fall through and ask for ourselves.
+    } catch {
+      // AuthContext's request failed. That is its problem to report; ours is
+      // to still get the data, so drop through to our own fetch.
+    }
   }
 
   const json = await apiRequest(`/api/analytics/dashboard/${uid}`);

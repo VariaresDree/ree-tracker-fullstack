@@ -30,7 +30,7 @@ const {
     __resetDashboardCache,
 } = await import('./analyticsSync');
 const { loadForecastOnce, __resetForecastInFlight } = await import('../hooks/useForecast');
-const { seedDashboardPayload } = await import('./dashboardSeed');
+const { seedDashboardRequest } = await import('./dashboardSeed');
 
 const payload = { data: { profile: { totalAnswered: 20 }, microTopics: { Algebra: { attempts: 3 } } } };
 
@@ -76,7 +76,7 @@ describe('dashboard aggregate is fetched once per load', () => {
     it('uses the seeded payload from AuthContext instead of a second request', async () => {
         apiRequest.mockResolvedValue(payload);
 
-        seedDashboardPayload('uid-1', payload.data);
+        seedDashboardRequest('uid-1', Promise.resolve(payload));
         const normalized = await syncDashboardStats('uid-1');
 
         expect(apiRequest).not.toHaveBeenCalled();   // the whole point
@@ -89,7 +89,7 @@ describe('dashboard aggregate is fetched once per load', () => {
     });
 
     it('re-normalizes a seeded payload too, when the TOS lands after it', async () => {
-        seedDashboardPayload('uid-1', payload.data);
+        seedDashboardRequest('uid-1', Promise.resolve(payload));
         await syncDashboardStats('uid-1');
 
         expect(renormalizeDashboardStats()).not.toBeNull();
