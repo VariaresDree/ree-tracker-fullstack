@@ -32,9 +32,17 @@ export function CardHeader({ className, ...rest }) {
   );
 }
 
+// h2, not h3. A card is a top-level section of the page, so under a page's h1
+// the next level down is h2 — and Lighthouse flagged the real skip: Dashboard
+// renders PageHeader's h1 and then jumped straight to h3 at "Daily targets".
+//
+// Changing this alone would have moved the problem rather than fixed it: the
+// six h4 section headings inside cards (Profile, Arena, LibraryOverview)
+// would then sit under an h2 and become h2 -> h4 skips of their own. They are
+// h3 now, so every chain reads h1/h2 -> h2 -> h3.
 export function CardTitle({ className, ...rest }) {
   return (
-    <h3
+    <h2
       className={cn(
         'text-textMain font-semibold tracking-tight text-base',
         className

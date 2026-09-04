@@ -15,10 +15,24 @@
     <title>REE.ai | Tactical Reviewer</title>
     <meta name="description" content="Adaptive review platform for the PRC Registered Electrical Engineer board exam: full-length board simulations, ability-tracked practice across Mathematics, ESAS and EE, and readiness forecasting built on your own answer history." />
 
-    <!-- Editorial typography stack -->
+    <!-- Editorial typography stack.
+         Fraunces is requested at ONE weight, not three. It is used by exactly
+         one rule — .text-display in styles/index.css — which hard-sets
+         font-weight: 500, and no font-weight utility is ever applied alongside
+         .text-display anywhere in the app, so 400 and 600 were downloaded and
+         never rendered.
+
+         The stylesheet is loaded non-render-blocking (media=print, flipped on
+         load). A mobile trace put this request on the longest critical chain at
+         4,261ms, holding up first paint. Nothing about the RENDERED result
+         changes: display=swap already meant text painted in the fallback face
+         first and swapped, so this removes a blocker without introducing a
+         flash that was not already there. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500&display=swap" media="print" onload="this.media='all';this.onload=null" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500&display=swap" /></noscript>
 
     <!-- ZERO-FLICKER THEME BOOT SCRIPT -->
     <script>

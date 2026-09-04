@@ -464,9 +464,9 @@ export default function Arena() {
                       </span>
                     </div>
 
-                    <h4 className={`text-xl font-semibold tracking-tight mb-2 relative z-10 ${isPassed || isUnlocked ? 'text-textMain' : 'text-muted'}`}>
+                    <h3 className={`text-xl font-semibold tracking-tight mb-2 relative z-10 ${isPassed || isUnlocked ? 'text-textMain' : 'text-muted'}`}>
                       {tier.name}
-                    </h4>
+                    </h3>
 
                     <ul className="flex flex-col gap-1.5 text-xs font-mono text-muted mb-6 relative z-10">
                       <li className="flex justify-between"><span>Questions</span> <span className="font-bold text-textMain tabular-nums">{tier.items}</span></li>
@@ -626,9 +626,9 @@ export default function Arena() {
                       : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'
                   )}
                 >
-                  <h4 className={cn('text-sm font-semibold mb-1 flex items-center gap-2', selected ? 'text-[var(--accent)]' : 'text-textMain')}>
+                  <h3 className={cn('text-sm font-semibold mb-1 flex items-center gap-2', selected ? 'text-[var(--accent)]' : 'text-textMain')}>
                     <Icon size={16} strokeWidth={1.75} aria-hidden="true" /> {m.name}
-                  </h4>
+                  </h3>
                   <p className="text-xs text-muted2 leading-relaxed hidden sm:block">{m.description}</p>
                 </button>
               );

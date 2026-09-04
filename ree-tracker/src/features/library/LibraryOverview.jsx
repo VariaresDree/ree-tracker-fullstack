@@ -512,7 +512,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {Object.keys(editTOS).map(subject => (
                   <div key={subject} className="bg-surface2/40 border border-border rounded-[var(--radius-lg)] p-4 flex flex-col max-h-[350px]">
-                      <h4 className="text-eyebrow mb-3 pb-2 border-b border-border shrink-0">{subject}</h4>
+                      <h3 className="text-eyebrow mb-3 pb-2 border-b border-border shrink-0">{subject}</h3>
                       <div className="flex-1 flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2">
                           {editTOS[subject].map(sub => (
                               <div key={sub} className="flex justify-between items-center bg-bg border border-border p-2 rounded-[var(--radius-sm)] group transition-colors shrink-0">

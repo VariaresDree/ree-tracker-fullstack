@@ -330,9 +330,9 @@ export default function Profile() {
 
             {/* Notifications */}
             <div className="bg-surface border border-border p-6 rounded-[var(--radius-lg)] shadow-sm">
-                <h4 className="text-sm font-semibold text-textMain mb-1 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-textMain mb-1 flex items-center gap-2">
                     <Bell size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" /> Notifications
-                </h4>
+                </h3>
                 <p className="text-xs text-muted2 mb-5">Session alerts and an optional daily review reminder.</p>
 
                 <div className="flex flex-col gap-5">
@@ -391,9 +391,9 @@ export default function Profile() {
                 
                 {/* Cloud backup */}
                 <div className="bg-surface border border-border p-6 rounded-[var(--radius-lg)] shadow-sm flex flex-col justify-center">
-                    <h4 className="text-sm font-semibold text-textMain mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-textMain mb-4 flex items-center gap-2">
                         <Cloud size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-signal)]" /> Cloud backup
-                    </h4>
+                    </h3>
                     <div className="p-4 rounded-[var(--radius-default)] border border-border bg-surface2/50 flex items-center gap-4 transition-all duration-500">
                         <StatusPill
                             tone={
@@ -427,9 +427,9 @@ export default function Profile() {
                         borderColor: 'color-mix(in srgb, var(--accent-danger) 20%, transparent)',
                     }}
                 >
-                    <h4 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--accent-danger)' }}>
+                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--accent-danger)' }}>
                         <TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" /> Danger zone
-                    </h4>
+                    </h3>
                     <div className="flex flex-col gap-3">
                         <Button fullWidth variant="secondary" onClick={() => setActiveModal('logout')}>
                             Log out

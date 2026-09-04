@@ -33,11 +33,25 @@ export default function ZoomableImage({ src, alt }) {
             </div>
 
             <TransformComponent wrapperClass="w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing">
-              <img 
-                src={src} 
-                alt={alt || 'Zoomable reference'} 
+              {/* No width/height attributes here, deliberately. The audit flagged
+                  this as a CLS risk because it is the app's only <img> and sets
+                  no dimensions — but the box is already reserved: this sits in a
+                  w-full h-full flex container inside another w-full h-full
+                  wrapper, so the image is centred into space that exists before
+                  it loads. `src` is a user-supplied URL of unknown intrinsic
+                  size, so hard-coding dimensions would distort it rather than
+                  prevent a shift that does not happen.
+
+                  decoding="async" keeps a large reference scan off the main
+                  thread, and lazy loading defers it until the viewer is
+                  actually opened. */}
+              <img
+                src={src}
+                alt={alt || 'Zoomable reference'}
                 className="max-w-full max-h-[80vh] object-contain"
                 draggable="false"
+                decoding="async"
+                loading="lazy"
               />
             </TransformComponent>
           </>
