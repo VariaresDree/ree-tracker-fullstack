@@ -95,6 +95,17 @@ async function bootstrap() {
         }
     }
 
+    // The probe above opens exactly ONE connection. Open the rest now, while
+    // Render's health check still gates traffic, so the first page load does
+    // not pay several concurrent trans-Pacific TLS handshakes on the critical
+    // path — the dashboard route issues its queries as one concurrent batch.
+    // Best-effort: a failure here leaves the pool to open connections on demand
+    // exactly as before, so it must not stop the server booting.
+    if (readiness.db === 'ok') {
+        const warmed = await prisma.warmPool();
+        console.log(`[BOOT] pool warmed: ${warmed}/${prisma.WARM_CONNECTIONS} connections`);
+    }
+
     const app = express();
     const httpServer = createServer(app);
 
@@ -323,6 +334,15 @@ async function bootstrap() {
     } else {
         console.warn('[BOOT] Leaderboard refresh NOT started — db unavailable (routes will live-query).');
     }
+
+    // Node closes idle keep-alive sockets after 5s by default. Render's proxy
+    // holds connections open longer than that and reuses them, so a socket the
+    // proxy still believes is good can be closed underneath it — which surfaces
+    // as an occasional 502 that is impossible to reproduce on demand.
+    // headersTimeout must exceed keepAliveTimeout, or a request arriving on a
+    // reused socket can trip the header timer instead.
+    httpServer.keepAliveTimeout = 65_000;
+    httpServer.headersTimeout = 70_000;
 
     const PORT = process.env.PORT || 5000;
     httpServer.listen(PORT, () => {
