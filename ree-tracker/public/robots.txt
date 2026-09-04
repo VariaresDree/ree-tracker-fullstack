@@ -1,0 +1,21 @@
+# REE.ai — Tactical Reviewer
+#
+# This file has to exist as a real asset. Without it the SPA rewrite in
+# vercel.json ("/(.*)" -> /index.html) answered /robots.txt with the app
+# shell as text/html, and crawlers parsed 50 lines of markup as directives.
+# Vercel serves public/ before applying rewrites, so a real file wins.
+
+User-agent: *
+Allow: /
+
+# Every route below the root is client-rendered behind auth, so a crawler
+# receives only the empty shell. Excluded so they are not indexed as blank
+# pages. Paths mirror the router in src/App.jsx — keep the two in step.
+Disallow: /arena
+Disallow: /battle/
+Disallow: /gauntlet/
+Disallow: /library
+Disallow: /materials
+Disallow: /profile
+Disallow: /review
+Disallow: /simulator

@@ -76,44 +76,55 @@ export const AuthProvider = ({ children }) => {
         } catch { /* sessionStorage unavailable (private mode) — skip */ }
 
         try {
-          const profileResponse = await getAnalyticsProfile(user.uid);
+          // All three requests are started before any of them is awaited.
+          // Sequential awaits made a three-deep waterfall — a production trace
+          // measured profile 3457ms -> TOS 1106ms -> flags 693ms, each starting
+          // only once the previous resolved, so Arena sat empty for 5.5s.
+          //
+          // They are kicked off together but awaited one at a time on purpose,
+          // rather than via Promise.all: each result is applied the moment it
+          // lands, so admin state is not gated on the slowest of the three. A
+          // hung TOS request delays only the TOS write, exactly as before.
+          //
+          // fetchDynamicTOS and fetchFeatureFlags resolve to null on failure
+          // instead of rejecting, so only the profile call can reject here and
+          // it lands in the outer catch just as it did when this was
+          // sequential; the other two are in flight but swallow their own
+          // errors, so neither is left unhandled.
+          const profilePromise = getAnalyticsProfile(user.uid);
+          const tosPromise = fetchDynamicTOS();
+          const flagsPromise = fetchFeatureFlags();
+
+          const profileResponse = await profilePromise;
           const dbRole = profileResponse?.data?.profile?.role;
-          
           const isUserAdmin = dbRole === 'ADMIN' || dbRole === 'admin';
-          
           setIsAdmin(isUserAdmin);
-          
           if (useStore.getState) {
               useStore.getState().setIsAdmin(isUserAdmin);
           }
 
-          // 🚀 FETCH THE NEWEST TOS FROM THE DATABASE
-          try {
-              const cloudTOS = await fetchDynamicTOS();
-              if (cloudTOS && useStore.getState) {
-                  useStore.getState().setDynamicTOS(cloudTOS);
-              }
-          } catch (tosError) {
+          const cloudTOS = await tosPromise;
+          if (cloudTOS && useStore.getState) {
+              useStore.getState().setDynamicTOS(cloudTOS);
+          } else if (!cloudTOS) {
               console.warn("Failed to fetch cloud TOS, maintaining local cached state.");
           }
 
-          // Feature flags (Phase 4.1) — refresh the last-known map; a failed
-          // fetch keeps the persisted state (missing keys read as disabled).
-          try {
-              const flags = await fetchFeatureFlags();
-              if (flags && useStore.getState) {
-                  useStore.getState().setFeatureFlags(flags);
-              }
-          } catch (flagError) {
+          // A failed flag fetch keeps the persisted map (missing keys read as
+          // disabled), so the push registration below still sees cached flags.
+          const flags = await flagsPromise;
+          if (flags && useStore.getState) {
+              useStore.getState().setFeatureFlags(flags);
+          } else if (!flags) {
               console.warn("Failed to fetch feature flags, keeping cached state.");
           }
 
           // FCM push (Phase 4.2) — no-op on the web; on the Capacitor native
           // app this registers the device token, gated by the rollout flag.
           try {
-              const flags = useStore.getState?.().featureFlags || {};
+              const activeFlags = useStore.getState?.().featureFlags || {};
               await initPushNotifications(user.uid, {
-                  flagEnabled: !!flags['push-notifications']?.enabled,
+                  flagEnabled: !!activeFlags['push-notifications']?.enabled,
               });
           } catch (pushError) {
               console.warn('Push registration skipped:', pushError?.message);
