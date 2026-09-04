@@ -9,7 +9,11 @@ module.exports = {
   ci: {
     collect: {
       staticDistDir: './dist',
-      numberOfRuns: 1,
+      // 3, not 1. CI runners are noisy enough that a single run made the
+      // perf metrics unusable as gates — which is why they are warnings below
+      // rather than errors. Lighthouse reports the MEDIAN across runs, so this
+      // is what would let them become errors later.
+      numberOfRuns: 3,
       settings: { chromeFlags: '--no-sandbox --headless=new' },
     },
     assert: {
