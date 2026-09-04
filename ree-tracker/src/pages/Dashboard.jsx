@@ -16,7 +16,7 @@ const MockBoardAnalytics = lazy(() => import('../components/MockBoardAnalytics')
 import { generateBoardReadinessReport } from '../services/geminiApi';
 
 import { fetchReadinessScore } from '../services/dbQueries';
-import { syncDashboardStats, mergeServerIntoStats } from '../services/analyticsSync';
+import { syncDashboardStats, mergeServerIntoStats, renormalizeDashboardStats } from '../services/analyticsSync';
 import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
@@ -120,7 +120,21 @@ export default function Dashboard() {
     // Composite readiness is computed per-request on the backend — refetch on
     // the same triggers so the KPI is always as fresh as the rest.
     fetchReadinessScore().then((r) => { if (r) setReadiness(r); }).catch(() => {});
-  }, [currentUser, dynamicTOS, syncTick]);
+    // Keyed on the UID, not the `currentUser` OBJECT, and deliberately NOT on
+    // dynamicTOS. Firebase hands back a new user object on token refresh, and
+    // AuthContext's TOS request always resolves after this first fetch — so
+    // with either in the deps this effect re-ran and re-fetched. A mobile
+    // trace measured the cost: /analytics/dashboard three times and
+    // /api/readiness twice on a single load. A TOS change needs re-bucketing,
+    // not re-fetching; the effect below does that with no network.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid, syncTick]);
+
+  // TOS arrived (or changed) — re-bucket the payload we already have.
+  useEffect(() => {
+    const normalized = renormalizeDashboardStats();
+    if (normalized) setSqlData(normalized);
+  }, [dynamicTOS]);
 
   // Merge logic lives in services/analyticsSync (shared with Profile). The
   // store is already hydrated with the merged result at fetch time; re-merging

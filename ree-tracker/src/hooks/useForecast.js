@@ -6,6 +6,30 @@ import { fetchForecast, recomputeForecast } from '../services/dbQueries';
 //
 // The snapshot shape mirrors src/engine/forecast.js (passProbability,
 // topnotcherProbability, expectedRank, weakTopics, recommendedActions).
+// In-flight coalescing. TWO components call this hook on the dashboard —
+// PrescriptionPanel and TrajectoryCard — each with its own state, so each fired
+// its own GET /api/forecast. A mobile trace caught the pair 0.6ms apart: not a
+// refetch, just two mounts racing. Sharing the promise makes concurrent callers
+// one request while leaving each component's local state untouched, so nothing
+// else about the hook's contract changes.
+//
+// Deliberately NOT a cache: the promise is dropped as soon as it settles, so a
+// later refresh() or recompute() still goes to the server. Coalescing only
+// collapses requests that overlap in time.
+let inFlightForecast = null;
+
+export function loadForecastOnce() {
+  if (!inFlightForecast) {
+    inFlightForecast = fetchForecast().finally(() => { inFlightForecast = null; });
+  }
+  return inFlightForecast;
+}
+
+/** Test seam: drop any shared in-flight request between cases. */
+export function __resetForecastInFlight() {
+  inFlightForecast = null;
+}
+
 export function useForecast({ autoload = true } = {}) {
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(autoload);
@@ -15,7 +39,7 @@ export function useForecast({ autoload = true } = {}) {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchForecast();
+      const data = await loadForecastOnce();
       setSnapshot(data?.snapshot ?? null);
     } catch (err) {
       // safeApiRequest returns null on failure, so an exception here means

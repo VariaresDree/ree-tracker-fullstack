@@ -149,6 +149,13 @@ const normalizeQuestions = (data) => {
 // ----------------------------------------------------------------------
 // 1. Analytics Profile & Telemetry (RESTORED MISSING EXPORTS)
 // ----------------------------------------------------------------------
+// THE one wrapper for the dashboard aggregate. There were four: this,
+// `updateAnalyticsProfile` (byte-identical, zero callers), and
+// `syncLeaderboardProfile` (zero callers), plus services/analyticsSync's own
+// call — which is why a mobile trace showed the endpoint fetched three times
+// on a single load. The two dead ones are deleted; keep it that way. If a
+// caller needs the payload hydrated into the store, use
+// analyticsSync.syncDashboardStats rather than adding a wrapper here.
 export const getAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
 
 // PRC board TOS blend, read from the server config table so the exam builder and
@@ -167,7 +174,6 @@ export const fetchSyllabusWeights = async () => {
 };
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
 export const logSRSRecord = async (uid, questionId, payload) => apiRequest('/api/srs/review', 'POST', { questionId, ...payload });
-export const updateAnalyticsProfile = async (uid) => safeApiRequest(`/api/analytics/dashboard/${uid}`, 'GET', null, null);
 // mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
 // — server uses it to break down dashboard analytics per surface.
 const MODE_ALIAS = {
@@ -372,7 +378,6 @@ export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 
 // ----------------------------------------------------------------------
 // 4. The Social Matrix (Leaderboards)
 // ----------------------------------------------------------------------
-export const syncLeaderboardProfile = async (uid) => apiRequest(`/api/analytics/dashboard/${uid}`);
 
 // Normalizes any agent row to the shape the UI expects: { uid, displayName, thetaRating, streak, ... }
 const normalizeAgent = (a) => ({
