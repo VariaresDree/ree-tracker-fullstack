@@ -9,6 +9,7 @@
 // surfaces read the same reconciled numbers.
 import { apiRequest } from './dbQueries';
 import { useStore } from '../store/useStore';
+import { takeDashboardSeed, invalidateDashboardSeed } from './dashboardSeed';
 
 /**
  * Pure: translate the backend microTopics shape (totalAttempts/correctHits/
@@ -165,6 +166,18 @@ function hydrateFromRaw(raw) {
 
 export async function syncDashboardStats(uid) {
   if (!uid) return null;
+
+  // AuthContext fetched this same endpoint a moment ago to read profile.role.
+  // If its response is still on offer, use it and skip the round-trip. The
+  // slot is single-use, uid-matched, age-bounded and dropped by any mutation
+  // (services/dashboardSeed.js), so this can only ever replace the ONE
+  // duplicate at boot — never a later, genuinely-needed refresh.
+  const seeded = takeDashboardSeed(uid);
+  if (seeded) {
+    lastRawDashboard = seeded;
+    return hydrateFromRaw(seeded);
+  }
+
   const json = await apiRequest(`/api/analytics/dashboard/${uid}`);
   if (!json?.data) return null;
   lastRawDashboard = json.data;
@@ -183,4 +196,5 @@ export function renormalizeDashboardStats() {
 /** Test seam: forget the cached payload between cases. */
 export function __resetDashboardCache() {
   lastRawDashboard = null;
+  invalidateDashboardSeed();
 }
