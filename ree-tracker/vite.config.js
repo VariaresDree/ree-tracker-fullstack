@@ -199,6 +199,55 @@ export default defineConfig(async ({ mode, command }) => {
             },
           },
           {
+            // Per-user analytics: the endpoints that dominate a dashboard load
+            // and, until now, matched NO runtime rule at all — so a sleeping
+            // free-tier instance produced a blank dashboard after the client's
+            // 12s abort. Measured cold: 13,002ms, i.e. the abort, not a slow
+            // response. With this rule the same load paints from cache in ~2.5s.
+            //
+            // NetworkFirst, NOT StaleWhileRevalidate, despite SWR being the
+            // usual pick for "instant paint". SWR hands back the cached body and
+            // refreshes the cache in the background — but this app reads each of
+            // these responses ONCE per mount, so the refreshed body would sit in
+            // a cache nothing reads again and the user would keep stale numbers
+            // for the whole session. NetworkFirst keeps today's freshness
+            // whenever the network answers within the timeout, and only falls
+            // back to cache when it does not. 2.5s is under the ~2.9s p50 warm
+            // dashboard, so a healthy request is never pre-empted.
+            // Self-contained ON PURPOSE. Workbox stringifies this function into
+            // sw.js, so it cannot reference an import or a module-scope helper:
+            // an earlier version imported a predicate and the built SW emitted
+            // `isUserDataApiPath is not defined`, which would have thrown on
+            // every fetch event and taken the whole service worker down.
+            //
+            // Segment equality rather than a regex, because the version before
+            // THAT was a regex whose escaping turned `\/` into `\/` — it asked
+            // for a literal backslash in the pathname, matched nothing, and
+            // looked perfectly correct in review. No backslashes, nothing to
+            // mangle. scripts/check-sw-routes.cjs runs this exact function out
+            // of the BUILT sw.js against real paths, since neither failure was
+            // visible in the source.
+            urlPattern: ({ url }) => {
+              const seg = url.pathname.split('/');
+              return seg[1] === 'api'
+                && ['analytics', 'readiness', 'forecast', 'leaderboard'].includes(seg[2]);
+            },
+            method: 'GET',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-user-data',   // asserted equal to services/apiCache.js by check-sw-routes.cjs
+              networkTimeoutSeconds: 2.5,
+              expiration: { maxEntries: 60, maxAgeSeconds: 24 * 60 * 60 },
+              // statuses [200] ONLY — deliberately not [0, 200] like the rules
+              // around it. A 0 is an opaque cross-origin response, and caching
+              // one here would store an unreadable body under a real endpoint's
+              // key. These responses are also per-user and two of them carry no
+              // uid in the URL, so ownership is enforced separately in
+              // services/apiCache.js — see the note there.
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             // Question / explanation images: cache-first with a bounded, expiring
             // cache so storage can't grow without limit on a low-end device.
             urlPattern: ({ request }) => request.destination === 'image',

@@ -101,6 +101,13 @@ jobs:
       - name: Boot-payload budget
         run: npm run check:bundle --workspace=ree-tracker
 
+      # Runs the service worker's route matcher OUT OF the built sw.js. Two
+      # versions of this rule shipped broken in one sitting — a regex that
+      # matched nothing, then an imported predicate the worker never defined —
+      # and neither was visible in the source or in a grep of the output.
+      - name: Service-worker route matcher
+        run: npm run check:sw --workspace=ree-tracker
+
   backend:
     name: Backend (vitest)
     runs-on: ubuntu-latest

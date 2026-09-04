@@ -9,8 +9,9 @@ import {
   updateProfile
 } from 'firebase/auth';
 // 🚀 NEW: Import the TOS fetch function
-import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags, updateUserProfile } from '../services/dbQueries';
+import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags, updateUserProfile, BOOT_TIMEOUT_MS } from '../services/dbQueries';
 import { seedDashboardRequest } from '../services/dashboardSeed';
+import { claimApiCacheFor, purgeApiCache } from '../services/apiCache';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
 import { Button } from '../components/ui';
@@ -63,6 +64,14 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
 
       if (user) {
+        // Claim the SW's API cache for this uid BEFORE any request is issued,
+        // so a cache written by a previous account is dropped rather than
+        // served. /api/readiness, /api/forecast and /api/leaderboard/me carry
+        // no uid in their URLs — they are scoped by token — so the cache key
+        // alone cannot keep two accounts apart. Same user reloading is the
+        // common case and does not purge (services/apiCache.js).
+        claimApiCacheFor(user.uid).catch(() => { /* cache is best-effort */ });
+
         // Mirror the Firebase display name into the Postgres User row (the
         // leaderboard's source of truth) once per session, so a name set at
         // signup — or edited on another device — propagates to the Arena and
@@ -92,7 +101,7 @@ export const AuthProvider = ({ children }) => {
           // it lands in the outer catch just as it did when this was
           // sequential; the other two are in flight but swallow their own
           // errors, so neither is left unhandled.
-          const profilePromise = getAnalyticsProfile(user.uid);
+          const profilePromise = getAnalyticsProfile(user.uid, { timeoutMs: BOOT_TIMEOUT_MS });
           const tosPromise = fetchDynamicTOS();
           const flagsPromise = fetchFeatureFlags();
 
@@ -184,6 +193,10 @@ export const AuthProvider = ({ children }) => {
     // Clear the display-name mirror guard so the next user to sign in on this
     // tab re-mirrors their own name (the flag is per-session, not per-user).
     try { sessionStorage.removeItem('dn_mirrored'); } catch { /* ignore */ }
+    // Drop this account's cached analytics before the session ends. Without
+    // it the next person to sign in on this browser could be served the
+    // previous user's readiness and forecast, neither of which is keyed by uid.
+    try { await purgeApiCache(); } catch { /* best-effort */ }
     await signOut(auth);
     setCurrentUser(null);
     setIsAdmin(false);
