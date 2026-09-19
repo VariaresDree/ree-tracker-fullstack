@@ -6,6 +6,8 @@
 // lightest. Override at runtime via MODEL_TIERS env (comma-separated) so new
 // Google IDs can be added without a redeploy.
 const DEFAULT_MODEL_TIERS = [
+    'gemini-3.1-pro',         
+    'gemini-3.8-flash',       
     'gemini-3.5-flash',
     'gemini-2.5-flash',
     'gemini-3.1-flash-lite',
