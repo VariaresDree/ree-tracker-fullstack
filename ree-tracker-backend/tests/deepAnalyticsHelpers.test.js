@@ -29,6 +29,28 @@ describe('buildScoreProgression', () => {
     expect(rows.map((r) => r.verdict)).toEqual(['PASSED', 'FAILED', 'FAILED']);
   });
 
+  it('applies the PRC rule to never-finalized sessions when their subject scores are known', () => {
+    // 70% overall, but Mathematics at 40%: the subject floor makes this a
+    // CONDITIONAL PASS. Deriving from pct alone used to call it PASSED, so
+    // Score History disagreed with the results screen.
+    const rows = buildScoreProgression(
+      [{ ...base, id: 's1', mode: 'BOARD_SIM', score: 70, totalQuestions: 100, verdict: 'IN_PROGRESS' }],
+      { s1: { Mathematics: 40, ESAS: 80, EE: 80 } },
+    );
+    expect(rows[0].verdict).toBe('CONDITIONAL PASS');
+    expect(rows[0].generalAverage).toBe(70);
+  });
+
+  it('weights the subjects when it re-derives a verdict', () => {
+    // 71% raw would pass; the 25/30/45 weighted average is 69.3.
+    const rows = buildScoreProgression(
+      [{ ...base, id: 's2', mode: 'BOARD_SIM', score: 214, totalQuestions: 300, verdict: 'IN_PROGRESS' }],
+      { s2: { Mathematics: 90, ESAS: 60, EE: 64 } },
+    );
+    expect(rows[0].pct).toBe(71);
+    expect(rows[0].verdict).toBe('FAILED');
+  });
+
   it('keeps a finalized verdict as stored', () => {
     const [row] = buildScoreProgression([
       { ...base, mode: 'GAUNTLET', score: 6, totalQuestions: 10, verdict: 'PASSED' },
@@ -100,5 +122,25 @@ describe('aggregateDailyStudy', () => {
       { date: '2026-07-02', totalSecs: 1800, sessions: 1 },
       { date: '2026-07-03', totalSecs: 300, sessions: 1 },
     ]);
+  });
+});
+
+describe('subjectScoresBySession', () => {
+  const { subjectScoresBySession, needsDerivedVerdict } = require('../src/services/deepAnalyticsHelpers');
+
+  it('folds grouped attempt rows into per-session subject percentages, merging spellings', () => {
+    const out = subjectScoresBySession([
+      { sessionId: 's1', subject: 'Math', total: 2, correct: 1 },
+      { sessionId: 's1', subject: 'Mathematics', total: 2, correct: 2 },
+      { sessionId: 's1', subject: 'EE', total: 4, correct: 1 },
+      { sessionId: 's2', subject: 'ESAS', total: 0, correct: 0 },
+    ]);
+    expect(out).toEqual({ s1: { Mathematics: 75, EE: 25 }, s2: {} });
+  });
+
+  it('only never-finalised exam sessions need a derived verdict', () => {
+    expect(needsDerivedVerdict({ mode: 'BOARD_SIM', totalQuestions: 10, verdict: 'IN_PROGRESS' })).toBe(true);
+    expect(needsDerivedVerdict({ mode: 'BOARD_SIM', totalQuestions: 10, verdict: 'PASSED' })).toBe(false);
+    expect(needsDerivedVerdict({ mode: 'ACTIVE_REVIEW', totalQuestions: 10, verdict: 'IN_PROGRESS' })).toBe(false);
   });
 });

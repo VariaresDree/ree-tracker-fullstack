@@ -22,6 +22,7 @@ import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
 import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
 import PageHeader from '../components/PageHeader';
+import { WEAK_TOPIC_ACCURACY } from '@ree/shared';
 import { Panel, KpiTile, StatusPill, Button, Card, Badge, EmptyState, SegmentedControl } from '../components/ui';
 import {
   Target, Gauge, ListChecks, Timer, Flame, AudioWaveform,
@@ -174,7 +175,7 @@ export default function Dashboard() {
 
     const topics = activeStats.microTopics ? Object.entries(activeStats.microTopics) : [];
     const weakTopics = topics
-      .filter(([, data]) => data.attempts > 0 && data.correct / data.attempts < 0.5)
+      .filter(([, data]) => data.attempts > 0 && data.correct / data.attempts < WEAK_TOPIC_ACCURACY)
       .map(([name]) => name);
 
     try {

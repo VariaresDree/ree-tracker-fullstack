@@ -17,6 +17,7 @@ const qMap = {
     m1: { id: 'm1', answer: 'A', subject: 'Mathematics', subtopic: 'Algebra', difficulty: 1 },
     m2: { id: 'm2', answer: 'B', subject: 'Math', subtopic: 'Calculus', difficulty: 2 },
     e1: { id: 'e1', answer: 'C', subject: 'EE', subtopic: 'AC Electric Circuits', difficulty: 1 },
+    s1: { id: 's1', answer: 'D', subject: 'ESAS', subtopic: 'Thermodynamics', difficulty: 1 },
 };
 
 describe('gradeAttempts', () => {
@@ -130,16 +131,33 @@ describe('buildDiagnostics', () => {
     it('applies the PRC subject floor, not just the average', () => {
         const attempts = [
             { questionId: 'm1', userAnswer: 'D' },  // Math wrong  -> Mathematics 0%
-            { questionId: 'e1', userAnswer: 'C' },  // EE right
+            { questionId: 's1', userAnswer: 'D' },  // ESAS right  -> 100%
+            { questionId: 'e1', userAnswer: 'C' },  // EE right    -> 100%
+        ];
+        const { correctCount, parsedAttempts, subjectPerformance } = gradeAttempts(attempts, qMap, 'u1');
+        const d = buildDiagnostics({ attempts, parsedAttempts, correctCount, subjectPerformance, timeTakenSecs: 60 });
+
+        expect(d.generalAverage).toBe(75);           // 0*.25 + 100*.30 + 100*.45: average met
+        expect(d.subjectScores.Mathematics).toBe(0); // but a subject is on the floor
+        expect(d.verdict).toBe('CONDITIONAL PASS');
+    });
+
+    it('grades on the WEIGHTED general average, not the raw share correct', () => {
+        // 3 of 4 right is 75% raw — but the miss is Mathematics (weight .25,
+        // renormalised to .357 with ESAS unrated) and the hits are all EE, so
+        // the PRC general weighted average is 64.29: a fail, not a conditional.
+        const attempts = [
+            { questionId: 'm1', userAnswer: 'D' },
+            { questionId: 'e1', userAnswer: 'C' },
             { questionId: 'e1', userAnswer: 'C' },
             { questionId: 'e1', userAnswer: 'C' },
         ];
         const { correctCount, parsedAttempts, subjectPerformance } = gradeAttempts(attempts, qMap, 'u1');
         const d = buildDiagnostics({ attempts, parsedAttempts, correctCount, subjectPerformance, timeTakenSecs: 60 });
 
-        expect(d.overallScore).toBe(75);            // average is met
-        expect(d.subjectScores.Mathematics).toBe(0); // but a subject is on the floor
-        expect(d.verdict).toBe('CONDITIONAL PASS');
+        expect(d.overallScore).toBe(75);
+        expect(d.generalAverage).toBe(64.29);
+        expect(d.verdict).toBe('FAILED');
     });
 
     it('flags a time sink by original question index', () => {

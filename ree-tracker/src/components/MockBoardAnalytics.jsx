@@ -9,6 +9,7 @@ import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
+import { isPassingVerdict } from '@ree/shared';
 import { SkeletonChart } from './SkeletonLoaders';
 import { Panel, DataTable, StatusPill, Button, Card } from './ui';
 import { BarChart3, RefreshCw, Trash2, ShieldAlert } from './ui/icons';
@@ -117,7 +118,7 @@ export default function MockBoardAnalytics() {
 
   const totalRuns = history.length;
   const avgScore = totalRuns > 0 ? Math.round(history.reduce((a, c) => a + c.score, 0) / totalRuns) : 0;
-  const passCount = history.filter((h) => h.verdict === 'PASSED' || h.verdict === 'CONDITIONAL PASS').length;
+  const passCount = history.filter((h) => isPassingVerdict(h.verdict)).length;
   const passRate = totalRuns > 0 ? Math.round((passCount / totalRuns) * 100) : 0;
 
   const columns = [

@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { deriveVerdict, VERDICT, normalizeSubject, TIME_SINK_MS, storableTimeMs } = require('@ree/shared');
+const { gradeBoardExam, VERDICT, normalizeSubject, TIME_SINK_MS, storableTimeMs } = require('@ree/shared');
 
 /** Colour token per verdict, so the mapping is stated once. */
 const VERDICT_COLORS = Object.freeze({
@@ -118,10 +118,15 @@ function buildDiagnostics({ attempts, parsedAttempts, correctCount, timeTakenSec
     const total = parsedAttempts.length;
     const score = scorePercentage(correctCount, total);
     const subjectScores = toSubjectScores(subjectPerformance);
-    const verdict = deriveVerdict(score, subjectScores);
+    // The verdict comes from the WEIGHTED general average (25/30/45) plus the
+    // subject floor — the PRC rule. `overallScore` stays the raw share correct,
+    // which is what the learner actually got; the two differ whenever the item
+    // counts are not in exact syllabus proportion.
+    const { generalAverage, verdict } = gradeBoardExam(subjectScores);
 
     return {
         overallScore: score,
+        generalAverage,
         correctCount,
         totalCount: total,
         verdict,

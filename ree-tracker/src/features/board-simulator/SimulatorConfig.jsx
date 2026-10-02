@@ -4,6 +4,11 @@ import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Card, Button, FormField, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
 import { Settings2, Landmark, Scale, FileText, TriangleAlert } from '../../components/ui/icons';
+import { PRC_FORMAT_SUMMARY, PRC_TIMES } from '../../config/examStandards';
+import { prcSectionSeconds } from '@ree/shared';
+
+const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60]
+  .map((n) => String(n).padStart(2, '0')).join(':');
 
 const PROFILES = [
   {
@@ -16,7 +21,7 @@ const PROFILES = [
     id: 'prc_subject',
     icon: Landmark,
     name: 'PRC Standard',
-    description: 'Strict 100 items with the fixed 4 or 6 hour board time limit.',
+    description: `One subject, 100 items, on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
   },
   {
     id: 'prc_blended',
@@ -192,7 +197,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
               <span className="text-sm text-muted2">Fixed by PRC board rules.</span>
             </div>
             <span className="text-display text-3xl text-textMain font-mono tabular-nums bg-surface px-6 py-3 rounded-[var(--radius-default)] border border-border">
-              {isBlended ? '05:00:00' : (config.subject === 'EE' ? '06:00:00' : '04:00:00')}
+              {hms(isBlended ? PRC_TIMES.BLENDED : (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED))}
             </span>
           </Card>
         )}

@@ -11,7 +11,17 @@ import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
 import { computeBattleDiagnostics } from './battleGrades';
-import { deriveVerdict, toDisplaySubject } from '@ree/shared';
+import {
+  deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
+  PRC_EXAM_FORMAT, prcSectionSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
+} from '@ree/shared';
+import { PRC_TIMES } from '../../config/examStandards';
+
+// Confidence recorded for an item. An answered item with no confidence picked
+// is MED (the neutral middle, as battles already did); an UNANSWERED item is
+// LOW. It used to default to HIGH, which turned every blank into a
+// "confidently wrong" blind spot and inflated the dashboard matrix.
+const confidenceFor = (answer, picked) => (answer != null ? (picked || 'MED') : 'LOW');
 import toast from 'react-hot-toast';
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
@@ -158,7 +168,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const buildExamPool = async () => {
       let pool = [];
       let timeLimitSecs = config.timeLimitMins * 60;
-      const totalCount = config.isPrcStandard ? 100 : (config.count || 20);
+      // A PRC subject sitting is that subject's board item count; the blended
+      // mock is 100 items split by syllabus weight.
+      const totalCount = config.isPrcStandard
+          ? (config.mode === 'blended' ? 100 : (PRC_EXAM_FORMAT[config.subject]?.items || 100))
+          : (config.count || 20);
 
       // Cognitive Filter: Forgiving matching to prevent 0-item crashes
       const applyFilter = (rawPool) => {
@@ -183,15 +197,18 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               // Blend by the PRC syllabus weights (server config, one source of
               // truth shared with the backend sampler); falls back to 25/30/45.
               const w = await fetchSyllabusWeights();
-              const dist = { Mathematics: Math.round(totalCount * w.Mathematics), ESAS: Math.round(totalCount * w.ESAS), EE: Math.round(totalCount * w.EE) };
+              // Largest-remainder split shared with the server sampler: the
+              // counts always sum to totalCount (independent rounding turned a
+              // 10-item blend into 3/3/5 = 11).
+              const dist = apportionItems(totalCount, w);
               for (const subj of ['Mathematics', 'ESAS', 'EE']) {
                   // Direct Deep Fetch: Pulling 2000 ensures we have enough data even after filtering
                   const raw = await fetchVaultQuestions(subj, 'All', 2000);
                   const filtered = applyFilter(raw || []);
-                  const shuffled = stratifiedSample(filtered, dist[subj]);
+                  const shuffled = stratifiedSample(filtered, dist[subj] || 0);
                   pool = pool.concat(shuffled);
               }
-              timeLimitSecs = config.isPrcStandard ? 5 * 3600 : timeLimitSecs;
+              timeLimitSecs = config.isPrcStandard ? PRC_TIMES.BLENDED : timeLimitSecs;
           } else {
               // Direct Deep Fetch
               const targetSubtopic = config.subtopic === 'All' || !config.subtopic ? 'All' : config.subtopic;
@@ -200,7 +217,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               // Stratify so a single-subject sim spans its subtopics rather than
               // collapsing onto the dominant one. (No-op for a pinned subtopic.)
               pool = stratifiedSample(filtered, totalCount);
-              timeLimitSecs = config.isPrcStandard ? (config.subject === 'EE' ? 6 * 3600 : 4 * 3600) : totalCount * 120;
+              // PRC schedule from @ree/shared: Math 5h, ESAS 4h, EE 6h.
+              timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }
       } else {
           if (!isOnline) throw new Error("Offline mode: Must use Local Library Vault.");
@@ -426,12 +444,12 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         if (config.battleId) {
             const timeTakenActual = totalExamTime.current - remainingAtSubmit;
             const mappedQuestions = finalQs.map((q, idx) => ({
-                ...q, userAnswer: finalAns[idx] ?? null, userConf: finalConf[idx] || 'HIGH'
+                ...q, userAnswer: finalAns[idx] ?? null, userConf: confidenceFor(finalAns[idx], finalConf[idx])
             }));
             const pendingAttempts = finalQs.map((q, idx) => ({
                 questionId: q.id,
                 userAnswer: finalAns[idx] ?? null,
-                confidenceLevel: finalConf[idx] || 'MED',
+                confidenceLevel: confidenceFor(finalAns[idx], finalConf[idx]),
                 timeSpentMs: Math.round(timeSpent[idx]) || 0,
             })).filter((a) => a.questionId);
 
@@ -475,7 +493,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
             return {
                 questionId: q.id, subject: q.subject, subtopic: q.subtopic,
-                isCorrect: isCorrect, confidenceLevel: finalConf[idx] || 'HIGH',
+                isCorrect: isCorrect, confidenceLevel: confidenceFor(finalAns[idx], finalConf[idx]),
                 // Send the selected option so the server re-grades against its own
                 // answer key — offline client grading is never trusted for stats.
                 // Omitted (not null) when unanswered — schema userAnswer is optional string.
@@ -562,19 +580,27 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             EE: subjBreakdown.EE.t > 0 ? Math.round((subjBreakdown.EE.c / subjBreakdown.EE.t) * 100) : null
         };
 
-        // ONE definition, shared with the API (@ree/shared). This line used to
-        // band CONDITIONAL PASS at >= 60 while the server stored it at >= 50, so
-        // a 55% exam showed FAILED here and CONDITIONAL PASS in history.
-        const verdict = deriveVerdict(score, subjectScores);
+        // ONE definition, shared with the API (@ree/shared): the PRC general
+        // WEIGHTED average (25/30/45) plus the 50% subject floor. `score` stays
+        // the raw share correct; the verdict used to be judged on it as though
+        // it were the weighted average, which it is only when the item counts
+        // happen to sit in exact syllabus proportion.
+        const { generalAverage, verdict } = gradeBoardExam(subjectScores);
 
-        const mappedQuestions = finalQs.map((q, idx) => ({ ...q, userAnswer: finalAns[idx] || null, userConf: finalConf[idx] || 'HIGH' }));
+        const mappedQuestions = finalQs.map((q, idx) => ({
+            ...q,
+            userAnswer: finalAns[idx] || null,
+            userConf: finalAns[idx] != null ? confidenceFor(finalAns[idx], finalConf[idx]) : null,
+        }));
 
         const diagnosticsPayload = {
-            score, verdict, timeTakenSecs: timeTakenActual, subjectScores,
-            weakTopics: Object.entries(topicBreakdown).filter(([_, d]) => d.t > 0 && (d.c / d.t) < 0.6).map(([t]) => t),
+            score, generalAverage, verdict, timeTakenSecs: timeTakenActual, subjectScores,
+            weakTopics: Object.entries(topicBreakdown).filter(([_, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t),
             totalItems: finalQs.length, correctItems: correct,
-            chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpent[idx] || 0) > 180000),
-            blindSpots: mappedQuestions.filter((q) => (q.userConf === 'HIGH') && q.userAnswer !== q.answer)
+            unansweredItems: finalQs.filter((_, idx) => finalAns[idx] == null).length,
+            chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpent[idx] || 0) > TIME_SINK_MS),
+            // Confidently WRONG. A blank is a miss, not a blind spot.
+            blindSpots: mappedQuestions.filter((q) => q.userAnswer != null && q.userConf === 'HIGH' && q.userAnswer !== q.answer)
         };
 
         setSession(prev => ({ 
@@ -585,7 +611,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         
         setCurrentIndex(0);
         await saveSimulationRecord({
-            date: new Date().toISOString(), score, verdict, subjectScores,
+            date: new Date().toISOString(), score, generalAverage, verdict, subjectScores, isPrcStandard: !!config.isPrcStandard,
             mode: config.mode, targetSubject: config.subject, totalQs: finalQs.length, timeTaken: timeTakenActual
         });
 
@@ -716,7 +742,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
     saveSimulationRecord({
       date: new Date().toISOString(),
-      score: diagnostics.score, verdict: diagnostics.verdict,
+      score: diagnostics.score, generalAverage: diagnostics.generalAverage, verdict: diagnostics.verdict,
       subjectScores: diagnostics.subjectScores,
       mode: 'battle', targetSubject: config.subject,
       totalQs: diagnostics.totalItems, timeTaken: diagnostics.timeTakenSecs,

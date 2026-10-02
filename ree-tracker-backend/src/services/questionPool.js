@@ -68,7 +68,7 @@ async function samplePool({ subject = null, subtopic = null, limit = 50 } = {}) 
 // SyllabusWeight config table is empty/unreachable. Sourced from @ree/shared so
 // the client's own fallback cannot drift from this one — there were four copies
 // with two incompatible key casings.
-const { DEFAULT_SYLLABUS_WEIGHTS } = require('@ree/shared');
+const { DEFAULT_SYLLABUS_WEIGHTS, apportionItems } = require('@ree/shared');
 
 // Pure: turn SyllabusWeight rows into a {subject: weight} map, backfilling any
 // missing canonical subject from the default so callers always get all three.
@@ -93,14 +93,13 @@ async function getSyllabusWeights() {
 
 // PRC board TOS blend, driven by the SyllabusWeight config table (Math/ESAS/EE).
 async function sampleBlendedPool(totalCount = 100) {
-    const w = await getSyllabusWeights();
-    const mathN = Math.round(totalCount * w.Mathematics);
-    const esasN = Math.round(totalCount * w.ESAS);
-    const eeN = Math.max(0, totalCount - mathN - esasN); // remainder to EE so counts sum exactly
+    // Largest-remainder split, shared with the client's blended pool so both
+    // sides compose a blend identically and the counts always sum to total.
+    const n = apportionItems(totalCount, await getSyllabusWeights());
     const [math, esas, ee] = await Promise.all([
-        samplePool({ subject: 'Mathematics', limit: mathN }),
-        samplePool({ subject: 'ESAS', limit: esasN }),
-        samplePool({ subject: 'EE', limit: eeN }),
+        samplePool({ subject: 'Mathematics', limit: n.Mathematics || 0 }),
+        samplePool({ subject: 'ESAS', limit: n.ESAS || 0 }),
+        samplePool({ subject: 'EE', limit: n.EE || 0 }),
     ]);
     return [...math, ...esas, ...ee];
 }

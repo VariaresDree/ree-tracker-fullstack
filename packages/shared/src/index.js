@@ -29,4 +29,5 @@ module.exports = {
     ...require('./manilaDate'),
     ...require('./text'),
     ...require('./thresholds'),
+    ...require('./exam'),
 };

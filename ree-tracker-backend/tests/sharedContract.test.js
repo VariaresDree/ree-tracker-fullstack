@@ -34,6 +34,10 @@ const {
     WEAK_TOPIC_ACCURACY,
     TIME_SINK_MS,
     TELEMETRY_BATCH_MAX,
+    PRC_EXAM_FORMAT,
+    prcSectionSeconds,
+    gradeBoardExam,
+    apportionItems,
     storableTimeMs,
 } = shared;
 
@@ -164,5 +168,55 @@ describe('thresholds', () => {
     it('clamps storage timing to something int4 can hold', () => {
         expect(storableTimeMs(5e9)).toBe(3_600_000);
         expect(storableTimeMs(1e21)).toBe(3_600_000);
+    });
+});
+
+describe('PRC board exam (format + grading)', () => {
+    it('holds the PRC REE format: 100 items per subject, Math 5h / ESAS 4h / EE 6h', () => {
+        expect(PRC_EXAM_FORMAT).toEqual({
+            Mathematics: { items: 100, minutes: 300 },
+            ESAS: { items: 100, minutes: 240 },
+            EE: { items: 100, minutes: 360 },
+        });
+        expect(prcSectionSeconds('Math')).toBe(5 * 3600);
+        expect(prcSectionSeconds('Electrical Engineering')).toBe(6 * 3600);
+        expect(prcSectionSeconds('nonsense')).toBeNull();
+    });
+
+    it('grades on the WEIGHTED general average, not the raw percentage', () => {
+        // Raw mean of 90/60/64 is 71.3 (would pass); weighted by 25/30/45 it is
+        // 69.3 — the PRC general weighted average, which fails.
+        const { generalAverage, verdict } = gradeBoardExam({ Mathematics: 90, ESAS: 60, EE: 64 });
+        expect(generalAverage).toBe(69.3);
+        expect(verdict).toBe('FAILED');
+    });
+
+    it('applies the 50% subject floor on top of the weighted average', () => {
+        const { generalAverage, verdict } = gradeBoardExam({ Mathematics: 40, ESAS: 80, EE: 80 });
+        expect(generalAverage).toBe(70);
+        expect(verdict).toBe('CONDITIONAL PASS');
+    });
+
+    it('leaves subjects the exam never asked about unrated', () => {
+        expect(gradeBoardExam({ Math: 75, ESAS: null, EE: undefined })).toEqual({ generalAverage: 75, verdict: 'PASSED' });
+    });
+
+    it('an exam with no rated subject is a 0, not NaN', () => {
+        expect(gradeBoardExam({})).toEqual({ generalAverage: 0, verdict: 'FAILED' });
+    });
+});
+
+describe('apportionItems', () => {
+    it('splits a full blend exactly 25/30/45', () => {
+        expect(apportionItems(100)).toEqual({ Mathematics: 25, ESAS: 30, EE: 45 });
+    });
+
+    it('always sums to the requested total (10 used to become 11)', () => {
+        for (const n of [1, 7, 10, 20, 33, 50, 99]) {
+            const out = apportionItems(n);
+            expect(Object.values(out).reduce((a, b) => a + b, 0)).toBe(n);
+        }
+        // 2.5 / 3.0 / 4.5 — the two .5 remainders tie; the heavier EE wins it.
+        expect(apportionItems(10)).toEqual({ Mathematics: 2, ESAS: 3, EE: 5 });
     });
 });

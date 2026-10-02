@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
-const { buildScoreProgression, aggregateDailyStudy } = require('../services/deepAnalyticsHelpers');
+const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
 // Manila calendar date of an instant — same helper telemetryService keys
 // ActivityLog on, so "a study day" means the same thing everywhere.
@@ -162,11 +162,25 @@ router.get('/score-progression', authMiddleware, async (req, res) => {
             where: { userId: req.user.id },
             orderBy: { createdAt: 'desc' },
             take: 100,
-            select: { score: true, totalQuestions: true, targetSubject: true, createdAt: true, verdict: true, mode: true }
+            select: { id: true, score: true, totalQuestions: true, targetSubject: true, createdAt: true, verdict: true, mode: true }
         });
 
+        // Never-finalised sessions get their verdict re-derived from their OWN
+        // attempts' per-subject split — one grouped query for all of them, so
+        // the PRC subject floor and the weighted average both apply.
+        const pendingIds = exams.filter(needsDerivedVerdict).map((e) => e.id);
+        const subjectRows = pendingIds.length > 0
+            ? await prisma.$queryRaw`
+                SELECT "sessionId", "subject",
+                       COUNT(*)::int AS "total",
+                       COUNT(*) FILTER (WHERE "isCorrect")::int AS "correct"
+                FROM "QuestionAttempt"
+                WHERE "userId" = ${req.user.id} AND "sessionId" = ANY(${pendingIds})
+                GROUP BY "sessionId", "subject"`
+            : [];
+
         // Restore chronological order for the chart.
-        res.status(200).json({ items: buildScoreProgression(exams.reverse()) });
+        res.status(200).json({ items: buildScoreProgression(exams.reverse(), subjectScoresBySession(subjectRows)) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch score progression.' });
     }

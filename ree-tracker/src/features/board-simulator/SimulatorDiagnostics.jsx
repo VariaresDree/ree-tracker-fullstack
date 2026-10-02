@@ -4,6 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Button, Modal } from '../../components/ui';
 import { Shield, Zap, Clock, TriangleAlert } from '../../components/ui/icons';
+import { VERDICT } from '@ree/shared';
+
+// The hero colour follows the VERDICT, not the raw score. It used to band on
+// the old 70/60 score cut-offs, so a 65% read amber beside "FAILED" and a 75%
+// with a subject under 50% read green beside "CONDITIONAL PASS".
+const VERDICT_ACCENT = {
+    [VERDICT.PASSED]: 'var(--accent-success)',
+    [VERDICT.CONDITIONAL]: 'var(--color-reeAmber)',
+    [VERDICT.FAILED]: 'var(--accent-danger)',
+};
 
 export default function SimulatorDiagnostics({ session, setSession, engine, isBattle = false }) {
     const { diagnostics } = session;
@@ -12,9 +22,8 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
 
     if (!diagnostics) return null;
 
-    const isPassed = diagnostics.score >= 70;
-    const isConditional = diagnostics.score >= 60 && diagnostics.score < 70;
-    const accent = isPassed ? 'var(--accent-success)' : isConditional ? 'var(--color-reeAmber)' : 'var(--accent-danger)';
+    const accent = VERDICT_ACCENT[diagnostics.verdict] || 'var(--text-muted)';
+    const hasGwa = typeof diagnostics.generalAverage === 'number';
 
     const formatTime = (secs) => {
         const m = Math.floor(secs / 60);
@@ -75,6 +84,13 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                         >
                             {diagnostics.verdict}
                         </div>
+                        {hasGwa && (
+                            <p className="mt-4 text-sm text-muted2">
+                                General weighted average{' '}
+                                <span className="font-semibold text-textMain tabular-nums">{diagnostics.generalAverage.toFixed(1)}%</span>
+                                {' '}· pass needs 70% with no subject under 50%
+                            </p>
+                        )}
 
                         <div className="flex justify-center gap-4 sm:gap-8 mt-10 flex-wrap">
                             <div className="bg-surface2 border border-border2/50 px-8 py-5 rounded-[var(--radius-lg)] flex flex-col items-center min-w-[140px] shadow-sm">
