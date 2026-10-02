@@ -194,3 +194,28 @@ describe('pending writes are owned by an account', () => {
     expect(useStore.getState().pendingWrites).toEqual([]);
   });
 });
+
+describe('a pending write cannot block the outbox forever', () => {
+  it('counts retryable server answers and gives up into Sync issues at the ceiling', async () => {
+    seed([], { pendingWrites: [
+      { id: 'stuck', endpoint: '/api/exams/sessions/s1/finalize', method: 'POST', body: {}, ownerUid: 'user-A', tries: 19 },
+      { id: 'next', endpoint: '/api/x', method: 'POST', body: {}, ownerUid: 'user-A' },
+    ] });
+    apiRequestMock
+      .mockRejectedValueOnce(Object.assign(new Error('No answers are recorded'), { status: 409 }))
+      .mockResolvedValueOnce({ ok: true });
+
+    await useStore.getState().flushPendingWrites();
+
+    const s = useStore.getState();
+    expect(s.pendingWrites).toEqual([]);           // the write behind it went through
+    expect(s.deadLetters[0]).toMatchObject({ type: 'pendingWrite', status: 409 });
+  });
+
+  it('an offline failure is not counted against the write', async () => {
+    seed([], { pendingWrites: [{ id: 'w', endpoint: '/x', method: 'POST', body: {}, ownerUid: 'user-A' }] });
+    apiRequestMock.mockRejectedValueOnce(new Error('[OFFLINE]'));
+    await useStore.getState().flushPendingWrites();
+    expect(useStore.getState().pendingWrites[0].tries).toBeUndefined();
+  });
+});
