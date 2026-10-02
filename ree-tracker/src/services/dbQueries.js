@@ -197,7 +197,16 @@ export const fetchSyllabusWeights = async () => {
     }
 };
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
-export const logSRSRecord = async (uid, questionId, payload) => apiRequest('/api/srs/review', 'POST', { questionId, ...payload });
+// Spaced review. Cards are scheduled server-side from every recorded answer
+// (engine/srs via the telemetry transaction) — the client only reads the queue.
+// The old logSRSRecord POSTed client-computed intervals and had no callers.
+export const fetchSrsDue = async (limit = 20, subject) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (subject && subject !== 'All') params.set('subject', subject);
+    const data = await apiRequest(`/api/srs/due?${params.toString()}`);
+    return normalizeQuestions(data);
+};
+export const fetchSrsSummary = async () => apiRequest('/api/srs/summary');
 // mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
 // — server uses it to break down dashboard analytics per surface.
 const MODE_ALIAS = {

@@ -201,3 +201,15 @@ describe('trimBucketsTo — keeps ActivityLog honest when createMany inserts few
     expect(buckets.get('2026-08-07')).toBe(0);
   });
 });
+
+describe('aggregateTopicRollups — last practised', () => {
+  it('carries the latest answeredAt per topic, for mastery decay', () => {
+    const early = new Date('2026-09-01T00:00:00Z');
+    const late = new Date('2026-09-20T00:00:00Z');
+    const [roll] = aggregateTopicRollups([
+      { subject: 'EE', subtopic: 'Machines', isCorrect: true, timeSpentMs: 1000, answeredAt: late },
+      { subject: 'EE', subtopic: 'Machines', isCorrect: false, timeSpentMs: 1000, answeredAt: early },
+    ]);
+    expect(roll.lastPracticedAt).toEqual(late);
+  });
+});

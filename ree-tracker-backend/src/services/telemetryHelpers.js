@@ -153,7 +153,10 @@ function partitionNewAttempts(existingIdSet, mapped) {
  * the UserTopicPerformance.totalTime column).
  *
  * @param {Array<{subject, subtopic, isCorrect, timeSpentMs}>} attempts
- * @returns {Array<{subject, topic, attempts, correct, totalTimeSecs}>}
+ * `lastPracticedAt` is the latest answeredAt in the batch for the topic — the
+ * clock mastery decay runs from (engine/bkt.decayedMastery).
+ *
+ * @returns {Array<{subject, topic, attempts, correct, totalTimeSecs, lastPracticedAt}>}
  */
 function aggregateTopicRollups(attempts) {
     const byTopic = new Map();
@@ -161,12 +164,16 @@ function aggregateTopicRollups(attempts) {
         const topic = a.subtopic || 'General';
         let agg = byTopic.get(topic);
         if (!agg) {
-            agg = { subject: a.subject || 'General', topic, attempts: 0, correct: 0, totalTimeSecs: 0 };
+            agg = { subject: a.subject || 'General', topic, attempts: 0, correct: 0, totalTimeSecs: 0, lastPracticedAt: null };
             byTopic.set(topic, agg);
         }
         agg.attempts += 1;
         if (a.isCorrect) agg.correct += 1;
         agg.totalTimeSecs += Math.floor(plausibleTimeMs(a.timeSpentMs) / 1000);
+        const at = a.answeredAt ? new Date(a.answeredAt) : null;
+        if (at && !Number.isNaN(at.getTime()) && (!agg.lastPracticedAt || at > agg.lastPracticedAt)) {
+            agg.lastPracticedAt = at;
+        }
     }
     return Array.from(byTopic.values());
 }

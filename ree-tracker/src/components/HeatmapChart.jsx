@@ -1,6 +1,6 @@
 // src/components/HeatmapChart.jsx
 import React, { useState, useMemo } from 'react';
-import { toDisplaySubject } from '@ree/shared';
+import { toDisplaySubject, masteryBand } from '@ree/shared';
 import { useStore } from '../store/useStore';
 import { Panel } from './ui';
 import { Flame, Timer, Target } from './ui/icons';
@@ -10,6 +10,12 @@ const normKey = (s) => String(s || '').trim().toLowerCase();
 const VIEW_MODES = ['mastery', 'accuracy', 'speed'];
 const VIEW_LABEL = { mastery: 'Mastery', accuracy: 'Accuracy', speed: 'Speed' };
 const VIEW_ICON = { mastery: Target, accuracy: Flame, speed: Timer };
+const MASTERY_STYLE = {
+  mastered: { bg: 'bg-reeGreen/10 border-reeGreen/40', text: 'text-reeGreen' },
+  proficient: { bg: 'bg-green-400/10 border-green-400/30', text: 'text-green-400' },
+  developing: { bg: 'bg-reeAmber/10 border-reeAmber/30', text: 'text-reeAmber' },
+  novice: { bg: 'bg-reeRed/10 border-reeRed/40', text: 'text-reeRed' },
+};
 
 function HeatmapChart({ stats }) {
   const [activeTab, setActiveTab] = useState('Mathematics');
@@ -111,7 +117,10 @@ function HeatmapChart({ stats }) {
           const timedCount = item.data.timedAttempts || 0;
           const avgTime = timedCount > 0 ? Math.round(item.data.totalTime / 1000 / timedCount) : 0;
           // BKT P(mastery): server-authoritative, null until first observation.
-          const masteryVal = item.data.mastery;
+          // The tile shows the EFFECTIVE value — decayed for the days since the
+          // topic was last practised — and flags a topic whose band has slipped.
+          const storedMastery = item.data.mastery;
+          const masteryVal = item.data.masteryEffective ?? storedMastery;
           const masteryHasData = (item.data.masteryN || 0) > 0 && masteryVal != null;
 
           let bgClass = 'bg-bg/60 border-border opacity-50';
@@ -121,14 +130,16 @@ function HeatmapChart({ stats }) {
 
           if (viewMode === 'mastery') {
             if (masteryHasData) {
-              const mPct = Math.round(masteryVal * 100);
-              metricDisplay = `${mPct}%`;
-              // Bands mirror the BKT mastery tiers: Mastered / Proficient /
-              // Developing / Novice — the interpretable per-topic signal.
-              if (mPct >= 85) { bgClass = 'bg-reeGreen/10 border-reeGreen/40'; textClass = 'text-reeGreen'; subLabel = 'Mastered'; }
-              else if (mPct >= 65) { bgClass = 'bg-green-400/10 border-green-400/30'; textClass = 'text-green-400'; subLabel = 'Proficient'; }
-              else if (mPct >= 45) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber'; subLabel = 'Developing'; }
-              else { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed'; subLabel = 'Novice'; }
+              metricDisplay = `${Math.round(masteryVal * 100)}%`;
+              // The shared BKT bands (@ree/shared MASTERY_BANDS).
+              const band = masteryBand(masteryVal);
+              const styled = MASTERY_STYLE[band.key];
+              bgClass = styled.bg; textClass = styled.text; subLabel = band.label;
+              const storedBand = masteryBand(storedMastery);
+              if (storedBand && storedBand.key !== band.key) {
+                const days = item.data.daysSincePractice;
+                subLabel = `${band.label} · fading${days ? ` (${days}d)` : ''}`;
+              }
             }
           } else if (hasData) {
             if (viewMode === 'accuracy') {

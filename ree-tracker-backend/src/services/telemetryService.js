@@ -12,6 +12,7 @@ const prisma = require('../config/db');
 // forecast already assume, and populates the (previously never-written) standardError.
 const { updateTheta, PRIOR_SE } = require('../engine/irt');
 const { bktSequence } = require('../engine/bkt');
+const { foldCardUpdates } = require('../engine/srs');
 const { paramsForTopic } = require('../config/bktParams');
 const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic } = require('./telemetryHelpers');
 const { resolveTopic } = require('./topicResolver');
@@ -312,16 +313,19 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 ...r,
                 topicId: topicIdByKey.get(`${r.subject}\u0000${r.topic}`) ?? null,
             }));
-            const valueRows = withTopicIds.map((r) => Prisma.sql`(${randomUUID()}, ${userId}, ${r.subject}, ${r.topic}, ${r.topicId}, ${r.attempts}, ${r.correct}, ${r.totalTimeSecs}, ${now})`);
+            const valueRows = withTopicIds.map((r) => Prisma.sql`(${randomUUID()}, ${userId}, ${r.subject}, ${r.topic}, ${r.topicId}, ${r.attempts}, ${r.correct}, ${r.totalTimeSecs}, ${now}, ${r.lastPracticedAt || now})`);
+            // lastPracticedAt only moves FORWARD (GREATEST ignores NULLs), so an
+            // offline batch synced late cannot rewind it.
             await db.$executeRaw`
-                INSERT INTO "UserTopicPerformance" ("id", "userId", "subject", "topic", "topicId", "attempts", "correct", "totalTime", "updatedAt")
+                INSERT INTO "UserTopicPerformance" ("id", "userId", "subject", "topic", "topicId", "attempts", "correct", "totalTime", "updatedAt", "lastPracticedAt")
                 VALUES ${Prisma.join(valueRows)}
                 ON CONFLICT ("userId", "topic") DO UPDATE SET
                     "attempts"  = "UserTopicPerformance"."attempts"  + EXCLUDED."attempts",
                     "correct"   = "UserTopicPerformance"."correct"   + EXCLUDED."correct",
                     "totalTime" = "UserTopicPerformance"."totalTime" + EXCLUDED."totalTime",
                     "topicId"   = COALESCE(EXCLUDED."topicId", "UserTopicPerformance"."topicId"),
-                    "updatedAt" = EXCLUDED."updatedAt"
+                    "updatedAt" = EXCLUDED."updatedAt",
+                    "lastPracticedAt" = GREATEST("UserTopicPerformance"."lastPracticedAt", EXCLUDED."lastPracticedAt")
             `;
 
             // BKT mastery fold (Phase 3.5). Sequential — can't be an additive
@@ -347,6 +351,34 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                     where: { userId_topic: { userId, topic } },
                     data: { pMastery, masteryN: { increment: observations.length } },
                 });
+            }
+        }
+
+        // 5b. Spaced review (engine/srs). Server-authoritative SM-2, folded from
+        //     the same evidence: a miss or a low-confidence answer starts a
+        //     card, any answer to a carded question moves it. One read of the
+        //     cards it continues from and ONE bulk upsert per chunk, in this
+        //     transaction — so a replayed batch (pure duplicates never reach
+        //     here) cannot reschedule anything twice.
+        const questionIds = [...new Set(newOnly.map((m) => m.questionId).filter(Boolean))];
+        if (questionIds.length > 0) {
+            const storedCards = await db.sRSCard.findMany({
+                where: { userId, questionId: { in: questionIds } },
+                select: { questionId: true, easeFactor: true, interval: true, repetitions: true },
+            });
+            const cardUpdates = foldCardUpdates(newOnly, new Map(storedCards.map((c) => [c.questionId, c])));
+            if (cardUpdates.size > 0) {
+                const cardRows = [...cardUpdates].map(([questionId, c]) => Prisma.sql`(${randomUUID()}, ${userId}, ${questionId}, ${c.easeFactor}, ${c.interval}, ${c.repetitions}, ${c.nextReviewDate}, ${c.lastReviewed})`);
+                await db.$executeRaw`
+                    INSERT INTO "SRSCard" ("id", "userId", "questionId", "easeFactor", "interval", "repetitions", "nextReviewDate", "lastReviewed")
+                    VALUES ${Prisma.join(cardRows)}
+                    ON CONFLICT ("userId", "questionId") DO UPDATE SET
+                        "easeFactor"     = EXCLUDED."easeFactor",
+                        "interval"       = EXCLUDED."interval",
+                        "repetitions"    = EXCLUDED."repetitions",
+                        "nextReviewDate" = EXCLUDED."nextReviewDate",
+                        "lastReviewed"   = EXCLUDED."lastReviewed"
+                `;
             }
         }
 

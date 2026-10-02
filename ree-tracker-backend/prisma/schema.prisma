@@ -477,6 +477,9 @@ model UserTopicPerformance {
   // Updated online per attempt in telemetryService; null until first observation.
   pMastery    Float?
   masteryN    Int      @default(0) // observations folded into pMastery (audit/debug)
+  // Latest answer in this topic — the clock mastery decay runs from
+  // (engine/bkt.decayedMastery). Only moves forward; backfilled by backfill:mastery.
+  lastPracticedAt DateTime?
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, topic])
