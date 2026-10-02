@@ -466,10 +466,14 @@ export const useStore = create(
       // session summaries and offline mock-exam telemetry so nothing is dropped
       // when the user finishes a session with no connection.
       queuePendingWrite: (endpoint, method, body) => {
+        // Stamped with the account that made it — the same guard the telemetry
+        // queue has. A queued mock exam replayed after a different account
+        // signed in would otherwise land in THAT account's history.
+        const ownerUid = auth.currentUser?.uid || getStore().ownerUid || null;
         set((state) => ({
           pendingWrites: [
             ...state.pendingWrites,
-            { id: newId(), endpoint, method: method || 'POST', body, createdAt: new Date().toISOString() },
+            { id: newId(), endpoint, method: method || 'POST', body, ownerUid, createdAt: new Date().toISOString() },
           ].slice(-MAX_PENDING_WRITES),
         }));
       },
@@ -493,7 +497,23 @@ export const useStore = create(
         if (!pendingWrites || pendingWrites.length === 0) return;
 
         const run = async () => {
+          const signedIn = auth.currentUser?.uid;
+          if (!signedIn) return;
           for (const w of getStore().pendingWrites.slice()) {
+            // Owner guard. A write without an owner predates the stamp and
+            // belongs to the device's persisted owner.
+            const owner = w.ownerUid ?? getStore().ownerUid;
+            if (owner && owner !== signedIn) {
+              console.error('[SYNC] Pending write belongs to a different account; quarantining.', w.endpoint);
+              set((state) => ({
+                pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id),
+                deadLetters: [
+                  ...state.deadLetters,
+                  { id: newId(), type: 'pendingWrite-orphaned', ownerUid: owner, endpoint: w.endpoint, write: w, error: 'owner mismatch', at: Date.now() },
+                ].slice(-MAX_DEAD_LETTERS),
+              }));
+              continue;
+            }
             try {
               await apiRequest(w.endpoint, w.method, w.body);
               set((state) => ({ pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id) }));
@@ -527,7 +547,7 @@ export const useStore = create(
       retryDeadLetter: async (letterId) => {
         const letter = getStore().deadLetters.find((d) => d.id === letterId);
         if (!letter) return;
-        if (letter.type === 'telemetry-orphaned' && letter.ownerUid !== auth.currentUser?.uid) return;
+        if (letter.type.endsWith('-orphaned') && letter.ownerUid !== auth.currentUser?.uid) return;
 
         if (Array.isArray(letter.attempts) && letter.attempts.length > 0) {
           set((state) => {

@@ -161,3 +161,36 @@ describe('dead letters keep their payload', () => {
     expect(useStore.getState().deadLetters).toHaveLength(1);
   });
 });
+
+describe('pending writes are owned by an account', () => {
+  it('a queued write records which account made it', () => {
+    seed([]);
+    useStore.getState().queuePendingWrite('/api/exams/grade', 'POST', { answers: [1] });
+    expect(useStore.getState().pendingWrites[0].ownerUid).toBe('user-A');
+  });
+
+  it('NEVER replays another account’s write under the current token — it is quarantined', async () => {
+    seed([], { pendingWrites: [{ id: 'w1', endpoint: '/api/analytics/telemetry-bulk', method: 'POST', body: { attempts: [] }, ownerUid: 'user-A' }] });
+    authState.currentUser = { uid: 'user-B' };
+
+    await useStore.getState().flushPendingWrites();
+
+    expect(apiRequestMock).not.toHaveBeenCalled();
+    const s = useStore.getState();
+    expect(s.pendingWrites).toEqual([]);
+    expect(s.deadLetters[0]).toMatchObject({ type: 'pendingWrite-orphaned', ownerUid: 'user-A' });
+    expect(s.deadLetters[0].write.id).toBe('w1');
+
+    // …and can never be retried as user-B.
+    await useStore.getState().retryDeadLetter(s.deadLetters[0].id);
+    expect(apiRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('a legacy write without an owner belongs to the device owner', async () => {
+    seed([], { ownerUid: 'user-A', pendingWrites: [{ id: 'w2', endpoint: '/x', method: 'POST', body: {} }] });
+    apiRequestMock.mockResolvedValue({ ok: true });
+    await useStore.getState().flushPendingWrites();
+    expect(apiRequestMock).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().pendingWrites).toEqual([]);
+  });
+});
