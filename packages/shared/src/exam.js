@@ -15,8 +15,8 @@
 
 const { normalizeSubject } = require('./subject');
 const { ratedScores } = require('./numeric');
-const { DEFAULT_SYLLABUS_WEIGHTS, weightedAverage } = require('./syllabusWeights');
-const { deriveVerdict } = require('./verdict');
+const { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, weightedAverage } = require('./syllabusWeights');
+const { deriveVerdict, VERDICT, GENERAL_AVERAGE, SUBJECT_FLOOR } = require('./verdict');
 
 /** Items and minutes per board subject. */
 const PRC_EXAM_FORMAT = Object.freeze({
@@ -48,4 +48,34 @@ function gradeBoardExam(subjectScores, weights = DEFAULT_SYLLABUS_WEIGHTS) {
     return { generalAverage, verdict: deriveVerdict(generalAverage, subjectScores) };
 }
 
-module.exports = { PRC_EXAM_FORMAT, prcSectionSeconds, gradeBoardExam };
+/**
+ * gradeBoardExam, precompiled for a hot loop (the forecast grades thousands of
+ * simulated sittings). Weights are normalised ONCE, and the scores must already
+ * be keyed by canonical subject. Same arithmetic and rounding as
+ * gradeBoardExam — a test asserts the two agree on every input.
+ */
+function createBoardGrader(weights = DEFAULT_SYLLABUS_WEIGHTS) {
+    const w = normalizeWeights(weights);
+    return (canonicalScores) => {
+        let acc = 0;
+        let weightSum = 0;
+        let anyRated = false;
+        let allAboveFloor = true;
+        for (const subject in canonicalScores) {
+            const n = canonicalScores[subject];
+            if (n === null || n === undefined || !Number.isFinite(n)) continue;
+            anyRated = true;
+            if (n < SUBJECT_FLOOR) allAboveFloor = false;
+            const weight = w[subject];
+            if (!Number.isFinite(weight)) continue;
+            acc += n * weight;
+            weightSum += weight;
+        }
+        const generalAverage = anyRated && weightSum > 0 ? Math.round((acc / weightSum) * 100) / 100 : 0;
+        let verdict = VERDICT.FAILED;
+        if (generalAverage >= GENERAL_AVERAGE) verdict = allAboveFloor ? VERDICT.PASSED : VERDICT.CONDITIONAL;
+        return { generalAverage, verdict };
+    };
+}
+
+module.exports = { PRC_EXAM_FORMAT, prcSectionSeconds, gradeBoardExam, createBoardGrader };

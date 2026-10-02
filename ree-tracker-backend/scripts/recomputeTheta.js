@@ -20,7 +20,7 @@
  */
 require('dotenv').config();
 const prisma = require('../src/config/db');
-const { updateTheta } = require('../src/engine/irt');
+const { updateTheta, itemParams, PRIOR_SE } = require('../src/engine/irt');
 
 const MANILA = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
 const manilaDate = (d) => MANILA.format(new Date(d));
@@ -36,12 +36,14 @@ function parseArgs(argv) {
 // weak neutral prior so the full history dominates. Returns the final posterior
 // and one theta point per Manila day (last value of the day).
 function replay(attempts) {
-  let prior = { theta: 0, se: 1.0 };
+  let prior = { theta: 0, se: PRIOR_SE };
   const dayTheta = new Map();   // manilaDate -> theta
   const dayStamp = new Map();   // manilaDate -> a real timestamp on that day
   for (const a of attempts) {
     const q = a.question || {};
-    const item = { a: q.irtA ?? 1, b: q.irtB ?? q.difficulty ?? 0, c: q.irtC ?? 0.2 };
+    // Same fallback rule as the live estimator (engine/irt.itemParams), so a
+    // re-run lands every user on the scale the app now serves.
+    const item = itemParams(q);
     prior = updateTheta(prior, [{ item, correct: !!a.isCorrect }]);
     const day = manilaDate(a.createdAt);
     dayTheta.set(day, prior.theta);       // last write per day wins

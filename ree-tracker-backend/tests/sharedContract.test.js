@@ -37,7 +37,10 @@ const {
     PRC_EXAM_FORMAT,
     prcSectionSeconds,
     gradeBoardExam,
+    createBoardGrader,
     apportionItems,
+    MASTERY_BANDS,
+    masteryBand,
     storableTimeMs,
 } = shared;
 
@@ -218,5 +221,37 @@ describe('apportionItems', () => {
         }
         // 2.5 / 3.0 / 4.5 — the two .5 remainders tie; the heavier EE wins it.
         expect(apportionItems(10)).toEqual({ Mathematics: 2, ESAS: 3, EE: 5 });
+    });
+});
+
+describe('mastery bands', () => {
+    it('holds the BKT mastery bands: Mastered 85 / Proficient 65 / Developing 45 / Novice', () => {
+        expect(MASTERY_BANDS.map((b) => [b.key, b.min])).toEqual([
+            ['mastered', 0.85], ['proficient', 0.65], ['developing', 0.45], ['novice', 0],
+        ]);
+    });
+
+    it('bands a P(mastery) on the 0-1 scale, inclusive at each threshold', () => {
+        expect(masteryBand(0.85).key).toBe('mastered');
+        expect(masteryBand(0.8499).key).toBe('proficient');
+        expect(masteryBand(0.45).key).toBe('developing');
+        expect(masteryBand(0.1).key).toBe('novice');
+        expect(masteryBand(null)).toBeNull();
+    });
+});
+
+describe('createBoardGrader', () => {
+    it('agrees with gradeBoardExam on every canonical input', () => {
+        const fast = createBoardGrader();
+        let seed = 1;
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        for (let i = 0; i < 5000; i++) {
+            const scores = {};
+            for (const s of ['Mathematics', 'ESAS', 'EE']) {
+                const r = rnd();
+                scores[s] = r < 0.1 ? null : Math.round(rnd() * 100);
+            }
+            expect(fast(scores)).toEqual(gradeBoardExam(scores));
+        }
     });
 });

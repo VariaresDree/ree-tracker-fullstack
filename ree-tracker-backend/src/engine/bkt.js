@@ -10,7 +10,7 @@
 
 'use strict';
 
-const { DEFAULT_BKT } = require('../config/bktParams');
+const { DEFAULT_BKT, DECAY } = require('../config/bktParams');
 
 function clamp01(x) {
     if (!Number.isFinite(x)) return 0;
@@ -92,4 +92,31 @@ function pCorrectNext(pMastery, params = DEFAULT_BKT) {
     return clamp01(pL * (1 - slip) + (1 - pL) * guess);
 }
 
-module.exports = { bktPosterior, bktUpdate, bktSequence, pCorrectNext, clamp01 };
+/**
+ * Mastery after forgetting: the stored P(mastery) decayed toward pInit for the
+ * days since the topic was last practised. Stability grows with the evidence
+ * behind the estimate (masteryN), so a topic drilled fifty times fades far more
+ * slowly than one seen once.
+ *
+ *   p_eff = floor + (p − floor) · exp(−max(0, days − grace) / (τ · (1 + ln(1 + n))))
+ *
+ * Non-destructive by design: callers use it for display and prioritisation; it
+ * never rewrites the stored pMastery, which stays the pure evidence fold.
+ *
+ * @param {number|null} pMastery stored estimate
+ * @param {number|null} daysSince days since the topic was last practised
+ * @param {number} [masteryN] observations behind the estimate
+ * @returns {number|null}
+ */
+function decayedMastery(pMastery, daysSince, masteryN = 0, params = DEFAULT_BKT, decay = DECAY) {
+    if (pMastery === null || pMastery === undefined || !Number.isFinite(pMastery)) return null;
+    if (daysSince === null || daysSince === undefined || !Number.isFinite(daysSince)) return pMastery;
+    const floor = params.pInit ?? DEFAULT_BKT.pInit;
+    const elapsed = daysSince - decay.graceDays;
+    if (elapsed <= 0 || pMastery <= floor) return pMastery;
+    const n = Math.max(0, Number(masteryN) || 0);
+    const tau = decay.tauDays * (1 + Math.log(1 + n));
+    return floor + (pMastery - floor) * Math.exp(-elapsed / tau);
+}
+
+module.exports = { bktPosterior, bktUpdate, bktSequence, pCorrectNext, clamp01, decayedMastery };

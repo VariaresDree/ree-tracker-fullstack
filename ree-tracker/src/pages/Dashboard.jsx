@@ -1,13 +1,11 @@
 // src/pages/Dashboard.jsx
 import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useTelemetrySlice, useTOSSlice } from '../store/slices';
 import { useAuth } from '../contexts/AuthContext';
 import MissionControl from '../components/MissionControl';
 import ConfidenceMatrix from '../components/ConfidenceMatrix';
 import HeatmapChart from '../components/HeatmapChart';
-import RecommendedModule from '../components/RecommendedModule';
-import FocusTrap from '../components/FocusTrap';
 import { SkeletonChart } from '../components/SkeletonLoaders';
 // Recharts (~400KB) only powers these two cards — lazy-load them so the
 // `charts` chunk leaves the home route's critical path and loads after paint.
@@ -21,12 +19,14 @@ import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
 import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
+import TodayPanel from '../features/today/TodayPanel';
+import { drillPreset, dueReviewPreset } from '../features/active-recall/presets';
 import PageHeader from '../components/PageHeader';
 import { WEAK_TOPIC_ACCURACY } from '@ree/shared';
-import { Panel, KpiTile, StatusPill, Button, Card, Badge, EmptyState, SegmentedControl } from '../components/ui';
+import { Panel, KpiTile, StatusPill, Button, Badge, Modal, SegmentedControl } from '../components/ui';
 import {
-  Target, Gauge, ListChecks, Timer, Flame, AudioWaveform,
-  Sparkles, ArrowRight, CalendarDays, ShieldAlert,
+  Gauge, ListChecks, Timer, Flame, AudioWaveform,
+  Sparkles, CalendarDays, ShieldAlert,
 } from '../components/ui/icons';
 
 const SYNC_META = {
@@ -42,10 +42,12 @@ export default function Dashboard() {
   const { stats, purgeAnalytics, syncStatus } = useTelemetrySlice();
   const { dynamicTOS } = useTOSSlice();
 
-  // "Today's prescription" Start routing. Forecast topics are either a subject
-  // ('Mathematics'/'ESAS'/'EE' — from per-subject UserAbility) or a subtopic
-  // (from UserTopicPerformance rollups) — resolve to a ReviewSetup-shaped
-  // session preset; READ actions route to the materials library instead.
+  // One targeted drill launcher, shared by the prescription panel and the
+  // heatmap tiles (presets live in features/active-recall/presets).
+  const launchDrill = (target = {}) => navigate('/review', { state: { preset: drillPreset(target) } });
+
+  // Prescription routing. v2 actions name their topic AND subject; READ /
+  // FORMULA_CARDS go to the materials hub, the rest start a review session.
   const handlePrescriptionAction = (action) => {
     const topic = action?.payload?.topic;
     if (action?.type === 'READ') {
@@ -53,14 +55,32 @@ export default function Dashboard() {
       navigate('/materials');
       return;
     }
+    if (action?.type === 'FORMULA_CARDS') {
+      // Straight to that topic's formula cards in the reference vault.
+      navigate('/materials', { state: { tab: 'reference', search: topic || '', kind: 'formula' } });
+      return;
+    }
+    if (action?.type === 'DRILL' || action?.type === 'BLIND_SPOT') {
+      launchDrill({
+        topicId: action?.payload?.topicId, topic, subject: action?.payload?.subject,
+        mode: action?.type === 'BLIND_SPOT' ? 'blind-spot' : undefined, count: action?.payload?.count,
+      });
+      return;
+    }
+    if (action?.type === 'SRS_DUE') {
+      navigate('/review', { state: { preset: dueReviewPreset(action?.payload?.count || 20) } });
+      return;
+    }
 
+    // v1 snapshot types (SRS_REVIEW) name only a topic — resolve its subject
+    // through the TOS and start a library session on it.
     const safeTOS = dynamicTOS || {};
     const isSubject = topic && Object.prototype.hasOwnProperty.call(safeTOS, topic);
-    const parentSubject = isSubject
+    const parentSubject = action?.payload?.subject || (isSubject
       ? topic
       : Object.keys(safeTOS).find((subj) => (safeTOS[subj] || []).some(
           (sub) => sub.trim().toLowerCase() === String(topic || '').trim().toLowerCase(),
-        ));
+        )));
 
     const preset = {
       sessionMode: action?.type === 'SRS_REVIEW' ? 'flashcard' : 'mcq',
@@ -97,7 +117,9 @@ export default function Dashboard() {
   const [velocityRange, setVelocityRange] = useState('day'); // 'day' | 'week' | 'month'
   // Composite readiness from /api/readiness (coverage + accuracy + θ +
   // consistency + blind spots) — a truer "am I ready" number than the old
-  // pure-θ formula, and a DIFFERENT metric from the θ trajectory chart.
+  // pure-θ formula, and a DIFFERENT metric from the θ trajectory chart. Shown
+  // in the Today panel; until it arrives that block shows a skeleton rather
+  // than the (θ+3)/6 stand-in it used to flash.
   const [readiness, setReadiness] = useState(null);
 
   useEffect(() => {
@@ -119,7 +141,7 @@ export default function Dashboard() {
 
     fetchSQLAnalytics();
     // Composite readiness is computed per-request on the backend — refetch on
-    // the same triggers so the KPI is always as fresh as the rest.
+    // the same triggers so it is always as fresh as the rest.
     fetchReadinessScore().then((r) => { if (r) setReadiness(r); }).catch(() => {});
     // Keyed on the UID, not the `currentUser` OBJECT, and deliberately NOT on
     // dynamicTOS. Firebase hands back a new user object on token refresh, and
@@ -143,10 +165,6 @@ export default function Dashboard() {
   const activeStats = useMemo(() => mergeServerIntoStats(stats, sqlData), [stats, sqlData]);
 
   const currentTheta = activeStats?.irt?.theta || 0;
-  // Composite score from /api/readiness; falls back to the θ-linear map only
-  // until the first readiness fetch resolves.
-  const readinessScore = readiness?.score
-    ?? Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100)));
 
   // KPI strip values, derived from the same microTopics aggregate the heatmap uses.
   const kpi = useMemo(() => {
@@ -171,7 +189,6 @@ export default function Dashboard() {
   const handleGenerateAIReport = async () => {
     setShowAiModal(false);
     setIsGeneratingAI(true);
-    setAiReport('Querying the Gemini engine for your board diagnostics…');
 
     const topics = activeStats.microTopics ? Object.entries(activeStats.microTopics) : [];
     const weakTopics = topics
@@ -179,11 +196,10 @@ export default function Dashboard() {
       .map(([name]) => name);
 
     try {
-      const report = await generateBoardReadinessReport(activeStats, readinessScore, weakTopics);
+      const report = await generateBoardReadinessReport(activeStats, readiness?.score ?? null, weakTopics);
       setAiReport(report);
-      toast.success('Report generated.');
     } catch (error) {
-      setAiReport('Could not generate the report right now. Please try again later.');
+      toast.error('Could not generate the report right now. Please try again later.');
     } finally {
       setIsGeneratingAI(false);
     }
@@ -225,6 +241,11 @@ export default function Dashboard() {
       })()
     : null;
 
+  // Order, top to bottom, follows the questions a reviewer asks: where do I
+  // stand and what do I do now (Today) → how am I trending (KPIs, ability
+  // trajectory, board forecast) → where exactly am I weak (mastery heatmap,
+  // confidence) → what's the plan (prescription, daily targets) → how did my
+  // mocks go (ledger).
   return (
     <div className="flex flex-col gap-6 page-fade-in w-full">
       <PageHeader
@@ -239,108 +260,27 @@ export default function Dashboard() {
           </>
         }
         actions={
-          <Button variant="primary" size="sm" onClick={() => setShowAiModal(true)} disabled={isGeneratingAI}>
-            <Sparkles size={15} strokeWidth={2} />
-            {isGeneratingAI ? 'Analyzing…' : 'Generate report'}
+          <Button variant="secondary" size="sm" onClick={() => setShowAiModal(true)} loading={isGeneratingAI}>
+            {!isGeneratingAI && <Sparkles size={15} strokeWidth={2} aria-hidden="true" />}
+            {isGeneratingAI ? 'Analyzing…' : 'AI board report'}
           </Button>
         }
       />
 
-      {/* First-run hero — an all-zero dashboard should invite action, not
-          look like failure. */}
-      {kpi.answered === 0 && !isFetchingSQL && (
-        <Card elevated glow grain>
-          <EmptyState
-            icon={Sparkles}
-            title="Start your first review"
-            description="Answer your first questions to unlock readiness tracking, topic heatmaps, and the confidence matrix."
-            action={
-              <>
-                <Button as={Link} to="/review" size="lg">
-                  Start a quick 20 review
-                </Button>
-                <Button as={Link} to="/simulator" variant="ghost">
-                  Explore the simulator
-                </Button>
-              </>
-            }
-          />
-        </Card>
-      )}
+      <TodayPanel stats={activeStats} readiness={readiness} uid={currentUser?.uid} answered={kpi.answered} />
 
-      {/* KPI strip. stagger-fade-in cascades the five tiles in rather than
-          snapping them all at once — the utility already existed in
-          styles/index.css but was only used in three places app-wide. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 stagger-fade-in">
-        <KpiTile icon={Target} tone="velocity" label="Board readiness" value={readinessScore} suffix="%" hint={readiness ? 'coverage · accuracy · θ' : '/ 70% pass'} />
+      {/* KPI strip. The readiness index moved into Today, beside its breakdown. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 stagger-fade-in">
         <KpiTile icon={Gauge} tone="success" label="Global accuracy" value={kpi.accuracy} suffix="%" />
         <KpiTile icon={ListChecks} tone="signal" label="Questions answered" value={kpi.answered} />
         <KpiTile icon={Timer} tone="signal" label="Avg time / question" value={kpi.avgSec} precision={1} suffix="s" />
-        {/* A live streak is the app's main motivational hook, so its icon
-            chip gets a gentle pulse — but only while it's actually running (a
-            streak of 0 pulsing would be celebrating nothing). This used to be
-            `pulse-glow` on the Card itself, which shared the SAME element as
-            .stagger-fade-in's `animation` shorthand and silently overrode it,
-            permanently stranding the tile at opacity:0 — see the fix note on
-            .stagger-fade-in in styles/index.css. `iconGlow` puts the pulse on
-            a child element instead, so the two animations no longer compete
-            for the same `animation` property. */}
-        <KpiTile
-          icon={Flame}
-          tone="amber"
-          label="Day streak"
-          value={kpi.streak}
-          hint="days"
-          className="col-span-2 md:col-span-1"
-          iconGlow={kpi.streak > 0}
-        />
+        {/* A live streak is the app's main motivational hook, so its icon chip
+            pulses — only while it's running, and on a child element so it does
+            not fight .stagger-fade-in for the `animation` property. */}
+        <KpiTile icon={Flame} tone="amber" label="Day streak" value={kpi.streak} hint="days" iconGlow={kpi.streak > 0} />
       </div>
 
-      {/* Daily targets + AI report — pinned near the top so the day's goals
-          and the exam-config settings are one glance/click away. */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2">
-          <MissionControl stats={activeStats} onPurgeRequest={() => setShowPurgeModal(true)} />
-        </div>
-        <Card elevated glow className="p-6 flex flex-col gap-4 justify-between grain-overlay bg-gradient-to-br from-surface to-surface2/50">
-          <div>
-            <div className="inline-flex items-center gap-2">
-              {/* Icon stays brand-accent (icons only need the 3:1 UI-component
-                  threshold, which this clears); the label was inheriting that
-                  same purple and measured 4.08:1 — below the 4.5:1 small-text
-                  minimum. This hand-rolled font-mono/uppercase/tracking combo
-                  is otherwise identical to the shared `.text-eyebrow` utility
-                  (clamp(10px,9.5px+0.2vw,12px), same tracking, var(--text-muted))
-                  — using it fixes the contrast and removes a one-off dupe. */}
-              <Sparkles size={16} strokeWidth={2} className="text-[var(--accent)]" />
-              <span className="text-eyebrow">AI diagnostics</span>
-            </div>
-            <h3 className="text-display text-textMain text-xl mt-3 leading-snug">Unlock your board report</h3>
-            <p className="text-sm text-muted2 mt-2 leading-relaxed">
-              A tailored readiness audit from your heatmaps, blind spots, and velocity.
-            </p>
-          </div>
-          {aiReport && (
-            <div className="text-sm text-textMain leading-relaxed bg-surface2/40 border border-border rounded-[var(--radius-default)] p-4 max-h-44 overflow-y-auto custom-scrollbar">
-              {aiReport}
-            </div>
-          )}
-          <Button variant="primary" onClick={() => setShowAiModal(true)} disabled={isGeneratingAI} className="w-full">
-            {isGeneratingAI ? (
-              <>
-                <span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent" />
-                Analyzing…
-              </>
-            ) : (
-              <>
-                Generate report <ArrowRight size={15} strokeWidth={2} />
-              </>
-            )}
-          </Button>
-        </Card>
-      </div>
-
-      {/* Hero: θ readiness signal + trajectory */}
+      {/* Trend: θ trajectory + the PRC-rule board forecast */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <Panel
           icon={AudioWaveform}
@@ -372,18 +312,18 @@ export default function Dashboard() {
         <TrajectoryCard />
       </div>
 
-      {/* Mastery: topic heatmap + confidence matrix */}
+      {/* Mastery: topic heatmap (each tile starts a drill) + confidence matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="min-h-[380px] lg:h-[460px]">
-          <HeatmapChart stats={activeStats} />
+          <HeatmapChart stats={activeStats} onDrillTopic={(topic, subject) => launchDrill({ topic, subject })} />
         </div>
         <ConfidenceMatrix stats={activeStats} />
       </div>
 
-      {/* Action: prescription + critical focus */}
+      {/* Plan: the forecast's prescription + daily targets */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <PrescriptionPanel onAction={handlePrescriptionAction} />
-        <RecommendedModule stats={activeStats} />
+        <MissionControl stats={activeStats} onPurgeRequest={() => setShowPurgeModal(true)} />
       </div>
 
       {/* Pre-board simulation ledger */}
@@ -391,59 +331,59 @@ export default function Dashboard() {
         <MockBoardAnalytics />
       </Suspense>
 
-      {/* MODALS */}
-      {showAiModal && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={showAiModal}>
-            <Card elevated className="p-6 max-w-md w-full modal-entrance">
-              <h3 className="text-lg font-semibold text-textMain mb-2 flex items-center gap-2">
-                <Sparkles size={18} strokeWidth={2} className="text-[var(--accent)]" /> Generate AI board report?
-              </h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">
-                This queries the Gemini engine to build a tailored report from your heatmaps and blind spots. It uses
-                one API request.
-              </p>
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" size="sm" onClick={() => setShowAiModal(false)}>Cancel</Button>
-                <Button variant="primary" size="sm" onClick={handleGenerateAIReport}>Generate report</Button>
-              </div>
-            </Card>
-          </FocusTrap>
-        </div>
-      )}
+      {/* Dialogs use the shared Modal: Escape, backdrop, portal, scroll lock and
+          max-height. They were hand-rolled `fixed` overlays inside a transformed
+          ancestor (.page-fade-in), with no dialog semantics and no Escape. */}
+      <Modal
+        open={showAiModal}
+        onClose={() => setShowAiModal(false)}
+        title="Generate an AI board report?"
+        icon={Sparkles}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setShowAiModal(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleGenerateAIReport}>Generate report</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">
+          Builds a tailored readiness audit from your heatmaps, blind spots and trajectory. It uses one AI request.
+        </p>
+      </Modal>
 
-      {showPurgeModal && (
-        <div className="fixed inset-0 bg-bg/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={showPurgeModal}>
-            <Card
-              elevated
-              className="p-6 md:p-8 max-w-md w-full relative overflow-hidden modal-entrance"
-              style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 50%, transparent)' }}
-            >
-              <h3 className="text-xl font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--accent-danger)' }}>
-                <ShieldAlert size={20} strokeWidth={2} /> Purge all analytics?
-              </h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">
-                This permanently deletes your{' '}
-                <strong className="text-textMain font-semibold">
-                  topic heatmaps, IRT θ rating, readiness velocity, confidence matrix, study-time logs, and lifetime
-                  history
-                </strong>
-                . This can't be undone.
-              </p>
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" size="sm" disabled={isPurging} onClick={() => setShowPurgeModal(false)}>
-                  Cancel
-                </Button>
-                <Button variant="danger" size="sm" disabled={isPurging} onClick={executePurge}>
-                  {isPurging && <span className="telemetry-spinner !w-3 !h-3 border-white border-t-transparent" />}
-                  Confirm purge
-                </Button>
-              </div>
-            </Card>
-          </FocusTrap>
-        </div>
-      )}
+      <Modal
+        open={!!aiReport}
+        onClose={() => setAiReport('')}
+        title="AI board report"
+        icon={Sparkles}
+        size="lg"
+        footer={<Button size="sm" onClick={() => setAiReport('')}>Close</Button>}
+      >
+        <div className="text-sm text-textMain leading-relaxed whitespace-pre-wrap">{aiReport}</div>
+      </Modal>
+
+      <Modal
+        open={showPurgeModal}
+        onClose={() => { if (!isPurging) setShowPurgeModal(false); }}
+        closeOnBackdrop={!isPurging}
+        title="Purge all analytics?"
+        icon={ShieldAlert}
+        tone="danger"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" disabled={isPurging} onClick={() => setShowPurgeModal(false)}>Cancel</Button>
+            <Button variant="danger" size="sm" loading={isPurging} onClick={executePurge}>Confirm purge</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">
+          This permanently deletes your{' '}
+          <strong className="text-textMain font-semibold">
+            topic heatmaps, IRT θ rating, readiness velocity, confidence matrix, study-time logs, and lifetime history
+          </strong>
+          . This can&apos;t be undone.
+        </p>
+      </Modal>
     </div>
   );
 }

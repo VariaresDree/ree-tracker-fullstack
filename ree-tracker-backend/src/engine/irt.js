@@ -23,6 +23,56 @@ const SCALE = 1.7; // logistic-normal scaling (Birnbaum constant)
 // (A time-based se-inflation / Glicko-style decay is the principled future upgrade.)
 const SE_FLOOR = 0.35;
 
+// Prior SE when a stored one is missing: the population prior N(0, 1). Four
+// call sites each defaulted to their own number (0.5, 1, 1, 1.0).
+const PRIOR_SE = 1;
+
+// Defaults for an uncalibrated item: average discrimination, and the 4-option
+// MCQ guessing floor.
+const DEFAULT_A = 1;
+const DEFAULT_C = 0.2;
+const AUTHOR_B_BOUNDS = [-3, 3];
+
+// Author-assigned `difficulty` is a 1/2/3 ORDINAL ("Foundational / Core /
+// Complex" in the AI prompt and both authoring forms; review defaults to 2.0) —
+// not a θ-scale value. Every estimator and picker used to read it AS b, which
+// put the typical "Core" item two SDs above an average candidate: a correct
+// answer looked like strong evidence of high ability, a miss like almost none,
+// and θ drifted upward for everyone until calibration caught up.
+const ORDINAL_TO_B = Object.freeze({ 1: -1, 2: 0, 3: 1 });
+
+/**
+ * The author's difficulty rating on the θ (b) scale. The ordinal 1/2/3 maps to
+ * −1/0/+1; any other finite value is taken to be b-scale already (legacy rows,
+ * the 0.0 column default) and clamped to ±3; anything else is average (0).
+ */
+function authorB(difficulty) {
+  if (difficulty === null || difficulty === undefined || difficulty === '') return 0;
+  const d = Number(difficulty);
+  if (!Number.isFinite(d)) return 0;
+  if (Object.prototype.hasOwnProperty.call(ORDINAL_TO_B, d)) return ORDINAL_TO_B[d];
+  return clamp(d, AUTHOR_B_BOUNDS[0], AUTHOR_B_BOUNDS[1]);
+}
+
+/**
+ * The 3PL parameters to serve for a question — the ONE fallback rule shared by
+ * the θ estimator (telemetry), the CAT picker, calibration seeds and the θ
+ * backfill. Accepts the Question row shape ({irtA, irtB, irtC, difficulty}) or
+ * the prefixed shape telemetry threads through its pipeline ({_a, _b, _c,
+ * _difficulty}).
+ */
+function itemParams(q) {
+  const src = q || {};
+  const a = src.irtA ?? src._a;
+  const b = src.irtB ?? src._b;
+  const c = src.irtC ?? src._c;
+  return {
+    a: Number.isFinite(a) ? a : DEFAULT_A,
+    b: Number.isFinite(b) ? b : authorB(src.difficulty ?? src._difficulty),
+    c: Number.isFinite(c) ? c : DEFAULT_C,
+  };
+}
+
 /** Sigmoid. */
 function sigmoid(z) {
   if (z >= 0) {
@@ -383,6 +433,10 @@ function linspace(a, b, n) {
 
 module.exports = {
   SCALE,
+  SE_FLOOR,
+  PRIOR_SE,
+  authorB,
+  itemParams,
   THETA_MIN,
   THETA_MAX,
   clampTheta,

@@ -197,7 +197,16 @@ export const fetchSyllabusWeights = async () => {
     }
 };
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
-export const logSRSRecord = async (uid, questionId, payload) => apiRequest('/api/srs/review', 'POST', { questionId, ...payload });
+// Spaced review. Cards are scheduled server-side from every recorded answer
+// (engine/srs via the telemetry transaction) — the client only reads the queue.
+// The old logSRSRecord POSTed client-computed intervals and had no callers.
+export const fetchSrsDue = async (limit = 20, subject) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (subject && subject !== 'All') params.set('subject', subject);
+    const data = await apiRequest(`/api/srs/due?${params.toString()}`);
+    return normalizeQuestions(data);
+};
+export const fetchSrsSummary = async () => apiRequest('/api/srs/summary');
 // mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
 // — server uses it to break down dashboard analytics per surface.
 const MODE_ALIAS = {
@@ -518,18 +527,42 @@ export const updateFolder = async (id, data) => apiRequest(`/api/materials/folde
 // ----------------------------------------------------------------------
 // 8. High-Speed Local Simulation Ledger (IndexedDB)
 // ----------------------------------------------------------------------
-// Scoped per account — see services/simulationLedger.js for why the old
-// single-key ledger leaked one user's mock history to the next.
-export { saveSimulationRecord, fetchSimulationLedger, deleteSimulationRecord } from './simulationLedger';
+// Mock-exam records are server-authoritative (services/examHistory on the API).
+// finalize grades a sitting from its recorded attempts; history serves sittings
+// with per-subject scores; hide removes one from history WITHOUT deleting its
+// answers (a delete would cascade to the attempts and rewrite every tally).
+export const finalizeExamSession = async (sessionId, meta) =>
+    apiRequest(`/api/exams/sessions/${encodeURIComponent(sessionId)}/finalize`, 'POST', meta || {});
+export const fetchMockHistory = async (limit = 20) => {
+    const data = await apiRequest(`/api/analytics/deep/mock-history?limit=${limit}`);
+    return data?.items || [];
+};
+export const hideExamSession = async (sessionId) =>
+    apiRequest(`/api/exams/sessions/${encodeURIComponent(sessionId)}/hide`, 'POST', {});
 
-export const fetchSmartDrillQuestions = async (limit = 20) => {
-    const data = await apiRequest(`/api/smart-drill?limit=${limit}`);
+// Targeted, adaptive drill. With no target the server drills the weakest
+// topics (decayed mastery × syllabus weight); `mode: 'blind-spot'` leads with
+// the questions answered confidently wrong.
+export const fetchSmartDrillQuestions = async (limit = 10, { topicId, topic, subject, mode } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (topicId) params.set('topicId', topicId);
+    else if (topic) params.set('topic', topic);
+    if (subject && subject !== 'All') params.set('subject', subject);
+    if (mode) params.set('mode', mode);
+    const data = await apiRequest(`/api/smart-drill?${params.toString()}`);
     return { items: normalizeQuestions(data), weakAreas: data?.weakAreas || [] };
 };
 
+// Placement test — server-graded adaptive sitting (routes/diagnosticRoutes.js).
+// Answers are never revealed mid-test; each response names the next item, or
+// carries the final result.
+export const fetchDiagnosticStatus = async () => apiRequest('/api/diagnostic/status');
+export const startDiagnostic = async (restart = false) => apiRequest('/api/diagnostic/start', 'POST', { restart });
+export const answerDiagnostic = async (body) => apiRequest('/api/diagnostic/answer', 'POST', body);
+export const finishDiagnostic = async (sessionId) => apiRequest('/api/diagnostic/finish', 'POST', { sessionId });
+
 export const fetchReadinessScore = async () => safeApiRequest('/api/readiness', 'GET', null, null);
 export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/history', 'GET', null, null);
-export const saveReadinessSnapshot = async (data) => apiRequest('/api/readiness/snapshot', 'POST', data);
 
 // Adaptive engine — pass/topnotcher forecast + prescription panel data.
 export const fetchForecast = async () => safeApiRequest('/api/forecast', 'GET', null, null);

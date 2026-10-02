@@ -30,4 +30,5 @@ module.exports = {
     ...require('./text'),
     ...require('./thresholds'),
     ...require('./exam'),
+    ...require('./mastery'),
 };
