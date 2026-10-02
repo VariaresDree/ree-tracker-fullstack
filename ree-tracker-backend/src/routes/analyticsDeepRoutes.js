@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
+const { mockHistory } = require('../services/examHistory');
 const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
 // Manila calendar date of an instant — same helper telemetryService keys
@@ -183,6 +184,20 @@ router.get('/score-progression', authMiddleware, async (req, res) => {
         res.status(200).json({ items: buildScoreProgression(exams.reverse(), subjectScoresBySession(subjectRows)) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch score progression.' });
+    }
+});
+
+// GET /api/analytics/deep/mock-history — Board Simulator and battle sittings,
+// newest first, with per-subject scores, the PRC weighted average and verdict.
+// Server-authoritative: it replaces the device-local IndexedDB ledger, which was
+// per-device and lost with a cleared browser. Mounted under /analytics so the
+// service worker's NetworkFirst rule paints it when a free-tier instance sleeps.
+router.get('/mock-history', authMiddleware, async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit, 10) || 20;
+        res.status(200).json({ items: await mockHistory(req.user.id, limit) });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch mock history.' });
     }
 });
 

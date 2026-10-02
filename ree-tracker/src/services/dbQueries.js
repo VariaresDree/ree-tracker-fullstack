@@ -527,9 +527,18 @@ export const updateFolder = async (id, data) => apiRequest(`/api/materials/folde
 // ----------------------------------------------------------------------
 // 8. High-Speed Local Simulation Ledger (IndexedDB)
 // ----------------------------------------------------------------------
-// Scoped per account — see services/simulationLedger.js for why the old
-// single-key ledger leaked one user's mock history to the next.
-export { saveSimulationRecord, fetchSimulationLedger, deleteSimulationRecord } from './simulationLedger';
+// Mock-exam records are server-authoritative (services/examHistory on the API).
+// finalize grades a sitting from its recorded attempts; history serves sittings
+// with per-subject scores; hide removes one from history WITHOUT deleting its
+// answers (a delete would cascade to the attempts and rewrite every tally).
+export const finalizeExamSession = async (sessionId, meta) =>
+    apiRequest(`/api/exams/sessions/${encodeURIComponent(sessionId)}/finalize`, 'POST', meta || {});
+export const fetchMockHistory = async (limit = 20) => {
+    const data = await apiRequest(`/api/analytics/deep/mock-history?limit=${limit}`);
+    return data?.items || [];
+};
+export const hideExamSession = async (sessionId) =>
+    apiRequest(`/api/exams/sessions/${encodeURIComponent(sessionId)}/hide`, 'POST', {});
 
 // Targeted, adaptive drill. With no target the server drills the weakest
 // topics (decayed mastery × syllabus weight); `mode: 'blind-spot'` leads with

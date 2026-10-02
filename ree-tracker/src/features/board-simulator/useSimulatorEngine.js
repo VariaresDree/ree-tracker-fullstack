@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import {
   updateQuestionCache, updateQuestionInBank, fetchVaultQuestions,
-  saveSimulationRecord, syncTelemetryBatch, getAnalyticsProfile,
+  finalizeExamSession, syncTelemetryBatch, getAnalyticsProfile,
   fetchMultiplayerBattle, fetchSyllabusWeights, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
@@ -520,6 +520,19 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             // the server flags the rows and logs any client/server grading
             // discrepancy when it re-grades on sync.
             const offlineBulkBody = { ...bulkBody, attempts: attemptsPayload.map((a) => ({ ...a, offline: true })) };
+            // Finalising grades the sitting on the SERVER from its recorded
+            // attempts and closes the session (it used to stay IN_PROGRESS
+            // forever, with the only per-subject record in a device-local
+            // ledger). The client only describes the sitting. Queued right
+            // behind the telemetry when deferred, so the outbox replays them in
+            // order; a 409 means the attempts have not landed yet and retries.
+            const examMeta = {
+                kind: config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
+                isPrcStandard: !!config.isPrcStandard,
+                targetSubject: String(config.subject || '').slice(0, 32),
+            };
+            const finalizePath = `/api/exams/sessions/${encodeURIComponent(sessionId)}/finalize`;
+            const queueFinalize = () => useStore.getState().queuePendingWrite(finalizePath, 'POST', examMeta);
 
             if (isOnline) {
                 try {
@@ -543,6 +556,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                             matrix: freshProfile.data.matrix
                         });
                     }
+                    try {
+                        await finalizeExamSession(sessionId, examMeta);
+                    } catch {
+                        queueFinalize();
+                    }
                 } catch (syncError) {
                     console.warn("Cloud Sync Failed", syncError);
                     // EVERY failure defers to the durable outbox — not just the
@@ -554,6 +572,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                     // survives a reload and replays with its original
                     // clientAttemptIds (exactly-once on the server).
                     useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
+                    queueFinalize();
                     if (syncError?.message === '[OFFLINE]') {
                         toast('Offline — exam queued; analytics will sync on reconnect.', { icon: '📡' });
                     } else {
@@ -564,6 +583,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 // Fully offline mock exam — defer the batch with its correct
                 // session + mode so it lands exactly like an online submit later.
                 useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
+                queueFinalize();
                 toast('Offline — exam saved locally; analytics will sync on reconnect.', { icon: '📡' });
             }
         }
@@ -610,14 +630,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         }));
         
         setCurrentIndex(0);
-        await saveSimulationRecord({
-            date: new Date().toISOString(), score, generalAverage, verdict, subjectScores, isPrcStandard: !!config.isPrcStandard,
-            mode: config.mode, targetSubject: config.subject, totalQs: finalQs.length, timeTaken: timeTakenActual
-        });
 
-        // Only NOW is the draft safe to drop: the attempts are either synced or
-        // sitting in the IndexedDB-backed outbox, and the score summary is
-        // persisted. If anything above threw, we fall into catch with the draft
+        // Only NOW is the draft safe to drop: the attempts and the finalise are
+        // either on the server or sitting in the IndexedDB-backed outbox. If anything above threw, we fall into catch with the draft
         // still on disk and the Resume affordance still available.
         try {
             localStorage.removeItem('ree_sim_cache');
@@ -740,13 +755,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       diagnostics: { ...diagnostics, pending: false },
     }));
 
-    saveSimulationRecord({
-      date: new Date().toISOString(),
-      score: diagnostics.score, generalAverage: diagnostics.generalAverage, verdict: diagnostics.verdict,
-      subjectScores: diagnostics.subjectScores,
-      mode: 'battle', targetSubject: config.subject,
-      totalQs: diagnostics.totalItems, timeTaken: diagnostics.timeTakenSecs,
-    }).catch(() => {});
+    // No local record: the battle server records and finalises each
+    // player's sitting, so it appears in server-side mock history.
   };
 
   // Export a print-ready PRC-style board-exam packet: questionnaire (2-column
