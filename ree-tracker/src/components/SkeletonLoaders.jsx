@@ -23,14 +23,17 @@ export function SkeletonChart({ className = '' }) {
 export function DashboardSkeleton() {
   return (
     <div role="status" aria-live="polite" aria-label="Loading dashboard" className="p-6 space-y-6 page-fade-in">
+      {/* Mirrors the real layout: header, Today panel, 4-tile KPI strip,
+          trajectory + forecast row — so the page doesn't jump on load. */}
       <div className="skeleton-shimmer h-8 w-64 rounded-lg" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <SkeletonCard className="h-72" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <SkeletonCard key={i} className="h-28" />
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SkeletonChart />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SkeletonChart className="lg:col-span-2" />
         <SkeletonChart />
       </div>
     </div>

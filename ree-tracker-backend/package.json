@@ -18,6 +18,7 @@
     "calibrate": "node scripts/calibrate.js",
     "calibrate:dry": "node scripts/calibrate.js --dry-run",
     "recompute:theta": "node scripts/recomputeTheta.js",
+    "audit:difficulty": "node scripts/auditDifficulty.js",
     "seed:syllabus": "node scripts/seedSyllabusWeights.js",
     "migrate:taxonomy": "node scripts/migrateTaxonomy.js",
     "migrate:taxonomy:dry": "node scripts/migrateTaxonomy.js --dry-run",

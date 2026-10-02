@@ -5,20 +5,65 @@ const { validate } = require('../middlewares/validate');
 const { plannerTaskCreateSchema, plannerTaskUpdateSchema, plannerGenerateSchema } = require('../schemas/plannerSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { todayManila } = require('../utils/manilaDate');
+const { Prisma } = require('@prisma/client');
+const { todayManila, manilaDateOf, manilaDaySql } = require('../utils/manilaDate');
+const { normalizeSubject } = require('@ree/shared');
+const { buildStudyPlan, taskProgress } = require('../engine/plan');
+const { loadTopicSignals } = require('../services/topicSignals');
+const { getSyllabusWeights } = require('../services/questionPool');
 
-// Get all planner tasks for user
+// Tasks the planner owns: v2 tasks carry a kind; v1 wrote a "[WEAK] …" text
+// prefix. Re-planning and "clear plan" touch only these.
+const PLANNED_TASKS = [{ kind: { not: null } }, { text: { startsWith: '[' } }];
+// A board sitting counts toward a planned mock once it has this many items.
+const MOCK_MIN_ITEMS = 20;
+
+/** UTC instant of Manila midnight `offsetDays` after a YYYY-MM-DD date. */
+const manilaMidnight = (ymd, offsetDays) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + offsetDays) - 8 * 3600 * 1000);
+};
+
+// Get all planner tasks for user — planned tasks carry their progress, worked
+// out from what the learner actually answered on the task's day (Planner v2:
+// they complete themselves; free-text tasks are still ticked by hand).
 router.get('/tasks', authMiddleware, async (req, res) => {
     try {
-        // Capped: generate-plan can create thousands of rows in one call, and
-        // this endpoint returned all of them.
+        // Capped: a plan is at most PLAN_HORIZON_DAYS rows, plus free tasks.
         const tasks = await prisma.plannerTask.findMany({
             take: 1000,
             where: { userId: req.user.id },
             orderBy: [{ completed: 'asc' }, { createdAt: 'desc' }]
         });
 
-        res.status(200).json({ items: tasks });
+        const planned = tasks.filter((t) => t.kind && t.dueDate && !t.completed);
+        let progress = [];
+        if (planned.length > 0) {
+            const days = planned.map((t) => t.dueDate).sort();
+            const from = manilaMidnight(days[0], 0);
+            const to = manilaMidnight(days[days.length - 1], 1);
+            const answeredAt = Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`;
+            const [answered, mocks] = await Promise.all([
+                prisma.$queryRaw`
+                    SELECT ${manilaDaySql(answeredAt)} AS "day",
+                           COALESCE(t."name", qa."subtopic") AS "topic",
+                           COUNT(*)::int AS "count"
+                    FROM "QuestionAttempt" qa
+                    JOIN "Question" q ON q."id" = qa."questionId"
+                    LEFT JOIN "Topic" t ON t."id" = q."topicId"
+                    WHERE qa."userId" = ${req.user.id}
+                      AND ${answeredAt} >= ${from} AND ${answeredAt} < ${to}
+                    GROUP BY 1, 2`,
+                prisma.examSession.findMany({
+                    where: { userId: req.user.id, mode: 'BOARD_SIM', totalQuestions: { gte: MOCK_MIN_ITEMS }, createdAt: { gte: from, lt: to } },
+                    select: { createdAt: true },
+                }),
+            ]);
+            progress = taskProgress(planned, answered, mocks.map((m) => manilaDateOf(m.createdAt)));
+        }
+        const byId = new Map(progress.map((p) => [p.id, p]));
+
+        res.status(200).json({ items: tasks.map((t) => (byId.has(t.id) ? { ...t, progress: byId.get(t.id) } : t)) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch planner tasks.' });
     }
@@ -80,10 +125,7 @@ router.put('/tasks/:id', authMiddleware, validate(plannerTaskUpdateSchema), asyn
 router.delete('/tasks/clear-plan', authMiddleware, async (req, res) => {
     try {
         const result = await prisma.plannerTask.deleteMany({
-            where: {
-                userId: req.user.id,
-                text: { startsWith: '[' }
-            }
+            where: { userId: req.user.id, OR: PLANNED_TASKS },
         });
 
         res.status(200).json({ success: true, deleted: result.count });
@@ -112,98 +154,52 @@ router.delete('/tasks/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// Auto-generate study plan from exam date and mastery data
+// Auto-generate a study plan (engine/plan.js): drill days shared out by
+// (1 − decayed mastery) × syllabus weight and interleaved, a timed PRC sitting
+// every seventh day, light review in the final three days. Re-planning replaces
+// the previous plan's tasks, never the learner's own.
 router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSchema), async (req, res) => {
     try {
         const { examDate, topics } = req.body;
+        const exam = new Date(examDate).toISOString().slice(0, 10);
 
-        if (!examDate || !topics || !Array.isArray(topics) || topics.length === 0) {
-            return res.status(400).json({ error: 'examDate and topics array are required.' });
-        }
+        const [user, practised, weights] = await Promise.all([
+            prisma.user.findUnique({ where: { id: req.user.id }, select: { dailyTarget: true } }),
+            loadTopicSignals(req.user.id),
+            getSyllabusWeights(),
+        ]);
 
-        // Anchor "today" to the Manila calendar day, not the server process's
-        // local/UTC day — `new Date(); setHours(0,0,0,0)` zeroed to whatever
-        // timezone the server happens to run in (Render defaults to UTC,
-        // Manila 08:00), which shifted every generated due-date by 8 hours of
-        // day-boundary error for plans generated 00:00-07:59 Manila. Building
-        // from the Manila Y-M-D string and doing all arithmetic with UTC
-        // getters/setters below keeps the calendar math exact and independent
-        // of the server's runtime timezone.
-        const [mYear, mMonth, mDay] = todayManila().split('-').map(Number);
-        const startDate = new Date(Date.UTC(mYear, mMonth - 1, mDay));
-        const endDate = new Date(examDate);
-        endDate.setUTCHours(0, 0, 0, 0);
+        // Practised topics carry their decayed mastery; syllabus topics never
+        // touched join as unmastered.
+        const seen = new Set(practised.map((t) => t.topic.trim().toLowerCase()));
+        const planTopics = [
+            ...practised,
+            ...(topics || [])
+                .filter((t) => !seen.has(t.subtopic.trim().toLowerCase()))
+                .map((t) => ({ topic: t.subtopic, subject: normalizeSubject(t.subject), topicId: null, masteryEffective: null })),
+        ];
 
-        // Bounded horizon. The schema already rejects an unparseable examDate, so
-        // this is purely a ceiling on how far ahead a plan may reach — an exam
-        // date of 9999-12-31 would otherwise ask for millions of days.
-        const MAX_PLAN_DAYS = 400;
-        const rawDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-        const totalDays = Math.min(MAX_PLAN_DAYS, Math.max(1, rawDays));
-
-        // Fetch user's weak areas to prioritize
-        const subtopicPerf = await prisma.questionAttempt.groupBy({
-            by: ['subtopic'],
-            where: { userId: req.user.id },
-            _count: { id: true }
+        const plan = buildStudyPlan({
+            today: todayManila(),
+            examDate: exam,
+            dailyTarget: user?.dailyTarget || 50,
+            topics: planTopics,
+            weights,
         });
-        const correctBySubtopic = await prisma.questionAttempt.groupBy({
-            by: ['subtopic'],
-            where: { userId: req.user.id, isCorrect: true },
-            _count: { id: true }
-        });
-        const correctMap = {};
-        correctBySubtopic.forEach(c => { correctMap[c.subtopic] = c._count.id; });
+        if (plan.length === 0) return res.status(400).json({ error: 'Set an exam date in the future.' });
 
-        const perfMap = {};
-        subtopicPerf.forEach(s => {
-            perfMap[s.subtopic] = {
-                total: s._count.id,
-                correct: correctMap[s.subtopic] || 0,
-                accuracy: (correctMap[s.subtopic] || 0) / s._count.id
-            };
-        });
-
-        // Sort topics: weak areas first, then unseen topics, then strong ones
-        const sortedTopics = [...topics].sort((a, b) => {
-            const perfA = perfMap[a.subtopic];
-            const perfB = perfMap[b.subtopic];
-            const accA = perfA ? perfA.accuracy : 0.5;
-            const accB = perfB ? perfB.accuracy : 0.5;
-            return accA - accB;
-        });
-
-        // Distribute topics across available days, cycling through them
-        const tasks = [];
-        const today = new Date(startDate);
-
-        for (let i = 0; i < Math.min(totalDays, sortedTopics.length * 2); i++) {
-            const topic = sortedTopics[i % sortedTopics.length];
-            const dueDate = new Date(today);
-            dueDate.setUTCDate(dueDate.getUTCDate() + i);
-            const dueDateStr = dueDate.toISOString().split('T')[0];
-
-            const perf = perfMap[topic.subtopic];
-            const tag = perf
-                ? (perf.accuracy < 0.5 ? '[WEAK] ' : perf.accuracy < 0.7 ? '[REVIEW] ' : '[MAINTAIN] ')
-                : '[NEW] ';
-
-            tasks.push({
-                userId: req.user.id,
-                text: `${tag}${topic.subject}: ${topic.subtopic} — Active Review (20 questions)`,
-                dueDate: dueDateStr,
-                completed: false
-            });
-        }
-
-        // Batch create all tasks
-        const created = await prisma.plannerTask.createMany({ data: tasks });
+        const [, created] = await prisma.$transaction([
+            prisma.plannerTask.deleteMany({ where: { userId: req.user.id, OR: PLANNED_TASKS } }),
+            prisma.plannerTask.createMany({
+                data: plan.map((t) => ({ userId: req.user.id, completed: false, ...t })),
+            }),
+        ]);
 
         res.status(201).json({
             success: true,
             tasksCreated: created.count,
-            totalDays,
-            message: `Generated ${created.count} study tasks across ${totalDays} days`
+            totalDays: plan.length,
+            message: `Planned ${created.count} days of review`,
         });
     } catch (error) {
         logger.error('Study plan generation error', { error: error.message, stack: error.stack });

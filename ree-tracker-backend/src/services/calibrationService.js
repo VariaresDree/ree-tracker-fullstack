@@ -16,18 +16,17 @@
 //   4. person estimates upsert UserAbility(userId, subject) — per-subject
 //      ability that the forecast prefers over its hit-rate fallback.
 const prisma = require('../config/db');
-const { jmleCalibrate } = require('../engine/irt');
+const { jmleCalibrate, authorB, PRIOR_SE } = require('../engine/irt');
 const { getSubjectFilter } = require('../utils/subject');
 
 const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 // Author prior weight: the author estimate counts like 30 responses, so the
 // blend crosses 50% empirical exactly at the spec's n=30 threshold.
 const AUTHOR_PRIOR_N = 30;
-// Author-assigned Question.difficulty is b-scale by app convention
-// (`irtB ?? difficulty` everywhere) but unvalidated — clamp to a sane band.
-const AUTHOR_B_BOUNDS = [-3, 3];
-
-const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+// Author-assigned Question.difficulty is a 1/2/3 ORDINAL, not a b-scale value;
+// engine/irt.authorB maps it onto the θ scale (and clamps anything else to ±3).
+// It used to be clamped and served raw, so the author prior pulled every
+// blended b toward +2.
 
 /**
  * Pure: reduce a chronological attempt list to one response per
@@ -54,16 +53,13 @@ function buildResponseMatrix(attempts) {
  * the 1.0 default.
  */
 function blendParams({ empiricalA, empiricalB, n, authorDifficulty }) {
-    const authorB = clamp(
-        Number.isFinite(authorDifficulty) ? authorDifficulty : 0,
-        AUTHOR_B_BOUNDS[0], AUTHOR_B_BOUNDS[1],
-    );
+    const authorPriorB = authorB(authorDifficulty);
     if (!Number.isFinite(empiricalB) || !Number.isFinite(n) || n <= 0) {
-        return { a: 1.0, b: authorB, w: 0 };
+        return { a: 1.0, b: authorPriorB, w: 0 };
     }
     const w = n / (n + AUTHOR_PRIOR_N);
     const empA = Number.isFinite(empiricalA) ? empiricalA : 1.0;
-    return { a: w * empA + (1 - w) * 1.0, b: w * empiricalB + (1 - w) * authorB, w };
+    return { a: w * empA + (1 - w) * 1.0, b: w * empiricalB + (1 - w) * authorPriorB, w };
 }
 
 /**
@@ -81,7 +77,7 @@ async function runRecalibration({ dryRun = false, minN = 10 } = {}) {
         prisma.userAbility.findMany(),
     ]);
     const globalPrior = Object.fromEntries(users.map((u) => [
-        u.id, { theta: u.thetaRating ?? 0, se: u.standardError ?? 1.0 },
+        u.id, { theta: u.thetaRating ?? 0, se: u.standardError ?? PRIOR_SE },
     ]));
     const abilityBySubject = new Map(); // subject -> Map(userId -> {theta, se})
     for (const a of abilityRows) {
@@ -139,14 +135,14 @@ async function runRecalibration({ dryRun = false, minN = 10 } = {}) {
         for (const q of questions) {
             itemSeeds[q.id] = {
                 a: q.empiricalA ?? q.irtA ?? 1,
-                b: q.empiricalB ?? q.irtB ?? clamp(q.difficulty ?? 0, AUTHOR_B_BOUNDS[0], AUTHOR_B_BOUNDS[1]),
+                b: q.empiricalB ?? q.irtB ?? authorB(q.difficulty),
             };
         }
         const subjectAbility = abilityBySubject.get(subject);
         const personPriors = {};
         for (const r of responses) {
             if (!personPriors[r.personId]) {
-                personPriors[r.personId] = subjectAbility?.get(r.personId) || globalPrior[r.personId] || { theta: 0, se: 1.0 };
+                personPriors[r.personId] = subjectAbility?.get(r.personId) || globalPrior[r.personId] || { theta: 0, se: PRIOR_SE };
             }
         }
 
@@ -179,7 +175,7 @@ async function runRecalibration({ dryRun = false, minN = 10 } = {}) {
                     id: itemId, n: fit.n,
                     empiricalA: round3(fit.a), empiricalB: round3(fit.b),
                     servedA: round3(blend.a), servedB: round3(blend.b),
-                    authorB: round3(clamp(q?.difficulty ?? 0, AUTHOR_B_BOUNDS[0], AUTHOR_B_BOUNDS[1])),
+                    authorB: round3(authorB(q?.difficulty)),
                     w: round3(blend.w),
                 });
             }

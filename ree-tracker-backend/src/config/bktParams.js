@@ -23,4 +23,16 @@ function paramsForTopic(_topic) {
     return DEFAULT_BKT;
 }
 
-module.exports = { DEFAULT_BKT, paramsForTopic };
+// Forgetting between practice. BKT itself has no forgetting term — P(mastery)
+// only changes when the learner answers — so a topic mastered early in a
+// months-long review stayed "Mastered" however long it went untouched.
+// decayedMastery (engine/bkt.js) decays the STORED estimate toward pInit with
+// time constant tauDays · (1 + ln(1 + masteryN)): ~3 weeks for a topic seen once,
+// ~10 weeks behind fifty observations. Display/priority only — the stored
+// pMastery is never rewritten by decay.
+const DECAY = Object.freeze({
+    tauDays: 21,
+    graceDays: 1,
+});
+
+module.exports = { DEFAULT_BKT, DECAY, paramsForTopic };

@@ -7,12 +7,15 @@
 // the comment claimed the two "mirror" each other. They did not: the same exam
 // rendered FAILED on the results screen and CONDITIONAL PASS in history.
 //
-// Per-subject scores are not available on a persisted ExamSession row (only the
-// aggregate score/totalQuestions), so the subject floor cannot be re-evaluated
-// here. Sessions finalised by /exams/submit carry their stored verdict, which WAS
-// computed with the floor; this fallback is only for rows the telemetry upsert
-// created and never finalised.
-const { deriveVerdict } = require('@ree/shared');
+// A persisted ExamSession row carries only the aggregate score/totalQuestions,
+// and the telemetry upsert leaves its verdict 'IN_PROGRESS' forever. For those
+// rows the route now groups the session's own attempts by subject and passes the
+// per-subject percentages in, so the verdict is the full PRC rule — weighted
+// general average AND the subject floor. Deriving from the raw pct alone (the
+// old fallback, still used when no attempts are found) called a 70% sitting
+// with Mathematics at 40% PASSED here while the results screen said
+// CONDITIONAL PASS.
+const { deriveVerdict, gradeBoardExam, normalizeSubject } = require('@ree/shared');
 
 /**
  * Score History rows. Only real exam surfaces count (Board Sim / Gauntlet —
@@ -25,19 +28,55 @@ const { deriveVerdict } = require('@ree/shared');
  * from pct instead of hiding the row or showing a stale state.
  */
 const EXAM_MODES = new Set(['BOARD_SIM', 'GAUNTLET']);
-function buildScoreProgression(examSessions) {
+
+/** Sessions whose verdict must be re-derived (never finalised). */
+function needsDerivedVerdict(s) {
+    return EXAM_MODES.has(s.mode) && (s.totalQuestions || 0) > 0 && (!s.verdict || s.verdict === 'IN_PROGRESS');
+}
+
+/**
+ * Fold raw `{ sessionId, subject, total, correct }` rows into
+ * `{ [sessionId]: { [canonicalSubject]: pct } }`, merging historical subject
+ * spellings ('Math' and 'Mathematics' are one subject).
+ */
+function subjectScoresBySession(rows) {
+    const counts = {};
+    for (const r of rows || []) {
+        if (!r?.sessionId) continue;
+        const subject = normalizeSubject(r.subject);
+        const bySubject = (counts[r.sessionId] ||= {});
+        const agg = (bySubject[subject] ||= { total: 0, correct: 0 });
+        agg.total += Number(r.total) || 0;
+        agg.correct += Number(r.correct) || 0;
+    }
+    const out = {};
+    for (const [sessionId, bySubject] of Object.entries(counts)) {
+        out[sessionId] = {};
+        for (const [subject, { total, correct }] of Object.entries(bySubject)) {
+            if (total > 0) out[sessionId][subject] = Math.round((correct / total) * 100);
+        }
+    }
+    return out;
+}
+
+function buildScoreProgression(examSessions, subjectScores = {}) {
     return (examSessions || [])
         .filter((s) => EXAM_MODES.has(s.mode) && (s.totalQuestions || 0) > 0)
         .map((s) => {
             const pct = Math.round((s.score / s.totalQuestions) * 100);
             const stored = s.verdict;
-            const verdict = stored && stored !== 'IN_PROGRESS' ? stored : deriveVerdict(pct);
+            const subjects = subjectScores[s.id];
+            const graded = subjects && Object.keys(subjects).length > 0 ? gradeBoardExam(subjects) : null;
+            let verdict;
+            if (stored && stored !== 'IN_PROGRESS') verdict = stored;
+            else verdict = graded ? graded.verdict : deriveVerdict(pct);
             return {
                 createdAt: s.createdAt,
                 targetSubject: s.targetSubject,
                 score: s.score,
                 totalQuestions: s.totalQuestions,
                 pct,
+                generalAverage: graded ? graded.generalAverage : null,
                 verdict,
             };
         });
@@ -76,4 +115,10 @@ function aggregateDailyStudy(studySessions, examSessions, dateOf) {
         .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-module.exports = { buildScoreProgression, aggregateDailyStudy, deriveVerdict };
+module.exports = {
+    needsDerivedVerdict,
+    subjectScoresBySession,
+    buildScoreProgression,
+    aggregateDailyStudy,
+    deriveVerdict,
+};

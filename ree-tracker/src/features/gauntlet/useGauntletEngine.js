@@ -11,6 +11,7 @@ import { auth } from '../../config/firebaseDb';
 import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../config/examStandards';
 import toast from 'react-hot-toast';
 import { classifySyncError, SYNC_OUTCOME } from '../../services/syncPolicy';
+import { GENERAL_AVERAGE } from '@ree/shared';
 
 // Resume-cache key, scoped by `level` inside the stored payload (mirrors the
 // Board Simulator's ree_sim_cache pattern in useSimulatorEngine.js). A single
@@ -521,7 +522,7 @@ export const useGauntletEngine = (level) => {
             });
 
             const scorePct = Math.round((correctCount / tier.items) * 100);
-            const isPassed = scorePct >= 70;
+            const isPassed = scorePct >= GENERAL_AVERAGE;
 
             setDiagnostics({
                 scorePct,
