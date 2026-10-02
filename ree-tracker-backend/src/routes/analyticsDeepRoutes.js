@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { mockHistory } = require('../services/examHistory');
+const { loadWeakSignals } = require('../services/topicSignals');
 const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
 // Manila calendar date of an instant — same helper telemetryService keys
@@ -184,6 +185,18 @@ router.get('/score-progression', authMiddleware, async (req, res) => {
         res.status(200).json({ items: buildScoreProgression(exams.reverse(), subjectScoresBySession(subjectRows)) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch score progression.' });
+    }
+});
+
+// GET /api/analytics/deep/weak-signals — the cross-session registry of blind
+// spots (topics answered CONFIDENTLY wrong, often enough to matter) and time
+// sinks (median answer over three minutes), plus the latest questions answered
+// confidently wrong. Each feeds an action in Deep analytics.
+router.get('/weak-signals', authMiddleware, async (req, res) => {
+    try {
+        res.status(200).json(await loadWeakSignals(req.user.id));
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to load blind spots and time sinks.' });
     }
 });
 

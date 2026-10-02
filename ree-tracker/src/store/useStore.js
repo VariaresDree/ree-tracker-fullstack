@@ -138,8 +138,10 @@ export const useStore = create(
       // sessionId, mode, and targetSubject are available to per-answer events.
       // Returns the generated sessionId so the surface can persist it locally
       // if it wants to (Simulator stores it on the session object for resume).
-      startSession: ({ mode, subject } = {}) => {
-        const sessionId = newId();
+      // `sessionId` lets a multi-part sitting (the full PRC board's three
+      // sections) keep ONE server session across parts; otherwise a fresh id.
+      startSession: ({ mode, subject, sessionId: provided } = {}) => {
+        const sessionId = provided || newId();
         set({
           currentSessionId: sessionId,
           currentSessionMode: mode || 'LEGACY',

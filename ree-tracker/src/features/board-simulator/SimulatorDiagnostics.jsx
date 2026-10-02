@@ -15,7 +15,7 @@ const VERDICT_ACCENT = {
     [VERDICT.FAILED]: 'var(--accent-danger)',
 };
 
-export default function SimulatorDiagnostics({ session, setSession, engine, isBattle = false }) {
+export default function SimulatorDiagnostics({ session, setSession, engine, isBattle = false, onExit }) {
     const { diagnostics } = session;
     const [showExitConfirm, setShowExitConfirm] = useState(false);
     const navigate = useNavigate();
@@ -32,6 +32,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
     };
 
     const handleExit = () => {
+        onExit?.();
         const reset = (s) => ({ ...s, isActive: false, isFinished: false, diagnostics: null, questions: [] });
         if (engine && typeof engine.setSession === 'function') engine.setSession(reset);
         else if (typeof setSession === 'function') setSession(reset);

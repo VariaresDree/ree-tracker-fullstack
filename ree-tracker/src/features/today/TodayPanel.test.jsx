@@ -12,6 +12,8 @@ vi.mock('../../hooks/useForecast', () => ({ useForecast: () => forecast }));
 vi.mock('../../hooks/useSrsSummary', () => ({ useSrsSummary: () => ({ summary: srs }) }));
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../diagnostic/PlacementPrompt', () => ({ default: () => <div>placement-prompt</div> }));
+let historyItems = [];
+vi.mock('../../services/dbQueries', () => ({ fetchReadinessHistory: () => Promise.resolve({ items: historyItems }) }));
 
 const { default: TodayPanel } = await import('./TodayPanel');
 
@@ -44,6 +46,18 @@ beforeEach(() => {
 });
 
 describe('TodayPanel', () => {
+  it('draws the readiness trend from the daily snapshots', async () => {
+    const day = (n) => new Date(Date.now() - n * 86400000).toISOString();
+    historyItems = [
+      { score: 54, createdAt: day(0) },
+      { score: 50, createdAt: day(3) },
+      { score: 47, createdAt: day(8) },
+    ];
+    renderPanel({ readiness: { score: 54, breakdown: {} }, stats: {} });
+    expect(await screen.findByText('+7 this week')).toBeInTheDocument();
+    historyItems = [];
+  });
+
   it('shows the readiness index with its breakdown, the pass probability and today’s target', () => {
     renderPanel({
       readiness: { score: 54, breakdown: { topicCoverage: 61, accuracyRate: 58, thetaNormalized: 52, consistency: 40 } },
