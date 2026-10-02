@@ -53,14 +53,32 @@ export default function Dashboard() {
       navigate('/materials');
       return;
     }
+    if (action?.type === 'FORMULA_CARDS') {
+      // Straight to that topic's formula cards in the reference vault.
+      navigate('/materials', { state: { tab: 'reference', search: topic || '', kind: 'formula' } });
+      return;
+    }
+    if (action?.type === 'SRS_DUE') {
+      navigate('/review', {
+        state: {
+          preset: {
+            sessionMode: 'mcq', studyMode: 'interleaved', subject: 'All', subtopic: 'All',
+            cognitiveFocus: 'mixed', count: action?.payload?.count || 20, source: 'srs-due',
+          },
+        },
+      });
+      return;
+    }
 
     const safeTOS = dynamicTOS || {};
     const isSubject = topic && Object.prototype.hasOwnProperty.call(safeTOS, topic);
-    const parentSubject = isSubject
+    // v2 actions name their subject; v1 snapshots only had the topic, so the
+    // TOS lookup stays as the fallback.
+    const parentSubject = action?.payload?.subject || (isSubject
       ? topic
       : Object.keys(safeTOS).find((subj) => (safeTOS[subj] || []).some(
           (sub) => sub.trim().toLowerCase() === String(topic || '').trim().toLowerCase(),
-        ));
+        )));
 
     const preset = {
       sessionMode: action?.type === 'SRS_REVIEW' ? 'flashcard' : 'mcq',

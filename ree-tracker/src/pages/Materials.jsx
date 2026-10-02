@@ -1,5 +1,6 @@
 // src/pages/Materials.jsx
 import { lazy, Suspense, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
@@ -28,8 +29,11 @@ export default function Materials() {
   const isAdmin = useStore((state) => state.isAdmin);
   const isOnline = useNetworkStatus();
 
-  // State is now strictly routing context
-  const [activeTab, setActiveTab] = useState('cloud_vault');
+  // State is now strictly routing context. A deep link (the dashboard's
+  // "Formula cards" prescription) can open a tab with a search pre-filled.
+  const location = useLocation();
+  const deepLink = location.state || {};
+  const [activeTab, setActiveTab] = useState(deepLink.tab || 'cloud_vault');
 
   const [viewingMaterial, setViewingMaterial] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -107,7 +111,7 @@ export default function Materials() {
             <h2 className="text-display text-2xl text-textMain tracking-tight">Reference cards</h2>
             <p className="text-sm text-muted2 mt-1">Constants, formulas, and concepts as interactive flashcards — drill down by subject, topic, and subtopic, or search directly. Tap a card to flip it.</p>
           </div>
-          <ReferenceBrowser />
+          <ReferenceBrowser initialSearch={deepLink.search || ''} initialKind={deepLink.kind || 'all'} />
         </div>
       )}
 

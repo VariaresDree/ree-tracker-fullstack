@@ -581,6 +581,9 @@ model ForecastSnapshot {
   expectedRank           Int?     // estimated percentile rank
   weakTopics             Json?    // [{ topic, theta, se, gapToTarget }]
   recommendedActions     Json?    // [{ type, payload, reason }]
+  // v2-prc: { subjects: { [s]: {expected, p50, p70, low, high} }, projectedGWA,
+  // conditionalProbability, bindingSubject }. NULL on v1 rows.
+  subjectForecasts       Json?
   modelVersion           String   @default("v1")
   createdAt              DateTime @default(now())
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)

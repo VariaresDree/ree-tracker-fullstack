@@ -3,8 +3,12 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { buildForecast } = require('../engine/forecast');
+const { buildForecast, MODEL_VERSION } = require('../engine/forecast');
 const { PRIOR_SE } = require('../engine/irt');
+const { effectiveMastery } = require('../services/masteryView');
+const { getTccBySubject } = require('../services/referenceFormCache');
+const { getSyllabusWeights } = require('../services/questionPool');
+const { normalizeSubject, TIME_MIN_MS, TIME_MAX_MS } = require('@ree/shared');
 const forecastCache = require('../services/forecastCache');
 
 // GET /api/forecast — latest snapshot for the caller, or recompute on the fly.
@@ -27,7 +31,12 @@ router.get('/', authMiddleware, async (req, res) => {
             }),
         ]);
 
-        const stale = latest && user?.lastActive && new Date(latest.createdAt) < new Date(user.lastActive);
+        // A snapshot from an older model is stale whatever its age: a v1 row
+        // carries no per-subject projection and a θ-cutoff pass probability.
+        const stale = latest && (
+            latest.modelVersion !== MODEL_VERSION
+            || (user?.lastActive && new Date(latest.createdAt) < new Date(user.lastActive))
+        );
         if (latest && !stale) {
             const body = { snapshot: latest, fresh: false };
             forecastCache.set(req.user.id, body);
@@ -58,62 +67,71 @@ router.post('/recompute', authMiddleware, async (req, res) => {
 });
 
 async function computeForUser(userId, opts = {}) {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { thetaRating: true, standardError: true },
-    });
+    const now = new Date();
+    const [user, abilityRows, topicRows, signalRows, srsDue, weights, tccBySubject] = await Promise.all([
+        prisma.user.findUnique({ where: { id: userId }, select: { thetaRating: true, standardError: true } }),
+        prisma.userAbility.findMany({ where: { userId } }),
+        // EVERY topic with history — v1 took the 20 most recently touched, so an
+        // old weak topic could never be recommended again.
+        prisma.userTopicPerformance.findMany({
+            where: { userId, attempts: { gt: 0 } },
+            select: { topic: true, subject: true, topicId: true, attempts: true, correct: true, pMastery: true, masteryN: true, lastPracticedAt: true },
+        }),
+        // Per-topic blind spots (confidently wrong) and median answer time, by
+        // the same canonical topic name the rollups use.
+        prisma.$queryRaw`
+            SELECT COALESCE(t."name", qa."subtopic") AS "topic",
+                   COUNT(*) FILTER (WHERE qa."confidenceLevel" = 'HIGH' AND qa."isCorrect" = false)::int AS "confidentMisses",
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY qa."timeSpentMs")
+                       FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}) AS "medianMs"
+            FROM "QuestionAttempt" qa
+            JOIN "Question" q ON q."id" = qa."questionId"
+            LEFT JOIN "Topic" t ON t."id" = q."topicId"
+            WHERE qa."userId" = ${userId}
+            GROUP BY 1`,
+        prisma.sRSCard.count({ where: { userId, nextReviewDate: { lte: now }, question: { isFlagged: false } } }),
+        getSyllabusWeights(),
+        getTccBySubject(),
+    ]);
 
-    const abilities = await prisma.userAbility.findMany({ where: { userId } });
-    const ability = {
-        theta: user?.thetaRating ?? 0,
-        se: user?.standardError ?? PRIOR_SE,
-    };
-
-    // Topic-level abilities come from UserTopicPerformance, which is genuinely
-    // per-TOPIC.
-    //
-    // This used to read UserAbility first and label each row's `subject` as a
-    // `topic`. UserAbility is per canonical SUBJECT — only Mathematics, ESAS and
-    // EE exist — and since recordAttempts now always upserts those rows, the
-    // `length === 0` fallback below was dead for every active user. The result:
-    // "weak topics" and the entire recommendedActions prescription returned at
-    // most three entries named "Mathematics", "ESAS" and "EE", which the client
-    // then tried to route DRILL / SRS_REVIEW actions against by payload.topic.
-    //
-    // The subject-level posterior is still the right input for the OVERALL
-    // forecast — that is `ability` above, which is unchanged.
-    const tp = await prisma.userTopicPerformance.findMany({
-        where: { userId, attempts: { gt: 0 } },
-        take: 20,
-        orderBy: { updatedAt: 'desc' },
-    });
-    let topicAbilities = tp.map((t) => ({
-        topic: t.topic,
-        // Crude derivation: log-odds of hit rate, bounded to a sane range.
-        theta: hitRateToTheta(t.correct, t.attempts),
-        se: t.attempts >= 8 ? 0.45 : 0.9,
-    }));
-
-    // Only if the learner has no per-topic history at all do we fall back to the
-    // per-subject posterior, so a brand-new user still gets a coarse forecast.
-    if (topicAbilities.length === 0) {
-        topicAbilities = abilities.map((a) => ({ topic: a.subject, theta: a.theta, se: a.se }));
+    const subjectAbilities = {};
+    for (const a of abilityRows || []) {
+        subjectAbilities[normalizeSubject(a.subject)] = { theta: a.theta, se: a.se };
     }
 
-    const payload = buildForecast({ ability, topicAbilities });
+    const signalsByTopic = new Map((signalRows || []).map((r) => [normTopic(r.topic), r]));
+    const topicSignals = (topicRows || []).map((t) => {
+        const sig = signalsByTopic.get(normTopic(t.topic)) || {};
+        const view = effectiveMastery(t, now);
+        return {
+            topic: t.topic,
+            subject: normalizeSubject(t.subject),
+            topicId: t.topicId ?? null,
+            // A topic with history but no BKT estimate yet: its hit rate stands in.
+            masteryEffective: view.masteryEffective ?? (t.attempts > 0 ? t.correct / t.attempts : null),
+            masteryN: view.masteryN,
+            attempts: t.attempts,
+            confidentMisses: Number(sig.confidentMisses) || 0,
+            medianMs: sig.medianMs == null ? null : Number(sig.medianMs),
+        };
+    });
+
+    const payload = buildForecast({
+        ability: { theta: user?.thetaRating ?? 0, se: user?.standardError ?? PRIOR_SE },
+        subjectAbilities,
+        tccBySubject,
+        weights,
+        topicSignals,
+        srsDue,
+        priorSe: PRIOR_SE,
+    });
 
     if (opts.persist) {
-        return prisma.forecastSnapshot.create({
-            data: { userId, ...payload },
-        });
+        return prisma.forecastSnapshot.create({ data: { userId, ...payload } });
     }
-    return { id: 'in-memory', userId, createdAt: new Date(), ...payload };
+    return { id: 'in-memory', userId, createdAt: now, ...payload };
 }
 
-function hitRateToTheta(correct, attempts) {
-    if (!attempts) return 0;
-    const rate = Math.max(0.02, Math.min(0.98, correct / attempts));
-    return Math.log(rate / (1 - rate)); // log-odds
-}
+const normTopic = (s) => String(s || '').trim().toLowerCase();
 
 module.exports = router;
