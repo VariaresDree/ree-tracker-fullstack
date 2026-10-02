@@ -7,7 +7,9 @@ const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/ex
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { gradeAttempts, buildDiagnostics } = require('../services/examService');
-const { selectNextItem, updateTheta, itemParams, PRIOR_SE } = require('../engine/irt');
+const { updateTheta, itemParams, fisherInfo, PRIOR_SE } = require('../engine/irt');
+const { pickCatItem, topicKey } = require('../engine/cat');
+const catCandidatesModule = require('../services/catCandidates');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -255,14 +257,20 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
         }
 
         // Refine prior with this session's attempts so consecutive picks
-        // converge faster than waiting for /submit.
+        // converge faster than waiting for /submit. The same read tells the
+        // picker which topics the session has already covered.
+        const coveredTopics = {};
         if (Array.isArray(sessionAttempts) && sessionAttempts.length > 0) {
             const ids = sessionAttempts.map((a) => a.questionId).filter(Boolean);
             const items = await prisma.question.findMany({
                 where: { id: { in: ids } },
-                select: { id: true, irtA: true, irtB: true, irtC: true, difficulty: true },
+                select: { id: true, subtopic: true, topicId: true, irtA: true, irtB: true, irtC: true, difficulty: true },
             });
             const itemMap = Object.fromEntries(items.map((q) => [q.id, q]));
+            for (const q of items) {
+                const key = topicKey(q);
+                if (key) coveredTopics[key] = (coveredTopics[key] || 0) + 1;
+            }
             const sessionPairs = sessionAttempts
                 .map((a) => {
                     const q = itemMap[a.questionId];
@@ -273,38 +281,22 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
             if (sessionPairs.length > 0) prior = updateTheta(prior, sessionPairs);
         }
 
-        const whereClause = { isFlagged: false };
-        if (subject && subject !== 'All' && subject !== 'Blended') whereClause.subject = subject;
+        // A random, θ-windowed sample with exclusions applied in SQL
+        // (services/catCandidates). This read `take: poolSize` rows with no
+        // ordering — the same first rows on every call — matched the subject
+        // by raw equality instead of the shared spellings, and dropped
+        // recently-seen ids only afterwards, in memory.
+        const exclude = [...new Set([...(recentIds || []), ...(sessionAttempts || []).map((a) => a.questionId)])];
+        const candidates = await catCandidatesModule.catCandidates({ subject, theta: prior.theta, excludeIds: exclude, take: poolSize });
 
-        const candidates = await prisma.question.findMany({
-            where: whereClause,
-            select: {
-                id: true,
-                subject: true,
-                subtopic: true,
-                text: true,
-                options: true,
-                irtA: true,
-                irtB: true,
-                irtC: true,
-                difficulty: true,
-                source: true,
-                type: true,
-            },
-            take: poolSize,
-        });
-
-        // The shared fallback rule (engine/irt.itemParams): an uncalibrated
-        // item is placed by its author rating mapped onto the θ scale, rather
-        // than read raw as b (or dropped to a random weight).
-        const pool = candidates.map((q) => ({ id: q.id, ...itemParams(q) }));
-
-        const pick = selectNextItem(
-            { theta: prior.theta, recentIds: new Set(recentIds) },
-            pool,
-        );
-
-        const chosen = candidates.find((q) => q.id === pick.id) || null;
+        // Information at θ, discounted for topics already covered, then a random
+        // pick among the best three (engine/cat) — not always THE single best.
+        const pickId = pickCatItem({ theta: prior.theta, pool: candidates, coveredTopics });
+        const chosen = candidates.find((q) => q.id === pickId) || null;
+        const pick = {
+            info: chosen ? fisherInfo(prior.theta, itemParams(chosen)) : 0,
+            fallback: !chosen || chosen.irtB == null,
+        };
 
         return res.status(200).json({
             item: chosen,

@@ -544,6 +544,14 @@ export const fetchSmartDrillQuestions = async (limit = 10, { topicId, topic, sub
     return { items: normalizeQuestions(data), weakAreas: data?.weakAreas || [] };
 };
 
+// Placement test — server-graded adaptive sitting (routes/diagnosticRoutes.js).
+// Answers are never revealed mid-test; each response names the next item, or
+// carries the final result.
+export const fetchDiagnosticStatus = async () => apiRequest('/api/diagnostic/status');
+export const startDiagnostic = async (restart = false) => apiRequest('/api/diagnostic/start', 'POST', { restart });
+export const answerDiagnostic = async (body) => apiRequest('/api/diagnostic/answer', 'POST', body);
+export const finishDiagnostic = async (sessionId) => apiRequest('/api/diagnostic/finish', 'POST', { sessionId });
+
 export const fetchReadinessScore = async () => safeApiRequest('/api/readiness', 'GET', null, null);
 export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/history', 'GET', null, null);
 export const saveReadinessSnapshot = async (data) => apiRequest('/api/readiness/snapshot', 'POST', data);

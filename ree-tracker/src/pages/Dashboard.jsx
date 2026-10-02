@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
 import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
+import PlacementPrompt from '../features/diagnostic/PlacementPrompt';
 import PageHeader from '../components/PageHeader';
 import { WEAK_TOPIC_ACCURACY } from '@ree/shared';
 import { Panel, KpiTile, StatusPill, Button, Card, Badge, EmptyState, SegmentedControl } from '../components/ui';
@@ -284,6 +285,10 @@ export default function Dashboard() {
           </Button>
         }
       />
+
+      {/* Placement test invite: prompted, skippable, only while the account
+          is still new (or a sitting is unfinished). */}
+      <PlacementPrompt uid={currentUser?.uid} answered={kpi.answered} />
 
       {/* First-run hero — an all-zero dashboard should invite action, not
           look like failure. */}
