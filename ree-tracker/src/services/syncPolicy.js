@@ -35,8 +35,13 @@ export const SYNC_OUTCOME = {
  * 408 Request Timeout and 429 Too Many Requests are 4xx but explicitly RETRYABLE
  * — treating them as permanent would dead-letter a batch the server merely asked
  * us to send again.
+ *
+ * 409 is the idempotency layer saying the SAME key is already in flight — a
+ * pagehide keepalive racing the debounced flush produces exactly this. The
+ * twin request may still fail, so quarantining this copy could lose the batch;
+ * retrying is safe because a completed twin replays its stored response.
  */
-const RETRYABLE_4XX = new Set([408, 429]);
+const RETRYABLE_4XX = new Set([408, 409, 429]);
 
 /**
  * Classify a failure from the sync pipeline.

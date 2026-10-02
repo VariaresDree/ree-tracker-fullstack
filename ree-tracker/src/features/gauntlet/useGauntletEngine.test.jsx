@@ -213,4 +213,37 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(queuePendingWrite).toHaveBeenCalledTimes(1);
     expect(result.current.status).toBe('pending');
   });
+
+  // The server answers 503 when it graded the run but could not SAVE it. That
+  // is retryable, not a reason to strand the run on an error screen — the
+  // outbox replays it, and clientAttemptId keeps the replay exactly-once.
+  it('a 5xx from the grade call defers to the outbox (graded-but-not-saved is retryable)', async () => {
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    act(() => { result.current.handleAnswer(0, 'A'); });
+
+    apiRequestMock.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('not saved'), { status: 503 })));
+
+    await act(async () => {
+      await result.current.submitExam();
+    });
+
+    expect(queuePendingWrite).toHaveBeenCalledTimes(1);
+    expect(result.current.status).toBe('pending');
+  });
+
+  it('a 4xx from the grade call is NOT deferred — resending the same payload cannot succeed', async () => {
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    act(() => { result.current.handleAnswer(0, 'A'); });
+
+    apiRequestMock.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('Validation failed.'), { status: 400 })));
+
+    await act(async () => {
+      await result.current.submitExam();
+    });
+
+    expect(queuePendingWrite).not.toHaveBeenCalled();
+    expect(result.current.status).toBe('error');
+  });
 });

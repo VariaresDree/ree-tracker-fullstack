@@ -95,7 +95,10 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
             <div className="flex items-center justify-between mb-5">
                 <div>
                     <h3 className="text-lg font-black text-textMain tracking-tight">Study Plan Generator</h3>
-                    <p className="text-xs text-muted mt-1">Auto-generate a day-by-day plan weighted by PRC TOS</p>
+                    <p className="text-xs text-muted mt-1">
+                        Plans the next six weeks from your mastery and the PRC weights: a targeted drill most days, a timed
+                        sitting each week, light review before the exam. Tasks tick themselves off from your answers.
+                    </p>
                 </div>
                 <button
                     onClick={handleClear}
@@ -172,7 +175,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                     <div>
                         <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-1">Tasks</div>
                         <div className="text-xl font-black text-reeBlue">
-                            {daysUntilExam ? Math.min(daysUntilExam, topicsToGenerate.length * 2) : '—'}
+                            {daysUntilExam ? Math.min(daysUntilExam, 42) : '—'}
                         </div>
                     </div>
                 </div>

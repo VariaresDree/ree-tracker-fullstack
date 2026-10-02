@@ -1,5 +1,5 @@
 // src/features/board-simulator/battleGrades.js
-import { deriveVerdict, toDisplaySubject } from '@ree/shared';
+import { gradeBoardExam, toDisplaySubject, WEAK_TOPIC_ACCURACY, TIME_SINK_MS } from '@ree/shared';
 
 // Post-battle grading: battles run with sanitized questions (no answer keys),
 // so the full diagnostics can only be computed once the server reveals the
@@ -48,21 +48,24 @@ export function computeBattleDiagnostics({ questions, answerKey, explanationKey 
     EE: subjBreakdown.EE.t > 0 ? Math.round((subjBreakdown.EE.c / subjBreakdown.EE.t) * 100) : null,
   };
 
-  // ONE definition, shared with the API (@ree/shared).
-  const verdict = deriveVerdict(score, subjectScores);
+  // ONE definition, shared with the API (@ree/shared): the WEIGHTED general
+  // average plus the subject floor. `score` stays the raw share correct.
+  const { generalAverage, verdict } = gradeBoardExam(subjectScores);
 
   return {
     mappedQuestions,
     diagnostics: {
       score,
+      generalAverage,
       verdict,
       timeTakenSecs,
       subjectScores,
-      weakTopics: Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < 0.6).map(([t]) => t),
+      weakTopics: Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t),
       totalItems,
       correctItems: correct,
-      chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpentPerQuestion[idx] || 0) > 180000),
-      blindSpots: mappedQuestions.filter((q) => q.userConf === 'HIGH' && q.userAnswer !== q.answer),
+      chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpentPerQuestion[idx] || 0) > TIME_SINK_MS),
+      // Confidently WRONG — an unanswered item is a miss, not a blind spot.
+      blindSpots: mappedQuestions.filter((q) => q.userAnswer != null && q.userConf === 'HIGH' && q.userAnswer !== q.answer),
     },
   };
 }

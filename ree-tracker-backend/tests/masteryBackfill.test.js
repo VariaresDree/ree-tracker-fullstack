@@ -63,3 +63,13 @@ describe('backfillMastery.bucketOf', () => {
     expect(bucketOf(0.2)).toBe('novice');
   });
 });
+
+describe('backfillMastery — last practised', () => {
+  it('records the latest answer per topic, preferring answeredAt over createdAt', () => {
+    const rows = foldUserMastery([
+      { isCorrect: true, subject: 'EE', subtopic: 'Machines', answeredAt: new Date('2026-09-01T00:00:00Z'), createdAt: new Date('2026-09-03T00:00:00Z'), question: null },
+      { isCorrect: false, subject: 'EE', subtopic: 'Machines', answeredAt: null, createdAt: new Date('2026-09-02T00:00:00Z'), question: null },
+    ]);
+    expect(rows[0].lastPracticedAt).toEqual(new Date('2026-09-02T00:00:00Z'));
+  });
+});

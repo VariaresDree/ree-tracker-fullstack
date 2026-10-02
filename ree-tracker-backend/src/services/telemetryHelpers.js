@@ -3,6 +3,7 @@
 // logic is unit-testable without a database.
 const { plausibleTimeMs, storableTimeMs } = require('../config/telemetryBounds');
 const { normalizeSubject } = require('../utils/subject');
+const { itemParams } = require('../engine/irt');
 
 // How far back a client-reported answer timestamp may sit. An offline outbox
 // can legitimately hold attempts for days; 90 days covers a full exam cycle of
@@ -100,10 +101,11 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
                 answeredAt: clampAnsweredAt(a.createdAt ?? a.answeredAt, now),
                 sessionId,
                 mode,
-                _difficulty: m.difficulty || 0.0,
+                _difficulty: m.difficulty ?? null,
                 // 3PL item params for the theta estimator (stripped before the
-                // QuestionAttempt write). irtB falls back to legacy difficulty;
-                // a/c to sane 3PL defaults for uncalibrated items.
+                // QuestionAttempt write). Uncalibrated items fall back through
+                // engine/irt.itemParams — the author's 1/2/3 rating mapped onto
+                // the θ scale, never read raw as b.
                 _a: m.irtA,
                 _b: m.irtB,
                 _c: m.irtC,
@@ -118,6 +120,12 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
  * a clientAttemptId can't be deduped and are always treated as new — that
  * preserves legacy-client behavior.
  *
+ * A clientAttemptId repeated WITHIN the batch counts once: the first occurrence
+ * is new, later ones are duplicates. createMany({ skipDuplicates }) only ever
+ * inserts it once, but every counter downstream (BKT fold, topic rollups, θ,
+ * ExamSession increments) is derived from `newOnly`, so without this a repeat
+ * was written once and counted twice.
+ *
  * @param {Set<string>} existingIdSet - clientAttemptIds already in the DB for this user
  * @param {Array<{clientAttemptId?: string}>} mapped
  * @returns {{ newOnly: Array, duplicates: Array }}
@@ -125,10 +133,13 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
 function partitionNewAttempts(existingIdSet, mapped) {
     const newOnly = [];
     const duplicates = [];
+    const seenInBatch = new Set();
     for (const m of mapped) {
-        if (m.clientAttemptId && existingIdSet.has(m.clientAttemptId)) {
+        const id = m.clientAttemptId;
+        if (id && (existingIdSet.has(id) || seenInBatch.has(id))) {
             duplicates.push(m);
         } else {
+            if (id) seenInBatch.add(id);
             newOnly.push(m);
         }
     }
@@ -142,7 +153,10 @@ function partitionNewAttempts(existingIdSet, mapped) {
  * the UserTopicPerformance.totalTime column).
  *
  * @param {Array<{subject, subtopic, isCorrect, timeSpentMs}>} attempts
- * @returns {Array<{subject, topic, attempts, correct, totalTimeSecs}>}
+ * `lastPracticedAt` is the latest answeredAt in the batch for the topic — the
+ * clock mastery decay runs from (engine/bkt.decayedMastery).
+ *
+ * @returns {Array<{subject, topic, attempts, correct, totalTimeSecs, lastPracticedAt}>}
  */
 function aggregateTopicRollups(attempts) {
     const byTopic = new Map();
@@ -150,12 +164,16 @@ function aggregateTopicRollups(attempts) {
         const topic = a.subtopic || 'General';
         let agg = byTopic.get(topic);
         if (!agg) {
-            agg = { subject: a.subject || 'General', topic, attempts: 0, correct: 0, totalTimeSecs: 0 };
+            agg = { subject: a.subject || 'General', topic, attempts: 0, correct: 0, totalTimeSecs: 0, lastPracticedAt: null };
             byTopic.set(topic, agg);
         }
         agg.attempts += 1;
         if (a.isCorrect) agg.correct += 1;
         agg.totalTimeSecs += Math.floor(plausibleTimeMs(a.timeSpentMs) / 1000);
+        const at = a.answeredAt ? new Date(a.answeredAt) : null;
+        if (at && !Number.isNaN(at.getTime()) && (!agg.lastPracticedAt || at > agg.lastPracticedAt)) {
+            agg.lastPracticedAt = at;
+        }
     }
     return Array.from(byTopic.values());
 }
@@ -170,7 +188,9 @@ const ABILITY_SUBJECTS = new Set(['Mathematics', 'ESAS', 'EE']);
  */
 function toEstimatorPair(m) {
     return {
-        item: { a: m._a ?? 1, b: m._b ?? m._difficulty ?? 0, c: m._c ?? 0.2 },
+        // One fallback rule for uncalibrated items, shared with the CAT picker,
+        // calibration and the θ backfill (see engine/irt.itemParams).
+        item: itemParams(m),
         correct: !!m.isCorrect,
     };
 }
@@ -190,6 +210,25 @@ function groupPairsBySubject(mapped) {
 }
 
 /**
+ * Rows in the order they were ANSWERED (answeredAt), arrival order kept for
+ * ties and for rows without a time (which sort after timed ones). BKT and SRS
+ * are order-sensitive folds; an offline batch synced alongside another queue
+ * can arrive with a later answer first. Returns a new array.
+ */
+function byAnsweredAt(rows) {
+    return (rows || [])
+        .map((row, i) => ({ row, i, t: row?.answeredAt ? new Date(row.answeredAt).getTime() : NaN }))
+        .sort((a, b) => {
+            const at = Number.isFinite(a.t);
+            const bt = Number.isFinite(b.t);
+            if (at && bt && a.t !== b.t) return a.t - b.t;
+            if (at !== bt) return at ? -1 : 1;
+            return a.i - b.i;
+        })
+        .map(({ row }) => row);
+}
+
+/**
  * Group a mapped batch into per-topic ORDERED correctness observations for the
  * BKT mastery fold (Phase 3.5). Unlike aggregateTopicRollups (which sums
  * counts), BKT is sequential — order within the batch must be preserved, so
@@ -200,7 +239,7 @@ function groupPairsBySubject(mapped) {
  */
 function orderedObservationsByTopic(mapped) {
     const byTopic = new Map();
-    for (const m of mapped || []) {
+    for (const m of byAnsweredAt(mapped)) {
         const topic = m.subtopic || 'General';
         let entry = byTopic.get(topic);
         if (!entry) {
@@ -212,4 +251,4 @@ function orderedObservationsByTopic(mapped) {
     return byTopic;
 }
 
-module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic, clampAnsweredAt, ABILITY_SUBJECTS, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS };
+module.exports = { byAnsweredAt, mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic, clampAnsweredAt, ABILITY_SUBJECTS, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS };

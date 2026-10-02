@@ -3,7 +3,12 @@ import { useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Card, Button, FormField, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
-import { Settings2, Landmark, Scale, FileText, TriangleAlert } from '../../components/ui/icons';
+import { Settings2, Landmark, Scale, FileText, TriangleAlert, Layers } from '../../components/ui/icons';
+import { PRC_FORMAT_SUMMARY, PRC_TIMES } from '../../config/examStandards';
+import { prcSectionSeconds } from '@ree/shared';
+
+const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60]
+  .map((n) => String(n).padStart(2, '0')).join(':');
 
 const PROFILES = [
   {
@@ -16,29 +21,40 @@ const PROFILES = [
     id: 'prc_subject',
     icon: Landmark,
     name: 'PRC Standard',
-    description: 'Strict 100 items with the fixed 4 or 6 hour board time limit.',
+    description: `One subject, 100 items, on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
   },
   {
     id: 'prc_blended',
     icon: Scale,
     name: 'Full Blended',
-    description: 'The full mock board: 100 mixed items in 5 hours.',
+    description: 'One 100-item mixed paper in 5 hours.',
+  },
+  {
+    id: 'prc_full',
+    icon: Layers,
+    name: 'Full PRC board',
+    description: `Math, ESAS and EE in board order: 300 items on the PRC clock (${PRC_FORMAT_SUMMARY}), results after the last section.`,
   },
 ];
 
-export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine }) {
+const FULL_BOARD_ROWS = [['Mathematics', 'Mathematics'], ['ESAS', 'ESAS'], ['EE', 'Electrical Engineering']];
+
+export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine, onStartFullBoard }) {
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
   const isOnline = useNetworkStatus();
   const [showNewExamGuard, setShowNewExamGuard] = useState(false);
+  const [fullBoardSelected, setFullBoardSelected] = useState(false);
 
   const isCustom = config.mode === 'subject' && !config.isPrcStandard;
   const isPrcSubject = config.mode === 'subject' && config.isPrcStandard;
   const isBlended = config.mode === 'blended';
-  const activeProfile = isBlended ? 'prc_blended' : isPrcSubject ? 'prc_subject' : 'custom';
+  const activeProfile = fullBoardSelected ? 'prc_full' : isBlended ? 'prc_blended' : isPrcSubject ? 'prc_subject' : 'custom';
 
   // State-safe profile handler
   const setProfile = (profile) => {
+    setFullBoardSelected(profile === 'prc_full');
+    if (profile === 'prc_full') return;
     if (profile === 'custom') {
       setConfig({
         ...config, mode: 'subject', isPrcStandard: false, count: 50,
@@ -58,12 +74,13 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
   // Starting a new exam silently discards any saved one — make that a
   // deliberate choice instead of an accident.
+  const begin = () => (fullBoardSelected && onStartFullBoard ? onStartFullBoard() : startSimulation());
   const handleStart = () => {
     if (engine?.hasSavedSession) {
       setShowNewExamGuard(true);
       return;
     }
-    startSimulation();
+    begin();
   };
 
   return (
@@ -104,7 +121,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
         {/* Exam profile */}
         <div className="mb-8">
           <span className="text-eyebrow block mb-3">Exam profile</span>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4" role="radiogroup" aria-label="Exam profile">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" role="radiogroup" aria-label="Exam profile">
             {PROFILES.map((p) => {
               const selected = activeProfile === p.id;
               const Icon = p.icon;
@@ -141,7 +158,26 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           </div>
         </div>
 
+        {fullBoardSelected && (
+          <Card className="mb-8 p-5 flex flex-col gap-3 bg-surface2">
+            <span className="text-eyebrow">Sections, in board order</span>
+            <ol className="flex flex-col gap-2">
+              {FULL_BOARD_ROWS.map(([key, label], i) => (
+                <li key={key} className="flex justify-between gap-3 text-sm">
+                  <span className="text-textMain">{i + 1}. {label}</span>
+                  <span className="text-muted2 font-mono tabular-nums">100 items · {hms(prcSectionSeconds(key))}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-xs text-muted2">
+              Each section runs on its own clock. Break between sections for as long as you like — the sitting keeps for 7 days.
+            </p>
+          </Card>
+        )}
+
         {/* Subject & topic */}
+        {!fullBoardSelected && (
+        <>
         <div className="flex flex-col sm:flex-row gap-4 mb-8 animate-in fade-in slide-in-from-top-2">
           <FormField label="Subject" className="flex-1">
             <Select
@@ -192,9 +228,12 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
               <span className="text-sm text-muted2">Fixed by PRC board rules.</span>
             </div>
             <span className="text-display text-3xl text-textMain font-mono tabular-nums bg-surface px-6 py-3 rounded-[var(--radius-default)] border border-border">
-              {isBlended ? '05:00:00' : (config.subject === 'EE' ? '06:00:00' : '04:00:00')}
+              {hms(isBlended ? PRC_TIMES.BLENDED : (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED))}
             </span>
           </Card>
+        )}
+
+        </>
         )}
 
         {/* Source (custom only) */}
@@ -231,12 +270,12 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             disabled={session?.loading}
             onClick={handleStart}
           >
-            Start simulation
+            {fullBoardSelected ? 'Start the full board' : 'Start simulation'}
           </Button>
           <Button
             variant="ghost"
             loading={engine?.isExporting}
-            disabled={session?.loading || engine?.isExporting}
+            disabled={session?.loading || engine?.isExporting || fullBoardSelected}
             onClick={engine?.exportOfflinePDF}
           >
             <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -264,7 +303,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             </Button>
             <Button
               tone="amber"
-              onClick={() => { setShowNewExamGuard(false); startSimulation(); }}
+              onClick={() => { setShowNewExamGuard(false); begin(); }}
             >
               Start new exam
             </Button>

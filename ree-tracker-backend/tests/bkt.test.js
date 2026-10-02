@@ -82,3 +82,34 @@ describe('pCorrectNext', () => {
     expect(mid).toBeLessThan(1 - DEFAULT_BKT.pSlip);
   });
 });
+
+describe('decayedMastery — forgetting between practice', () => {
+  const { decayedMastery } = require('../src/engine/bkt');
+  const { DEFAULT_BKT } = require('../src/config/bktParams');
+
+  it('does not decay inside the grace day', () => {
+    expect(decayedMastery(0.9, 0, 5)).toBe(0.9);
+    expect(decayedMastery(0.9, 1, 5)).toBe(0.9);
+  });
+
+  it('decays exponentially toward pInit — τ = 21 days for a topic seen once', () => {
+    // 22 days, 1 of grace: 0.25 + 0.65·e^(−21/21) = 0.25 + 0.65·0.367879 = 0.4891
+    expect(decayedMastery(0.9, 22, 0)).toBeCloseTo(0.4891, 3);
+  });
+
+  it('decays more slowly the more evidence stands behind it', () => {
+    // τ = 21·(1 + ln 11) = 71.356 → 0.25 + 0.65·e^(−21/71.356) = 0.7343
+    expect(decayedMastery(0.9, 22, 10)).toBeCloseTo(0.7343, 3);
+    expect(decayedMastery(0.9, 22, 10)).toBeGreaterThan(decayedMastery(0.9, 22, 0));
+  });
+
+  it('never decays below pInit, and leaves a sub-floor estimate alone', () => {
+    expect(decayedMastery(0.9, 10_000, 0)).toBeCloseTo(DEFAULT_BKT.pInit, 6);
+    expect(decayedMastery(0.1, 100, 0)).toBe(0.1);
+  });
+
+  it('passes "no estimate" and "unknown last practice" straight through', () => {
+    expect(decayedMastery(null, 30, 3)).toBeNull();
+    expect(decayedMastery(0.7, null, 3)).toBe(0.7);
+  });
+});

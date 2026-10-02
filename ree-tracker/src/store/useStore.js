@@ -8,6 +8,8 @@ import { updateCommandParameters, apiRequest } from '../services/dbQueries';
 import { calculateUpdatedStats } from '../utils/irtMath';
 import { stableBatchKey } from '../utils/contentHash';
 import { classifySyncError, createBackoff, SYNC_OUTCOME } from '../services/syncPolicy';
+import { TELEMETRY_BATCH_MAX } from '@ree/shared';
+import { dropLegacyLedger } from '../services/simulationLedger';
 import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro } from '../utils/pomodoroLogic';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
@@ -33,6 +35,12 @@ let inFlightPending = null;
 const MAX_SYNC_QUEUE = 5000;
 const MAX_PENDING_WRITES = 500;
 const MAX_DEAD_LETTERS = 50;
+// A pending write the server keeps answering with a RETRYABLE status (5xx, 409,
+// 429) is given up into Sync issues after this many answers. The outbox stops
+// at the first retryable failure, so without a ceiling one such write — e.g. an
+// exam finalise whose attempts were quarantined, answering 409 forever — would
+// block every write queued behind it. Offline failures never count.
+const MAX_PENDING_TRIES = 20;
 
 // Sync mirror of syncQueue written on pagehide/hide (see useSyncLifecycle) so a
 // fast offline tab-close can't lose the last attempt(s) in the async IDB write
@@ -90,7 +98,14 @@ export const useStore = create(
       pendingWrites: [],
       // Writes the server permanently rejected (non-retryable 4xx). Quarantined
       // here so a single poison-pill payload can't wedge the replay queues
-      // forever; kept for diagnostics, capped to the most recent MAX_DEAD_LETTERS.
+      // forever; capped to the most recent MAX_DEAD_LETTERS.
+      //
+      // Each letter keeps its PAYLOAD (`attempts` for telemetry, `write` for a
+      // pending write), not just ids. It used to keep ids only, so anything
+      // quarantined was unrecoverable — including batches quarantined by the
+      // client's own oversized-batch bug. The Sync issues panel offers Retry
+      // (retryDeadLetter) and Discard (discardDeadLetter). Letters written
+      // before payloads were kept can only be discarded.
       deadLetters: [],
 
       // Which account the persisted queues and stats belong to. Persisted.
@@ -123,8 +138,10 @@ export const useStore = create(
       // sessionId, mode, and targetSubject are available to per-answer events.
       // Returns the generated sessionId so the surface can persist it locally
       // if it wants to (Simulator stores it on the session object for resume).
-      startSession: ({ mode, subject } = {}) => {
-        const sessionId = newId();
+      // `sessionId` lets a multi-part sitting (the full PRC board's three
+      // sections) keep ONE server session across parts; otherwise a fresh id.
+      startSession: ({ mode, subject, sessionId: provided } = {}) => {
+        const sessionId = provided || newId();
         set({
           currentSessionId: sessionId,
           currentSessionMode: mode || 'LEGACY',
@@ -292,7 +309,12 @@ export const useStore = create(
             return false;
           }
 
-          const batch = syncQueue.slice();
+          // At most TELEMETRY_BATCH_MAX per POST — the server's schema cap.
+          // Sending the whole queue (capped at 5000) drew a 400 for any queue
+          // over the cap, which is correctly classified permanent, so every
+          // queued attempt was dead-lettered. The rest drains through the
+          // "drain anything left" recursion at the bottom of this action.
+          const batch = syncQueue.slice(0, TELEMETRY_BATCH_MAX);
           const sentIds = new Set(batch.map((a) => a.id));
 
           set({ syncStatus: 'syncing' });
@@ -311,11 +333,19 @@ export const useStore = create(
             const owner = getStore().ownerUid;
             if (owner && owner !== currentUser.uid) {
               console.error('[SYNC] Queue belongs to a different account; quarantining.');
+              // The WHOLE queue, not just this flush's chunk — none of it can be
+              // sent as the signed-in user. Kept with its owner so it can never
+              // be retried under another account (see retryDeadLetter).
+              const orphaned = getStore().syncQueue.slice();
               set((state) => ({
                 syncQueue: [],
                 deadLetters: [
                   ...state.deadLetters,
-                  { type: 'telemetry-orphaned', ids: [...sentIds], error: 'queue owner mismatch', at: Date.now() },
+                  {
+                    id: newId(), type: 'telemetry-orphaned', ownerUid: owner,
+                    ids: orphaned.map((a) => a.id), attempts: orphaned,
+                    error: 'queue owner mismatch', at: Date.now(),
+                  },
                 ].slice(-MAX_DEAD_LETTERS),
                 ownerUid: currentUser.uid,
                 syncStatus: 'error',
@@ -404,7 +434,7 @@ export const useStore = create(
                 syncQueue: state.syncQueue.filter((a) => !sentIds.has(a.id)),
                 deadLetters: [
                   ...state.deadLetters,
-                  { type: 'telemetry', ids: [...sentIds], status, error: error.message, at: Date.now() },
+                  { id: newId(), type: 'telemetry', ids: [...sentIds], attempts: batch, status, error: error.message, at: Date.now() },
                 ].slice(-MAX_DEAD_LETTERS),
                 syncStatus: 'error',
               }));
@@ -444,10 +474,14 @@ export const useStore = create(
       // session summaries and offline mock-exam telemetry so nothing is dropped
       // when the user finishes a session with no connection.
       queuePendingWrite: (endpoint, method, body) => {
+        // Stamped with the account that made it — the same guard the telemetry
+        // queue has. A queued mock exam replayed after a different account
+        // signed in would otherwise land in THAT account's history.
+        const ownerUid = auth.currentUser?.uid || getStore().ownerUid || null;
         set((state) => ({
           pendingWrites: [
             ...state.pendingWrites,
-            { id: newId(), endpoint, method: method || 'POST', body, createdAt: new Date().toISOString() },
+            { id: newId(), endpoint, method: method || 'POST', body, ownerUid, createdAt: new Date().toISOString() },
           ].slice(-MAX_PENDING_WRITES),
         }));
       },
@@ -471,7 +505,23 @@ export const useStore = create(
         if (!pendingWrites || pendingWrites.length === 0) return;
 
         const run = async () => {
+          const signedIn = auth.currentUser?.uid;
+          if (!signedIn) return;
           for (const w of getStore().pendingWrites.slice()) {
+            // Owner guard. A write without an owner predates the stamp and
+            // belongs to the device's persisted owner.
+            const owner = w.ownerUid ?? getStore().ownerUid;
+            if (owner && owner !== signedIn) {
+              console.error('[SYNC] Pending write belongs to a different account; quarantining.', w.endpoint);
+              set((state) => ({
+                pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id),
+                deadLetters: [
+                  ...state.deadLetters,
+                  { id: newId(), type: 'pendingWrite-orphaned', ownerUid: owner, endpoint: w.endpoint, write: w, error: 'owner mismatch', at: Date.now() },
+                ].slice(-MAX_DEAD_LETTERS),
+              }));
+              continue;
+            }
             try {
               await apiRequest(w.endpoint, w.method, w.body);
               set((state) => ({ pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id) }));
@@ -483,10 +533,26 @@ export const useStore = create(
                   pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id),
                   deadLetters: [
                     ...state.deadLetters,
-                    { type: 'pendingWrite', endpoint: w.endpoint, status, error: err.message, at: Date.now() },
+                    { id: newId(), type: 'pendingWrite', endpoint: w.endpoint, write: w, status, error: err.message, at: Date.now() },
                   ].slice(-MAX_DEAD_LETTERS),
                 }));
                 continue; // advance past the poison pill
+              }
+              if (typeof status === 'number') {
+                const tries = (w.tries || 0) + 1;
+                if (tries >= MAX_PENDING_TRIES) {
+                  set((state) => ({
+                    pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id),
+                    deadLetters: [
+                      ...state.deadLetters,
+                      { id: newId(), type: 'pendingWrite', endpoint: w.endpoint, write: { ...w, tries: 0 }, status, error: `gave up after ${tries} tries: ${err.message}`, at: Date.now() },
+                    ].slice(-MAX_DEAD_LETTERS),
+                  }));
+                  continue;
+                }
+                set((state) => ({
+                  pendingWrites: state.pendingWrites.map((p) => (p.id === w.id ? { ...p, tries } : p)),
+                }));
               }
               break; // transient — retry the rest on the next reconnect
             }
@@ -496,6 +562,41 @@ export const useStore = create(
         inFlightPending = run();
         try { await inFlightPending; } finally { inFlightPending = null; }
       },
+
+      // Put a quarantined payload back in line and try it again. Telemetry
+      // attempts rejoin the FRONT of the sync queue (they are older than
+      // anything queued since); a pending write rejoins pendingWrites. A batch
+      // that belonged to another account is never retried as the current user
+      // — that is the mis-attribution the owner guard exists to prevent.
+      retryDeadLetter: async (letterId) => {
+        const letter = getStore().deadLetters.find((d) => d.id === letterId);
+        if (!letter) return;
+        if (letter.type.endsWith('-orphaned') && letter.ownerUid !== auth.currentUser?.uid) return;
+
+        if (Array.isArray(letter.attempts) && letter.attempts.length > 0) {
+          set((state) => {
+            const queued = new Set(state.syncQueue.map((a) => a.id));
+            const back = letter.attempts.filter((a) => !queued.has(a.id));
+            return {
+              syncQueue: [...back, ...state.syncQueue].slice(-MAX_SYNC_QUEUE),
+              deadLetters: state.deadLetters.filter((d) => d.id !== letterId),
+            };
+          });
+          await getStore().flushQueueToCloud();
+        } else if (letter.write) {
+          set((state) => ({
+            pendingWrites: [letter.write, ...state.pendingWrites.filter((p) => p.id !== letter.write.id)].slice(-MAX_PENDING_WRITES),
+            deadLetters: state.deadLetters.filter((d) => d.id !== letterId),
+          }));
+          await getStore().flushPendingWrites();
+        }
+      },
+
+      // By id, or by the letter object itself — letters written before ids
+      // were assigned have none, and must still be removable.
+      discardDeadLetter: (target) => set((state) => ({
+        deadLetters: state.deadLetters.filter((d) => (typeof target === 'string' ? d.id !== target : d !== target)),
+      })),
 
       resetDailyQuotas: () => set((state) => {
         if (!state.stats) return state;
@@ -535,6 +636,10 @@ export const useStore = create(
         });
         try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch (_) {}
         try { await useStore.persist?.clearStorage?.(); } catch (_) {}
+        // The pre-scoping mock ledger had no owner. Once its user has signed
+        // out it can never be attributed, so it goes rather than surfacing for
+        // whoever signs in next. Per-account ledgers stay (they are scoped).
+        try { await dropLegacyLedger(); } catch (_) {}
       },
 
       purgeAnalytics: async () => {

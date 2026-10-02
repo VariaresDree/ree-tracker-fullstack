@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-const { partitionNewAttempts, aggregateTopicRollups, orderedObservationsByTopic, mapAttemptRows, groupPairsBySubject, clampAnsweredAt, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS } = require('../src/services/telemetryHelpers');
+const { byAnsweredAt, partitionNewAttempts, aggregateTopicRollups, orderedObservationsByTopic, mapAttemptRows, groupPairsBySubject, clampAnsweredAt, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS } = require('../src/services/telemetryHelpers');
 const { trimBucketsTo } = require('../src/services/telemetryService');
 
 describe('partitionNewAttempts', () => {
@@ -27,6 +27,17 @@ describe('partitionNewAttempts', () => {
     const mapped = [{ clientAttemptId: null }, {}];
     const { newOnly } = partitionNewAttempts(new Set(['x']), mapped);
     expect(newOnly).toHaveLength(2);
+  });
+
+  // createMany({ skipDuplicates }) inserts a repeated id ONCE, but every
+  // counter downstream (BKT fold, topic rollups, θ, ExamSession increments) is
+  // derived from `newOnly`. A repeat inside one batch therefore has to be a
+  // duplicate here too, or it is written once and counted twice.
+  it('a clientAttemptId repeated WITHIN one batch is new once and a duplicate after', () => {
+    const mapped = [{ clientAttemptId: 'a' }, { clientAttemptId: 'b' }, { clientAttemptId: 'a' }];
+    const { newOnly, duplicates } = partitionNewAttempts(new Set(), mapped);
+    expect(newOnly.map((m) => m.clientAttemptId)).toEqual(['a', 'b']);
+    expect(duplicates.map((m) => m.clientAttemptId)).toEqual(['a']);
   });
 });
 
@@ -71,6 +82,32 @@ describe('orderedObservationsByTopic (BKT fold input)', () => {
   it('defaults a missing subtopic to General and coerces truthiness to boolean', () => {
     const byTopic = orderedObservationsByTopic([{ subject: 'EE', isCorrect: 1 }]);
     expect(byTopic.get('General').observations).toEqual([true]);
+  });
+
+  // BKT is order-sensitive. Two offline queues replaying together can deliver
+  // a later answer first; folding in ARRIVAL order then credits the learning
+  // to the wrong end of the sequence.
+  it('folds in ANSWER order, not arrival order, when answeredAt is known', () => {
+    const t = (iso) => new Date(iso);
+    const byTopic = orderedObservationsByTopic([
+      { subject: 'EE', subtopic: 'Machines', isCorrect: true, answeredAt: t('2026-10-02T03:00:00Z') },
+      { subject: 'EE', subtopic: 'Machines', isCorrect: false, answeredAt: t('2026-10-02T01:00:00Z') },
+      { subject: 'EE', subtopic: 'Machines', isCorrect: false, answeredAt: t('2026-10-02T02:00:00Z') },
+    ]);
+    expect(byTopic.get('Machines').observations).toEqual([false, false, true]);
+  });
+});
+
+describe('byAnsweredAt', () => {
+  it('sorts chronologically and keeps arrival order for ties or missing times', () => {
+    const rows = [
+      { id: 'b', answeredAt: new Date('2026-10-02T02:00:00Z') },
+      { id: 'x' },
+      { id: 'a', answeredAt: new Date('2026-10-02T01:00:00Z') },
+      { id: 'y' },
+    ];
+    expect(byAnsweredAt(rows).map((r) => r.id)).toEqual(['a', 'b', 'x', 'y']);
+    expect(rows[0].id).toBe('b'); // input untouched
   });
 });
 
@@ -188,5 +225,17 @@ describe('trimBucketsTo — keeps ActivityLog honest when createMany inserts few
     trimBucketsTo(buckets, 0); // both rows lost the createMany race
     expect(buckets.get('2026-08-08')).toBe(0);
     expect(buckets.get('2026-08-07')).toBe(0);
+  });
+});
+
+describe('aggregateTopicRollups — last practised', () => {
+  it('carries the latest answeredAt per topic, for mastery decay', () => {
+    const early = new Date('2026-09-01T00:00:00Z');
+    const late = new Date('2026-09-20T00:00:00Z');
+    const [roll] = aggregateTopicRollups([
+      { subject: 'EE', subtopic: 'Machines', isCorrect: true, timeSpentMs: 1000, answeredAt: late },
+      { subject: 'EE', subtopic: 'Machines', isCorrect: false, timeSpentMs: 1000, answeredAt: early },
+    ]);
+    expect(roll.lastPracticedAt).toEqual(late);
   });
 });

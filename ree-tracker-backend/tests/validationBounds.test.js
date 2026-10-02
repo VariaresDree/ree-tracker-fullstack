@@ -1,23 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-const { readinessSnapshotSchema } = require('../src/schemas/readinessSchemas');
 const { nextItemSchema } = require('../src/schemas/examSchemas');
 const { profileUpdateSchema, settingsUpdateSchema } = require('../src/schemas/userSchemas');
-
-describe('readinessSnapshotSchema', () => {
-    it('accepts a sane snapshot and defaults omitted fields', () => {
-        const r = readinessSnapshotSchema.safeParse({ score: 72, accuracyRate: 0.8 });
-        expect(r.success).toBe(true);
-        expect(r.data.topicCoverage).toBe(0);
-    });
-
-    it('rejects forged out-of-range values', () => {
-        expect(readinessSnapshotSchema.safeParse({ score: 150 }).success).toBe(false);
-        expect(readinessSnapshotSchema.safeParse({ score: -5 }).success).toBe(false);
-        expect(readinessSnapshotSchema.safeParse({ accuracyRate: 2 }).success).toBe(false);
-        expect(readinessSnapshotSchema.safeParse({ theta: 9 }).success).toBe(false);
-    });
-});
 
 describe('nextItemSchema', () => {
     it('defaults poolSize to 80 and accepts a normal request', () => {

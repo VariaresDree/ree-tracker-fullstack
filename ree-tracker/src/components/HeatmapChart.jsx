@@ -1,6 +1,6 @@
 // src/components/HeatmapChart.jsx
 import React, { useState, useMemo } from 'react';
-import { toDisplaySubject } from '@ree/shared';
+import { toDisplaySubject, masteryBand } from '@ree/shared';
 import { useStore } from '../store/useStore';
 import { Panel } from './ui';
 import { Flame, Timer, Target } from './ui/icons';
@@ -10,8 +10,16 @@ const normKey = (s) => String(s || '').trim().toLowerCase();
 const VIEW_MODES = ['mastery', 'accuracy', 'speed'];
 const VIEW_LABEL = { mastery: 'Mastery', accuracy: 'Accuracy', speed: 'Speed' };
 const VIEW_ICON = { mastery: Target, accuracy: Flame, speed: Timer };
+const MASTERY_STYLE = {
+  mastered: { bg: 'bg-reeGreen/10 border-reeGreen/40', text: 'text-reeGreen' },
+  proficient: { bg: 'bg-green-400/10 border-green-400/30', text: 'text-green-400' },
+  developing: { bg: 'bg-reeAmber/10 border-reeAmber/30', text: 'text-reeAmber' },
+  novice: { bg: 'bg-reeRed/10 border-reeRed/40', text: 'text-reeRed' },
+};
 
-function HeatmapChart({ stats }) {
+// `onDrillTopic(topic, subject)` makes each tile a button that starts a
+// targeted drill on that topic.
+function HeatmapChart({ stats, onDrillTopic }) {
   const [activeTab, setActiveTab] = useState('Mathematics');
   // BKT P(mastery) is the headline signal (roadmap 3.5) — default view.
   const [viewMode, setViewMode] = useState('mastery');
@@ -111,7 +119,10 @@ function HeatmapChart({ stats }) {
           const timedCount = item.data.timedAttempts || 0;
           const avgTime = timedCount > 0 ? Math.round(item.data.totalTime / 1000 / timedCount) : 0;
           // BKT P(mastery): server-authoritative, null until first observation.
-          const masteryVal = item.data.mastery;
+          // The tile shows the EFFECTIVE value — decayed for the days since the
+          // topic was last practised — and flags a topic whose band has slipped.
+          const storedMastery = item.data.mastery;
+          const masteryVal = item.data.masteryEffective ?? storedMastery;
           const masteryHasData = (item.data.masteryN || 0) > 0 && masteryVal != null;
 
           let bgClass = 'bg-bg/60 border-border opacity-50';
@@ -121,14 +132,16 @@ function HeatmapChart({ stats }) {
 
           if (viewMode === 'mastery') {
             if (masteryHasData) {
-              const mPct = Math.round(masteryVal * 100);
-              metricDisplay = `${mPct}%`;
-              // Bands mirror the BKT mastery tiers: Mastered / Proficient /
-              // Developing / Novice — the interpretable per-topic signal.
-              if (mPct >= 85) { bgClass = 'bg-reeGreen/10 border-reeGreen/40'; textClass = 'text-reeGreen'; subLabel = 'Mastered'; }
-              else if (mPct >= 65) { bgClass = 'bg-green-400/10 border-green-400/30'; textClass = 'text-green-400'; subLabel = 'Proficient'; }
-              else if (mPct >= 45) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber'; subLabel = 'Developing'; }
-              else { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed'; subLabel = 'Novice'; }
+              metricDisplay = `${Math.round(masteryVal * 100)}%`;
+              // The shared BKT bands (@ree/shared MASTERY_BANDS).
+              const band = masteryBand(masteryVal);
+              const styled = MASTERY_STYLE[band.key];
+              bgClass = styled.bg; textClass = styled.text; subLabel = band.label;
+              const storedBand = masteryBand(storedMastery);
+              if (storedBand && storedBand.key !== band.key) {
+                const days = item.data.daysSincePractice;
+                subLabel = `${band.label} · fading${days ? ` (${days}d)` : ''}`;
+              }
             }
           } else if (hasData) {
             if (viewMode === 'accuracy') {
@@ -155,8 +168,8 @@ function HeatmapChart({ stats }) {
 
           const tileActive = viewMode === 'mastery' ? masteryHasData : hasData;
 
-          return (
-            <div key={item.name} className={`p-3.5 rounded-xl border flex justify-between items-center transition-all shrink-0 ${bgClass}`}>
+          const tileBody = (
+            <>
               <div className="flex flex-col min-w-0 pr-4">
                 <div className={`text-sm font-semibold truncate ${tileActive ? 'text-textMain' : 'text-muted'}`} title={item.name}>
                   {item.name}
@@ -164,7 +177,22 @@ function HeatmapChart({ stats }) {
                 <div className={`text-[11px] uppercase tracking-wider mt-0.5 font-medium ${textClass}`}>{subLabel}</div>
               </div>
               <div className={`text-2xl text-display tabular-nums shrink-0 ${textClass}`}>{metricDisplay}</div>
-            </div>
+            </>
+          );
+          const tileClass = `p-3.5 rounded-xl border flex justify-between items-center transition-all shrink-0 ${bgClass}`;
+
+          return onDrillTopic ? (
+            <button
+              key={item.name}
+              type="button"
+              onClick={() => onDrillTopic(item.name, activeTab)}
+              aria-label={`Drill ${item.name}: ${subLabel}, ${metricDisplay}`}
+              className={`${tileClass} w-full text-left cursor-pointer hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]`}
+            >
+              {tileBody}
+            </button>
+          ) : (
+            <div key={item.name} className={tileClass}>{tileBody}</div>
           );
         })}
       </div>

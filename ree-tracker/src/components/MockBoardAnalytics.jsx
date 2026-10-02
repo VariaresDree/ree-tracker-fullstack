@@ -4,24 +4,39 @@ import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine, Cell,
 } from 'recharts';
-import { fetchSimulationLedger, deleteSimulationRecord } from '../services/dbQueries';
-import FocusTrap from './FocusTrap';
+import { fetchMockHistory, hideExamSession } from '../services/dbQueries';
+import { purgeSimulationLedger, dropLegacyLedger } from '../services/simulationLedger';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import { isPassingVerdict } from '@ree/shared';
 import { SkeletonChart } from './SkeletonLoaders';
-import { Panel, DataTable, StatusPill, Button, Card } from './ui';
+import { Panel, DataTable, StatusPill, Button, Modal } from './ui';
 import { BarChart3, RefreshCw, Trash2, ShieldAlert } from './ui/icons';
 
-let CACHED_HISTORY = null;
+// Mock history is SERVER-authoritative (GET /api/analytics/deep/mock-history):
+// every Board Simulator and battle sitting, graded on the server from its own
+// recorded attempts. It used to live in a device-local IndexedDB ledger —
+// per-device, lost with a cleared browser — which is now emptied once the
+// server copy has loaded.
+//
+// Module-level so a remount (route change) paints instantly — keyed by uid,
+// because an unkeyed cache showed the previous account's ledger to the next
+// user who signed in during the same tab session.
+let CACHED = { uid: null, rows: null };
+const cachedFor = (uid) => (uid && CACHED.uid === uid ? CACHED.rows : null);
 
 const TONE = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber)', danger: 'var(--accent-danger)' };
 const verdictLabel = (v) =>
   v === 'PASSED' ? 'Passed' : v === 'CONDITIONAL PASS' ? 'Conditional' : v === 'FAILED' ? 'Failed' : v || '—';
+const KIND_LABEL = { 'full-board': 'Full PRC board', subject: 'PRC subject', blended: 'Full blended', custom: 'Custom drill', battle: 'Battle' };
+// The headline number is the PRC general weighted average when the sitting has
+// a subject breakdown, else the raw share correct.
+const headline = (r) => Math.round(r.generalAverage ?? r.score ?? 0);
 
 function MiniStat({ label, value, tone }) {
   return (
     <div className="rounded-xl border border-border bg-surface2/30 p-3.5">
-      <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-muted">{label}</div>
+      <div className="text-eyebrow">{label}</div>
       <div className="text-2xl text-display tabular-nums mt-1" style={tone ? { color: TONE[tone] } : undefined}>
         {value}
       </div>
@@ -31,26 +46,29 @@ function MiniStat({ label, value, tone }) {
 
 export default function MockBoardAnalytics() {
   const { currentUser } = useAuth();
-  const [history, setHistory] = useState(CACHED_HISTORY || []);
-  const [loading, setLoading] = useState(!CACHED_HISTORY);
+  const [history, setHistory] = useState(cachedFor(currentUser?.uid) || []);
+  const [loading, setLoading] = useState(!cachedFor(currentUser?.uid));
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '' });
 
   const loadHistory = async (forceSync = false) => {
     if (!currentUser?.uid) return;
-    if (!forceSync && CACHED_HISTORY) {
-      setHistory(CACHED_HISTORY);
+    if (!forceSync && cachedFor(currentUser.uid)) {
+      setHistory(cachedFor(currentUser.uid));
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchSimulationLedger(currentUser.uid, 20);
-      CACHED_HISTORY = data;
+      const data = await fetchMockHistory(20);
+      CACHED = { uid: currentUser.uid, rows: data };
       setHistory(data);
-      if (forceSync) toast.success('Ledger synced.');
+      // The server holds every sitting now; retire this device's old ledger.
+      purgeSimulationLedger(currentUser.uid).catch(() => {});
+      dropLegacyLedger().catch(() => {});
+      if (forceSync) toast.success('History refreshed.');
     } catch (error) {
       console.error('Fetch failed:', error);
-      toast.error('Failed to sync ledger.');
+      toast.error('Could not load your mock history.');
     }
     setLoading(false);
   };
@@ -64,13 +82,13 @@ export default function MockBoardAnalytics() {
   const confirmDelete = async () => {
     const { id, name } = deleteModal;
     try {
-      await deleteSimulationRecord(currentUser.uid, id);
+      await hideExamSession(id);
       const updated = history.filter((h) => h.id !== id);
-      CACHED_HISTORY = updated;
+      CACHED = { uid: currentUser.uid, rows: updated };
       setHistory(updated);
-      toast.success(`Deleted "${name}".`);
+      toast.success(`Removed the ${name} sitting from history.`);
     } catch (error) {
-      toast.error(error.message || 'Delete failed.');
+      toast.error('Could not update the history. Try again.');
     } finally {
       setDeleteModal({ isOpen: false, id: null, name: '' });
     }
@@ -79,12 +97,12 @@ export default function MockBoardAnalytics() {
   const chartData = [...history].reverse().map((run, index) => ({
     name: `Run ${index + 1}`,
     date: new Date(run.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    overall: run.score,
-    math: run.subjectScores?.Math || null,
-    esas: run.subjectScores?.ESAS || null,
-    ee: run.subjectScores?.EE || null,
+    overall: headline(run),
+    // `?? null`, not `|| null`: a 0% subject is a real score, not a gap.
+    math: run.subjectScores?.Mathematics ?? null,
+    esas: run.subjectScores?.ESAS ?? null,
+    ee: run.subjectScores?.EE ?? null,
     verdict: run.verdict,
-    config: run.config,
   }));
 
   const CustomTooltip = ({ active, payload }) => {
@@ -98,9 +116,9 @@ export default function MockBoardAnalytics() {
           <p className="font-semibold mb-1" style={{ color: data.overall >= 70 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
             Overall: {data.overall}%
           </p>
-          {data.math && <p className="text-reeCyan">Math: {data.math}%</p>}
-          {data.esas && <p className="text-reePurple">ESAS: {data.esas}%</p>}
-          {data.ee && <p className="text-reeAmber">EE: {data.ee}%</p>}
+          {data.math != null && <p className="text-reeCyan">Math: {data.math}%</p>}
+          {data.esas != null && <p className="text-reePurple">ESAS: {data.esas}%</p>}
+          {data.ee != null && <p className="text-reeAmber">EE: {data.ee}%</p>}
         </div>
       );
     }
@@ -108,8 +126,8 @@ export default function MockBoardAnalytics() {
   };
 
   const totalRuns = history.length;
-  const avgScore = totalRuns > 0 ? Math.round(history.reduce((a, c) => a + c.score, 0) / totalRuns) : 0;
-  const passCount = history.filter((h) => h.verdict === 'PASSED' || h.verdict === 'CONDITIONAL PASS').length;
+  const avgScore = totalRuns > 0 ? Math.round(history.reduce((a, c) => a + headline(c), 0) / totalRuns) : 0;
+  const passCount = history.filter((h) => isPassingVerdict(h.verdict)).length;
   const passRate = totalRuns > 0 ? Math.round((passCount / totalRuns) * 100) : 0;
 
   const columns = [
@@ -124,22 +142,22 @@ export default function MockBoardAnalytics() {
         </span>
       ),
     },
-    { key: 'type', label: 'Type', render: (r) => (r.isPrcStandard ? 'PRC standard' : 'Custom drill') },
+    { key: 'type', label: 'Type', render: (r) => KIND_LABEL[r.kind] || (r.isPrcStandard ? 'PRC standard' : 'Board simulation') },
     {
       key: 'subject',
       label: 'Subject',
-      render: (r) => (r.targetSubject && r.targetSubject !== 'blended' ? r.targetSubject : 'Full matrix'),
+      render: (r) => (r.targetSubject && !['blended', 'BLENDED'].includes(r.targetSubject) ? r.targetSubject : 'All subjects'),
     },
-    { key: 'items', label: 'Items', align: 'right', render: (r) => r.totalQs || r.config?.count || 100 },
+    { key: 'items', label: 'Items', align: 'right', render: (r) => r.totalQuestions },
     {
       key: 'score',
       label: 'Score',
       align: 'right',
       sortable: true,
-      sortAccessor: (r) => r.score,
+      sortAccessor: (r) => headline(r),
       render: (r) => (
-        <span className="font-semibold" style={{ color: r.score >= 70 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
-          {r.score}%
+        <span className="font-semibold" style={{ color: isPassingVerdict(r.verdict) ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+          {headline(r)}%
         </span>
       ),
     },
@@ -151,7 +169,7 @@ export default function MockBoardAnalytics() {
       render: (r) => (
         <button
           onClick={(e) => { e.stopPropagation(); requestDelete(r.id, new Date(r.date).toLocaleDateString()); }}
-          aria-label="Delete record"
+          aria-label="Remove from history"
           className="text-muted hover:text-[var(--accent-danger)] transition-colors p-1 rounded-md hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)]"
         >
           <Trash2 size={15} strokeWidth={1.75} />
@@ -232,32 +250,29 @@ export default function MockBoardAnalytics() {
             rows={history}
             rowKey={(r) => r.id}
             initialSort={{ key: 'date', dir: 'desc' }}
-            emptyMessage="Ledger is empty. Complete a board simulation to see it here."
+            emptyMessage="No sittings yet. Finish a board simulation or battle to see it here."
           />
         )}
       </Panel>
 
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={deleteModal.isOpen}>
-            <Card elevated className="modal-entrance p-6 max-w-md w-full">
-              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2" style={{ color: 'var(--accent-danger)' }}>
-                <ShieldAlert size={18} strokeWidth={2} /> Delete this record?
-              </h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">
-                Delete the simulation from <strong className="text-textMain">{deleteModal.name}</strong>? This can't be
-                undone.
-              </p>
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" size="sm" data-close-modal onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })}>
-                  Cancel
-                </Button>
-                <Button variant="danger" size="sm" onClick={confirmDelete}>Delete</Button>
-              </div>
-            </Card>
-          </FocusTrap>
-        </div>
-      )}
+      <Modal
+        open={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, id: null, name: '' })}
+        title="Remove from history?"
+        icon={ShieldAlert}
+        tone="danger"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })}>Cancel</Button>
+            <Button variant="danger" size="sm" onClick={confirmDelete}>Remove</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">
+          Remove the <strong className="text-textMain">{deleteModal.name}</strong> sitting from this history? Its answers still count toward your analytics.
+        </p>
+      </Modal>
     </div>
   );
 }

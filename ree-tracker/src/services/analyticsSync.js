@@ -24,7 +24,7 @@ export function normalizeMicroTopics(rawMicroTopics = {}, safeTOS = {}) {
     (safeTOS[subject] || []).forEach((subtopic) => {
       normalized[subtopic] = {
         subject, subtopic, attempts: 0, correct: 0, totalTime: 0, timedAttempts: 0,
-        mastery: null, masteryN: 0,
+        mastery: null, masteryEffective: null, masteryN: 0, daysSincePractice: null,
       };
     });
   });
@@ -44,7 +44,12 @@ export function normalizeMicroTopics(rawMicroTopics = {}, safeTOS = {}) {
         timedAttempts: rawData.timedAttempts || 0,
         // BKT P(mastery) 0..1 (null until first observation) + count.
         mastery: rawData.mastery ?? null,
+        // The stored estimate decayed for the days since the topic was last
+        // practised (server: engine/bkt.decayedMastery). Older payloads lack
+        // it, so fall back to the stored value.
+        masteryEffective: rawData.masteryEffective ?? rawData.mastery ?? null,
         masteryN: rawData.masteryN || 0,
+        daysSincePractice: rawData.daysSincePractice ?? null,
       };
     }
   });

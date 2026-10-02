@@ -8,6 +8,11 @@ import { useBattleSocket } from '../hooks/useBattleSocket';
 import SimulatorConfig from '../features/board-simulator/SimulatorConfig';
 import SimulatorActive from '../features/board-simulator/SimulatorActive';
 import SimulatorDiagnostics from '../features/board-simulator/SimulatorDiagnostics';
+import { FullBoardBreak, FullBoardResults } from '../features/board-simulator/FullBoardScreens';
+import {
+  FULL_BOARD_SECTIONS, loadFullBoard, startFullBoard, clearFullBoard, sectionConfig,
+} from '../features/board-simulator/fullBoard';
+import { hideExamSession } from '../services/dbQueries';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
 import { Button, Modal } from '../components/ui';
@@ -27,6 +32,61 @@ export default function BoardSimulator() {
   const engine = useSimulatorEngine(currentUser, isOnline);
 
   const [showTerminateModal, setShowTerminateModal] = useState(false);
+
+  // Full PRC board (features/board-simulator/fullBoard): three sections on one
+  // server session, results withheld until the last. `board` is the between-
+  // section state; the engine runs one section at a time.
+  const [board, setBoard] = useState(() => loadFullBoard());
+  const lastSection = FULL_BOARD_SECTIONS.length - 1;
+  const boardSection = engine.config.fullBoard?.sectionIndex;
+  const sectionJustFinished = engine.session.isFinished && engine.config.fullBoard;
+  // Reload the board state whenever a section lands (the engine banks it).
+  useEffect(() => {
+    if (sectionJustFinished) setBoard(loadFullBoard());
+  }, [sectionJustFinished]);
+
+  // A finished board left in storage (the tab closed on the result screen) is
+  // done — its result is in mock history; don't leave it masquerading as pending.
+  useEffect(() => {
+    if (board && board.sectionIndex > lastSection && !sectionJustFinished) {
+      clearFullBoard();
+      setBoard(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const beginFullBoard = () => {
+    const fresh = startFullBoard(crypto.randomUUID());
+    setBoard(fresh);
+    engine.startSimulation(sectionConfig(fresh));
+  };
+  const continueFullBoard = () => {
+    const current = loadFullBoard();
+    if (!current) { setBoard(null); return; }
+    setBoard(current);
+    engine.startSimulation(sectionConfig(current));
+  };
+  const abandonFullBoard = () => {
+    const current = loadFullBoard();
+    clearFullBoard();
+    setBoard(null);
+    // Its finished sections still count in analytics; keep the half-board out
+    // of mock history, where it would read as a failed sitting.
+    if (current?.sessionId) hideExamSession(current.sessionId).catch(() => {});
+    engine.setSession((s) => ({ ...s, isActive: false, isFinished: false, diagnostics: null, questions: [] }));
+  };
+  const leaveBoardResults = () => {
+    clearFullBoard();
+    setBoard(null);
+  };
+
+  // Which screen: a mid-board break (results withheld), the board result, or
+  // the ordinary single-sitting flow.
+  const showBoardBreak = !!board && board.sectionIndex <= lastSection && (
+    (sectionJustFinished && boardSection < lastSection)
+    || (!engine.session.isActive && !engine.session.isFinished)
+  );
+  const showBoardResult = !!sectionJustFinished && boardSection === lastSection;
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -108,7 +168,7 @@ export default function BoardSimulator() {
   // page in either layout): setup gets normal navigation chrome, an active
   // or finished exam gets the distraction-free ExamLayout — so the "exam in
   // progress" banner is only ever shown when one truly is.
-  const inExamMode = engine.session.isActive || engine.session.isFinished;
+  const inExamMode = (engine.session.isActive || engine.session.isFinished) && !showBoardBreak;
   const Layout = inExamMode ? ExamLayout : MainLayout;
 
   const content = (
@@ -132,8 +192,22 @@ export default function BoardSimulator() {
         </div>
       )}
 
-      {!engine.session.isActive && !engine.session.isFinished && (
+      {showBoardBreak && (
+        <FullBoardBreak
+          board={board}
+          hasDraft={!!engine.hasSavedSession && !engine.session.isActive}
+          loading={engine.session.loading}
+          onContinue={continueFullBoard}
+          onResumeDraft={engine.resumeSimulation}
+          onAbandon={abandonFullBoard}
+        />
+      )}
+
+      {showBoardResult && board && <FullBoardResults board={board} />}
+
+      {!showBoardBreak && !engine.session.isActive && !engine.session.isFinished && (
         <SimulatorConfig
+            onStartFullBoard={beginFullBoard}
             config={engine.config}
             setConfig={engine.setConfig}
             session={engine.session}
@@ -142,15 +216,16 @@ export default function BoardSimulator() {
         />
       )}
 
-{engine.session.isFinished && (
+{engine.session.isFinished && !showBoardBreak && (
         <SimulatorDiagnostics
+            onExit={showBoardResult ? leaveBoardResults : undefined}
             session={engine.session}
             engine={engine}
             isBattle={!!activeBattleId}
         />
       )}
 
-      {(engine.session.isActive || engine.session.isFinished) && (
+      {(engine.session.isActive || engine.session.isFinished) && !showBoardBreak && (
         <div className={engine.session.isFinished ? "mt-4" : ""}>
           <SimulatorActive
             engine={engine}

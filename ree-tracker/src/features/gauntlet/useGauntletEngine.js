@@ -10,6 +10,8 @@ import {
 import { auth } from '../../config/firebaseDb';
 import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../config/examStandards';
 import toast from 'react-hot-toast';
+import { classifySyncError, SYNC_OUTCOME } from '../../services/syncPolicy';
+import { GENERAL_AVERAGE } from '@ree/shared';
 
 // Resume-cache key, scoped by `level` inside the stored payload (mirrors the
 // Board Simulator's ree_sim_cache pattern in useSimulatorEngine.js). A single
@@ -520,7 +522,7 @@ export const useGauntletEngine = (level) => {
             });
 
             const scorePct = Math.round((correctCount / tier.items) * 100);
-            const isPassed = scorePct >= 70;
+            const isPassed = scorePct >= GENERAL_AVERAGE;
 
             setDiagnostics({
                 scorePct,
@@ -573,11 +575,21 @@ export const useGauntletEngine = (level) => {
 
             setStatus('diagnostics');
         } catch (err) {
-            if (err?.message === '[OFFLINE]' || err?.message === '[TIMEOUT]') {
-                // A network-class failure navigator.onLine didn't catch up front
-                // (request timeout, circuit breaker tripping mid-flight) — still
-                // must not discard the run.
+            // One classifier with the sync pipeline: offline (network-class
+            // failure navigator.onLine didn't catch — timeout, circuit breaker)
+            // and transient (5xx — the server answers 503 when it graded the
+            // run but could not save it) both keep the run in the outbox. Only
+            // a permanent 4xx, which resending cannot fix, ends on the error
+            // screen.
+            //
+            // TRANSIENT is narrowed to a real 5xx: the classifier also files a
+            // status-less error (a bug in the result handling above) as
+            // transient, and that should surface, not loop through the outbox.
+            const outcome = classifySyncError(err);
+            if (outcome === SYNC_OUTCOME.OFFLINE) {
                 deferToOutbox('Connection dropped — submitted; your score posts when you reconnect.');
+            } else if (outcome === SYNC_OUTCOME.TRANSIENT && err?.status >= 500) {
+                deferToOutbox('Submitted — saving is delayed; your score posts shortly.');
             } else {
                 console.error("Gauntlet grading error:", err);
                 toast.error("Failed to grade gauntlet. Please try again.");

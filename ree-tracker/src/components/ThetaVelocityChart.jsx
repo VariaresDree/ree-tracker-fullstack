@@ -18,8 +18,12 @@ const CustomTooltip = ({ active, payload }) => {
             <p className="text-sm font-black text-reeCyan drop-shadow-sm">
               θ: {data.theta > 0 ? '+' : ''}{data.theta}
             </p>
-            <p className={`text-[11px] font-bold uppercase tracking-wider ${data.probability >= 70 ? 'text-reeGreen' : data.probability >= 50 ? 'text-reeAmber' : 'text-reeRed'}`}>
-              {Math.round(data.probability)}% Pass Probability
+            {/* θ only. This used to print a linear (θ + 4) / 8 as "Pass
+                Probability", a third θ→% mapping on the same page that
+                disagreed with the forecast card next to it. The pass
+                probability now lives in one place: the PRC-rule forecast. */}
+            <p className="text-[11px] font-medium text-muted2">
+              {data.theta >= 0 ? 'Above' : 'Below'} the average candidate (θ = 0)
             </p>
         </div>
       </div>
@@ -84,13 +88,7 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
     );
     return bucketHistory(clean, range).map((h) => {
       const theta = Number(Number(h.theta).toFixed(3));
-      return {
-        ...h,
-        theta,
-        // theta is now on the 3PL scale (±4). Rough visual pass-% only; the
-        // authoritative pass probability is the forecast's normCdf.
-        probability: Math.min(100, Math.max(0, ((theta + 4) / 8) * 100)),
-      };
+      return { ...h, theta };
     });
   }, [safeHistory, range]);
 
