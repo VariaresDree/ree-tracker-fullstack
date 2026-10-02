@@ -9,6 +9,41 @@ Scope note: the app is already mature — a 3PL IRT/CAT engine, BKT mastery, emp
 a PRC-aligned `Topic` taxonomy, an AI review loop, a materialized leaderboard, and an offline stack
 are all in place. This roadmap **builds on that base**; it does not rebuild it.
 
+## 0. Status after the 2026-10-02 audit
+
+Full findings, with file references and PR numbers, are in
+[`docs/audits/2026-10-02-ree-tracker-audit.md`](./docs/audits/2026-10-02-ree-tracker-audit.md).
+That audit shipped **Wave 0** (integrity: #102–#104) and **Wave 1** (connect the engines:
+#105–#110) as a stacked series. Merge them in order.
+
+| Wave below | Status |
+|---|---|
+| **W1** Assessment & readiness | **Done.** Weighted PRC verdict and exam format (#104). PRC-rule forecast with per-subject projection, conditional risk and binding subject (#107). Placement CAT that seeds abilities (#109). Readiness index and breakdown at the top of the dashboard (#110). |
+| **W2** Personalized practice loop | **Mostly done.** Server-authoritative SRS with a due queue (#106). Mastery decay (#106). Targeted adaptive drills (#108). The adaptive daily plan moves to **Wave 2: Planner v2**. |
+| **W3** Mock-exam realism | **Partly done.** PRC format (Math 5h / ESAS 4h / EE 6h) and weighted pass/fail (#104). The full 3-section sitting and server-backed mock history move to **Wave 2**. |
+| **W4** Content quality & coverage | Unchanged. |
+| **W5** Reliability & observability | Unchanged. Sentry and staging move to **Wave 3**. |
+| **W6** Accessibility & performance (authed screens) | Findings recorded in the audit (touch targets, contrast per theme, overlays, KaTeX). Scheduled as **Wave 3**. |
+| **W7** Onboarding & UX clarity | **Placement test done** (#109). The "which mode do I use?" guide moves to **Wave 3**. |
+| **W8** Engagement & habit | **Next best actions** done (Today panel, #110). Goal tracking stays here. |
+
+**Wave 2: test realism and analytics depth**
+- a full 3-section PRC sitting with server finalisation;
+- server-backed mock history;
+- a blind-spot and time-sink registry;
+- a daily readiness snapshot, so a trend exists;
+- Planner v2;
+- sync hardening.
+
+**Wave 3: UI/UX, accessibility and platform**
+- 44 px touch targets;
+- an `aria-live` answer announcement and a per-theme success colour;
+- a computed contrast test across the 13 themes;
+- overlay semantics;
+- KaTeX fixes;
+- an h1 on every page and a skip link;
+- Sentry, ESLint in CI, a mobile Playwright project, and authed axe via the emulator.
+
 ---
 
 ## 1. Critical bugs found — fixed this pass (with code)
