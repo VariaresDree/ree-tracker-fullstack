@@ -59,4 +59,12 @@ const nextItemSchema = z.object({
     poolSize: z.number().int().min(10).max(200).default(80)
 });
 
-module.exports = { examSubmitSchema, gradeSchema, nextItemSchema };
+// POST /exams/sessions/:id/finalize — the client may only DESCRIBE the sitting;
+// grading comes from the session's recorded attempts (services/examHistory).
+const finalizeSchema = z.object({
+    kind: z.enum(['subject', 'blended', 'custom', 'full-board', 'battle']).optional(),
+    isPrcStandard: z.boolean().optional(),
+    targetSubject: z.string().max(32).optional(),
+}).strip();
+
+module.exports = { examSubmitSchema, gradeSchema, nextItemSchema, finalizeSchema };

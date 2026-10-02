@@ -15,12 +15,13 @@ import { TriangleAlert } from './ui/icons';
 const describe = (letter) => {
     const n = letter.attempts?.length ?? letter.ids?.length ?? 0;
     if (letter.type === 'pendingWrite') return { title: 'Saved session', detail: letter.endpoint };
+    if (letter.type === 'pendingWrite-orphaned') return { title: 'Saved session from another account', detail: 'Recorded on this device before a different sign-in.' };
     if (letter.type === 'telemetry-orphaned') return { title: `${n} answer${n === 1 ? '' : 's'} from another account`, detail: 'Recorded on this device before a different sign-in.' };
     return { title: `${n} answer${n === 1 ? '' : 's'}`, detail: letter.error };
 };
 
 const canRetry = (letter) => {
-    if (letter.type === 'telemetry-orphaned') return letter.ownerUid === auth.currentUser?.uid;
+    if (letter.type.endsWith('-orphaned')) return letter.ownerUid === auth.currentUser?.uid;
     return (Array.isArray(letter.attempts) && letter.attempts.length > 0) || !!letter.write;
 };
 
