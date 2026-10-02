@@ -28,6 +28,17 @@ describe('partitionNewAttempts', () => {
     const { newOnly } = partitionNewAttempts(new Set(['x']), mapped);
     expect(newOnly).toHaveLength(2);
   });
+
+  // createMany({ skipDuplicates }) inserts a repeated id ONCE, but every
+  // counter downstream (BKT fold, topic rollups, θ, ExamSession increments) is
+  // derived from `newOnly`. A repeat inside one batch therefore has to be a
+  // duplicate here too, or it is written once and counted twice.
+  it('a clientAttemptId repeated WITHIN one batch is new once and a duplicate after', () => {
+    const mapped = [{ clientAttemptId: 'a' }, { clientAttemptId: 'b' }, { clientAttemptId: 'a' }];
+    const { newOnly, duplicates } = partitionNewAttempts(new Set(), mapped);
+    expect(newOnly.map((m) => m.clientAttemptId)).toEqual(['a', 'b']);
+    expect(duplicates.map((m) => m.clientAttemptId)).toEqual(['a']);
+  });
 });
 
 describe('aggregateTopicRollups', () => {

@@ -118,6 +118,12 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
  * a clientAttemptId can't be deduped and are always treated as new — that
  * preserves legacy-client behavior.
  *
+ * A clientAttemptId repeated WITHIN the batch counts once: the first occurrence
+ * is new, later ones are duplicates. createMany({ skipDuplicates }) only ever
+ * inserts it once, but every counter downstream (BKT fold, topic rollups, θ,
+ * ExamSession increments) is derived from `newOnly`, so without this a repeat
+ * was written once and counted twice.
+ *
  * @param {Set<string>} existingIdSet - clientAttemptIds already in the DB for this user
  * @param {Array<{clientAttemptId?: string}>} mapped
  * @returns {{ newOnly: Array, duplicates: Array }}
@@ -125,10 +131,13 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
 function partitionNewAttempts(existingIdSet, mapped) {
     const newOnly = [];
     const duplicates = [];
+    const seenInBatch = new Set();
     for (const m of mapped) {
-        if (m.clientAttemptId && existingIdSet.has(m.clientAttemptId)) {
+        const id = m.clientAttemptId;
+        if (id && (existingIdSet.has(id) || seenInBatch.has(id))) {
             duplicates.push(m);
         } else {
+            if (id) seenInBatch.add(id);
             newOnly.push(m);
         }
     }

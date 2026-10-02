@@ -86,6 +86,17 @@ router.delete('/tasks/clear-plan', authMiddleware, async (req, res) => {
             }
         });
 
+        res.status(200).json({ success: true, deleted: result.count });
+    } catch (error) {
+        logger.error('Clear plan error', { error: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Failed to clear plan.' });
+    }
+});
+
+// Delete a single planner task. Must stay AFTER /tasks/clear-plan (see above).
+// It, and generate-plan below, used to sit INSIDE the clear-plan handler body,
+// so neither existed until clear-plan had run once — on a fresh instance both
+// 404'd — and every later clear-plan call registered them again.
 router.delete('/tasks/:id', authMiddleware, async (req, res) => {
     try {
         await prisma.plannerTask.delete({
@@ -197,13 +208,6 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
     } catch (error) {
         logger.error('Study plan generation error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to generate study plan.' });
-    }
-});
-
-        res.status(200).json({ success: true, deleted: result.count });
-    } catch (error) {
-        logger.error('Clear plan error', { error: error.message, stack: error.stack });
-        res.status(500).json({ error: 'Failed to clear plan.' });
     }
 });
 

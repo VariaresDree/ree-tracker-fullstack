@@ -83,6 +83,14 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
 
         // Persist attempts so Gauntlet/Combat results show up in Dashboard + Profile analytics.
         // Default confidence LOW and zero time when caller doesn't supply them.
+        //
+        // A persistence failure is NOT swallowed. This used to log and answer
+        // 200, which the Gauntlet outbox reads as "delivered" (it drops the
+        // entry) and the idempotency layer records and replays for 24h — so
+        // one transient DB error silently lost the whole run. 503 is retryable
+        // to the client, and idempotency releases the key on any non-2xx, so
+        // the retry is graded and written normally. Re-grading on retry is
+        // harmless: clientAttemptId makes the write exactly-once.
         let telemetry = null;
         try {
             telemetry = await recordAttempts({
@@ -97,7 +105,8 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
                 })),
             });
         } catch (telErr) {
-            logger.warn('grade telemetry persist failed', { error: telErr.message });
+            logger.error('grade telemetry persist failed', { error: telErr.message });
+            return res.status(503).json({ error: 'Your answers were graded but not saved. Retrying shortly.' });
         }
 
         return res.status(200).json({ results, telemetry });
