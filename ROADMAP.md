@@ -2,7 +2,8 @@
 
 Orchestration source: [`REE_TRACKER_ORCHESTRATED_ROADMAP_PROMPT.md`](./REE_TRACKER_ORCHESTRATED_ROADMAP_PROMPT.md) ·
 Audit lens (re-run at each gate): [`REE_TRACKER_FULL_AUDIT_PROMPT.md`](./REE_TRACKER_FULL_AUDIT_PROMPT.md) ·
-Offline spec: [`OFFLINE_MODE_IMPLEMENTATION_PROMPT.md`](./OFFLINE_MODE_IMPLEMENTATION_PROMPT.md)
+Offline spec: [`OFFLINE_MODE_IMPLEMENTATION_PROMPT.md`](./OFFLINE_MODE_IMPLEMENTATION_PROMPT.md) ·
+Latest audit: [`docs/audits/2026-10-02-ree-tracker-audit.md`](./docs/audits/2026-10-02-ree-tracker-audit.md) (Waves 0–1 shipped as #102–#110; Waves 2–3 planned in [`REE_IDEAL_APP_ROADMAP.md`](./REE_IDEAL_APP_ROADMAP.md) §0)
 
 **Rule:** phases are executed in order and each ends with a gate. Do not begin a phase until the previous gate is passed (the orchestration prompt's core principle). Only adjacent phases may overlap under time pressure — never skip one.
 
