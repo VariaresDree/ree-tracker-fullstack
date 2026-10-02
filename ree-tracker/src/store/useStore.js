@@ -35,6 +35,12 @@ let inFlightPending = null;
 const MAX_SYNC_QUEUE = 5000;
 const MAX_PENDING_WRITES = 500;
 const MAX_DEAD_LETTERS = 50;
+// A pending write the server keeps answering with a RETRYABLE status (5xx, 409,
+// 429) is given up into Sync issues after this many answers. The outbox stops
+// at the first retryable failure, so without a ceiling one such write — e.g. an
+// exam finalise whose attempts were quarantined, answering 409 forever — would
+// block every write queued behind it. Offline failures never count.
+const MAX_PENDING_TRIES = 20;
 
 // Sync mirror of syncQueue written on pagehide/hide (see useSyncLifecycle) so a
 // fast offline tab-close can't lose the last attempt(s) in the async IDB write
@@ -132,8 +138,10 @@ export const useStore = create(
       // sessionId, mode, and targetSubject are available to per-answer events.
       // Returns the generated sessionId so the surface can persist it locally
       // if it wants to (Simulator stores it on the session object for resume).
-      startSession: ({ mode, subject } = {}) => {
-        const sessionId = newId();
+      // `sessionId` lets a multi-part sitting (the full PRC board's three
+      // sections) keep ONE server session across parts; otherwise a fresh id.
+      startSession: ({ mode, subject, sessionId: provided } = {}) => {
+        const sessionId = provided || newId();
         set({
           currentSessionId: sessionId,
           currentSessionMode: mode || 'LEGACY',
@@ -466,10 +474,14 @@ export const useStore = create(
       // session summaries and offline mock-exam telemetry so nothing is dropped
       // when the user finishes a session with no connection.
       queuePendingWrite: (endpoint, method, body) => {
+        // Stamped with the account that made it — the same guard the telemetry
+        // queue has. A queued mock exam replayed after a different account
+        // signed in would otherwise land in THAT account's history.
+        const ownerUid = auth.currentUser?.uid || getStore().ownerUid || null;
         set((state) => ({
           pendingWrites: [
             ...state.pendingWrites,
-            { id: newId(), endpoint, method: method || 'POST', body, createdAt: new Date().toISOString() },
+            { id: newId(), endpoint, method: method || 'POST', body, ownerUid, createdAt: new Date().toISOString() },
           ].slice(-MAX_PENDING_WRITES),
         }));
       },
@@ -493,7 +505,23 @@ export const useStore = create(
         if (!pendingWrites || pendingWrites.length === 0) return;
 
         const run = async () => {
+          const signedIn = auth.currentUser?.uid;
+          if (!signedIn) return;
           for (const w of getStore().pendingWrites.slice()) {
+            // Owner guard. A write without an owner predates the stamp and
+            // belongs to the device's persisted owner.
+            const owner = w.ownerUid ?? getStore().ownerUid;
+            if (owner && owner !== signedIn) {
+              console.error('[SYNC] Pending write belongs to a different account; quarantining.', w.endpoint);
+              set((state) => ({
+                pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id),
+                deadLetters: [
+                  ...state.deadLetters,
+                  { id: newId(), type: 'pendingWrite-orphaned', ownerUid: owner, endpoint: w.endpoint, write: w, error: 'owner mismatch', at: Date.now() },
+                ].slice(-MAX_DEAD_LETTERS),
+              }));
+              continue;
+            }
             try {
               await apiRequest(w.endpoint, w.method, w.body);
               set((state) => ({ pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id) }));
@@ -509,6 +537,22 @@ export const useStore = create(
                   ].slice(-MAX_DEAD_LETTERS),
                 }));
                 continue; // advance past the poison pill
+              }
+              if (typeof status === 'number') {
+                const tries = (w.tries || 0) + 1;
+                if (tries >= MAX_PENDING_TRIES) {
+                  set((state) => ({
+                    pendingWrites: state.pendingWrites.filter((p) => p.id !== w.id),
+                    deadLetters: [
+                      ...state.deadLetters,
+                      { id: newId(), type: 'pendingWrite', endpoint: w.endpoint, write: { ...w, tries: 0 }, status, error: `gave up after ${tries} tries: ${err.message}`, at: Date.now() },
+                    ].slice(-MAX_DEAD_LETTERS),
+                  }));
+                  continue;
+                }
+                set((state) => ({
+                  pendingWrites: state.pendingWrites.map((p) => (p.id === w.id ? { ...p, tries } : p)),
+                }));
               }
               break; // transient — retry the rest on the next reconnect
             }
@@ -527,7 +571,7 @@ export const useStore = create(
       retryDeadLetter: async (letterId) => {
         const letter = getStore().deadLetters.find((d) => d.id === letterId);
         if (!letter) return;
-        if (letter.type === 'telemetry-orphaned' && letter.ownerUid !== auth.currentUser?.uid) return;
+        if (letter.type.endsWith('-orphaned') && letter.ownerUid !== auth.currentUser?.uid) return;
 
         if (Array.isArray(letter.attempts) && letter.attempts.length > 0) {
           set((state) => {

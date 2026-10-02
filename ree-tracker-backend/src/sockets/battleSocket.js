@@ -9,6 +9,8 @@ const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitize
 const { applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants } = require('../utils/battleLogic');
 const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSchemas');
 const logger = require('../utils/logger');
+const { retryInBackground } = require('../services/retryInBackground');
+const { finalizeSession } = require('../services/examHistory');
 
 // In-memory lobby state (participants, live scores, answer keys).
 const MAX_LOBBIES = 500;
@@ -314,23 +316,45 @@ function setupBattleSocket(io) {
                 // authoritative score source.
                 let graded = null;
                 if (finalAttempts.length > 0) {
+                    // One ExamSession per player per battle, so the match
+                    // appears in server-side mock history (battles used to
+                    // record session-less attempts and live only in a
+                    // device-local ledger), finalised once its attempts land.
+                    const battleSessionId = `${battleId}:${socket.userId}`;
+                    const record = () => recordAttempts({
+                        userId: socket.userId,
+                        sessionId: battleSessionId,
+                        mode: 'BATTLE',
+                        // Deterministic per-attempt ids: a replayed
+                        // battle-submit (reconnect, double emit) — or a
+                        // background retry below — dedupes instead of
+                        // double-counting the whole battle.
+                        attempts: finalAttempts.map((a) => ({
+                            ...a,
+                            clientAttemptId: `${battleId}:${socket.userId}:${a.questionId}`,
+                        })),
+                    });
+                    const persist = async () => {
+                        const recorded = await record();
+                        try {
+                            await finalizeSession({ userId: socket.userId, sessionId: battleSessionId, meta: { kind: 'battle' } });
+                        } catch (finErr) {
+                            logger.warn('battle session finalise failed', { battleId, userId: socket.userId, error: finErr.message });
+                        }
+                        return recorded;
+                    };
                     try {
-                        const result = await recordAttempts({
-                            userId: socket.userId,
-                            mode: 'BATTLE',
-                            // Deterministic per-attempt ids: a replayed
-                            // battle-submit (reconnect, double emit) dedupes
-                            // instead of double-counting the whole battle.
-                            attempts: finalAttempts.map((a) => ({
-                                ...a,
-                                clientAttemptId: `${battleId}:${socket.userId}:${a.questionId}`,
-                            })),
-                        });
+                        const result = await persist();
                         graded = result.graded || null;
                     } catch (telErr) {
-                        logger.warn('battle-submit telemetry persist failed', {
+                        // The battle is already graded in memory, so the result
+                        // screen is unaffected — but the attempts used to be
+                        // dropped here, leaving the match out of the learner's
+                        // analytics for good. Retry off the request path.
+                        logger.warn('battle-submit telemetry persist failed; retrying in background', {
                             battleId, userId: socket.userId, error: telErr.message,
                         });
+                        retryInBackground(`battle ${battleId}/${socket.userId} telemetry`, persist);
                     }
                 }
 

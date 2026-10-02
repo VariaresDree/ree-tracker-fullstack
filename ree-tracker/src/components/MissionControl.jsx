@@ -4,6 +4,7 @@ import { useTelemetrySlice } from '../store/slices';
 import toast from 'react-hot-toast';
 import { Panel, Button, Skeleton, Modal, ProgressIndicator } from './ui';
 import { ClipboardList, Settings2, RefreshCw, Trash2 } from './ui/icons';
+import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
 
 // `stats` comes from the PARENT (Dashboard's merged activeStats — local
 // optimistic + server-canonical). Reading the raw store here served stale
@@ -16,7 +17,9 @@ export default function MissionControl({ stats, onPurgeRequest }) {
   const [showResetModal, setShowResetModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [editDate, setEditDate] = useState(stats?.examDate || '2026-04-15');
+  // No invented default: an unset exam date stays empty until the learner
+  // picks one (it used to pre-fill a fixed '2026-04-15').
+  const [editDate, setEditDate] = useState(stats?.examDate || '');
   const [editGoal, setEditGoal] = useState(stats?.dailyTarget || 50);
 
   useEffect(() => {
@@ -28,10 +31,13 @@ export default function MissionControl({ stats, onPurgeRequest }) {
     return <Skeleton className="w-full h-40 rounded-[var(--radius-lg)]" />;
   }
 
+  // The day's target split by the PRC syllabus weights (shared
+  // largest-remainder rule) — these were bare 0.25 / 0.3 literals.
   const totalGoal = stats?.dailyTarget || 50;
-  const mathGoal = Math.floor(totalGoal * 0.25);
-  const esasGoal = Math.floor(totalGoal * 0.3);
-  const eeGoal = totalGoal - mathGoal - esasGoal;
+  const split = apportionItems(totalGoal, DEFAULT_SYLLABUS_WEIGHTS);
+  const mathGoal = split.Mathematics;
+  const esasGoal = split.ESAS;
+  const eeGoal = split.EE;
 
   const currentMath = stats?.dailyMath || 0;
   const currentESAS = stats?.dailyESAS || 0;
@@ -69,7 +75,7 @@ export default function MissionControl({ stats, onPurgeRequest }) {
     <>
       <Panel
         icon={ClipboardList}
-        eyebrow="Today"
+        eyebrow="Targets"
         title="Daily targets"
         bodyClassName="flex flex-col gap-5"
         action={

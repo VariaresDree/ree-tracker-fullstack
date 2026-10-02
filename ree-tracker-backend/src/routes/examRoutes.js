@@ -3,7 +3,8 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
-const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/examSchemas');
+const { examSubmitSchema, gradeSchema, nextItemSchema, finalizeSchema } = require('../schemas/examSchemas');
+const examHistory = require('../services/examHistory');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { gradeAttempts, buildDiagnostics } = require('../services/examService');
@@ -306,6 +307,34 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
     } catch (error) {
         logger.error('CAT next-item failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Next item selection failed.' });
+    }
+});
+
+// FINALISE A SITTING — grade a session from its OWN recorded attempts
+// (per-subject scores, PRC weighted average, verdict) and store the result.
+// The telemetry upsert leaves sessions 'IN_PROGRESS' forever; this closes them.
+// 409 while the attempts are still in the client's outbox — retryable.
+router.post('/sessions/:id/finalize', authMiddleware, validate(finalizeSchema), async (req, res) => {
+    try {
+        const result = await examHistory.finalizeSession({ userId: req.user.id, sessionId: req.params.id, meta: req.body });
+        return res.status(200).json(result);
+    } catch (error) {
+        if (error instanceof examHistory.ExamHistoryError) return res.status(error.status).json({ error: error.message });
+        logger.error('exam finalize failed', { error: error.message });
+        return res.status(500).json({ error: 'Could not finalise the exam.' });
+    }
+});
+
+// HIDE A SITTING FROM MOCK HISTORY — never a delete: deleting an ExamSession
+// cascades to its attempts, which would rewrite every tally and mastery
+// estimate the sitting fed.
+router.post('/sessions/:id/hide', authMiddleware, async (req, res) => {
+    try {
+        return res.status(200).json(await examHistory.hideSession({ userId: req.user.id, sessionId: req.params.id }));
+    } catch (error) {
+        if (error instanceof examHistory.ExamHistoryError) return res.status(error.status).json({ error: error.message });
+        logger.error('exam hide failed', { error: error.message });
+        return res.status(500).json({ error: 'Could not update the history.' });
     }
 });
 

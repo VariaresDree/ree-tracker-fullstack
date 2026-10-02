@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Card, Button, FormField, Select, SegmentedControl, cn } from '../../components/ui';
 import { Shuffle, Crosshair, Layers, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
+import { dueReviewPreset } from './presets';
 
 // A due session is capped so a backlog after a break doesn't become a
 // 200-question wall; the rest stays in the queue for the next session.
@@ -84,10 +85,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   const dueCount = srs?.due || 0;
   const startDue = () => {
     setLaunchingPreset('srs-due');
-    startSession({
-      sessionMode: 'mcq', studyMode: 'interleaved', subject: 'All', subtopic: 'All',
-      cognitiveFocus: 'mixed', count: Math.min(dueCount, DUE_SESSION_MAX), source: 'srs-due',
-    });
+    startSession(dueReviewPreset(Math.min(dueCount, DUE_SESSION_MAX)));
   };
 
   return (

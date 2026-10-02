@@ -15,6 +15,7 @@ import { Button, Card, Badge, ProgressIndicator, Skeleton, EmptyState } from '..
 import { Compass, ArrowRight } from '../components/ui/icons';
 import { fetchDiagnosticStatus, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
+import { drillPreset } from '../features/active-recall/presets';
 
 const BAND_LABEL = { 'board-ready': 'Board-ready', developing: 'Developing', foundation: 'Foundation' };
 const BAND_TONE = { 'board-ready': 'success', developing: 'amber', foundation: 'danger' };
@@ -220,7 +221,7 @@ function PlacementResult({ result }) {
           variant="secondary"
           as={Link}
           to="/review"
-          state={{ preset: { sessionMode: 'mcq', studyMode: 'bleeding', subject: 'All', subtopic: 'All', cognitiveFocus: 'mixed', count: 10, source: 'smart-drill' } }}
+          state={{ preset: drillPreset() }}
         >
           Start a targeted drill
         </Button>

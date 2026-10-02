@@ -5,14 +5,12 @@ import { CalibrationCurve } from './CalibrationCurve';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui';
 import { Crosshair } from '../../components/ui/icons';
+import { drillPreset } from '../active-recall/presets';
+import WeakSignalsPanel from './WeakSignalsPanel';
 
 // Analysis should end in an action: both drills run the targeted, adaptive
 // Smart Drill on the weakest topics (decayed mastery × syllabus weight); the
 // blind-spot drill leads with questions answered confidently wrong.
-const drillPreset = (mode) => ({
-  sessionMode: 'mcq', studyMode: 'bleeding', subject: 'All', subtopic: 'All',
-  cognitiveFocus: 'mixed', count: 10, source: 'smart-drill', drillMode: mode || null,
-});
 
 // 'YYYY-MM-DD' (Manila-keyed by the server) → 'Jul 3' without a timezone
 // round-trip: new Date('YYYY-MM-DD') is UTC midnight and re-localizing can
@@ -65,11 +63,13 @@ function BarChart({ items, valueKey, labelKey, maxVal, color = 'bg-reeBlue' }) {
   );
 }
 
-const TYPE_MAP = { time: 'time-analysis', confidence: 'confidence-calibration', subjects: 'subject-radar', study: 'study-time', scores: 'score-progression' };
+const TYPE_MAP = { weak: 'weak-signals', time: 'time-analysis', confidence: 'confidence-calibration', subjects: 'subject-radar', study: 'study-time', scores: 'score-progression' };
 
 export default function AnalyticsDeepDive() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('time');
+  // Opens on the registry of blind spots and time sinks — the tab that ends
+  // in an action.
+  const [activeTab, setActiveTab] = useState('weak');
   const [data, setData] = useState({});
   // Per-endpoint status ('loading' | 'loaded' | 'error'). The old cache check
   // was `if (data[type]) return` — a failed/offline fetch stored nothing, so
@@ -110,6 +110,7 @@ export default function AnalyticsDeepDive() {
   const loadFailed = status[activeType] === 'error';
 
   const tabs = [
+    { id: 'weak', label: 'Blind spots', icon: '🎯' },
     { id: 'time', label: 'Time Analysis', icon: '⏱️' },
     { id: 'confidence', label: 'Confidence', icon: '🎯' },
     { id: 'subjects', label: 'Subject Radar', icon: '📊' },
@@ -129,7 +130,7 @@ export default function AnalyticsDeepDive() {
         <Button size="sm" onClick={() => navigate('/review', { state: { preset: drillPreset() } })}>
           <Crosshair size={15} strokeWidth={2} aria-hidden="true" /> Targeted drill
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => navigate('/review', { state: { preset: drillPreset('blind-spot') } })}>
+        <Button size="sm" variant="secondary" onClick={() => navigate('/review', { state: { preset: drillPreset({ mode: 'blind-spot' }) } })}>
           Blind-spot drill
         </Button>
         <span className="text-xs text-muted2">10 adaptive items on your weakest topics.</span>
@@ -263,6 +264,10 @@ export default function AnalyticsDeepDive() {
           </div>
         );
       })()}
+
+      {!loading && !loadFailed && activeTab === 'weak' && data['weak-signals'] && (
+        <WeakSignalsPanel data={data['weak-signals']} />
+      )}
 
       {!loading && !loadFailed && activeTab === 'scores' && (() => {
         const trend = scoreData.map((exam, idx) => ({
