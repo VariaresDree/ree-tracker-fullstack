@@ -477,6 +477,9 @@ model UserTopicPerformance {
   // Updated online per attempt in telemetryService; null until first observation.
   pMastery    Float?
   masteryN    Int      @default(0) // observations folded into pMastery (audit/debug)
+  // Latest answer in this topic — the clock mastery decay runs from
+  // (engine/bkt.decayedMastery). Only moves forward; backfilled by backfill:mastery.
+  lastPracticedAt DateTime?
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, topic])
@@ -547,6 +550,13 @@ model PlannerTask {
   text        String
   dueDate     String?
   completed   Boolean   @default(false)
+  // Planner v2: a PLANNED task says what it is ('drill' | 'review' | 'mock'),
+  // what it targets and how many questions complete it. NULL on free-text tasks.
+  kind        String?
+  subject     String?
+  topic       String?
+  topicId     String?
+  targetCount Int?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -578,6 +588,9 @@ model ForecastSnapshot {
   expectedRank           Int?     // estimated percentile rank
   weakTopics             Json?    // [{ topic, theta, se, gapToTarget }]
   recommendedActions     Json?    // [{ type, payload, reason }]
+  // v2-prc: { subjects: { [s]: {expected, p50, p70, low, high} }, projectedGWA,
+  // conditionalProbability, bindingSubject }. NULL on v1 rows.
+  subjectForecasts       Json?
   modelVersion           String   @default("v1")
   createdAt              DateTime @default(now())
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)

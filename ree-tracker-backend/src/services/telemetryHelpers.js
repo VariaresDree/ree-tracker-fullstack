@@ -153,7 +153,10 @@ function partitionNewAttempts(existingIdSet, mapped) {
  * the UserTopicPerformance.totalTime column).
  *
  * @param {Array<{subject, subtopic, isCorrect, timeSpentMs}>} attempts
- * @returns {Array<{subject, topic, attempts, correct, totalTimeSecs}>}
+ * `lastPracticedAt` is the latest answeredAt in the batch for the topic — the
+ * clock mastery decay runs from (engine/bkt.decayedMastery).
+ *
+ * @returns {Array<{subject, topic, attempts, correct, totalTimeSecs, lastPracticedAt}>}
  */
 function aggregateTopicRollups(attempts) {
     const byTopic = new Map();
@@ -161,12 +164,16 @@ function aggregateTopicRollups(attempts) {
         const topic = a.subtopic || 'General';
         let agg = byTopic.get(topic);
         if (!agg) {
-            agg = { subject: a.subject || 'General', topic, attempts: 0, correct: 0, totalTimeSecs: 0 };
+            agg = { subject: a.subject || 'General', topic, attempts: 0, correct: 0, totalTimeSecs: 0, lastPracticedAt: null };
             byTopic.set(topic, agg);
         }
         agg.attempts += 1;
         if (a.isCorrect) agg.correct += 1;
         agg.totalTimeSecs += Math.floor(plausibleTimeMs(a.timeSpentMs) / 1000);
+        const at = a.answeredAt ? new Date(a.answeredAt) : null;
+        if (at && !Number.isNaN(at.getTime()) && (!agg.lastPracticedAt || at > agg.lastPracticedAt)) {
+            agg.lastPracticedAt = at;
+        }
     }
     return Array.from(byTopic.values());
 }
@@ -203,6 +210,25 @@ function groupPairsBySubject(mapped) {
 }
 
 /**
+ * Rows in the order they were ANSWERED (answeredAt), arrival order kept for
+ * ties and for rows without a time (which sort after timed ones). BKT and SRS
+ * are order-sensitive folds; an offline batch synced alongside another queue
+ * can arrive with a later answer first. Returns a new array.
+ */
+function byAnsweredAt(rows) {
+    return (rows || [])
+        .map((row, i) => ({ row, i, t: row?.answeredAt ? new Date(row.answeredAt).getTime() : NaN }))
+        .sort((a, b) => {
+            const at = Number.isFinite(a.t);
+            const bt = Number.isFinite(b.t);
+            if (at && bt && a.t !== b.t) return a.t - b.t;
+            if (at !== bt) return at ? -1 : 1;
+            return a.i - b.i;
+        })
+        .map(({ row }) => row);
+}
+
+/**
  * Group a mapped batch into per-topic ORDERED correctness observations for the
  * BKT mastery fold (Phase 3.5). Unlike aggregateTopicRollups (which sums
  * counts), BKT is sequential — order within the batch must be preserved, so
@@ -213,7 +239,7 @@ function groupPairsBySubject(mapped) {
  */
 function orderedObservationsByTopic(mapped) {
     const byTopic = new Map();
-    for (const m of mapped || []) {
+    for (const m of byAnsweredAt(mapped)) {
         const topic = m.subtopic || 'General';
         let entry = byTopic.get(topic);
         if (!entry) {
@@ -225,4 +251,4 @@ function orderedObservationsByTopic(mapped) {
     return byTopic;
 }
 
-module.exports = { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic, clampAnsweredAt, ABILITY_SUBJECTS, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS };
+module.exports = { byAnsweredAt, mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic, clampAnsweredAt, ABILITY_SUBJECTS, MAX_BACKDATE_MS, MAX_CLOCK_SKEW_MS };

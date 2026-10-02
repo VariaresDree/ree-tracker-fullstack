@@ -18,6 +18,7 @@ require('dotenv').config();
 const prisma = require('../src/config/db');
 const { bktSequence } = require('../src/engine/bkt');
 const { paramsForTopic } = require('../src/config/bktParams');
+const { masteryBand } = require('@ree/shared');
 
 function parseArgs(argv) {
     const out = { dryRun: false };
@@ -36,25 +37,25 @@ function foldUserMastery(attempts) {
         const topic = t?.name || a.subtopic || 'General';
         let entry = byTopic.get(topic);
         if (!entry) {
-            entry = { subject: t?.subject || a.subject || 'General', topicId: a.question?.topicId ?? null, observations: [] };
+            entry = { subject: t?.subject || a.subject || 'General', topicId: a.question?.topicId ?? null, observations: [], lastPracticedAt: null };
             byTopic.set(topic, entry);
         }
         entry.observations.push(!!a.isCorrect);
+        // The clock mastery decay runs from: the latest answer in the topic.
+        const at = a.answeredAt || a.createdAt;
+        if (at && (!entry.lastPracticedAt || new Date(at) > entry.lastPracticedAt)) entry.lastPracticedAt = new Date(at);
     }
     const out = [];
-    for (const [topic, { subject, topicId, observations }] of byTopic) {
+    for (const [topic, { subject, topicId, observations, lastPracticedAt }] of byTopic) {
         const { pMastery, n } = bktSequence(observations, paramsForTopic(topic));
-        out.push({ topic, subject, topicId, pMastery, masteryN: n });
+        out.push({ topic, subject, topicId, pMastery, masteryN: n, lastPracticedAt });
     }
     return out;
 }
 
-// Coarse distribution buckets for the dry-run report.
+// Coarse distribution buckets for the dry-run report — the shared bands.
 function bucketOf(pMastery) {
-    if (pMastery >= 0.85) return 'mastered';
-    if (pMastery >= 0.65) return 'proficient';
-    if (pMastery >= 0.45) return 'developing';
-    return 'novice';
+    return masteryBand(pMastery)?.key ?? 'novice';
 }
 
 async function main() {
@@ -76,6 +77,8 @@ async function main() {
                 isCorrect: true,
                 subject: true,
                 subtopic: true,
+                answeredAt: true,
+                createdAt: true,
                 question: { select: { topicId: true, topic: { select: { name: true, subject: true } } } },
             },
         });
@@ -91,11 +94,11 @@ async function main() {
             // missing (telemetry/migration normally created it already).
             await prisma.userTopicPerformance.upsert({
                 where: { userId_topic: { userId: u.id, topic: r.topic } },
-                update: { pMastery: r.pMastery, masteryN: r.masteryN, topicId: r.topicId ?? undefined },
+                update: { pMastery: r.pMastery, masteryN: r.masteryN, topicId: r.topicId ?? undefined, lastPracticedAt: r.lastPracticedAt ?? undefined },
                 create: {
                     userId: u.id, subject: r.subject, topic: r.topic, topicId: r.topicId ?? null,
                     attempts: r.masteryN, correct: 0, totalTime: 0,
-                    pMastery: r.pMastery, masteryN: r.masteryN,
+                    pMastery: r.pMastery, masteryN: r.masteryN, lastPracticedAt: r.lastPracticedAt ?? null,
                 },
             });
             rowsWritten += 1;

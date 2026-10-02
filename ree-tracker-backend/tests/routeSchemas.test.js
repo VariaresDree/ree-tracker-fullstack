@@ -1,30 +1,12 @@
 import { describe, it, expect } from 'vitest';
 
-const { srsReviewSchema } = require('../src/schemas/srsSchemas');
 const { studySessionSchema } = require('../src/schemas/studySessionSchemas');
 const { plannerTaskCreateSchema, plannerTaskUpdateSchema } = require('../src/schemas/plannerSchemas');
 const { bookmarkCreateSchema } = require('../src/schemas/bookmarkSchemas');
 
 // R1 — these routes previously wrote req.body unchecked, turning bad client
-// input into a 500 (or, for SRS, an Invalid Date that corrupts scheduling).
-
-describe('srsReviewSchema', () => {
-    it('accepts a valid SM-2 review and coerces numeric strings', () => {
-        const r = srsReviewSchema.safeParse({ questionId: 'q1', quality: 4, interval: '6', easeFactor: 2.5, repetitions: 2 });
-        expect(r.success).toBe(true);
-        expect(r.data.interval).toBe(6); // coerced number, safe for date math
-    });
-
-    it('rejects a non-numeric interval (the Invalid-Date bug)', () => {
-        expect(srsReviewSchema.safeParse({ questionId: 'q1', quality: 3, interval: 'soon' }).success).toBe(false);
-    });
-
-    it('requires questionId + quality and bounds quality to 0..5', () => {
-        expect(srsReviewSchema.safeParse({ quality: 3 }).success).toBe(false);
-        expect(srsReviewSchema.safeParse({ questionId: 'q1' }).success).toBe(false);
-        expect(srsReviewSchema.safeParse({ questionId: 'q1', quality: 9 }).success).toBe(false);
-    });
-});
+// input into a 500. (The SRS review schema went with POST /srs/review — cards
+// are now scheduled server-side from telemetry; see engine/srs.js.)
 
 describe('studySessionSchema', () => {
     it('accepts a valid summary and defaults optional counts', () => {
