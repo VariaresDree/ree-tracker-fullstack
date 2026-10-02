@@ -76,13 +76,16 @@ function Breadcrumb({ items, onNavigate }) {
   );
 }
 
-export default function ReferenceBrowser() {
+// `initialSearch` / `initialKind` let another screen deep-link here — the
+// dashboard's "Formula cards" prescription opens the formulas for a topic that
+// is eating the learner's clock.
+export default function ReferenceBrowser({ initialSearch = '', initialKind = 'all' } = {}) {
   const { cards, loading, loadError, reload } = useReferenceCards();
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = useMemo(() => dynamicTOS || {}, [dynamicTOS]);
 
-  const [kind, setKind] = useState('all');
-  const [search, setSearch] = useState('');
+  const [kind, setKind] = useState(initialKind);
+  const [search, setSearch] = useState(initialSearch);
   const deferredSearch = useDeferredValue(search);
 
   // Hierarchy position: null selectedSubject = at the subject grid; etc.

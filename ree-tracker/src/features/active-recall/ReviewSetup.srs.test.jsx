@@ -54,3 +54,14 @@ describe('ReviewSetup — due for review', () => {
     expect(fetchSrsSummary).not.toHaveBeenCalled();
   });
 });
+
+describe('ReviewSetup — weak points scope', () => {
+  it('runs the targeted drill, not a Mathematics library session', async () => {
+    fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 0, bySubject: {}, nextDueAt: null });
+    const props = baseProps();
+    render(<ReviewSetup {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: /Custom session/ }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Weak points' }));
+    expect(props.setConfig).toHaveBeenCalledWith(expect.objectContaining({ studyMode: 'bleeding', source: 'smart-drill', subject: 'All' }));
+  });
+});

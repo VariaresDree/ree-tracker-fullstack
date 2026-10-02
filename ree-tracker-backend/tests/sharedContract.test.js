@@ -37,6 +37,7 @@ const {
     PRC_EXAM_FORMAT,
     prcSectionSeconds,
     gradeBoardExam,
+    createBoardGrader,
     apportionItems,
     MASTERY_BANDS,
     masteryBand,
@@ -236,5 +237,21 @@ describe('mastery bands', () => {
         expect(masteryBand(0.45).key).toBe('developing');
         expect(masteryBand(0.1).key).toBe('novice');
         expect(masteryBand(null)).toBeNull();
+    });
+});
+
+describe('createBoardGrader', () => {
+    it('agrees with gradeBoardExam on every canonical input', () => {
+        const fast = createBoardGrader();
+        let seed = 1;
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        for (let i = 0; i < 5000; i++) {
+            const scores = {};
+            for (const s of ['Mathematics', 'ESAS', 'EE']) {
+                const r = rnd();
+                scores[s] = r < 0.1 ? null : Math.round(rnd() * 100);
+            }
+            expect(fast(scores)).toEqual(gradeBoardExam(scores));
+        }
     });
 });

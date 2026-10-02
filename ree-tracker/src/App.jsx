@@ -23,6 +23,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const Arena = lazy(() => import('./pages/Arena'));
 const BattleLobby = lazy(() => import('./pages/BattleLobby'));
 const Gauntlet = lazy(() => import('./pages/Gauntlet')); 
+const Diagnostic = lazy(() => import('./pages/Diagnostic'));
 
 // Replace only this component inside src/App.jsx
 const SecureAppTerminal = () => {
@@ -65,6 +66,9 @@ const SecureAppTerminal = () => {
               screen before any exam had started. */}
           <Route path="/simulator" element={<ErrorBoundary name="Simulator"><BoardSimulator /></ErrorBoundary>} />
           <Route path="/gauntlet/:level" element={<ErrorBoundary name="Gauntlet"><Gauntlet /></ErrorBoundary>} />
+          {/* Placement test — owns its layout like the Simulator: MainLayout
+              for the intro and result, ExamLayout while answering. */}
+          <Route path="/diagnostic" element={<ErrorBoundary name="Placement test"><Diagnostic /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

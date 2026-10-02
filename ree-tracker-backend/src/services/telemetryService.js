@@ -14,7 +14,7 @@ const { updateTheta, PRIOR_SE } = require('../engine/irt');
 const { bktSequence } = require('../engine/bkt');
 const { foldCardUpdates } = require('../engine/srs');
 const { paramsForTopic } = require('../config/bktParams');
-const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic } = require('./telemetryHelpers');
+const { byAnsweredAt, mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic } = require('./telemetryHelpers');
 const { resolveTopic } = require('./topicResolver');
 const dashboardCache = require('./dashboardCache');
 const readinessCache = require('./readinessCache');
@@ -366,7 +366,8 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 where: { userId, questionId: { in: questionIds } },
                 select: { questionId: true, easeFactor: true, interval: true, repetitions: true },
             });
-            const cardUpdates = foldCardUpdates(newOnly, new Map(storedCards.map((c) => [c.questionId, c])));
+            // Answer order, not arrival order — SM-2 is a sequential fold.
+            const cardUpdates = foldCardUpdates(byAnsweredAt(newOnly), new Map(storedCards.map((c) => [c.questionId, c])));
             if (cardUpdates.size > 0) {
                 const cardRows = [...cardUpdates].map(([questionId, c]) => Prisma.sql`(${randomUUID()}, ${userId}, ${questionId}, ${c.easeFactor}, ${c.interval}, ${c.repetitions}, ${c.nextReviewDate}, ${c.lastReviewed})`);
                 await db.$executeRaw`

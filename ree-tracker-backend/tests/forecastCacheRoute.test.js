@@ -48,12 +48,17 @@ beforeEach(() => {
         standardError: 0.5,
     });
     snapshotFindFirst = vi.spyOn(prisma.forecastSnapshot, 'findFirst').mockResolvedValue({
-        id: 'snap-1', userId: UID, createdAt: new Date('2026-09-01T00:00:00Z'), passProbability: 0.6,
+        id: 'snap-1', userId: UID, createdAt: new Date('2026-09-01T00:00:00Z'), passProbability: 0.6, modelVersion: 'v2-prc',
     });
     vi.spyOn(prisma.userAbility, 'findMany').mockResolvedValue([]);
     vi.spyOn(prisma.userTopicPerformance, 'findMany').mockResolvedValue([
-        { topic: 'Algebra', correct: 6, attempts: 10, updatedAt: new Date() },
+        { topic: 'Algebra', subject: 'Mathematics', correct: 6, attempts: 10, pMastery: 0.4, masteryN: 10, lastPracticedAt: new Date() },
     ]);
+    // Forecast v2 inputs: per-topic signals, the review queue, syllabus
+    // weights and the bank's reference forms.
+    vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
+    vi.spyOn(prisma.sRSCard, 'count').mockResolvedValue(0);
+    vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -103,5 +108,25 @@ describe('GET /api/forecast is served from cache after the first call', () => {
         // A 500 stored in the cache would pin the error for the whole TTL.
         const good = await get();
         expect(good.status).toBe(200);
+    });
+});
+
+describe('forecast v2 payload', () => {
+    it('serves the PRC-rule projection and a prescription naming real topics', async () => {
+        const res = await get();
+        expect(res.status).toBe(200);
+        const snap = res.body.snapshot;
+        expect(snap.modelVersion).toBe('v2-prc');
+        expect(snap.subjectForecasts.subjects).toHaveProperty('EE');
+        expect(snap.subjectForecasts.projectedGWA).toHaveProperty('mean');
+        expect(snap.recommendedActions[0].payload.topic).toBe('Algebra');
+    });
+
+    it('treats a snapshot from an older model as stale even when the learner is idle', async () => {
+        findUnique.mockResolvedValue({ lastActive: new Date('2026-08-01T00:00:00Z'), thetaRating: 0.4, standardError: 0.5 });
+        snapshotFindFirst.mockResolvedValue({ id: 'old', userId: UID, createdAt: new Date('2026-09-01T00:00:00Z'), passProbability: 0.9, modelVersion: 'v1' });
+        const res = await get();
+        expect(res.body.fresh).toBe(true);
+        expect(res.body.snapshot.modelVersion).toBe('v2-prc');
     });
 });
