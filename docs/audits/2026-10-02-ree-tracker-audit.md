@@ -82,7 +82,21 @@ these in nine stacked PRs; Waves 2–3 are planned below.
 | Mastery bands | 85 / 65 / 45. Now one shared definition, `MASTERY_BANDS`, in `@ree/shared` |
 | Forecast v2 | TCC per subject from a bank sample; 2,000 seeded Monte Carlo sittings graded by the shared PRC rule. A precompiled grader is held to identical output by a 5,000-case contract test. ~20 ms per compute |
 
-## Still open: Wave 2 (test realism and analytics depth)
+## Wave 2 — shipped (2026-10-03)
+
+| Item | PR |
+|---|---|
+| Pending writes are owner-stamped; failed battle writes retry in the background; BKT/SRS fold in answer order | #112 |
+| Sittings are finalised server-side; mock history is served by the API (the local ledger is retired); "remove" hides a sitting rather than deleting it; stuck outbox writes give up after 20 tries | #113 |
+| The full PRC board: Math → ESAS → EE on the PRC clock, results withheld until the end, one server session | #114 |
+| A cross-session blind-spot and time-sink registry with actions; a daily readiness snapshot and a trend | #115 |
+| Planner v2: mastery × weight allocation, weekly sittings, launchable tasks that complete themselves | #116 |
+
+**Decision pending:** `UserTopicPerformance` is unique on `(userId, topic)`, so a subtopic name used in two subjects merges into one row.
+- Fixing it means changing a unique constraint (not additive) and rebuilding the table from attempts.
+- That should be its own reviewed migration and backfill.
+
+## Original Wave 2 plan (for reference)
 
 - **Full PRC board mode**:
   - 3 sequential timed sections (Math 100/5h, ESAS 100/4h, EE 100/6h) with breaks and multi-day resume;

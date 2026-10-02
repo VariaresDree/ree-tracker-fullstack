@@ -1,11 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/dbQueries';
+import { Button } from '../../components/ui';
+import { isTaskDone, kindLabel, taskLaunch } from './plannerTasks';
 import toast from 'react-hot-toast';
 import StudyPlanGenerator from '../study-plan/StudyPlanGenerator';
 import { todayManila } from '../../utils/manilaDate';
 
 export default function StrategicPlannerTab({ currentUser }) {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
+  const launch = (task) => {
+    const target = taskLaunch(task);
+    if (!target) return;
+    if (target.to) navigate(target.to);
+    else navigate('/review', { state: { preset: target.preset } });
+  };
   const [newTask, setNewTask] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -95,7 +105,7 @@ export default function StrategicPlannerTab({ currentUser }) {
                   {days.map(d => {
                       const isToday = d === tDay && currentDate.getMonth() === tMonth - 1 && currentDate.getFullYear() === tYear;
                       const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                      const hasTask = tasks.some(t => t.dueDate === dateString && !t.completed);
+                      const hasTask = tasks.some(t => t.dueDate === dateString && !isTaskDone(t));
 
                       return (
                           <div key={d} className={`relative p-1.5 rounded-lg text-xs transition-colors ${isToday ? 'bg-reeBlue text-white font-black shadow-md' : 'text-textMain hover:bg-surface2 cursor-pointer'}`}>
@@ -110,7 +120,7 @@ export default function StrategicPlannerTab({ currentUser }) {
   };
 
   const sortedTasks = [...tasks].sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      if (isTaskDone(a) !== isTaskDone(b)) return isTaskDone(a) ? 1 : -1;
       if (!a.dueDate) return 1;
       if (!b.dueDate) return -1;
       return new Date(a.dueDate) - new Date(b.dueDate);
@@ -168,7 +178,9 @@ export default function StrategicPlannerTab({ currentUser }) {
                         let statusColor = 'border-border2';
                         let dateBadge = null;
 
-                        if (!task.completed && task.dueDate) {
+                        const done = isTaskDone(task);
+                        const label = kindLabel(task);
+                        if (!done && task.dueDate) {
                             if (task.dueDate < today) {
                                 statusColor = 'border-reeRed/50 bg-reeRed/5';
                                 dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeRed bg-reeRed/10 px-2 py-0.5 rounded ml-2">Overdue</span>;
@@ -181,15 +193,32 @@ export default function StrategicPlannerTab({ currentUser }) {
                         }
 
                         return (
-                            <div key={task.id} className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all group ${task.completed ? 'bg-surface2/50 border-border2 opacity-60' : `bg-surface hover:border-reeBlue/30 shadow-sm ${statusColor}`}`}>
+                            <div key={task.id} className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all group ${done ? 'bg-surface2/50 border-border2 opacity-60' : `bg-surface hover:border-reeBlue/30 shadow-sm ${statusColor}`}`}>
                                 <div className="flex items-center gap-4 flex-1 overflow-hidden">
-                                    <button onClick={() => toggleTask(task)} className={`w-6 h-6 shrink-0 rounded-md flex items-center justify-center border transition-colors cursor-pointer ${task.completed ? 'bg-reeGreen border-reeGreen text-bg shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-bg border-border2 text-transparent hover:border-reeGreen'}`}>✓</button>
+                                    <button
+                                        onClick={() => toggleTask(task)}
+                                        aria-label={task.completed ? 'Mark not done' : 'Mark done'}
+                                        aria-pressed={done}
+                                        className={`w-6 h-6 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 rounded-md flex items-center justify-center border transition-colors cursor-pointer ${done ? 'bg-reeGreen border-reeGreen text-bg' : 'bg-bg border-border2 text-transparent hover:border-reeGreen'}`}
+                                    >✓</button>
                                     <div className="flex flex-col truncate">
-                                        <span className={`text-sm font-medium truncate ${task.completed ? 'line-through text-muted' : 'text-textMain'}`}>{task.text}</span>
-                                        {!task.completed && dateBadge}
+                                        <span className={`text-sm font-medium truncate ${done ? 'line-through text-muted' : 'text-textMain'}`}>{task.text}</span>
+                                        <span className="flex items-center gap-2 flex-wrap">
+                                            {label && <span className="text-[11px] text-muted2">{label}</span>}
+                                            {task.progress && !done && (
+                                                <span className="text-[11px] text-muted2 tabular-nums">{task.progress.count}/{task.progress.target} today</span>
+                                            )}
+                                            {task.progress?.done && !task.completed && (
+                                                <span className="text-[11px]" style={{ color: 'var(--accent-success)' }}>Done from your answers</span>
+                                            )}
+                                            {!done && dateBadge}
+                                        </span>
                                     </div>
                                 </div>
-                                <button onClick={() => deleteTask(task.id)} className="text-muted hover:text-reeRed p-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">✕</button>
+                                {!done && taskLaunch(task) && (
+                                    <Button size="sm" variant="secondary" onClick={() => launch(task)}>Start</Button>
+                                )}
+                                <button onClick={() => deleteTask(task.id)} aria-label="Delete task" className="text-muted hover:text-reeRed p-2 pointer-coarse:p-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 transition-opacity cursor-pointer">✕</button>
                             </div>
                         );
                     })
