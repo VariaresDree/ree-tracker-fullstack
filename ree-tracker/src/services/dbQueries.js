@@ -531,8 +531,16 @@ export const updateFolder = async (id, data) => apiRequest(`/api/materials/folde
 // single-key ledger leaked one user's mock history to the next.
 export { saveSimulationRecord, fetchSimulationLedger, deleteSimulationRecord } from './simulationLedger';
 
-export const fetchSmartDrillQuestions = async (limit = 20) => {
-    const data = await apiRequest(`/api/smart-drill?limit=${limit}`);
+// Targeted, adaptive drill. With no target the server drills the weakest
+// topics (decayed mastery × syllabus weight); `mode: 'blind-spot'` leads with
+// the questions answered confidently wrong.
+export const fetchSmartDrillQuestions = async (limit = 10, { topicId, topic, subject, mode } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (topicId) params.set('topicId', topicId);
+    else if (topic) params.set('topic', topic);
+    if (subject && subject !== 'All') params.set('subject', subject);
+    if (mode) params.set('mode', mode);
+    const data = await apiRequest(`/api/smart-drill?${params.toString()}`);
     return { items: normalizeQuestions(data), weakAreas: data?.weakAreas || [] };
 };
 

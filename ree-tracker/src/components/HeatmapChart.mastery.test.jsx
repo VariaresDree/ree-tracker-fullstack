@@ -31,3 +31,15 @@ describe('HeatmapChart — mastery', () => {
     expect(screen.queryByText(/fading/)).not.toBeInTheDocument();
   });
 });
+
+describe('HeatmapChart — drill from a tile', () => {
+  it('a tile starts a targeted drill on its topic and subject', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    const onDrillTopic = vi.fn();
+    render(<HeatmapChart onDrillTopic={onDrillTopic} stats={{ microTopics: {
+      Calculus: topic({ mastery: 0.5, masteryEffective: 0.5, daysSincePractice: 2 }),
+    } }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Drill Calculus/ }));
+    expect(onDrillTopic).toHaveBeenCalledWith('Calculus', 'Mathematics');
+  });
+});

@@ -46,6 +46,20 @@ export default function Dashboard() {
   // ('Mathematics'/'ESAS'/'EE' — from per-subject UserAbility) or a subtopic
   // (from UserTopicPerformance rollups) — resolve to a ReviewSetup-shaped
   // session preset; READ actions route to the materials library instead.
+  // One targeted drill launcher, shared by the prescription panel and the
+  // heatmap tiles.
+  const launchDrill = ({ topicId, topic, subject, mode, count } = {}) => {
+    navigate('/review', {
+      state: {
+        preset: {
+          sessionMode: 'mcq', studyMode: 'bleeding', subject: 'All', subtopic: 'All',
+          cognitiveFocus: 'mixed', count: count || 10, source: 'smart-drill',
+          drillTopicId: topicId || null, drillTopic: topic || null, drillSubject: subject || null, drillMode: mode || null,
+        },
+      },
+    });
+  };
+
   const handlePrescriptionAction = (action) => {
     const topic = action?.payload?.topic;
     if (action?.type === 'READ') {
@@ -56,6 +70,13 @@ export default function Dashboard() {
     if (action?.type === 'FORMULA_CARDS') {
       // Straight to that topic's formula cards in the reference vault.
       navigate('/materials', { state: { tab: 'reference', search: topic || '', kind: 'formula' } });
+      return;
+    }
+    if (action?.type === 'DRILL' || action?.type === 'BLIND_SPOT') {
+      launchDrill({
+        topicId: action?.payload?.topicId, topic, subject: action?.payload?.subject,
+        mode: action?.type === 'BLIND_SPOT' ? 'blind-spot' : undefined, count: action?.payload?.count,
+      });
       return;
     }
     if (action?.type === 'SRS_DUE') {
@@ -393,7 +414,7 @@ export default function Dashboard() {
       {/* Mastery: topic heatmap + confidence matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="min-h-[380px] lg:h-[460px]">
-          <HeatmapChart stats={activeStats} />
+          <HeatmapChart stats={activeStats} onDrillTopic={(topic, subject) => launchDrill({ topic, subject })} />
         </div>
         <ConfidenceMatrix stats={activeStats} />
       </div>

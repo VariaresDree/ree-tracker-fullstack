@@ -2,6 +2,17 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { fetchAnalyticsDeep } from '../../services/dbQueries';
 import { CalibrationCurve } from './CalibrationCurve';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '../../components/ui';
+import { Crosshair } from '../../components/ui/icons';
+
+// Analysis should end in an action: both drills run the targeted, adaptive
+// Smart Drill on the weakest topics (decayed mastery × syllabus weight); the
+// blind-spot drill leads with questions answered confidently wrong.
+const drillPreset = (mode) => ({
+  sessionMode: 'mcq', studyMode: 'bleeding', subject: 'All', subtopic: 'All',
+  cognitiveFocus: 'mixed', count: 10, source: 'smart-drill', drillMode: mode || null,
+});
 
 // 'YYYY-MM-DD' (Manila-keyed by the server) → 'Jul 3' without a timezone
 // round-trip: new Date('YYYY-MM-DD') is UTC midnight and re-localizing can
@@ -57,6 +68,7 @@ function BarChart({ items, valueKey, labelKey, maxVal, color = 'bg-reeBlue' }) {
 const TYPE_MAP = { time: 'time-analysis', confidence: 'confidence-calibration', subjects: 'subject-radar', study: 'study-time', scores: 'score-progression' };
 
 export default function AnalyticsDeepDive() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('time');
   const [data, setData] = useState({});
   // Per-endpoint status ('loading' | 'loaded' | 'error'). The old cache check
@@ -113,6 +125,15 @@ export default function AnalyticsDeepDive() {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" onClick={() => navigate('/review', { state: { preset: drillPreset() } })}>
+          <Crosshair size={15} strokeWidth={2} aria-hidden="true" /> Targeted drill
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => navigate('/review', { state: { preset: drillPreset('blind-spot') } })}>
+          Blind-spot drill
+        </Button>
+        <span className="text-xs text-muted2">10 adaptive items on your weakest topics.</span>
+      </div>
       <div className="flex flex-wrap gap-2">
         {tabs.map(tab => (
           <button

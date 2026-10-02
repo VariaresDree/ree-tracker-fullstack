@@ -74,8 +74,16 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (!freshData || freshData.length === 0) throw new Error("Nothing is due for review right now.");
             } else if (cfg.source === 'smart-drill') {
                 if (!isOnline) throw new Error("Smart drill needs a connection.");
-                const drillResult = await fetchSmartDrillQuestions(cfg.count || 20);
+                // The target comes ONLY from the launching preset (a dashboard
+                // prescription, a heatmap tile). Read from `cfg` it would
+                // survive into the next untargeted "Weak points" run, since
+                // overrides are merged into the persistent form config.
+                const target = overrides || {};
+                const drillResult = await fetchSmartDrillQuestions(cfg.count || 10, {
+                    topicId: target.drillTopicId, topic: target.drillTopic, subject: target.drillSubject, mode: target.drillMode,
+                });
                 freshData = drillResult.items || [];
+                if (freshData.length === 0) throw new Error("Answer a few questions first — the drill targets your weakest topics.");
             } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("The AI generator needs a connection.");
                 // Random topic within the subject (not always the first) so
