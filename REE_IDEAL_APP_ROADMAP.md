@@ -27,13 +27,13 @@ That audit shipped **Wave 0** (integrity: #102–#104) and **Wave 1** (connect t
 | **W7** Onboarding & UX clarity | **Placement test done** (#109). The "which mode do I use?" guide moves to **Wave 3**. |
 | **W8** Engagement & habit | **Next best actions** done (Today panel, #110). Goal tracking stays here. |
 
-**Wave 2: test realism and analytics depth**
-- a full 3-section PRC sitting with server finalisation;
-- server-backed mock history;
-- a blind-spot and time-sink registry;
-- a daily readiness snapshot, so a trend exists;
-- Planner v2;
-- sync hardening.
+**Wave 2: test realism and analytics depth — shipped as #112–#116**
+- Sync hardening (#112).
+- Server finalisation and server-backed mock history (#113).
+- The full 3-section PRC board (#114).
+- The blind-spot and time-sink registry, and a daily readiness snapshot with its trend (#115).
+- Planner v2 (#116).
+- **Still open:** adding subject to the `UserTopicPerformance` key. This is the one non-additive change, and it waits on a decision; see the audit.
 
 **Wave 3: UI/UX, accessibility and platform**
 - 44 px touch targets;

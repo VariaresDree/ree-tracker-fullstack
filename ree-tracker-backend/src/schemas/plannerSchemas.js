@@ -35,10 +35,13 @@ const plannerGenerateSchema = z.object({
         (v) => !Number.isNaN(new Date(v).getTime()),
         { message: 'examDate must be a parseable date' },
     ),
+    // The syllabus topics to plan over. Optional since v2: the server already
+    // knows every topic the learner has practised; these add the ones not yet
+    // touched (planned as unmastered).
     topics: z.array(z.object({
         subject: z.string().trim().min(1).max(120),
         subtopic: z.string().trim().min(1).max(160),
-    })).min(1).max(400),
+    })).max(400).optional().default([]),
 }).strip();
 
 module.exports = { plannerTaskCreateSchema, plannerTaskUpdateSchema, plannerGenerateSchema };
