@@ -16,6 +16,22 @@ export function dailyProgress(stats) {
   return { done, target: stats?.dailyTarget || DEFAULT_TARGET };
 }
 
+/**
+ * Readiness trend from the daily snapshots (newest first, as the API returns
+ * them): chronological scores for a sparkline, and the change against the
+ * snapshot closest to a week ago (or the oldest, if the history is younger).
+ */
+export function readinessTrend(snapshots, now = new Date()) {
+  const points = [...(snapshots || [])]
+    .filter((s) => Number.isFinite(Number(s?.score)))
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  if (points.length < 2) return { scores: points.map((p) => Math.round(p.score)), delta: null };
+  const weekAgo = now.getTime() - 7 * 86400000;
+  const base = [...points].reverse().find((p) => new Date(p.createdAt).getTime() <= weekAgo) || points[0];
+  const latest = points[points.length - 1];
+  return { scores: points.map((p) => Math.round(p.score)), delta: Math.round(latest.score - base.score) };
+}
+
 /** Whole days until the exam date (YYYY-MM-DD), or null. */
 export function daysToExam(examDate, now = new Date()) {
   if (!examDate) return null;

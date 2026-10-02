@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTodayActions, dailyProgress, daysToExam } from './todayActions';
+import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
 
 // "What should I do next?" — one ordered shortlist assembled from the review
 // queue, the forecast's prescription, today's target and the exam calendar.
@@ -47,5 +47,27 @@ describe('daysToExam', () => {
     const now = new Date('2026-10-02T04:00:00Z');
     expect(daysToExam('2026-10-12', now)).toBe(10);
     expect(daysToExam(null, now)).toBeNull();
+  });
+});
+
+describe('readinessTrend', () => {
+  const now = new Date('2026-10-20T00:00:00Z');
+  const at = (iso, score) => ({ createdAt: iso, score });
+
+  it('orders the snapshots and compares with the one closest to a week ago', () => {
+    const t = readinessTrend([
+      at('2026-10-19T00:00:00Z', 60),
+      at('2026-10-15T00:00:00Z', 55),
+      at('2026-10-12T00:00:00Z', 52),
+      at('2026-10-05T00:00:00Z', 40),
+    ], now);
+    expect(t.scores).toEqual([40, 52, 55, 60]);
+    expect(t.delta).toBe(8); // 60 vs 52 on the 12th — the latest at least a week old
+  });
+
+  it('a young history compares with its oldest point; one point has no trend', () => {
+    expect(readinessTrend([at('2026-10-19T00:00:00Z', 60), at('2026-10-17T00:00:00Z', 57)], now).delta).toBe(3);
+    expect(readinessTrend([at('2026-10-19T00:00:00Z', 60)], now)).toEqual({ scores: [60], delta: null });
+    expect(readinessTrend(null, now)).toEqual({ scores: [], delta: null });
   });
 });

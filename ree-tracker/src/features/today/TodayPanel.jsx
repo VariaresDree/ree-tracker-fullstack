@@ -5,13 +5,15 @@
 // next. Everything here already existed somewhere on the page — the readiness
 // breakdown the API returned but nothing rendered, the forecast, the review
 // queue — but the "what now?" answer was ~10 cards down on a phone.
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { fetchReadinessHistory } from '../../services/dbQueries';
 import { Card, Button, Skeleton, ProgressIndicator } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
-import { buildTodayActions, dailyProgress, daysToExam } from './todayActions';
+import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
 
 const BREAKDOWN = [
   ['topicCoverage', 'Coverage'],
@@ -20,7 +22,24 @@ const BREAKDOWN = [
   ['consistency', 'Consistency'],
 ];
 
-function ReadinessBlock({ readiness }) {
+// A dependency-free sparkline — the Today panel sits on the boot path of the
+// dashboard, where recharts must not load.
+function Sparkline({ scores }) {
+  if (scores.length < 2) return null;
+  const w = 120;
+  const h = 28;
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const span = Math.max(1, max - min);
+  const pts = scores.map((v, i) => `${(i / (scores.length - 1)) * w},${h - ((v - min) / span) * (h - 4) - 2}`).join(' ');
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" className="overflow-visible">
+      <polyline points={pts} fill="none" stroke="var(--accent-velocity)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ReadinessBlock({ readiness, trend }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-eyebrow">Board readiness index</span>
@@ -29,6 +48,16 @@ function ReadinessBlock({ readiness }) {
           <span className="text-display text-4xl text-textMain tabular-nums">
             {readiness.score}<span className="text-lg text-muted2">/100</span>
           </span>
+          {trend?.scores?.length >= 2 && (
+            <div className="flex items-center gap-2">
+              <Sparkline scores={trend.scores} />
+              {trend.delta !== null && (
+                <span className="text-xs tabular-nums" style={{ color: trend.delta >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                  {trend.delta >= 0 ? '+' : '−'}{Math.abs(trend.delta)} this week
+                </span>
+              )}
+            </div>
+          )}
           {readiness.breakdown && (
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
               {BREAKDOWN.map(([key, label]) => (
@@ -97,6 +126,16 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
   const { snapshot, loading } = useForecast();
   const { summary: srs } = useSrsSummary({ enabled: isOnline });
   const daily = dailyProgress(stats);
+  // One readiness snapshot per Manila day is recorded server-side; the last
+  // 30 draw the trend.
+  const [history, setHistory] = useState(null);
+  useEffect(() => {
+    if (!isOnline) return undefined;
+    let live = true;
+    fetchReadinessHistory().then((r) => { if (live) setHistory(r?.items || []); }).catch(() => {});
+    return () => { live = false; };
+  }, [isOnline]);
+  const trend = readinessTrend(history);
 
   const actions = buildTodayActions({
     srs,
@@ -116,7 +155,7 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <ReadinessBlock readiness={readiness} />
+          <ReadinessBlock readiness={readiness} trend={trend} />
           <PassBlock snapshot={snapshot} loading={loading} />
           <TargetBlock daily={daily} />
         </div>

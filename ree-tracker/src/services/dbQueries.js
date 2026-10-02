@@ -563,7 +563,6 @@ export const finishDiagnostic = async (sessionId) => apiRequest('/api/diagnostic
 
 export const fetchReadinessScore = async () => safeApiRequest('/api/readiness', 'GET', null, null);
 export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/history', 'GET', null, null);
-export const saveReadinessSnapshot = async (data) => apiRequest('/api/readiness/snapshot', 'POST', data);
 
 // Adaptive engine — pass/topnotcher forecast + prescription panel data.
 export const fetchForecast = async () => safeApiRequest('/api/forecast', 'GET', null, null);
