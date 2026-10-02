@@ -8,11 +8,16 @@ import { fetchSimulationLedger, deleteSimulationRecord } from '../services/dbQue
 import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import { useStore } from '../store/useStore';
 import { SkeletonChart } from './SkeletonLoaders';
 import { Panel, DataTable, StatusPill, Button, Card } from './ui';
 import { BarChart3, RefreshCw, Trash2, ShieldAlert } from './ui/icons';
 
-let CACHED_HISTORY = null;
+// Module-level so a remount (route change) paints instantly — keyed by uid,
+// because an unkeyed cache showed the previous account's ledger to the next
+// user who signed in during the same tab session.
+let CACHED = { uid: null, rows: null };
+const cachedFor = (uid) => (uid && CACHED.uid === uid ? CACHED.rows : null);
 
 const TONE = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber)', danger: 'var(--accent-danger)' };
 const verdictLabel = (v) =>
@@ -31,21 +36,24 @@ function MiniStat({ label, value, tone }) {
 
 export default function MockBoardAnalytics() {
   const { currentUser } = useAuth();
-  const [history, setHistory] = useState(CACHED_HISTORY || []);
-  const [loading, setLoading] = useState(!CACHED_HISTORY);
+  const [history, setHistory] = useState(cachedFor(currentUser?.uid) || []);
+  const [loading, setLoading] = useState(!cachedFor(currentUser?.uid));
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '' });
 
   const loadHistory = async (forceSync = false) => {
     if (!currentUser?.uid) return;
-    if (!forceSync && CACHED_HISTORY) {
-      setHistory(CACHED_HISTORY);
+    if (!forceSync && cachedFor(currentUser.uid)) {
+      setHistory(cachedFor(currentUser.uid));
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const data = await fetchSimulationLedger(currentUser.uid, 20);
-      CACHED_HISTORY = data;
+      // The pre-scoping ledger is claimed only when this device's persisted
+      // owner is the signed-in account (see services/simulationLedger.js).
+      const claimLegacy = useStore.getState().ownerUid === currentUser.uid;
+      const data = await fetchSimulationLedger(currentUser.uid, 20, { claimLegacy });
+      CACHED = { uid: currentUser.uid, rows: data };
       setHistory(data);
       if (forceSync) toast.success('Ledger synced.');
     } catch (error) {
@@ -66,7 +74,7 @@ export default function MockBoardAnalytics() {
     try {
       await deleteSimulationRecord(currentUser.uid, id);
       const updated = history.filter((h) => h.id !== id);
-      CACHED_HISTORY = updated;
+      CACHED = { uid: currentUser.uid, rows: updated };
       setHistory(updated);
       toast.success(`Deleted "${name}".`);
     } catch (error) {

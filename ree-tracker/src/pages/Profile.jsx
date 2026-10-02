@@ -10,6 +10,7 @@ import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settin
 import toast from 'react-hot-toast';
 import { syncDashboardStats } from '../services/analyticsSync';
 import { updateUserProfile, deleteAccount } from '../services/dbQueries';
+import { purgeSimulationLedger } from '../services/simulationLedger';
 import { useNotificationSlice } from '../store/slices';
 import { Capacitor } from '@capacitor/core';
 import { scheduleDailyReminder, cancelDailyReminder } from '../services/localReminders';
@@ -213,7 +214,11 @@ export default function Profile() {
           await deleteAccount();
 
           // 2. Terminate the Firebase Authentication Identity
+          const deletedUid = currentUser.uid;
           await deleteUser(currentUser);
+          // The mock-exam ledger exists only on this device, scoped to the
+          // account — an erased account takes it along.
+          try { await purgeSimulationLedger(deletedUid); } catch (_) {}
           await resetStore();
           toast.success("Account deleted.", { id: toastId });
       } catch (error) {

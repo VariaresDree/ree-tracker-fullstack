@@ -46,19 +46,13 @@ export default function ActiveReview() {
         if (!session.isActive || !currentQ || showScratchpad) return;
         const key = e.key.toLowerCase();
 
+        // MCQ option (1-4 / A-D) and confidence (Q/W/E) keys belong to
+        // QuestionCard, which MCQMode renders with `hotkeys`. They were ALSO
+        // bound here, so both listeners fired on one keypress and each staged an
+        // attempt under its own uuid — every keyboard answer was stored twice.
+        // The page keeps only what QuestionCard does not own: advancing.
         if (config.sessionMode === 'mcq') {
-            if (!session.isAnswered) {
-                if (key === 'q') setSession(prev => ({ ...prev, confidence: 'LOW' }));
-                if (key === 'w') setSession(prev => ({ ...prev, confidence: 'MED' }));
-                if (key === 'e') setSession(prev => ({ ...prev, confidence: 'HIGH' }));
-
-                if (session.confidence) {
-                    if (key === '1' && currentQ.options?.[0]) handleAnswerSelection(currentQ.options[0]);
-                    if (key === '2' && currentQ.options?.[1]) handleAnswerSelection(currentQ.options[1]);
-                    if (key === '3' && currentQ.options?.[2]) handleAnswerSelection(currentQ.options[2]);
-                    if (key === '4' && currentQ.options?.[3]) handleAnswerSelection(currentQ.options[3]);
-                }
-            } else if (key === 'enter' || key === 'arrowright') {
+            if (session.isAnswered && (key === 'enter' || key === 'arrowright')) {
                 loadNextQuestion();
             }
         }
@@ -80,7 +74,7 @@ export default function ActiveReview() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [session, config.sessionMode, showScratchpad, currentQ, handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, loadNextQuestion, setSession]);
+  }, [session, config.sessionMode, showScratchpad, currentQ, handleFlashcardReveal, handleFlashcardRating, loadNextQuestion]);
 
   const formatTime = (secs) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
 

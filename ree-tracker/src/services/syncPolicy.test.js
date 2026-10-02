@@ -34,6 +34,13 @@ describe('classifySyncError', () => {
         expect(classifySyncError(Object.assign(new Error('x'), { status: 429 }))).toBe(SYNC_OUTCOME.TRANSIENT);
     });
 
+    it('treats 409 "duplicate in progress" as transient — the first send may still land', () => {
+        // The idempotency layer answers 409 while the SAME key is in flight: a
+        // pagehide keepalive racing the debounced flush produces exactly that.
+        // Quarantining it discarded a batch whose twin could still fail.
+        expect(classifySyncError(Object.assign(new Error('Duplicate request already in progress.'), { status: 409 }))).toBe(SYNC_OUTCOME.TRANSIENT);
+    });
+
     it('treats 5xx as transient so the batch survives a server wobble', () => {
         expect(classifySyncError(Object.assign(new Error('x'), { status: 500 }))).toBe(SYNC_OUTCOME.TRANSIENT);
         expect(classifySyncError(Object.assign(new Error('x'), { status: 503 }))).toBe(SYNC_OUTCOME.TRANSIENT);

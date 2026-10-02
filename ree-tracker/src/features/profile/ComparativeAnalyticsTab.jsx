@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchGlobalLeaderboard, fetchSimulationLedger, fetchLeaderboardMe } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import ActivityCalendar from './ActivityCalendar';
+import { useStore } from '../../store/useStore';
 
 export default function ComparativeAnalyticsTab({ currentUser, stats }) {
   const isOnline = useNetworkStatus();
@@ -46,7 +47,8 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
         });
         setOnlineAgentsList(online);
 
-        const history = await fetchSimulationLedger(currentUser.uid, 1000);
+        const claimLegacy = useStore.getState().ownerUid === currentUser.uid;
+        const history = await fetchSimulationLedger(currentUser.uid, 1000, { claimLegacy });
         if (isMounted) setSimulationCount(history?.length || 0);
 
       } catch (err) {

@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { storableTimeMs } = require('../config/telemetryBounds');
+const { TELEMETRY_BATCH_MAX } = require('@ree/shared');
 
 const VALID_MODES = ['ACTIVE_REVIEW', 'BOARD_SIM', 'GAUNTLET', 'COMBAT', 'BATTLE', 'LEGACY'];
 
@@ -49,9 +50,10 @@ const telemetryBulkSchema = z.object({
         // attempts — clampAnsweredAt falls back to server `now` instead.
         createdAt: z.string().max(40).optional(),
     // Cap the batch: unbounded, one request could open a huge write transaction
-    // (findMany over thousands of ids + createMany + per-topic upserts). The
-    // client coalesces answers but a full PRC exam is 100 items; 500 is ample.
-    })).min(1).max(500),
+    // (findMany over thousands of ids + createMany + per-topic upserts). Shared
+    // with the client, which chunks its sync queue at the same size — they used
+    // to disagree, and a queue over the cap was dead-lettered whole.
+    })).min(1).max(TELEMETRY_BATCH_MAX),
 });
 
 module.exports = { telemetryBulkSchema, VALID_MODES };

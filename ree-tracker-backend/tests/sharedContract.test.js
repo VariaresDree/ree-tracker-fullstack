@@ -33,6 +33,7 @@ const {
     sanitizeQuestionShape,
     WEAK_TOPIC_ACCURACY,
     TIME_SINK_MS,
+    TELEMETRY_BATCH_MAX,
     storableTimeMs,
 } = shared;
 
@@ -146,6 +147,18 @@ describe('thresholds', () => {
     it('names the constants that used to be bare literals', () => {
         expect(WEAK_TOPIC_ACCURACY).toBe(0.6);
         expect(TIME_SINK_MS).toBe(180_000);
+        expect(TELEMETRY_BATCH_MAX).toBe(500);
+    });
+
+    it('the telemetry schema rejects exactly what the client will never send', () => {
+        // The client chunks its queue at TELEMETRY_BATCH_MAX. It used to send
+        // the WHOLE queue (cap 5000), so any queue over 500 drew a 400 that was
+        // classified permanent and dead-lettered every queued attempt.
+        const { telemetryBulkSchema } = require('../src/schemas/telemetrySchemas');
+        const attempt = { questionId: 'q1', isCorrect: true };
+        const at = (n) => ({ sessionId: 's', mode: 'ACTIVE_REVIEW', attempts: Array.from({ length: n }, () => attempt) });
+        expect(telemetryBulkSchema.safeParse(at(TELEMETRY_BATCH_MAX)).success).toBe(true);
+        expect(telemetryBulkSchema.safeParse(at(TELEMETRY_BATCH_MAX + 1)).success).toBe(false);
     });
 
     it('clamps storage timing to something int4 can hold', () => {

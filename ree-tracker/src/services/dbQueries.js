@@ -518,42 +518,9 @@ export const updateFolder = async (id, data) => apiRequest(`/api/materials/folde
 // ----------------------------------------------------------------------
 // 8. High-Speed Local Simulation Ledger (IndexedDB)
 // ----------------------------------------------------------------------
-export const saveSimulationRecord = async (record) => {
-    try {
-        const id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
-        const newRecord = { ...record, id };
-        
-        const existing = await get('ree_simulation_ledger') || [];
-        existing.push(newRecord);
-        await set('ree_simulation_ledger', existing);
-        
-        return { success: true, id };
-    } catch (error) {
-        console.error("Ledger save failed:", error);
-        throw error;
-    }
-};
-
-export const fetchSimulationLedger = async (uid, limitParam = 20) => {
-    try {
-        const existing = await get('ree_simulation_ledger') || [];
-        return existing.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, limitParam);
-    } catch (error) {
-        console.error("Ledger fetch failed:", error);
-        return [];
-    }
-};
-
-export const deleteSimulationRecord = async (uid, recordId) => {
-    try {
-        let existing = await get('ree_simulation_ledger') || [];
-        existing = existing.filter(r => r.id !== recordId);
-        await set('ree_simulation_ledger', existing);
-        return { success: true };
-    } catch (error) {
-        throw new Error("Failed to delete record.");
-    }
-};
+// Scoped per account — see services/simulationLedger.js for why the old
+// single-key ledger leaked one user's mock history to the next.
+export { saveSimulationRecord, fetchSimulationLedger, deleteSimulationRecord } from './simulationLedger';
 
 export const fetchSmartDrillQuestions = async (limit = 20) => {
     const data = await apiRequest(`/api/smart-drill?limit=${limit}`);

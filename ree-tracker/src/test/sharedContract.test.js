@@ -29,6 +29,7 @@ import {
     sanitizeGeneratedQuestion,
     WEAK_TOPIC_ACCURACY,
     TIME_SINK_MS,
+    TELEMETRY_BATCH_MAX,
     storableTimeMs,
 } from '@ree/shared';
 
@@ -156,6 +157,9 @@ describe('thresholds', () => {
     it('names the constants that used to be bare literals', () => {
         expect(WEAK_TOPIC_ACCURACY).toBe(0.6);
         expect(TIME_SINK_MS).toBe(180_000);
+        // The client chunks its sync queue at this size and the server's Zod
+        // schema rejects anything larger — they must be the same number.
+        expect(TELEMETRY_BATCH_MAX).toBe(500);
     });
 
     it('clamps storage timing to something int4 can hold', () => {

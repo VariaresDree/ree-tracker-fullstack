@@ -8,6 +8,7 @@ import React from 'react';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflinePack } from '../hooks/useOfflinePack';
 import { useStore } from '../store/useStore';
+import SyncIssues from './SyncIssues';
 
 const relTime = (ts) => {
     if (!ts) return 'never';
@@ -24,6 +25,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
     const { meta, isRefreshing, refresh } = useOfflinePack();
     const syncQueue = useStore((s) => s.syncQueue);
     const pendingWrites = useStore((s) => s.pendingWrites);
+    const issues = useStore((s) => s.deadLetters?.length || 0);
 
     const pending = (syncQueue?.length || 0) + (pendingWrites?.length || 0);
     const total = meta?.total || 0;
@@ -32,7 +34,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
     if (collapsed) {
         return (
             <div
-                title={`${isOnline ? 'Online' : 'Offline'} · ${ready ? `${total} cached` : 'no offline pack'}${pending ? ` · ${pending} pending` : ''}`}
+                title={`${isOnline ? 'Online' : 'Offline'} · ${ready ? `${total} cached` : 'no offline pack'}${pending ? ` · ${pending} pending` : ''}${issues ? ` · ${issues} sync issue${issues === 1 ? '' : 's'}` : ''}`}
                 className="w-10 h-10 mx-auto rounded-xl border border-border2 bg-surface2 flex items-center justify-center relative"
             >
                 <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-reeGreen' : 'bg-reeAmber'} ${!isOnline ? 'animate-pulse' : ''}`} />
@@ -84,6 +86,8 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                     {isRefreshing ? 'Syncing…' : ready ? 'Refresh' : 'Download'}
                 </button>
             </div>
+
+            <SyncIssues />
         </div>
     );
 }
