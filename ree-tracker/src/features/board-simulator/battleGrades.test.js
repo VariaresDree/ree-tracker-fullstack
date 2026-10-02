@@ -18,6 +18,8 @@ describe('computeBattleDiagnostics', () => {
     expect(diagnostics.correctItems).toBe(2); // q1 + q4
     expect(diagnostics.totalItems).toBe(4);
     expect(diagnostics.score).toBe(50);
+    // Math 100 / ESAS 100 / EE 0 → 25 + 30 + 0 = the 55% general weighted average.
+    expect(diagnostics.generalAverage).toBe(55);
     expect(diagnostics.verdict).toBe('FAILED');
     expect(diagnostics.timeTakenSecs).toBe(300);
   });

@@ -33,6 +33,14 @@ const {
     sanitizeQuestionShape,
     WEAK_TOPIC_ACCURACY,
     TIME_SINK_MS,
+    TELEMETRY_BATCH_MAX,
+    PRC_EXAM_FORMAT,
+    prcSectionSeconds,
+    gradeBoardExam,
+    createBoardGrader,
+    apportionItems,
+    MASTERY_BANDS,
+    masteryBand,
     storableTimeMs,
 } = shared;
 
@@ -146,10 +154,104 @@ describe('thresholds', () => {
     it('names the constants that used to be bare literals', () => {
         expect(WEAK_TOPIC_ACCURACY).toBe(0.6);
         expect(TIME_SINK_MS).toBe(180_000);
+        expect(TELEMETRY_BATCH_MAX).toBe(500);
+    });
+
+    it('the telemetry schema rejects exactly what the client will never send', () => {
+        // The client chunks its queue at TELEMETRY_BATCH_MAX. It used to send
+        // the WHOLE queue (cap 5000), so any queue over 500 drew a 400 that was
+        // classified permanent and dead-lettered every queued attempt.
+        const { telemetryBulkSchema } = require('../src/schemas/telemetrySchemas');
+        const attempt = { questionId: 'q1', isCorrect: true };
+        const at = (n) => ({ sessionId: 's', mode: 'ACTIVE_REVIEW', attempts: Array.from({ length: n }, () => attempt) });
+        expect(telemetryBulkSchema.safeParse(at(TELEMETRY_BATCH_MAX)).success).toBe(true);
+        expect(telemetryBulkSchema.safeParse(at(TELEMETRY_BATCH_MAX + 1)).success).toBe(false);
     });
 
     it('clamps storage timing to something int4 can hold', () => {
         expect(storableTimeMs(5e9)).toBe(3_600_000);
         expect(storableTimeMs(1e21)).toBe(3_600_000);
+    });
+});
+
+describe('PRC board exam (format + grading)', () => {
+    it('holds the PRC REE format: 100 items per subject, Math 5h / ESAS 4h / EE 6h', () => {
+        expect(PRC_EXAM_FORMAT).toEqual({
+            Mathematics: { items: 100, minutes: 300 },
+            ESAS: { items: 100, minutes: 240 },
+            EE: { items: 100, minutes: 360 },
+        });
+        expect(prcSectionSeconds('Math')).toBe(5 * 3600);
+        expect(prcSectionSeconds('Electrical Engineering')).toBe(6 * 3600);
+        expect(prcSectionSeconds('nonsense')).toBeNull();
+    });
+
+    it('grades on the WEIGHTED general average, not the raw percentage', () => {
+        // Raw mean of 90/60/64 is 71.3 (would pass); weighted by 25/30/45 it is
+        // 69.3 — the PRC general weighted average, which fails.
+        const { generalAverage, verdict } = gradeBoardExam({ Mathematics: 90, ESAS: 60, EE: 64 });
+        expect(generalAverage).toBe(69.3);
+        expect(verdict).toBe('FAILED');
+    });
+
+    it('applies the 50% subject floor on top of the weighted average', () => {
+        const { generalAverage, verdict } = gradeBoardExam({ Mathematics: 40, ESAS: 80, EE: 80 });
+        expect(generalAverage).toBe(70);
+        expect(verdict).toBe('CONDITIONAL PASS');
+    });
+
+    it('leaves subjects the exam never asked about unrated', () => {
+        expect(gradeBoardExam({ Math: 75, ESAS: null, EE: undefined })).toEqual({ generalAverage: 75, verdict: 'PASSED' });
+    });
+
+    it('an exam with no rated subject is a 0, not NaN', () => {
+        expect(gradeBoardExam({})).toEqual({ generalAverage: 0, verdict: 'FAILED' });
+    });
+});
+
+describe('apportionItems', () => {
+    it('splits a full blend exactly 25/30/45', () => {
+        expect(apportionItems(100)).toEqual({ Mathematics: 25, ESAS: 30, EE: 45 });
+    });
+
+    it('always sums to the requested total (10 used to become 11)', () => {
+        for (const n of [1, 7, 10, 20, 33, 50, 99]) {
+            const out = apportionItems(n);
+            expect(Object.values(out).reduce((a, b) => a + b, 0)).toBe(n);
+        }
+        // 2.5 / 3.0 / 4.5 — the two .5 remainders tie; the heavier EE wins it.
+        expect(apportionItems(10)).toEqual({ Mathematics: 2, ESAS: 3, EE: 5 });
+    });
+});
+
+describe('mastery bands', () => {
+    it('holds the BKT mastery bands: Mastered 85 / Proficient 65 / Developing 45 / Novice', () => {
+        expect(MASTERY_BANDS.map((b) => [b.key, b.min])).toEqual([
+            ['mastered', 0.85], ['proficient', 0.65], ['developing', 0.45], ['novice', 0],
+        ]);
+    });
+
+    it('bands a P(mastery) on the 0-1 scale, inclusive at each threshold', () => {
+        expect(masteryBand(0.85).key).toBe('mastered');
+        expect(masteryBand(0.8499).key).toBe('proficient');
+        expect(masteryBand(0.45).key).toBe('developing');
+        expect(masteryBand(0.1).key).toBe('novice');
+        expect(masteryBand(null)).toBeNull();
+    });
+});
+
+describe('createBoardGrader', () => {
+    it('agrees with gradeBoardExam on every canonical input', () => {
+        const fast = createBoardGrader();
+        let seed = 1;
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        for (let i = 0; i < 5000; i++) {
+            const scores = {};
+            for (const s of ['Mathematics', 'ESAS', 'EE']) {
+                const r = rnd();
+                scores[s] = r < 0.1 ? null : Math.round(rnd() * 100);
+            }
+            expect(fast(scores)).toEqual(gradeBoardExam(scores));
+        }
     });
 });

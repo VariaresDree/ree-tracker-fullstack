@@ -1,7 +1,20 @@
 // src/features/active-recall/ReviewSetup.jsx
 import { useState } from 'react';
 import { Card, Button, FormField, Select, SegmentedControl, cn } from '../../components/ui';
-import { Shuffle, Crosshair, Layers, ChevronDown, ChevronUp } from '../../components/ui/icons';
+import { Shuffle, Crosshair, Layers, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
+import { useSrsSummary } from '../../hooks/useSrsSummary';
+import { dueReviewPreset } from './presets';
+
+// A due session is capped so a backlog after a break doesn't become a
+// 200-question wall; the rest stays in the queue for the next session.
+const DUE_SESSION_MAX = 30;
+
+const relativeDay = (iso) => {
+  if (!iso) return null;
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+  if (days <= 0) return 'later today';
+  return days === 1 ? 'tomorrow' : `in ${days} days`;
+};
 
 // One-click presets cover the common sessions; the full configuration lives
 // behind the "Custom session" disclosure so first-time users aren't handed
@@ -21,12 +34,12 @@ const PRESETS = [
   {
     id: 'weak50',
     icon: Crosshair,
-    name: 'Weak points 50',
-    meta: '50 questions targeting your weakest areas',
+    name: 'Weak points 20',
+    meta: 'An adaptive drill on your weakest topics',
     needsConnection: true,
     overrides: {
-      sessionMode: 'mcq', studyMode: 'bleeding',
-      cognitiveFocus: 'mixed', count: 50, source: 'smart-drill',
+      sessionMode: 'mcq', studyMode: 'bleeding', subject: 'All', subtopic: 'All',
+      cognitiveFocus: 'mixed', count: 20, source: 'smart-drill',
     },
   },
   {
@@ -47,6 +60,13 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   const [launchingPreset, setLaunchingPreset] = useState(null);
 
   const handleScopeChange = (mode) => {
+    // "Weak points" is the targeted drill. It used to fall through to the
+    // branch below — source forced to 'library', subject to Mathematics, and
+    // the Source picker hidden — so it ran a plain Math session instead.
+    if (mode === 'bleeding') {
+      setConfig({ ...config, studyMode: mode, subject: 'All', subtopic: 'All', source: 'smart-drill' });
+      return;
+    }
     const defaultSubj = 'Mathematics';
     // Only 'subtopic' scope pins a specific topic. 'By subject' MUST use
     // 'All' — pinning to the first topic made every by-subject session serve
@@ -61,6 +81,12 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   };
 
   const customDisabled = session.loading || (!isOnline && config.source !== 'library');
+  const { summary: srs } = useSrsSummary({ enabled: isOnline });
+  const dueCount = srs?.due || 0;
+  const startDue = () => {
+    setLaunchingPreset('srs-due');
+    startSession(dueReviewPreset(Math.min(dueCount, DUE_SESSION_MAX)));
+  };
 
   return (
     <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
@@ -68,6 +94,35 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
         <h2 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Active Review</h2>
         <p className="text-sm text-muted2 mt-1">Pick a preset or build a custom session.</p>
       </div>
+
+      {/* Spaced review — what the schedule says is due today. Shown only once
+          there is a queue: every miss and every low-confidence answer starts a
+          card, so it fills from ordinary practice. */}
+      {srs && srs.total > 0 && (
+        <Card elevated className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <span
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-default)]"
+            style={{ background: 'color-mix(in srgb, var(--accent-success) 14%, transparent)', color: 'var(--accent-success)' }}
+          >
+            <RotateCcw size={20} strokeWidth={1.75} aria-hidden="true" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-textMain font-semibold">
+              {dueCount > 0 ? `${dueCount} question${dueCount === 1 ? '' : 's'} due for review` : 'Review queue is clear'}
+            </p>
+            <p className="text-xs text-muted2 mt-0.5">
+              {dueCount > 0
+                ? `Spaced review of what you missed or weren't sure of${srs.overdue > 0 ? ` · ${srs.overdue} overdue` : ''}.`
+                : `Next review ${relativeDay(srs.nextDueAt) || 'once you practise more'}.`}
+            </p>
+          </div>
+          {dueCount > 0 && (
+            <Button loading={session.loading && launchingPreset === 'srs-due'} disabled={session.loading} onClick={startDue}>
+              Review {Math.min(dueCount, DUE_SESSION_MAX)} now
+            </Button>
+          )}
+        </Card>
+      )}
 
       {/* One-click presets */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 stagger-fade-in">

@@ -11,6 +11,8 @@ const { recordAttempts, todayManila } = require('../services/telemetryService');
 const { normalizeSubject } = require('@ree/shared');
 const { Prisma } = require('@prisma/client');
 const { manilaDaySql } = require('../utils/manilaDate');
+const { PRIOR_SE } = require('../engine/irt');
+const { effectiveMastery } = require('../services/masteryView');
 // Shared cache module — recordAttempts invalidates it for EVERY write surface
 // (telemetry-bulk, exams/grade, exams/submit, battle-submit), so battles and
 // gauntlet runs no longer leave the dashboard stale for up to 30s.
@@ -142,7 +144,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             // case/whitespace-insensitively, the same way the heatmap resolves tiles.
             prisma.userTopicPerformance.findMany({
                 where: { userId: uid },
-                select: { topic: true, pMastery: true, masteryN: true },
+                select: { topic: true, pMastery: true, masteryN: true, lastPracticedAt: true },
             }),
 
             // θ-history powers the Readiness Velocity chart. We store one row per
@@ -216,7 +218,10 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         const masteryByNorm = new Map(masteryRows.map((m) => [String(m.topic || '').trim().toLowerCase(), m]));
         for (const [topic, agg] of Object.entries(microTopics)) {
             const m = masteryByNorm.get(String(topic).trim().toLowerCase());
-            if (m) { agg.mastery = m.pMastery; agg.masteryN = m.masteryN; }
+            // `mastery` stays the stored evidence fold; `masteryEffective` is
+            // that estimate decayed for the time since the topic was last
+            // practised — what the heatmap bands and what is fading.
+            if (m) Object.assign(agg, effectiveMastery(m));
         }
 
         // totalAnswered is NOT re-derived here — it's the same value computed
@@ -305,7 +310,9 @@ router.delete('/purge', authMiddleware, async (req, res) => {
             await tx.readinessSnapshot.deleteMany({ where: { userId: req.user.id } });
             await tx.user.update({
                 where: { id: req.user.id },
-                data: { thetaRating: 0.0, globalStreak: 0 }
+                // standardError too: a purge used to keep the shrunken SE of
+                // the wiped history, so θ then crawled from its reset value.
+                data: { thetaRating: 0.0, standardError: PRIOR_SE, globalStreak: 0 }
             });
         });
         res.status(200).json({ success: true });

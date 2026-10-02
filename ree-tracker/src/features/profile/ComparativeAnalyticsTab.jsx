@@ -1,6 +1,6 @@
 // src/features/profile/ComparativeAnalyticsTab.jsx
 import React, { useState, useEffect } from 'react';
-import { fetchGlobalLeaderboard, fetchSimulationLedger, fetchLeaderboardMe } from '../../services/dbQueries';
+import { fetchGlobalLeaderboard, fetchMockHistory, fetchLeaderboardMe } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import ActivityCalendar from './ActivityCalendar';
 
@@ -46,7 +46,7 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
         });
         setOnlineAgentsList(online);
 
-        const history = await fetchSimulationLedger(currentUser.uid, 1000);
+        const history = await fetchMockHistory(100);
         if (isMounted) setSimulationCount(history?.length || 0);
 
       } catch (err) {

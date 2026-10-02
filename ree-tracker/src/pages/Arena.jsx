@@ -7,7 +7,8 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useStore } from '../store/useStore';
 import { Button, FormField, Input, Select, Modal, Tabs, StatusPill, Badge, EmptyState, cn } from '../components/ui';
 import { Check, Swords, Settings2, Landmark, Scale, Shield, Trophy, Lock, Flame, ChevronDown, ChevronUp } from '../components/ui/icons';
-import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../config/examStandards';
+import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier, PRC_TIMES, PRC_FORMAT_SUMMARY } from '../config/examStandards';
+import { normalizeSubject } from '@ree/shared';
 import toast from 'react-hot-toast';
 
 // secs → "Xh Ym" / "Ym" for the tier cards.
@@ -275,8 +276,9 @@ export default function Arena() {
           const { createMultiplayerBattle } = await import('../services/dbQueries');
 
           let finalTime = hostConfig.timeLimitMins;
-          if (hostConfig.mode === 'blended') finalTime = 300;
-          if (hostConfig.mode === 'prc') finalTime = hostConfig.subject === 'EE' ? 360 : 240;
+          // PRC schedule from @ree/shared (via examStandards): Math 5h, ESAS 4h, EE 6h.
+          if (hostConfig.mode === 'blended') finalTime = PRC_TIMES.BLENDED / 60;
+          if (hostConfig.mode === 'prc') finalTime = (PRC_TIMES[normalizeSubject(hostConfig.subject)] || PRC_TIMES.BLENDED) / 60;
 
           // Send only the pool SPEC — the server samples the questions itself
           // (a client-assembled pool would require shipping answer keys).
@@ -607,7 +609,7 @@ export default function Arena() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Battle mode">
             {[
               { id: 'custom', icon: Settings2, name: 'Custom Drill', description: 'Pick the item count and time limit yourself.' },
-              { id: 'prc', icon: Landmark, name: 'PRC Standard', description: 'Strict 100 items with the fixed 4 or 6 hour limit.' },
+              { id: 'prc', icon: Landmark, name: 'PRC Standard', description: `One subject, 100 items, on the PRC clock (${PRC_FORMAT_SUMMARY}).` },
               { id: 'blended', icon: Scale, name: 'Full Blended', description: '100 mixed items (Math, ESAS, EE) in 5 hours.' },
             ].map((m) => {
               const selected = hostConfig.mode === m.id;

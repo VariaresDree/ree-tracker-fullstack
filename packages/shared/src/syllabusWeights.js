@@ -71,4 +71,30 @@ function weightedAverage(subjectScores, weights = DEFAULT_SYLLABUS_WEIGHTS) {
     return Math.round((acc / weightSum) * 100) / 100;
 }
 
-module.exports = { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, weightedAverage };
+/**
+ * Split `total` items across subjects in proportion to the weights, summing to
+ * EXACTLY `total` (largest-remainder method; ties go to the heavier subject).
+ *
+ * The client blended pool rounded each subject independently, so a 10-item
+ * blend came out 3/3/5 = 11 items; the server pushed the whole rounding error
+ * onto EE. One rule now serves both.
+ *
+ * @returns {Record<string, number>} canonical subject -> item count
+ */
+function apportionItems(total, weights = DEFAULT_SYLLABUS_WEIGHTS) {
+    const n = Math.max(0, Math.floor(Number(total) || 0));
+    const w = normalizeWeights(weights);
+    const subjects = Object.keys(w).filter((k) => w[k] > 0);
+    const weightSum = subjects.reduce((acc, k) => acc + w[k], 0);
+    if (n === 0 || weightSum <= 0) return Object.fromEntries(subjects.map((k) => [k, 0]));
+
+    const quotas = subjects.map((k) => ({ k, exact: (n * w[k]) / weightSum }));
+    const out = Object.fromEntries(quotas.map(({ k, exact }) => [k, Math.floor(exact)]));
+    let left = n - Object.values(out).reduce((a, b) => a + b, 0);
+    quotas
+        .sort((a, b) => (b.exact - Math.floor(b.exact)) - (a.exact - Math.floor(a.exact)) || w[b.k] - w[a.k])
+        .forEach(({ k }) => { if (left > 0) { out[k] += 1; left -= 1; } });
+    return out;
+}
+
+module.exports = { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, weightedAverage, apportionItems };

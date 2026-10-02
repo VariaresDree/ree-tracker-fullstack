@@ -50,6 +50,7 @@ function makeTxClient(calls) {
             upsert: rec('activityLog.upsert'),
         },
         userTopicPerformance: { findMany: () => Promise.resolve([]), update: rec('utp.update') },
+        sRSCard: { findMany: (args) => { calls.push({ name: 'srsCard.findMany', args }); return Promise.resolve([]); } },
         user: { update: rec('user.update') },
         thetaHistory: { findFirst: () => Promise.resolve(null), create: rec('thetaHistory.create') },
         userAbility: { findUnique: () => Promise.resolve(null), upsert: rec('userAbility.upsert') },
@@ -192,5 +193,39 @@ describe('cross-user isolation of the recorded rows', () => {
 
         const create = calls.find((c) => c.name === 'questionAttempt.createMany');
         expect(create.args.data[0].userId).toBe(USER);
+    });
+});
+
+describe('spaced review is scheduled inside the same transaction', () => {
+    const sqlOf = (call) => (Array.isArray(call.args[0]) ? call.args[0].join('?') : String(call.args[0]));
+
+    it('a missed answer upserts its SRS card in the attempt transaction', async () => {
+        await recordAttempts({
+            ...oneAttempt('sess-1'),
+            attempts: [{ questionId: 'q1', userAnswer: 'B', confidenceLevel: 'HIGH', clientAttemptId: 'cid-9', timeSpentMs: 4200 }],
+        });
+
+        expect(txCount).toBe(1);
+        const upsert = calls.find((c) => c.name === '$executeRaw' && sqlOf(c).includes('INSERT INTO "SRSCard"'));
+        expect(upsert).toBeDefined();
+        expect(sqlOf(upsert)).toContain('ON CONFLICT ("userId", "questionId")');
+        // Owner-scoped read of the existing cards it continues from.
+        const read = calls.find((c) => c.name === 'srsCard.findMany');
+        expect(read.args.where).toMatchObject({ userId: USER });
+    });
+
+    it('a confident correct answer to a question with no card schedules nothing', async () => {
+        await recordAttempts({
+            ...oneAttempt('sess-1'),
+            attempts: [{ questionId: 'q1', userAnswer: 'A', confidenceLevel: 'HIGH', clientAttemptId: 'cid-10', timeSpentMs: 4200 }],
+        });
+        expect(calls.find((c) => c.name === '$executeRaw' && sqlOf(c).includes('"SRSCard"'))).toBeUndefined();
+    });
+
+    it('the topic rollup records when the topic was last practised', async () => {
+        await recordAttempts(oneAttempt('sess-1'));
+        const rollup = calls.find((c) => c.name === '$executeRaw' && sqlOf(c).includes('INSERT INTO "UserTopicPerformance"'));
+        expect(sqlOf(rollup)).toContain('"lastPracticedAt"');
+        expect(sqlOf(rollup)).toContain('GREATEST');
     });
 });

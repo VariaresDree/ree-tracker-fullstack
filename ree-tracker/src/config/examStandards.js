@@ -5,13 +5,25 @@
 // and GAUNTLET_TIERS was duplicated in Arena (minutes) + useGauntletEngine
 // (seconds) with different shapes — a change-one-forget-the-other trap.
 
-// Per-subject PRC board exam durations, in SECONDS.
+import { PRC_EXAM_FORMAT } from '@ree/shared';
+
+// Per-subject PRC board exam durations, in SECONDS — derived from the shared
+// PRC_EXAM_FORMAT so the Simulator, Gauntlet boards, battles and every copy
+// string agree. These were literals here (with Mathematics still at the old
+// 4h); BLENDED is the app's own full-blended mock, not a PRC sitting.
+const sectionSecs = (subject) => PRC_EXAM_FORMAT[subject].minutes * 60;
 export const PRC_TIMES = {
-  EE: 6 * 3600,           // Electrical Engineering — 6 hours
-  Mathematics: 4 * 3600,  // 4 hours
-  ESAS: 4 * 3600,         // Engineering Sciences & Allied Subjects — 4 hours
-  BLENDED: 5 * 3600,      // Full blended board — 5 hours
+  EE: sectionSecs('EE'),
+  Mathematics: sectionSecs('Mathematics'),
+  ESAS: sectionSecs('ESAS'),
+  BLENDED: 5 * 3600,
 };
+
+const hoursLabel = (minutes) => `${minutes / 60}h`;
+/** "Math 5h · ESAS 4h · EE 6h" — the one place UI copy reads the schedule from. */
+export const PRC_FORMAT_SUMMARY = [
+  ['Math', 'Mathematics'], ['ESAS', 'ESAS'], ['EE', 'EE'],
+].map(([label, key]) => `${label} ${hoursLabel(PRC_EXAM_FORMAT[key].minutes)}`).join(' · ');
 
 // Gauntlet progression.
 //   Levels 1–4: BLENDED tiers (all subjects), gated by lifetime answered-count

@@ -57,6 +57,17 @@ const TIME_MAX_MS = 30 * 60 * 1000;
  */
 const TIME_STORE_MAX_MS = 60 * 60 * 1000;
 
+/**
+ * Largest telemetry batch one POST /api/analytics/telemetry-bulk may carry.
+ *
+ * The server's Zod schema rejects anything larger; the client chunks its sync
+ * queue at this size. They were two unrelated literals — the client sent its
+ * WHOLE queue (capped at 5000) while the server allowed 500 — so any learner
+ * who banked more than 500 answers offline got a 400, which the sync policy
+ * correctly classifies as permanent, and every queued attempt was quarantined.
+ */
+const TELEMETRY_BATCH_MAX = 500;
+
 /** Returns the value if plausible for aggregation, else 0 ("no timing data"). */
 function plausibleTimeMs(ms) {
     const n = Number(ms) || 0;
@@ -82,6 +93,7 @@ module.exports = {
     TIME_MIN_MS,
     TIME_MAX_MS,
     TIME_STORE_MAX_MS,
+    TELEMETRY_BATCH_MAX,
     plausibleTimeMs,
     storableTimeMs,
 };
