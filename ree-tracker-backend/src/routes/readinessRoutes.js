@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const { validate } = require('../middlewares/validate');
-const { readinessSnapshotSchema } = require('../schemas/readinessSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const readinessCache = require('../services/readinessCache');
+const { recordDailySnapshot } = require('../services/readinessSnapshots');
 const { computeReadiness, CONSISTENCY_WINDOW_DAYS } = require('../services/readinessService');
 
 // Manila calendar date of an instant — same helper telemetryService keys
@@ -120,6 +119,10 @@ router.get('/', authMiddleware, async (req, res) => {
         });
         readinessCache.set(req.user.id, payload);
         res.status(200).json(payload);
+        // One trend point per Manila day, written after responding. The
+        // snapshot table had a history route but no writer — the only one was a
+        // client-called POST that no client called (removed).
+        recordDailySnapshot(req.user.id, payload, user?.thetaRating ?? 0);
     } catch (error) {
         logger.error('Readiness score error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to compute readiness score.' });
@@ -137,21 +140,6 @@ router.get('/history', authMiddleware, async (req, res) => {
         res.status(200).json({ items: snapshots });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch readiness history.' });
-    }
-});
-
-// POST /api/readiness/snapshot — save a readiness snapshot (called after computing score)
-router.post('/snapshot', authMiddleware, validate(readinessSnapshotSchema), async (req, res) => {
-    try {
-        const { score, topicCoverage, accuracyRate, theta, consistency, blindSpotRatio } = req.body;
-
-        const snapshot = await prisma.readinessSnapshot.create({
-            data: { userId: req.user.id, score, topicCoverage, accuracyRate, theta, consistency, blindSpotRatio }
-        });
-
-        res.status(201).json({ success: true, id: snapshot.id });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to save readiness snapshot.' });
     }
 });
 

@@ -5,10 +5,10 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { buildForecast, MODEL_VERSION } = require('../engine/forecast');
 const { PRIOR_SE } = require('../engine/irt');
-const { effectiveMastery } = require('../services/masteryView');
+const { loadTopicSignals } = require('../services/topicSignals');
 const { getTccBySubject } = require('../services/referenceFormCache');
 const { getSyllabusWeights } = require('../services/questionPool');
-const { normalizeSubject, TIME_MIN_MS, TIME_MAX_MS } = require('@ree/shared');
+const { normalizeSubject } = require('@ree/shared');
 const forecastCache = require('../services/forecastCache');
 
 // GET /api/forecast — latest snapshot for the caller, or recompute on the fly.
@@ -68,27 +68,13 @@ router.post('/recompute', authMiddleware, async (req, res) => {
 
 async function computeForUser(userId, opts = {}) {
     const now = new Date();
-    const [user, abilityRows, topicRows, signalRows, srsDue, weights, tccBySubject] = await Promise.all([
+    const [user, abilityRows, topicSignals, srsDue, weights, tccBySubject] = await Promise.all([
         prisma.user.findUnique({ where: { id: userId }, select: { thetaRating: true, standardError: true } }),
         prisma.userAbility.findMany({ where: { userId } }),
-        // EVERY topic with history — v1 took the 20 most recently touched, so an
-        // old weak topic could never be recommended again.
-        prisma.userTopicPerformance.findMany({
-            where: { userId, attempts: { gt: 0 } },
-            select: { topic: true, subject: true, topicId: true, attempts: true, correct: true, pMastery: true, masteryN: true, lastPracticedAt: true },
-        }),
-        // Per-topic blind spots (confidently wrong) and median answer time, by
-        // the same canonical topic name the rollups use.
-        prisma.$queryRaw`
-            SELECT COALESCE(t."name", qa."subtopic") AS "topic",
-                   COUNT(*) FILTER (WHERE qa."confidenceLevel" = 'HIGH' AND qa."isCorrect" = false)::int AS "confidentMisses",
-                   percentile_cont(0.5) WITHIN GROUP (ORDER BY qa."timeSpentMs")
-                       FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}) AS "medianMs"
-            FROM "QuestionAttempt" qa
-            JOIN "Question" q ON q."id" = qa."questionId"
-            LEFT JOIN "Topic" t ON t."id" = q."topicId"
-            WHERE qa."userId" = ${userId}
-            GROUP BY 1`,
+        // Every topic with history, with decayed mastery, confident misses and
+        // median time (services/topicSignals — shared with the analytics
+        // registry of blind spots and time sinks).
+        loadTopicSignals(userId, now),
         prisma.sRSCard.count({ where: { userId, nextReviewDate: { lte: now }, question: { isFlagged: false } } }),
         getSyllabusWeights(),
         getTccBySubject(),
@@ -98,23 +84,6 @@ async function computeForUser(userId, opts = {}) {
     for (const a of abilityRows || []) {
         subjectAbilities[normalizeSubject(a.subject)] = { theta: a.theta, se: a.se };
     }
-
-    const signalsByTopic = new Map((signalRows || []).map((r) => [normTopic(r.topic), r]));
-    const topicSignals = (topicRows || []).map((t) => {
-        const sig = signalsByTopic.get(normTopic(t.topic)) || {};
-        const view = effectiveMastery(t, now);
-        return {
-            topic: t.topic,
-            subject: normalizeSubject(t.subject),
-            topicId: t.topicId ?? null,
-            // A topic with history but no BKT estimate yet: its hit rate stands in.
-            masteryEffective: view.masteryEffective ?? (t.attempts > 0 ? t.correct / t.attempts : null),
-            masteryN: view.masteryN,
-            attempts: t.attempts,
-            confidentMisses: Number(sig.confidentMisses) || 0,
-            medianMs: sig.medianMs == null ? null : Number(sig.medianMs),
-        };
-    });
 
     const payload = buildForecast({
         ability: { theta: user?.thetaRating ?? 0, se: user?.standardError ?? PRIOR_SE },
@@ -131,7 +100,5 @@ async function computeForUser(userId, opts = {}) {
     }
     return { id: 'in-memory', userId, createdAt: now, ...payload };
 }
-
-const normTopic = (s) => String(s || '').trim().toLowerCase();
 
 module.exports = router;
