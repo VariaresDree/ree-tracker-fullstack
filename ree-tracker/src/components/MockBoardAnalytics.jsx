@@ -5,13 +5,12 @@ import {
   ResponsiveContainer, ReferenceLine, Cell,
 } from 'recharts';
 import { fetchSimulationLedger, deleteSimulationRecord } from '../services/dbQueries';
-import FocusTrap from './FocusTrap';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { isPassingVerdict } from '@ree/shared';
 import { SkeletonChart } from './SkeletonLoaders';
-import { Panel, DataTable, StatusPill, Button, Card } from './ui';
+import { Panel, DataTable, StatusPill, Button, Modal } from './ui';
 import { BarChart3, RefreshCw, Trash2, ShieldAlert } from './ui/icons';
 
 // Module-level so a remount (route change) paints instantly — keyed by uid,
@@ -27,7 +26,7 @@ const verdictLabel = (v) =>
 function MiniStat({ label, value, tone }) {
   return (
     <div className="rounded-xl border border-border bg-surface2/30 p-3.5">
-      <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-muted">{label}</div>
+      <div className="text-eyebrow">{label}</div>
       <div className="text-2xl text-display tabular-nums mt-1" style={tone ? { color: TONE[tone] } : undefined}>
         {value}
       </div>
@@ -246,27 +245,24 @@ export default function MockBoardAnalytics() {
         )}
       </Panel>
 
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 bg-bg/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <FocusTrap active={deleteModal.isOpen}>
-            <Card elevated className="modal-entrance p-6 max-w-md w-full">
-              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2" style={{ color: 'var(--accent-danger)' }}>
-                <ShieldAlert size={18} strokeWidth={2} /> Delete this record?
-              </h3>
-              <p className="text-sm text-muted2 mb-6 leading-relaxed">
-                Delete the simulation from <strong className="text-textMain">{deleteModal.name}</strong>? This can't be
-                undone.
-              </p>
-              <div className="flex justify-end gap-3">
-                <Button variant="secondary" size="sm" data-close-modal onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })}>
-                  Cancel
-                </Button>
-                <Button variant="danger" size="sm" onClick={confirmDelete}>Delete</Button>
-              </div>
-            </Card>
-          </FocusTrap>
-        </div>
-      )}
+      <Modal
+        open={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, id: null, name: '' })}
+        title="Delete this record?"
+        icon={ShieldAlert}
+        tone="danger"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })}>Cancel</Button>
+            <Button variant="danger" size="sm" onClick={confirmDelete}>Delete</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted2 leading-relaxed">
+          Delete the simulation from <strong className="text-textMain">{deleteModal.name}</strong>? This can&apos;t be undone.
+        </p>
+      </Modal>
     </div>
   );
 }

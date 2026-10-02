@@ -5,14 +5,11 @@ import { CalibrationCurve } from './CalibrationCurve';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui';
 import { Crosshair } from '../../components/ui/icons';
+import { drillPreset } from '../active-recall/presets';
 
 // Analysis should end in an action: both drills run the targeted, adaptive
 // Smart Drill on the weakest topics (decayed mastery × syllabus weight); the
 // blind-spot drill leads with questions answered confidently wrong.
-const drillPreset = (mode) => ({
-  sessionMode: 'mcq', studyMode: 'bleeding', subject: 'All', subtopic: 'All',
-  cognitiveFocus: 'mixed', count: 10, source: 'smart-drill', drillMode: mode || null,
-});
 
 // 'YYYY-MM-DD' (Manila-keyed by the server) → 'Jul 3' without a timezone
 // round-trip: new Date('YYYY-MM-DD') is UTC midnight and re-localizing can
@@ -129,7 +126,7 @@ export default function AnalyticsDeepDive() {
         <Button size="sm" onClick={() => navigate('/review', { state: { preset: drillPreset() } })}>
           <Crosshair size={15} strokeWidth={2} aria-hidden="true" /> Targeted drill
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => navigate('/review', { state: { preset: drillPreset('blind-spot') } })}>
+        <Button size="sm" variant="secondary" onClick={() => navigate('/review', { state: { preset: drillPreset({ mode: 'blind-spot' }) } })}>
           Blind-spot drill
         </Button>
         <span className="text-xs text-muted2">10 adaptive items on your weakest topics.</span>
