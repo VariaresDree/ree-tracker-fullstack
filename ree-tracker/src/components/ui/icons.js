@@ -93,4 +93,6 @@ export {
   Layers,
   Sigma,
   WifiOff,
+  // Placement test
+  Compass,
 } from 'lucide-react';

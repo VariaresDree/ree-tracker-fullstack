@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Card, Button, FormField, Select, SegmentedControl, cn } from '../../components/ui';
 import { Shuffle, Crosshair, Layers, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
+import { dueReviewPreset } from './presets';
 
 // A due session is capped so a backlog after a break doesn't become a
 // 200-question wall; the rest stays in the queue for the next session.
@@ -33,12 +34,12 @@ const PRESETS = [
   {
     id: 'weak50',
     icon: Crosshair,
-    name: 'Weak points 50',
-    meta: '50 questions targeting your weakest areas',
+    name: 'Weak points 20',
+    meta: 'An adaptive drill on your weakest topics',
     needsConnection: true,
     overrides: {
-      sessionMode: 'mcq', studyMode: 'bleeding',
-      cognitiveFocus: 'mixed', count: 50, source: 'smart-drill',
+      sessionMode: 'mcq', studyMode: 'bleeding', subject: 'All', subtopic: 'All',
+      cognitiveFocus: 'mixed', count: 20, source: 'smart-drill',
     },
   },
   {
@@ -59,6 +60,13 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   const [launchingPreset, setLaunchingPreset] = useState(null);
 
   const handleScopeChange = (mode) => {
+    // "Weak points" is the targeted drill. It used to fall through to the
+    // branch below — source forced to 'library', subject to Mathematics, and
+    // the Source picker hidden — so it ran a plain Math session instead.
+    if (mode === 'bleeding') {
+      setConfig({ ...config, studyMode: mode, subject: 'All', subtopic: 'All', source: 'smart-drill' });
+      return;
+    }
     const defaultSubj = 'Mathematics';
     // Only 'subtopic' scope pins a specific topic. 'By subject' MUST use
     // 'All' — pinning to the first topic made every by-subject session serve
@@ -77,10 +85,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   const dueCount = srs?.due || 0;
   const startDue = () => {
     setLaunchingPreset('srs-due');
-    startSession({
-      sessionMode: 'mcq', studyMode: 'interleaved', subject: 'All', subtopic: 'All',
-      cognitiveFocus: 'mixed', count: Math.min(dueCount, DUE_SESSION_MAX), source: 'srs-due',
-    });
+    startSession(dueReviewPreset(Math.min(dueCount, DUE_SESSION_MAX)));
   };
 
   return (

@@ -6,7 +6,8 @@ import { useShallow } from 'zustand/react/shallow';
 import { updateProfile, deleteUser } from 'firebase/auth';
 // FIRESTORE IMPORTS COMPLETELY REMOVED
 import { Skeleton, Button, Modal, FormField, Input, Select, SegmentedControl, Tabs, StatusPill } from '../components/ui';
-import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settings2, Cloud, TriangleAlert, Bell, BellOff } from '../components/ui/icons';
+import { Pencil, BarChart3, Activity, CalendarDays, Award, ClipboardList, Settings2, Cloud, TriangleAlert, Bell, BellOff, Compass } from '../components/ui/icons';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { syncDashboardStats } from '../services/analyticsSync';
 import { updateUserProfile, deleteAccount } from '../services/dbQueries';
@@ -421,6 +422,19 @@ export default function Profile() {
                     </div>
                     <Button size="sm" variant="ghost" onClick={() => setActiveModal('pull')} className="mt-4 self-start text-muted hover:text-textMain -ml-2">
                         Restore from cloud backup…
+                    </Button>
+                </div>
+
+                {/* Placement test — re-measure starting levels across subjects */}
+                <div className="bg-surface border border-border p-6 rounded-[var(--radius-lg)] shadow-sm flex flex-col gap-3">
+                    <h3 className="text-sm font-semibold text-textMain flex items-center gap-2">
+                        <Compass size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" /> Placement test
+                    </h3>
+                    <p className="text-xs text-muted2">
+                        About 19 adaptive questions that place each subject against the PRC marks. Retake it any time to see where you stand now.
+                    </p>
+                    <Button size="sm" variant="secondary" as={Link} to="/diagnostic" className="self-start">
+                        Open placement test
                     </Button>
                 </div>
 
