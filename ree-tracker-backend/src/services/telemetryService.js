@@ -10,7 +10,7 @@ const prisma = require('../config/db');
 // replacing the old Rasch gradient step (utils/irtMath.calculateUpdatedTheta). This
 // puts User.thetaRating + standardError on the same scale the CAT prior and the
 // forecast already assume, and populates the (previously never-written) standardError.
-const { updateTheta } = require('../engine/irt');
+const { updateTheta, PRIOR_SE } = require('../engine/irt');
 const { bktSequence } = require('../engine/bkt');
 const { paramsForTopic } = require('../config/bktParams');
 const { mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic } = require('./telemetryHelpers');
@@ -364,7 +364,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         //    to the same posterior as folding it whole.
         const gradedForTheta = newOnly.filter((m) => m._serverGraded);
         const pairs = gradedForTheta.map(toEstimatorPair);
-        const prior = { theta: user?.thetaRating ?? 0.0, se: user?.standardError ?? 0.5 };
+        const prior = { theta: user?.thetaRating ?? 0.0, se: user?.standardError ?? PRIOR_SE };
         const est = pairs.length ? updateTheta(prior, pairs) : prior;
         updatedTheta = est.theta;
         updatedSe = est.se;
@@ -416,7 +416,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
             });
             const subjectPrior = existingAbility
                 ? { theta: existingAbility.theta, se: existingAbility.se }
-                : { theta: user?.thetaRating ?? 0, se: user?.standardError ?? 1.0 };
+                : { theta: user?.thetaRating ?? 0, se: user?.standardError ?? PRIOR_SE };
             const subjectEst = updateTheta(subjectPrior, subjectPairs);
             await db.userAbility.upsert({
                 where: { userId_subject: { userId, subject } },

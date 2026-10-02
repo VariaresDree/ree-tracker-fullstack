@@ -3,6 +3,7 @@
 // logic is unit-testable without a database.
 const { plausibleTimeMs, storableTimeMs } = require('../config/telemetryBounds');
 const { normalizeSubject } = require('../utils/subject');
+const { itemParams } = require('../engine/irt');
 
 // How far back a client-reported answer timestamp may sit. An offline outbox
 // can legitimately hold attempts for days; 90 days covers a full exam cycle of
@@ -100,10 +101,11 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
                 answeredAt: clampAnsweredAt(a.createdAt ?? a.answeredAt, now),
                 sessionId,
                 mode,
-                _difficulty: m.difficulty || 0.0,
+                _difficulty: m.difficulty ?? null,
                 // 3PL item params for the theta estimator (stripped before the
-                // QuestionAttempt write). irtB falls back to legacy difficulty;
-                // a/c to sane 3PL defaults for uncalibrated items.
+                // QuestionAttempt write). Uncalibrated items fall back through
+                // engine/irt.itemParams — the author's 1/2/3 rating mapped onto
+                // the θ scale, never read raw as b.
                 _a: m.irtA,
                 _b: m.irtB,
                 _c: m.irtC,
@@ -179,7 +181,9 @@ const ABILITY_SUBJECTS = new Set(['Mathematics', 'ESAS', 'EE']);
  */
 function toEstimatorPair(m) {
     return {
-        item: { a: m._a ?? 1, b: m._b ?? m._difficulty ?? 0, c: m._c ?? 0.2 },
+        // One fallback rule for uncalibrated items, shared with the CAT picker,
+        // calibration and the θ backfill (see engine/irt.itemParams).
+        item: itemParams(m),
         correct: !!m.isCorrect,
     };
 }

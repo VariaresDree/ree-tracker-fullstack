@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { buildForecast } = require('../engine/forecast');
+const { PRIOR_SE } = require('../engine/irt');
 const forecastCache = require('../services/forecastCache');
 
 // GET /api/forecast — latest snapshot for the caller, or recompute on the fly.
@@ -65,7 +66,7 @@ async function computeForUser(userId, opts = {}) {
     const abilities = await prisma.userAbility.findMany({ where: { userId } });
     const ability = {
         theta: user?.thetaRating ?? 0,
-        se: user?.standardError ?? 1,
+        se: user?.standardError ?? PRIOR_SE,
     };
 
     // Topic-level abilities come from UserTopicPerformance, which is genuinely

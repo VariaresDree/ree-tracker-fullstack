@@ -24,7 +24,7 @@ model User {
   role             Role     @default(USER)
   globalStreak     Int      @default(0)
   thetaRating      Float    @default(0.0)
-  standardError    Float    @default(0.5)
+  standardError    Float    @default(1.0) // population prior N(0,1) = engine/irt PRIOR_SE
   lastActive       DateTime @default(now())
   createdAt        DateTime @default(now())
   

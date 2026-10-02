@@ -7,7 +7,7 @@ const { examSubmitSchema, gradeSchema, nextItemSchema } = require('../schemas/ex
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { gradeAttempts, buildDiagnostics } = require('../services/examService');
-const { selectNextItem, updateTheta } = require('../engine/irt');
+const { selectNextItem, updateTheta, itemParams, PRIOR_SE } = require('../engine/irt');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -241,7 +241,7 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
             select: { thetaRating: true, standardError: true },
         });
 
-        let prior = { theta: user?.thetaRating ?? 0, se: user?.standardError ?? 1 };
+        let prior = { theta: user?.thetaRating ?? 0, se: user?.standardError ?? PRIOR_SE };
 
         // Phase 3.4: a subject-scoped session starts from the per-subject
         // ability when one exists (populated by telemetry + the nightly
@@ -267,14 +267,7 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
                 .map((a) => {
                     const q = itemMap[a.questionId];
                     if (!q) return null;
-                    return {
-                        item: {
-                            a: q.irtA ?? 1,
-                            b: q.irtB ?? q.difficulty ?? 0,
-                            c: q.irtC ?? 0.2,
-                        },
-                        correct: !!a.isCorrect,
-                    };
+                    return { item: itemParams(q), correct: !!a.isCorrect };
                 })
                 .filter(Boolean);
             if (sessionPairs.length > 0) prior = updateTheta(prior, sessionPairs);
@@ -301,12 +294,10 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
             take: poolSize,
         });
 
-        const pool = candidates.map((q) => ({
-            id: q.id,
-            a: q.irtA ?? null,
-            b: q.irtB ?? (q.difficulty != null ? q.difficulty : null),
-            c: q.irtC ?? 0.2,
-        }));
+        // The shared fallback rule (engine/irt.itemParams): an uncalibrated
+        // item is placed by its author rating mapped onto the θ scale, rather
+        // than read raw as b (or dropped to a random weight).
+        const pool = candidates.map((q) => ({ id: q.id, ...itemParams(q) }));
 
         const pick = selectNextItem(
             { theta: prior.theta, recentIds: new Set(recentIds) },
