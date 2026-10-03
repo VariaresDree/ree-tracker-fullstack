@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 const { buildStudyPlan, taskProgress, PLAN_HORIZON_DAYS } = require('../src/engine/plan');
+const { SMART_DRILL_MAX_ITEMS } = require('@ree/shared');
 
 // Planner v2. The old generator ranked subtopics by raw accuracy, ignored the
 // syllabus weights the client sent, wrote one free-text task per day cycling
@@ -55,6 +56,40 @@ describe('buildStudyPlan', () => {
         const [first] = buildStudyPlan({ ...base, examDate: '2026-12-31', topics: [topic('Machines', 'EE', 0.3, 't-m')] });
         expect(first).toMatchObject({ kind: 'drill', topic: 'Machines', subject: 'EE', topicId: 't-m', targetCount: 30 });
         expect(first.text).toBe('Drill Machines — 30 questions');
+    });
+
+    // Found on the first live plan: a learner with a 200/day target got
+    // "Drill X — 120 questions" every day, more than one Smart Drill session
+    // serves (SMART_DRILL_MAX_ITEMS), so Start could never finish a task.
+    it('sizes a drill (and a review) to one session, however large the daily target', () => {
+        const plan = buildStudyPlan({ today: '2026-10-01', dailyTarget: 200, examDate: '2026-10-11', topics: [topic('Machines', 'EE', 0.3)] });
+        const drill = plan.find((t) => t.kind === 'drill');
+        expect(drill.targetCount).toBe(SMART_DRILL_MAX_ITEMS);
+        expect(drill.text).toBe(`Drill Machines — ${SMART_DRILL_MAX_ITEMS} questions`);
+        expect(plan.find((t) => t.kind === 'review').targetCount).toBe(SMART_DRILL_MAX_ITEMS);
+    });
+
+    // Also from the first live plan: unpractised EE topics carry the most
+    // weight, so the old topic-only interleave ran EE for the first two weeks.
+    it('spreads subjects through the plan instead of running one for days', () => {
+        const topics = [
+            ...['E1', 'E2', 'E3', 'E4', 'E5', 'E6'].map((n) => topic(n, 'EE', null)),
+            ...['S1', 'S2', 'S3'].map((n) => topic(n, 'ESAS', null)),
+            ...['M1', 'M2', 'M3'].map((n) => topic(n, 'Mathematics', null)),
+        ];
+        const plan = buildStudyPlan({ ...base, examDate: '2026-12-31', topics });
+        const subjects = plan.filter((t) => t.kind === 'drill').map((t) => t.subject);
+        // every subject shows up within the first few drill days…
+        expect(new Set(subjects.slice(0, 4))).toEqual(new Set(['EE', 'ESAS', 'Mathematics']));
+        // …and no subject runs three drill days in a row while others wait
+        for (let i = 2; i < subjects.length; i++) {
+            const run = subjects[i] === subjects[i - 1] && subjects[i] === subjects[i - 2];
+            expect(run).toBe(false);
+        }
+        // the weights still decide the share: EE gets the most days
+        const count = (s) => subjects.filter((x) => x === s).length;
+        expect(count('EE')).toBeGreaterThan(count('ESAS'));
+        expect(count('ESAS')).toBeGreaterThan(count('Mathematics'));
     });
 
     it('an exam in the past or today plans nothing', () => {

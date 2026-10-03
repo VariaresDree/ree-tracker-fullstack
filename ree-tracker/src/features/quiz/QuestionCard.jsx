@@ -277,8 +277,8 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       srState = isSelected ? 'Correct answer — you selected this' : 'Correct answer';
     } else if (isSelected) {
       stateClass =
-        'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)] font-semibold cursor-default';
-      letterColor = 'text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)]';
+        'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[var(--accent-danger)] font-semibold cursor-default';
+      letterColor = 'text-[var(--accent-danger)]';
       innerClass = 'line-through decoration-[color-mix(in_srgb,var(--accent-danger)_40%,transparent)]';
       icon = <XIcon />;
       srState = 'Incorrect — you selected this';

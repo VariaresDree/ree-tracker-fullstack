@@ -77,16 +77,25 @@
   --shadow-glow-velocity: 0 0 0 1px color-mix(in srgb, var(--accent-velocity, #7c5cff) 35%, transparent), 0 0 28px color-mix(in srgb, var(--accent-velocity, #7c5cff) 25%, transparent);
 }
 
+/* Every theme below is held to WCAG AA by src/styles/themeContrast.test.js:
+   body text (--text-main/-muted/-muted2) ≥ 4.5:1 on all four surfaces, and the
+   status colours (--accent-success/-danger, also used as text: "Correct",
+   "Done from your answers") ≥ 4.5:1 on page/card/panel — and on their own 12%
+   tint, the answered-option row — and ≥ 3:1 on the chip layer. Values were moved the least distance that passes, keeping each hue;
+   where a bright --bg-surface3 made that impossible or erased the muted/main
+   step, the surface came halfway toward --bg-surface2 instead. Change a token
+   here and the test tells you if a pair dropped below the floor. */
+
 /* 1. EDITORIAL DARK (DEFAULT) — deep navy + electric violet/cyan accents */
 :root {
   --bg-primary: #0b0f1a;
   --bg-surface: #121826;
   --bg-surface2: #1a2236;
-  --bg-surface3: #232c44;
+  --bg-surface3: #1f273d;
   --text-main: #f1f5f9;
   /* Bumped from #64748b (~3.8:1 on surface — fails AA) to ~5:1 so small
      secondary labels/eyebrows meet WCAG AA in the default dark theme. */
-  --text-muted: #7c8aa0;
+  --text-muted: #818fa4;
   --text-muted2: #a5b2c4;
   --border-main: rgba(255, 255, 255, 0.06);
   --border-light: rgba(255, 255, 255, 0.12);
@@ -119,10 +128,12 @@
   --bg-surface3: #e2e8f0;
   --text-main: #0f172a;
   --text-muted: #475569;
-  --text-muted2: #64748b;
+  --text-muted2: #5b697e;
   --border-main: rgba(0, 0, 0, 0.05);
   --border-light: rgba(0, 0, 0, 0.1);
   --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
+  --accent-success: #1b7957;
+  --accent-danger: #d00025;
 }
 
 /* 3. MIDNIGHT (OLED PURE BLACK) */
@@ -130,12 +141,12 @@
   --bg-primary: #000000;
   --bg-surface: #09090b;
   --bg-surface2: #18181b;
-  --bg-surface3: #27272a;
+  --bg-surface3: #202023;
   --text-main: #fafafa;
   /* Lightened from #71717a (3.67:1 on surface2 — fails AA) to clear 4.5:1 for
      small eyebrow/secondary labels; same fix already applied to the default
      theme. */
-  --text-muted: #808089;
+  --text-muted: #86868f;
   --text-muted2: #a1a1aa;
   --border-main: rgba(255, 255, 255, 0.05);
   --border-light: rgba(255, 255, 255, 0.1);
@@ -154,6 +165,8 @@
   --border-main: rgba(69, 26, 3, 0.1);
   --border-light: rgba(69, 26, 3, 0.2);
   --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
+  --accent-success: #197755;
+  --accent-danger: #cc0025;
 }
 
 /* 5. CYBERPUNK (NEON GRIT) */
@@ -161,7 +174,7 @@
   --bg-primary: #0f0f15;
   --bg-surface: #1e1b4b;
   --bg-surface2: #2e1065;
-  --bg-surface3: #4c1d95;
+  --bg-surface3: #3d177d;
   --text-main: #fef08a;
   --text-muted: #a78bfa;
   --text-muted2: #c4b5fd;
@@ -170,6 +183,7 @@
   --brand-blue: #22d3ee;
   --brand-purple: #f472b6;
   --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
+  --accent-danger: #ff5674;
 }
 
 /* 6. RETROWAVE (SYNTHWAVE NEON) */
@@ -177,16 +191,17 @@
   --bg-primary: #1e002a;
   --bg-surface: #3b0764;
   --bg-surface2: #581c87;
-  --bg-surface3: #7e22ce;
+  --bg-surface3: #6b1fab;
   --text-main: #fdf4ff;
   /* Lightened from #f472b6 (4.11:1 on surface2 — fails AA) to clear 4.5:1. */
-  --text-muted: #f580bd;
+  --text-muted: #f8a0ce;
   --text-muted2: #fbcfe8;
   --border-main: rgba(244, 114, 182, 0.2);
   --border-light: rgba(34, 211, 238, 0.3);
   --brand-blue: #06b6d4;
   --brand-amber: #fbbf24;
   --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
+  --accent-danger: #ff7f96;
 }
 
 /* 7. FOREST (DEEP WOODS) */
@@ -194,30 +209,34 @@
   --bg-primary: #022c22;
   --bg-surface: #064e3b;
   --bg-surface2: #065f46;
-  --bg-surface3: #047857;
+  --bg-surface3: #056c4f;
   --text-main: #ecfdf5;
-  --text-muted: #6ee7b7;
+  --text-muted: #87ebc3;
   --text-muted2: #a7f3d0;
   --border-main: rgba(110, 231, 183, 0.15);
   --border-light: rgba(110, 231, 183, 0.3);
   --brand-blue: #34d399;
   --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
+  --accent-success: #60ddb0;
+  --accent-danger: #ffb2c0;
 }
 
 /* 8. OCEAN (ABYSSAL DEEP) */
 [data-theme="ocean"] {
   --bg-primary: #082f49;
   --bg-surface: #164e63;
-  --bg-surface2: #0e7490;
-  --bg-surface3: #0891b2;
+  --bg-surface2: #12617a;
+  --bg-surface3: #0e7490;
   --text-main: #e0f2fe;
   /* Lightened from #7dd3fc (3.21:1 on surface2 — the worst AA failure of any
      theme) to clear 4.5:1. */
   --text-muted: #d7f1fe;
-  --text-muted2: #bae6fd;
+  --text-muted2: #d5f0fe;
   --border-main: rgba(125, 211, 252, 0.15);
   --border-light: rgba(125, 211, 252, 0.3);
   --accent-text: color-mix(in srgb, var(--accent) 40%, var(--text-main));
+  --accent-success: #7ce3bd;
+  --accent-danger: #ffc0cb;
 }
 
 /* 9. SAKURA / UME (SOFT CHERRY BLOSSOM) */
@@ -229,12 +248,14 @@
   --text-main: #831843;
   /* Darkened from #be185d (4.37:1 on surface2 — fails AA) to clear 4.5:1.
      Light theme, so darker = more contrast. */
-  --text-muted: #b9175b;
-  --text-muted2: #db2777;
+  --text-muted: #9a134c;
+  --text-muted2: #961951;
   --border-main: rgba(190, 24, 93, 0.1);
   --border-light: rgba(190, 24, 93, 0.2);
   --brand-blue: #db2777;
   --accent-text: color-mix(in srgb, var(--accent) 60%, var(--text-main));
+  --accent-success: #186d4e;
+  --accent-danger: #bc0022;
 }
 
 /* 10. TERMINAL (HACKER MATRIX) */
@@ -242,9 +263,9 @@
   --bg-primary: #000000;
   --bg-surface: #000000;
   --bg-surface2: #052e16;
-  --bg-surface3: #14532d;
+  --bg-surface3: #0d4122;
   --text-main: #4ade80;
-  --text-muted: #16a34a;
+  --text-muted: #19b954;
   --text-muted2: #22c55e;
   --border-main: rgba(22, 163, 74, 0.3);
   --border-light: rgba(34, 197, 94, 0.5);
@@ -259,15 +280,17 @@
   --bg-primary: #450a0a;
   --bg-surface: #7f1d1d;
   --bg-surface2: #991b1b;
-  --bg-surface3: #b91c1c;
+  --bg-surface3: #a91c1c;
   --text-main: #fef2f2;
   /* Lightened from #fca5a5 (4.38:1 on surface2 — fails AA) to clear 4.5:1. */
-  --text-muted: #fcaaaa;
+  --text-muted: #fdbbbb;
   --text-muted2: #fecaca;
   --border-main: rgba(252, 165, 165, 0.2);
   --border-light: rgba(252, 165, 165, 0.4);
   --brand-blue: #f87171;
   --accent-text: color-mix(in srgb, var(--accent) 50%, var(--text-main));
+  --accent-success: #44d6a1;
+  --accent-danger: #ffaab9;
 }
 
 /* 12. MATH (BLUEPRINT GRID) */
@@ -275,14 +298,16 @@
   --bg-primary: #1e3a8a;
   --bg-surface: #1e40af;
   --bg-surface2: #1d4ed8;
-  --bg-surface3: #2563eb;
+  --bg-surface3: #2159e2;
   --text-main: #eff6ff;
   /* Lightened from #93c5fd (3.72:1 on surface2 — fails AA) to clear 4.5:1. */
-  --text-muted: #b6d8fe;
-  --text-muted2: #bfdbfe;
+  --text-muted: #cee5fe;
+  --text-muted2: #cfe4fe;
   --border-main: rgba(255, 255, 255, 0.2);
   --border-light: rgba(255, 255, 255, 0.4);
   --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
+  --accent-success: #8ae6c4;
+  --accent-danger: #ffc5cf;
 }
 
 /* 13. ELECTRICAL (COPPER & AMBER) */
@@ -298,6 +323,7 @@
   --border-light: rgba(252, 211, 77, 0.3);
   --brand-blue: #f59e0b;
   --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
+  --accent-danger: #ff9aac;
 }
 
 
