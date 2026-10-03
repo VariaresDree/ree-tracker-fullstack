@@ -19,8 +19,10 @@ export default function Scratchpad({ isOpen, onClose }) {
   const panelRef = useRef(null);
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
+  // The latest onClose for the Escape listener, without re-running the dialog
+  // effect (and re-grabbing focus) every time the parent re-renders.
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => { onCloseRef.current = onClose; });
 
   const ctx = () => canvasRef.current?.getContext?.('2d') || null;
 
