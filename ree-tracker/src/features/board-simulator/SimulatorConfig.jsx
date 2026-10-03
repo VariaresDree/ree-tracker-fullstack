@@ -87,7 +87,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
     <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
       <Card elevated grain className="p-6 sm:p-10">
         <div className="mb-8 border-b border-border pb-5">
-          <h2 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Board Simulator</h2>
+          <h1 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Board Simulator</h1>
           <p className="text-sm text-muted2 mt-1">Choose how strict the exam should be.</p>
         </div>
 
@@ -149,7 +149,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
                     <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
                   </span>
                   <div>
-                    <h3 className={cn('text-sm font-semibold mb-1', selected ? 'text-[var(--accent)]' : 'text-textMain')}>{p.name}</h3>
+                    <h2 className={cn('text-sm font-semibold mb-1', selected ? 'text-[var(--accent)]' : 'text-textMain')}>{p.name}</h2>
                     <p className="text-xs text-muted2 leading-relaxed">{p.description}</p>
                   </div>
                 </button>

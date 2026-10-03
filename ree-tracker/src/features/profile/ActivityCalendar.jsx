@@ -55,11 +55,11 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
         
         {/* Month Navigation */}
         <div className="flex items-center gap-4 bg-bg border border-border2 px-2 py-1.5 rounded-lg shadow-inner">
-           <button onClick={prevMonth} className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black">&lt;</button>
+           <button onClick={prevMonth} aria-label="Previous month" className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black touch-target inline-flex items-center justify-center">&lt;</button>
            <div className="w-40 text-center font-bold text-sm uppercase tracking-widest text-textMain">
               {currentDate.toLocaleString('default', { month: 'long' })} {currentDate.getFullYear()}
            </div>
-           <button onClick={nextMonth} disabled={atCurrentMonth} className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black disabled:opacity-30 disabled:cursor-not-allowed">&gt;</button>
+           <button onClick={nextMonth} disabled={atCurrentMonth} aria-label="Next month" className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black disabled:opacity-30 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center">&gt;</button>
         </div>
       </div>
 

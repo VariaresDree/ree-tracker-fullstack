@@ -38,14 +38,25 @@ and **Wave 2** (#112–#116). All three were **deployed on 2026-10-03** as merge
 - Planner v2 (#116).
 - **Closed:** adding subject to the `UserTopicPerformance` key. Production has 0 cross-subject topic-name collisions, so the non-additive change isn't needed.
 
-**Wave 3: UI/UX, accessibility and platform**
-- 44 px touch targets;
-- an `aria-live` answer announcement and a per-theme success colour;
-- a computed contrast test across the 13 themes;
-- overlay semantics;
-- KaTeX fixes;
-- an h1 on every page and a skip link;
-- Sentry, ESLint in CI, a mobile Playwright project, and authed axe via the emulator.
+**Wave 3: UI/UX, accessibility and platform — shipped as #123–#128**
+- Shipped:
+  - 44 px touch targets;
+  - answer announcements and a contrast-safe success colour;
+  - a computed contrast test for all 13 themes;
+  - overlay semantics;
+  - KaTeX fixes;
+  - a skip link;
+  - the sticky exam toolbar;
+  - an ESLint ratchet in CI;
+  - a Pixel 7 Playwright project;
+  - Planner v2.1.
+- **Still open:**
+  - h1 and heading order on the remaining pages (needs a rendered axe pass);
+  - authed axe/Lighthouse via the Firebase emulator;
+  - Sentry (needs a DSN);
+  - the "which mode do I use?" guide;
+  - lint-baseline paydown.
+  See the audit.
 
 ---
 

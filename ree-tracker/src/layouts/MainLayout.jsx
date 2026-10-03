@@ -1,5 +1,5 @@
 // src/layouts/MainLayout.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import Pomodoro from '../components/Pomodoro';
 import FloatingPomodoro from '../components/FloatingPomodoro';
@@ -7,6 +7,7 @@ import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Modal } from '../components/ui';
 import { useUISlice } from '../store/slices';
+import useMediaQuery from '../hooks/useMediaQuery';
 import {
   LayoutDashboard, BrainCircuit, Zap, Swords, Library, FolderOpen, User,
   PanelLeftClose, PanelLeftOpen, Timer, Menu, X,
@@ -53,6 +54,30 @@ export default function MainLayout({ children }) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
 
+  // The mobile drawer. Closed, it was only translated off-screen, so Tab and a
+  // screen reader still walked every hidden link: it is inert until opened.
+  // Opening moves focus inside, Escape closes it, and closing hands focus back
+  // to the menu button. On a desktop the sidebar is always on screen.
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const menuButtonRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const drawerWasOpen = useRef(false);
+  useEffect(() => {
+    if (isDesktop) return undefined;
+    if (isSidebarOpen) {
+      drawerWasOpen.current = true;
+      closeButtonRef.current?.focus({ preventScroll: true });
+      const onKey = (e) => { if (e.key === 'Escape') setSidebarOpen(false); };
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+    }
+    if (drawerWasOpen.current) {
+      drawerWasOpen.current = false;
+      menuButtonRef.current?.focus({ preventScroll: true });
+    }
+    return undefined;
+  }, [isSidebarOpen, isDesktop, setSidebarOpen]);
+
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname, setSidebarOpen]);
@@ -84,15 +109,26 @@ export default function MainLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-bg flex flex-col md:flex-row font-sans text-textMain relative">
+      {/* First stop for a keyboard user: past the header and the whole
+          navigation, straight to the page. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-[var(--radius-default)] focus:bg-surface focus:text-textMain focus:border focus:border-[var(--accent)]"
+      >
+        Skip to main content
+      </a>
       {/* MOBILE APP HEADER */}
       <div className="md:hidden flex items-center justify-between px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] bg-surface border-b border-border2 sticky top-0 z-[40] shadow-sm">
         <div className="text-xl font-bold tracking-tight text-[var(--accent)]">
           REE<span className="text-textMain">.ai</span> Core
         </div>
         <button
+          ref={menuButtonRef}
           onClick={() => setSidebarOpen(true)}
           aria-label="Open navigation menu"
-          className="p-2 -mr-2 text-muted hover:text-textMain cursor-pointer"
+          aria-expanded={isSidebarOpen}
+          aria-controls="app-sidebar"
+          className="p-2.5 -mr-2.5 text-muted hover:text-textMain cursor-pointer"
         >
           <Menu className="w-6 h-6" strokeWidth={1.75} />
         </button>
@@ -111,6 +147,8 @@ export default function MainLayout({ children }) {
           left-0 surface in the app, everything else is edge-inset by its own
           padding already. */}
       <aside
+        id="app-sidebar"
+        inert={!isDesktop && !isSidebarOpen}
         className={`fixed inset-y-0 left-0 z-[55] bg-surface border-r border-border2 flex flex-col shrink-0 shadow-2xl md:shadow-none transform transition-all duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 pl-[env(safe-area-inset-left)] ${
           isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
         } ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}
@@ -125,6 +163,7 @@ export default function MainLayout({ children }) {
               to clear 44x44 costs nothing layout-wise. -m-2.5 keeps the
               icon's visual position unchanged; only the hit area grows. */}
           <button
+            ref={closeButtonRef}
             onClick={() => setSidebarOpen(false)}
             aria-label="Close navigation menu"
             className="text-muted hover:text-textMain p-2.5 -m-2.5 cursor-pointer"
@@ -142,7 +181,7 @@ export default function MainLayout({ children }) {
           )}
           <button
             onClick={() => toggleSidebarCollapse()}
-            className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-all"
+            className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-all touch-target inline-flex items-center justify-center"
             aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -251,9 +290,16 @@ export default function MainLayout({ children }) {
       </aside>
 
       {/* MAIN VIEWPORT */}
+      {/* overflow-x-clip, not overflow-y-auto: <main> has no fixed height so it
+          never scrolled itself (the window does), but overflow-y-auto still
+          made it the scroll container of every `sticky` child, so none of
+          them stuck (ReviewSetup's mobile Start bar). clip keeps sideways
+          overflow contained without creating a scroll container. */}
       <main
         key={location.pathname}
-        className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 overflow-y-auto relative page-fade-in animate-in fade-in slide-in-from-bottom-2 custom-scrollbar"
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 overflow-x-clip relative page-fade-in outline-none"
       >
         {children}
       </main>

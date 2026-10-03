@@ -68,6 +68,13 @@ const TIME_STORE_MAX_MS = 60 * 60 * 1000;
  */
 const TELEMETRY_BATCH_MAX = 500;
 
+/**
+ * Most items one Smart Drill session serves (GET /api/smart-drill ?limit).
+ * The planner sizes a drill or review task to fit one session, so "Start"
+ * can always finish what the task asks for.
+ */
+const SMART_DRILL_MAX_ITEMS = 50;
+
 /** Returns the value if plausible for aggregation, else 0 ("no timing data"). */
 function plausibleTimeMs(ms) {
     const n = Number(ms) || 0;
@@ -94,6 +101,7 @@ module.exports = {
     TIME_MAX_MS,
     TIME_STORE_MAX_MS,
     TELEMETRY_BATCH_MAX,
+    SMART_DRILL_MAX_ITEMS,
     plausibleTimeMs,
     storableTimeMs,
 };
