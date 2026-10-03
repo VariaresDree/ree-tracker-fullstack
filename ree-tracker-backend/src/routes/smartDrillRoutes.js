@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { normalizeSubject } = require('@ree/shared');
+const { normalizeSubject, SMART_DRILL_MAX_ITEMS } = require('@ree/shared');
 const { rankWeakTopics } = require('../engine/forecast');
 const { selectDrillItems, splitAcrossTopics } = require('../engine/drill');
 const { effectiveMastery } = require('../services/masteryView');
@@ -71,7 +71,7 @@ async function resolveTargets(req, userId, utpRows) {
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id;
-        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), SMART_DRILL_MAX_ITEMS);
         const blindSpotMode = req.query.mode === 'blind-spot';
 
         const [user, abilityRows, utpRows, recent] = await Promise.all([

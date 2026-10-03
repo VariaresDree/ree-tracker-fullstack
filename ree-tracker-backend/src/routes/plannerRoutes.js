@@ -11,6 +11,7 @@ const { normalizeSubject } = require('@ree/shared');
 const { buildStudyPlan, taskProgress } = require('../engine/plan');
 const { loadTopicSignals } = require('../services/topicSignals');
 const { getSyllabusWeights } = require('../services/questionPool');
+const { resolveTopic } = require('../services/topicResolver');
 
 // Tasks the planner owns: v2 tasks carry a kind; v1 wrote a "[WEAK] …" text
 // prefix. Re-planning and "clear plan" touch only these.
@@ -170,14 +171,17 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         ]);
 
         // Practised topics carry their decayed mastery; syllabus topics never
-        // touched join as unmastered.
+        // touched join as unmastered, linked to their live Topic row (own
+        // subject only) so Start drills by id.
         const seen = new Set(practised.map((t) => t.topic.trim().toLowerCase()));
-        const planTopics = [
-            ...practised,
-            ...(topics || [])
-                .filter((t) => !seen.has(t.subtopic.trim().toLowerCase()))
-                .map((t) => ({ topic: t.subtopic, subject: normalizeSubject(t.subject), topicId: null, masteryEffective: null })),
-        ];
+        const untouched = await Promise.all((topics || [])
+            .filter((t) => !seen.has(t.subtopic.trim().toLowerCase()))
+            .map(async (t) => {
+                const subject = normalizeSubject(t.subject);
+                const row = await resolveTopic(subject, t.subtopic, { crossSubject: false }).catch(() => null);
+                return { topic: t.subtopic, subject, topicId: row?.id ?? null, masteryEffective: null };
+            }));
+        const planTopics = [...practised, ...untouched];
 
         const plan = buildStudyPlan({
             today: todayManila(),
