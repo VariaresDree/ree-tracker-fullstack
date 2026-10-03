@@ -6,6 +6,11 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { diffTaxonomySync, invalidateTopicCache } = require('../services/topicResolver');
+const { relabelRenamedTopics } = require('../services/topicRelabel');
+const questionBankCache = require('../services/questionBankCache');
+const dashboardCache = require('../services/dashboardCache');
+const readinessCache = require('../services/readinessCache');
+const forecastCache = require('../services/forecastCache');
 const { invalidateFlagCache, getFlags } = require('../services/featureFlags');
 const { getTos, invalidateTosCache } = require('../services/tosCache');
 const { featureFlagSchema } = require('../schemas/configSchemas');
@@ -36,6 +41,18 @@ router.get('/tos', async (req, res) => {
 // are created, existing rows are renamed/reordered/reactivated, and rows
 // dropped from the list are deactivated — never deleted, so questions keep
 // their topicId and historical attempts stay attributable.
+//
+// A respelling (same normKey, e.g. "electric circuits 2" -> "Electric Circuits
+// 2") renames the row in place, so the labels that copy Topic.name follow it in
+// the same transaction: the topic's questions' subtopic, and each learner's
+// UserTopicPerformance row keyed by the old spelling (services/topicRelabel).
+// Left behind, telemetry kept writing the old spelling while backfill:mastery
+// folded history under the new one, splitting the topic.
+//
+// Longer budget than Prisma's 5s default: a save is one round-trip per changed
+// row, and a rename adds the relabel reads and writes.
+const TOS_TX_OPTS = { maxWait: 5_000, timeout: 30_000 };
+
 router.put('/tos', authMiddleware, requireAdmin, async (req, res) => {
     try {
         const newTOS = req.body;
@@ -44,9 +61,9 @@ router.put('/tos', authMiddleware, requireAdmin, async (req, res) => {
         }
 
         const existing = await prisma.topic.findMany();
-        const { creates, updates, deactivateIds } = diffTaxonomySync(existing, newTOS);
+        const { creates, updates, deactivateIds, renames } = diffTaxonomySync(existing, newTOS);
 
-        await prisma.$transaction(async (tx) => {
+        const relabeled = await prisma.$transaction(async (tx) => {
             if (creates.length) await tx.topic.createMany({ data: creates });
             for (const u of updates) {
                 await tx.topic.update({ where: { id: u.id }, data: { name: u.name, sortOrder: u.sortOrder, active: u.active } });
@@ -54,15 +71,33 @@ router.put('/tos', authMiddleware, requireAdmin, async (req, res) => {
             if (deactivateIds.length) {
                 await tx.topic.updateMany({ where: { id: { in: deactivateIds } }, data: { active: false } });
             }
-        });
+            // After the Topic updates: a merge folds history by the new name.
+            return relabelRenamedTopics(tx, renames);
+        }, TOS_TX_OPTS);
         invalidateTopicCache();
         invalidateTosCache();
+        if (renames.length) {
+            // The pack-manifest checksum covers subtopic; the learner caches
+            // are built from the rollup rows just renamed or merged.
+            questionBankCache.invalidateAll();
+            for (const uid of relabeled.userIds) {
+                dashboardCache.invalidate(uid);
+                readinessCache.invalidate(uid);
+                forecastCache.invalidate(uid);
+            }
+        }
 
         return res.status(200).json({
             success: true,
             created: creates.length,
             updated: updates.length,
             deactivated: deactivateIds.length,
+            relabeled: {
+                questions: relabeled.questions,
+                rollupsRenamed: relabeled.rollupsRenamed,
+                rollupsMerged: relabeled.rollupsMerged,
+                rollupsKept: relabeled.rollupsKept,
+            },
         });
     } catch (error) {
         logger.error('TOS update error', { error: error.message, stack: error.stack });
