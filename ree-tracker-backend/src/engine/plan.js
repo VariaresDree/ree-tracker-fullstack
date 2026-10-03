@@ -7,8 +7,11 @@
 // v2, pure:
 //   • drill days are shared out across topics by what a gap costs on the board —
 //     (1 − decayed BKT mastery) × syllabus weight — as exact quotas, then
-//     ordered so a topic does not repeat on consecutive days when another still
-//     has days left (largest-remaining-quota greedy);
+//     ordered so each subject is spread through the plan at its share (paced,
+//     never three days running while another waits) and a topic does not
+//     repeat on consecutive days;
+//   • a drill or review is sized to one Smart Drill session
+//     (SMART_DRILL_MAX_ITEMS), so Start can always finish it;
 //   • every seventh day is a timed PRC sitting, rotating the subject;
 //   • the last three days before the exam are light review;
 //   • tasks carry topic, subject and a question target, so they can be launched
@@ -18,7 +21,7 @@
 
 'use strict';
 
-const { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights } = require('@ree/shared');
+const { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, SMART_DRILL_MAX_ITEMS } = require('@ree/shared');
 const { DEFAULT_BKT } = require('../config/bktParams');
 
 const PLAN_HORIZON_DAYS = 42;
@@ -50,23 +53,69 @@ function quotas(priorities, total) {
     return out;
 }
 
-/** Order the quotas so no topic repeats back to back while another has days left. */
+/**
+ * Day quotas in two steps: days to subjects by their summed priority, then each
+ * subject's days to its topics. Rounding topic by topic let a subject with many
+ * topics collect every leftover day — six EE topics took all six spare days and
+ * ESAS, owed 7.45, got 6.
+ */
+function subjectFirstQuotas(topics, total) {
+    const subjects = [...new Set(topics.map((t) => t.subject))];
+    const subjectPriority = subjects.map((s) => ({
+        priority: topics.filter((t) => t.subject === s).reduce((a, t) => a + t.priority, 0),
+    }));
+    const subjectDays = quotas(subjectPriority, total);
+    const out = new Array(topics.length).fill(0);
+    subjects.forEach((s, si) => {
+        const idx = topics.map((t, i) => (t.subject === s ? i : -1)).filter((i) => i >= 0);
+        quotas(idx.map((i) => topics[i]), subjectDays[si]).forEach((n, k) => { out[idx[k]] = n; });
+    });
+    return out;
+}
+
+/**
+ * Order the day quotas through the plan.
+ *
+ * Subjects are paced: a subject's k-th day ideally falls (k + ½) / quota of the
+ * way through, and the subject furthest behind its pace goes next — so a 45%
+ * subject lands about every other day instead of taking the first fortnight.
+ * A subject never runs a third day in a row while another still has days.
+ * Within the subject, the topic with the most days left goes, never the topic
+ * of the day before while another has days left.
+ */
 function interleave(topics, counts) {
     const remaining = counts.slice();
-    const order = [];
-    let prev = -1;
     const total = remaining.reduce((a, b) => a + b, 0);
+    const quota = new Map();
+    const served = new Map();
+    topics.forEach((t, i) => quota.set(t.subject, (quota.get(t.subject) || 0) + counts[i]));
+    const left = (s) => quota.get(s) - (served.get(s) || 0);
+    const pace = (s) => ((served.get(s) || 0) + 0.5) / quota.get(s);
+
+    const order = [];
+    let prevTopic = -1;
+    const lastSubjects = [];
     for (let step = 0; step < total; step++) {
+        const open = [...quota.keys()].filter((s) => left(s) > 0);
+        const runOf = lastSubjects.length === 2 && lastSubjects[0] === lastSubjects[1] ? lastSubjects[1] : null;
+        const pool = open.length > 1 && runOf ? open.filter((s) => s !== runOf) : open;
+        const subject = pool.sort((a, b) => pace(a) - pace(b) || quota.get(b) - quota.get(a))[0];
+
         let best = -1;
-        for (let i = 0; i < remaining.length; i++) {
-            if (remaining[i] <= 0 || i === prev) continue;
-            if (best === -1 || remaining[i] > remaining[best]
-                || (remaining[i] === remaining[best] && topics[i].priority > topics[best].priority)) best = i;
+        for (let i = 0; i < topics.length; i++) {
+            if (remaining[i] <= 0 || topics[i].subject !== subject) continue;
+            if (best === -1) { best = i; continue; }
+            const better = remaining[i] > remaining[best]
+                || (remaining[i] === remaining[best] && topics[i].priority > topics[best].priority);
+            // never yesterday's topic while the subject has another
+            if (best === prevTopic || (better && i !== prevTopic)) best = i;
         }
-        if (best === -1) best = prev; // only the previous topic has days left
         order.push(topics[best]);
         remaining[best] -= 1;
-        prev = best;
+        served.set(subject, (served.get(subject) || 0) + 1);
+        prevTopic = best;
+        lastSubjects.push(subject);
+        if (lastSubjects.length > 2) lastSubjects.shift();
     }
     return order;
 }
@@ -101,10 +150,11 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         })
         .filter((t) => t.priority > 0)
         .sort((a, b) => b.priority - a.priority);
-    const drillOrder = interleave(ranked, quotas(ranked, drillDays));
+    const drillOrder = interleave(ranked, subjectFirstQuotas(ranked, drillDays));
 
-    const drillTarget = Math.max(10, Math.round(dailyTarget * DRILL_SHARE));
-    const reviewTarget = Math.max(10, Math.round(dailyTarget * REVIEW_SHARE));
+    const sessionSized = (share) => Math.min(SMART_DRILL_MAX_ITEMS, Math.max(10, Math.round(dailyTarget * share)));
+    const drillTarget = sessionSized(DRILL_SHARE);
+    const reviewTarget = sessionSized(REVIEW_SHARE);
     const plan = [];
     let drillIdx = 0;
     let mockIdx = 0;
