@@ -91,7 +91,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   return (
     <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
       <div>
-        <h2 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Active Review</h2>
+        <h1 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Active Review</h1>
         <p className="text-sm text-muted2 mt-1">Pick a preset or build a custom session.</p>
       </div>
 

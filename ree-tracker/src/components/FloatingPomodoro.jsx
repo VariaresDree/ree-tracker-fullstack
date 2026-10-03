@@ -92,7 +92,7 @@ export default function FloatingPomodoro() {
       <button
         onClick={pomodoro.isRunning ? pausePomodoro : startPomodoro}
         aria-label={pomodoro.isRunning ? 'Pause timer' : 'Start timer'}
-        className="p-1.5 rounded-full text-muted hover:text-textMain hover:bg-surface3 transition-colors cursor-pointer"
+        className="p-1.5 rounded-full text-muted hover:text-textMain hover:bg-surface3 transition-colors cursor-pointer touch-target inline-flex items-center justify-center"
       >
         {pomodoro.isRunning ? <Pause size={14} strokeWidth={1.75} aria-hidden="true" /> : <Play size={14} strokeWidth={1.75} aria-hidden="true" />}
       </button>
@@ -100,14 +100,14 @@ export default function FloatingPomodoro() {
         onClick={() => setPomodoroWidget({ pinned: !pomodoroWidget.pinned })}
         aria-label={pomodoroWidget.pinned ? 'Unpin floating timer' : 'Pin floating timer'}
         aria-pressed={pomodoroWidget.pinned}
-        className={`p-1.5 rounded-full transition-colors cursor-pointer hover:bg-surface3 ${pomodoroWidget.pinned ? 'text-[var(--accent)]' : 'text-muted hover:text-textMain'}`}
+        className={`p-1.5 rounded-full transition-colors cursor-pointer hover:bg-surface3 touch-target inline-flex items-center justify-center ${pomodoroWidget.pinned ? 'text-[var(--accent)]' : 'text-muted hover:text-textMain'}`}
       >
         {pomodoroWidget.pinned ? <Pin size={14} strokeWidth={1.75} aria-hidden="true" /> : <PinOff size={14} strokeWidth={1.75} aria-hidden="true" />}
       </button>
       <button
         onClick={() => setPomodoroWidget({ dismissed: true, pinned: false })}
         aria-label="Hide floating timer"
-        className="p-1.5 rounded-full text-muted hover:text-textMain hover:bg-surface3 transition-colors cursor-pointer"
+        className="p-1.5 rounded-full text-muted hover:text-textMain hover:bg-surface3 transition-colors cursor-pointer touch-target inline-flex items-center justify-center"
       >
         <X size={14} strokeWidth={1.75} aria-hidden="true" />
       </button>

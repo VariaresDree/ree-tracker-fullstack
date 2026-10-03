@@ -64,7 +64,7 @@ export function CardFooter({ className, ...rest }) {
   return (
     <div
       className={cn(
-        'px-5 py-3 border-t border-border flex items-center justify-end gap-2',
+        'px-5 py-3 border-t border-border flex flex-wrap items-center justify-end gap-2',
         className
       )}
       {...rest}

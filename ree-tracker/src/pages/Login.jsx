@@ -42,9 +42,9 @@ export default function Login() {
 
             <div className="w-full max-w-md p-8 bg-surface border border-border rounded-[var(--radius-xl)] elevate-3 relative z-10">
                 <div className="text-center mb-8">
-                    <div className="text-display text-3xl text-textMain tracking-tight mb-2">
+                    <h1 className="text-display text-3xl text-textMain tracking-tight mb-2">
                         REE<span className="text-[var(--accent)]">.ai</span> Core
-                    </div>
+                    </h1>
                     <p className="text-sm text-muted2 leading-relaxed">
                         {isRegistering
                             ? "Create your profile to start tracking your board-exam readiness."
@@ -93,7 +93,7 @@ export default function Login() {
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-[var(--radius-sm)] text-muted hover:text-textMain transition-colors cursor-pointer"
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-[var(--radius-sm)] text-muted hover:text-textMain transition-colors cursor-pointer touch-target inline-flex items-center justify-center"
                                 >
                                     {showPassword
                                         ? <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" />

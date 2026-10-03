@@ -80,6 +80,7 @@ export default function CaqResults({ fileName, questions, answers, score, elapse
               state="reviewing"
               showConfidence={false}
               plainText
+              announce={false}
               onSelect={() => {}}
             />
             {/* Optional per the source format — both real sample files leave
