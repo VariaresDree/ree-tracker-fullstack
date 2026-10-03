@@ -167,7 +167,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
       <div className={`flex flex-col gap-6 max-w-5xl mx-auto w-full animate-in fade-in duration-500 pb-12 z-0 relative transition-all duration-500 origin-center ${showSubmitConfirm ? 'scale-95 blur-md opacity-40 pointer-events-none' : 'scale-100 blur-none opacity-100'}`}>
 
         {/* Top toolbar — exit / hotkey status / answered count / timer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-4 z-50">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-[calc(max(0.5rem,env(safe-area-inset-top))+2.25rem)] z-50">
           {!isReview ? (
             <Button variant="ghost" tone="danger" size="sm" onClick={requestTerminate}>
               Exit exam

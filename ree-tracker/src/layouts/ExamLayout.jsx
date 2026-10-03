@@ -37,8 +37,12 @@ export default function ExamLayout({
         </span>
       </header>
 
-      {/* Centered, fluid exam viewport (wide enough for circuits/derivations) */}
-      <main className="flex-1 overflow-y-auto flex justify-center px-4 py-6 sm:py-8 custom-scrollbar">
+      {/* Centered, fluid exam viewport (wide enough for circuits/derivations).
+          overflow-x-clip rather than overflow-y-auto: this <main> never
+          scrolled (the window does), but overflow-y-auto made it the scroll
+          container of the sticky exam toolbar, so the toolbar and its clock
+          scrolled away on a long question. */}
+      <main id="main-content" className="flex-1 min-w-0 overflow-x-clip flex justify-center px-4 py-6 sm:py-8">
         <div className="w-full max-w-[1000px]">{children}</div>
       </main>
     </div>
