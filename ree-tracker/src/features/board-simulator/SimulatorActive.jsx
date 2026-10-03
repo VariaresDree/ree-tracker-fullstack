@@ -167,7 +167,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
       <div className={`flex flex-col gap-6 max-w-5xl mx-auto w-full animate-in fade-in duration-500 pb-12 z-0 relative transition-all duration-500 origin-center ${showSubmitConfirm ? 'scale-95 blur-md opacity-40 pointer-events-none' : 'scale-100 blur-none opacity-100'}`}>
 
         {/* Top toolbar — exit / hotkey status / answered count / timer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-4 z-50">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-[calc(max(0.5rem,env(safe-area-inset-top))+2.25rem)] z-50">
           {!isReview ? (
             <Button variant="ghost" tone="danger" size="sm" onClick={requestTerminate}>
               Exit exam
@@ -295,7 +295,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
               {activeSolution === 'offline' && q.fixedExplanation && (
                 <div className="p-6 sm:p-8 rounded-[var(--radius-lg)] bg-surface2 border shadow-inner animate-in fade-in slide-in-from-top-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)' }}>
                   <div className="text-eyebrow mb-4" style={{ color: 'var(--accent-signal)' }}>Solution</div>
-                  <div className="text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <div className="text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto custom-scrollbar">
                     <LatexRenderer content={q.fixedExplanation} />
                   </div>
                 </div>
@@ -316,7 +316,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
                       ↻ Regenerate
                     </button>
                   </div>
-                  <div className="text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <div className="text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto custom-scrollbar">
                     <LatexRenderer content={aiResponse || q.cachedExplanation} />
                   </div>
                 </div>

@@ -27,7 +27,7 @@ present. But several engines were **built and not connected**:
 
 A handful of integrity bugs also silently lost or double-counted answers. Waves 0–2 fixed all of
 these (#102–#116) and were **deployed on 2026-10-03** as merge `03c002b`; the operator steps are
-done (see the end of this document). Wave 3 is still open.
+done (see the end of this document). Wave 3 shipped as #123–#128 (2026-10-03); what remains is listed under it.
 
 ## P0 — data integrity and verdict correctness (fixed)
 
@@ -116,7 +116,27 @@ done (see the end of this document). Wave 3 is still open.
   - fold BKT in `answeredAt` order;
   - add subject to the `UserTopicPerformance` conflict key (same-named subtopics merge across subjects). *Closed: not needed, see above.*
 
-## Still open: Wave 3 (UI/UX, accessibility and platform)
+## Wave 3 — shipped (2026-10-03, #123–#128)
+
+| Item | PR |
+|---|---|
+| Planner v2.1, from the first live plan. Subjects are paced, not run back to back (days 1–15 had all been EE). Drills are sized to one Smart Drill session (120 → ≤50). Untouched topics link to their Topic row | #123 |
+| Every theme meets WCAG AA. A computed contrast test covers the 13 themes; 78 failing pairs were fixed, including "Correct" at 1.6–1.9:1 and wrong answers at 80% opacity | #124 |
+| Answer feedback without colour: a graded-answer announcement, navigator state names plus `aria-current`, clock milestones, flashcard focus | #125 |
+| A `touch-target` utility (44 px on coarse pointers) on every audited control. The drawer is inert while closed. Scratchpad is a real dialog with a DPR-sized canvas. Footers wrap | #126 |
+| The **sticky exam toolbar and clock no longer scroll away**: `<main>` used `overflow-y-auto`, which captured sticky children. `.page-fade-in` no longer leaves a transform behind. The `animate-in` family is defined (~190 uses, plugin never installed). Skip link. h1 on Active Review, Board Simulator and Login | #127 |
+| ESLint runs in CI as a per-rule ratchet (157 legacy errors, none added). LaTeX memo/prose fixes and a malformed-formula test. Formula boxes show their scrollbar. A Pixel 7 Playwright project | #128 |
+
+**Still open after Wave 3:**
+- **Headings on the remaining pages.** Arena, Profile, Materials, Battle and Gauntlet need an h1 without creating h1→h3 skips, because child components bring their own h3s. Do this with a rendered axe pass, not blind.
+- **Authed-screen axe and Lighthouse** via the Firebase emulator. This is the tool for the item above.
+- **Sentry (free tier).** Needs a DSN from the owner.
+- **A "which mode do I use?" guide**, tied to the placement result.
+- **Paying down the lint baseline.** 103 unused variables are mechanical. The 18 `set-state-in-effect` errors need care.
+- **`aiModels.js` default ids** against Google's live model list.
+- **Inconsistent naming** across nav, page titles and copy.
+
+## Wave 3 as planned (for reference)
 
 - **Touch targets under 44 px on coarse pointers:**
   - hamburger, sidebar collapse, heatmap toggles, Scratchpad buttons;

@@ -13,6 +13,41 @@
 /* A control that has to be hit with a finger: at least 44x44 CSS px on touch
    screens (WCAG 2.5.5 / Apple HIG), unchanged for a mouse. Pair it with
    inline-flex + centring so the content stays put as the box grows. */
+/* Enter animations. `animate-in fade-in slide-in-from-bottom-2` and friends
+   were written across ~190 class lists for the tailwindcss-animate plugin,
+   which this app never installed, so none of them did anything. They are
+   defined here with that plugin's semantics, with two differences: fill-mode
+   is `backwards` (a finished animation leaves no transform behind; see
+   .page-fade-in), and nothing animates under prefers-reduced-motion.
+   `duration-*` sets --tw-duration, so `animate-in duration-500` works. */
+@keyframes tw-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0);
+  }
+}
+@utility animate-in {
+  animation: tw-enter var(--tw-duration, 200ms) var(--ease-out-quart) backwards;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@utility fade-in {
+  --tw-enter-opacity: 0;
+}
+@utility slide-in-from-bottom-* {
+  --tw-enter-translate-y: calc(var(--spacing) * --value(integer));
+}
+@utility slide-in-from-top-* {
+  --tw-enter-translate-y: calc(var(--spacing) * --value(integer) * -1);
+}
+@utility slide-in-from-left-* {
+  --tw-enter-translate-x: calc(var(--spacing) * --value(integer) * -1);
+}
+@utility slide-in-from-right-* {
+  --tw-enter-translate-x: calc(var(--spacing) * --value(integer));
+}
+
 @utility touch-target {
   @media (pointer: coarse) {
     min-width: 2.75rem;
@@ -379,8 +414,12 @@
 }
 
 @layer utilities {
+  /* `backwards`, not `forwards`: a forwards fill kept transform:translateY(0)
+     on <main> after the animation, which made <main> the containing block for
+     every position:fixed element inside it. The end state is the element's
+     own style anyway. */
   .page-fade-in {
-    animation: fadeIn 0.4s ease-out forwards;
+    animation: fadeIn 0.4s ease-out backwards;
   }
   
   @keyframes fadeIn {

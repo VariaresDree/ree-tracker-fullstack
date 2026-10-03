@@ -109,6 +109,14 @@ export default function MainLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-bg flex flex-col md:flex-row font-sans text-textMain relative">
+      {/* First stop for a keyboard user: past the header and the whole
+          navigation, straight to the page. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-[var(--radius-default)] focus:bg-surface focus:text-textMain focus:border focus:border-[var(--accent)]"
+      >
+        Skip to main content
+      </a>
       {/* MOBILE APP HEADER */}
       <div className="md:hidden flex items-center justify-between px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] bg-surface border-b border-border2 sticky top-0 z-[40] shadow-sm">
         <div className="text-xl font-bold tracking-tight text-[var(--accent)]">
@@ -282,9 +290,16 @@ export default function MainLayout({ children }) {
       </aside>
 
       {/* MAIN VIEWPORT */}
+      {/* overflow-x-clip, not overflow-y-auto: <main> has no fixed height so it
+          never scrolled itself (the window does), but overflow-y-auto still
+          made it the scroll container of every `sticky` child, so none of
+          them stuck (ReviewSetup's mobile Start bar). clip keeps sideways
+          overflow contained without creating a scroll container. */}
       <main
         key={location.pathname}
-        className="flex-1 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 overflow-y-auto relative page-fade-in animate-in fade-in slide-in-from-bottom-2 custom-scrollbar"
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 overflow-x-clip relative page-fade-in outline-none"
       >
         {children}
       </main>
