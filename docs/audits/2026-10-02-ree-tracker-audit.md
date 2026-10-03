@@ -164,6 +164,27 @@ Fixed:
 
 **migrate:taxonomy must not be run on production.** Its seed (`src/config/prcTaxonomy.js`, 49 topics) diverged from the live taxonomy. A dry run reported "43 to create, 6 to update", which would create 43 parallel topics and split analytics. It now refuses unless `--force` is passed.
 
+## Post-deploy finding: backfill:mastery split relabelled counts (2026-10-03)
+
+`link:topics:apply` relabelled the "AC Impedance" questions to "Electric Circuits 2". After the follow-up `backfill:mastery`, one learner (znXRdW…) had two rows for one topic:
+- "Electric Circuits 2": 3 attempts / 2 correct / 45 s, masteryN 5;
+- "AC Impedance": 2 / 1 / 11 s, `topicId` NULL, an orphan.
+
+History holds 5 attempts and 3 correct on that topic.
+
+Two defects in `scripts/backfillMastery.js`:
+- **Create branch.** It wrote `attempts = masteryN, correct = 0, totalTime = 0`. Any row it created showed 0% accuracy, for example a key that first appeared after a relabel.
+- **Orphans.** A row whose key no longer appears in the fold was never merged or removed. Telemetry keys a row by the label each answer was recorded under (`QuestionAttempt.subtopic`), so a relabel leaves the old row behind.
+
+Fixed: the backfill now reconciles each learner's rows with history.
+- The fold also produces attempts, correct and seconds. Seconds use the live plausibility band (`TIME_MIN_MS`/`TIME_MAX_MS`), floored per attempt as in `migrate:taxonomy`'s rebuild. New rows get those counts.
+- Existing counts stay telemetry's unless history proves them wrong. Each correction is logged `from -> to`.
+- A row whose key no longer folds is deleted only when this holds: the answers recorded under its label all fold under another key now, and they cover its whole tally (attempts, correct and seconds). Nothing is summed: the surviving row's counts come from history, which already includes them.
+- Any other orphan is left as is and logged with a reason:
+  - `no-history`: nothing was recorded under it;
+  - `uncovered`: it counts more than history recorded under it.
+- Each learner is one transaction under the user lock telemetry takes, so a correction cannot overwrite a newer live count. A learner whose transaction fails is rolled back, reported, and the run exits 1.
+
 ## Deployment and operator steps (Waves 0–2) — done
 
 Deployed 2026-10-03 as merge `03c002b`. Render's `prisma migrate deploy` applied four additive migrations:
@@ -180,12 +201,21 @@ Operator steps, all run:
 5. `npm run seed:syllabus`: 25 / 30 / 45.
 6. `npm run migrate:taxonomy`: **deliberately not run** (see the finding above).
 
-Still to run, once the taxonomy-drift fix is deployed:
-1. `npm run link:topics`, a read-only dry run. Expect all 2,176 linked: 2,136 exact matches plus 40 through the reviewed remaps, each relabelled to its topic's name. Expect 0 unmatched.
-2. `npm run link:topics:apply`.
-3. `npm run backfill:mastery`, so `UserTopicPerformance.topicId` follows.
+Taxonomy-drift follow-up (#117), run 2026-10-03:
+1. `npm run link:topics`, the read-only dry run.
+2. `npm run link:topics:apply`: all 2,176 linked in 42 groups, 0 unmatched. Only the 2 remapped labels were relabelled. 0 untagged questions remain.
+3. `npm run backfill:mastery`: 118 rows. This run exposed the split described in the backfill finding above.
 
-If the dry run still lists unmatched groups, a remap target was renamed or deactivated (the report names it). Re-tag those questions in the Library vault editor, or add the topic in the TOS manager, then re-run steps 1–3.
+If a later `link:topics` dry run lists unmatched groups, a remap target was renamed or deactivated (the report names it). Re-tag those questions in the Library vault editor, or add the topic in the TOS manager, then re-run all three steps.
+
+Still to run, once the backfill fix is merged. Step 2 writes to production and needs explicit approval:
+1. `npm run backfill:mastery:dry`, read-only. For znXRdW… expect these two lines; the numbers are higher if they have answered more since:
+   - `"Electric Circuits 2": counts 3/2/45s -> 5/3/56s (history)`
+   - `"AC Impedance" (2/1/11s): superseded by "Electric Circuits 2" -> delete`
+
+   Other learners may show corrections too: rows the old create branch wrote with `correct: 0`. Read every line. Look into any "left as is" line by hand before applying; the script will not touch those rows.
+2. `npm run backfill:mastery`. This also does the one-off merge of the two rows above, which was otherwise pending.
+3. `npm run backfill:mastery:dry` again. Expect no `counts` or `superseded` lines; only "left as is" lines, if any, remain.
 
 Stacked PRs only run the full CI suite once they target `main`. Each was verified locally:
 - backend: 592 tests;
