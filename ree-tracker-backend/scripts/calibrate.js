@@ -61,4 +61,4 @@ main()
     console.error('[calibrate] failed', err);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => prisma.closeDb());

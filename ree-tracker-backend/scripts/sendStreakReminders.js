@@ -109,7 +109,7 @@ async function main() {
     }
 
     console.log(`[streakReminders] done  sent=${sent}  dryRun=${dryRun}`);
-    await prisma.$disconnect();
+    await prisma.closeDb();
 }
 
 // Exported for unit tests; only auto-run when invoked directly.
