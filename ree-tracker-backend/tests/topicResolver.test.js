@@ -99,6 +99,27 @@ describe('diffTaxonomySync (PUT /tos payload → Topic table sync)', () => {
     expect(updates).toEqual([]);          // Algebra already at sortOrder 0
     expect(deactivateIds).toEqual([]);    // EE untouched (invalid payload), Illumination survives
   });
+
+  // A respelling keeps the row (same normKey), so the route has to carry the
+  // new name onto the labels that copy it: Question.subtopic and the
+  // UserTopicPerformance rows keyed by the old spelling.
+  it('reports a respelled topic as a rename from its old name', () => {
+    const rows = [T('EE', 'electric circuits 2', { sortOrder: 0 })];
+    const { creates, updates, renames } = diffTaxonomySync(rows, { EE: ['Electric Circuits 2'] });
+    expect(creates).toEqual([]);
+    expect(updates).toEqual([{ id: 'EE:electric circuits 2', name: 'Electric Circuits 2', sortOrder: 0, active: true }]);
+    expect(renames).toEqual([{ topicId: 'EE:electric circuits 2', from: 'electric circuits 2', to: 'Electric Circuits 2' }]);
+  });
+
+  it('reports no rename for a reorder or a reactivation that keeps the spelling', () => {
+    const rows = [
+      T('EE', 'DC Electric Circuits', { sortOrder: 0 }),
+      T('EE', 'Illumination', { sortOrder: 1, active: false }),
+    ];
+    const { updates, renames } = diffTaxonomySync(rows, { EE: ['Illumination', 'DC Electric Circuits'] });
+    expect(updates).toHaveLength(2);
+    expect(renames).toEqual([]);
+  });
 });
 
 describe('PRC taxonomy seed data invariants', () => {

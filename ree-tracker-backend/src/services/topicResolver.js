@@ -119,14 +119,20 @@ async function resolveQuestionTopic(subject, subtopic) {
  * the list, and rows missing from the list are deactivated (never deleted —
  * questions keep their FK and history stays attributable).
  *
+ * `renames` lists the updates that change a row's spelling (same normKey, so
+ * the row is kept): labels that copy Topic.name — Question.subtopic and the
+ * UserTopicPerformance keys — still carry `from` and must follow it
+ * (services/topicRelabel.js).
+ *
  * @param {Array} existingRows - all Topic rows for the subjects being synced
  * @param {Object} incoming   - { subjectLabel: [topicName, ...] }
- * @returns {{creates: Array, updates: Array, deactivateIds: Array}}
+ * @returns {{creates: Array, updates: Array, deactivateIds: Array, renames: Array<{topicId, from, to}>}}
  */
 function diffTaxonomySync(existingRows, incoming) {
     const creates = [];
     const updates = [];
     const deactivateIds = [];
+    const renames = [];
 
     const bySubject = new Map();
     for (const t of existingRows || []) {
@@ -155,6 +161,7 @@ function diffTaxonomySync(existingRows, incoming) {
                 creates.push({ subject: subj, name, normKey: k, sortOrder: i, curated: true });
             } else if (row.name !== name || row.sortOrder !== i || row.active === false) {
                 updates.push({ id: row.id, name, sortOrder: i, active: true });
+                if (row.name !== name) renames.push({ topicId: row.id, from: row.name, to: name });
             }
         });
 
@@ -163,7 +170,7 @@ function diffTaxonomySync(existingRows, incoming) {
         }
     }
 
-    return { creates, updates, deactivateIds };
+    return { creates, updates, deactivateIds, renames };
 }
 
 module.exports = {
