@@ -1,34 +1,41 @@
 // src/config/constants.js
 
-// Offline / pre-fetch fallback TOS. Canonical PRC REE board-exam subtopics —
-// MUST mirror the backend seed (ree-tracker-backend/src/config/prcTaxonomy.js);
-// the live list is served from the Topic taxonomy via GET /api/config/tos.
+// Offline / pre-fetch fallback TOS — used only until the live taxonomy arrives
+// from GET /api/config/tos (the server's Topic table, managed in the Library's
+// TOS manager). Snapshot of the ACTIVE topics in production on 2026-10-03.
+// It is NOT the backend's prcTaxonomy.js seed: production's taxonomy is
+// TOS-editor managed and diverged from that seed long ago. Anything that writes
+// topic labels (AI ingestion, manual add, review edits) re-pulls the live list
+// first (services/liveTaxonomy.js) and the server refuses labels outside it, so
+// a stale entry here can only affect offline display.
 export const TOS = {
   Mathematics: [
-    'Algebra', 'Trigonometry', 'Analytic Geometry',
-    'Differential Calculus', 'Integral Calculus',
-    'Complex Numbers and Space Vectors', 'Probability and Statistics',
-    'Matrices and Determinants', 'Sequences and Series',
-    'Other Engineering Mathematics'
+    'Advanced Engineering Mathematics', 'Algebra', 'Analytic Geometry',
+    'Calculus 1', 'Calculus 2', 'Complex Numbers', 'Differential Equations',
+    'Engineering Data Analytics', 'Math in the Modern World',
+    'Numerical Methods & Analysis', 'Plane Geometry', 'Probability & Statistics',
+    'Solid Geometry', 'Trigonometry', 'Vector Analysis'
   ],
   ESAS: [
-    'General Chemistry', 'College Physics', 'Engineering Materials',
-    'Engineering Mechanics', 'Thermodynamics', 'Fluid Mechanics',
-    'Engineering Economics and Management',
-    'Electrical Engineering Law and Code of Ethics',
-    'Contracts and Specifications', 'Computer Fundamentals and Programming',
-    'Philippine Electrical Code Parts 1 and 2'
+    'Basic Occupational Safety & Health', 'Basic Thermodynamics',
+    'Chemistry for Engineers', 'Computer Programming',
+    'EE Laws, Codes, & Professional Ethics', 'Electrical Standards & Practices',
+    'Engineering Economics', 'Engineering Mechanics',
+    'Environmental Science & Engineering', 'Fluid Mechanics',
+    'Fundamentals of Deformable Bodies', 'Material Science',
+    'Microprocessor Systems and Logic Circuits', 'Physics for Engineers',
+    'Quantities/units/constants (ESAS)', 'Research Methods',
+    'Technopreneurship & Project Management'
   ],
   EE: [
-    'Quantities/Units/Constants', 'Electrical Materials',
-    'Passive Circuit Elements', 'Active Circuit Elements', 'AC Impedance',
-    'Instruments and Measurements', 'DC Electric Circuits',
-    'Transient Response', 'Magnetic Circuits', 'AC Electric Circuits',
-    'AC Generators', 'DC Generators', 'Energy Sources', 'Energy Conversion',
-    'Prime Movers', 'Rotating Electric Machinery', 'Power System Components',
-    'AC Transmission', 'DC Transmission', 'Power System Interconnection',
-    'Substation Design', 'Power Distribution', 'Wiring Design for Buildings',
-    'Power Electronics', 'Industrial Electronics', 'Illumination',
-    'Telecommunications', 'Computer Application in Electrical Power Industry'
+    'Distribution Systems & Substation Design', 'Electric Circuits 1',
+    'Electric Circuits 2', 'Electrical Apparatus & Devices',
+    'Electrical Machinery 1', 'Electrical Machinery 2',
+    'Electrical System & Illumination Design', 'Electrical Transient Analysis',
+    'Electromagnetism', 'Electronics 1 and 2', 'Feedback Control Systems',
+    'Fundamentals of Electronic Communications', 'Industrial Electronics',
+    'Instrumentation & Control', 'Power Plant Engineering',
+    'Power System Analysis', 'Power System Protection',
+    'Quantities/units/constants (EE)'
   ],
 };

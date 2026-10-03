@@ -148,10 +148,15 @@ router.put('/quarantine/:id/approve', authMiddleware, requireAdmin, async (req, 
     try {
         const previous = await prisma.question.findUnique({ where: { id: req.params.id } });
         if (!previous) return res.status(404).json({ error: 'Question not found.' });
+        // Back into the live pool, so link its topic (within its subject) the
+        // same way PUT /:id does — ungated, so a legacy row can always be cleared.
+        const subject = req.body.subject ?? previous.subject;
+        const subtopic = req.body.subtopic ?? previous.subtopic;
+        const topic = await resolveTopic(subject, subtopic, { crossSubject: false });
         await prisma.$transaction([
             prisma.question.update({
                 where: { id: req.params.id },
-                data: { isFlagged: false, subject: req.body.subject, subtopic: req.body.subtopic }
+                data: { isFlagged: false, subject: req.body.subject, subtopic: topic?.name || req.body.subtopic, topicId: topic?.id ?? null }
             }),
             prisma.questionVersion.create({
                 data: { questionId: previous.id, action: 'APPROVED', editor: req.user?.id || null, snapshot: buildVersionSnapshot(previous) },
@@ -238,7 +243,7 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {
-        if (error.code === 'INVALID_TAXONOMY') return res.status(400).json({ error: error.message });
+        if (error.code === 'INVALID_TAXONOMY' || error.code === 'UNKNOWN_TOPIC') return res.status(400).json({ error: error.message });
         logger.error('Question create error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to insert question.' });
     }
@@ -265,8 +270,13 @@ router.put('/:id', authMiddleware, requireAdmin, validate(questionUpdateSchema),
         // which Prisma skips (the old parseFloat(undefined) wrote NaN).
         // Re-resolve the taxonomy FK only when the subtopic is actually being
         // changed (undefined must stay undefined so Prisma skips the columns).
+        // Matched within the question's own subject — the edit's, or the stored
+        // one when the edit omits it — so a label from another subject can't
+        // attach this question to that subject's drills. Not gated like
+        // creation: an edit to one of the legacy untagged questions must still
+        // save.
         const topic = data.subtopic !== undefined
-            ? await resolveTopic(data.subject, data.subtopic)
+            ? await resolveTopic(data.subject ?? previous.subject, data.subtopic, { crossSubject: false })
             : undefined;
         await prisma.$transaction([
             prisma.question.update({

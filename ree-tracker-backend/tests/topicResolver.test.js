@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const { normKey, buildResolverIndex, resolveInIndex, diffTaxonomySync } = require('../src/services/topicResolver');
 const { PRC_TAXONOMY } = require('../src/config/prcTaxonomy');
 
@@ -146,5 +146,59 @@ describe('PRC taxonomy seed data invariants', () => {
     // topics by the migration instead of getting a dishonest PRC home).
     expect(resolveInIndex(index, 'ESAS', 'Environmental Science & Engineering')).toBeNull();
     expect(resolveInIndex(index, 'EE', 'Feedback Control Systems')).toBeNull();
+  });
+});
+
+describe('subject-scoped resolution (question creation + linking)', () => {
+  const { subjectHasTopics } = require('../src/services/topicResolver');
+
+  it('with crossSubject:false, never borrows a topic from another subject', () => {
+    const index = buildResolverIndex([T('Mathematics', 'Algebra'), T('EE', 'Electric Circuits 1')]);
+    expect(resolveInIndex(index, 'EE', 'Algebra', { crossSubject: false })).toBeNull();
+    expect(resolveInIndex(index, 'Math', 'Algebra', { crossSubject: false })?.name).toBe('Algebra');
+    expect(resolveInIndex(index, 'EE', ' electric circuits 1 ', { crossSubject: false })?.name).toBe('Electric Circuits 1');
+    // The default (telemetry) keeps the cross-subject fallback.
+    expect(resolveInIndex(index, 'EE', 'Algebra')?.name).toBe('Algebra');
+  });
+
+  it('subjectHasTopics reports whether a canonical subject has any live topic', () => {
+    const index = buildResolverIndex([T('Mathematics', 'Algebra'), T('ESAS', 'Retired', { active: false })]);
+    expect(subjectHasTopics(index, 'Math')).toBe(true);
+    expect(subjectHasTopics(index, 'ESAS')).toBe(false);
+    expect(subjectHasTopics(index, 'EE')).toBe(false);
+  });
+});
+
+describe('resolveQuestionTopic — the topic a new live question lands on', () => {
+  const prisma = require('../src/config/db');
+  const { resolveQuestionTopic, invalidateTopicCache } = require('../src/services/topicResolver');
+
+  const rows = [T('EE', 'Electrical Transient Analysis'), T('Mathematics', 'Algebra')];
+  beforeEach(() => {
+    invalidateTopicCache();
+    vi.spyOn(prisma.topic, 'findMany').mockResolvedValue(rows);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    invalidateTopicCache();
+  });
+
+  it('returns the matching topic within the question subject', async () => {
+    const topic = await resolveQuestionTopic('EE', 'electrical transient analysis');
+    expect(topic).toMatchObject({ id: 'EE:Electrical Transient Analysis', name: 'Electrical Transient Analysis' });
+  });
+
+  it('refuses a label that is not in the subject taxonomy (the stale-dropdown drift)', async () => {
+    await expect(resolveQuestionTopic('EE', 'Transient Response')).rejects.toMatchObject({ code: 'UNKNOWN_TOPIC' });
+    // A label from ANOTHER subject is not a match either.
+    await expect(resolveQuestionTopic('EE', 'Algebra')).rejects.toMatchObject({ code: 'UNKNOWN_TOPIC' });
+  });
+
+  it('names the subject and label in the refusal so the admin knows what to fix', async () => {
+    await expect(resolveQuestionTopic('EE', 'Transient Response')).rejects.toThrow(/"Transient Response".*EE/);
+  });
+
+  it('allows an untagged question only when the subject has no taxonomy at all', async () => {
+    expect(await resolveQuestionTopic('ESAS', 'Fluid Mechanics')).toBeNull();
   });
 });

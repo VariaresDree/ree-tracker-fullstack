@@ -13,15 +13,18 @@ are all in place. This roadmap **builds on that base**; it does not rebuild it.
 
 Full findings, with file references and PR numbers, are in
 [`docs/audits/2026-10-02-ree-tracker-audit.md`](./docs/audits/2026-10-02-ree-tracker-audit.md).
-That audit shipped **Wave 0** (integrity: #102–#104) and **Wave 1** (connect the engines:
-#105–#110) as a stacked series. Merge them in order.
+That audit shipped **Wave 0** (integrity: #102–#104), **Wave 1** (connect the engines: #105–#110)
+and **Wave 2** (#112–#116). All three were **deployed on 2026-10-03** as merge `03c002b`:
+- Render applied the four additive migrations.
+- The operator steps (calibrate, recompute:theta, backfill:mastery, seed:syllabus) are done, and the audit:difficulty gate passed.
+- `migrate:taxonomy` was deliberately **not** run; see the audit.
 
 | Wave below | Status |
 |---|---|
 | **W1** Assessment & readiness | **Done.** Weighted PRC verdict and exam format (#104). PRC-rule forecast with per-subject projection, conditional risk and binding subject (#107). Placement CAT that seeds abilities (#109). Readiness index and breakdown at the top of the dashboard (#110). |
 | **W2** Personalized practice loop | **Mostly done.** Server-authoritative SRS with a due queue (#106). Mastery decay (#106). Targeted adaptive drills (#108). The adaptive daily plan moves to **Wave 2: Planner v2**. |
 | **W3** Mock-exam realism | **Partly done.** PRC format (Math 5h / ESAS 4h / EE 6h) and weighted pass/fail (#104). The full 3-section sitting and server-backed mock history move to **Wave 2**. |
-| **W4** Content quality & coverage | Unchanged. |
+| **W4** Content quality & coverage | **Topic-taxonomy drift fixed** (post-deploy). AI ingestion now labels from the live taxonomy. A live question must land on a topic in its subject. `link:topics` tags the 2,136 untagged questions that match an existing topic; 40 need a manual re-tag. The stale `migrate:taxonomy` seed is guarded. Coverage-gap detection is unchanged. |
 | **W5** Reliability & observability | Unchanged. Sentry and staging move to **Wave 3**. |
 | **W6** Accessibility & performance (authed screens) | Findings recorded in the audit (touch targets, contrast per theme, overlays, KaTeX). Scheduled as **Wave 3**. |
 | **W7** Onboarding & UX clarity | **Placement test done** (#109). The "which mode do I use?" guide moves to **Wave 3**. |
@@ -33,7 +36,7 @@ That audit shipped **Wave 0** (integrity: #102–#104) and **Wave 1** (connect t
 - The full 3-section PRC board (#114).
 - The blind-spot and time-sink registry, and a daily readiness snapshot with its trend (#115).
 - Planner v2 (#116).
-- **Still open:** adding subject to the `UserTopicPerformance` key. This is the one non-additive change, and it waits on a decision; see the audit.
+- **Closed:** adding subject to the `UserTopicPerformance` key. Production has 0 cross-subject topic-name collisions, so the non-additive change isn't needed.
 
 **Wave 3: UI/UX, accessibility and platform**
 - 44 px touch targets;

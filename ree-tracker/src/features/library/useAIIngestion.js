@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { generateQuestionsAI, generateQuestionsFromText, generateQuestionsFromImages } from '../../services/geminiApi';
 import { saveQuestionToBank } from '../../services/dbQueries';
+import { useStore } from '../../store/useStore';
+import { labelForGenerated } from '../../utils/topicLabels';
 import toast from 'react-hot-toast';
 import PdfWorker from './pdfWorker?worker';
 
@@ -30,6 +32,13 @@ export const useAIIngestion = (onIngestSuccess) => {
   const [showQAModal, setShowQAModal] = useState(false);
   const [isCommitting, setIsCommitting] = useState(false);
 
+  // The subtopic a generated question is filed under: the picked topic, or the
+  // model's label snapped to the live taxonomy (see utils/topicLabels).
+  const labelFor = (q) => labelForGenerated(q.subtopic, {
+    target: genSubtopic,
+    topics: useStore.getState().dynamicTOS?.[genSubject],
+  });
+
   // =========================================================================
   // STANDARD AI GENERATION (LEFT PANEL)
   // =========================================================================
@@ -44,7 +53,7 @@ export const useAIIngestion = (onIngestSuccess) => {
           const payload = { 
               ...q, 
               subject: genSubject, 
-              subtopic: q.subtopic || genSubtopic, 
+              subtopic: labelFor(q), 
               source: useWeb ? 'web' : 'ai', 
               type: q.type || 'calculation', 
               status: 'quarantined', // <-- SECURITY PIPELINE: Force to Admin Queue
@@ -175,7 +184,7 @@ export const useAIIngestion = (onIngestSuccess) => {
               const payload = { 
                   ...q, 
                   subject: genSubject, 
-                  subtopic: q.subtopic || genSubtopic, 
+                  subtopic: labelFor(q), 
                   source: 'AI_Vision_Module', 
                   type: q.type || 'conceptual', 
                   status: 'quarantined', // <-- SECURITY PIPELINE: Force to Admin Queue

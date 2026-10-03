@@ -1,11 +1,11 @@
 // src/services/topicResolver.js
 // Resolution + sync helpers for the Topic taxonomy (Phase 3.3).
 //
-// The taxonomy is canonical PRC TOS rows in the Topic table; legacy/curriculum
-// labels live in each row's `aliases`. Everything that needs to attach a
-// subtopic string to a real topic (telemetry rollups, question ingestion, the
-// migration backfill) resolves through here, so the matching rules exist in
-// exactly one place.
+// The taxonomy is the Topic table (managed by the TOS editor, PUT
+// /api/config/tos); legacy labels can live in each row's `aliases`.
+// Everything that needs to attach a subtopic string to a real topic (telemetry
+// rollups, question ingestion, the linking/migration scripts) resolves through
+// here, so the matching rules exist in exactly one place.
 const prisma = require('../config/db');
 const { normalizeSubject } = require('../utils/subject');
 
@@ -66,23 +66,50 @@ function invalidateTopicCache() {
 
 /**
  * Pure: resolve a (subject, subtopic-string) pair against a built index.
- * Falls back to a cross-subject scan so an attempt with a mislabeled or
- * 'General' subject still finds its topic when the label is unambiguous.
+ * By default falls back to a cross-subject scan so an attempt with a
+ * mislabeled or 'General' subject still finds its topic when the label is
+ * unambiguous. `crossSubject: false` matches only within the canonical
+ * subject — what a QUESTION needs, since its subject is already known and a
+ * topic from another subject would put it in the wrong drill.
  */
-function resolveInIndex(index, subject, subtopic) {
+function resolveInIndex(index, subject, subtopic, { crossSubject = true } = {}) {
     const k = normKey(subtopic);
     if (!k) return null;
     const hit = index[normalizeSubject(subject)]?.[k];
     if (hit) return hit;
+    if (!crossSubject) return null;
     for (const bucket of Object.values(index)) {
         if (bucket[k]) return bucket[k];
     }
     return null;
 }
 
+// Pure: does this subject have any live topic in the index?
+function subjectHasTopics(index, subject) {
+    const bucket = index[normalizeSubject(subject)];
+    return !!bucket && Object.keys(bucket).length > 0;
+}
+
 // DB-backed resolve through the TTL-cached index.
-async function resolveTopic(subject, subtopic) {
-    return resolveInIndex(await getResolverIndex(), subject, subtopic);
+async function resolveTopic(subject, subtopic, opts) {
+    return resolveInIndex(await getResolverIndex(), subject, subtopic, opts);
+}
+
+/**
+ * The topic a new LIVE question lands on: matched within its own subject only.
+ * When the subject has a taxonomy, a label outside it is refused
+ * (code UNKNOWN_TOPIC) instead of silently publishing an untagged question —
+ * untagged items are invisible to topic-targeted Smart Drill and CAT. Only a
+ * subject with no topics at all (an unseeded deploy) may publish untagged.
+ */
+async function resolveQuestionTopic(subject, subtopic) {
+    const index = await getResolverIndex();
+    const topic = resolveInIndex(index, subject, subtopic, { crossSubject: false });
+    if (topic || !subjectHasTopics(index, subject)) return topic;
+    throw Object.assign(
+        new Error(`"${String(subtopic ?? '').trim()}" is not a topic in the ${normalizeSubject(subject)} syllabus. Pick a topic from the list.`),
+        { code: 'UNKNOWN_TOPIC' },
+    );
 }
 
 /**
@@ -139,4 +166,7 @@ function diffTaxonomySync(existingRows, incoming) {
     return { creates, updates, deactivateIds };
 }
 
-module.exports = { normKey, buildResolverIndex, resolveInIndex, resolveTopic, invalidateTopicCache, diffTaxonomySync };
+module.exports = {
+    normKey, buildResolverIndex, resolveInIndex, subjectHasTopics,
+    resolveTopic, resolveQuestionTopic, invalidateTopicCache, diffTaxonomySync,
+};

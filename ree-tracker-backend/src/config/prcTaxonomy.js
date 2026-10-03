@@ -11,6 +11,10 @@
 //
 // Subject-level weights (Math 25 / ESAS 30 / EE 45) live in SyllabusWeight
 // (roadmap 3.2) — PRC publishes weights per subject, not per subtopic.
+//
+// NOT the live taxonomy: production's Topic table has been managed by the TOS
+// editor since 2026-07-18 and diverged from this seed, so scripts/
+// migrateTaxonomy.js refuses to seed over it (see checkSeedGuard there).
 
 const PRC_TAXONOMY = {
     Mathematics: [
