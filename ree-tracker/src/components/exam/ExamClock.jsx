@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '../ui';
 import { Eye, EyeOff } from '../ui/icons';
 import { formatExamTime } from '../../utils/examFormat';
+import { crossedMilestone } from './examAnnouncements';
 
 /** Seconds left until `endTime`, floored at 0. */
 export function remainingSecs(endTime, now = Date.now()) {
@@ -32,20 +33,6 @@ export function remainingSecs(endTime, now = Date.now()) {
 
 /** Under five minutes is the "critical" styling threshold. */
 export const CRITICAL_SECS = 300;
-
-/** Minutes-left marks a screen reader hears. */
-const MILESTONE_MINUTES = [60, 30, 10, 5, 1];
-
-/**
- * The milestone (in minutes) crossed between two readings, or null. A first
- * reading crosses nothing, so starting at 15 minutes left does not announce 30
- * and 60. If a throttled tab skips several, the latest (smallest) one wins.
- */
-export function crossedMilestone(prevSecs, nowSecs) {
-    if (prevSecs == null || nowSecs == null) return null;
-    const crossed = MILESTONE_MINUTES.filter((m) => prevSecs > m * 60 && nowSecs <= m * 60);
-    return crossed.length ? Math.min(...crossed) : null;
-}
 
 export default function ExamClock({
     endTime,

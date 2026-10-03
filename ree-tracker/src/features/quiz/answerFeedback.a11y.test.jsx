@@ -12,7 +12,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import QuestionCard from './QuestionCard';
 import ExamNavigator from '../../components/exam/ExamNavigator';
-import ExamClock, { crossedMilestone } from '../../components/exam/ExamClock';
+import ExamClock from '../../components/exam/ExamClock';
+import { crossedMilestone } from '../../components/exam/examAnnouncements';
 import FlashcardMode from '../active-recall/FlashcardMode';
 
 vi.mock('../../components/LatexRenderer', () => ({

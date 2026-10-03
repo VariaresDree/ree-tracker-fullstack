@@ -10,15 +10,7 @@
 //   isMarked(idx) -> bool  (bookmark dot; optional)
 import { useEffect, useRef } from 'react';
 import { Check, X } from '../ui/icons';
-
-/**
- * The accessible name of a navigator cell. Answered/marked used to be colour
- * and a dot only, so "Go to item 3" said nothing about the item.
- */
-export function navigatorLabel({ idx, answered, reviewState, marked }) {
-  const state = reviewState || (answered ? 'answered' : 'not answered');
-  return `Go to item ${idx + 1}, ${state}${marked ? ', marked for review' : ''}`;
-}
+import { navigatorLabel } from './examAnnouncements';
 
 export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked }) {
   const scrollRef = useRef(null);

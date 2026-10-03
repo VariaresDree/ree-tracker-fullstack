@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
+import { answerAnnouncement } from './answerAnnouncement';
 
 const CONFIDENCE_LEVELS = ['LOW', 'MED', 'HIGH'];
 const HOTKEY_TO_CONFIDENCE = { q: 'LOW', w: 'MED', e: 'HIGH' };
@@ -244,19 +245,6 @@ export default function QuestionCard({
       </div>
     </div>
   );
-}
-
-/**
- * What a screen reader hears when an answer is graded. Letters, not the option
- * text: options are often LaTeX, which reads as noise.
- */
-export function answerAnnouncement({ isReviewing, selectedOption, correctAnswer, options = [] }) {
-  if (!isReviewing || correctAnswer == null) return '';
-  const i = options.indexOf(correctAnswer);
-  const answerIs = i >= 0 ? ` The answer is ${LETTERS[i] || String.fromCharCode(65 + i)}.` : '';
-  if (selectedOption == null) return `Not answered.${answerIs}`;
-  if (selectedOption === correctAnswer) return 'Correct.';
-  return `Incorrect.${answerIs}`;
 }
 
 function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onClick, reduceMotion, tabIndex, innerRef, plainText }) {
