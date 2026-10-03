@@ -196,13 +196,13 @@ If the dry run still lists unmatched groups, a remap target was renamed or deact
 
 A full check of every `UserTopicPerformance` row against attempt history then found 3 rows, one learner's, counted 1–2 attempts high: residue of the pre-#102 in-batch double count. The rebuilt `backfill:mastery` corrects them. Its read-only dry run on production reports exactly those 3 corrections, 0 new rows and 0 removals.
 
-Still to run, after that fix is merged: `npm run backfill:mastery`.
+Run 2026-10-03 after #118 merged (`e21eac4`), with approval: `npm run backfill:mastery` applied exactly those 3 corrections, with 0 rows created and 0 removed. A read-only check then found all 118 rows matching attempt history on attempts, correct and seconds.
 
 Follow-up (#120): removing an orphaned row now needs proof. #118 removed every row whose label had no attempts left. A row is now removed only when the answers recorded under its label (`QuestionAttempt.subtopic`, the key telemetry wrote them to) all count under another row and cover its whole tally; that is the "AC Impedance" case. Any other orphan is reported on a `?` line and left alone:
 - `no-history`: nothing was recorded under it, e.g. its questions were deleted;
 - `uncovered`: it counts more than history recorded under it.
 
-Each removal names the rows its answers now count under. This changes nothing for the run above: #118's dry run found 0 orphans. Before applying any later run, read every `-` and `?` line of the dry run.
+Each removal names the rows its answers now count under. The run above had 0 orphans, so its outcome would have been the same. Before applying any later run, read every `-` and `?` line of the dry run.
 
 Stacked PRs only run the full CI suite once they target `main`. Each was verified locally:
 - backend: 592 tests;
