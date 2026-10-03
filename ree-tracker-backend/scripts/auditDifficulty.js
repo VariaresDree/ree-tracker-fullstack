@@ -50,4 +50,4 @@ async function main() {
 
 main()
     .catch((err) => { console.error('[auditDifficulty] failed:', err.message); process.exitCode = 1; })
-    .finally(() => prisma.$disconnect());
+    .finally(() => prisma.closeDb());

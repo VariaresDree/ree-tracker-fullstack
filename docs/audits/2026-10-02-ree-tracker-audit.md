@@ -187,6 +187,17 @@ Still to run, once the taxonomy-drift fix is deployed:
 
 If the dry run still lists unmatched groups, a remap target was renamed or deactivated (the report names it). Re-tag those questions in the Library vault editor, or add the topic in the TOS manager, then re-run steps 1–3.
 
+**Done 2026-10-03** (#117 deployed as `a9bfa13`):
+- the dry run matched (2,176 in 42 groups, 0 unmatched, only the 2 remaps relabelled);
+- apply linked all 2,176;
+- `backfill:mastery` wrote 118 rows.
+
+0 untagged questions remain. The old backfill left one learner's "AC Impedance" row orphaned, and its attempts were missing from "Electric Circuits 2"; an admin merged them by hand.
+
+A full check of every `UserTopicPerformance` row against attempt history then found 3 rows, one learner's, counted 1–2 attempts high: residue of the pre-#102 in-batch double count. The rebuilt `backfill:mastery` corrects them. Its read-only dry run on production reports exactly those 3 corrections, 0 new rows and 0 removals.
+
+Still to run, after that fix is merged: `npm run backfill:mastery`.
+
 Stacked PRs only run the full CI suite once they target `main`. Each was verified locally:
 - backend: 592 tests;
 - frontend: 409 tests;

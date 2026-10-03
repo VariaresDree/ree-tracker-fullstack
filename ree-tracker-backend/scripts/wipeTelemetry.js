@@ -77,7 +77,7 @@ async function main() {
         const userCount = await prisma.user.count();
         console.log(counts);
         console.log(`\n${userCount} User row(s) would be KEPT (theta/streak reset, not deleted).`);
-        await prisma.$disconnect();
+        await prisma.closeDb();
         return;
     }
 
@@ -117,7 +117,7 @@ async function main() {
     });
     console.log('[DB] deleted/reset:', counts);
 
-    await prisma.$disconnect();
+    await prisma.closeDb();
     console.log('\n✅ Telemetry wipe complete. Accounts, question bank, and reference/materials content preserved.\n');
 }
 

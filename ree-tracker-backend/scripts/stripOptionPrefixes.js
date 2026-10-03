@@ -37,10 +37,10 @@ const { sanitizeOptions, stripChoicePrefix } = require('../src/utils/sanitizeOpt
     }
 
     console.log(`${dry ? '[DRY RUN] ' : ''}Sanitized ${changed} / ${questions.length} questions.`);
-    await prisma.$disconnect();
+    await prisma.closeDb();
     process.exit(0);
 })().catch(async (err) => {
     console.error('Backfill failed:', err);
-    try { await prisma.$disconnect(); } catch (_) { /* noop */ }
+    try { await prisma.closeDb(); } catch (_) { /* noop */ }
     process.exit(1);
 });

@@ -73,3 +73,54 @@ describe('backfillMastery — last practised', () => {
     expect(rows[0].lastPracticedAt).toEqual(new Date('2026-09-02T00:00:00Z'));
   });
 });
+
+describe('backfillMastery — counts come from history', () => {
+  const at = (isCorrect, timeSpentMs, topic = 'Calculus 1') => ({
+    isCorrect, timeSpentMs, subject: 'Math', subtopic: topic,
+    question: { topicId: 't-calc1', topic: { name: topic, subject: 'Mathematics' } },
+  });
+
+  it('counts attempts and correct, and sums time the way live telemetry does', () => {
+    // floor(ms/1000) per attempt, and only inside the 0.5s–30min plausibility band.
+    const [row] = foldUserMastery([at(true, 12_900), at(false, 400), at(true, 31 * 60_000), at(false, 2_500)]);
+    expect(row).toMatchObject({ attempts: 4, correct: 2, totalTime: 12 + 2, masteryN: 4 });
+  });
+});
+
+describe('backfillMastery.planUserRollups', () => {
+  const { planUserRollups } = require('../scripts/backfillMastery');
+  const folded = (topic, attempts, correct, totalTime, extra = {}) => ({
+    topic, subject: 'EE', topicId: `t-${topic}`, pMastery: 0.5, masteryN: attempts, lastPracticedAt: null,
+    attempts, correct, totalTime, ...extra,
+  });
+  const existing = (id, topic, attempts, correct, totalTime) => ({ id, topic, attempts, correct, totalTime });
+
+  it('updates a row that already matches history without reporting a correction', () => {
+    const plan = planUserRollups([existing('r1', 'Electric Circuits 2', 5, 3, 56)], [folded('Electric Circuits 2', 5, 3, 56)]);
+    expect(plan.writes).toEqual([expect.objectContaining({ id: 'r1', topic: 'Electric Circuits 2', attempts: 5, correct: 3, totalTime: 56 })]);
+    expect(plan.writes[0].countFix).toBeUndefined();
+    expect(plan.orphans).toEqual([]);
+  });
+
+  it('corrects counts that drifted from history (the pre-#102 in-batch double count) and reports it', () => {
+    const plan = planUserRollups([existing('r1', 'Calculus 1', 37, 18, 856)], [folded('Calculus 1', 36, 17, 815)]);
+    expect(plan.writes[0]).toMatchObject({
+      id: 'r1', attempts: 36, correct: 17, totalTime: 815,
+      countFix: { from: { attempts: 37, correct: 18, totalTime: 856 }, to: { attempts: 36, correct: 17, totalTime: 815 } },
+    });
+  });
+
+  it('creates a missing key with its REAL counts — never correct: 0', () => {
+    const plan = planUserRollups([], [folded('Electric Circuits 2', 5, 3, 56)]);
+    expect(plan.writes).toEqual([expect.objectContaining({ id: null, attempts: 5, correct: 3, totalTime: 56 })]);
+  });
+
+  it('lists a row whose label has no attempts any more (relabelled away) as an orphan to remove', () => {
+    const plan = planUserRollups(
+      [existing('r-old', 'AC Impedance', 2, 1, 11), existing('r1', 'Electric Circuits 2', 3, 2, 45)],
+      [folded('Electric Circuits 2', 5, 3, 56)],
+    );
+    expect(plan.orphans).toEqual([{ id: 'r-old', topic: 'AC Impedance', attempts: 2, correct: 1, totalTime: 11 }]);
+    expect(plan.writes.map((w) => w.topic)).toEqual(['Electric Circuits 2']);
+  });
+});
