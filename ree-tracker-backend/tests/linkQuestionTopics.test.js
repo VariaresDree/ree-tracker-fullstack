@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-const { planTopicLinks, parseArgs } = require('../scripts/linkQuestionTopics');
+const { planTopicLinks, parseArgs, LABEL_REMAPS } = require('../scripts/linkQuestionTopics');
 const { normKey, buildResolverIndex } = require('../src/services/topicResolver');
 
 const topic = (subject, name, extra = {}) => ({ id: `t-${normKey(name)}`, subject, name, normKey: normKey(name), aliases: [], active: true, ...extra });
@@ -55,7 +55,7 @@ describe('planTopicLinks', () => {
             { subject: 'EE', subtopic: 'AC Impedance', count: 5 },
             { subject: 'EE', subtopic: 'Transient Response', count: 35 },
             { subject: 'EE', subtopic: '   ', count: 1 },
-        ]);
+        ], {});
         expect(links).toEqual([]);
         expect(unmatched).toEqual([
             { subject: 'EE', subtopic: 'Transient Response', count: 35 },
@@ -70,6 +70,44 @@ describe('planTopicLinks', () => {
             { subject: 'Math', subtopic: 'Algebra', count: 1 },
         ]);
         expect(links.map((l) => l.topicId)).toEqual(['t-electric circuits 1', 't-algebra']);
+    });
+});
+
+describe('planTopicLinks — reviewed remaps for labels that match nothing', () => {
+    const remaps = { EE: { 'Transient Response': 'Electrical Transient Analysis', 'AC Impedance': 'Electric Circuits 1' } };
+
+    it('links a remapped label to the named EXISTING topic and flags the rewrite', () => {
+        const { links, unmatched } = planTopicLinks(index, [{ subject: 'EE', subtopic: 'transient response ', count: 35 }], remaps);
+        expect(unmatched).toEqual([]);
+        expect(links).toEqual([{
+            subject: 'EE', subtopic: 'transient response ', count: 35,
+            topicId: 't-electrical transient analysis', topicName: 'Electrical Transient Analysis', renamed: true, remapped: true,
+        }]);
+    });
+
+    it('an exact match always wins over a remap', () => {
+        const { links } = planTopicLinks(index, [{ subject: 'EE', subtopic: 'Electric Circuits 1', count: 2 }],
+            { EE: { 'Electric Circuits 1': 'Electrical Transient Analysis' } });
+        expect(links[0]).toMatchObject({ topicName: 'Electric Circuits 1', renamed: false });
+        expect(links[0].remapped).toBeUndefined();
+    });
+
+    it('leaves the group unmatched, naming the target, when the remap target no longer exists', () => {
+        const { links, unmatched } = planTopicLinks(index, [{ subject: 'EE', subtopic: 'AC Impedance', count: 5 }],
+            { EE: { 'AC Impedance': 'Electric Circuits 2' } }); // not in this index
+        expect(links).toEqual([]);
+        expect(unmatched).toEqual([{ subject: 'EE', subtopic: 'AC Impedance', count: 5, missingRemapTarget: 'Electric Circuits 2' }]);
+    });
+
+    it('never applies a remap across subjects', () => {
+        const { links } = planTopicLinks(index, [{ subject: 'ESAS', subtopic: 'Transient Response', count: 1 }], remaps);
+        expect(links).toEqual([]);
+    });
+
+    it('ships remaps for exactly the two labels the stale Library dropdown minted', () => {
+        expect(LABEL_REMAPS).toEqual({
+            EE: { 'Transient Response': 'Electrical Transient Analysis', 'AC Impedance': 'Electric Circuits 2' },
+        });
     });
 });
 

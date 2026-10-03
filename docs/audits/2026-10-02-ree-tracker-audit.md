@@ -159,7 +159,7 @@ Fixed:
   - manual add and single approve answer 400 with the reason;
   - Accept All leaves such rows in the queue as `unknown-topic`.
 - The review queue flags off-syllabus items and leaves them out of Accept All.
-- `scripts/linkQuestionTopics.js` links untagged questions to existing topics only.
+- `scripts/linkQuestionTopics.js` links untagged questions to existing topics only. The 40 unmatched questions get reviewed remaps to existing topics: "Transient Response" → "Electrical Transient Analysis" and "AC Impedance" → "Electric Circuits 2", the AC-circuits course.
 - `scripts/migrateTaxonomy.js` now refuses to seed while the taxonomy is managed by the TOS editor.
 
 **migrate:taxonomy must not be run on production.** Its seed (`src/config/prcTaxonomy.js`, 49 topics) diverged from the live taxonomy. A dry run reported "43 to create, 6 to update", which would create 43 parallel topics and split analytics. It now refuses unless `--force` is passed.
@@ -181,10 +181,11 @@ Operator steps, all run:
 6. `npm run migrate:taxonomy`: **deliberately not run** (see the finding above).
 
 Still to run, once the taxonomy-drift fix is deployed:
-1. `npm run link:topics`, a read-only dry run. Expect about 2,136 questions linked and the 40 above reported as unmatched.
+1. `npm run link:topics`, a read-only dry run. Expect all 2,176 linked: 2,136 exact matches plus 40 through the reviewed remaps, each relabelled to its topic's name. Expect 0 unmatched.
 2. `npm run link:topics:apply`.
 3. `npm run backfill:mastery`, so `UserTopicPerformance.topicId` follows.
-4. Re-tag the 40 unmatched questions in the Library vault editor. Likely homes are "Electrical Transient Analysis" and "Electric Circuits 2"; that is a content call. Alternatively, add the topics in the TOS manager and re-run steps 1–3.
+
+If the dry run still lists unmatched groups, a remap target was renamed or deactivated (the report names it). Re-tag those questions in the Library vault editor, or add the topic in the TOS manager, then re-run steps 1–3.
 
 Stacked PRs only run the full CI suite once they target `main`. Each was verified locally:
 - backend: 592 tests;
