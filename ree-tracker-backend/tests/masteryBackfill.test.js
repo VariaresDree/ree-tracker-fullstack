@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 const { foldUserMastery, bucketOf } = require('../scripts/backfillMastery');
 const { bktSequence } = require('../src/engine/bkt');
 const { paramsForTopic } = require('../src/config/bktParams');
+const { TIME_MIN_MS, TIME_MAX_MS } = require('../src/config/telemetryBounds');
 
 // Attempt fixture shape mirrors the backfill's Prisma select.
 const mk = (isCorrect, { name, subject, topicId, subtopic } = {}) => ({
@@ -85,6 +86,11 @@ describe('backfillMastery — counts come from history', () => {
     const [row] = foldUserMastery([at(true, 12_900), at(false, 400), at(true, 31 * 60_000), at(false, 2_500)]);
     expect(row).toMatchObject({ attempts: 4, correct: 2, totalTime: 12 + 2, masteryN: 4 });
   });
+
+  it('keeps both band edges inclusive, as the live rule and migrate:taxonomy do', () => {
+    const [row] = foldUserMastery([at(true, TIME_MAX_MS), at(true, TIME_MAX_MS + 1), at(true, TIME_MIN_MS + 999)]);
+    expect(row.totalTime).toBe(TIME_MAX_MS / 1000 + 1);
+  });
 });
 
 describe('backfillMastery.planUserRollups', () => {
@@ -115,12 +121,53 @@ describe('backfillMastery.planUserRollups', () => {
     expect(plan.writes).toEqual([expect.objectContaining({ id: null, attempts: 5, correct: 3, totalTime: 56 })]);
   });
 
-  it('lists a row whose label has no attempts any more (relabelled away) as an orphan to remove', () => {
-    const plan = planUserRollups(
-      [existing('r-old', 'AC Impedance', 2, 1, 11), existing('r1', 'Electric Circuits 2', 3, 2, 45)],
-      [folded('Electric Circuits 2', 5, 3, 56)],
-    );
-    expect(plan.orphans).toEqual([{ id: 'r-old', topic: 'AC Impedance', attempts: 2, correct: 1, totalTime: 11 }]);
-    expect(plan.writes.map((w) => w.topic)).toEqual(['Electric Circuits 2']);
+  // Orphans: only history can prove where a row's tally went. `recordedAs` is
+  // QuestionAttempt.subtopic — the label telemetry keyed the answer's row by.
+  const question = (name, topicId) => ({ topicId, topic: { name, subject: 'EE' } });
+  const EC2 = question('Electric Circuits 2', 't-ec2');
+  const MACH = question('Machines', 't-mach');
+  const answered = (isCorrect, q, recordedAs, timeSpentMs = 0) => ({ isCorrect, subject: 'EE', subtopic: recordedAs, timeSpentMs, question: q });
+  // The 2026-10-03 relabel: 2 answers recorded as "AC Impedance", whose
+  // questions link:topics moved to "Electric Circuits 2", plus 3 recorded there.
+  const relabelled = [
+    answered(true, EC2, 'AC Impedance', 6_000),
+    answered(false, EC2, 'AC Impedance', 5_500),
+    answered(true, EC2, 'Electric Circuits 2', 20_000),
+    answered(true, EC2, 'Electric Circuits 2', 15_000),
+    answered(false, EC2, 'Electric Circuits 2', 10_000),
+  ];
+  const plan = (rows, attempts) => planUserRollups(rows, foldUserMastery(attempts), attempts);
+
+  it('removes a row whose label was relabelled away, naming where its answers count now', () => {
+    const p = plan([existing('r-old', 'AC Impedance', 2, 1, 11), existing('r1', 'Electric Circuits 2', 3, 2, 45)], relabelled);
+    expect(p.orphans).toEqual([{ id: 'r-old', topic: 'AC Impedance', attempts: 2, correct: 1, totalTime: 11, into: ['Electric Circuits 2'] }]);
+    expect(p.unproven).toEqual([]);
+    expect(p.writes).toEqual([expect.objectContaining({ id: 'r1', attempts: 5, correct: 3, totalTime: 56 })]);
+  });
+
+  it('names every topic a split label now counts under', () => {
+    const p = plan([existing('r-old', 'Legacy Mix', 2, 2, 0)], [answered(true, EC2, 'Legacy Mix'), answered(true, MACH, 'Legacy Mix')]);
+    expect(p.orphans[0].into).toEqual(['Electric Circuits 2', 'Machines']);
+  });
+
+  it('keeps a row no answer in history was recorded under (e.g. its questions were deleted)', () => {
+    const p = plan([existing('r-gone', 'Deleted Topic', 4, 2, 30)], relabelled);
+    expect(p.orphans).toEqual([]);
+    expect(p.unproven).toEqual([{ id: 'r-gone', topic: 'Deleted Topic', attempts: 4, correct: 2, totalTime: 30, reason: 'no-history' }]);
+  });
+
+  it('keeps a row that counts more than history recorded under its label', () => {
+    const p = plan([existing('r-old', 'AC Impedance', 3, 1, 11)], relabelled);
+    expect(p.orphans).toEqual([]);
+    expect(p.unproven).toEqual([{
+      id: 'r-old', topic: 'AC Impedance', attempts: 3, correct: 1, totalTime: 11,
+      reason: 'uncovered', history: { attempts: 2, correct: 1, totalTime: 11 },
+    }]);
+  });
+
+  it('removes nothing when no history is supplied', () => {
+    const p = planUserRollups([existing('r-old', 'AC Impedance', 2, 1, 11)], []);
+    expect(p.orphans).toEqual([]);
+    expect(p.unproven.map((u) => u.reason)).toEqual(['no-history']);
   });
 });
