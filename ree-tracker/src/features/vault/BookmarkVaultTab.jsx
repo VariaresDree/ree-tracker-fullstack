@@ -237,7 +237,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
                                  <span className="text-[11px] font-bold text-reePurple uppercase tracking-widest">Deep AI Analysis</span>
                                  {!isOnline && <span className="text-[11px] bg-reePurple/10 text-reePurple px-2 py-0.5 rounded border border-reePurple/20 font-bold uppercase tracking-widest">Offline Cache</span>}
                              </div>
-                             <button onClick={() => handleFetchAIBookmark(item, true)} disabled={isAiLoading[item.id] || !isOnline} className="text-reePurple hover:bg-reePurple/10 px-2 py-1 rounded text-[11px] font-bold uppercase transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">🔄 Regenerate</button>
+                             <button onClick={() => handleFetchAIBookmark(item, true)} disabled={isAiLoading[item.id] || !isOnline} className="text-reePurple hover:bg-reePurple/10 px-2 py-1 rounded text-[11px] font-bold uppercase transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center">🔄 Regenerate</button>
                          </div>
                          <div className="text-sm text-textMain leading-relaxed overflow-x-auto math-scroll-mobile p-4 bg-reePurple/5 border border-reePurple/10 rounded-lg">
                              <LatexRenderer content={aiResponses[item.id] || item.cachedAiExplanation || item.fixedExplanation} />

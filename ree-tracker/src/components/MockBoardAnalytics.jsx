@@ -170,7 +170,7 @@ export default function MockBoardAnalytics() {
         <button
           onClick={(e) => { e.stopPropagation(); requestDelete(r.id, new Date(r.date).toLocaleDateString()); }}
           aria-label="Remove from history"
-          className="text-muted hover:text-[var(--accent-danger)] transition-colors p-1 rounded-md hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)]"
+          className="text-muted hover:text-[var(--accent-danger)] transition-colors p-1 rounded-md hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] touch-target inline-flex items-center justify-center"
         >
           <Trash2 size={15} strokeWidth={1.75} />
         </button>
