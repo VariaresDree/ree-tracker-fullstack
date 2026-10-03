@@ -107,7 +107,7 @@ async function main() {
         console.log(`[FIREBASE] deleted ${total} auth users.`);
     }
 
-    await prisma.$disconnect();
+    await prisma.closeDb();
     console.log('\n✅ Wipe complete. Question bank, folders, materials, and system config preserved.\n');
 }
 

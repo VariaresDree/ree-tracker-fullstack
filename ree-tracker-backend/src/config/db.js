@@ -153,7 +153,25 @@ async function warmPool() {
     return warmed;
 }
 
+// For scripts: close everything so the process can exit. prisma.$disconnect()
+// leaves this pool open — the adapter doesn't own it — and POOL_IDLE_MS keeps
+// its idle clients (and so the event loop) alive for 10 minutes. The server
+// never calls this.
+//
+// pool.end() sits in a finally so a failed disconnect can't bring the hang
+// back. The guard reads `ending`, the flag pg's own end() throws on ("Called
+// end on pool more than once"). `ended` only follows once every client has
+// been returned, so it lets a second call through while a query is in flight.
+async function closeDb() {
+    try {
+        await prisma.$disconnect();
+    } finally {
+        if (!pool.ending) await pool.end();
+    }
+}
+
 module.exports = prisma;
+module.exports.closeDb = closeDb;
 module.exports.warmPool = warmPool;
 module.exports.pool = pool;
 module.exports.POOL_IDLE_MS = POOL_IDLE_MS;

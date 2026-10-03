@@ -38,6 +38,6 @@ if (args.confirm !== 'WIPE') {
         console.error('Wipe failed:', err.message);
         process.exitCode = 1;
     } finally {
-        await prisma.$disconnect();
+        await prisma.closeDb();
     }
 })();

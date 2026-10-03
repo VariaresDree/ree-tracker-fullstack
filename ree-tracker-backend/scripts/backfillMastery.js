@@ -1,33 +1,41 @@
 #!/usr/bin/env node
 /*
- * One-time BKT mastery backfill (roadmap 3.5). UserTopicPerformance.pMastery is
- * updated online per attempt by telemetryService going forward, but existing
- * response history predates that. This replays each user's attempts
- * chronologically per (canonical) topic through BKT to seed pMastery/masteryN.
+ * BKT mastery backfill (roadmap 3.5) — rebuilds each user's
+ * UserTopicPerformance rows from their attempt history.
  *
  * Usage:
  *   node scripts/backfillMastery.js            # apply
- *   node scripts/backfillMastery.js --dry-run  # full report, no writes
+ *   node scripts/backfillMastery.js --dry-run  # report only, no writes
  *
- * Idempotent: it always replays from pInit, so re-running yields the same
- * result. Per user it reconciles the rows with history (planUserBackfill):
- *   - refreshes the derived pMastery/masteryN/topicId/lastPracticedAt;
- *   - leaves the attempts/correct/totalTime counts to telemetry, their live
- *     owner, unless history proves them wrong — then corrects them and logs
- *     from -> to;
- *   - creates a missing row with the counts history implies;
- *   - deletes a row whose key no longer folds (e.g. a label link:topics
- *     relabelled) only when history proves its tally now counts under another
- *     key, and logs every such row and every orphan it declines to touch.
- * Each user is one transaction under the same user lock telemetry takes.
- * Re-run after anything that relabels questions (link:topics:apply).
+ * Per user, per (canonical) topic — the topic name via the question's Topic,
+ * else the attempt's stored label, as analytics attribute it:
+ *   - pMastery/masteryN: the attempts replayed chronologically through BKT;
+ *   - attempts/correct/totalTime: counted from the same history by the rule
+ *     live telemetry uses (time = floor(ms/1000) per attempt, only inside the
+ *     plausibility band), so a row telemetry kept correctly is unchanged. A row
+ *     that drifted — e.g. the pre-#102 bug that counted an in-batch duplicate
+ *     twice — is corrected, and every correction is reported;
+ *   - a row whose label no longer has any attempts (its questions were
+ *     relabelled, e.g. by scripts/linkQuestionTopics.js) is removed only when
+ *     history proves those attempts now count under another row: answers were
+ *     recorded under its label and cover its whole tally. Any other such row
+ *     is left as is and reported (planUserRollups).
+ * A new key is created with its real counts. (It used to be created with
+ * correct: 0 and the old label's row was left behind — after the 2026-10-03
+ * relabel one learner had masteryN 5 against 3 attempts plus an orphan row.)
+ *
+ * Each user's rows are rebuilt in one transaction under the same
+ * `SELECT … FOR UPDATE` lock on the user that telemetryService takes per write,
+ * so a learner answering mid-run can't interleave with the rebuild.
+ *
+ * Idempotent: a re-run over consistent rows changes nothing.
  */
 require('dotenv').config();
 const prisma = require('../src/config/db');
 const { bktSequence } = require('../src/engine/bkt');
 const { paramsForTopic } = require('../src/config/bktParams');
-const { masteryBand } = require('@ree/shared');
 const { plausibleTimeMs } = require('../src/config/telemetryBounds');
+const { masteryBand } = require('@ree/shared');
 
 function parseArgs(argv) {
     const out = { dryRun: false };
@@ -35,195 +43,161 @@ function parseArgs(argv) {
     return out;
 }
 
-// The UserTopicPerformance counters history can prove or disprove.
-const COUNT_FIELDS = ['attempts', 'correct', 'totalTime'];
-const countsOf = (r) => ({ attempts: r.attempts, correct: r.correct, totalTime: r.totalTime });
-
-// The key an attempt folds under now: COALESCE of the question's Topic name and
-// the label it was recorded under — the same COALESCE analytics and
-// migrate:taxonomy's rebuild use.
+// The key an attempt counts under now: the question's Topic name, else the
+// label the attempt was recorded under.
 const foldKeyOf = (a) => a.question?.topic?.name || a.subtopic || 'General';
+// Same per-attempt rule as telemetryHelpers.aggregateTopicRollups.
+const secondsOf = (a) => Math.floor(plausibleTimeMs(a.timeSpentMs) / 1000);
 
-// Add one attempt to a counter. Time is in seconds, floored per attempt within
-// the live telemetry plausibility band — exactly as aggregateTopicRollups and
-// migrate:taxonomy's rebuild query count it.
-function tally(counts, a) {
-    counts.attempts += 1;
-    if (a.isCorrect) counts.correct += 1;
-    counts.totalTime += Math.floor(plausibleTimeMs(a.timeSpentMs) / 1000);
-}
-
-// Pure: fold one user's chronological attempts into per-topic BKT mastery.
-// Each attempt carries its resolved topic name/subject (COALESCE of the
+// Pure: fold one user's chronological attempts into per-topic BKT mastery and
+// counts. Each attempt carries its resolved topic name/subject (COALESCE of the
 // question's Topic and the attempt's stored label), so re-tagging history is
-// respected. Returns one row per topic with the final P(mastery) and the
-// attempts/correct/totalTime the history implies.
+// respected. Returns one row per topic.
 function foldUserMastery(attempts) {
-    const byTopic = new Map(); // topic -> { subject, topicId, observations: [], counts }
+    const byTopic = new Map(); // topic -> { subject, topicId, observations, correct, totalTime, lastPracticedAt }
     for (const a of attempts) {
         const t = a.question?.topic;
         const topic = foldKeyOf(a);
         let entry = byTopic.get(topic);
         if (!entry) {
-            entry = { subject: t?.subject || a.subject || 'General', topicId: a.question?.topicId ?? null, observations: [], lastPracticedAt: null, attempts: 0, correct: 0, totalTime: 0 };
+            entry = { subject: t?.subject || a.subject || 'General', topicId: a.question?.topicId ?? null, observations: [], correct: 0, totalTime: 0, lastPracticedAt: null };
             byTopic.set(topic, entry);
         }
         entry.observations.push(!!a.isCorrect);
-        tally(entry, a);
+        if (a.isCorrect) entry.correct += 1;
+        entry.totalTime += secondsOf(a);
         // The clock mastery decay runs from: the latest answer in the topic.
         const at = a.answeredAt || a.createdAt;
         if (at && (!entry.lastPracticedAt || new Date(at) > entry.lastPracticedAt)) entry.lastPracticedAt = new Date(at);
     }
     const out = [];
-    for (const [topic, entry] of byTopic) {
-        const { pMastery, n } = bktSequence(entry.observations, paramsForTopic(topic));
-        out.push({ topic, subject: entry.subject, topicId: entry.topicId, pMastery, masteryN: n, lastPracticedAt: entry.lastPracticedAt, ...countsOf(entry) });
+    for (const [topic, { subject, topicId, observations, correct, totalTime, lastPracticedAt }] of byTopic) {
+        const { pMastery, n } = bktSequence(observations, paramsForTopic(topic));
+        out.push({ topic, subject, topicId, pMastery, masteryN: n, lastPracticedAt, attempts: observations.length, correct, totalTime });
     }
     return out;
 }
 
+const COUNT_FIELDS = ['attempts', 'correct', 'totalTime'];
+const pickCounts = (r) => Object.fromEntries(COUNT_FIELDS.map((f) => [f, r[f]]));
+
 // Pure: tally history by the label each answer was RECORDED under
 // (QuestionAttempt.subtopic, copied from the question at answer time). That is
-// the key telemetry upserted the answer's UserTopicPerformance row by, so it is
-// the evidence for where an existing row's tally came from. `into` = the fold
-// keys those answers count under now.
+// the key telemetry upserted the answer's row by, so it is the evidence for
+// where a stored row's tally came from. `into` = the keys those answers count
+// under now.
 function tallyRecordedLabels(attempts) {
     const byLabel = new Map();
-    for (const a of attempts) {
+    for (const a of attempts || []) {
         const label = a.subtopic || 'General';
         let entry = byLabel.get(label);
         if (!entry) {
             entry = { attempts: 0, correct: 0, totalTime: 0, into: new Set() };
             byLabel.set(label, entry);
         }
-        tally(entry, a);
+        entry.attempts += 1;
+        if (a.isCorrect) entry.correct += 1;
+        entry.totalTime += secondsOf(a);
         entry.into.add(foldKeyOf(a));
     }
     return byLabel;
 }
 
 /**
- * Pure: reconcile one user's UserTopicPerformance rows with their history.
+ * Pure: what to write for one user. `writes` has one entry per folded topic
+ * (`id` null = create), with `countFix` when the stored counts differ from
+ * history.
  *
- * - Fold key with no row → create it with the history's counts.
- * - Fold key with a row → refresh the derived mastery fields. The counters are
- *   telemetry's and stay as they are, unless they differ from what history
- *   implies; then they are corrected and the change is returned as
- *   `correction: { from, to }` for the log.
- * - Row whose key the fold no longer produces → `superseded` (delete) only when
- *   history proves where its tally went: answers were recorded under its label,
- *   every one of them now folds under another key, and together they cover
- *   the row's attempts, correct and seconds. Otherwise it is `unproven` and
- *   left alone: `no-history` (nothing was recorded under it) or `uncovered`
- *   (it counts more than history recorded under it).
- *
- * Nothing is summed into the surviving row: its counts come from the fold,
- * which already includes the superseded label's answers.
- *
- * @param {Array<{id, topic, attempts, correct, totalTime}>} existingRows
- * @param {Array} attempts - the user's attempts, chronological
- * @returns {{rows, creates, updates, superseded, unproven}}
+ * A stored row whose topic has no attempts any more is removed (`orphans`) only
+ * when history proves where its tally went: answers were recorded under its
+ * label, all of them now count under other keys (`into`), and together they
+ * cover the row's attempts, correct and seconds. Any other such row is left as
+ * is (`unproven`): `no-history` when nothing was recorded under it (e.g. its
+ * questions were deleted and their attempts cascaded), `uncovered` when it
+ * counts more than history recorded under it.
  */
-function planUserBackfill(existingRows, attempts) {
-    const rows = foldUserMastery(attempts);
-    const existingByTopic = new Map(existingRows.map((r) => [r.topic, r]));
-
-    const creates = [];
-    const updates = [];
-    for (const r of rows) {
-        const prev = existingByTopic.get(r.topic);
-        if (!prev) {
-            creates.push({
-                subject: r.subject, topic: r.topic, topicId: r.topicId ?? null, ...countsOf(r),
-                pMastery: r.pMastery, masteryN: r.masteryN, lastPracticedAt: r.lastPracticedAt ?? null,
-            });
-            continue;
+function planUserRollups(existingRows, folded, attempts) {
+    const byTopic = new Map((existingRows || []).map((r) => [r.topic, r]));
+    const writes = folded.map((f) => {
+        const row = byTopic.get(f.topic);
+        const write = { ...f, id: row?.id ?? null };
+        if (row && COUNT_FIELDS.some((k) => row[k] !== f[k])) {
+            write.countFix = { from: pickCounts(row), to: pickCounts(f) };
         }
-        const data = { pMastery: r.pMastery, masteryN: r.masteryN, topicId: r.topicId ?? undefined, lastPracticedAt: r.lastPracticedAt ?? undefined };
-        let correction = null;
-        if (COUNT_FIELDS.some((k) => prev[k] !== r[k])) {
-            correction = { from: countsOf(prev), to: countsOf(r) };
-            Object.assign(data, correction.to);
-        }
-        updates.push({ id: prev.id, topic: r.topic, data, correction });
-    }
-
-    const foldKeys = new Set(rows.map((r) => r.topic));
+        return write;
+    });
+    const live = new Set(folded.map((f) => f.topic));
     const labels = tallyRecordedLabels(attempts);
-    const superseded = [];
+    const orphans = [];
     const unproven = [];
-    for (const prev of existingRows) {
-        if (foldKeys.has(prev.topic)) continue;
-        const counts = countsOf(prev);
-        const recorded = labels.get(prev.topic);
+    for (const r of existingRows || []) {
+        if (live.has(r.topic)) continue;
+        const row = { id: r.id, topic: r.topic, ...pickCounts(r) };
+        const recorded = labels.get(r.topic);
         if (!recorded) {
-            unproven.push({ id: prev.id, topic: prev.topic, counts, reason: 'no-history' });
-        } else if (COUNT_FIELDS.some((k) => counts[k] > recorded[k])) {
-            unproven.push({ id: prev.id, topic: prev.topic, counts, history: countsOf(recorded), reason: 'uncovered' });
+            unproven.push({ ...row, reason: 'no-history' });
+        } else if (COUNT_FIELDS.some((k) => r[k] > recorded[k])) {
+            unproven.push({ ...row, reason: 'uncovered', history: pickCounts(recorded) });
         } else {
-            // The label isn't a fold key, so none of its answers fold under it.
-            superseded.push({ id: prev.id, topic: prev.topic, counts, into: [...recorded.into].sort() });
+            // The label isn't a live key, so none of its answers count under it.
+            orphans.push({ ...row, into: [...recorded.into].sort() });
         }
     }
-
-    return { rows, creates, updates, superseded, unproven };
+    return { writes, orphans, unproven };
 }
 
-const fmtCounts = (c) => `${c.attempts}/${c.correct}/${c.totalTime}s`;
-const UNPROVEN_WHY = {
-    'no-history': () => 'no answer was recorded under this label',
-    uncovered: (u) => `history recorded only ${fmtCounts(u.history)} under this label`,
-};
-
-// Pure: one log line per count correction, superseded row and unproven row —
-// every row the plan changes beyond the derived mastery fields, or declines to.
-function describePlan(userId, plan) {
-    return [
-        ...plan.updates.filter((u) => u.correction).map((u) =>
-            `user ${userId} "${u.topic}": counts ${fmtCounts(u.correction.from)} -> ${fmtCounts(u.correction.to)} (history)`),
-        ...plan.superseded.map((s) =>
-            `user ${userId} "${s.topic}" (${fmtCounts(s.counts)}): superseded by ${s.into.map((t) => `"${t}"`).join(', ')} -> delete`),
-        ...plan.unproven.map((u) =>
-            `user ${userId} "${u.topic}" (${fmtCounts(u.counts)}): not in the fold, left as is (${u.reason}: ${UNPROVEN_WHY[u.reason](u)})`),
-    ];
-}
-
-// Coarse distribution buckets for the dry-run report — the shared bands.
+// Coarse distribution buckets for the report — the shared bands.
 function bucketOf(pMastery) {
     return masteryBand(pMastery)?.key ?? 'novice';
 }
 
-// The user lock below blocks that user's telemetry until commit, so the budget
-// is bounded; the reads and writes cross the public internet, so it isn't
-// Prisma's same-host default either (cf. telemetryService TX_OPTS).
-const TX_OPTS = { maxWait: 10_000, timeout: 30_000 };
-
-const ATTEMPT_SELECT = {
-    isCorrect: true,
-    subject: true,
-    subtopic: true,
-    timeSpentMs: true,
-    answeredAt: true,
-    createdAt: true,
-    question: { select: { topicId: true, topic: { select: { name: true, subject: true } } } },
-};
-
 async function readAndPlan(db, userId) {
+    const attempts = await db.questionAttempt.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+            isCorrect: true,
+            subject: true,
+            subtopic: true,
+            timeSpentMs: true,
+            answeredAt: true,
+            createdAt: true,
+            question: { select: { topicId: true, topic: { select: { name: true, subject: true } } } },
+        },
+    });
     const existing = await db.userTopicPerformance.findMany({
         where: { userId },
         select: { id: true, topic: true, attempts: true, correct: true, totalTime: true },
     });
-    const attempts = await db.questionAttempt.findMany({ where: { userId }, orderBy: { createdAt: 'asc' }, select: ATTEMPT_SELECT });
-    return { attemptCount: attempts.length, plan: planUserBackfill(existing, attempts) };
+    return { attemptCount: attempts.length, plan: planUserRollups(existing, foldUserMastery(attempts), attempts) };
 }
 
-// update/delete by id from the locked snapshot: a row that vanished since
-// (e.g. a /purge) throws, rolling the whole user back instead of guessing.
-async function applyPlan(db, userId, plan) {
-    for (const u of plan.updates) await db.userTopicPerformance.update({ where: { id: u.id }, data: u.data });
-    for (const c of plan.creates) await db.userTopicPerformance.create({ data: { userId, ...c } });
-    for (const s of plan.superseded) await db.userTopicPerformance.delete({ where: { id: s.id } });
+async function writePlan(db, userId, plan) {
+    for (const w of plan.writes) {
+        await db.userTopicPerformance.upsert({
+            where: { userId_topic: { userId, topic: w.topic } },
+            update: {
+                pMastery: w.pMastery, masteryN: w.masteryN,
+                attempts: w.attempts, correct: w.correct, totalTime: w.totalTime,
+                topicId: w.topicId ?? undefined, lastPracticedAt: w.lastPracticedAt ?? undefined,
+            },
+            create: {
+                userId, subject: w.subject, topic: w.topic, topicId: w.topicId ?? null,
+                attempts: w.attempts, correct: w.correct, totalTime: w.totalTime,
+                pMastery: w.pMastery, masteryN: w.masteryN, lastPracticedAt: w.lastPracticedAt ?? null,
+            },
+        });
+    }
+    if (plan.orphans.length) {
+        await db.userTopicPerformance.deleteMany({ where: { userId, id: { in: plan.orphans.map((o) => o.id) } } });
+    }
 }
+
+const fmtCounts = (c) => `${c.attempts} attempts / ${c.correct} correct / ${c.totalTime}s`;
+const UNPROVEN_WHY = {
+    'no-history': () => 'no answer in history was recorded under it',
+    uncovered: (u) => `history recorded only ${fmtCounts(u.history)} under it`,
+};
 
 async function main() {
     const { dryRun } = parseArgs(process.argv);
@@ -231,54 +205,59 @@ async function main() {
     console.log(`[backfillMastery] start  dryRun=${dryRun}`);
 
     const users = await prisma.user.findMany({ select: { id: true } });
-    const totals = { processedUsers: 0, updated: 0, created: 0, countsCorrected: 0, supersededDeleted: 0, unprovenLeft: 0, failedUsers: 0, skippedNoAttempts: 0 };
+    const totals = { processed: 0, rowsWritten: 0, created: 0, countFixes: 0, orphans: 0, unproven: 0, skippedNoAttempts: 0 };
     const dist = { mastered: 0, proficient: 0, developing: 0, novice: 0 };
 
     for (const u of users) {
-        let outcome;
-        try {
-            outcome = dryRun
-                ? await readAndPlan(prisma, u.id)
-                : await prisma.$transaction(async (db) => {
-                    // The lock telemetry takes first (telemetryService runChunk):
-                    // no batch can land between this snapshot and these writes,
-                    // so a correction can never overwrite a newer live count.
-                    await db.$queryRaw`SELECT 1 FROM "User" WHERE "id" = ${u.id} FOR UPDATE`;
-                    const res = await readAndPlan(db, u.id);
-                    if (res.attemptCount > 0) await applyPlan(db, u.id, res.plan);
-                    return res;
-                }, TX_OPTS);
-        } catch (err) {
-            totals.failedUsers += 1;
-            console.error(`[backfillMastery] user ${u.id}: rolled back, nothing written for this user (${err.message})`);
-            continue;
-        }
-        if (outcome.attemptCount === 0) { totals.skippedNoAttempts += 1; continue; }
+        const { attemptCount, plan } = dryRun
+            ? await readAndPlan(prisma, u.id)
+            : await prisma.$transaction(async (tx) => {
+                // The lock telemetryService takes per write: no answer from
+                // this learner can land between the read and the rewrite.
+                await tx.$queryRaw`SELECT 1 FROM "User" WHERE "id" = ${u.id} FOR UPDATE`;
+                const result = await readAndPlan(tx, u.id);
+                await writePlan(tx, u.id, result.plan);
+                return result;
+            }, { timeout: 120_000, maxWait: 15_000 });
 
-        const { plan } = outcome;
-        totals.processedUsers += 1;
-        totals.updated += plan.updates.length;
-        totals.created += plan.creates.length;
-        totals.countsCorrected += plan.updates.filter((x) => x.correction).length;
-        totals.supersededDeleted += plan.superseded.length;
-        totals.unprovenLeft += plan.unproven.length;
-        for (const r of plan.rows) dist[bucketOf(r.pMastery)] += 1;
-        for (const line of describePlan(u.id, plan)) console.log(`[backfillMastery]${dryRun ? ' (dry run)' : ''} ${line}`);
+        if (attemptCount === 0) totals.skippedNoAttempts += 1;
+        else totals.processed += 1;
+
+        const uid = u.id.slice(0, 6);
+        for (const w of plan.writes) {
+            dist[bucketOf(w.pMastery)] += 1;
+            totals.rowsWritten += 1;
+            if (w.id === null) {
+                totals.created += 1;
+                console.log(`  + [${uid}] "${w.topic}": new row, ${fmtCounts(w)}`);
+            } else if (w.countFix) {
+                totals.countFixes += 1;
+                console.log(`  ~ [${uid}] "${w.topic}": counts ${fmtCounts(w.countFix.from)} -> ${fmtCounts(w.countFix.to)} (from history)`);
+            }
+        }
+        for (const o of plan.orphans) {
+            totals.orphans += 1;
+            console.log(`  - [${uid}] "${o.topic}": no attempts under this label any more (${fmtCounts(o)}); its answers now count under ${o.into.map((t) => `"${t}"`).join(', ')} — ${dryRun ? 'would remove' : 'removed'}`);
+        }
+        for (const o of plan.unproven) {
+            totals.unproven += 1;
+            console.log(`  ? [${uid}] "${o.topic}": no attempts under this label any more (${fmtCounts(o)}), but ${UNPROVEN_WHY[o.reason](o)} — left as is (${o.reason})`);
+        }
     }
 
-    if (totals.failedUsers > 0) process.exitCode = 1;
+    if (dryRun) totals.rowsWritten = 0;
     console.log(`[backfillMastery] mastery distribution (topic rows): ${JSON.stringify(dist)}`);
-    console.log(`[backfillMastery] done${dryRun ? ' (dry run, nothing written)' : ''}  ${Object.entries(totals).map(([k, v]) => `${k}=${v}`).join('  ')}  totalUsers=${users.length}  ${Date.now() - t0}ms`);
+    console.log(`[backfillMastery] done  processedUsers=${totals.processed}  rowsWritten=${totals.rowsWritten}  created=${totals.created}  countFixes=${totals.countFixes}  orphansRemoved=${dryRun ? 0 : totals.orphans}${dryRun ? ` (would remove ${totals.orphans})` : ''}  orphansLeft=${totals.unproven}  skippedNoAttempts=${totals.skippedNoAttempts}  totalUsers=${users.length}  ${Date.now() - t0}ms`);
 }
 
 // Exported for unit tests; only auto-run when invoked directly.
-module.exports = { foldUserMastery, planUserBackfill, describePlan, bucketOf };
+module.exports = { foldUserMastery, planUserRollups, bucketOf };
 
 if (require.main === module) {
     main()
         .catch((err) => {
             console.error('[backfillMastery] failed', err);
-            process.exit(1);
+            process.exitCode = 1;
         })
-        .finally(() => prisma.$disconnect());
+        .finally(() => prisma.closeDb());
 }

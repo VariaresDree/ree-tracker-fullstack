@@ -208,5 +208,5 @@ if (require.main === module) {
       console.error('[recoverOrphanedFolders] failed', err);
       process.exit(1);
     })
-    .finally(() => prisma.$disconnect());
+    .finally(() => prisma.closeDb());
 }
