@@ -9,6 +9,7 @@
     "check:bundle": "node scripts/check-eager-bundle.cjs",
     "check:sw": "node scripts/check-sw-routes.cjs",
     "lint": "eslint .",
+    "lint:ratchet": "node scripts/lintRatchet.mjs",
     "preview": "vite preview",
     "analyze": "ANALYZE=1 vite build",
     "test": "vitest run",
