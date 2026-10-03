@@ -260,6 +260,9 @@ function rankWeakTopics(topics, weights = DEFAULT_SYLLABUS_WEIGHTS) {
 }
 
 const pct = (p) => `${Math.round(p * 100)}%`;
+// 'an EE topic', 'an ESAS topic', 'a Mathematics topic' — by the first letter,
+// which is how all three subject names are read aloud.
+const withArticle = (word) => `${/^[aeiou]/i.test(String(word)) ? 'an' : 'a'} ${word}`;
 
 /**
  * Up to three next steps, in order of leverage. Each carries a `type` the
@@ -292,7 +295,7 @@ function buildPrescription({ weakTopics = [], srsDue = 0 }) {
             payload: drill.masteryN < 3 && drill.masteryEffective < 0.35
                 ? { topic: drill.topic, subject: drill.subject, topicId: drill.topicId, durationMin: 25 }
                 : { topic: drill.topic, subject: drill.subject, topicId: drill.topicId, count: 10 },
-            reason: `Mastery ${pct(drill.masteryEffective)} in a ${drill.subject} topic — the costliest gap on the board.`,
+            reason: `Mastery ${pct(drill.masteryEffective)} in ${withArticle(drill.subject)} topic — the costliest gap on the board.`,
         });
     }
 

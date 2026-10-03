@@ -1,6 +1,6 @@
 // src/features/library/LibraryOverview.jsx
 import { useState } from 'react';
-import { toDisplaySubject } from '@ree/shared';
+import { toDisplaySubject, normalizeSubject } from '@ree/shared';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import {
@@ -14,6 +14,7 @@ import {
     deleteQuestionFromBank
 } from '../../services/dbQueries';
 import { sanitizeOptions, stripChoicePrefix } from '../../utils/sanitizeOptions';
+import { isKnownTopic } from '../../utils/topicLabels';
 import { Button, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill, ProgressIndicator } from '../../components/ui';
 import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
@@ -27,9 +28,10 @@ const TRACK_ACCENT = {
 };
 
 // Client mirror of the server's Accept-All clean-item gate
-// (reviewService.isBulkEligible) — drives the label COUNT and the pre-filter
-// only; the server re-validates authoritatively. Legacy flagged items are
-// always excluded (they use a different approve path and deserve eyes).
+// (reviewService.isBulkEligible + the topic gate in approveBulk) — drives the
+// label COUNT and the pre-filter only; the server re-validates authoritatively.
+// Legacy flagged items are always excluded (they use a different approve path
+// and deserve eyes).
 const BULK_OK_SUBJECTS = new Set(['mathematics', 'math', 'esas', 'ee', 'electrical engineering']);
 
 // apiRequest hard-aborts at 12s (dbQueries.js) and a large Accept-All queue
@@ -39,9 +41,13 @@ const BULK_OK_SUBJECTS = new Set(['mathematics', 'math', 'esas', 'ee', 'electric
 // keeps each request comfortably inside the timeout; 25 is well under the
 // 200-id server cap (bulkIdsSchema) with headroom.
 const BULK_CHUNK_SIZE = 25;
-const isBulkEligibleClient = (q) => {
+// A subtopic outside the subject's live taxonomy can't be published (the
+// server refuses it rather than publish an untagged question).
+const isOffSyllabus = (q, tos) => !isKnownTopic(q?.subtopic, tos?.[normalizeSubject(q?.subject)]);
+const isBulkEligibleClient = (q, tos) => {
   if (!q || q.legacy) return false;
   if (!BULK_OK_SUBJECTS.has(String(q.subject || '').trim().toLowerCase())) return false;
+  if (isOffSyllabus(q, tos)) return false;
   const text = q.text || q.content || '';
   if (typeof text !== 'string' || text.trim().length === 0) return false;
   const options = sanitizeOptions(q.options);
@@ -87,7 +93,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   const [isBulkApproving, setIsBulkApproving] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
 
-  const bulkEligible = quarantineItems.filter(isBulkEligibleClient);
+  const bulkEligible = quarantineItems.filter((q) => isBulkEligibleClient(q, dynamicTOS));
   const bulkExcludedCount = quarantineItems.length - bulkEligible.length;
 
   // --- REVIEW QUEUE HANDLERS ---
@@ -121,7 +127,8 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           // just stay stale until the next resync.
           resyncVaultMetadata().catch(() => {});
       } catch (err) {
-          toast.error("Approval failed.");
+          // A 400 carries the reason (e.g. the subtopic isn't in the syllabus).
+          toast.error(err?.status === 400 && err.message ? err.message : "Approval failed.");
       }
   };
 
@@ -179,7 +186,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   //     and then stop the run, since two failures in a row on the same
   //     chunk suggests something systemic rather than a one-off blip.
   const handleBulkApprove = async () => {
-      const ids = quarantineItems.filter(isBulkEligibleClient).map((q) => q.id);
+      const ids = quarantineItems.filter((q) => isBulkEligibleClient(q, dynamicTOS)).map((q) => q.id);
       if (ids.length === 0) { setShowBulkConfirm(false); return; }
 
       const chunks = [];
@@ -305,7 +312,9 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   const startEditItem = (item) => {
       setEditingId(item.id);
       setEditDraft({
-          subject: item.subject,
+          // Canonical, so a stored 'Math' matches the Subject select and the
+          // live topic list instead of silently showing the first option.
+          subject: normalizeSubject(item.subject),
           subtopic: item.subtopic,
           text: item.content || item.text || '',
           options: [...(item.options || [])],
@@ -561,7 +570,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                     <div className="flex items-center justify-between gap-3 flex-wrap border border-border bg-surface2/40 rounded-[var(--radius-default)] px-4 py-3">
                         <p className="text-xs text-muted2">
                             <span className="font-bold text-textMain">{bulkEligible.length}</span> item{bulkEligible.length === 1 ? '' : 's'} pass all checks
-                            {bulkExcludedCount > 0 && <> · <span className="font-bold">{bulkExcludedCount}</span> flagged/legacy need individual review</>}
+                            {bulkExcludedCount > 0 && <> · <span className="font-bold">{bulkExcludedCount}</span> flagged, legacy or off-syllabus need individual review</>}
                         </p>
                         <Button size="sm" tone="success" onClick={() => setShowBulkConfirm(true)} disabled={isBulkApproving}>
                             Accept all {bulkEligible.length} valid
@@ -577,6 +586,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                                 <div className="flex items-center gap-2">
                                     <StatusPill tone="amber">Pending review</StatusPill>
                                     {q.legacy && <Badge tone="neutral">Legacy flag</Badge>}
+                                    {!q.legacy && isOffSyllabus(q, dynamicTOS) && <Badge tone="danger">Not in syllabus</Badge>}
                                 </div>
                                 <div className="text-eyebrow mt-2">{q.subject} • {q.subtopic}</div>
                             </div>
@@ -615,7 +625,20 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                                             value={editDraft.subtopic}
                                             onChange={(e) => setEditDraft(d => ({ ...d, subtopic: e.target.value }))}
                                         >
-                                            {((dynamicTOS?.[editDraft.subject]) || [editDraft.subtopic]).map(t => <option key={t} value={t}>{t}</option>)}
+                                            {(() => {
+                                                // A label that isn't one of the live topics gets its own
+                                                // option, so the select shows what is actually stored.
+                                                const live = dynamicTOS?.[editDraft.subject] || [];
+                                                const known = isKnownTopic(editDraft.subtopic, live);
+                                                return [
+                                                    !live.includes(editDraft.subtopic) && (
+                                                        <option key="__current" value={editDraft.subtopic}>
+                                                            {known ? editDraft.subtopic : `${editDraft.subtopic} (not in syllabus)`}
+                                                        </option>
+                                                    ),
+                                                    ...live.map(t => <option key={t} value={t}>{t}</option>),
+                                                ];
+                                            })()}
                                         </Select>
                                     </FormField>
                                 </div>

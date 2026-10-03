@@ -1,6 +1,7 @@
 // src/features/library/LibraryIngestion.jsx
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore'; // 🚀 FIXED: Dynamic Store Import
+import { refreshLiveTOS } from '../../services/liveTaxonomy';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, FormField, Input, Select, Modal, Badge } from '../../components/ui';
 import { Sparkles, FileText, FileUp, X, TriangleAlert, Check } from '../../components/ui/icons';
@@ -22,6 +23,12 @@ export default function LibraryIngestion({
   // 🚀 FIXED: Pull the live syllabus from global memory
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
+
+  // The store holds whatever it last persisted (or the offline snapshot), and
+  // the labels picked here are resolved against the Topic table at publish —
+  // so re-pull the live taxonomy whenever the Library opens. Cheap: the
+  // endpoint is server-cached and HTTP-cacheable for 5 minutes.
+  useEffect(() => { refreshLiveTOS(); }, []);
 
   const discardBatch = () => {
     setShowDiscardConfirm(false);

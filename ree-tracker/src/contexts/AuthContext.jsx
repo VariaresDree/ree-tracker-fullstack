@@ -9,7 +9,8 @@ import {
   updateProfile
 } from 'firebase/auth';
 // 🚀 NEW: Import the TOS fetch function
-import { getAnalyticsProfile, fetchDynamicTOS, fetchFeatureFlags, updateUserProfile, BOOT_TIMEOUT_MS } from '../services/dbQueries';
+import { getAnalyticsProfile, fetchFeatureFlags, updateUserProfile, BOOT_TIMEOUT_MS } from '../services/dbQueries';
+import { refreshLiveTOS } from '../services/liveTaxonomy';
 import { seedDashboardRequest } from '../services/dashboardSeed';
 import { claimApiCacheFor, purgeApiCache } from '../services/apiCache';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
@@ -96,13 +97,21 @@ export const AuthProvider = ({ children }) => {
           // lands, so admin state is not gated on the slowest of the three. A
           // hung TOS request delays only the TOS write, exactly as before.
           //
-          // fetchDynamicTOS and fetchFeatureFlags resolve to null on failure
+          // The TOS applies itself the moment it lands, independent of the
+          // profile: it used to be awaited AFTER the profile, so a profile
+          // timeout (a Render cold start) skipped it and the store kept its
+          // persisted/fallback topic list — the stale list the Library's AI
+          // ingestion then offered and labelled questions with.
+          //
+          // refreshLiveTOS and fetchFeatureFlags resolve to null on failure
           // instead of rejecting, so only the profile call can reject here and
           // it lands in the outer catch just as it did when this was
           // sequential; the other two are in flight but swallow their own
           // errors, so neither is left unhandled.
           const profilePromise = getAnalyticsProfile(user.uid, { timeoutMs: BOOT_TIMEOUT_MS });
-          const tosPromise = fetchDynamicTOS();
+          refreshLiveTOS().then((tos) => {
+              if (!tos) console.warn("Failed to fetch cloud TOS, maintaining local cached state.");
+          });
           const flagsPromise = fetchFeatureFlags();
 
           // This request IS the dashboard aggregate — the same endpoint
@@ -122,13 +131,6 @@ export const AuthProvider = ({ children }) => {
           setIsAdmin(isUserAdmin);
           if (useStore.getState) {
               useStore.getState().setIsAdmin(isUserAdmin);
-          }
-
-          const cloudTOS = await tosPromise;
-          if (cloudTOS && useStore.getState) {
-              useStore.getState().setDynamicTOS(cloudTOS);
-          } else if (!cloudTOS) {
-              console.warn("Failed to fetch cloud TOS, maintaining local cached state.");
           }
 
           // A failed flag fetch keeps the persisted map (missing keys read as

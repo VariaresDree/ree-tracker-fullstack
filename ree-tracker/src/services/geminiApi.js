@@ -1,5 +1,5 @@
 import { apiRequest } from './dbQueries';
-import { TOS } from '../config/constants';
+import { useStore } from '../store/useStore';
 import { sanitizeGeneratedBatch } from '../utils/sanitizeOptions';
 
 const cleanJsonPayload = (text) => {
@@ -91,8 +91,17 @@ async function callAI(prompt, isJson = false, config = {}) {
     return response.text;
 }
 
-const getStrictRules = (subject, targetSubtopic) => {
-    const availableSubtopics = TOS[subject] ? TOS[subject].join(', ') : 'General';
+// The live taxonomy (GET /api/config/tos → store.dynamicTOS), NOT the static
+// offline snapshot in config/constants.js: labels the model picks are resolved
+// against the Topic table at publish, and a stale list mints labels that match
+// no topic (the "Transient Response" / "AC Impedance" drift).
+const liveTopicsFor = (subject) => {
+    const topics = useStore.getState().dynamicTOS?.[subject];
+    return Array.isArray(topics) ? topics : [];
+};
+
+export const getStrictRules = (subject, targetSubtopic, topics = liveTopicsFor(subject)) => {
+    const availableSubtopics = topics.length ? topics.join(', ') : 'General';
 
     const subtopicRule = targetSubtopic && targetSubtopic !== 'All' && targetSubtopic !== 'General'
         ? `3. The "subtopic" field MUST be EXACTLY "${targetSubtopic}". Do NOT use any other category name.`

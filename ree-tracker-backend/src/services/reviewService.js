@@ -6,7 +6,7 @@
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { randomUUID } = require('crypto');
-const { resolveTopic } = require('./topicResolver');
+const { resolveQuestionTopic } = require('./topicResolver');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
 const { sanitizeOptions, stripChoicePrefix } = require('../utils/sanitizeOptions');
 
@@ -73,8 +73,10 @@ function buildQuestionCreateData(data, topic, id) {
 
 /**
  * Create a LIVE question — the single shared path for manual creation and
- * review-approval promotion. Resolves the taxonomy FK (Phase 3.3) and applies
- * the same defaults the manual POST has always used.
+ * review-approval promotion. Resolves the taxonomy FK (Phase 3.3) within the
+ * question's subject — a label outside that subject's taxonomy throws
+ * UNKNOWN_TOPIC rather than publishing an untagged question — and applies the
+ * same defaults the manual POST has always used.
  */
 // Publishing through the review queue changes the live bank just as much as a
 // direct POST does, and it goes through this function rather than
@@ -96,7 +98,7 @@ async function createLiveQuestion(data) {
             { code: 'INVALID_TAXONOMY' },
         );
     }
-    const topic = await resolveTopic(data.subject, data.subtopic);
+    const topic = await resolveQuestionTopic(data.subject, data.subtopic);
     const created = await prisma.question.create({ data: buildQuestionCreateData(data, topic) });
     questionBankCache.invalidateAll();
     return created;
@@ -142,7 +144,10 @@ async function approveOneRow(row, editorId) {
             const question = await createLiveQuestion(finalData);
             questionId = question.id;
         } catch (err) {
-            return { id, ok: false, reason: err.code === 'INVALID_TAXONOMY' ? 'invalid' : 'create-failed' };
+            const reason = err.code === 'INVALID_TAXONOMY' ? 'invalid'
+                : err.code === 'UNKNOWN_TOPIC' ? 'unknown-topic'
+                : 'create-failed';
+            return { id, ok: false, reason };
         }
     }
 
@@ -230,7 +235,7 @@ async function approveBulk(ids, editorId) {
     // Partition up front: rows that fail for reasons independent of HOW we
     // publish (not found / already reviewed / fails the content or taxonomy
     // gate) vs. rows this run will actually attempt to publish/bookkeep.
-    const toPublish = []; // needs a NEW question created — { row, finalData, questionId }
+    const candidates = []; // passes the content gates; still needs its topic — { row, finalData, questionId }
     const toBookkeepOnly = []; // already published by a prior partial run — { row, finalData, questionId }
     for (const id of uniqueIds) {
         const row = byId.get(id);
@@ -249,17 +254,26 @@ async function approveBulk(ids, editorId) {
             failed.push({ id, reason: 'invalid' });
             continue;
         }
-        toPublish.push({ row, finalData, questionId: randomUUID() });
+        candidates.push({ row, finalData, questionId: randomUUID() });
+    }
+
+    // The topic gate createLiveQuestion enforces, applied BEFORE the batch so
+    // a label outside the subject's taxonomy stays in the queue for an admin
+    // to re-tag instead of failing the whole chunk. resolveQuestionTopic is
+    // index-cached (topicResolver.js) — one DB read warms it for every row.
+    const toPublish = []; // needs a NEW question created — { row, finalData, questionId, topic }
+    for (const item of candidates) {
+        try {
+            item.topic = await resolveQuestionTopic(item.finalData.subject, item.finalData.subtopic);
+            toPublish.push(item);
+        } catch (err) {
+            if (err.code !== 'UNKNOWN_TOPIC') throw err;
+            failed.push({ id: item.row.id, reason: 'unknown-topic' });
+        }
     }
 
     const batchItems = [...toPublish, ...toBookkeepOnly];
     if (batchItems.length === 0) return { approved, failed };
-
-    // resolveTopic is index-cached (topicResolver.js) — this warms the cache
-    // once, not one DB round-trip per row.
-    for (const item of toPublish) {
-        item.topic = await resolveTopic(item.finalData.subject, item.finalData.subtopic);
-    }
 
     const ops = [];
     for (const item of toPublish) {

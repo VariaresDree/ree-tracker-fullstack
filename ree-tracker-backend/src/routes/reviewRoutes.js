@@ -133,7 +133,7 @@ router.put('/:id/approve', validate(reviewApproveSchema), async (req, res) => {
         }
         return res.status(200).json({ success: true, questionId });
     } catch (error) {
-        if (error.code === 'INVALID_TAXONOMY') return res.status(400).json({ error: error.message });
+        if (error.code === 'INVALID_TAXONOMY' || error.code === 'UNKNOWN_TOPIC') return res.status(400).json({ error: error.message });
         logger.error('review approve failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to approve review item.' });
     }
@@ -141,9 +141,10 @@ router.put('/:id/approve', validate(reviewApproveSchema), async (req, res) => {
 
 // POST /api/review/approve-bulk — "Accept All": approve a set of PENDING items
 // in one batched request. Only CLEAN items are approved (isBulkEligible —
-// real subject, non-empty text, >=2 options, sanitized answer ∈ options);
-// invalid / already-reviewed / legacy items come back in `failed` with a
-// reason and stay in the queue for individual review. Per-item outcomes, so
+// real subject, non-empty text, >=2 options, sanitized answer ∈ options) whose
+// subtopic is a topic in that subject's taxonomy; invalid / unknown-topic /
+// already-reviewed / legacy items come back in `failed` with a reason and stay
+// in the queue for individual review. Per-item outcomes, so
 // one bad item never blocks the rest. Idempotent via the standard middleware
 // (the client sends content-hash Idempotency-Keys on every mutation).
 router.post('/approve-bulk', validate(bulkIdsSchema), idempotency(), async (req, res) => {

@@ -160,6 +160,15 @@ describe('buildPrescription — three concrete next steps', () => {
   it('returns nothing to do for a learner with no history', () => {
     expect(buildPrescription({ weakTopics: [], srsDue: 0 })).toEqual([]);
   });
+
+  it('picks the article by the subject name\'s first letter ("an EE topic", "a Mathematics topic")', () => {
+    const drillReason = (subject) => buildPrescription({
+      weakTopics: [{ topic: 'X', subject, topicId: 'tx', masteryEffective: 0.4, blindSpot: false, confidentMisses: 0, slow: false, masteryN: 10 }],
+    }).find((a) => a.type === 'DRILL').reason;
+    expect(drillReason('EE')).toBe('Mastery 40% in an EE topic — the costliest gap on the board.');
+    expect(drillReason('ESAS')).toMatch(/ in an ESAS topic /);
+    expect(drillReason('Mathematics')).toMatch(/ in a Mathematics topic /);
+  });
 });
 
 describe('buildForecast — end to end', () => {

@@ -95,3 +95,56 @@ describe('migrateTaxonomy.mergeRollupRows', () => {
     expect(merged[0].totalTime).toBe(120);
   });
 });
+
+describe('migrateTaxonomy.checkSeedGuard — refuses to seed over a TOS-editor taxonomy', () => {
+  const { checkSeedGuard } = require('../scripts/migrateTaxonomy');
+  const row = (subject, name, extra = {}) => ({ id: `${subject}:${name}`, subject, name, normKey: normKey(name), aliases: [], active: true, curated: true, ...extra });
+
+  it('allows seeding an empty table', () => {
+    expect(checkSeedGuard([], { taxonomy: PRC_TAXONOMY })).toEqual({ refuse: false, foreign: [] });
+  });
+
+  it('allows an idempotent re-run over its own seed (PRC names + its uncurated auto-creates)', () => {
+    const seeded = planSeed([], PRC_TAXONOMY).creates.map((c, i) => ({ ...c, id: `t-${i}` }));
+    const existing = [...seeded, row('ESAS', 'Environmental Science & Engineering', { curated: false })];
+    expect(checkSeedGuard(existing, { taxonomy: PRC_TAXONOMY }).refuse).toBe(false);
+  });
+
+  it('refuses when the table holds curated topics prcTaxonomy does not define (production, 2026-10-03)', () => {
+    const existing = [
+      row('EE', 'Electrical Transient Analysis'),
+      row('EE', 'Power System Protection', { active: false }),
+      row('Mathematics', 'Algebra'), // a PRC name — not foreign
+    ];
+    const { refuse, foreign } = checkSeedGuard(existing, { taxonomy: PRC_TAXONOMY });
+    expect(refuse).toBe(true);
+    expect(foreign.map((t) => t.name)).toEqual(['Electrical Transient Analysis', 'Power System Protection']);
+  });
+
+  it('treats a curated topic named like a PRC alias as foreign — seeding would create a parallel topic', () => {
+    // 'Electric Circuits 1' is only an alias of 'DC Electric Circuits' in
+    // prcTaxonomy; seeding would add 'DC Electric Circuits' beside it.
+    const { refuse, foreign } = checkSeedGuard([row('EE', 'Electric Circuits 1')], { taxonomy: PRC_TAXONOMY });
+    expect(refuse).toBe(true);
+    expect(foreign).toHaveLength(1);
+  });
+
+  it('matches PRC names through stored subject spellings', () => {
+    expect(checkSeedGuard([row('Math', 'Algebra')], { taxonomy: PRC_TAXONOMY }).refuse).toBe(false);
+  });
+
+  it('--force overrides the refusal but still reports what is foreign', () => {
+    const { refuse, foreign } = checkSeedGuard([row('EE', 'Electric Circuits 1')], { taxonomy: PRC_TAXONOMY, force: true });
+    expect(refuse).toBe(false);
+    expect(foreign).toHaveLength(1);
+  });
+});
+
+describe('migrateTaxonomy.parseArgs', () => {
+  const { parseArgs } = require('../scripts/migrateTaxonomy');
+
+  it('reads --dry-run and --force', () => {
+    expect(parseArgs(['node', 's'])).toEqual({ dryRun: false, force: false });
+    expect(parseArgs(['node', 's', '--dry-run', '--force'])).toEqual({ dryRun: true, force: true });
+  });
+});

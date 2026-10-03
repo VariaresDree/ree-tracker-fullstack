@@ -25,8 +25,9 @@ present. But several engines were **built and not connected**:
 - the adaptive (CAT) picker had no caller;
 - the "pass probability" ignored the PRC rule.
 
-A handful of integrity bugs also silently lost or double-counted answers. Waves 0–1 fix all of
-these in nine stacked PRs; Waves 2–3 are planned below.
+A handful of integrity bugs also silently lost or double-counted answers. Waves 0–2 fixed all of
+these (#102–#116) and were **deployed on 2026-10-03** as merge `03c002b`; the operator steps are
+done (see the end of this document). Wave 3 is still open.
 
 ## P0 — data integrity and verdict correctness (fixed)
 
@@ -92,9 +93,9 @@ these in nine stacked PRs; Waves 2–3 are planned below.
 | A cross-session blind-spot and time-sink registry with actions; a daily readiness snapshot and a trend | #115 |
 | Planner v2: mastery × weight allocation, weekly sittings, launchable tasks that complete themselves | #116 |
 
-**Decision pending:** `UserTopicPerformance` is unique on `(userId, topic)`, so a subtopic name used in two subjects merges into one row.
-- Fixing it means changing a unique constraint (not additive) and rebuilding the table from attempts.
-- That should be its own reviewed migration and backfill.
+**Decision closed (2026-10-03): no change needed.** `UserTopicPerformance` is unique on `(userId, topic)`, so a topic name used in two subjects would merge into one row.
+- Production has **0** cross-subject topic-name collisions, so nothing merges today.
+- Changing the unique constraint is not additive and would need a rebuild from attempts. That cost buys nothing while names stay unique per subject.
 
 ## Original Wave 2 plan (for reference)
 
@@ -113,7 +114,7 @@ these in nine stacked PRs; Waves 2–3 are planned below.
   - owner check on `pendingWrites`;
   - retry when the battle `recordAttempts` fails;
   - fold BKT in `answeredAt` order;
-  - add subject to the `UserTopicPerformance` conflict key (same-named subtopics merge across subjects).
+  - add subject to the `UserTopicPerformance` conflict key (same-named subtopics merge across subjects). *Closed: not needed, see above.*
 
 ## Still open: Wave 3 (UI/UX, accessibility and platform)
 
@@ -139,18 +140,52 @@ these in nine stacked PRs; Waves 2–3 are planned below.
   - authed-screen axe via the Firebase emulator;
   - verify the `aiModels.js` default ids against Google's live list.
 
-## Operator steps for Waves 0–1
+## Post-deploy finding: topic taxonomy drift (2026-10-03)
 
-Merge #102 → #110 in order. Render runs `prisma migrate deploy`, which applies three additive migrations:
+Verified read-only against production right after the deploy:
+- **2,176 live questions have no `topicId`.** Most were created 2026-06-17 to 07-18, before the TOS editor created the `Topic` table.
+- 2,136 of them match an existing topic **exactly** by name within their subject, after canonicalising 'Math' to 'Mathematics'. None needs a label rewrite.
+- 40 match nothing: EE "Transient Response" (35, created 2026-09-28) and EE "AC Impedance" (5, created 2026-09-22).
+- 251 of 919 attempts are on untagged questions. Analytics still count them by name, but topic-targeted Smart Drill and CAT draw only tagged items.
+
+Root cause of the new drift:
+- The Library's AI ingestion built its prompt from the **static** fallback topic list in `ree-tracker/src/config/constants.js`. That list had 28 EE topics that the live `Topic` table (18 EE) does not have.
+- Boot applied the live list only **after** the profile request succeeded, so a cold-start timeout left the stale list in the Topic dropdown as well.
+- The server published unmatched labels with `topicId` NULL, silently.
+
+Fixed:
+- AI prompts and the Library dropdown now use the live taxonomy (`GET /api/config/tos`). Boot applies it independently of the profile request, and the Library re-pulls it when opened.
+- Every live-question write resolves its topic within the question's own subject. A label outside that subject's taxonomy is refused instead of published untagged:
+  - manual add and single approve answer 400 with the reason;
+  - Accept All leaves such rows in the queue as `unknown-topic`.
+- The review queue flags off-syllabus items and leaves them out of Accept All.
+- `scripts/linkQuestionTopics.js` links untagged questions to existing topics only. The 40 unmatched questions get reviewed remaps to existing topics: "Transient Response" → "Electrical Transient Analysis" and "AC Impedance" → "Electric Circuits 2", the AC-circuits course.
+- `scripts/migrateTaxonomy.js` now refuses to seed while the taxonomy is managed by the TOS editor.
+
+**migrate:taxonomy must not be run on production.** Its seed (`src/config/prcTaxonomy.js`, 49 topics) diverged from the live taxonomy. A dry run reported "43 to create, 6 to update", which would create 43 parallel topics and split analytics. It now refuses unless `--force` is passed.
+
+## Deployment and operator steps (Waves 0–2) — done
+
+Deployed 2026-10-03 as merge `03c002b`. Render's `prisma migrate deploy` applied four additive migrations:
 - `20261002000000_user_prior_se_default`
 - `20261002010000_topic_last_practiced`
 - `20261002020000_forecast_subject_projection`
+- `20261003000000_planner_task_links`
 
-Then:
-1. `npm run audit:difficulty` (read-only) **before** deploying #105, to confirm the 1/2/3 assumption against production.
-2. After deploy: `npm run recompute:theta`, once. It re-derives θ on the corrected scale.
-3. After deploy: `npm run backfill:mastery`, once. It now also fills `lastPracticedAt`.
-4. The earlier rollout scripts listed in `ROADMAP.md` are still pending.
+Operator steps, all run:
+1. `npm run audit:difficulty` gate: **passed**. 99.4% of 14,874 items use the 1/2/3 ordinal; 0 are calibrated.
+2. `npm run calibrate`: 0 items fitted; 10 per-subject abilities rewritten on the corrected scale.
+3. `npm run recompute:theta`: 5 users. θ dropped about 2 points, as expected after the 1/2/3 → b −1/0/+1 fix.
+4. `npm run backfill:mastery`: 119 rows, with `lastPracticedAt` filled.
+5. `npm run seed:syllabus`: 25 / 30 / 45.
+6. `npm run migrate:taxonomy`: **deliberately not run** (see the finding above).
+
+Still to run, once the taxonomy-drift fix is deployed:
+1. `npm run link:topics`, a read-only dry run. Expect all 2,176 linked: 2,136 exact matches plus 40 through the reviewed remaps, each relabelled to its topic's name. Expect 0 unmatched.
+2. `npm run link:topics:apply`.
+3. `npm run backfill:mastery`, so `UserTopicPerformance.topicId` follows.
+
+If the dry run still lists unmatched groups, a remap target was renamed or deactivated (the report names it). Re-tag those questions in the Library vault editor, or add the topic in the TOS manager, then re-run steps 1–3.
 
 Stacked PRs only run the full CI suite once they target `main`. Each was verified locally:
 - backend: 592 tests;
