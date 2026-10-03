@@ -10,6 +10,16 @@
    already-intended behavior actually work, not just the fixes added now. */
 @custom-variant pointer-coarse (@media (pointer: coarse));
 
+/* A control that has to be hit with a finger: at least 44x44 CSS px on touch
+   screens (WCAG 2.5.5 / Apple HIG), unchanged for a mouse. Pair it with
+   inline-flex + centring so the content stays put as the box grows. */
+@utility touch-target {
+  @media (pointer: coarse) {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
 @theme {
   /* Dynamic Theme Colors mapping to CSS Variables */
   --color-bg: var(--bg-primary);

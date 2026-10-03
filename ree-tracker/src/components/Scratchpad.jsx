@@ -1,137 +1,151 @@
 // src/components/Scratchpad.jsx
-import React, { useRef, useState, useEffect } from 'react';
+//
+// A sketch layer over the question, for working a problem by hand.
+//
+// It is a named dialog: it takes focus when it opens, Escape closes it, and
+// focus goes back to whatever opened it. It is not modal — the question under
+// it stays readable.
+//
+// The canvas backing store is sized in DEVICE pixels from the canvas's own box.
+// It used to take the PARENT's CSS size (which includes the header bar), so the
+// stroke was stretched and drawn blurry on every high-density phone, and the
+// touch path scaled coordinates a second time, so lines landed away from the
+// finger. Pointer events cover mouse, touch and stylus in one path.
+import { useEffect, useRef } from 'react';
+
+const PEN_WIDTH = 3;
 
 export default function Scratchpad({ isOpen, onClose }) {
+  const panelRef = useRef(null);
   const canvasRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [context, setContext] = useState(null);
+  const drawingRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
-  // Canvas 2D can't resolve CSS variables directly, so read the design-system
-  // accent once and pass the computed color (keeps the stroke themable instead
-  // of a hardcoded hex). Falls back to the previous cyan if the var is unset.
-  const accentColor = () =>
-    getComputedStyle(canvasRef.current || document.documentElement)
+  const ctx = () => canvasRef.current?.getContext?.('2d') || null;
+
+  // Canvas 2D can't resolve CSS variables, so read the design-system accent and
+  // pass the computed colour (keeps the stroke themable instead of a hex).
+  const pen = (c) => {
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    c.lineWidth = PEN_WIDTH;
+    c.strokeStyle = getComputedStyle(canvasRef.current || document.documentElement)
       .getPropertyValue('--accent-signal').trim() || '#06b6d4';
+  };
 
+  // Fit the backing store to the canvas box at the device pixel ratio, keeping
+  // what has been drawn across a resize or rotation.
   useEffect(() => {
-    if (isOpen && canvasRef.current) {
-      const canvas = canvasRef.current;
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
-
-      const ctx = canvas.getContext("2d");
-      ctx.lineCap = "round";
-      ctx.strokeStyle = accentColor();
-      ctx.lineWidth = 3;
-      setContext(ctx);
-    }
+    if (!isOpen) return undefined;
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    let cssSize = null;
+    const fit = () => {
+      const { width, height } = canvas.getBoundingClientRect();
+      if (!width || !height) return;
+      const dpr = window.devicePixelRatio || 1;
+      const c = ctx();
+      let snapshot = null;
+      if (c && cssSize) {
+        snapshot = document.createElement('canvas');
+        snapshot.width = canvas.width;
+        snapshot.height = canvas.height;
+        snapshot.getContext('2d')?.drawImage(canvas, 0, 0);
+      }
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      if (c) {
+        c.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS px
+        pen(c);
+        if (snapshot) c.drawImage(snapshot, 0, 0, cssSize.width, cssSize.height);
+      }
+      cssSize = { width, height };
+    };
+    fit();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
+    observer?.observe(canvas);
+    return () => observer?.disconnect();
   }, [isOpen]);
 
-  // CRITICAL FIX 3: Canvas Distortion Lock (Resize Observer)
+  // Dialog behaviour: focus in, Escape out, focus back to the opener.
   useEffect(() => {
-    if (!isOpen) return;
-
-    const handleResize = () => {
-        if (!canvasRef.current || !context) return;
-        const canvas = canvasRef.current;
-        
-        // 1. Save the current drawing to a temporary off-screen canvas
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
-        tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
-
-        // 2. Safely resize the active canvas boundaries
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
-
-        // 3. Re-apply the context configurations (resizing clears them)
-        context.lineCap = "round";
-        context.strokeStyle = accentColor();
-        context.lineWidth = 3;
-
-        // 4. Paint the saved drawing back onto the resized canvas
-        context.drawImage(tempCanvas, 0, 0);
+    if (!isOpen) return undefined;
+    const opener = document.activeElement;
+    panelRef.current?.focus({ preventScroll: true });
+    const onKey = (e) => { if (e.key === 'Escape') onCloseRef.current?.(); };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (opener?.isConnected) opener.focus?.({ preventScroll: true });
     };
+  }, [isOpen]);
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isOpen, context]);
-
-  const startDrawing = ({ nativeEvent }) => {
-    if (!context) return;
-    const { offsetX, offsetY } = nativeEvent;
-    context.beginPath();
-    context.moveTo(offsetX, offsetY);
-    setIsDrawing(true);
+  const point = (e) => {
+    const r = canvasRef.current.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
   };
-
-  const draw = ({ nativeEvent }) => {
-    if (!isDrawing || !context) return;
-    const { offsetX, offsetY } = nativeEvent;
-    context.lineTo(offsetX, offsetY);
-    context.stroke();
+  const startStroke = (e) => {
+    const c = ctx();
+    if (!c) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const [x, y] = point(e);
+    c.beginPath();
+    c.moveTo(x, y);
+    drawingRef.current = true;
   };
-
-  const stopDrawing = () => {
-    if (!context) return;
-    context.closePath();
-    setIsDrawing(false);
+  const continueStroke = (e) => {
+    if (!drawingRef.current) return;
+    const c = ctx();
+    if (!c) return;
+    const [x, y] = point(e);
+    c.lineTo(x, y);
+    c.stroke();
   };
+  const endStroke = () => { drawingRef.current = false; };
 
   const clearCanvas = () => {
-    if (context && canvasRef.current) {
-      context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-    }
-  };
-
-  const handleTouch = (e, action) => {
-    e.preventDefault(); 
-    if (!canvasRef.current) return;
-    
-    const touch = e.touches[0];
+    const c = ctx();
     const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    const nativeEvent = { 
-        offsetX: (touch.clientX - rect.left) * scaleX, 
-        offsetY: (touch.clientY - rect.top) * scaleY 
-    };
-
-    if (action === 'start') startDrawing({ nativeEvent });
-    if (action === 'move') draw({ nativeEvent });
+    if (!c || !canvas) return;
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, canvas.width, canvas.height);
+    c.restore();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="absolute inset-0 z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-xl overflow-hidden flex flex-col page-fade-in">
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-label="Scratchpad"
+      tabIndex={-1}
+      className="absolute inset-0 z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-xl overflow-hidden flex flex-col page-fade-in outline-none"
+    >
       <div className="flex justify-between items-center p-2 bg-bg/90 border-b border-border2 pointer-events-auto">
         <span className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-signal)' }}>
           Scratchpad
         </span>
         <div className="flex gap-2">
-          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-colors shadow-sm cursor-pointer">
+          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-colors shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Clear
           </button>
-          <button onClick={onClose} className="px-3 py-1 bg-[var(--accent-danger)] hover:brightness-110 text-white rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-all shadow-sm cursor-pointer">
+          <button onClick={onClose} className="px-3 py-1 bg-[var(--accent-danger)] hover:brightness-110 text-white rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-all shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Close
           </button>
         </div>
       </div>
       <canvas
         ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={(e) => handleTouch(e, 'start')}
-        onTouchMove={(e) => handleTouch(e, 'move')}
-        onTouchEnd={stopDrawing}
-        className="flex-1 w-full h-full cursor-crosshair touch-none"
+        aria-label="Drawing area"
+        onPointerDown={startStroke}
+        onPointerMove={continueStroke}
+        onPointerUp={endStroke}
+        onPointerCancel={endStroke}
+        onPointerLeave={endStroke}
+        className="flex-1 w-full min-h-0 cursor-crosshair touch-none"
       />
     </div>
   );

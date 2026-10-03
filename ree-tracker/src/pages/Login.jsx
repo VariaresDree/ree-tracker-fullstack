@@ -93,7 +93,7 @@ export default function Login() {
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-[var(--radius-sm)] text-muted hover:text-textMain transition-colors cursor-pointer"
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-[var(--radius-sm)] text-muted hover:text-textMain transition-colors cursor-pointer touch-target inline-flex items-center justify-center"
                                 >
                                     {showPassword
                                         ? <EyeOff size={18} strokeWidth={1.75} aria-hidden="true" />

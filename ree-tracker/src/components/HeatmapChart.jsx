@@ -75,7 +75,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 aria-pressed={on}
-                className={`text-[0.7rem] px-2.5 py-1.5 rounded-lg border cursor-pointer font-medium transition-colors ${
+                className={`text-[0.7rem] px-2.5 py-1.5 rounded-lg border cursor-pointer font-medium transition-colors touch-target inline-flex items-center justify-center ${
                   on
                     ? 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent)]'
                     : 'border-border bg-surface2 hover:bg-surface3 text-muted'

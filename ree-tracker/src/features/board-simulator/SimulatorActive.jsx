@@ -311,7 +311,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
                       onClick={() => handleToggleAI(true)}
                       disabled={aiLoading || !isOnline}
                       title={!isOnline ? 'Needs a connection' : 'Generate a fresh explanation'}
-                      className="text-[0.65rem] font-medium px-2.5 py-1 rounded-md border border-border bg-surface2 hover:bg-surface3 text-muted hover:text-textMain transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-[0.65rem] font-medium px-2.5 py-1 rounded-md border border-border bg-surface2 hover:bg-surface3 text-muted hover:text-textMain transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center"
                     >
                       ↻ Regenerate
                     </button>
