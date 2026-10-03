@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '../ui';
 import { Eye, EyeOff } from '../ui/icons';
 import { formatExamTime } from '../../utils/examFormat';
+import { crossedMilestone } from './examAnnouncements';
 
 /** Seconds left until `endTime`, floored at 0. */
 export function remainingSecs(endTime, now = Date.now()) {
@@ -44,6 +45,8 @@ export default function ExamClock({
     // always recomputed from `endTime`, so a missed or late tick self-corrects.
     const [, force] = useState(0);
     const firedRef = useRef(false);
+    const prevSecsRef = useRef(null);
+    const [spoken, setSpoken] = useState('');
 
     const remaining = remainingSecs(endTime);
     const critical = remaining < CRITICAL_SECS;
@@ -65,8 +68,18 @@ export default function ExamClock({
         onExpire?.();
     }, [remaining, endTime, paused, onExpire]);
 
+    // The visible clock is aria-live="off" (a per-second announcement would
+    // make a screen reader unusable), so time is spoken only at milestones —
+    // and not while the learner has hidden the time on purpose.
+    useEffect(() => {
+        const crossed = crossedMilestone(prevSecsRef.current, remaining);
+        prevSecsRef.current = remaining;
+        if (crossed && showTime && !paused) setSpoken(crossed === 1 ? '1 minute left' : `${crossed} minutes left`);
+    }, [remaining, showTime, paused]);
+
     return (
         <div className="flex items-center gap-2">
+            <span role="status" className="sr-only">{spoken}</span>
             <Button
                 size="icon"
                 variant="ghost"

@@ -1,4 +1,5 @@
 // src/features/active-recall/FlashcardMode.jsx
+import { useEffect, useRef } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { KBD, cn } from '../../components/ui';
 
@@ -14,10 +15,24 @@ const RATINGS = [
 export default function FlashcardMode({ session, handleFlashcardReveal, handleFlashcardRating }) {
   const currentQ = session.questions[session.currentIndex];
 
+  // Revealing or rating unmounts the button that had focus, which dropped it to
+  // <body>: a keyboard or screen-reader user lost their place on every card.
+  // When — and only when — focus was lost that way, put it on what replaced
+  // the button: the answer, or the next card's reveal.
+  const answerRef = useRef(null);
+  const revealRef = useRef(null);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (session.isFlipped ? answerRef.current : revealRef.current)?.focus({ preventScroll: true });
+  }, [session.isFlipped, session.isAnswered, session.currentIndex]);
+
   return (
     <div className="mt-auto flex flex-col gap-6 relative z-10 animate-in fade-in">
       {!session.isFlipped ? (
         <button
+          ref={revealRef}
           onClick={handleFlashcardReveal}
           className="w-full py-12 bg-surface2/20 hover:bg-surface2/40 border-2 border-dashed border-border2/60 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] rounded-[var(--radius-xl)] text-muted hover:text-[var(--accent)] font-semibold transition-all duration-300 cursor-pointer shadow-sm hover:-translate-y-1 flex items-center justify-center gap-2"
         >
@@ -28,7 +43,11 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
 
           {/* Answer reveal */}
           <div
-            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-xl)] text-center overflow-x-auto math-scroll-mobile"
+            ref={answerRef}
+            tabIndex={-1}
+            role="region"
+            aria-label="Answer"
+            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-xl)] text-center overflow-x-auto math-scroll-mobile outline-none"
             style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 10%, transparent), transparent)' }}
           >
             <div className="text-eyebrow mb-4 flex items-center justify-center gap-2" style={{ color: 'var(--accent-success)' }}>

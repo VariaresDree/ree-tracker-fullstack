@@ -18,6 +18,7 @@ const firebaseAuth = require('firebase-admin/auth');
 firebaseAuth.getAuth = () => ({ verifyIdToken });
 
 const prisma = require('../src/config/db');
+const { invalidateTopicCache } = require('../src/services/topicResolver');
 
 const UID = 'uid-planner';
 const as = (uid) => ({ Authorization: `Bearer ${uid}` });
@@ -116,6 +117,29 @@ describe('Planner v2', () => {
         expect(rows.filter((r) => r.kind === 'mock')).toHaveLength(6);
         // The previous plan goes in the same transaction; the learner's own tasks stay.
         expect(prisma.plannerTask.deleteMany.mock.calls[0][0].where.OR).toBeDefined();
+    });
+
+    // A syllabus topic the learner has never touched arrives by name only. It
+    // is linked to its live Topic row so Start drills by id (tagged questions
+    // whose label differs still count), never to another subject's topic.
+    it('links an untouched syllabus topic to its live Topic row', async () => {
+        mockPlanInputs();
+        invalidateTopicCache();
+        vi.spyOn(prisma.topic, 'findMany').mockResolvedValue([
+            { id: 't-calc', subject: 'Mathematics', name: 'Calculus', normKey: 'calculus', aliases: [], active: true },
+            { id: 't-ee-calc', subject: 'EE', name: 'Circuits', normKey: 'circuits', aliases: [], active: true },
+        ]);
+        const res = await request(makeApp())
+            .post('/api/user/tasks/generate-plan')
+            .set(as(UID))
+            .send({ examDate: '2099-01-01', topics: [{ subject: 'Mathematics', subtopic: 'Calculus' }, { subject: 'Mathematics', subtopic: 'Circuits' }] });
+
+        expect(res.status).toBe(201);
+        const rows = prisma.plannerTask.createMany.mock.calls[0][0].data;
+        expect(rows.find((r) => r.topic === 'Calculus').topicId).toBe('t-calc');
+        // same name under another subject is not a match
+        expect(rows.find((r) => r.topic === 'Circuits').topicId).toBeNull();
+        invalidateTopicCache();
     });
 
     it('GET /tasks reports a planned task done from that day\u2019s answers', async () => {
