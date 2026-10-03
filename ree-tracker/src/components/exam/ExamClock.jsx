@@ -33,6 +33,20 @@ export function remainingSecs(endTime, now = Date.now()) {
 /** Under five minutes is the "critical" styling threshold. */
 export const CRITICAL_SECS = 300;
 
+/** Minutes-left marks a screen reader hears. */
+const MILESTONE_MINUTES = [60, 30, 10, 5, 1];
+
+/**
+ * The milestone (in minutes) crossed between two readings, or null. A first
+ * reading crosses nothing, so starting at 15 minutes left does not announce 30
+ * and 60. If a throttled tab skips several, the latest (smallest) one wins.
+ */
+export function crossedMilestone(prevSecs, nowSecs) {
+    if (prevSecs == null || nowSecs == null) return null;
+    const crossed = MILESTONE_MINUTES.filter((m) => prevSecs > m * 60 && nowSecs <= m * 60);
+    return crossed.length ? Math.min(...crossed) : null;
+}
+
 export default function ExamClock({
     endTime,
     showTime = true,
@@ -44,6 +58,8 @@ export default function ExamClock({
     // always recomputed from `endTime`, so a missed or late tick self-corrects.
     const [, force] = useState(0);
     const firedRef = useRef(false);
+    const prevSecsRef = useRef(null);
+    const [spoken, setSpoken] = useState('');
 
     const remaining = remainingSecs(endTime);
     const critical = remaining < CRITICAL_SECS;
@@ -65,8 +81,18 @@ export default function ExamClock({
         onExpire?.();
     }, [remaining, endTime, paused, onExpire]);
 
+    // The visible clock is aria-live="off" (a per-second announcement would
+    // make a screen reader unusable), so time is spoken only at milestones —
+    // and not while the learner has hidden the time on purpose.
+    useEffect(() => {
+        const crossed = crossedMilestone(prevSecsRef.current, remaining);
+        prevSecsRef.current = remaining;
+        if (crossed && showTime && !paused) setSpoken(crossed === 1 ? '1 minute left' : `${crossed} minutes left`);
+    }, [remaining, showTime, paused]);
+
     return (
         <div className="flex items-center gap-2">
+            <span role="status" className="sr-only">{spoken}</span>
             <Button
                 size="icon"
                 variant="ghost"

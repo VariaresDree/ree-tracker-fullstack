@@ -11,6 +11,15 @@
 import { useEffect, useRef } from 'react';
 import { Check, X } from '../ui/icons';
 
+/**
+ * The accessible name of a navigator cell. Answered/marked used to be colour
+ * and a dot only, so "Go to item 3" said nothing about the item.
+ */
+export function navigatorLabel({ idx, answered, reviewState, marked }) {
+  const state = reviewState || (answered ? 'answered' : 'not answered');
+  return `Go to item ${idx + 1}, ${state}${marked ? ', marked for review' : ''}`;
+}
+
 export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked }) {
   const scrollRef = useRef(null);
 
@@ -23,7 +32,7 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
     const activeBtn = container.querySelector(`[data-index="${currentIndex}"]`);
     if (activeBtn) {
       const scrollTarget = activeBtn.offsetLeft - container.offsetWidth / 2 + activeBtn.offsetWidth / 2;
-      container.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+      container.scrollTo?.({ left: scrollTarget, behavior: 'smooth' });
     }
   }, [currentIndex]);
 
@@ -56,7 +65,8 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
               key={idx}
               data-index={idx}
               onClick={() => onSelect?.(idx)}
-              aria-label={`Go to item ${idx + 1}${reviewState ? `, ${reviewState}` : ''}`}
+              aria-label={navigatorLabel({ idx, answered, reviewState, marked })}
+              aria-current={isCurrent ? 'step' : undefined}
               className={`w-10 h-10 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 rounded-[var(--radius-default)] border text-xs transition-all duration-300 cursor-pointer flex items-center justify-center relative ${btnClass}`}
             >
               {idx + 1}
