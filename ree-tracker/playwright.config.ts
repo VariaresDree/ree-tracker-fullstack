@@ -1,9 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // Frontend Playwright config. Boots the Vite dev server on demand so
-// `npm run e2e` works without an already-running server. Only desktop
-// Chrome by default — add more browsers when you're ready to pay the
-// CI time.
+// `npm run e2e` works without an already-running server. Desktop Chrome plus
+// a phone (Pixel 7: 412px, touch, coarse pointer) — most learners study on a
+// phone, and touch-target / drawer behaviour only exists there. Both run on
+// Chromium, so no extra browser download. `npm run e2e -- --project=mobile`.
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
@@ -26,5 +27,6 @@ export default defineConfig({
       },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
 });

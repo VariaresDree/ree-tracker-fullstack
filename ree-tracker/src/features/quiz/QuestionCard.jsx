@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
+import { answerAnnouncement } from './answerAnnouncement';
 
 const CONFIDENCE_LEVELS = ['LOW', 'MED', 'HIGH'];
 const HOTKEY_TO_CONFIDENCE = { q: 'LOW', w: 'MED', e: 'HIGH' };
@@ -47,6 +48,9 @@ const LETTERS = ['A', 'B', 'C', 'D'];
  * @param {function():void} [props.onConfidenceRequiredBlocked] - called when user clicks an option but confidence is required + missing
  * @param {React.ReactNode} [props.headerSlot]    - injected to the right of the eyebrow row
  * @param {string} [props.className]
+ * @param {boolean} [props.announce=true]         - speak the graded result through a polite status
+ *   region. Off where many cards render already graded at once (CaqResults), which would
+ *   otherwise queue an announcement per card.
  * @param {boolean} [props.plainText=false]       - render prompt/options as plain text instead of
  *   through LatexRenderer. Additive and off by default so Active Review, Board Simulator, Gauntlet,
  *   and Combat are unaffected. For third-party content that was never authored as LaTeX/Markdown —
@@ -68,6 +72,7 @@ export default function QuestionCard({
   headerSlot,
   className = '',
   plainText = false,
+  announce = true,
 }) {
   const reduceMotion = prefersReducedMotion();
   const isReviewing = state === 'reviewing';
@@ -108,6 +113,8 @@ export default function QuestionCard({
     return () => window.removeEventListener('keydown', onKey);
   }, [hotkeys, isReviewing, options, onConfidenceChange, handleSelect]);
 
+  const announcement = answerAnnouncement({ isReviewing, selectedOption, correctAnswer, options });
+
   const subjectLabel = useMemo(() => {
     if (!question?.subject) return null;
     return question.subtopic ? `${question.subject} › ${question.subtopic}` : question.subject;
@@ -147,6 +154,11 @@ export default function QuestionCard({
 
   return (
     <div className={`flex flex-col gap-6 relative z-10 ${className}`}>
+      {/* Grading changes colours and each option's sr-only state, but a
+          screen-reader user would have to go looking for it. Always mounted,
+          so the change is what gets announced. */}
+      {announce && <p role="status" className="sr-only">{announcement}</p>}
+
       {/* Eyebrow: Item N + subject/subtopic + optional header slot */}
       {(index != null || subjectLabel || headerSlot) && (
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -265,8 +277,8 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       srState = isSelected ? 'Correct answer — you selected this' : 'Correct answer';
     } else if (isSelected) {
       stateClass =
-        'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)] font-semibold cursor-default';
-      letterColor = 'text-[color-mix(in_srgb,var(--accent-danger)_80%,transparent)]';
+        'bg-[color-mix(in_srgb,var(--accent-danger)_12%,var(--bg-surface))] border-[color-mix(in_srgb,var(--accent-danger)_50%,transparent)] text-[var(--accent-danger)] font-semibold cursor-default';
+      letterColor = 'text-[var(--accent-danger)]';
       innerClass = 'line-through decoration-[color-mix(in_srgb,var(--accent-danger)_40%,transparent)]';
       icon = <XIcon />;
       srState = 'Incorrect — you selected this';

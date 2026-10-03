@@ -88,6 +88,11 @@ jobs:
       - name: Install workspace
         run: npm ci --no-audit --no-fund
 
+      # ESLint as a ratchet: errors per rule may not rise above
+      # ree-tracker/eslint-baseline.json (scripts/lintRatchet.mjs).
+      - name: Lint (ratchet)
+        run: npm run lint:ratchet --workspace=ree-tracker
+
       - name: Test
         run: npm run test --workspace=ree-tracker
 

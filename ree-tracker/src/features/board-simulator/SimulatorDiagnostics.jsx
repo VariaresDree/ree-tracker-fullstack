@@ -177,7 +177,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
 
                         <div className={`flex flex-col gap-4 flex-1 max-h-[400px] overflow-y-auto pr-3 ${scrollbarClasses}`}>
                             {diagnostics.chronoAnomalies?.length > 0 ? diagnostics.chronoAnomalies.map((q, i) => (
-                                <div key={i} className="p-6 bg-surface2 border border-border2/60 rounded-[var(--radius-lg)] text-base text-textMain/90 font-medium [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] shadow-sm">
+                                <div key={i} className="p-6 bg-surface2 border border-border2/60 rounded-[var(--radius-lg)] text-base text-textMain/90 font-medium [&_p]:!m-0 overflow-x-auto custom-scrollbar shadow-sm">
                                     <LatexRenderer content={q.text || q.question} />
                                 </div>
                             )) : (
@@ -212,7 +212,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                         {diagnostics.blindSpots?.length > 0 ? diagnostics.blindSpots.map((q, i) => (
                             <div key={i} className="p-6 sm:p-8 bg-surface2 border border-border2/60 rounded-[var(--radius-lg)] flex flex-col gap-6 shadow-sm">
 
-                                <div className="text-base sm:text-xl font-medium text-textMain [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                                <div className="text-base sm:text-xl font-medium text-textMain [&_p]:!m-0 overflow-x-auto custom-scrollbar">
                                     <LatexRenderer content={q.text || q.question} />
                                 </div>
 
@@ -226,7 +226,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                                     >
                                         <span className="block text-eyebrow mb-3 relative z-10" style={{ color: 'var(--accent-danger)' }}>Your answer</span>
                                         <div
-                                            className="text-base sm:text-lg [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] line-through font-medium relative z-10"
+                                            className="text-base sm:text-lg [&_p]:!m-0 overflow-x-auto custom-scrollbar line-through font-medium relative z-10"
                                             style={{
                                                 color: 'color-mix(in srgb, var(--accent-danger) 70%, var(--text-main))',
                                                 textDecorationColor: 'color-mix(in srgb, var(--accent-danger) 50%, transparent)',
@@ -244,7 +244,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                                     >
                                         <span className="block text-eyebrow mb-3 relative z-10" style={{ color: 'var(--accent-success)' }}>Correct answer</span>
                                         <div
-                                            className="text-base sm:text-lg font-bold [&_p]:!m-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] relative z-10"
+                                            className="text-base sm:text-lg font-bold [&_p]:!m-0 overflow-x-auto custom-scrollbar relative z-10"
                                             style={{ color: 'color-mix(in srgb, var(--accent-success) 70%, var(--text-main))' }}
                                         >
                                             <LatexRenderer content={q.answer} />

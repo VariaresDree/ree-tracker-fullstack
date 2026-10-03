@@ -91,11 +91,11 @@ export default function StrategicPlannerTab({ currentUser }) {
       return (
           <div className="bg-bg border border-border2 p-4 rounded-xl shadow-inner">
               <div className="flex justify-between items-center mb-4">
-                  <button onClick={prevMonth} className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer">&lt;</button>
+                  <button onClick={prevMonth} aria-label="Previous month" className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer touch-target inline-flex items-center justify-center">&lt;</button>
                   <div className="font-bold text-sm uppercase tracking-widest text-textMain">
                       {currentDate.toLocaleString('default', { month: 'long' })} {currentDate.getFullYear()}
                   </div>
-                  <button onClick={nextMonth} className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer">&gt;</button>
+                  <button onClick={nextMonth} aria-label="Next month" className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer touch-target inline-flex items-center justify-center">&gt;</button>
               </div>
               <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-muted mb-2 uppercase">
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => <div key={d}>{d}</div>)}

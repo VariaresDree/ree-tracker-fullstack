@@ -45,7 +45,7 @@ const LatexRenderer = ({ content, className = "", compact = false }) => {
     // an explanation) has no adjacent baseline to misalign against and
     // legitimately needs the scroll wrapper, so this stays opt-in.
     return (
-        <div className={`prose prose-invert max-w-none ${compact ? '' : 'math-scroll-mobile'} ${className}`}>
+        <div className={`${compact ? '' : 'math-scroll-mobile'} ${className}`.trim()}>
             <LatexErrorBoundary content={content}>
                 <ReactMarkdown
                     remarkPlugins={[remarkMath]}
@@ -65,11 +65,13 @@ const LatexRenderer = ({ content, className = "", compact = false }) => {
     );
 };
 
-// CRITICAL FIX: Memoize the component to prevent heavy LaTeX re-renders during
-// state changes. Compare className too — the old comparator ignored it, so a
-// className change silently failed to re-render.
+// Memoized to keep heavy LaTeX re-renders out of unrelated state changes. Every
+// prop that changes the output must be compared: the comparator once ignored
+// className, and then `compact`, so changing either silently did nothing.
 export default memo(
     LatexRenderer,
     (prevProps, nextProps) =>
-        prevProps.content === nextProps.content && prevProps.className === nextProps.className,
+        prevProps.content === nextProps.content
+        && prevProps.className === nextProps.className
+        && prevProps.compact === nextProps.compact,
 );
