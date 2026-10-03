@@ -153,7 +153,7 @@ Root cause of the new drift:
 - Boot applied the live list only **after** the profile request succeeded, so a cold-start timeout left the stale list in the Topic dropdown as well.
 - The server published unmatched labels with `topicId` NULL, silently.
 
-Fixed:
+Fixed in #117:
 - AI prompts and the Library dropdown now use the live taxonomy (`GET /api/config/tos`). Boot applies it independently of the profile request, and the Library re-pulls it when opened.
 - Every live-question write resolves its topic within the question's own subject. A label outside that subject's taxonomy is refused instead of published untagged:
   - manual add and single approve answer 400 with the reason;
@@ -180,7 +180,7 @@ Operator steps, all run:
 5. `npm run seed:syllabus`: 25 / 30 / 45.
 6. `npm run migrate:taxonomy`: **deliberately not run** (see the finding above).
 
-Still to run, once the taxonomy-drift fix is deployed:
+Run once the taxonomy-drift fix (#117) was deployed:
 1. `npm run link:topics`, a read-only dry run. Expect all 2,176 linked: 2,136 exact matches plus 40 through the reviewed remaps, each relabelled to its topic's name. Expect 0 unmatched.
 2. `npm run link:topics:apply`.
 3. `npm run backfill:mastery`, so `UserTopicPerformance.topicId` follows.
