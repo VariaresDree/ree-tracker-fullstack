@@ -6,7 +6,7 @@ import { Eye, EyeOff } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 
 export default function Login() {
-    const { login, register } = useAuth();
+    const { login, register, resetPassword } = useAuth();
     const [isRegistering, setIsRegistering] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -32,6 +32,22 @@ export default function Login() {
             setError(err.message.replace('Firebase: ', ''));
         }
         setLoading(false);
+    };
+
+    // Emails a reset link to the address typed above. Firebase doesn't reveal
+    // whether an account exists for it, so neither does the message.
+    const handleForgot = async () => {
+        setError('');
+        if (!email.trim()) {
+            setError('Enter your email above, then tap “Forgot password?” again.');
+            return;
+        }
+        try {
+            await resetPassword(email.trim());
+            toast.success('If an account exists for that email, a reset link is on its way.');
+        } catch (err) {
+            setError(err?.code === 'auth/invalid-email' ? 'That email doesn’t look right.' : 'Couldn’t send the reset email — try again.');
+        }
     };
 
     return (
@@ -102,6 +118,12 @@ export default function Login() {
                             </div>
                         )}
                     </FormField>
+
+                    {!isRegistering && (
+                        <Button type="button" variant="ghost" size="sm" onClick={handleForgot} className="self-end -mt-2 text-muted2 hover:text-textMain">
+                            Forgot password?
+                        </Button>
+                    )}
 
                     <Button type="submit" size="lg" fullWidth loading={loading} disabled={loading} className="mt-2">
                         {isRegistering ? 'Create account' : 'Sign in'}

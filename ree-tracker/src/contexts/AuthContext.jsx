@@ -6,7 +6,11 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
 } from 'firebase/auth';
 // 🚀 NEW: Import the TOS fetch function
 import { getAnalyticsProfile, fetchFeatureFlags, updateUserProfile, BOOT_TIMEOUT_MS } from '../services/dbQueries';
@@ -195,6 +199,18 @@ export const AuthProvider = ({ children }) => {
     return userCredential;
   };
 
+  // "Forgot password?" on Login and "Send a reset email" in Account.
+  const resetPassword = (email) => sendPasswordResetEmail(auth, email);
+
+  // Firebase refuses a password change on an old session, so prove the
+  // current password first (re-authentication), then set the new one.
+  const changePassword = async (currentPassword, newPassword) => {
+    const user = auth.currentUser;
+    if (!user?.email) throw new Error('Sign in again to change your password.');
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+    await updatePassword(user, newPassword);
+  };
+
   const logout = async () => {
     setLoading(true);
     // Release this device's FCM token BEFORE the auth session dies (the
@@ -215,7 +231,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, loading }}>
       {!loading ? children : authStalled ? (
         // AUTH_STALL_MS elapsed with no onAuthStateChanged callback at all —
         // NOT the same as "logged out". A weak connection must never eject an
