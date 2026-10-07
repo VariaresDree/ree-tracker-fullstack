@@ -1,86 +1,25 @@
 // src/layouts/MainLayout.jsx
-import { useEffect, useRef, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import Pomodoro from '../components/Pomodoro';
+//
+// The app shell: a sidebar on desktop; on a phone, a top bar (timer, status,
+// account menu) and a five-item bottom bar. Both read layouts/navModel.js.
+// Each piece is rendered only at its own breakpoint (not hidden with CSS), so
+// OfflineStatusBadge — and the offline-pack refresh it triggers — mounts once.
+//
+// Pages that switch between this and ExamLayout (Simulator, Gauntlet,
+// placement test) render it themselves; the rest get it from App's AppShell.
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import FloatingPomodoro from '../components/FloatingPomodoro';
-import OfflineStatusBadge from '../components/OfflineStatusBadge';
-import { useAuth } from '../contexts/AuthContext';
-import { Button, Modal } from '../components/ui';
 import { useUISlice } from '../store/slices';
 import useMediaQuery from '../hooks/useMediaQuery';
-import {
-  LayoutDashboard, BrainCircuit, Zap, Swords, Library, FolderOpen, User,
-  PanelLeftClose, PanelLeftOpen, Timer, Menu, X,
-} from '../components/ui/icons';
-
-// Grouped, sentence-case navigation with real icons.
-const NAV_GROUPS = [
-  {
-    label: 'Menu',
-    items: [
-      { path: '/', icon: LayoutDashboard, label: 'Dashboard', desc: 'Predictive analytics & tracking' },
-      { path: '/review', icon: BrainCircuit, label: 'Active Review', desc: 'SRS cards & interleaved sets' },
-      { path: '/simulator', icon: Zap, label: 'Board Simulator', desc: 'PRC pressure simulation' },
-      { path: '/arena', icon: Swords, label: 'Arena', desc: 'Global peer leaderboards' },
-    ],
-  },
-  {
-    label: 'Resources',
-    items: [
-      { path: '/library', icon: Library, label: 'Module Library', desc: 'AI-parsed handouts & text' },
-      { path: '/materials', icon: FolderOpen, label: 'Materials Hub', desc: 'Offline resources & references' },
-    ],
-  },
-];
-
-// Thumb-reach bar for mobile (five primary destinations).
-const BOTTOM_NAV = [
-  { path: '/', icon: LayoutDashboard, label: 'Home' },
-  { path: '/review', icon: BrainCircuit, label: 'Review' },
-  { path: '/simulator', icon: Zap, label: 'Sim' },
-  { path: '/arena', icon: Swords, label: 'Arena' },
-  { path: '/profile', icon: User, label: 'Profile' },
-];
-
-const ACTIVE_LINK =
-  'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent-text)]';
-const IDLE_LINK = 'border-l-transparent text-textMain hover:bg-surface2';
+import Sidebar from './Sidebar';
+import PhoneHeader from './PhoneHeader';
+import BottomBar from './BottomBar';
 
 export default function MainLayout({ children }) {
-  const { isSidebarOpen, setSidebarOpen, isSidebarCollapsed, toggleSidebarCollapse, theme } = useUISlice();
-  const [showSimulatorModal, setShowSimulatorModal] = useState(false);
-
+  const { theme } = useUISlice();
   const location = useLocation();
-  const navigate = useNavigate();
-  const { currentUser } = useAuth();
-
-  // The mobile drawer. Closed, it was only translated off-screen, so Tab and a
-  // screen reader still walked every hidden link: it is inert until opened.
-  // Opening moves focus inside, Escape closes it, and closing hands focus back
-  // to the menu button. On a desktop the sidebar is always on screen.
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const menuButtonRef = useRef(null);
-  const closeButtonRef = useRef(null);
-  const drawerWasOpen = useRef(false);
-  useEffect(() => {
-    if (isDesktop) return undefined;
-    if (isSidebarOpen) {
-      drawerWasOpen.current = true;
-      closeButtonRef.current?.focus({ preventScroll: true });
-      const onKey = (e) => { if (e.key === 'Escape') setSidebarOpen(false); };
-      document.addEventListener('keydown', onKey);
-      return () => document.removeEventListener('keydown', onKey);
-    }
-    if (drawerWasOpen.current) {
-      drawerWasOpen.current = false;
-      menuButtonRef.current?.focus({ preventScroll: true });
-    }
-    return undefined;
-  }, [isSidebarOpen, isDesktop, setSidebarOpen]);
-
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [location.pathname, setSidebarOpen]);
 
   // Enforce the global theming architecture on render/change.
   useEffect(() => {
@@ -92,209 +31,31 @@ export default function MainLayout({ children }) {
     }
   }, [theme]);
 
-  const handleNavClick = (e, path) => {
-    if (path === '/simulator') {
-      e.preventDefault();
-      setShowSimulatorModal(true);
-      setSidebarOpen(false);
-    }
-  };
-
-  const confirmSimulator = () => {
-    setShowSimulatorModal(false);
-    navigate('/simulator');
-  };
-
-  const CollapseIcon = isSidebarCollapsed ? PanelLeftOpen : PanelLeftClose;
+  // A new page starts at its top — or at the section a link points to
+  // (/account#offline). The router keeps the old scroll position otherwise.
+  useEffect(() => {
+    const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+    if (target) target.scrollIntoView?.({ block: 'start' });
+    else window.scrollTo?.(0, 0);
+  }, [location.pathname, location.hash]);
 
   return (
     <div className="min-h-screen bg-bg flex flex-col md:flex-row font-sans text-textMain relative">
-      {/* First stop for a keyboard user: past the header and the whole
-          navigation, straight to the page. */}
+      {/* First stop for a keyboard user: past the navigation, straight to the page. */}
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-[var(--radius-default)] focus:bg-surface focus:text-textMain focus:border focus:border-[var(--accent)]"
       >
         Skip to main content
       </a>
-      {/* MOBILE APP HEADER */}
-      <div className="md:hidden flex items-center justify-between px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] bg-surface border-b border-border2 sticky top-0 z-[40] shadow-sm">
-        <div className="text-xl font-bold tracking-tight text-[var(--accent)]">
-          REE<span className="text-textMain">.ai</span> Core
-        </div>
-        <button
-          ref={menuButtonRef}
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open navigation menu"
-          aria-expanded={isSidebarOpen}
-          aria-controls="app-sidebar"
-          className="p-2.5 -mr-2.5 text-muted hover:text-textMain cursor-pointer"
-        >
-          <Menu className="w-6 h-6" strokeWidth={1.75} />
-        </button>
-      </div>
 
-      {/* MOBILE DRAWER BACKDROP */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[50] md:hidden animate-in fade-in"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {isDesktop ? <Sidebar /> : <PhoneHeader />}
 
-      {/* SIDEBAR. pl-[env(safe-area-inset-left)] guards the drawer's own edge
-          content in landscape on a notched phone — this is the one fixed
-          left-0 surface in the app, everything else is edge-inset by its own
-          padding already. */}
-      <aside
-        id="app-sidebar"
-        inert={!isDesktop && !isSidebarOpen}
-        className={`fixed inset-y-0 left-0 z-[55] bg-surface border-r border-border2 flex flex-col shrink-0 shadow-2xl md:shadow-none transform transition-all duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0 pl-[env(safe-area-inset-left)] ${
-          isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0'
-        } ${isSidebarCollapsed ? 'w-20' : 'w-72'}`}
-      >
-        {/* Mobile drawer top bar */}
-        <div className="md:hidden flex p-4 border-b border-border2 justify-between items-center bg-surface2/30 shrink-0">
-          <div className="text-xl font-bold tracking-tight text-[var(--accent)]">
-            REE<span className="text-textMain">.ai</span>
-          </div>
-          {/* p-1 around a 24px icon measured 32x32 at 360px — mobile-only
-              (md:hidden) with a full-width row to spare, so bumping padding
-              to clear 44x44 costs nothing layout-wise. -m-2.5 keeps the
-              icon's visual position unchanged; only the hit area grows. */}
-          <button
-            ref={closeButtonRef}
-            onClick={() => setSidebarOpen(false)}
-            aria-label="Close navigation menu"
-            className="text-muted hover:text-textMain p-2.5 -m-2.5 cursor-pointer"
-          >
-            <X className="w-6 h-6" strokeWidth={1.75} />
-          </button>
-        </div>
-
-        {/* Desktop collapse control */}
-        <div className={`hidden md:flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0 ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
-          {!isSidebarCollapsed && (
-            <div className="text-2xl font-bold tracking-tight text-[var(--accent)] animate-in fade-in duration-200">
-              REE<span className="text-textMain">.ai</span> Core
-            </div>
-          )}
-          <button
-            onClick={() => toggleSidebarCollapse()}
-            className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-all touch-target inline-flex items-center justify-center"
-            aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <CollapseIcon size={16} strokeWidth={1.75} />
-          </button>
-        </div>
-
-        {/* Pomodoro (anchored top) */}
-        <div className="p-4 border-b border-border2 bg-surface2/10 shrink-0 flex justify-center w-full">
-          {isSidebarCollapsed ? (
-            <button
-              onClick={() => toggleSidebarCollapse()}
-              className="w-10 h-10 bg-surface2 hover:bg-surface3 border border-border2 rounded-xl flex items-center justify-center transition-colors cursor-pointer text-muted hover:text-textMain"
-              aria-label="Expand Pomodoro timer"
-              title="Expand Pomodoro timer"
-            >
-              <Timer size={18} strokeWidth={1.75} />
-            </button>
-          ) : (
-            <Pomodoro />
-          )}
-        </div>
-
-        {/* Connectivity + offline-readiness indicator (also keeps the offline
-            question pack fresh via useOfflinePack on mount). */}
-        <div className={`shrink-0 border-b border-border2 bg-surface2/10 ${isSidebarCollapsed ? 'py-3' : 'px-4 py-3'}`}>
-          <OfflineStatusBadge collapsed={isSidebarCollapsed} />
-        </div>
-
-        {/* Navigation (grouped) */}
-        <nav className="flex-1 overflow-y-auto p-3 flex flex-col gap-4 custom-scrollbar min-h-0">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="flex flex-col gap-1">
-              {!isSidebarCollapsed && (
-                <div className="px-3 pb-1 text-[10px] font-mono uppercase tracking-[0.2em] text-muted">
-                  {group.label}
-                </div>
-              )}
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    viewTransition
-                    onClick={(e) => handleNavClick(e, item.path)}
-                    title={isSidebarCollapsed ? item.label : ''}
-                    className={({ isActive }) =>
-                      `group flex items-center rounded-xl border-l-2 transition-colors cursor-pointer ${
-                        isSidebarCollapsed ? 'p-3 justify-center' : 'p-3'
-                      } ${isActive && item.path !== '/simulator' ? ACTIVE_LINK : IDLE_LINK}`
-                    }
-                  >
-                    {({ isActive }) => {
-                      const on = isActive && item.path !== '/simulator';
-                      return (
-                        <>
-                          <Icon
-                            size={20}
-                            strokeWidth={1.75}
-                            className={`shrink-0 ${on ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
-                          />
-                          {!isSidebarCollapsed && (
-                            <div className="flex flex-col min-w-0 ml-3">
-                              <span className="text-sm font-semibold tracking-tight truncate">{item.label}</span>
-                              <span className={`text-[11px] mt-0.5 truncate ${on ? 'text-[color-mix(in_srgb,var(--accent-text)_75%,var(--text-muted2))]' : 'text-muted2'}`}>
-                                {item.desc}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      );
-                    }}
-                  </NavLink>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        {/* Profile (anchored bottom) */}
-        <div className={`mt-auto p-4 border-t border-border2 bg-surface2/10 shrink-0 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
-          <NavLink
-            to="/profile"
-            viewTransition
-            className={({ isActive }) =>
-              `flex items-center gap-3 p-2.5 rounded-xl transition-all border shadow-sm group cursor-pointer ${
-                isSidebarCollapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'w-full'
-              } ${isActive
-                ? 'bg-surface3 border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
-                : 'bg-surface hover:bg-surface3 border-border2 hover:border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'}`
-            }
-            title={isSidebarCollapsed ? 'Profile' : 'Profile & settings'}
-          >
-            <div className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-signal)] flex items-center justify-center text-white font-bold text-sm shadow-md">
-              {currentUser?.displayName?.charAt(0).toUpperCase() || 'V'}
-            </div>
-            {!isSidebarCollapsed && (
-              <div className="flex flex-col overflow-hidden min-w-0">
-                <span className="text-sm font-semibold text-textMain truncate">{currentUser?.displayName || 'Operator'}</span>
-                <span className="text-[11px] text-muted font-mono uppercase tracking-widest mt-0.5">Profile & settings</span>
-              </div>
-            )}
-          </NavLink>
-        </div>
-      </aside>
-
-      {/* MAIN VIEWPORT */}
       {/* overflow-x-clip, not overflow-y-auto: <main> has no fixed height so it
           never scrolled itself (the window does), but overflow-y-auto still
           made it the scroll container of every `sticky` child, so none of
-          them stuck (ReviewSetup's mobile Start bar). clip keeps sideways
-          overflow contained without creating a scroll container. */}
+          them stuck. clip keeps sideways overflow contained without creating
+          a scroll container. */}
       <main
         key={location.pathname}
         id="main-content"
@@ -309,52 +70,7 @@ export default function MainLayout({ children }) {
           by construction, keeping the exam screens distraction-free. */}
       <FloatingPomodoro />
 
-      {/* MOBILE BOTTOM NAV. Edge-to-edge (inset-x-0) grid of 5 items — the
-          outer two sit directly under a landscape notch/rounded corner
-          without left/right safe-area padding, unlike every other fixed
-          surface in the app which is inset by its own padding already. */}
-      <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-[45] bg-surface/95 backdrop-blur-md border-t border-border2 grid grid-cols-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
-        aria-label="Primary"
-      >
-        {BOTTOM_NAV.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={(e) => handleNavClick(e, item.path)}
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium tracking-wide transition-colors ${
-                  isActive && item.path !== '/simulator' ? 'text-[var(--accent-text)]' : 'text-muted hover:text-textMain'
-                }`
-              }
-            >
-              <Icon size={20} strokeWidth={1.75} />
-              {item.label}
-            </NavLink>
-          );
-        })}
-      </nav>
-
-      {/* Simulator warning modal */}
-      <Modal
-        open={showSimulatorModal}
-        onClose={() => setShowSimulatorModal(false)}
-        tone="amber"
-        icon={Zap}
-        title="Enter the Board Simulator?"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowSimulatorModal(false)}>Cancel</Button>
-            <Button tone="amber" onClick={confirmSimulator}>Start simulation</Button>
-          </>
-        }
-      >
-        <p className="text-sm text-muted2 leading-relaxed">
-          The Board Simulator is a distraction-free environment mirroring actual PRC conditions. Timers are strict.
-        </p>
-      </Modal>
+      {!isDesktop && <BottomBar />}
     </div>
   );
 }

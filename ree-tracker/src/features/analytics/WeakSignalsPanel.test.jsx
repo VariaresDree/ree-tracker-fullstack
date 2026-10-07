@@ -11,8 +11,8 @@ const renderPanel = (data) => render(
   <MemoryRouter>
     <Routes>
       <Route path="/" element={<WeakSignalsPanel data={data} />} />
-      <Route path="/review" element={<Probe />} />
-      <Route path="/materials" element={<Probe />} />
+      <Route path="/practice" element={<Probe />} />
+      <Route path="/library" element={<Probe />} />
     </Routes>
   </MemoryRouter>,
 );
@@ -34,15 +34,15 @@ describe('WeakSignalsPanel', () => {
   it('"Fix this" starts a blind-spot drill on that topic', () => {
     renderPanel(DATA);
     fireEvent.click(screen.getByRole('button', { name: 'Fix this' }));
-    expect(lastLocation.pathname).toBe('/review');
+    expect(lastLocation.pathname).toBe('/practice');
     expect(lastLocation.state.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopicId: 't-p' });
   });
 
   it('a time sink opens that topic\u2019s formula cards', () => {
     renderPanel(DATA);
     fireEvent.click(screen.getByRole('button', { name: 'Formula cards' }));
-    expect(lastLocation.pathname).toBe('/materials');
-    expect(lastLocation.state).toMatchObject({ tab: 'reference', search: 'Power Systems', kind: 'formula' });
+    expect(lastLocation.pathname + lastLocation.search).toBe('/library?tab=formulas');
+    expect(lastLocation.state).toMatchObject({ search: 'Power Systems', kind: 'formula' });
   });
 
   it('explains what it tracks when there is nothing yet', () => {

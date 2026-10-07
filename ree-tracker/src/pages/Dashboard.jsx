@@ -20,8 +20,8 @@ import { DashboardSkeleton } from '../components/SkeletonLoaders';
 import { TrajectoryCard } from '../features/analytics/TrajectoryCard';
 import { PrescriptionPanel } from '../features/analytics/PrescriptionPanel';
 import TodayPanel from '../features/today/TodayPanel';
-import { drillPreset, dueReviewPreset } from '../features/active-recall/presets';
-import PageHeader from '../components/PageHeader';
+import { drillPreset, dueReviewPreset, launchPractice } from '../features/active-recall/presets';
+import { PageHeader } from '../components/ui';
 import { WEAK_TOPIC_ACCURACY } from '@ree/shared';
 import { Panel, KpiTile, StatusPill, Button, Badge, Modal, SegmentedControl } from '../components/ui';
 import {
@@ -44,7 +44,7 @@ export default function Dashboard() {
 
   // One targeted drill launcher, shared by the prescription panel and the
   // heatmap tiles (presets live in features/active-recall/presets).
-  const launchDrill = (target = {}) => navigate('/review', { state: { preset: drillPreset(target) } });
+  const launchDrill = (target = {}) => launchPractice(navigate, drillPreset(target));
 
   // Prescription routing. v2 actions name their topic AND subject; READ /
   // FORMULA_CARDS go to the materials hub, the rest start a review session.
@@ -52,12 +52,12 @@ export default function Dashboard() {
     const topic = action?.payload?.topic;
     if (action?.type === 'READ') {
       toast(`Open your ${topic || 'weak-topic'} materials and read for ${action?.payload?.durationMin || 25} minutes.`, { icon: '📚' });
-      navigate('/materials');
+      navigate('/library?tab=handouts');
       return;
     }
     if (action?.type === 'FORMULA_CARDS') {
       // Straight to that topic's formula cards in the reference vault.
-      navigate('/materials', { state: { tab: 'reference', search: topic || '', kind: 'formula' } });
+      navigate('/library?tab=formulas', { state: { search: topic || '', kind: 'formula' } });
       return;
     }
     if (action?.type === 'DRILL' || action?.type === 'BLIND_SPOT') {
@@ -68,7 +68,7 @@ export default function Dashboard() {
       return;
     }
     if (action?.type === 'SRS_DUE') {
-      navigate('/review', { state: { preset: dueReviewPreset(action?.payload?.count || 20) } });
+      launchPractice(navigate, dueReviewPreset(action?.payload?.count || 20));
       return;
     }
 
@@ -93,7 +93,7 @@ export default function Dashboard() {
     };
 
     toast(`Starting a ${preset.count}-item ${preset.sessionMode === 'flashcard' ? 'flashcard' : 'drill'} session${topic ? ` on ${topic}` : ''}.`, { icon: '🎯' });
-    navigate('/review', { state: { preset } });
+    launchPractice(navigate, preset);
   };
 
   const [sqlData, setSqlData] = useState(null);

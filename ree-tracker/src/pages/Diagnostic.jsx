@@ -220,7 +220,7 @@ function PlacementResult({ result }) {
         <Button
           variant="secondary"
           as={Link}
-          to="/review"
+          to="/practice"
           state={{ preset: drillPreset() }}
         >
           Start a targeted drill

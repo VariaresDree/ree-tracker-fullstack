@@ -95,4 +95,7 @@ export {
   WifiOff,
   // Placement test
   Compass,
+  // App navigation (Today, Admin)
+  CalendarCheck,
+  ShieldCheck,
 } from 'lucide-react';

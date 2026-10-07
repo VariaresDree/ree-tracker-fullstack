@@ -48,7 +48,7 @@ export default function NotificationOptIn() {
         });
         if (ok) {
           setNotificationPrefs({ enabled: true, dailyReminderEnabled: true });
-          toast.success('Daily reminder set — change the time anytime in Settings.');
+          toast.success('Daily reminder set — change the time anytime in Account.');
         } else {
           toast('Notifications are off in your system settings.', { icon: '🔕' });
         }
@@ -58,7 +58,7 @@ export default function NotificationOptIn() {
           setNotificationPrefs({ enabled: true });
           toast.success('Session notifications on. Daily reminders need the installed app.');
         } else {
-          toast('Notifications blocked — you can enable them later in Settings.', { icon: '🔕' });
+          toast('Notifications blocked — you can enable them later in Account.', { icon: '🔕' });
         }
       }
     } finally {
@@ -82,7 +82,7 @@ export default function NotificationOptIn() {
               </p>
             ) : (
               <p className="text-xs text-muted2 mt-1">
-                Get a daily nudge for your Active Recall session. You choose the time in Settings.
+                Get a daily nudge to practise. You choose the time in Account.
               </p>
             )}
             <div className="flex items-center gap-2 mt-3">

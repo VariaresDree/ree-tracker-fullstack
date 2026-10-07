@@ -142,7 +142,7 @@ export const useGauntletEngine = (level) => {
 
         if (lockUntil && lockUntil > Date.now()) {
             toast.error("Security Breach: System is currently on a cooldown lock.");
-            navigate('/arena');
+            navigate('/exams?tab=gauntlet');
             return;
         }
 
@@ -156,7 +156,7 @@ export const useGauntletEngine = (level) => {
             toast.error(subjectTier
                 ? "Locked: clear the blended Gauntlet tiers first to unlock the subject boards."
                 : "Security Breach: You lack the required telemetry to enter this sector.");
-            navigate('/arena');
+            navigate('/exams?tab=gauntlet');
             return;
         }
 

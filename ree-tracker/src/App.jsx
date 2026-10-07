@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useStore } from './store/useStore';
 import { useSyncLifecycle } from './hooks/useSyncLifecycle';
@@ -12,18 +12,36 @@ import { DashboardSkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
 import NotificationOptIn from './components/NotificationOptIn';
 import Login from './pages/Login';
+import LegacyRedirect from './routes/LegacyRedirect';
+import AdminRoute from './routes/AdminRoute';
+import { materialsTarget } from './routes/legacyRoutes';
 
 // Lazy Loaded Pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ActiveReview = lazy(() => import('./pages/ActiveReview'));
+const Exams = lazy(() => import('./pages/Exams'));
+const Progress = lazy(() => import('./pages/Progress'));
 const BoardSimulator = lazy(() => import('./pages/BoardSimulator'));
 const Library = lazy(() => import('./pages/Library'));
-const Materials = lazy(() => import('./pages/Materials'));
 const Profile = lazy(() => import('./pages/Profile'));
-const Arena = lazy(() => import('./pages/Arena'));
+const Admin = lazy(() => import('./pages/admin/Admin'));
 const BattleLobby = lazy(() => import('./pages/BattleLobby'));
-const Gauntlet = lazy(() => import('./pages/Gauntlet')); 
+const Gauntlet = lazy(() => import('./pages/Gauntlet'));
 const Diagnostic = lazy(() => import('./pages/Diagnostic'));
+
+// The app shell as a layout route: the navigation stays on screen while a page
+// chunk loads, and only the page area shows the loading state.
+function AppShell() {
+  return (
+    <MainLayout>
+      <Suspense fallback={<RouteFallback />}>
+        <Outlet />
+      </Suspense>
+    </MainLayout>
+  );
+}
+
+const page = (name, element) => <ErrorBoundary name={name}>{element}</ErrorBoundary>;
 
 // Replace only this component inside src/App.jsx
 const SecureAppTerminal = () => {
@@ -50,13 +68,26 @@ const SecureAppTerminal = () => {
           skeleton so only "/" shows the dashboard-shaped placeholder. */}
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/" element={<MainLayout><ErrorBoundary name="Dashboard"><Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense></ErrorBoundary></MainLayout>} />
-          <Route path="/review" element={<MainLayout><ErrorBoundary name="Active Review"><ActiveReview /></ErrorBoundary></MainLayout>} />
-          <Route path="/library" element={<MainLayout><ErrorBoundary name="Library"><Library /></ErrorBoundary></MainLayout>} />
-          <Route path="/materials" element={<MainLayout><ErrorBoundary name="Materials"><Materials /></ErrorBoundary></MainLayout>} />
-          <Route path="/profile" element={<MainLayout><ErrorBoundary name="Profile"><Profile /></ErrorBoundary></MainLayout>} />
-          <Route path="/arena" element={<MainLayout><ErrorBoundary name="Arena"><Arena /></ErrorBoundary></MainLayout>} />
-          <Route path="/battle/:battleId" element={<MainLayout><ErrorBoundary name="Battle"><BattleLobby /></ErrorBoundary></MainLayout>} />
+          {/* The five destinations (layouts/navModel.js), Account and Admin. */}
+          <Route element={<AppShell />}>
+            <Route index element={page('Today', <Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense>)} />
+            <Route path="practice" element={page('Practice', <ActiveReview />)} />
+            <Route path="exams" element={page('Exams', <Exams />)} />
+            <Route path="progress" element={page('Progress', <Progress />)} />
+            <Route path="library" element={page('Library', <Library />)} />
+            <Route path="account" element={page('Account', <Profile />)} />
+            <Route path="admin" element={page('Admin', <AdminRoute><Admin /></AdminRoute>)} />
+            <Route path="battle/:battleId" element={page('Battle', <BattleLobby />)} />
+          </Route>
+
+          {/* Old URLs. They forward router state, so a session preset sent to
+              /review still starts (routes/LegacyRedirect.jsx). /review must
+              stay: reminders already scheduled on phones open it. */}
+          <Route path="/review" element={<LegacyRedirect to="/practice" />} />
+          <Route path="/arena" element={<LegacyRedirect to="/exams?tab=battles" />} />
+          <Route path="/profile" element={<LegacyRedirect to="/account" />} />
+          <Route path="/materials" element={<LegacyRedirect to={(loc) => materialsTarget(loc.state)} />} />
+
           {/* No layout wrapper here — both pages own their layout choice
               internally now, since Board Simulator needs to switch between
               MainLayout (setup) and ExamLayout (active exam), which a static

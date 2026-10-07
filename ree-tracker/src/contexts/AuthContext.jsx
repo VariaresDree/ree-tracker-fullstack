@@ -43,6 +43,10 @@ const AUTH_STALL_MS = 25000;
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // False until this session's role is known. isAdmin arrives with the profile
+  // request — seconds after sign-in on a cold backend — and the Admin route
+  // waits on this instead of bouncing a real admin (routes/AdminRoute.jsx).
+  const [roleResolved, setRoleResolved] = useState(false);
   const [loading, setLoading] = useState(true);
   // True only if onAuthStateChanged hasn't fired AT ALL after AUTH_STALL_MS —
   // distinct from `loading`, which now clears the instant the callback fires
@@ -65,6 +69,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
 
       if (user) {
+        setRoleResolved(false);
         // Claim the SW's API cache for this uid BEFORE any request is issued,
         // so a cache written by a previous account is dropped rather than
         // served. /api/readiness, /api/forecast and /api/leaderboard/me carry
@@ -129,6 +134,7 @@ export const AuthProvider = ({ children }) => {
           const dbRole = profileResponse?.data?.profile?.role;
           const isUserAdmin = dbRole === 'ADMIN' || dbRole === 'admin';
           setIsAdmin(isUserAdmin);
+          setRoleResolved(true);
           if (useStore.getState) {
               useStore.getState().setIsAdmin(isUserAdmin);
           }
@@ -160,6 +166,7 @@ export const AuthProvider = ({ children }) => {
           // failure — including the server's own 503 readiness gate — which
           // meant a backend blip granted the admin UI on the client's say-so.
           setIsAdmin(false);
+          setRoleResolved(true);
 
           if (useStore.getState) {
               useStore.getState().setIsAdmin(false);
@@ -167,6 +174,7 @@ export const AuthProvider = ({ children }) => {
         }
       } else {
         setIsAdmin(false);
+        setRoleResolved(true);
         if (useStore.getState) {
             useStore.getState().setIsAdmin(false);
         }
@@ -207,7 +215,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, loading }}>
       {!loading ? children : authStalled ? (
         // AUTH_STALL_MS elapsed with no onAuthStateChanged callback at all —
         // NOT the same as "logged out". A weak connection must never eject an

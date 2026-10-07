@@ -97,13 +97,17 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, idx, isMe, rowRef }
   );
 });
 
-export default function Arena() {
+// The Exams hub (pages/Exams.jsx) drives which section shows, from ?tab=.
+const HUB_TAB_TO_SECTION = { battles: 'terminal', gauntlet: 'gauntlet', rankings: 'leaderboard' };
+
+export default function Arena({ tab: hubTab }) {
   const { currentUser } = useAuth();
   const stats = useStore((s) => s.stats);
   const navigate = useNavigate();
   const isOnline = useNetworkStatus();
   
-  const [activeTab, setActiveTab] = useState('terminal'); 
+  const [ownTab, setActiveTab] = useState('terminal');
+  const activeTab = hubTab ? (HUB_TAB_TO_SECTION[hubTab] || 'terminal') : ownTab;
   const [leaderboard, setLeaderboard] = useState([]);
   const [isLoadingRankings, setIsLoadingRankings] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -305,9 +309,9 @@ export default function Arena() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full pt-4">
-      
-      <Tabs
+    <div className={hubTab ? 'flex flex-col gap-6 w-full' : 'max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full pt-4'}>
+
+      {!hubTab && <Tabs
         label="Arena sections"
         active={activeTab}
         onChange={setActiveTab}
@@ -317,7 +321,7 @@ export default function Arena() {
           { id: 'gauntlet', label: 'The Gauntlet', icon: Shield },
           { id: 'leaderboard', label: 'Rankings', icon: Trophy },
         ]}
-      />
+      />}
 
       {activeTab === 'terminal' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2">

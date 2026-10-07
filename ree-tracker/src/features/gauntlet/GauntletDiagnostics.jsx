@@ -92,8 +92,8 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
                 </div>
             )}
 
-            <button onClick={() => navigate('/arena')} className="mt-4 px-8 py-4 bg-surface2 hover:bg-surface3 border border-border2 text-textMain rounded-xl text-xs font-black uppercase tracking-widest transition-colors cursor-pointer">
-                Return to Arena Hub
+            <button onClick={() => navigate('/exams?tab=gauntlet')} className="mt-4 px-8 py-4 bg-surface2 hover:bg-surface3 border border-border2 text-textMain rounded-xl text-xs font-black uppercase tracking-widest transition-colors cursor-pointer">
+                Back to Exams
             </button>
 
         </div>

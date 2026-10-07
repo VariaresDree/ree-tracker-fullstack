@@ -1,119 +1,76 @@
 // src/pages/Library.jsx
-import { useState } from 'react';
+//
+// The learner's study material in one place: formula cards, handouts,
+// bookmarked questions and imported quizzes. (This was "Materials Hub"; the old
+// "Module Library" was the question-bank authoring tool and moved to Admin.)
+// Handouts are read-only here — uploading and organising them is an Admin tab.
+// The tab lives in ?tab=; an old /materials deep link arrives with
+// { search, kind } state for the formula cards (routes/legacyRoutes.js).
+import { lazy, Suspense, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
-import { useStore } from '../store/useStore';
-import { EmptyState } from '../components/ui';
-import { Lock } from '../components/ui/icons';
+import useTabParam from '../hooks/useTabParam';
+import { PageHeader, Tabs, Skeleton } from '../components/ui';
+import { Cloud, BookOpen, Bookmark, FileUp } from '../components/ui/icons';
+import ErrorBoundary from '../components/ErrorBoundary';
 
-// Phase 3: Decoupled Architectural Hooks
-import { useVaultGrid } from '../features/library/useVaultGrid';
-import { useAIIngestion } from '../features/library/useAIIngestion';
-import { useManualIngestion } from '../features/library/useManualIngestion';
+import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
+import CloudVaultTab from '../features/materials/CloudVaultTab';
+import ReferenceBrowser from '../features/reference/ReferenceBrowser';
+import MaterialViewer from '../features/materials/MaterialViewer';
 
-import LibraryIngestion from '../features/library/LibraryIngestion';
-import LibraryOverview from '../features/library/LibraryOverview';
-import ManualIngestionForm from '../features/library/ManualIngestionForm';
-import VaultDataGrid from '../features/library/VaultDataGrid';
+// Lazy, not eagerly imported like the tabs above: this pulls in fflate and
+// the CAQ parser, which most Library visitors will never touch.
+const QuizLauncherTab = lazy(() => import('../features/quiz-launcher/QuizLauncherTab'));
+
+const TABS = [
+  { id: 'formulas', label: 'Formula cards', icon: BookOpen },
+  { id: 'handouts', label: 'Handouts', icon: Cloud },
+  { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
+  { id: 'quizzes', label: 'Imported quizzes', icon: FileUp },
+];
 
 export default function Library() {
+  const { currentUser } = useAuth();
   const isOnline = useNetworkStatus();
-  
-  // 🚀 FIXED: Grab the flawless boolean directly from the store.
-  // No more checking stats?.role which caused the race condition lockout!
-  const isAdmin = useStore((state) => state.isAdmin);
+  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), 'formulas');
 
-  // Global filters mapped at the page level so all sub-hooks can react
-  const [filterSubject, setFilterSubject] = useState('All');
-  const [filterSubtopic, setFilterSubtopic] = useState('All');
+  const location = useLocation();
+  const deepLink = location.state || {};
+  const [viewingMaterial, setViewingMaterial] = useState(null);
 
-  // 1. Vault Data Sub-Engine
-  const {
-    questions, serverStats, vaultMetadata, resyncVaultMetadata,
-    isFetchingVault, hasMore, isLoadingMore, loadMoreQuestions,
-    editingQ, setEditingQ, handleDelete, handleUpdateSubmit, initializeVault,
-    sortOrder, setSortOrder
-  } = useVaultGrid(filterSubject, filterSubtopic);
-
-  // 2. AI Generator Sub-Engine (Passes initializeVault to auto-refresh the grid on QA success)
-  const {
-    genSubject, setGenSubject, genSubtopic, setGenSubtopic,
-    genFocus, setGenFocus,
-    genLoading, genStatus, parsingPdf, selectedPdf,
-    isDragging, handleDragOver, handleDragLeave, handleDrop,
-    generatedQuestions, showQAModal, setShowQAModal, isCommitting,
-    handleGenerate, handlePdfSelect, executePdfExtraction,
-    removeQuestion, handleCommitToMatrix
-  } = useAIIngestion(initializeVault); 
-
-  // 3. Manual Form Sub-Engine
-  const {
-    manualMode, setManualMode, manualQ, setManualQ, handleManualSubmit, isSubmitting: isManualSubmitting
-  } = useManualIngestion(initializeVault);
+  if (viewingMaterial) {
+    return <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} />;
+  }
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in max-w-6xl mx-auto pb-12 w-full pt-4">
-      <div className="mb-2">
-        <h1 className="text-display text-3xl text-textMain tracking-tight">Library</h1>
-        <p className="text-sm text-muted2 mt-1">Add, review, and manage the question vault.</p>
-      </div>
+    <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-6xl mx-auto pt-4">
+      <PageHeader title="Library" subtitle="Formula cards, handouts, the questions you bookmarked, and quizzes you imported." />
 
-      <LibraryIngestion 
-        genSubject={genSubject} setGenSubject={setGenSubject}
-        genSubtopic={genSubtopic} setGenSubtopic={setGenSubtopic}
-        genFocus={genFocus} setGenFocus={setGenFocus}
-        genLoading={genLoading} genStatus={genStatus}
-        parsingPdf={parsingPdf} isOnline={isOnline} selectedPdf={selectedPdf} 
-        isDragging={isDragging} handleDragOver={handleDragOver} handleDragLeave={handleDragLeave} handleDrop={handleDrop}
-        generatedQuestions={generatedQuestions} showQAModal={showQAModal} setShowQAModal={setShowQAModal} isCommitting={isCommitting}
-        handleGenerate={handleGenerate} handlePdfSelect={handlePdfSelect} executePdfExtraction={executePdfExtraction}
-        removeQuestion={removeQuestion} handleCommitToMatrix={handleCommitToMatrix}
-      />
+      <Tabs label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
 
-      <LibraryOverview 
-        serverStats={serverStats}
-        vaultMetadata={vaultMetadata}             
-        resyncVaultMetadata={resyncVaultMetadata} 
-        manualMode={manualMode} 
-        setManualMode={setManualMode} 
-      />
+      {tab === 'formulas' && (
+        <div className="animate-in fade-in slide-in-from-bottom-2">
+          <p className="text-sm text-muted2 mb-6">Constants, formulas and concepts as flip cards. Browse by subject, topic and subtopic, or search directly.</p>
+          <ReferenceBrowser initialSearch={deepLink.search || ''} initialKind={deepLink.kind || 'all'} />
+        </div>
+      )}
 
-      {manualMode ? (
-        isAdmin ? (
-          <ManualIngestionForm 
-            manualQ={manualQ} setManualQ={setManualQ}
-            genSubject={genSubject} setGenSubject={setGenSubject}
-            genSubtopic={genSubtopic} setGenSubtopic={setGenSubtopic}
-            handleManualSubmit={(e) => handleManualSubmit(e, genSubject, genSubtopic)}
-            isSubmitting={isManualSubmitting}
-          />
-        ) : (
-          <div className="p-4 border-2 border-dashed border-border2 rounded-[var(--radius-lg)]">
-            <EmptyState
-              compact
-              icon={Lock}
-              title="Admin access required"
-              description="Only admins can add questions manually."
-            />
-          </div>
-        )
-      ) : (
-        <VaultDataGrid 
-          questions={questions} 
-          filteredQuestions={questions}
-          filterSubject={filterSubject} setFilterSubject={setFilterSubject}
-          filterSubtopic={filterSubtopic} setFilterSubtopic={setFilterSubtopic}
-          handleDelete={handleDelete}
-          isFetchingVault={isFetchingVault} 
-          hasMore={hasMore} 
-          isLoadingMore={isLoadingMore} 
-          loadMoreQuestions={loadMoreQuestions} 
-          editingQ={editingQ}
-          setEditingQ={setEditingQ}
-          handleUpdateSubmit={handleUpdateSubmit}
-          isAdmin={isAdmin}
-          sortOrder={sortOrder}
-          setSortOrder={setSortOrder}
-        />
+      {tab === 'handouts' && (
+        <CloudVaultTab currentUser={currentUser} isAdmin={false} onViewMaterial={setViewingMaterial} />
+      )}
+
+      {tab === 'bookmarks' && (
+        <BookmarkVaultTab currentUser={currentUser} isOnline={isOnline} />
+      )}
+
+      {tab === 'quizzes' && (
+        <ErrorBoundary name="Imported quizzes">
+          <Suspense fallback={<div className="flex flex-col gap-3"><Skeleton className="h-40" /><Skeleton className="h-16" /></div>}>
+            <QuizLauncherTab />
+          </Suspense>
+        </ErrorBoundary>
       )}
     </div>
   );

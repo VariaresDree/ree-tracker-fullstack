@@ -7,6 +7,26 @@ every feature add, change, or removal, not on a schedule.
 
 ---
 
+## App structure (2026-10 reorganization)
+
+- [x] **Five destinations, phone-first** — **Today · Practice · Exams · Progress · Library**, one model (`layouts/navModel.js`) behind a phone bottom bar (`layouts/BottomBar.jsx`) and a desktop sidebar (`layouts/Sidebar.jsx`).
+  - The active item is matched by whole first path segment, so the exam runners (`/simulator`, `/gauntlet/:n`, `/battle/:id`) light Exams; the old shell never highlighted the simulator.
+  - The phone's hamburger drawer is gone. Its top bar (`layouts/PhoneHeader.jsx`) holds the focus timer (a sheet), connection status (to `/account#offline`) and an **account menu** (`layouts/AccountMenu.jsx`: Account · Admin for admins · Log out, which says how many unsynced answers a logout would discard).
+  - The shell is an `AppShell` layout route, so navigation stays on screen while a page chunk loads. A new page opens at its top, or at the linked section.
+  - The "Enter the Board Simulator?" confirm modal is gone; the same warning is a line above Start on the setup screen.
+- [x] **Exams hub** (`pages/Exams.jsx`) — tabs Mock board · Gauntlet · Battles · Rankings in `?tab=` (`hooks/useTabParam.js`, which replaces history so Back leaves the page). Mock board lists the four formats (`features/exams/MockBoardTab.jsx`, from `features/board-simulator/profiles.js`), each opening `/simulator?profile=<id>` with that format chosen.
+- [x] **Progress** (`pages/Progress.jsx`) — Analytics, Standing & streak, and the Study plan, moved out of Profile tabs.
+- [x] **Learner Library** (`pages/Library.jsx`, was Materials) — Formula cards (default) · Handouts (read-only) · Bookmarks · Imported quizzes.
+- [x] **Admin area** (`pages/admin/Admin.jsx`, admins only) — Question bank (`pages/admin/QuestionBank.jsx`: AI/PDF ingestion, manual entry, review queue, syllabus, grid) · Explanation review · Formula-card management · Handout uploads.
+  - **Learners no longer see the AI/PDF ingestion tools**; the server's contribution review gate is unchanged.
+  - `routes/AdminRoute.jsx` waits for the role (`roleResolved` in `contexts/AuthContext.jsx`), so a real admin opening `/admin` on a cold start isn't bounced. A learner is sent home, and nobody is bounced while offline. The server stays the real gate, and every tab is lazy, so learners never download it.
+- [x] **Old URLs redirect, keeping router state** (`routes/LegacyRedirect.jsx`, `routes/legacyRoutes.js`):
+  - `/review` → `/practice` (permanent: reminders already scheduled on phones open it);
+  - `/arena` → `/exams?tab=battles`;
+  - `/profile` → `/account`;
+  - `/materials` → `/library?tab=…`, mapping its old tabs, with `manage_ref` going to `/admin?tab=references`.
+  - Every "start a session" deep link goes through `launchPractice()` in `features/active-recall/presets.js`.
+
 ## Exam & Practice Modes
 
 - [x] **Active Review** — per-question reveal MCQ practice with interleaving (`pages/ActiveReview.jsx`, `features/active-recall/{FlashcardMode,MCQMode,ReviewSetup,useReviewSession}.jsx`). One keypress records one answer: the option (1-4/A-D) and confidence (Q/W/E) hotkeys are owned by `QuestionCard` alone — the page used to bind them too, so both listeners fired and every keyboard answer was staged twice under two uuids the server could not dedupe (`pages/ActiveReview.hotkeys.test.jsx`)
@@ -48,13 +68,13 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Targeted drill (Smart Drill v2)** — a short adaptive drill on a weak topic. With no target it drills the weakest topics by **decayed BKT mastery × syllabus weight** (the forecast's ranking), split 50/30/20 across the top three; a named topic (`topicId`, or a legacy label) drills just that. Items are chosen like a CAT: by Fisher information at the learner's ability in that subject, from a window of ±1 around θ that widens only when the topic is thin, picked randomesque among the most informative so two drills differ; uncalibrated items are placed by their author rating on the θ scale. **Blind-spot mode** leads with the questions answered confidently wrong. Never serves a flagged item or one seen in the last 24h, and returns items **with their answers** — the old route stripped `answer`, so the client marked every drill MCQ wrong and flashcards revealed a blank; it also ranked by raw accuracy on the legacy subtopic string and did not exclude flagged questions. Launched from the prescription panel (Targeted drill / Blind spot), any heatmap tile ("Drill Calculus"), the analytics deep dive (Targeted / Blind-spot drill) and Active Review's "Weak points" — whose custom scope used to fall through to a plain Mathematics library session (`engine/drill.js`, `routes/smartDrillRoutes.js`)
 - [x] **Spaced repetition (SRS)** — server-authoritative SM-2, scheduled inside the telemetry write transaction from evidence every surface already records: a miss or a low-confidence answer starts a card, any later answer to that question moves it, and quality comes from correctness × confidence (a confident miss — a blind spot — scores 0 and returns soonest). Due dates fall on Manila midnights. One read + one bulk upsert per chunk, so a replayed batch never reschedules twice. Active Review shows **"N questions due for review"** (capped at 30 per session, overdue count, or when the next review falls due once the queue is clear) and runs the queue as a normal session. Previously dead end to end: the client SM-2 hook was imported nowhere, `POST /srs/review` trusted client-computed intervals and had no callers, so no card was ever written and `/due` was always empty — the hook, that route, `/stats` and its schema are deleted (`engine/srs.js`, `services/telemetryService.js`, `routes/srsRoutes.js` `GET /due` + `GET /summary`, `hooks/useSrsSummary.js`, `features/active-recall/ReviewSetup.jsx`)
 
-## Vault & Reference Hub (Materials Hub)
+## Library (learner study material) and content admin
 
-- [x] **Cloud Vault** — folder-structured material upload/organize/rename/move/delete, direct Firebase media storage (`features/materials/{CloudVaultTab,useFileManager}.jsx`, `materialRoutes.js`)
+- [x] **Handouts (Cloud Vault)** — read-only for learners in Library › Handouts; folder-structured upload/organize/rename/move/delete for admins in Admin › Handouts. Direct Firebase media storage; the viewer is shared (`features/materials/MaterialViewer.jsx`) (`features/materials/{CloudVaultTab,useFileManager}.jsx`, `materialRoutes.js`)
 - [x] **Reference Cards** — taxonomy-driven interactive flashcard vault (constants/formulas/concepts), Subject→Topic→Subtopic drill-down, subject-level and subtopic-level "Study this set" sessions, pure-CSS 3D flip, full LaTeX rendering across every field including description/board-exam-tip/variable-meaning (`features/reference/{ReferenceBrowser,Flashcard,ReferenceStudyMode,useReferenceCards}.jsx`, `referenceCardRoutes.js`)
-- [x] **Reference admin** — create/edit/AI-generate/approve reference cards with required-field validation; Live Cards panel has real-time search (name/symbol/subtopic/description) and 6-way sort (A-Z, Subject, Subtopic, Recently added, Card type, Needs attention) (`features/reference/ReferenceAdminV2.jsx`)
-- [x] **Bookmark Vault** — save any question for later, review with AI explanation on demand (`features/vault/BookmarkVaultTab.jsx`, `bookmarkRoutes.js`)
-- [x] **Question Library / admin review queue** — AI-generated question ingestion (PDF/image), manual authoring, vault data grid (`pages/Library.jsx`, `features/library/*`, `reviewRoutes.js`, `questionRoutes.js`)
+- [x] **Reference admin** (Admin › Formula cards) — create/edit/AI-generate/approve reference cards with required-field validation; Live Cards panel has real-time search (name/symbol/subtopic/description) and 6-way sort (A-Z, Subject, Subtopic, Recently added, Card type, Needs attention) (`features/reference/ReferenceAdminV2.jsx`)
+- [x] **Bookmarks** (Library › Bookmarks) — save any question for later, review with AI explanation on demand (`features/vault/BookmarkVaultTab.jsx`, `bookmarkRoutes.js`)
+- [x] **Question bank / admin review queue** (Admin › Question bank) — AI-generated question ingestion (PDF/image), manual authoring, vault data grid (`pages/admin/QuestionBank.jsx`, `features/library/*`, `reviewRoutes.js`, `questionRoutes.js`)
 - [x] **Accept-All batch approval** — confirmation-gated bulk approve, chunked client-side with a dedicated non-dismissable progress modal ("batch N of M"); server collapses each chunk's question-create + status-update + audit-row writes into one transaction instead of per-item sequential round-trips; 409 (in-flight duplicate) and thrown-error chunks reconcile against the server automatically within the same run rather than requiring a manual retry. An item whose subtopic is not a topic in its subject's live taxonomy is marked **Not in syllabus**, left out of Accept All, and comes back from the server as `unknown-topic` if sent anyway. The inline editor shows such a label as its own "(not in syllabus)" option instead of silently displaying the first topic, and a refused single approve shows the server's reason (`features/library/LibraryOverview.jsx`, `services/reviewService.approveBulk`)
 
 ## Content Pipeline
@@ -100,7 +120,7 @@ every feature add, change, or removal, not on a schedule.
     - the menu and sidebar-collapse buttons;
     - calendar and planner month arrows, which are now also named "Previous month" / "Next month";
     - the floating Pomodoro controls, show-password, the heatmap mode toggles, the mock-history remove button, the three AI Regenerate buttons and the quiz-launcher item cells.
-  - **Mobile drawer:** inert while closed, so Tab and screen readers no longer walk its hidden links. The menu button reports `aria-expanded`, opening moves focus inside, and Escape closes it and returns focus.
+  - **Mobile drawer** (since replaced by the bottom bar and account menu; see App structure): it was made inert while closed, with `aria-expanded` and Escape.
   - **Scratchpad:** now a named dialog. It takes focus, closes on Escape and returns focus to what opened it. Its canvas is sized in device pixels from its own box, so it's sharp on high-density phones with strokes under the finger. Pointer events handle mouse, touch and stylus.
   - **Footers:** modal and card footers wrap their actions on narrow screens.
 - [x] **Landmarks, sticky bars and motion that works** — fixes to page structure, scrolling and entrance animations.

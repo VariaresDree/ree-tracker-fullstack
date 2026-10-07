@@ -1,9 +1,12 @@
 // src/features/active-recall/presets.js
 //
-// Session presets other screens launch Active Review with (passed as
-// `navigate('/review', { state: { preset } })`; ActiveReview auto-starts it).
-// Stated once — the dashboard, the Today panel, the analytics deep dive and the
-// placement result each used to spell these objects out by hand.
+// Session presets other screens start Practice with: launchPractice(navigate,
+// preset) goes to /practice with { state: { preset } }, and Practice
+// auto-starts it. Stated once — Today, Progress, the planner and the
+// placement result each used to spell these objects (and the route) by hand.
+
+/** Start a practice session from anywhere. */
+export const launchPractice = (navigate, preset) => navigate('/practice', { state: { preset } });
 
 const BASE = {
   sessionMode: 'mcq',
