@@ -309,7 +309,18 @@ export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 
 // Snapshot a bounded, stratified slice of each subject (with answers +
 // explanations) into IndexedDB for offline sessions. Called on app load when
 // online (see useOfflinePack) and on manual "Download".
-export const refreshOfflinePack = async ({ perSubject = 400 } = {}) => {
+//
+// Concurrent callers share one build: the phone header and Account each mount
+// a status badge, and both would otherwise download the whole pack at once.
+let inFlightPackBuild = null;
+export const refreshOfflinePack = (opts) => {
+    if (!inFlightPackBuild) {
+        inFlightPackBuild = buildOfflinePack(opts).finally(() => { inFlightPackBuild = null; });
+    }
+    return inFlightPackBuild;
+};
+
+const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
     if (!navigator.onLine) return getOfflinePackMeta();
 
     const existing = (await getOfflinePack()) || {};

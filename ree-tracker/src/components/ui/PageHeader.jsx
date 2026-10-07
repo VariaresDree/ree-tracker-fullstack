@@ -1,4 +1,4 @@
-import { cn } from './ui/cn';
+import { cn } from './cn';
 
 // Consistent page header used across the app shell: sentence-case display title,
 // optional subtitle, right-aligned meta chips (exam countdown, sync status) and

@@ -27,7 +27,7 @@ const renderPanel = (props) => render(
   <MemoryRouter>
     <Routes>
       <Route path="/" element={<TodayPanel uid="u1" {...props} />} />
-      <Route path="/review" element={<ReviewProbe />} />
+      <Route path="/practice" element={<ReviewProbe />} />
     </Routes>
   </MemoryRouter>,
 );

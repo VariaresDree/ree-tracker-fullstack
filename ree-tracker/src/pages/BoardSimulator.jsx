@@ -207,6 +207,7 @@ export default function BoardSimulator() {
 
       {!showBoardBreak && !engine.session.isActive && !engine.session.isFinished && (
         <SimulatorConfig
+            initialProfile={searchParams.get('profile')}
             onStartFullBoard={beginFullBoard}
             config={engine.config}
             setConfig={engine.setConfig}

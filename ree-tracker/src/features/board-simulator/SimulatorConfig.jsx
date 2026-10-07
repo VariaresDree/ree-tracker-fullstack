@@ -1,76 +1,47 @@
 // src/features/board-simulator/SimulatorConfig.jsx
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Card, Button, FormField, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
-import { Settings2, Landmark, Scale, FileText, TriangleAlert, Layers } from '../../components/ui/icons';
-import { PRC_FORMAT_SUMMARY, PRC_TIMES } from '../../config/examStandards';
+import { FileText, TriangleAlert } from '../../components/ui/icons';
+import { PRC_TIMES } from '../../config/examStandards';
+import { SIM_PROFILES, configForProfile } from './profiles';
 import { prcSectionSeconds } from '@ree/shared';
 
 const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60]
   .map((n) => String(n).padStart(2, '0')).join(':');
 
-const PROFILES = [
-  {
-    id: 'custom',
-    icon: Settings2,
-    name: 'Custom Drill',
-    description: 'Pick the item count, topic, and source for focused practice.',
-  },
-  {
-    id: 'prc_subject',
-    icon: Landmark,
-    name: 'PRC Standard',
-    description: `One subject, 100 items, on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
-  },
-  {
-    id: 'prc_blended',
-    icon: Scale,
-    name: 'Full Blended',
-    description: 'One 100-item mixed paper in 5 hours.',
-  },
-  {
-    id: 'prc_full',
-    icon: Layers,
-    name: 'Full PRC board',
-    description: `Math, ESAS and EE in board order: 300 items on the PRC clock (${PRC_FORMAT_SUMMARY}), results after the last section.`,
-  },
-];
 
 const FULL_BOARD_ROWS = [['Mathematics', 'Mathematics'], ['ESAS', 'ESAS'], ['EE', 'Electrical Engineering']];
 
-export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine, onStartFullBoard }) {
+export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine, onStartFullBoard, initialProfile }) {
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
   const isOnline = useNetworkStatus();
   const [showNewExamGuard, setShowNewExamGuard] = useState(false);
-  const [fullBoardSelected, setFullBoardSelected] = useState(false);
+  // A profile chosen in the Exams hub arrives as /simulator?profile=<id>.
+  const [fullBoardSelected, setFullBoardSelected] = useState(() => initialProfile === 'prc_full');
 
   const isCustom = config.mode === 'subject' && !config.isPrcStandard;
   const isPrcSubject = config.mode === 'subject' && config.isPrcStandard;
   const isBlended = config.mode === 'blended';
   const activeProfile = fullBoardSelected ? 'prc_full' : isBlended ? 'prc_blended' : isPrcSubject ? 'prc_subject' : 'custom';
 
-  // State-safe profile handler
   const setProfile = (profile) => {
     setFullBoardSelected(profile === 'prc_full');
-    if (profile === 'prc_full') return;
-    if (profile === 'custom') {
-      setConfig({
-        ...config, mode: 'subject', isPrcStandard: false, count: 50,
-        subject: config.subject === 'blended' ? 'Mathematics' : config.subject,
-      });
-    }
-    if (profile === 'prc_subject') {
-      setConfig({
-        ...config, mode: 'subject', isPrcStandard: true, count: 100,
-        subject: config.subject === 'blended' ? 'Mathematics' : config.subject,
-      });
-    }
-    if (profile === 'prc_blended') {
-      setConfig({ ...config, mode: 'blended', isPrcStandard: true, count: 100, subject: 'blended' });
-    }
+    const next = configForProfile(profile, config);
+    if (next) setConfig(next);
   };
+
+  // Apply a hub-chosen config profile once (the full board is already handled
+  // by the state initialiser above).
+  const appliedProfile = useRef(false);
+  useEffect(() => {
+    if (appliedProfile.current || !initialProfile) return;
+    appliedProfile.current = true;
+    const next = configForProfile(initialProfile, config);
+    if (next) setConfig(next);
+  }, [initialProfile, config, setConfig]);
 
   // Starting a new exam silently discards any saved one — make that a
   // deliberate choice instead of an accident.
@@ -122,7 +93,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
         <div className="mb-8">
           <span className="text-eyebrow block mb-3">Exam profile</span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" role="radiogroup" aria-label="Exam profile">
-            {PROFILES.map((p) => {
+            {SIM_PROFILES.map((p) => {
               const selected = activeProfile === p.id;
               const Icon = p.icon;
               return (
@@ -254,6 +225,8 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
         )}
 
         {/* Primary action, with the PDF export visibly subordinate */}
+        {/* The warning the old nav confirm modal gave, now where you commit. */}
+        <p className="text-xs text-muted2 mb-3">Timed like the real board. The clock keeps running if you leave the exam.</p>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-6 border-t border-border">
           <Button
             size="lg"

@@ -73,7 +73,7 @@ export default function Gauntlet() {
           icon={WifiOff}
           title="Submitted — grading when you reconnect"
           description="Your answers are saved and queued. This run is done; you don't need to retry or stay on this screen — the score posts to your Dashboard once you're back online."
-          action={<Button onClick={() => navigate('/arena')}>Back to Arena</Button>}
+          action={<Button onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>}
         />
       </div>
     );
@@ -86,7 +86,7 @@ export default function Gauntlet() {
           icon={TriangleAlert}
           title="Couldn't build this exam"
           description="Something went wrong while loading the Gauntlet questions. Try again in a moment."
-          action={<Button onClick={() => navigate('/arena')}>Back to Arena</Button>}
+          action={<Button onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>}
         />
       </div>
     );
@@ -147,7 +147,7 @@ export default function Gauntlet() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowLeaveConfirm(false)}>Keep working</Button>
-            <Button tone="danger" onClick={() => navigate('/arena')}>Leave exam</Button>
+            <Button tone="danger" onClick={() => navigate('/exams?tab=gauntlet')}>Leave exam</Button>
           </>
         }
       >

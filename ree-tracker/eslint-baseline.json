@@ -1,15 +1,15 @@
 {
   "no-case-declarations": 2,
   "no-control-regex": 1,
-  "no-empty": 7,
-  "no-unused-vars": 103,
+  "no-empty": 6,
+  "no-unused-vars": 99,
   "no-useless-assignment": 4,
   "preserve-caught-error": 5,
   "react-hooks/globals": 1,
   "react-hooks/immutability": 6,
   "react-hooks/purity": 6,
   "react-hooks/refs": 1,
-  "react-hooks/set-state-in-effect": 18,
+  "react-hooks/set-state-in-effect": 16,
   "react-hooks/static-components": 1,
   "react-refresh/only-export-components": 2
 }

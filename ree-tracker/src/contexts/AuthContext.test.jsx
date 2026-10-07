@@ -13,7 +13,8 @@
 //      boot screen either.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { AuthProvider } from './AuthContext';
+import { AuthProvider, useAuth } from './AuthContext';
+import { getAnalyticsProfile } from '../services/dbQueries';
 
 let authStateCallback = null;
 
@@ -28,11 +29,16 @@ vi.mock('firebase/auth', () => ({
   createUserWithEmailAndPassword: vi.fn(),
   signOut: vi.fn(),
   updateProfile: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
+  EmailAuthProvider: { credential: vi.fn() },
+  reauthenticateWithCredential: vi.fn(),
+  updatePassword: vi.fn(),
 }));
 
 // Never-resolving promises — simulates a slow/stuck backend so the tests can
 // prove `loading` doesn't wait on this chain.
 vi.mock('../services/dbQueries', () => ({
+  BOOT_TIMEOUT_MS: 8000,
   getAnalyticsProfile: vi.fn(() => new Promise(() => {})),
   fetchDynamicTOS: vi.fn(() => new Promise(() => {})),
   fetchFeatureFlags: vi.fn(() => new Promise(() => {})),
@@ -139,5 +145,37 @@ describe('AuthProvider — weak-connection reload never ejects to login', () => 
 
     expect(screen.getByText('APP CONTENT')).toBeInTheDocument();
     expect(screen.queryByText(/still trying to reach your session/i)).not.toBeInTheDocument();
+  });
+});
+
+// The Admin route waits on roleResolved instead of bouncing an admin whose
+// role hasn't arrived yet (routes/AdminRoute.jsx).
+describe('AuthProvider — roleResolved', () => {
+  function Role() {
+    const { isAdmin, roleResolved } = useAuth();
+    return <span data-testid="role">{`${roleResolved ? 'resolved' : 'pending'}:${isAdmin ? 'admin' : 'learner'}`}</span>;
+  }
+  const signIn = async () => {
+    render(<AuthProvider><Role /></AuthProvider>);
+    await act(async () => { authStateCallback({ uid: 'u1', email: 'u@example.com', displayName: null }); });
+  };
+
+  beforeEach(() => { authStateCallback = null; });
+
+  it('is pending while the profile request is in flight', async () => {
+    await signIn();
+    expect(screen.getByTestId('role').textContent).toBe('pending:learner');
+  });
+
+  it('resolves with the server role', async () => {
+    vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.resolve({ data: { profile: { role: 'ADMIN' } } }));
+    await signIn();
+    expect(screen.getByTestId('role').textContent).toBe('resolved:admin');
+  });
+
+  it('resolves (as a learner) when the lookup fails', async () => {
+    vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.reject(new Error('503')));
+    await signIn();
+    expect(screen.getByTestId('role').textContent).toBe('resolved:learner');
   });
 });

@@ -13,5 +13,6 @@ export { FormField, Input, Select, Textarea } from './FormField';
 export { EmptyState } from './EmptyState';
 export { SegmentedControl } from './SegmentedControl';
 export { Tabs } from './Tabs';
+export { PageHeader } from './PageHeader';
 export { ProgressIndicator } from './ProgressIndicator';
 export { cn } from './cn';

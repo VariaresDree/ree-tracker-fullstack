@@ -11,7 +11,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, EmptyState } from '../../components/ui';
 import { Crosshair } from '../../components/ui/icons';
-import { drillPreset } from '../active-recall/presets';
+import { drillPreset, launchPractice } from '../active-recall/presets';
 import { toDisplaySubject, TIME_SINK_MS } from '@ree/shared';
 
 const fmtSecs = (s) => `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
@@ -21,9 +21,7 @@ export default function WeakSignalsPanel({ data }) {
   const blindSpots = data?.blindSpots || [];
   const timeSinks = data?.timeSinks || [];
   const recent = data?.recentConfidentMisses || [];
-  const drill = (t, mode) => navigate('/review', {
-    state: { preset: drillPreset({ topicId: t.topicId, topic: t.topic, subject: t.subject, mode }) },
-  });
+  const drill = (t, mode) => launchPractice(navigate, drillPreset({ topicId: t.topicId, topic: t.topic, subject: t.subject, mode }));
 
   if (blindSpots.length === 0 && timeSinks.length === 0 && recent.length === 0) {
     return (
@@ -79,7 +77,7 @@ export default function WeakSignalsPanel({ data }) {
                   <p className="text-xs text-muted2">{toDisplaySubject(t.subject)} · median {fmtSecs(t.medianSecs)} per item</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => navigate('/materials', { state: { tab: 'reference', search: t.topic, kind: 'formula' } })}>
+                  <Button size="sm" variant="secondary" onClick={() => navigate('/library?tab=formulas', { state: { search: t.topic, kind: 'formula' } })}>
                     Formula cards
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => drill(t)}>Drill</Button>

@@ -695,10 +695,7 @@ export const useStore = create(
       setPomodoroWidget: (patch) => set((state) => ({ pomodoroWidget: { ...state.pomodoroWidget, ...patch } })),
 
       // 4. UI & UX STATE SLICE 
-      isSidebarOpen: false, 
-      isSidebarCollapsed: false, 
-      toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
-      setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+      isSidebarCollapsed: false,
       toggleSidebarCollapse: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
       setSidebarCollapsed: (isCollapsed) => set({ isSidebarCollapsed: isCollapsed }),
       theme: localStorage.getItem('ree-theme') || 'dark',

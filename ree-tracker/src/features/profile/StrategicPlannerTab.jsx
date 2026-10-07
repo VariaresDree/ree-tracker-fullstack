@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/dbQueries';
 import { Button } from '../../components/ui';
 import { isTaskDone, kindLabel, taskLaunch } from './plannerTasks';
+import { launchPractice } from '../active-recall/presets';
 import toast from 'react-hot-toast';
 import StudyPlanGenerator from '../study-plan/StudyPlanGenerator';
 import { todayManila } from '../../utils/manilaDate';
@@ -14,7 +15,7 @@ export default function StrategicPlannerTab({ currentUser }) {
     const target = taskLaunch(task);
     if (!target) return;
     if (target.to) navigate(target.to);
-    else navigate('/review', { state: { preset: target.preset } });
+    else launchPractice(navigate, target.preset);
   };
   const [newTask, setNewTask] = useState('');
   const [newDueDate, setNewDueDate] = useState('');

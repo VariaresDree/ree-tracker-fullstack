@@ -70,7 +70,7 @@ export async function scheduleDailyReminder({ hour = 19, minute = 0 } = {}) {
                 // `on: { hour, minute }` fires every day at that wall-clock time;
                 // allowWhileIdle survives Android Doze so it isn't silently dropped.
                 schedule: { on: { hour, minute }, allowWhileIdle: true },
-                extra: { route: '/review' },
+                extra: { route: '/practice' },
             },
         ],
     });

@@ -14,6 +14,7 @@ import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
+import { launchPractice } from '../active-recall/presets';
 
 const BREAKDOWN = [
   ['topicCoverage', 'Coverage'],
@@ -175,7 +176,7 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
                 {a.to ? (
                   <Button size="sm" variant="secondary" as={Link} to={a.to}>{a.cta}</Button>
                 ) : (
-                  <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} onClick={() => navigate('/review', { state: { preset: a.preset } })}>
+                  <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} onClick={() => launchPractice(navigate, a.preset)}>
                     {a.cta}
                   </Button>
                 )}

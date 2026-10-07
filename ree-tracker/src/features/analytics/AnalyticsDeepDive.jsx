@@ -5,7 +5,7 @@ import { CalibrationCurve } from './CalibrationCurve';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui';
 import { Crosshair } from '../../components/ui/icons';
-import { drillPreset } from '../active-recall/presets';
+import { drillPreset, launchPractice } from '../active-recall/presets';
 import WeakSignalsPanel from './WeakSignalsPanel';
 
 // Analysis should end in an action: both drills run the targeted, adaptive
@@ -127,10 +127,10 @@ export default function AnalyticsDeepDive() {
   return (
     <div className="flex flex-col gap-6 animate-in fade-in">
       <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" onClick={() => navigate('/review', { state: { preset: drillPreset() } })}>
+        <Button size="sm" onClick={() => launchPractice(navigate, drillPreset())}>
           <Crosshair size={15} strokeWidth={2} aria-hidden="true" /> Targeted drill
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => navigate('/review', { state: { preset: drillPreset({ mode: 'blind-spot' }) } })}>
+        <Button size="sm" variant="secondary" onClick={() => launchPractice(navigate, drillPreset({ mode: 'blind-spot' }))}>
           Blind-spot drill
         </Button>
         <span className="text-xs text-muted2">10 adaptive items on your weakest topics.</span>

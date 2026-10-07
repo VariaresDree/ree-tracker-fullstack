@@ -46,8 +46,8 @@ export default function BattleLobby() {
     if (!connected && !results && (!isOnline || connectionFailed)) {
         return (
             <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
-                <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/arena')}>
-                    <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Arena
+                <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/exams?tab=battles')}>
+                    <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
                 </Button>
                 <EmptyState
                     icon={Swords}
@@ -73,8 +73,8 @@ export default function BattleLobby() {
 
     return (
         <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
-            <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/arena')}>
-                <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Arena
+            <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/exams?tab=battles')}>
+                <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
             </Button>
 
             <Card elevated grain className="p-8 relative overflow-hidden animate-in slide-in-from-bottom-2"
