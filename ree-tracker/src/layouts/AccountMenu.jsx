@@ -7,24 +7,18 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import useSignOut from '../hooks/useSignOut';
-import { useStore } from '../store/useStore';
-import { Button, Modal } from '../components/ui';
+import LogoutConfirm from '../components/LogoutConfirm';
 import { User, ShieldCheck, LogOut } from '../components/ui/icons';
 
 const ITEM = 'touch-target flex items-center gap-3 w-full px-3 py-2.5 rounded-[var(--radius-default)] text-sm text-textMain hover:bg-surface2 text-left cursor-pointer';
 
 export default function AccountMenu() {
   const { currentUser, isAdmin } = useAuth();
-  const signOut = useSignOut();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const buttonRef = useRef(null);
   const panelRef = useRef(null);
   const panelId = useId();
-  // Logging out clears this device's state, unsynced answers included
-  // (store resetStore), so the confirm says how many would be lost.
-  const unsynced = useStore((st) => (st.syncQueue?.length || 0) + (st.pendingWrites?.length || 0));
 
   const name = currentUser?.displayName || 'Reviewer';
   const initial = (currentUser?.displayName || currentUser?.email || 'R').charAt(0).toUpperCase();
@@ -91,25 +85,7 @@ export default function AccountMenu() {
         </div>
       )}
 
-      <Modal
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        title="Log out?"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setConfirming(false)}>Cancel</Button>
-            <Button onClick={() => { setConfirming(false); signOut(); }}>Log out</Button>
-          </>
-        }
-      >
-        {unsynced > 0 ? (
-          <p className="text-sm text-textMain">
-            {unsynced} {unsynced === 1 ? 'answer hasn’t' : 'answers haven’t'} synced yet. Logging out now discards {unsynced === 1 ? 'it' : 'them'} — reconnect and let them sync first.
-          </p>
-        ) : (
-          <p className="text-sm text-muted2">You’ll need to sign in again to continue.</p>
-        )}
-      </Modal>
+      <LogoutConfirm open={confirming} onClose={() => setConfirming(false)} />
     </div>
   );
 }

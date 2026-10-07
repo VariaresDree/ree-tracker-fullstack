@@ -29,6 +29,10 @@ vi.mock('firebase/auth', () => ({
   createUserWithEmailAndPassword: vi.fn(),
   signOut: vi.fn(),
   updateProfile: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
+  EmailAuthProvider: { credential: vi.fn() },
+  reauthenticateWithCredential: vi.fn(),
+  updatePassword: vi.fn(),
 }));
 
 // Never-resolving promises — simulates a slow/stuck backend so the tests can

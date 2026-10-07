@@ -23,7 +23,7 @@ const Exams = lazy(() => import('./pages/Exams'));
 const Progress = lazy(() => import('./pages/Progress'));
 const BoardSimulator = lazy(() => import('./pages/BoardSimulator'));
 const Library = lazy(() => import('./pages/Library'));
-const Profile = lazy(() => import('./pages/Profile'));
+const Account = lazy(() => import('./pages/Account'));
 const Admin = lazy(() => import('./pages/admin/Admin'));
 const BattleLobby = lazy(() => import('./pages/BattleLobby'));
 const Gauntlet = lazy(() => import('./pages/Gauntlet'));
@@ -75,7 +75,7 @@ const SecureAppTerminal = () => {
             <Route path="exams" element={page('Exams', <Exams />)} />
             <Route path="progress" element={page('Progress', <Progress />)} />
             <Route path="library" element={page('Library', <Library />)} />
-            <Route path="account" element={page('Account', <Profile />)} />
+            <Route path="account" element={page('Account', <Account />)} />
             <Route path="admin" element={page('Admin', <AdminRoute><Admin /></AdminRoute>)} />
             <Route path="battle/:battleId" element={page('Battle', <BattleLobby />)} />
           </Route>

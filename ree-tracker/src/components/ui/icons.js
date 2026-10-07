@@ -98,4 +98,6 @@ export {
   // App navigation (Today, Admin)
   CalendarCheck,
   ShieldCheck,
+  // Milestones
+  GraduationCap,
 } from 'lucide-react';

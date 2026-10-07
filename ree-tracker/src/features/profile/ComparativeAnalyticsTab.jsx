@@ -58,15 +58,6 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
     return () => { isMounted = false; };
   }, [currentUser]);
 
-  // --- DYNAMIC ALL-MILESTONES ENGINE ---
-  const ALL_MILESTONES = [
-    { id: 'initiate', icon: '🎓', name: 'Initiate', desc: 'First Mock Complete', condition: simulationCount >= 1, color: 'text-reeCyan bg-reeCyan/10 border-reeCyan/30' },
-    { id: 'veteran', icon: '⚡', name: 'Veteran', desc: '10 Mocks Complete', condition: simulationCount >= 10, color: 'text-reePurple bg-reePurple/10 border-reePurple/30' },
-    { id: 'relentless', icon: '🔥', name: 'Relentless', desc: '7-Day Active Streak', condition: stats?.globalStreak >= 7, color: 'text-reeAmber bg-reeAmber/10 border-reeAmber/30' },
-    { id: 'ironclad', icon: '🛡️', name: 'Ironclad', desc: '30-Day Active Streak', condition: stats?.globalStreak >= 30, color: 'text-reeBlue bg-reeBlue/10 border-reeBlue/30' },
-    { id: 'elite', icon: '🧠', name: 'Elite Mastery', desc: 'High Theta (≥ 2.0)', condition: stats?.irt?.theta >= 2.0, color: 'text-reeGreen bg-reeGreen/10 border-reeGreen/30' }
-  ];
-
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
       
@@ -156,39 +147,6 @@ export default function ComparativeAnalyticsTab({ currentUser, stats }) {
       {/* Middle Section: Full-Width Monthly Calendar Heatmap with explicitly set minHeight */}
       <div className="w-full min-h-[250px]">
         <ActivityCalendar activityCalendar={stats?.activityCalendar || {}} targetQuota={stats?.dailyTarget || 50} />
-      </div>
-
-      {/* Bottom Section: Operational Milestones (Locked & Unlocked) */}
-      <div className="p-6 bg-surface border border-border2 rounded-xl shadow-sm">
-        <div className="flex justify-between items-end mb-6 border-b border-border2 pb-4">
-          <div>
-            <h3 className="text-lg font-black text-textMain flex items-center gap-2 tracking-tight">
-              <span>🎖️</span> Operational Milestones
-            </h3>
-            <p className="text-sm text-muted mt-1 font-medium">Unlock badges by dominating the matrix.</p>
-          </div>
-          <span className="text-[11px] text-muted font-black uppercase tracking-widest bg-surface2 px-3 py-1.5 rounded-lg border border-border2">
-            {ALL_MILESTONES.filter(m => m.condition).length} / {ALL_MILESTONES.length} UNLOCKED
-          </span>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {ALL_MILESTONES.map((badge) => {
-            const isUnlocked = badge.condition;
-            return (
-              <div key={badge.id} className={`flex items-center gap-4 p-4 rounded-xl border transition-all min-w-0 ${isUnlocked ? `${badge.color} shadow-sm` : 'bg-surface2 border-border2 opacity-60 grayscale'}`}>
-                <div className="text-3xl relative shrink-0">
-                   {badge.icon}
-                   {!isUnlocked && <span className="absolute -bottom-1 -right-1 text-xs bg-bg rounded-full p-0.5 shadow">🔒</span>}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className={`text-sm font-black uppercase tracking-wide [overflow-wrap:anywhere] ${isUnlocked ? 'text-inherit' : 'text-muted'}`}>{badge.name}</span>
-                  <span className={`text-[11px] font-bold uppercase tracking-widest mt-0.5 [overflow-wrap:anywhere] ${isUnlocked ? 'opacity-80' : 'text-muted2'}`}>{badge.desc}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
     </div>

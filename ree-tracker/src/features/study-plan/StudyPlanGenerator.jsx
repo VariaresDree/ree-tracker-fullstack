@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
@@ -11,28 +12,23 @@ import toast from 'react-hot-toast';
 // canonically (from @ree/shared), so the subject name indexes it directly.
 
 export default function StudyPlanGenerator({ onPlanGenerated }) {
-    const { dynamicTOS, stats, saveExamConfig } = useStore(
-        useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats, saveExamConfig: s.saveExamConfig })),
+    const { dynamicTOS, stats } = useStore(
+        useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats })),
     );
     const safeTOS = dynamicTOS || {};
 
+    // The exam date is set in one place, Account → Exam plan; the planner reads
+    // it (it used to keep its own editable copy, a third editor for one field).
     const examDate = stats?.examDate || '';
-    const [customExamDate, setCustomExamDate] = useState(examDate);
     const [selectedSubjects, setSelectedSubjects] = useState(['Mathematics', 'ESAS', 'EE']);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isClearing, setIsClearing] = useState(false);
 
-    // Keep the planner's date mirrored to the canonical exam date — so a change
-    // made in Command Parameters or the Identity Matrix shows here too.
-    useEffect(() => {
-        if (stats?.examDate) setCustomExamDate(stats.examDate);
-    }, [stats?.examDate]);
-
     const daysUntilExam = useMemo(() => {
-        if (!customExamDate) return null;
-        const diff = new Date(customExamDate) - new Date();
+        if (!examDate) return null;
+        const diff = new Date(examDate) - new Date();
         return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-    }, [customExamDate]);
+    }, [examDate]);
 
     const topicsToGenerate = useMemo(() => {
         const topics = [];
@@ -49,19 +45,13 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
     }, [selectedSubjects, safeTOS]);
 
     const handleGenerate = async () => {
-        if (!customExamDate) return toast.error('Set your exam date first');
+        if (!examDate) return toast.error('Set your exam date in Account first');
         if (topicsToGenerate.length === 0) return toast.error('No topics selected');
         if (daysUntilExam <= 0) return toast.error('Exam date must be in the future');
 
         setIsGenerating(true);
         try {
-            // Generating a plan for a date commits that date as the canonical
-            // exam date — persist it so the whole app stays in sync (no more
-            // ephemeral-only planner date).
-            if (customExamDate !== stats?.examDate) {
-                await saveExamConfig({ examDate: customExamDate }).catch(() => {});
-            }
-            const result = await generateStudyPlan(customExamDate, topicsToGenerate);
+            const result = await generateStudyPlan(examDate, topicsToGenerate);
             toast.success(`Generated ${result.tasksCreated} study tasks`);
             onPlanGenerated?.();
         } catch (error) {
@@ -109,18 +99,14 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                 </button>
             </div>
 
-            {/* Exam Date */}
+            {/* Exam date — read here, edited in Account */}
             <div className="mb-5">
-                <label className="block text-[11px] font-bold uppercase tracking-widest text-muted mb-2">
-                    Board Exam Date
-                </label>
-                <div className="flex items-center gap-3">
-                    <input
-                        type="date"
-                        value={customExamDate}
-                        onChange={(e) => setCustomExamDate(e.target.value)}
-                        className="bg-bg border border-border2 text-textMain p-3 rounded-xl text-sm outline-none focus:border-reeBlue transition-colors flex-1 cursor-pointer"
-                    />
+                <p className="text-eyebrow mb-2">Board exam date</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-semibold text-textMain tabular-nums">{examDate || 'Not set'}</span>
+                    <Link to="/account#exam-plan" className="text-sm text-[var(--accent-text)] hover:underline touch-target inline-flex items-center">
+                        {examDate ? 'Change' : 'Set your exam date'}
+                    </Link>
                     {daysUntilExam !== null && (
                         <div className={`text-sm font-bold px-3 py-2 rounded-lg border ${
                             daysUntilExam <= 30 ? 'bg-reeRed/10 text-reeRed border-reeRed/30' :
@@ -184,7 +170,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
             {/* Generate Button */}
             <button
                 onClick={handleGenerate}
-                disabled={isGenerating || !customExamDate || daysUntilExam <= 0 || topicsToGenerate.length === 0}
+                disabled={isGenerating || !examDate || daysUntilExam <= 0 || topicsToGenerate.length === 0}
                 className="w-full py-3.5 bg-reeBlue hover:bg-reeBlue2 text-white font-black rounded-xl text-sm uppercase tracking-wider transition-all shadow-md disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
             >
                 {isGenerating ? (

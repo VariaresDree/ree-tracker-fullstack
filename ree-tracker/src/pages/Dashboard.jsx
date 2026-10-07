@@ -26,7 +26,7 @@ import { WEAK_TOPIC_ACCURACY } from '@ree/shared';
 import { Panel, KpiTile, StatusPill, Button, Badge, Modal, SegmentedControl } from '../components/ui';
 import {
   Gauge, ListChecks, Timer, Flame, AudioWaveform,
-  Sparkles, CalendarDays, ShieldAlert,
+  Sparkles, CalendarDays,
 } from '../components/ui/icons';
 
 const SYNC_META = {
@@ -39,7 +39,7 @@ const SYNC_META = {
 export default function Dashboard() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const { stats, purgeAnalytics, syncStatus } = useTelemetrySlice();
+  const { stats, syncStatus } = useTelemetrySlice();
   const { dynamicTOS } = useTOSSlice();
 
   // One targeted drill launcher, shared by the prescription panel and the
@@ -112,8 +112,6 @@ export default function Dashboard() {
   const [aiReport, setAiReport] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
-  const [showPurgeModal, setShowPurgeModal] = useState(false);
-  const [isPurging, setIsPurging] = useState(false);
   const [velocityRange, setVelocityRange] = useState('day'); // 'day' | 'week' | 'month'
   // Composite readiness from /api/readiness (coverage + accuracy + θ +
   // consistency + blind spots) — a truer "am I ready" number than the old
@@ -202,20 +200,6 @@ export default function Dashboard() {
       toast.error('Could not generate the report right now. Please try again later.');
     } finally {
       setIsGeneratingAI(false);
-    }
-  };
-
-  const executePurge = async () => {
-    setIsPurging(true);
-    const toastId = toast.loading('Purging analytics…');
-    try {
-      await purgeAnalytics();
-      setShowPurgeModal(false);
-      toast.success('Analytics wiped.', { id: toastId });
-    } catch (error) {
-      toast.error('Purge failed. Please try again.', { id: toastId });
-    } finally {
-      setIsPurging(false);
     }
   };
 
@@ -323,7 +307,7 @@ export default function Dashboard() {
       {/* Plan: the forecast's prescription + daily targets */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <PrescriptionPanel onAction={handlePrescriptionAction} />
-        <MissionControl stats={activeStats} onPurgeRequest={() => setShowPurgeModal(true)} />
+        <MissionControl stats={activeStats} />
       </div>
 
       {/* Pre-board simulation ledger */}
@@ -362,28 +346,6 @@ export default function Dashboard() {
         <div className="text-sm text-textMain leading-relaxed whitespace-pre-wrap">{aiReport}</div>
       </Modal>
 
-      <Modal
-        open={showPurgeModal}
-        onClose={() => { if (!isPurging) setShowPurgeModal(false); }}
-        closeOnBackdrop={!isPurging}
-        title="Purge all analytics?"
-        icon={ShieldAlert}
-        tone="danger"
-        footer={
-          <>
-            <Button variant="secondary" size="sm" disabled={isPurging} onClick={() => setShowPurgeModal(false)}>Cancel</Button>
-            <Button variant="danger" size="sm" loading={isPurging} onClick={executePurge}>Confirm purge</Button>
-          </>
-        }
-      >
-        <p className="text-sm text-muted2 leading-relaxed">
-          This permanently deletes your{' '}
-          <strong className="text-textMain font-semibold">
-            topic heatmaps, IRT θ rating, readiness velocity, confidence matrix, study-time logs, and lifetime history
-          </strong>
-          . This can&apos;t be undone.
-        </p>
-      </Modal>
     </div>
   );
 }
