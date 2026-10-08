@@ -7,6 +7,7 @@
 // diverged from what the Dashboard displayed. Now the fetch + normalization +
 // merge live here, and the merged result is WRITTEN INTO the store — all
 // surfaces read the same reconciled numbers.
+import { effectiveStreak } from '@ree/shared';
 import { apiRequest } from './dbQueries';
 import { useStore } from '../store/useStore';
 import { takeDashboardSeed, invalidateDashboardSeed } from './dashboardSeed';
@@ -58,6 +59,19 @@ export function normalizeMicroTopics(rawMicroTopics = {}, safeTOS = {}) {
 }
 
 /**
+ * Pure: the newest Manila day these stats show answers on — the calendar's
+ * latest non-empty day, or the optimistic `lastActiveDate` that
+ * calculateUpdatedStats stamps beside the streak it computes. Null when none.
+ */
+export function lastStudyDay(stats) {
+  let latest = stats?.lastActiveDate || null;
+  for (const [day, n] of Object.entries(stats?.activityCalendar || {})) {
+    if ((Number(n) || 0) > 0 && (!latest || day > latest)) latest = day;
+  }
+  return latest;
+}
+
+/**
  * Pure: reconcile local optimistic stats with a NORMALIZED server payload.
  * Merge rules (unchanged from the Dashboard's historical behavior):
  *  - microTopics: per-topic, local wins only when it has MORE attempts
@@ -65,7 +79,8 @@ export function normalizeMicroTopics(rawMicroTopics = {}, safeTOS = {}) {
  *  - matrix: whichever side has the larger total;
  *  - activityCalendar: server base, local per-day entries overlay (local keys
  *    are only ever today's Manila key, written by the optimistic mirror);
- *  - counters (streak/daily/totals): max of both sides;
+ *  - counters (streak/daily/totals): max of both sides — but the local streak
+ *    enters the max only as it stands today (see below);
  *  - theta/thetaHistory: server is canonical when present.
  *
  * @param {object|null} stats   local store stats (optimistic)
@@ -131,7 +146,12 @@ export function mergeServerIntoStats(stats, sqlData) {
     dailyMath: pickMax(todayStats.Math, sqlData.profile?.dailyMath, stats?.dailyMath),
     dailyESAS: pickMax(todayStats.ESAS, sqlData.profile?.dailyESAS, stats?.dailyESAS),
     dailyEE: pickMax(todayStats.EE, sqlData.profile?.dailyEE, stats?.dailyEE),
-    globalStreak: pickMax(sqlData.profile?.globalStreak, stats?.globalStreak),
+    // The server judges its streak on read (0 once a whole Manila day passes
+    // unanswered). This device's copy is just as stale — persisted from the
+    // last day it answered — and used to win the max and resurrect "3-day
+    // streak" days after the run broke. It only counts while its own last
+    // study day is today or yesterday (e.g. an answer the server hasn't seen).
+    globalStreak: pickMax(sqlData.profile?.globalStreak, effectiveStreak(stats?.globalStreak, lastStudyDay(stats))),
     totalAnswered,
     totalCorrect: pickMax(
       stats?.totalCorrect,

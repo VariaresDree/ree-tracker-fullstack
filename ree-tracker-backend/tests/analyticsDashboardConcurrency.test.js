@@ -32,6 +32,8 @@ const prisma = require('../src/config/db');
 const dashboardCache = require('../src/services/dashboardCache');
 const analyticsRoutes = require('../src/routes/analyticsRoutes');
 
+const { todayManila, dayBefore } = require('@ree/shared');
+
 const UID = 'uid-dash';
 
 function makeApp() {
@@ -140,6 +142,40 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         expect(d.microTopics.Algebra.totalAttempts).toBe(10);
         expect(d.microTopics.Algebra.totalTimeSecs).toBe(90);  // ms -> s at the boundary
         expect(d.microTopics.Algebra.mastery).toBe(0.42);      // BKT merged on by name
+    });
+
+    // The streak is only written when answers are recorded, so the stored value
+    // outlives a missed day. The dashboard serves it as it stands today, judged
+    // from the calendar in the same payload: a study day yesterday or today
+    // keeps it, anything older reads 0 (live report: last answers 2026-10-05,
+    // "3-day streak" still shown on 2026-10-08).
+    it.each([
+        ['today', 0, 3],
+        ['yesterday', 1, 3],
+        ['three days ago', 3, 0],
+    ])('serves the streak as it stands today — last study day %s', async (_label, daysBack, expected) => {
+        let lastStudyDay = todayManila();
+        for (let i = 0; i < daysBack; i++) lastStudyDay = dayBefore(lastStudyDay);
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({
+            id: UID, displayName: 'Dash', role: 'USER', globalStreak: 3, thetaRating: 0.5,
+            // Re-stamped on every app open, so it must NOT keep the streak alive.
+            lastActive: new Date(), examDate: null, dailyTarget: 50, sessions: [],
+        });
+        vi.spyOn(prisma, '$queryRaw')
+            .mockResolvedValueOnce([
+                { kind: 'day', k1: '2026-01-02', k2: null, n: 5 },
+                { kind: 'day', k1: lastStudyDay, k2: null, n: 3 },
+            ])
+            .mockResolvedValueOnce([]);
+        vi.spyOn(prisma.userTopicPerformance, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.thetaHistory, 'findMany').mockResolvedValue([]);
+
+        const res = await request(app)
+            .get(`/api/analytics/dashboard/${UID}`)
+            .set('Authorization', `Bearer ${UID}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.profile.globalStreak).toBe(expected);
     });
 
     it('404s when the user row is missing', async () => {

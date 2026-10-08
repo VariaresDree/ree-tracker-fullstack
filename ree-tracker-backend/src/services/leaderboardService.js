@@ -14,6 +14,7 @@
 // reaches this aggregation.
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const { effectiveStreak, manilaDateOf } = require('@ree/shared');
 
 // Same "active" window the legacy live queries used.
 const ACTIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -40,14 +41,22 @@ const USER_SELECT = {
  *
  * `stats` carries the pre-aggregated per-user counters (built once from batched
  * groupBys in refreshLeaderboard — NOT per user, so no N+1):
- *   - activeDays: Map<userId, number>        (distinct Manila study days)
- *   - attempts:   Map<userId, {total,correct}> (questions answered + accuracy)
+ *   - activeDays:   Map<userId, number>        (distinct Manila study days)
+ *   - attempts:     Map<userId, {total,correct}> (questions answered + accuracy)
+ *   - lastStudyDay: Map<userId, 'YYYY-MM-DD'>  (newest ActivityLog day)
+ *
+ * globalStreak is stored as it stands on the snapshot's Manila day: the User
+ * column is only rewritten when answers are recorded, so on its own it kept a
+ * broken run alive for days. A user with no study day since yesterday reads 0
+ * (judged from ActivityLog, never lastActive, which an app open re-stamps).
  */
 function buildEntries(users, stats = {}, now = new Date()) {
     const cutoff = now.getTime() - ACTIVE_WINDOW_MS;
     const snapshotAt = now;
     const activeDays = stats.activeDays instanceof Map ? stats.activeDays : new Map();
     const attempts = stats.attempts instanceof Map ? stats.attempts : new Map();
+    const lastStudyDay = stats.lastStudyDay instanceof Map ? stats.lastStudyDay : new Map();
+    const today = manilaDateOf(now);
     return (users || [])
         .filter((u) => u.lastActive && new Date(u.lastActive).getTime() >= cutoff)
         .sort((a, b) =>
@@ -65,7 +74,7 @@ function buildEntries(users, stats = {}, now = new Date()) {
                 thetaRating: u.thetaRating ?? 0,
                 eloRating: u.eloRating ?? 1200,
                 tier: u.tier ?? 'BRONZE',
-                globalStreak: u.globalStreak ?? 0,
+                globalStreak: effectiveStreak(u.globalStreak, lastStudyDay.get(u.id) ?? null, today),
                 activeDays: activeDays.get(u.id) ?? 0,
                 questionsAnswered: at.total,
                 accuracy: at.total > 0 ? at.correct / at.total : 0,
@@ -113,11 +122,14 @@ async function doRefresh() {
     try {
         const [users, dayRows, attemptRows] = await Promise.all([
             prisma.user.findMany({ select: USER_SELECT }),
-            prisma.activityLog.groupBy({ by: ['userId'], _count: { _all: true } }),
+            prisma.activityLog.groupBy({ by: ['userId'], _count: { _all: true }, _max: { date: true } }),
             prisma.questionAttempt.groupBy({ by: ['userId', 'isCorrect'], _count: { _all: true } }),
         ]);
         // active days = one ActivityLog row per Manila day → count of rows.
         const activeDays = new Map(dayRows.map((r) => [r.userId, r._count._all]));
+        // Newest of those days (ISO strings, so max = latest) — what decides
+        // whether the stored streak is still alive.
+        const lastStudyDay = new Map(dayRows.map((r) => [r.userId, r._max?.date ?? null]));
         // questions answered + accuracy from the isCorrect split.
         const attempts = new Map();
         for (const r of attemptRows) {
@@ -126,7 +138,7 @@ async function doRefresh() {
             if (r.isCorrect) cur.correct += r._count._all;
             attempts.set(r.userId, cur);
         }
-        const entries = buildEntries(users, { activeDays, attempts });
+        const entries = buildEntries(users, { activeDays, attempts, lastStudyDay });
         await prisma.$transaction([
             prisma.leaderboardEntry.deleteMany({}),
             prisma.leaderboardEntry.createMany({ data: entries }),

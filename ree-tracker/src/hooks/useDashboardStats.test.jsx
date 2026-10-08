@@ -4,6 +4,9 @@
 // already here, no other account's numbers, refreshes from any caller).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+import { todayManila, dayBefore } from '@ree/shared';
+
+const TODAY = todayManila();
 
 let uid = 'u1';
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: uid ? { uid } : null }) }));
@@ -90,17 +93,34 @@ describe('useDashboardStats', () => {
 
   it('offline, the fetch settles and the page shows this device’s stats', async () => {
     apiRequest.mockRejectedValue(new Error('[OFFLINE]'));
-    useStore.setState({ stats: { dailyTarget: 50, totalAnswered: 4, globalStreak: 1 } });
+    useStore.setState({ stats: { dailyTarget: 50, totalAnswered: 4, globalStreak: 1, lastActiveDate: TODAY, activityCalendar: { [TODAY]: 4 } } });
     const { result } = renderHook(() => useDashboardStats());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.kpi).toMatchObject({ answered: 4, streak: 1 });
+  });
+
+  // No fetch to correct it: the stats saved on this device still say 3 from the
+  // last day anything was answered. The KPI judges it as of today.
+  it('offline, a streak saved days ago reads 0 instead of the stored value', async () => {
+    apiRequest.mockRejectedValue(new Error('[OFFLINE]'));
+    const lastDay = dayBefore(dayBefore(dayBefore(TODAY)));
+    useStore.setState({ stats: { dailyTarget: 50, totalAnswered: 4, globalStreak: 3, lastActiveDate: lastDay, activityCalendar: { [lastDay]: 4 } } });
+    const { result } = renderHook(() => useDashboardStats());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.kpi.streak).toBe(0);
   });
 });
 
 describe('deriveKpi', () => {
   it('accuracy and average time from the topic aggregate; zeros when empty', () => {
-    expect(deriveKpi({ microTopics: { a: { attempts: 4, correct: 3, totalTime: 8000 } }, totalAnswered: 9, globalStreak: 2 }))
+    expect(deriveKpi({ microTopics: { a: { attempts: 4, correct: 3, totalTime: 8000 } }, totalAnswered: 9, globalStreak: 2, activityCalendar: { [TODAY]: 9 } }))
       .toEqual({ answered: 9, accuracy: 75, avgSec: 2, streak: 2 });
     expect(deriveKpi(null)).toEqual({ answered: 0, accuracy: 0, avgSec: 0, streak: 0 });
+  });
+
+  it('streak: kept through yesterday, 0 once a whole day passes unanswered', () => {
+    const yesterday = dayBefore(TODAY);
+    expect(deriveKpi({ globalStreak: 5, activityCalendar: { [yesterday]: 3 } }).streak).toBe(5);
+    expect(deriveKpi({ globalStreak: 5, activityCalendar: { [dayBefore(yesterday)]: 3 } }).streak).toBe(0);
   });
 });

@@ -60,6 +60,24 @@ describe('leaderboardService.buildEntries', () => {
         const [e] = buildEntries([mkUser('z', 1.0)], {}, NOW);
         expect(e).toMatchObject({ activeDays: 0, questionsAnswered: 0, accuracy: 0 });
     });
+
+    // The stored streak is only rewritten when answers are recorded, so it
+    // outlived missed days ("3 STREAK" on Rankings days after the run broke).
+    // The snapshot stores it as it stands at refresh time, judged from each
+    // user's last ActivityLog day — not lastActive, which an app open re-stamps.
+    it('stores each streak as it stands on the snapshot\'s Manila day', () => {
+        // NOW is 2026-07-10 20:00 in Manila. Every user was lastActive yesterday.
+        const lastStudyDay = new Map([
+            ['today', '2026-07-10'],
+            ['yesterday', '2026-07-09'],
+            ['broken', '2026-07-07'],
+        ]);
+        const users = ['today', 'yesterday', 'broken', 'never'].map((id) => mkUser(id, 1.0));
+        const streaks = Object.fromEntries(
+            buildEntries(users, { lastStudyDay }, NOW).map((e) => [e.userId, e.globalStreak]),
+        );
+        expect(streaks).toEqual({ today: 3, yesterday: 3, broken: 0, never: 0 });
+    });
 });
 
 describe('leaderboardService.isStale', () => {

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeMicroTopics, mergeServerIntoStats } from './analyticsSync';
+import { todayManila, dayBefore } from '@ree/shared';
+import { normalizeMicroTopics, mergeServerIntoStats, lastStudyDay } from './analyticsSync';
+
+const TODAY = todayManila();
+const YESTERDAY = dayBefore(TODAY);
+const THREE_DAYS_AGO = dayBefore(dayBefore(YESTERDAY));
 
 describe('normalizeMicroTopics', () => {
   const tos = { EE: ['AC Electric Circuits'], Mathematics: ['Algebra'] };
@@ -85,5 +90,45 @@ describe('mergeServerIntoStats', () => {
     const calendarSum = Object.values(out.activityCalendar).reduce((s, n) => s + n, 0);
     expect(out.totalAnswered).toBe(42);       // server 35 + optimistic delta 7
     expect(calendarSum).toBe(out.totalAnswered); // the guaranteed invariant
+  });
+});
+
+describe('lastStudyDay', () => {
+  it('is the newest calendar day with answers, or the optimistic lastActiveDate', () => {
+    expect(lastStudyDay({ activityCalendar: { '2026-10-01': 4, '2026-10-05': 2, '2026-10-06': 0 } })).toBe('2026-10-05');
+    expect(lastStudyDay({ activityCalendar: { '2026-10-05': 2 }, lastActiveDate: '2026-10-07' })).toBe('2026-10-07');
+    expect(lastStudyDay({})).toBeNull();
+    expect(lastStudyDay(null)).toBeNull();
+  });
+});
+
+// The stored streak is only rewritten when answers are recorded, so it outlives
+// a missed day. The server now judges it on read; the merge must not let the
+// device's own copy (persisted, equally stale) win the max() and bring it back.
+describe('mergeServerIntoStats — streak', () => {
+  it('does not resurrect a stale local streak over the server value', () => {
+    // Live report: last answers three days ago, "3-day streak" still shown.
+    const out = mergeServerIntoStats(
+      { globalStreak: 3, lastActiveDate: THREE_DAYS_AGO, activityCalendar: { [THREE_DAYS_AGO]: 3 } },
+      { profile: { globalStreak: 0 }, activityCalendar: { [THREE_DAYS_AGO]: 3 } },
+    );
+    expect(out.globalStreak).toBe(0);
+  });
+
+  it('keeps a local optimistic streak the server has not counted yet', () => {
+    // Answered offline today after the gap: calculateUpdatedStats reset it to 1.
+    const out = mergeServerIntoStats(
+      { globalStreak: 1, lastActiveDate: TODAY, activityCalendar: { [THREE_DAYS_AGO]: 3, [TODAY]: 2 } },
+      { profile: { globalStreak: 0 }, activityCalendar: { [THREE_DAYS_AGO]: 3 } },
+    );
+    expect(out.globalStreak).toBe(1);
+  });
+
+  it('keeps a local streak still alive from yesterday', () => {
+    const out = mergeServerIntoStats(
+      { globalStreak: 4, lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 6 } },
+      { profile: { globalStreak: 0 }, activityCalendar: {} },
+    );
+    expect(out.globalStreak).toBe(4);
   });
 });

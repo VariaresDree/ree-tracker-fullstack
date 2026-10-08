@@ -10,11 +10,12 @@
 // including the app-wide sync lifecycle's refetch after an offline batch
 // lands, which Dashboard used to duplicate with a refetch of its own.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { effectiveStreak } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
 import { useTelemetrySlice, useTOSSlice } from '../store/slices';
 import { fetchReadinessScore } from '../services/dbQueries';
 import {
-  cachedDashboardStats, mergeServerIntoStats, renormalizeDashboardStats,
+  cachedDashboardStats, lastStudyDay, mergeServerIntoStats, renormalizeDashboardStats,
   subscribeDashboardStats, syncDashboardStats,
 } from '../services/analyticsSync';
 
@@ -33,7 +34,11 @@ export function deriveKpi(stats) {
     answered: stats?.totalAnswered || 0,
     accuracy: attempts > 0 ? Math.round((correct / attempts) * 100) : 0,
     avgSec: attempts > 0 ? timeMs / attempts / 1000 : 0,
-    streak: stats?.globalStreak || 0,
+    // As it stands today. The stored value is only rewritten by an answer, so
+    // stats saved on this device (offline, or open past midnight) can still
+    // hold a run that broke days ago; once a whole Manila day passes
+    // unanswered it reads 0.
+    streak: effectiveStreak(stats?.globalStreak, lastStudyDay(stats)),
   };
 }
 

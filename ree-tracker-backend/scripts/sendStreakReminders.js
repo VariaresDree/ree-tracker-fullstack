@@ -17,6 +17,7 @@ require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
 const { initializeApp, cert } = require('firebase-admin/app');
+const { effectiveStreak, dayBefore, todayManila } = require('@ree/shared');
 
 // Standalone firebase-admin init — mirrors server.js (service-account file or
 // env triple). Must run before pushService's getMessaging() is used.
@@ -48,25 +49,30 @@ function parseArgs(argv) {
 
 /**
  * Pure: pick reminder recipients from user rows. A recipient has at least one
- * device token, an active streak worth protecting, and no activity yet today.
+ * device token, a streak still alive (a study day yesterday), and no activity
+ * yet today. The stored globalStreak alone is not enough: it is only rewritten
+ * when answers are recorded, so it kept promising a run that broke days ago.
  * Exported for tests.
  *
  * @param {Array<{id, displayName?, globalStreak, deviceTokens: Array, activityLogs: Array}>} users
- *        activityLogs pre-filtered to today's Manila date by the query.
+ *        activityLogs pre-filtered by the query to Manila days from yesterday on.
+ * @param {string} [today] Manila YYYY-MM-DD
  */
-function selectReminderRecipients(users) {
+function selectReminderRecipients(users, today = todayManila()) {
     return (users || [])
-        .filter((u) =>
-            (u.deviceTokens?.length ?? 0) > 0 &&
-            (u.globalStreak ?? 0) >= 1 &&
-            (u.activityLogs?.length ?? 0) === 0)
-        .map((u) => ({ id: u.id, displayName: u.displayName, streak: u.globalStreak }));
+        .map((u) => {
+            const days = (u.activityLogs || []).map((a) => a.date);
+            const lastStudyDay = days.reduce((max, d) => (!max || d > max ? d : max), null);
+            return { u, streak: effectiveStreak(u.globalStreak, lastStudyDay, today), studiedToday: days.includes(today) };
+        })
+        .filter(({ u, streak, studiedToday }) =>
+            (u.deviceTokens?.length ?? 0) > 0 && streak >= 1 && !studiedToday)
+        .map(({ u, streak }) => ({ id: u.id, displayName: u.displayName, streak }));
 }
 
 async function main() {
     const { dryRun } = parseArgs(process.argv);
     const prisma = require('../src/config/db');
-    const { todayManila } = require('../src/services/telemetryService');
     const { sendToUser } = require('../src/services/pushService');
 
     const today = todayManila();
@@ -77,9 +83,10 @@ async function main() {
         process.exit(1);
     }
 
-    // Only users with a registered device can receive anything; join today's
-    // ActivityLog row (Manila-keyed, same as the streak engine) to skip anyone
-    // who already studied today.
+    // Only users with a registered device can receive anything; join their
+    // ActivityLog rows from yesterday on (Manila-keyed, same as the streak
+    // engine): yesterday's says the streak is still alive, today's means they
+    // already studied.
     const users = await prisma.user.findMany({
         where: { deviceTokens: { some: {} } },
         select: {
@@ -87,11 +94,11 @@ async function main() {
             displayName: true,
             globalStreak: true,
             deviceTokens: { select: { token: true } },
-            activityLogs: { where: { date: today }, select: { date: true } },
+            activityLogs: { where: { date: { gte: dayBefore(today) } }, select: { date: true } },
         },
     });
 
-    const recipients = selectReminderRecipients(users);
+    const recipients = selectReminderRecipients(users, today);
     console.log(`[streakReminders] candidates=${users.length}  recipients=${recipients.length}`);
 
     let sent = 0;
