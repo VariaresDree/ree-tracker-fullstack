@@ -33,30 +33,39 @@ const liveSelect = (today) => ({
     activityLogs: { where: { date: { gte: dayBefore(today) } }, select: { date: true } },
 });
 
-function withLiveStreak(u, today) {
+// A live row (one selected with liveSelect) carries its recent ActivityLog
+// rows; its streak is judged from them here, in the one function every row
+// passes through, so a new live-row path can't serve the stale stored value.
+// Snapshot rows (entryToAgent) carry no activityLogs: buildEntries already
+// judged them at refresh time.
+function rowStreak(u) {
+    if (!Array.isArray(u.activityLogs)) return u.globalStreak;
     let lastStudyDay = null;
-    for (const { date } of u.activityLogs || []) {
+    for (const { date } of u.activityLogs) {
         if (!lastStudyDay || date > lastStudyDay) lastStudyDay = date;
     }
-    return { ...u, globalStreak: effectiveStreak(u.globalStreak, lastStudyDay, today) };
+    return effectiveStreak(u.globalStreak, lastStudyDay, todayManila());
 }
 
-const toAgent = (u) => ({
-    uid: u.id,
-    displayName: u.displayName || fallbackDisplayName(u.id),
-    role: u.role,
-    thetaRating: u.thetaRating,
-    streak: u.globalStreak,
-    globalStreak: u.globalStreak,
-    // Ranking stats (default 0 for live-fallback User rows that don't carry
-    // them; the snapshot path threads the real values via entryToAgent, and the
-    // self-row paths merge computeUserStats before calling toAgent).
-    activeDays: u.activeDays ?? 0,
-    questionsAnswered: u.questionsAnswered ?? 0,
-    accuracy: u.accuracy ?? 0,
-    lastActive: u.lastActive,
-    gauntletLevel: 1,
-});
+function toAgent(u) {
+    const streak = rowStreak(u);
+    return {
+        uid: u.id,
+        displayName: u.displayName || fallbackDisplayName(u.id),
+        role: u.role,
+        thetaRating: u.thetaRating,
+        streak,
+        globalStreak: streak,
+        // Ranking stats (default 0 for live-fallback User rows that don't carry
+        // them; the snapshot path threads the real values via entryToAgent, and the
+        // self-row paths merge computeUserStats before calling toAgent).
+        activeDays: u.activeDays ?? 0,
+        questionsAnswered: u.questionsAnswered ?? 0,
+        accuracy: u.accuracy ?? 0,
+        lastActive: u.lastActive,
+        gauntletLevel: 1,
+    };
+}
 
 // Snapshot row → the same public agent shape the live path produced.
 const entryToAgent = (e) => toAgent({
@@ -132,7 +141,7 @@ router.get('/me', authMiddleware, async (req, res) => {
             const s = entry
                 ? { activeDays: entry.activeDays, questionsAnswered: entry.questionsAnswered, accuracy: entry.accuracy }
                 : await computeUserStats(req.user.id);
-            self = toAgent({ id: req.user.id, ...withLiveStreak(me, today), ...s });
+            self = toAgent({ id: req.user.id, ...me, ...s });
         }
 
         res.status(200).json({
@@ -203,7 +212,7 @@ router.get('/paginated', authMiddleware, async (req, res) => {
                     prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
                     computeUserStats(req.user.id),
                 ]);
-                if (me) items = [{ ...toAgent({ ...withLiveStreak(me, today), ...meStats }), isSelf: true, offBoard: true }, ...items];
+                if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
             }
         }
 
@@ -238,7 +247,7 @@ async function liveFallbackMe(req, res) {
         const unranked = !me || (me.thetaRating ?? 0) <= 0;
 
         const self = me
-            ? toAgent({ id: req.user.id, ...withLiveStreak(me, today), ...(await computeUserStats(req.user.id)) })
+            ? toAgent({ id: req.user.id, ...me, ...(await computeUserStats(req.user.id)) })
             : null;
 
         res.status(200).json({
@@ -263,7 +272,7 @@ async function liveFallbackList(req, res, limit) {
             take: limit,
             select: liveSelect(today),
         });
-        res.status(200).json({ success: true, leaderboard: users.map((u) => toAgent(withLiveStreak(u, today))) });
+        res.status(200).json({ success: true, leaderboard: users.map((u) => toAgent(u)) });
     } catch (error) {
         logger.error('leaderboard fallback error', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch leaderboard.' });
@@ -285,14 +294,14 @@ async function liveFallbackPaginated(req, res, limit) {
         const hasMore = users.length > limit;
         if (hasMore) users.pop();
 
-        let items = users.map((u) => toAgent(withLiveStreak(u, today)));
+        let items = users.map((u) => toAgent(u));
         const meVisible = items.some((u) => u.uid === req.user.id);
         if (!meVisible) {
             const [me, meStats] = await Promise.all([
                 prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
                 computeUserStats(req.user.id),
             ]);
-            if (me) items = [{ ...toAgent({ ...withLiveStreak(me, today), ...meStats }), isSelf: true, offBoard: true }, ...items];
+            if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
         }
 
         res.status(200).json({
