@@ -8,7 +8,9 @@ const TONE_VAR = {
   danger: 'var(--accent-danger)',
   amber: 'var(--color-reeAmber)',
   signal: 'var(--accent-signal)',
-  velocity: 'var(--accent-velocity)',
+  // The pill's label is drawn in this colour, so it is the text form of the
+  // accent (plain --accent-velocity fails AA as text in every theme).
+  velocity: 'var(--accent-text)',
   neutral: null,
 };
 

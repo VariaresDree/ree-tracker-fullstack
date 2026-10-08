@@ -10,6 +10,7 @@ import { stableBatchKey } from '../utils/contentHash';
 import { classifySyncError, createBackoff, SYNC_OUTCOME } from '../services/syncPolicy';
 import { TELEMETRY_BATCH_MAX } from '@ree/shared';
 import { dropLegacyLedger } from '../services/simulationLedger';
+import { clearUserCaches } from '../services/userCache';
 import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro } from '../utils/pomodoroLogic';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
@@ -485,15 +486,24 @@ export const useStore = create(
       // Defer a full write (endpoint + body) until we're back online. Used for
       // session summaries and offline mock-exam telemetry so nothing is dropped
       // when the user finishes a session with no connection.
-      queuePendingWrite: (endpoint, method, body) => {
+      //
+      // `supersede`: the write carries the resource's FULL state (a PUT that
+      // replaces it), so any older queued write with the same endpoint and
+      // method is obsolete and is dropped. Editing one entry ten times offline
+      // then costs one queued write, not ten, and can't crowd older work out of
+      // the capped queue.
+      queuePendingWrite: (endpoint, method, body, { supersede = false } = {}) => {
         // Stamped with the account that made it — the same guard the telemetry
         // queue has. A queued mock exam replayed after a different account
         // signed in would otherwise land in THAT account's history.
         const ownerUid = auth.currentUser?.uid || getStore().ownerUid || null;
+        const verb = method || 'POST';
         set((state) => ({
           pendingWrites: [
-            ...state.pendingWrites,
-            { id: newId(), endpoint, method: method || 'POST', body, ownerUid, createdAt: new Date().toISOString() },
+            ...(supersede
+              ? state.pendingWrites.filter((w) => !(w.endpoint === endpoint && w.method === verb && (w.ownerUid ?? null) === ownerUid))
+              : state.pendingWrites),
+            { id: newId(), endpoint, method: verb, body, ownerUid, createdAt: new Date().toISOString() },
           ].slice(-MAX_PENDING_WRITES),
         }));
       },
@@ -652,6 +662,9 @@ export const useStore = create(
         // out it can never be attributed, so it goes rather than surfacing for
         // whoever signs in next. Per-account ledgers stay (they are scoped).
         try { await dropLegacyLedger(); } catch (_) {}
+        // Per-account lists cached on the device (outside scores…). Reads are
+        // already uid-checked; this keeps them from outliving the session.
+        try { await clearUserCaches(); } catch { /* best effort, like the ledger above */ }
       },
 
       purgeAnalytics: async () => {
