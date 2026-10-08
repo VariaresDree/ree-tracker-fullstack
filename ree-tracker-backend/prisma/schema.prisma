@@ -69,6 +69,7 @@ model User {
 
   // --- V7: Phase 4.2 — FCM push (Capacitor native app) ---
   deviceTokens       DeviceToken[]
+  outsideScores      OutsideScore[]
 
   @@index([thetaRating])
   @@index([lastActive])
@@ -544,6 +545,35 @@ model StudySession {
 }
 
 // Phase 2: Strategic Planner persistence
+// Scores the learner records from OUTSIDE the app: review-center preboards,
+// book drills, other sites' mocks. Display only (Exams > Past sittings): never
+// read by θ, the forecast, readiness or the rankings, which
+// tests/displayOnlyTables.test.js pins. The id is generated on the device, so
+// an entry created offline and then edited or deleted offline is the same row
+// when the queue replays.
+model OutsideScore {
+  id         String         @id
+  userId     String
+  title      String
+  source     String?
+  takenOn    String         // Manila YYYY-MM-DD
+  subject    String         // 'Mathematics' | 'ESAS' | 'EE' | 'ALL'
+  score      Float
+  total      Int
+  note       String?
+  // A retest points at the FIRST try (never at another retest). Deleting the
+  // first try leaves its retests as ordinary entries.
+  retestOfId String?
+  retestOf   OutsideScore?  @relation("OutsideScoreRetest", fields: [retestOfId], references: [id], onDelete: SetNull)
+  retests    OutsideScore[] @relation("OutsideScoreRetest")
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, takenOn])
+  @@index([retestOfId])
+}
+
 model PlannerTask {
   id          String    @id @default(uuid())
   userId      String

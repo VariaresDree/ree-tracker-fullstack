@@ -46,6 +46,14 @@ import {
     DISPLAY_NAME_MAX,
     clampDisplayName,
     dayAfter,
+    isIsoDay,
+    OUTSIDE_SCORE_SUBJECTS,
+    OUTSIDE_SCORE_LIMITS,
+    normalizeOutsideSubject,
+    outsideScoreErrors,
+    outsideScorePercent,
+    outsideScoreSummary,
+    retestDelta,
 } from '@ree/shared';
 
 describe('@ree/shared resolves from the client bundle', () => {
@@ -366,5 +374,56 @@ describe('nextManilaMidnight', () => {
 describe('DISPLAY_NAME_MAX', () => {
     it('is the 32-character limit the profile route and the name inputs share', () => {
         expect(DISPLAY_NAME_MAX).toBe(32);
+    });
+});
+
+describe('outside scores — self-reported, display only', () => {
+    const ok = { title: 'RC Preboard 2', takenOn: '2026-10-01', subject: 'EE', score: 72, total: 100 };
+
+    it('isIsoDay accepts only real calendar days', () => {
+        expect(isIsoDay('2028-02-29')).toBe(true);
+        expect(isIsoDay('2026-02-30')).toBe(false);
+        expect(isIsoDay('2026-1-05')).toBe(false);
+        expect(isIsoDay(null)).toBe(false);
+    });
+
+    it('normalises the subject spellings people type', () => {
+        expect(normalizeOutsideSubject('math')).toBe('Mathematics');
+        expect(normalizeOutsideSubject(' Electrical Engineering ')).toBe('EE');
+        expect(normalizeOutsideSubject('All three')).toBe('ALL');
+        expect(normalizeOutsideSubject('Physics')).toBeNull();
+        expect(OUTSIDE_SCORE_SUBJECTS).toEqual(['Mathematics', 'ESAS', 'EE', 'ALL']);
+    });
+
+    it('validates an entry the same way on both sides', () => {
+        expect(outsideScoreErrors(ok, '2026-10-08')).toEqual({});
+        expect(Object.keys(outsideScoreErrors({ ...ok, takenOn: '2026-10-09' }, '2026-10-08'))).toEqual(['takenOn']);
+        expect(Object.keys(outsideScoreErrors({ ...ok, score: 101 }, '2026-10-08'))).toEqual(['score']);
+        expect(Object.keys(outsideScoreErrors({ ...ok, total: 0 }, '2026-10-08'))).toEqual(['total']);
+        expect(Object.keys(outsideScoreErrors({ ...ok, total: OUTSIDE_SCORE_LIMITS.maxTotal + 1 }, '2026-10-08'))).toEqual(['total']);
+        expect(Object.keys(outsideScoreErrors({ ...ok, score: '', title: '' }, '2026-10-08')).sort()).toEqual(['score', 'title']);
+        expect(outsideScoreErrors({ ...ok, score: 0 }, '2026-10-08')).toEqual({}); // a zero is a real score
+        expect(outsideScoreErrors({ ...ok, score: 72.5 }, '2026-10-08')).toEqual({}); // half points happen
+    });
+
+    it('summarises each subject oldest to newest, with the change since the first', () => {
+        const entries = [
+            { ...ok, takenOn: '2026-09-20', score: 60 },
+            { ...ok, takenOn: '2026-10-05', score: 75 },
+            { ...ok, takenOn: '2026-09-01', score: 55 },
+            { ...ok, subject: 'ESAS', score: 40, total: 50 },
+        ];
+        const { subjects, overall } = outsideScoreSummary(entries);
+        const ee = subjects.find((s) => s.subject === 'EE');
+        expect(ee).toMatchObject({ count: 3, first: 55, latest: 75, change: 20, points: [55, 60, 75], average: 63.3 });
+        expect(subjects.find((s) => s.subject === 'ESAS')).toMatchObject({ count: 1, average: 80, change: null });
+        expect(subjects.find((s) => s.subject === 'Mathematics')).toMatchObject({ count: 0, average: null });
+        expect(overall).toEqual({ count: 4, average: 67.5 });
+    });
+
+    it('a retest compares in percentage points with its first try', () => {
+        expect(outsideScorePercent({ score: 45, total: 60 })).toBe(75);
+        expect(retestDelta({ score: 45, total: 60 }, { score: 30, total: 50 })).toBe(15);
+        expect(retestDelta({ score: 45, total: 60 }, null)).toBeNull();
     });
 });
