@@ -117,7 +117,7 @@ const SUBJECT_ROWS = [
   ['EE', 'dailyEE', 'var(--color-reePurple)'],
 ];
 
-function TargetBlock({ daily, stats }) {
+function TargetBlock({ daily }) {
   const met = daily.done >= daily.target;
   const split = apportionItems(daily.target, DEFAULT_SYLLABUS_WEIGHTS);
   return (
@@ -132,7 +132,7 @@ function TargetBlock({ daily, stats }) {
       <ProgressIndicator value={Math.min(daily.done, daily.target)} max={daily.target} tone={met ? 'success' : 'velocity'} ariaLabel="Today's target progress" size="sm" />
       <dl className="flex flex-col gap-1.5 text-xs mt-1">
         {SUBJECT_ROWS.map(([label, key, color]) => {
-          const cur = stats?.[key] || 0;
+          const cur = daily.counts[key];
           const goal = split[label] || 0;
           return (
             <div key={label} className="grid grid-cols-[6.5rem_1fr] items-center gap-x-3 gap-y-1">
@@ -188,7 +188,7 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <ReadinessBlock readiness={readiness} trend={trend} />
           <PassBlock snapshot={snapshot} loading={loading} />
-          <TargetBlock daily={daily} stats={stats} />
+          <TargetBlock daily={daily} />
         </div>
 
         <div className="flex flex-col gap-2">

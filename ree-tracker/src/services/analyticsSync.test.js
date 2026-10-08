@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { todayManila, dayBefore } from '@ree/shared';
-import { normalizeMicroTopics, mergeServerIntoStats, lastStudyDay } from './analyticsSync';
+import { normalizeMicroTopics, mergeServerIntoStats, lastStudyDay, dailyCountsToday } from './analyticsSync';
 
 const TODAY = todayManila();
 const YESTERDAY = dayBefore(TODAY);
@@ -130,5 +130,78 @@ describe('mergeServerIntoStats — streak', () => {
       { profile: { globalStreak: 0 }, activityCalendar: {} },
     );
     expect(out.globalStreak).toBe(4);
+  });
+});
+
+// The per-subject daily counters are saved with the rest of `stats` and only
+// zeroed by the next answer on this device (calculateUpdatedStats), so a new
+// day used to open with the last study day's counts still in them, shown as
+// today's progress until the first answer.
+const NO_COUNTS = { dailyMath: 0, dailyESAS: 0, dailyEE: 0 };
+
+describe('dailyCountsToday', () => {
+  it('reads the counters while these stats show answers today', () => {
+    expect(dailyCountsToday({ lastActiveDate: TODAY, dailyMath: 4, dailyESAS: 2, dailyEE: 6 }, TODAY))
+      .toEqual({ dailyMath: 4, dailyESAS: 2, dailyEE: 6 });
+  });
+
+  it('reads 0 once the day they were counted on has passed', () => {
+    const yesterdays = { lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 12 }, dailyMath: 4, dailyESAS: 2, dailyEE: 6 };
+    expect(dailyCountsToday(yesterdays, TODAY)).toEqual(NO_COUNTS);
+    // No evidence of a study day at all reads 0 too.
+    expect(dailyCountsToday({ dailyMath: 4 }, TODAY)).toEqual(NO_COUNTS);
+    expect(dailyCountsToday(null, TODAY)).toEqual(NO_COUNTS);
+  });
+
+  it('keeps counts a sync brought in from another device', () => {
+    // This device last answered yesterday, but the merged calendar shows
+    // today's answers from the phone: the counters are today's.
+    const synced = { lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 30, [TODAY]: 9 }, dailyMath: 5, dailyESAS: 0, dailyEE: 4 };
+    expect(dailyCountsToday(synced, TODAY)).toEqual({ dailyMath: 5, dailyESAS: 0, dailyEE: 4 });
+  });
+
+  it('judges against the Manila day by default', () => {
+    expect(dailyCountsToday({ lastActiveDate: TODAY, dailyMath: 3 })).toEqual({ ...NO_COUNTS, dailyMath: 3 });
+  });
+});
+
+describe('mergeServerIntoStats — daily counts', () => {
+  const daily = (s) => [s.dailyMath, s.dailyESAS, s.dailyEE];
+
+  it('does not carry the last study day’s counts into a new day', () => {
+    // 30 answered yesterday; nothing yet today, here or anywhere else.
+    const out = mergeServerIntoStats(
+      { lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 30 }, dailyMath: 10, dailyESAS: 8, dailyEE: 12 },
+      { profile: { dailyMath: 0, dailyESAS: 0, dailyEE: 0 }, activityCalendar: { [YESTERDAY]: 30 } },
+    );
+    expect(daily(out)).toEqual([0, 0, 0]);
+  });
+
+  it('takes today’s server counts over this device’s stale ones', () => {
+    const out = mergeServerIntoStats(
+      { lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 30 }, dailyMath: 10, dailyESAS: 8, dailyEE: 12 },
+      { profile: { dailyMath: 3, dailyESAS: 0, dailyEE: 2 }, activityCalendar: { [YESTERDAY]: 30, [TODAY]: 5 } },
+    );
+    expect(daily(out)).toEqual([3, 0, 2]);
+    // ...and the merged stats still read as today's on screen.
+    expect(dailyCountsToday(out, TODAY)).toEqual({ dailyMath: 3, dailyESAS: 0, dailyEE: 2 });
+  });
+
+  it('keeps today’s answers on this device that the server has not counted yet', () => {
+    const out = mergeServerIntoStats(
+      { lastActiveDate: TODAY, activityCalendar: { [TODAY]: 6 }, dailyMath: 4, dailyESAS: 0, dailyEE: 2 },
+      { profile: { dailyMath: 1, dailyESAS: 0, dailyEE: 0 }, activityCalendar: { [TODAY]: 1 } },
+    );
+    expect(daily(out)).toEqual([4, 0, 2]);
+  });
+
+  it('ignores a payload’s daily counts from an earlier day (fetched before midnight)', () => {
+    // The app stayed open past midnight: the last payload is yesterday's, and
+    // its daily rollup counted yesterday. One answer since midnight here.
+    const out = mergeServerIntoStats(
+      { lastActiveDate: TODAY, activityCalendar: { [YESTERDAY]: 20, [TODAY]: 1 }, dailyMath: 1, dailyESAS: 0, dailyEE: 0 },
+      { profile: { dailyMath: 12, dailyESAS: 3, dailyEE: 5 }, activityCalendar: { [YESTERDAY]: 20 } },
+    );
+    expect(daily(out)).toEqual([1, 0, 0]);
   });
 });

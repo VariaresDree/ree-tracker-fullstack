@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { todayManila, dayBefore } from '@ree/shared';
 import { buildTodayActions, dailyProgress, daysToExam, pickPlanTask, readinessTrend } from './todayActions';
 
 // "What should I do next?" — one ordered shortlist assembled from the review
@@ -78,9 +79,19 @@ describe('today’s study-plan task', () => {
 });
 
 describe('dailyProgress', () => {
+  const TODAY = todayManila();
+  const YESTERDAY = dayBefore(TODAY);
+
   it('sums today across subjects against the daily target', () => {
-    expect(dailyProgress({ dailyMath: 5, dailyESAS: 3, dailyEE: 12, dailyTarget: 50 })).toEqual({ done: 20, target: 50 });
-    expect(dailyProgress({})).toEqual({ done: 0, target: 50 });
+    expect(dailyProgress({ lastActiveDate: TODAY, dailyMath: 5, dailyESAS: 3, dailyEE: 12, dailyTarget: 50 }, TODAY))
+      .toEqual({ done: 20, target: 50, counts: { dailyMath: 5, dailyESAS: 3, dailyEE: 12 } });
+    expect(dailyProgress({})).toEqual({ done: 0, target: 50, counts: { dailyMath: 0, dailyESAS: 0, dailyEE: 0 } });
+  });
+
+  it('a new day starts at 0, before its first answer clears the saved counters', () => {
+    // Saved on this device yesterday (offline, or open past midnight).
+    const saved = { lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 20 }, dailyMath: 5, dailyESAS: 3, dailyEE: 12, dailyTarget: 40 };
+    expect(dailyProgress(saved, TODAY)).toEqual({ done: 0, target: 40, counts: { dailyMath: 0, dailyESAS: 0, dailyEE: 0 } });
   });
 });
 

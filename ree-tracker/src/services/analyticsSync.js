@@ -7,7 +7,7 @@
 // diverged from what the Dashboard displayed. Now the fetch + normalization +
 // merge live here, and the merged result is WRITTEN INTO the store — all
 // surfaces read the same reconciled numbers.
-import { effectiveStreak } from '@ree/shared';
+import { effectiveStreak, todayManila } from '@ree/shared';
 import { apiRequest } from './dbQueries';
 import { useStore } from '../store/useStore';
 import { takeDashboardSeed, invalidateDashboardSeed } from './dashboardSeed';
@@ -72,6 +72,20 @@ export function lastStudyDay(stats) {
 }
 
 /**
+ * Pure: the per-subject daily counters (dailyMath/ESAS/EE) as they stand on
+ * `today`. They are saved with the rest of `stats` and only zeroed by the next
+ * answer on this device (calculateUpdatedStats), so a new day used to open
+ * with the last study day's counts shown as today's progress. They count only
+ * while these stats show answers on `today` — answered here (lastActiveDate)
+ * or synced from another device (the merged calendar) — and read 0 otherwise.
+ */
+export function dailyCountsToday(stats, today = todayManila()) {
+  const answeredToday = stats?.lastActiveDate === today || (Number(stats?.activityCalendar?.[today]) || 0) > 0;
+  const count = (v) => (answeredToday ? Number(v) || 0 : 0);
+  return { dailyMath: count(stats?.dailyMath), dailyESAS: count(stats?.dailyESAS), dailyEE: count(stats?.dailyEE) };
+}
+
+/**
  * Pure: reconcile local optimistic stats with a NORMALIZED server payload.
  * Merge rules (unchanged from the Dashboard's historical behavior):
  *  - microTopics: per-topic, local wins only when it has MORE attempts
@@ -79,14 +93,15 @@ export function lastStudyDay(stats) {
  *  - matrix: whichever side has the larger total;
  *  - activityCalendar: server base, local per-day entries overlay (local keys
  *    are only ever today's Manila key, written by the optimistic mirror);
- *  - counters (streak/daily/totals): max of both sides — but the local streak
- *    enters the max only as it stands today (see below);
+ *  - counters (streak/daily/totals): max of both sides — but the streak and
+ *    the daily counts enter the max only as they stand today (see below);
  *  - theta/thetaHistory: server is canonical when present.
  *
  * @param {object|null} stats   local store stats (optimistic)
  * @param {object|null} sqlData normalized dashboard payload (microTopics already client-shaped)
+ * @param {string} [today]      Manila YYYY-MM-DD; defaults to now
  */
-export function mergeServerIntoStats(stats, sqlData) {
+export function mergeServerIntoStats(stats, sqlData, today = todayManila()) {
   if (!stats && !sqlData) return null;
   if (!sqlData) return stats;
 
@@ -108,6 +123,13 @@ export function mergeServerIntoStats(stats, sqlData) {
 
   const todayStats = sqlData.dailyStats || sqlData.profile?.dailyStats || {};
   const pickMax = (...vals) => Math.max(...vals.map((v) => Number(v) || 0));
+  // Both sides' daily counts are for one particular day. The server's are for
+  // the day it built the payload on, and a payload kept from before midnight
+  // (app left open) still holds yesterday's: they count only if its calendar
+  // shows answers today. This device's saved counters go through the same rule.
+  const serverAnsweredToday = (Number(sqlData.activityCalendar?.[today]) || 0) > 0;
+  const serverDaily = (...vals) => (serverAnsweredToday ? pickMax(...vals) : 0);
+  const localDaily = dailyCountsToday(stats, today);
 
   // Answered-questions tally: server is the single source of truth. The backend
   // returns EVERY day uncapped and increments QuestionAttempt + ActivityLog in
@@ -143,9 +165,9 @@ export function mergeServerIntoStats(stats, sqlData) {
       ? sqlData.thetaHistory
       : stats?.thetaHistory || [],
     activityCalendar,
-    dailyMath: pickMax(todayStats.Math, sqlData.profile?.dailyMath, stats?.dailyMath),
-    dailyESAS: pickMax(todayStats.ESAS, sqlData.profile?.dailyESAS, stats?.dailyESAS),
-    dailyEE: pickMax(todayStats.EE, sqlData.profile?.dailyEE, stats?.dailyEE),
+    dailyMath: pickMax(serverDaily(todayStats.Math, sqlData.profile?.dailyMath), localDaily.dailyMath),
+    dailyESAS: pickMax(serverDaily(todayStats.ESAS, sqlData.profile?.dailyESAS), localDaily.dailyESAS),
+    dailyEE: pickMax(serverDaily(todayStats.EE, sqlData.profile?.dailyEE), localDaily.dailyEE),
     // The server judges its streak on read (0 once a whole Manila day passes
     // unanswered). This device's copy is just as stale — persisted from the
     // last day it answered — and used to win the max and resurrect "3-day
