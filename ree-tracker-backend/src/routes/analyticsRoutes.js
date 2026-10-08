@@ -8,7 +8,7 @@ const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { recordAttempts, todayManila } = require('../services/telemetryService');
-const { normalizeSubject } = require('@ree/shared');
+const { normalizeSubject, effectiveStreak } = require('@ree/shared');
 const { Prisma } = require('@prisma/client');
 const { manilaDaySql } = require('../utils/manilaDate');
 const { PRIOR_SE } = require('../engine/irt');
@@ -35,7 +35,8 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // Uses the SAME Manila date string that telemetryService keys ActivityLog
         // on, so the dashboard's daily Math/ESAS/EE counts always agree with the
         // activity calendar and never miss attempts due to server-TZ drift.
-        const utcStartOfDay = new Date(`${todayManila()}T00:00:00+08:00`);
+        const today = todayManila();
+        const utcStartOfDay = new Date(`${today}T00:00:00+08:00`);
 
         // Every query below is independent, so all eight are issued before any
         // is awaited. They used to run as eight sequential awaits. This service
@@ -232,6 +233,17 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // computing it twice from two different queries is exactly the
         // maintenance hazard that caused the original drift.)
 
+        // The stored streak is only rewritten when answers are recorded, so it
+        // outlives a missed day ("3-day streak" days after the run broke). Serve
+        // it as it stands today, judged from the calendar above: the last Manila
+        // day with answered questions. Not user.lastActive — the profile route
+        // re-stamps that on every app open.
+        let lastStudyDay = null;
+        for (const [day, n] of Object.entries(activityCalendar)) {
+            if (n > 0 && (!lastStudyDay || day > lastStudyDay)) lastStudyDay = day;
+        }
+        const globalStreak = effectiveStreak(user.globalStreak, lastStudyDay, today);
+
         const manilaFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
         const thetaHistory = thetaRows.map((r) => ({
             date: manilaFmt.format(r.recordedAt),
@@ -245,7 +257,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                     uid: user.id,
                     displayName: user.displayName,
                     role: user.role,
-                    globalStreak: user.globalStreak, thetaRating: user.thetaRating,
+                    globalStreak, thetaRating: user.thetaRating,
                     lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
                     dailyMath, dailyESAS, dailyEE,
                     totalAnswered,

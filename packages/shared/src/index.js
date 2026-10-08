@@ -27,6 +27,7 @@ module.exports = {
     ...require('./subject'),
     ...require('./syllabusWeights'),
     ...require('./manilaDate'),
+    ...require('./streak'),
     ...require('./text'),
     ...require('./thresholds'),
     ...require('./exam'),

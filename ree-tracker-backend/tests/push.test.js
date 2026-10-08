@@ -32,31 +32,40 @@ describe('pushService.partitionSendResults', () => {
 });
 
 describe('sendStreakReminders.selectReminderRecipients', () => {
+  const TODAY = '2026-07-11';
   const user = (over = {}) => ({
     id: 'u1', displayName: 'Agent', globalStreak: 5,
     deviceTokens: [{ token: 'tok' }],
-    activityLogs: [], // pre-filtered to today's Manila date by the query
+    // Pre-filtered by the query to ActivityLog days from yesterday (Manila) on.
+    activityLogs: [{ date: '2026-07-10' }],
     ...over,
   });
 
-  it('picks a user with a token, an active streak, and no activity today', () => {
-    expect(selectReminderRecipients([user()])).toEqual([
+  it('picks a user with a token, a streak still alive from yesterday, and no activity today', () => {
+    expect(selectReminderRecipients([user()], TODAY)).toEqual([
       { id: 'u1', displayName: 'Agent', streak: 5 },
     ]);
   });
 
   it('skips users who already studied today (Manila-keyed ActivityLog row)', () => {
-    expect(selectReminderRecipients([user({ activityLogs: [{ date: '2026-07-11' }] })])).toEqual([]);
+    expect(selectReminderRecipients([user({ activityLogs: [{ date: '2026-07-10' }, { date: TODAY }] })], TODAY)).toEqual([]);
+  });
+
+  // The stored streak is only rewritten when answers are recorded, so it
+  // outlives a missed day. Promising "your 5-day streak is on the line" to
+  // someone whose run broke days ago is the stale streak again, in a push.
+  it('skips users whose streak already broke (no study day yesterday)', () => {
+    expect(selectReminderRecipients([user({ activityLogs: [] })], TODAY)).toEqual([]);
   });
 
   it('skips users with no streak to protect and users with no device', () => {
-    expect(selectReminderRecipients([user({ globalStreak: 0 })])).toEqual([]);
-    expect(selectReminderRecipients([user({ deviceTokens: [] })])).toEqual([]);
+    expect(selectReminderRecipients([user({ globalStreak: 0 })], TODAY)).toEqual([]);
+    expect(selectReminderRecipients([user({ deviceTokens: [] })], TODAY)).toEqual([]);
   });
 
   it('is safe on empty/missing input', () => {
-    expect(selectReminderRecipients([])).toEqual([]);
-    expect(selectReminderRecipients(null)).toEqual([]);
+    expect(selectReminderRecipients([], TODAY)).toEqual([]);
+    expect(selectReminderRecipients(null, TODAY)).toEqual([]);
   });
 });
 
