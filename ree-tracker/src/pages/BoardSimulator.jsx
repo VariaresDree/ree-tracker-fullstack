@@ -164,12 +164,19 @@ export default function BoardSimulator() {
     }
   }, [answerKey, explanationKey, activeBattleId, engine.session.isFinished]);
 
-  // Layout is chosen HERE, not by the route (App.jsx no longer wraps this
-  // page in either layout): setup gets normal navigation chrome, an active
-  // or finished exam gets the distraction-free ExamLayout — so the "exam in
-  // progress" banner is only ever shown when one truly is.
-  const inExamMode = (engine.session.isActive || engine.session.isFinished) && !showBoardBreak;
+  // Layout is chosen HERE, not by the route (App.jsx doesn't wrap this page
+  // in either layout). Only a running exam gets the distraction-free
+  // ExamLayout and its "exam in progress" banner. Setup, the break between
+  // full-board sections and the results get the normal app chrome: the
+  // results used to keep the red exam banner after the exam had ended.
+  const inExamMode = engine.session.isActive && !engine.session.isFinished && !showBoardBreak;
   const Layout = inExamMode ? ExamLayout : MainLayout;
+
+  // Switching layouts remounts the page body; start the results at the top,
+  // not at the last question's scroll position.
+  useEffect(() => {
+    if (engine.session.isFinished) window.scrollTo?.(0, 0);
+  }, [engine.session.isFinished]);
 
   const content = (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">
