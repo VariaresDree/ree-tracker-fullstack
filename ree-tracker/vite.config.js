@@ -148,9 +148,9 @@ export default defineConfig(async ({ mode, command }) => {
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'REE.ai Tactical Reviewer',
+        name: 'REE.ai — Electrical Engineering board review',
         short_name: 'REE.ai',
-        description: 'Philippine REE Board Exam Predictive Analytics & Active Review Engine',
+        description: 'Review for the Philippine Registered Electrical Engineer board exam: practice, mock boards and your readiness.',
         theme_color: '#0a0f1e',
         background_color: '#0a0f1e',
         display: 'standalone',

@@ -30,6 +30,16 @@ const BANNED = [
   /Apex Agent/i,
   /into the Matrix/i,
   /Matrix API/i,
+  // The 2026-10 polish pass: the app title, the update prompt, the Gauntlet
+  // results and the error screens.
+  /Tactical/i,
+  /the matrix/i,
+  /knowledge matrix/i,
+  /Critical System Error/i,
+  /Reload Engine/i,
+  /Simulation Failed/i,
+  /real-time penalties/i,
+  /(^|[\s'"`>])[Vv]ault\b(?!\/)/, // a word in text; paths (features/vault/) and identifiers (CloudVaultTab) are fine
 ];
 
 function sourceFiles(dir) {
@@ -62,6 +72,14 @@ describe('copy guard', () => {
       });
     }
     expect(hits).toEqual([]);
+  });
+
+  it('catches "vault" as a word in text, not in paths or identifiers', () => {
+    const vault = BANNED.find((re) => re.source.includes('ault'));
+    expect(vault.test("label: 'Question vault'")).toBe(true);
+    expect(vault.test('<h2>Vault overview</h2>'.replace('<h2>', '>'))).toBe(true);
+    expect(vault.test("import X from '../features/vault/BookmarkVaultTab';")).toBe(false);
+    expect(vault.test('const CloudVaultTab = lazy(() => null);')).toBe(false);
   });
 
   it('would catch a reintroduced phrase', () => {

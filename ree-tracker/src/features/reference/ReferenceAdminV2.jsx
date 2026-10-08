@@ -638,7 +638,7 @@ export default function ReferenceAdminV2() {
                         description={`Every card (${debt?.checked ?? 0} checked) passes the required-field rules. Incomplete cards can't be created going forward.`} />
                 ) : (
                     <div className="flex flex-col gap-3">
-                        <p className="text-xs text-muted2"><span className="font-bold text-textMain">{debt.items.length}</span> of {debt.checked} cards are incomplete — fix them via Edit so the vault stays trustworthy.</p>
+                        <p className="text-xs text-muted2"><span className="font-bold text-textMain">{debt.items.length}</span> of {debt.checked} cards are incomplete — fix them via Edit so the cards stay trustworthy.</p>
                         {debt.items.map(({ card, reasons }) => cardRow(card, (
                             <>
                                 <StatusPill tone="danger">{reasons.join(' · ')}</StatusPill>
@@ -670,7 +670,7 @@ export default function ReferenceAdminV2() {
                     </>
                 }>
                 <p className="text-sm text-muted2">
-                    This publishes them to every user's reference vault immediately. The server re-checks
+                    This publishes them to every user's formula cards immediately. The server re-checks
                     each card's completeness — anything failing stays in the queue. Every approval is logged.
                 </p>
             </Modal>

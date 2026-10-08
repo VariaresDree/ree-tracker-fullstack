@@ -185,7 +185,7 @@ export const generateMasterExplanation = async (questionObj, isRetry = false) =>
         return await callAI(prompt, false);
     } catch (error) {
         console.error("AI Explanation Error:", error);
-        return "Explanation engine currently overloaded. Refer to offline matrix formulas.";
+        return "Explanations are busy right now. Try again in a minute, or look the topic up in Library › Formula cards.";
     }
 };
 
@@ -204,13 +204,13 @@ export const generateBoardReadinessReport = async (stats, readinessScore, weakTo
            * Imposter Syndrome: ${stats?.matrix?.lc || 0}
            * Weak Foundations: ${stats?.matrix?.lw || 0}
 
-        Provide a short, 3-sentence diagnostic tactical direction. Be direct, authoritative, and motivating. Address blind spots if they exist. Do not use large markdown headers.
+        In 3 short sentences, say what to study next and why. Write in plain English to a Filipino board-exam reviewee: direct, specific and encouraging, with no military or sci-fi wording. Address blind spots if they exist. Do not use large markdown headers.
     `;
 
     try {
         return await callAI(prompt, false);
     } catch (error) {
-        return "Failed to generate dynamic tactical diagnostics. Please try again later.";
+        return "Couldn’t write the board report right now. Try again in a minute.";
     }
 };
 
@@ -330,7 +330,7 @@ export const generateDeepExplanation = async (questionText, correctAnswer, optio
     try {
         return await callAI(prompt, false);
     } catch (error) {
-        console.error("Gemini API Error in Bookmark Vault:", error);
+        console.error("Gemini API error (bookmark explanation):", error);
         throw new Error("Failed to generate AI derivation.");
     }
 };

@@ -1,6 +1,7 @@
 // The spaced-review entry point on the setup screen.
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const fetchSrsSummary = vi.fn();
@@ -27,7 +28,7 @@ describe('ReviewSetup — due for review', () => {
   it('offers the due queue as a session, capped at 30', async () => {
     fetchSrsSummary.mockResolvedValue({ due: 42, overdue: 5, total: 60, bySubject: {}, nextDueAt: null });
     const props = baseProps();
-    render(<ReviewSetup {...props} />);
+    render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
 
     expect(await screen.findByText('42 questions due for review')).toBeInTheDocument();
     expect(screen.getByText(/5 overdue/)).toBeInTheDocument();
@@ -38,19 +39,19 @@ describe('ReviewSetup — due for review', () => {
   it('says when the next review is due once the queue is clear', async () => {
     const tomorrow = new Date(Date.now() + 20 * 3600 * 1000).toISOString();
     fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 8, bySubject: {}, nextDueAt: tomorrow });
-    render(<ReviewSetup {...baseProps()} />);
+    render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
     expect(await screen.findByText('Review queue is clear')).toBeInTheDocument();
     expect(screen.getByText(/Next review tomorrow/)).toBeInTheDocument();
   });
 
   it('shows nothing before any card exists, and never asks while offline', async () => {
     fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 0, bySubject: {}, nextDueAt: null });
-    render(<ReviewSetup {...baseProps()} />);
+    render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
     await waitFor(() => expect(fetchSrsSummary).toHaveBeenCalled());
     expect(screen.queryByText(/due for review|queue is clear/)).not.toBeInTheDocument();
 
     fetchSrsSummary.mockClear();
-    render(<ReviewSetup {...baseProps()} isOnline={false} />);
+    render(<MemoryRouter><ReviewSetup {...baseProps()} isOnline={false} /></MemoryRouter>);
     expect(fetchSrsSummary).not.toHaveBeenCalled();
   });
 });
@@ -62,7 +63,7 @@ describe('ReviewSetup — presets and the custom form', () => {
 
   it('four presets: Quick 20, Weak spots (the adaptive drill), Flashcards, Bookmarks', () => {
     const props = baseProps();
-    render(<ReviewSetup {...props} />);
+    render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1, name: 'Practice' })).toBeInTheDocument();
     const names = ['Quick 20', 'Weak spots', 'Flashcards', 'Bookmarks'];
     names.forEach((n) => expect(screen.getByText(n)).toBeInTheDocument());
@@ -75,12 +76,12 @@ describe('ReviewSetup — presets and the custom form', () => {
   });
 
   it('offline, the drill and bookmarks presets say they need a connection', () => {
-    render(<ReviewSetup {...baseProps()} isOnline={false} />);
+    render(<MemoryRouter><ReviewSetup {...baseProps()} isOnline={false} /></MemoryRouter>);
     expect(screen.getAllByText('Needs a connection')).toHaveLength(2);
   });
 
   it('the custom form has one way to drill: none. Scope is all, one subject or one topic', () => {
-    render(<ReviewSetup {...baseProps()} />);
+    render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /Custom session/ }));
     expect(screen.queryByRole('radio', { name: 'Weak points' })).not.toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: /Smart drill/ })).not.toBeInTheDocument();
@@ -91,7 +92,7 @@ describe('ReviewSetup — presets and the custom form', () => {
   it('a drill left in the form shows, and starts, as a question-bank session over every subject', () => {
     const props = baseProps();
     props.config = { ...props.config, studyMode: 'bleeding', source: 'smart-drill', subject: 'EE', drillTopic: 'Protection' };
-    render(<ReviewSetup {...props} />);
+    render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /Custom session/ }));
     expect(screen.getByRole('radio', { name: 'All subjects' })).toBeChecked();
     expect(screen.getByRole('radio', { name: 'Question bank' })).toBeChecked();
@@ -102,7 +103,7 @@ describe('ReviewSetup — presets and the custom form', () => {
   it('choosing one subject keeps the chosen source', () => {
     const props = baseProps();
     props.config = { ...props.config, source: 'bookmarks' };
-    render(<ReviewSetup {...props} />);
+    render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /Custom session/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'One subject' }));
     expect(props.setConfig).toHaveBeenCalledWith(expect.objectContaining({ studyMode: 'subject', subject: 'Mathematics', source: 'bookmarks' }));

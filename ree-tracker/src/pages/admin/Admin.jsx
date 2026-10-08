@@ -58,7 +58,7 @@ export default function Admin() {
           )}
 
           {tab === 'handouts' && (viewingMaterial
-            ? <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} />
+            ? <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} headingLevel={2} />
             : <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />)}
         </Suspense>
       </ErrorBoundary>

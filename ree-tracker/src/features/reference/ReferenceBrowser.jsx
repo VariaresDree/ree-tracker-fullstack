@@ -56,7 +56,7 @@ function BrowseTile({ label, count, onClick, eyebrow }) {
 
 function Breadcrumb({ items, onNavigate }) {
   return (
-    <nav aria-label="Reference vault location" className="flex items-center gap-1.5 flex-wrap text-sm">
+    <nav aria-label="Formula cards location" className="flex items-center gap-1.5 flex-wrap text-sm">
       {items.map((it, i) => {
         const isLast = i === items.length - 1;
         return (
@@ -191,7 +191,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     setSelectedSubtopic(null);
   };
 
-  const breadcrumbItems = [{ label: 'Reference vault' }];
+  const breadcrumbItems = [{ label: 'Formula cards' }];
   if (selectedSubject) breadcrumbItems.push({ label: selectedSubject });
   if (selectedTopic) breadcrumbItems.push({ label: selectedTopic });
   if (selectedSubtopic) breadcrumbItems.push({ label: selectedSubtopic === UNTAGGED ? 'General' : selectedSubtopic });
@@ -217,7 +217,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     return (
       <EmptyState
         icon={RefreshCw}
-        title="Couldn't load the reference vault"
+        title="Couldn't load the formula cards"
         description="Check your connection and try again."
         action={<Button size="sm" variant="secondary" onClick={reload}>Retry</Button>}
       />
@@ -228,8 +228,8 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     return (
       <EmptyState
         icon={Sparkles}
-        title="The reference vault is being rebuilt"
-        description="Flashcards appear here as newly generated content passes review. If you're offline, connect once to sync the vault."
+        title="The formula cards are being rebuilt"
+        description="Flashcards appear here as newly generated content passes review. If you're offline, connect once to download them."
       />
     );
   }

@@ -10,12 +10,12 @@ import { registerSW } from 'virtual:pwa-register';
 const updateSW = registerSW({
   onNeedRefresh() {
     // Optional: You can trigger a custom toast notification here later
-    if (confirm("New engine update available. Reload the matrix?")) {
+    if (confirm('A new version of REE.ai is ready. Reload now?')) {
       updateSW(true);
     }
   },
   onOfflineReady() {
-    console.log("System offline-ready. Tactical review matrices cached.");
+    console.log('REE.ai is ready to work offline.');
   },
 });
 

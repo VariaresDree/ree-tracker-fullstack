@@ -143,7 +143,7 @@ export default function MockBoardAnalytics() {
         </span>
       ),
     },
-    { key: 'type', label: 'Type', render: (r) => KIND_LABEL[r.kind] || (r.isPrcStandard ? 'PRC standard' : 'Board simulation') },
+    { key: 'type', label: 'Type', render: (r) => KIND_LABEL[r.kind] || (r.isPrcStandard ? 'PRC standard' : 'Mock board') },
     {
       key: 'subject',
       label: 'Subject',
@@ -251,7 +251,7 @@ export default function MockBoardAnalytics() {
             rows={history}
             rowKey={(r) => r.id}
             initialSort={{ key: 'date', dir: 'desc' }}
-            emptyMessage="No sittings yet. Finish a board simulation or battle to see it here."
+            emptyMessage="No sittings yet. Finish a mock board or battle to see it here."
           />
         )}
       </Panel>

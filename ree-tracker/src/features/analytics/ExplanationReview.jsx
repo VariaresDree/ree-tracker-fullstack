@@ -100,9 +100,9 @@ export default function ExplanationReview() {
         <div className="space-y-3">
             <div className="flex items-start justify-between mb-2 gap-3">
                 <div>
-                    <h3 className="text-sm font-bold text-textMain">
-                        Explanation Review Queue ({questions.length})
-                    </h3>
+                    <h2 className="text-sm font-bold text-textMain">
+                        Explanation review queue ({questions.length})
+                    </h2>
                     <p className="text-[0.7rem] text-muted2 mt-1 leading-relaxed max-w-2xl">
                         Approve or reject AI-generated explanations queued for the question bank.
                         Approved text becomes the canonical solution shown when you review that item;

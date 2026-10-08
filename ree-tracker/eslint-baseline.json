@@ -2,7 +2,7 @@
   "no-case-declarations": 2,
   "no-control-regex": 1,
   "no-empty": 6,
-  "no-unused-vars": 91,
+  "no-unused-vars": 90,
   "no-useless-assignment": 4,
   "preserve-caught-error": 5,
   "react-hooks/globals": 1,

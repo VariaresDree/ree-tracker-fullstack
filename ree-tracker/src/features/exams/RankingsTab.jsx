@@ -63,7 +63,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
               {agent.displayName}
               {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
             </span>
-            <span className="text-[11px] text-muted font-mono opacity-60 truncate">ID: {agent.uid.slice(0, 8)}</span>
+            <span className="text-[11px] text-muted2 tabular-nums truncate">{agent.questionsAnswered || 0} answered</span>
           </div>
         </div>
         <div className="col-span-2 flex flex-col items-end">

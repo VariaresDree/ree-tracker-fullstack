@@ -65,7 +65,7 @@ export default function AccountMenu() {
         <div
           ref={panelRef}
           id={panelId}
-          className="absolute right-0 top-full mt-2 w-64 z-[60] bg-surface border border-border2 rounded-[var(--radius-lg)] shadow-xl p-2"
+          className="absolute right-0 top-full mt-2 w-64 z-[60] max-h-[min(70dvh,32rem)] overflow-y-auto bg-surface border border-border2 rounded-[var(--radius-lg)] shadow-xl p-2"
         >
           <div className="px-3 py-2 border-b border-border2 mb-1 min-w-0">
             <p className="text-sm font-semibold text-textMain truncate">{name}</p>

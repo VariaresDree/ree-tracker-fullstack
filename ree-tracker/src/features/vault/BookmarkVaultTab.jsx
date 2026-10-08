@@ -169,9 +169,9 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
                   
                   <div className="flex items-center gap-3 w-full md:w-auto shrink-0 mt-2 md:mt-0">
                     <button onClick={() => toggleBookmarkExpand(item.id)} className={`flex-1 md:flex-none px-6 py-2.5 border rounded-lg text-xs font-bold transition-colors cursor-pointer ${isExpanded ? 'bg-surface3 border-border2 text-textMain' : 'bg-surface2 hover:bg-surface3 text-textMain border-border2'}`}>
-                      {isExpanded ? '✕ Close Viewer' : 'Review Data'}
+                      {isExpanded ? 'Hide question' : 'Show question'}
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleRemoveBookmark(item.id); }} className="px-4 py-2.5 bg-bg border border-border2 text-muted hover:text-reeRed hover:border-reeRed/30 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center justify-center" title="Remove bookmark" aria-label="Remove bookmark">
+                    <button onClick={(e) => { e.stopPropagation(); handleRemoveBookmark(item.id); }} className="touch-target px-4 py-2.5 bg-bg border border-border2 text-muted hover:text-reeRed hover:border-reeRed/30 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center justify-center" title="Remove bookmark" aria-label="Remove bookmark">
                       ✕
                     </button>
                   </div>
@@ -255,9 +255,9 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
                          <div className="flex justify-between items-center mb-3 border-b border-reePurple/20 pb-2">
                              <div className="flex items-center gap-2">
                                  <span className="text-[11px] font-bold text-reePurple uppercase tracking-widest">Deep AI Analysis</span>
-                                 {!isOnline && <span className="text-[11px] bg-reePurple/10 text-reePurple px-2 py-0.5 rounded border border-reePurple/20 font-bold uppercase tracking-widest">Offline Cache</span>}
+                                 {!isOnline && <span className="text-[11px] bg-reePurple/10 text-reePurple px-2 py-0.5 rounded border border-reePurple/20 font-bold uppercase tracking-widest">Saved offline</span>}
                              </div>
-                             <button onClick={() => handleFetchAIBookmark(item, true)} disabled={isAiLoading[item.id] || !isOnline} className="text-reePurple hover:bg-reePurple/10 px-2 py-1 rounded text-[11px] font-bold uppercase transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center">🔄 Regenerate</button>
+                             <button onClick={() => handleFetchAIBookmark(item, true)} disabled={isAiLoading[item.id] || !isOnline} className="text-reePurple hover:bg-reePurple/10 px-2 py-1 rounded text-[11px] font-bold uppercase transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center">Regenerate</button>
                          </div>
                          <div className="text-sm text-textMain leading-relaxed overflow-x-auto math-scroll-mobile p-4 bg-reePurple/5 border border-reePurple/10 rounded-lg">
                              <LatexRenderer content={aiResponses[item.id] || item.cachedAiExplanation || item.fixedExplanation} />

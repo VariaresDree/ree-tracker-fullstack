@@ -119,7 +119,7 @@ export default function ManualIngestionForm({
 
                 <div className="pt-4 border-t border-border mt-2">
                     <Button type="submit" fullWidth loading={isSubmitting} disabled={isSubmitting}>
-                        {isSubmitting ? 'Adding…' : 'Add to vault'}
+                        {isSubmitting ? 'Adding…' : 'Add to question bank'}
                     </Button>
                 </div>
             </form>

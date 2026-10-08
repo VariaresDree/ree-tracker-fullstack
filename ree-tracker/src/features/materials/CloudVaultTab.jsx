@@ -268,7 +268,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                   {editingItem.id === f.id && editingItem.type === 'folder' ? (
                     <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded w-full font-bold pointer-events-auto" />
                   ) : (
-                    <span title={f.name} className="font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5">{f.name}</span>
+                    <button type="button" title={f.name} aria-label={`Open folder ${f.name}`} className="pointer-events-auto text-left font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5 rounded">{f.name}</button>
                   )}
                 </div>
                 {isAdmin && (

@@ -348,7 +348,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
     setIsSyncing(true);
     try {
       await resyncVaultMetadata();
-      toast.success("Vault counts refreshed.");
+      toast.success("Question counts refreshed.");
     } catch (err) {
       toast.error("Refresh failed.");
     }
@@ -399,7 +399,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
     <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-6 shadow-sm flex flex-col gap-6">
       <div className="flex justify-between items-center border-b border-border pb-4 flex-wrap gap-4">
         <h3 className="text-lg font-semibold text-textMain tracking-tight flex items-center gap-2">
-          <Layers size={18} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Vault overview
+          <Layers size={18} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Question bank overview
         </h3>
         <div className="flex flex-wrap gap-2 z-10">
           {isAdmin && (

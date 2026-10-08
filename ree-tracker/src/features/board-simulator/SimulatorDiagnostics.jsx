@@ -77,7 +77,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                     ></div>
 
                     <div className="relative z-10">
-                        <h2 className="text-eyebrow mb-4">Results</h2>
+                        <h1 className="text-eyebrow mb-4">Mock board results</h1>
                         <div className="text-display text-8xl sm:text-9xl tracking-tighter drop-shadow-lg mb-2" style={{ color: accent }}>
                             {diagnostics.score}%
                         </div>

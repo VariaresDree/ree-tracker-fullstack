@@ -30,7 +30,9 @@ export function Tabs({ tabs, active, onChange, label, className }) {
       role="tablist"
       aria-label={label}
       onKeyDown={onKeyDown}
-      className={cn('flex gap-1 overflow-x-auto border-b border-border', className)}
+      // The strip scrolls sideways on phones; no scrollbar track under it
+      // (arrow keys move between tabs, and touch scrolls the strip).
+      className={cn('flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
     >
       {tabs.map((t, i) => {
         const on = t.id === active;

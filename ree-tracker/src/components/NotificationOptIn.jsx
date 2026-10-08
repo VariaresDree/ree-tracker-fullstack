@@ -131,7 +131,7 @@ export default function NotificationOptIn({ inline = false }) {
           <button
             onClick={dismiss}
             aria-label="Dismiss"
-            className="shrink-0 p-1 -mt-1 -mr-1 text-muted hover:text-textMain rounded cursor-pointer"
+            className="touch-target shrink-0 p-1 -mt-1 -mr-1 text-muted hover:text-textMain rounded cursor-pointer"
           >
             <X size={16} strokeWidth={1.75} aria-hidden="true" />
           </button>

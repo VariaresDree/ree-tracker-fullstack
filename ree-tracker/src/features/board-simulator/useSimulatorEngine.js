@@ -226,7 +226,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }
       } else {
-          if (!isOnline) throw new Error("Offline mode: Must use Local Library Vault.");
+          if (!isOnline) throw new Error("You're offline. Choose the question bank saved on this device.");
           const subjectTopics = dynamicTOS[config.subject];
           if (!subjectTopics || subjectTopics.length === 0) throw new Error("TOS configuration missing.");
           
@@ -243,7 +243,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       if (pool.length < totalCount && pool.length > 0) {
           toast(`Only ${pool.length} questions were available for this mock.`);
       }
-      if (pool.length === 0) throw new Error("Vault empty for selected parameters.");
+      if (pool.length === 0) throw new Error("No questions match these settings yet.");
       
       // 🚀 THE FIX: Final global shuffle destroys predictability in Full Blended Mode!
       pool = shuffleArray(pool);
