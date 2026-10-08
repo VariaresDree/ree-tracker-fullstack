@@ -146,7 +146,8 @@ export function mergeServerIntoStats(stats, sqlData) {
 /**
  * Fetch the dashboard aggregate, reconcile, and HYDRATE the store — then
  * return the normalized payload (or null when the server has nothing).
- * Callers: Dashboard mount/sync-tick, Profile mount, "Restore from cloud".
+ * Callers: useDashboardStats (Today, Progress), the app-wide sync lifecycle,
+ * "Restore from cloud".
  */
 // Last raw server payload, kept so a later TOS change can be re-applied
 // WITHOUT another round-trip. Dashboard used to list `dynamicTOS` in its fetch
@@ -157,6 +158,26 @@ export function mergeServerIntoStats(stats, sqlData) {
 // microTopics are BUCKETED for display; it is not new server data, so the fix
 // is to re-normalize what we already have.
 let lastRawDashboard = null;
+// Whose payload it is. A sign-out and sign-in as someone else in the same tab
+// must never show the previous account's numbers, even for a moment.
+let lastRawUid = null;
+
+// Today and Progress subscribe here (useSyncExternalStore) so a refresh from
+// ANY caller — their own mount fetch, or the app-wide sync lifecycle after an
+// offline batch lands — re-renders them. Dashboard used to refetch on its own
+// sync tick as well, which doubled the request on every sync.
+const listeners = new Set();
+function remember(uid, raw) {
+  lastRawDashboard = raw;
+  lastRawUid = uid;
+  listeners.forEach((l) => l());
+}
+
+/** Subscribe to "the dashboard payload changed". Returns the unsubscribe. */
+export function subscribeDashboardStats(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 /** Normalize a raw dashboard payload against the current TOS and hydrate. */
 function hydrateFromRaw(raw) {
@@ -183,8 +204,9 @@ export async function syncDashboardStats(uid) {
     try {
       const shared = await seeded;
       if (shared?.data) {
-        lastRawDashboard = shared.data;
-        return hydrateFromRaw(shared.data);
+        const normalized = hydrateFromRaw(shared.data);
+        remember(uid, shared.data);
+        return normalized;
       }
       // Empty response — fall through and ask for ourselves.
     } catch {
@@ -195,21 +217,48 @@ export async function syncDashboardStats(uid) {
 
   const json = await apiRequest(`/api/analytics/dashboard/${uid}`);
   if (!json?.data) return null;
-  lastRawDashboard = json.data;
-  return hydrateFromRaw(json.data);
+  const normalized = hydrateFromRaw(json.data);
+  remember(uid, json.data);
+  return normalized;
 }
 
 /**
  * Re-bucket the LAST fetched payload against the current TOS and re-hydrate.
- * No network. Returns null before the first successful fetch, so callers can
- * simply skip. This is what a TOS change should trigger — not a refetch.
+ * No network. Returns null before the first successful fetch (or when `uid`
+ * is given and the payload is someone else's), so callers can simply skip.
+ * This is what a TOS change should trigger — not a refetch.
  */
-export function renormalizeDashboardStats() {
-  return lastRawDashboard ? hydrateFromRaw(lastRawDashboard) : null;
+export function renormalizeDashboardStats(uid) {
+  if (!lastRawDashboard || (uid && uid !== lastRawUid)) return null;
+  return hydrateFromRaw(lastRawDashboard);
+}
+
+// Memo for cachedDashboardStats: the same payload and TOS give the same
+// object, so it can serve as a useSyncExternalStore snapshot.
+let memo = { raw: null, tos: null, value: null };
+
+/**
+ * The last fetched payload for `uid`, normalized against `tos`, WITHOUT
+ * touching the store — safe to call during render. Moving between Today and
+ * Progress starts from this instead of a skeleton; the mount fetch refreshes it.
+ */
+export function cachedDashboardStats(uid, tos) {
+  if (!lastRawDashboard || !uid || uid !== lastRawUid) return null;
+  if (memo.raw !== lastRawDashboard || memo.tos !== tos) {
+    memo = {
+      raw: lastRawDashboard,
+      tos,
+      value: { ...lastRawDashboard, microTopics: normalizeMicroTopics(lastRawDashboard.microTopics || {}, tos || {}) },
+    };
+  }
+  return memo.value;
 }
 
 /** Test seam: forget the cached payload between cases. */
 export function __resetDashboardCache() {
   lastRawDashboard = null;
+  lastRawUid = null;
+  memo = { raw: null, tos: null, value: null };
   invalidateDashboardSeed();
+  listeners.forEach((l) => l());
 }

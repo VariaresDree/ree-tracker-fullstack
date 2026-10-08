@@ -24,7 +24,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
 
   const atCurrentMonth = currentDate.getMonth() === tMonth - 1 && currentDate.getFullYear() === tYear;
 
-  // Grand total across ALL days — this equals the Dashboard "Questions answered"
+  // Grand total across ALL days — this equals the Progress "Questions answered"
   // KPI and the store's totalAnswered (the backend returns every day uncapped and
   // analyticsSync reconciles them to one server-authoritative number).
   const grandTotal = Object.values(activityCalendar).reduce((sum, n) => sum + (Number(n) || 0), 0);
@@ -44,10 +44,8 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       {/* Header */}
       <div className="w-full flex flex-col md:flex-row md:justify-between md:items-end mb-6 border-b border-border2 pb-4 gap-3">
         <div>
-          <h3 className="text-lg font-black text-textMain flex items-center gap-2 tracking-tight">
-            <span>📅</span> Consistency Matrix
-          </h3>
-          <p className="text-sm text-muted mt-1 font-medium">Calendar Heatmap (Daily Target: {targetQuota} Qs)</p>
+          <h2 className="text-lg font-semibold text-textMain tracking-tight">Study calendar</h2>
+          <p className="text-sm text-muted mt-1">Questions answered each day, against your daily target of {targetQuota}.</p>
           <p className="text-eyebrow mt-2 text-textMain">
             {grandTotal.toLocaleString()} questions answered all-time
           </p>

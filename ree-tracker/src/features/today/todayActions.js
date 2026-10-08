@@ -5,6 +5,7 @@
 
 import { PRC_FORMAT_SUMMARY } from '../../config/examStandards';
 import { drillPreset, dueReviewPreset, quickReviewPreset } from '../active-recall/presets';
+import { isTaskDone, taskLaunch } from '../profile/plannerTasks';
 
 const MAX_ACTIONS = 4;
 const DEFAULT_TARGET = 50;
@@ -41,13 +42,29 @@ export function daysToExam(examDate, now = new Date()) {
 }
 
 /**
+ * Today's open study-plan task: due today (a Manila day, YYYY-MM-DD), not yet
+ * done by hand or by the day's answers, and one the app can start. Free-text
+ * tasks have no session to launch, so they stay in the planner.
+ */
+export function pickPlanTask(tasks, today) {
+  return (tasks || []).find((t) => t?.dueDate === today && !isTaskDone(t) && taskLaunch(t)) || null;
+}
+
+const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+
+/**
  * @param {object} input
  * @param {{due:number, overdue?:number}} [input.srs]
+ * @param {object|null} [input.planTask]  from pickPlanTask
  * @param {{recommendedActions?:Array}} [input.forecast]
  * @param {{done:number, target:number}} [input.daily]
  * @param {number|null} [input.examInDays]
+ *
+ * Order: due reviews, today's plan task, the forecast's top fix, today's
+ * target, a mock. A plan task replaces the action it duplicates: a drill on
+ * the same topic as the fix, a review for the target, a mock for the mock.
  */
-export function buildTodayActions({ srs, forecast, daily, examInDays } = {}) {
+export function buildTodayActions({ srs, planTask, forecast, daily, examInDays } = {}) {
   const actions = [];
 
   if (srs?.due > 0) {
@@ -63,8 +80,23 @@ export function buildTodayActions({ srs, forecast, daily, examInDays } = {}) {
     });
   }
 
+  const plan = planTask ? taskLaunch(planTask) : null;
+  if (plan) {
+    const p = planTask.progress;
+    actions.push({
+      key: 'plan',
+      title: planTask.text,
+      detail: p && p.count > 0
+        ? `From your study plan · ${Math.min(p.count, p.target)} of ${p.target} done today.`
+        : 'From your study plan for today.',
+      cta: planTask.kind === 'mock' ? 'Set up' : 'Start',
+      ...plan,
+    });
+  }
+
   const fix = (forecast?.recommendedActions || []).find((a) => a.type === 'BLIND_SPOT' || a.type === 'DRILL');
-  if (fix?.payload?.topic) {
+  const fixDuplicated = planTask?.kind === 'drill' && sameTopic(planTask.topic, fix?.payload?.topic);
+  if (fix?.payload?.topic && !fixDuplicated) {
     const blind = fix.type === 'BLIND_SPOT';
     actions.push({
       key: 'fix',
@@ -79,7 +111,7 @@ export function buildTodayActions({ srs, forecast, daily, examInDays } = {}) {
   }
 
   const remaining = (daily?.target || 0) - (daily?.done || 0);
-  if (daily && remaining > 0) {
+  if (daily && remaining > 0 && planTask?.kind !== 'review') {
     actions.push({
       key: 'target',
       title: `${remaining} more to hit today’s target`,
@@ -89,15 +121,17 @@ export function buildTodayActions({ srs, forecast, daily, examInDays } = {}) {
     });
   }
 
-  actions.push({
-    key: 'mock',
-    title: 'Sit a timed mock board',
-    detail: examInDays != null && examInDays >= 0
-      ? `${examInDays} days to go — rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`
-      : `Rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
-    cta: 'Open simulator',
-    to: '/simulator',
-  });
+  if (planTask?.kind !== 'mock') {
+    actions.push({
+      key: 'mock',
+      title: 'Sit a timed mock board',
+      detail: examInDays != null && examInDays >= 0
+        ? `${examInDays} days to go — rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`
+        : `Rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
+      cta: 'Open simulator',
+      to: '/simulator',
+    });
+  }
 
   return actions.slice(0, MAX_ACTIONS);
 }

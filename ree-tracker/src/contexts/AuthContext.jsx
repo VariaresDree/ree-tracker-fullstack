@@ -124,11 +124,12 @@ export const AuthProvider = ({ children }) => {
           const flagsPromise = fetchFeatureFlags();
 
           // This request IS the dashboard aggregate — the same endpoint
-          // Dashboard fetches on mount, about a second from now. We only need
+          // Today fetches on mount (useDashboardStats), about a second from
+          // now. We only need
           // profile.role from it, so offer the request itself and let that
           // second one never go out.
           //
-          // Offered HERE, before the await, on purpose: Dashboard often mounts
+          // Offered HERE, before the await, on purpose: Today often mounts
           // while this is still in flight, and an offer made after the response
           // lands arrives too late to be taken. Single-use, uid-matched,
           // age-bounded and dropped by any write (services/dashboardSeed.js).

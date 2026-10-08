@@ -1,7 +1,7 @@
 // The Today panel: readiness index (with the breakdown the API always returned
-// but nothing rendered), the PRC pass probability, today's target, and the
-// ordered next actions — each of which launches the right session.
-import React from 'react';
+// but nothing rendered), the PRC pass probability, today's target split by
+// subject, and the ordered next actions (today's plan task included), each of
+// which launches the right session.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
@@ -13,7 +13,12 @@ vi.mock('../../hooks/useSrsSummary', () => ({ useSrsSummary: () => ({ summary: s
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../diagnostic/PlacementPrompt', () => ({ default: () => <div>placement-prompt</div> }));
 let historyItems = [];
-vi.mock('../../services/dbQueries', () => ({ fetchReadinessHistory: () => Promise.resolve({ items: historyItems }) }));
+let plannerItems = [];
+vi.mock('../../services/dbQueries', () => ({
+  fetchReadinessHistory: () => Promise.resolve({ items: historyItems }),
+  fetchPlannerTasks: () => Promise.resolve({ items: plannerItems }),
+}));
+vi.mock('../../utils/manilaDate', () => ({ todayManila: () => '2026-10-08' }));
 
 const { default: TodayPanel } = await import('./TodayPanel');
 
@@ -34,6 +39,7 @@ const renderPanel = (props) => render(
 
 beforeEach(() => {
   lastState = null;
+  plannerItems = [];
   srs = { due: 6, overdue: 0 };
   forecast = {
     loading: false,
@@ -70,6 +76,11 @@ describe('TodayPanel', () => {
     expect(screen.getByText(/Projected average 68.2%/)).toBeInTheDocument();
     expect(screen.getByText(/12% risk of a subject under the floor/)).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
+    // 40 a day by the PRC weights: Mathematics 10, ESAS 12, EE 18.
+    expect(screen.getByRole('progressbar', { name: 'ESAS: 2 of 12' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'EE: 6 of 18' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Change' })).toHaveAttribute('href', '/account#exam-plan');
+    expect(screen.getByRole('link', { name: /in Progress/ })).toHaveAttribute('href', '/progress');
   });
 
   it('a readiness index still loading shows a skeleton, never a stand-in number', () => {
@@ -86,5 +97,21 @@ describe('TodayPanel', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Drill' })[0]);
     expect(screen.getByText('review-page')).toBeInTheDocument();
     expect(lastState.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopicId: 't' });
+  });
+
+  it('puts today’s study-plan task after due reviews, in place of the same-topic fix', async () => {
+    plannerItems = [
+      { id: 'old', kind: 'drill', topic: 'Calculus', dueDate: '2026-10-07', text: 'Drill Calculus — 15 questions' },
+      { id: 'p1', kind: 'drill', topic: 'Protection', subject: 'EE', topicId: 't', targetCount: 15, dueDate: '2026-10-08', text: 'Drill Protection — 15 questions', progress: { count: 4, target: 15, done: false } },
+    ];
+    renderPanel({ readiness: null, stats: { dailyTarget: 50 } });
+    expect(await screen.findByText('Drill Protection — 15 questions')).toBeInTheDocument();
+    const items = screen.getAllByRole('listitem').map((li) => li.textContent);
+    expect(items[0]).toMatch(/Review 6 due questions/);
+    expect(items[1]).toMatch(/4 of 15 done today/);
+    expect(items.some((t) => /Fix a blind spot/.test(t))).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(lastState.preset).toMatchObject({ source: 'smart-drill', drillTopic: 'Protection', count: 15 });
   });
 });

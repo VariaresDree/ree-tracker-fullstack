@@ -1,0 +1,114 @@
+// Today and Progress after the 2026-10 reorganization. Today is the countdown,
+// the streak and one card; the analytics moved to Progress, one question per
+// tab. Heavy children are mocked: these tests pin the wiring.
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within, fireEvent } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+
+let statsState;
+vi.mock('../hooks/useDashboardStats', () => ({ useDashboardStats: () => statsState }));
+vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1', displayName: 'Dree' } }) }));
+vi.mock('../features/today/TodayPanel', () => ({ default: ({ answered }) => <p>today-panel answered={answered}</p> }));
+vi.mock('../features/progress/OverviewTab', () => ({ default: ({ kpi }) => <p>overview accuracy={kpi.accuracy}</p> }));
+vi.mock('../features/progress/TopicsTab', () => ({ default: () => <p>topics</p> }));
+vi.mock('../features/progress/WeakSpotsTab', () => ({ default: () => <p>weak-spots</p> }));
+vi.mock('../features/progress/ConfidenceTab', () => ({ default: () => <p>confidence</p> }));
+vi.mock('../features/progress/HabitsTab', () => ({ default: () => <p>habits</p> }));
+vi.mock('../features/profile/StrategicPlannerTab', () => ({ default: ({ currentUser }) => <p>planner uid={currentUser.uid}</p> }));
+
+const { default: Today } = await import('./Today');
+const { default: Progress } = await import('./Progress');
+
+const loaded = (stats = {}, kpi = {}) => ({
+  loading: false,
+  readiness: null,
+  activeStats: { dailyTarget: 50, ...stats },
+  kpi: { answered: 120, accuracy: 64, avgSec: 41, streak: 0, ...kpi },
+});
+
+let search;
+function SearchProbe() {
+  search = useLocation().search;
+  return null;
+}
+const at = (entry, Page) => render(
+  <MemoryRouter initialEntries={[entry]}>
+    <Routes><Route path="*" element={<><Page /><SearchProbe /></>} /></Routes>
+  </MemoryRouter>,
+);
+
+beforeEach(() => {
+  statsState = loaded();
+  search = null;
+});
+
+describe('Today', () => {
+  it('is one card under an h1 that matches the nav, with no dashboard analytics', () => {
+    at('/', Today);
+    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
+    expect(screen.getByText('Welcome back, Dree.')).toBeInTheDocument();
+    expect(screen.getByText('today-panel answered=120')).toBeInTheDocument();
+    expect(screen.queryByText(/Global accuracy|Ability trajectory|prescription|Daily targets/i)).not.toBeInTheDocument();
+  });
+
+  it('counts down to the exam in Manila days and shows a running streak', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-08T02:00:00Z')); // 10:00 in Manila
+    statsState = loaded({ examDate: '2026-10-18' }, { streak: 6 });
+    at('/', Today);
+    expect(screen.getByText(/10 days to the exam/)).toBeInTheDocument();
+    expect(screen.getByText(/6-day streak/)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('without an exam date, offers to set one; without a streak, shows none', () => {
+    at('/', Today);
+    expect(screen.getByRole('link', { name: 'Set your exam date' })).toHaveAttribute('href', '/account#exam-plan');
+    expect(screen.queryByText(/streak/)).not.toBeInTheDocument();
+  });
+
+  it('shows the Today skeleton until the stats arrive', () => {
+    statsState = { ...loaded(), loading: true };
+    at('/', Today);
+    expect(screen.getByRole('status', { name: 'Loading Today' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+});
+
+describe('Progress', () => {
+  it('opens on Overview, with one tab per question', async () => {
+    at('/progress', Progress);
+    expect(screen.getByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
+    const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
+    expect(tabs).toEqual(['Overview', 'Topics', 'Weak spots', 'Confidence', 'Habits', 'Study plan']);
+    expect(await screen.findByText('overview accuracy=64')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['topics', 'topics'],
+    ['weak-spots', 'weak-spots'],
+    ['confidence', 'confidence'],
+    ['habits', 'habits'],
+    ['plan', 'planner uid=u1'],
+  ])('?tab=%s opens that tab', async (tab, text) => {
+    at(`/progress?tab=${tab}`, Progress);
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { selected: true })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('an unknown tab falls back to Overview; choosing a tab writes it to the URL', async () => {
+    at('/progress?tab=analytics', Progress);
+    expect(await screen.findByText('overview accuracy=64')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Habits/ }));
+    expect(await screen.findByText('habits')).toBeInTheDocument();
+    expect(search).toBe('?tab=habits');
+  });
+
+  it('stats tabs wait for the aggregate; the weak-spots and plan tabs start at once', async () => {
+    statsState = { ...loaded(), loading: true };
+    at('/progress', Progress);
+    expect(screen.queryByText(/overview/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Weak spots/ }));
+    expect(await screen.findByText('weak-spots')).toBeInTheDocument();
+  });
+});

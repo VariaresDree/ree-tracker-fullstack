@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
+import { buildTodayActions, dailyProgress, daysToExam, pickPlanTask, readinessTrend } from './todayActions';
 
 // "What should I do next?" — one ordered shortlist assembled from the review
 // queue, the forecast's prescription, today's target and the exam calendar.
@@ -32,6 +32,48 @@ describe('buildTodayActions', () => {
 
   it('always has something to do', () => {
     expect(buildTodayActions({}).length).toBeGreaterThan(0);
+  });
+});
+
+describe('today’s study-plan task', () => {
+  const drillTask = { id: 'd', kind: 'drill', topic: 'Protection', subject: 'EE', topicId: 't', targetCount: 15, dueDate: '2026-10-08', text: 'Drill Protection — 15 questions' };
+  const blindSpot = forecast([{ type: 'BLIND_SPOT', payload: { topic: 'protection ', subject: 'EE', topicId: 't' } }]);
+
+  it('comes right after due reviews', () => {
+    const actions = buildTodayActions({
+      srs: { due: 3 }, planTask: drillTask,
+      forecast: forecast([{ type: 'DRILL', payload: { topic: 'Calculus', subject: 'Mathematics' } }]),
+      daily: { done: 0, target: 50 },
+    });
+    expect(actions.map((a) => a.key)).toEqual(['srs', 'plan', 'fix', 'target']);
+    expect(actions[1]).toMatchObject({ title: 'Drill Protection — 15 questions', cta: 'Start', preset: expect.objectContaining({ drillTopic: 'Protection' }) });
+  });
+
+  it('replaces the action it duplicates: same-topic fix, the target, the mock', () => {
+    const keys = (planTask) => buildTodayActions({ planTask, forecast: blindSpot, daily: { done: 0, target: 50 } }).map((a) => a.key);
+    expect(keys(drillTask)).toEqual(['plan', 'target', 'mock']);
+    expect(keys({ ...drillTask, kind: 'review', topic: null })).toEqual(['plan', 'fix', 'mock']);
+    expect(keys({ ...drillTask, kind: 'mock', topic: null })).toEqual(['plan', 'fix', 'target']);
+  });
+
+  it('a mock task opens the simulator; progress shows in the detail', () => {
+    const [plan] = buildTodayActions({ planTask: { kind: 'mock', text: 'Timed ESAS sitting', progress: { count: 0, target: 1 } } });
+    expect(plan).toMatchObject({ key: 'plan', cta: 'Set up', to: '/simulator', detail: 'From your study plan for today.' });
+    const [drill] = buildTodayActions({ planTask: { ...drillTask, progress: { count: 20, target: 15 } } });
+    expect(drill.detail).toBe('From your study plan · 15 of 15 done today.');
+  });
+
+  it('pickPlanTask: today’s (Manila) open, launchable task only', () => {
+    const today = '2026-10-08';
+    expect(pickPlanTask([
+      { ...drillTask, id: 'yesterday', dueDate: '2026-10-07' },
+      { id: 'free', text: 'Read chapter 4', dueDate: today },
+      { ...drillTask, id: 'ticked', completed: true },
+      { ...drillTask, id: 'auto-done', progress: { done: true } },
+      { ...drillTask, id: 'open' },
+    ], today)).toMatchObject({ id: 'open' });
+    expect(pickPlanTask([], today)).toBeNull();
+    expect(pickPlanTask(null, today)).toBeNull();
   });
 });
 

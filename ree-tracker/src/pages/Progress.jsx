@@ -1,53 +1,84 @@
 // src/pages/Progress.jsx
 //
-// Where you stand and how you're trending: analytics, rankings and your study
-// plan, gathered from where they used to hide (Profile's "Comparative
-// analytics", "Deep analytics" and "Planner" tabs). The tab lives in ?tab=.
-import { lazy, Suspense, useEffect } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+// How you're doing, in one place, one question per tab:
+//   Overview    — headline numbers, ability trend, board forecast, AI report
+//   Topics      — mastery per subtopic, accuracy per subject
+//   Weak spots  — blind spots, time sinks, recommended fixes, the drills
+//   Confidence  — does confidence match accuracy?
+//   Habits      — study calendar, study time, time per question
+//   Study plan  — the planner
+// These were spread over the old Dashboard, Profile's "Comparative analytics"
+// and "Deep analytics", and the planner. The tab lives in ?tab=, and each tab
+// is its own chunk, so recharts loads only where a chart is drawn.
+import { lazy, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useStore } from '../store/useStore';
 import useTabParam from '../hooks/useTabParam';
-import { syncDashboardStats } from '../services/analyticsSync';
+import { useDashboardStats } from '../hooks/useDashboardStats';
 import { PageHeader, Tabs, Skeleton } from '../components/ui';
-import { Activity, BarChart3, CalendarDays } from '../components/ui/icons';
+import { CalendarDays, ClipboardList, Crosshair, Gauge, LayoutGrid, Target } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
-import ComparativeAnalyticsTab from '../features/profile/ComparativeAnalyticsTab';
-import StrategicPlannerTab from '../features/profile/StrategicPlannerTab';
 
-const AnalyticsDeepDive = lazy(() => import('../features/analytics/AnalyticsDeepDive'));
+const OverviewTab = lazy(() => import('../features/progress/OverviewTab'));
+const TopicsTab = lazy(() => import('../features/progress/TopicsTab'));
+const WeakSpotsTab = lazy(() => import('../features/progress/WeakSpotsTab'));
+const ConfidenceTab = lazy(() => import('../features/progress/ConfidenceTab'));
+const HabitsTab = lazy(() => import('../features/progress/HabitsTab'));
+const StrategicPlannerTab = lazy(() => import('../features/profile/StrategicPlannerTab'));
 
 const TABS = [
-  { id: 'analytics', label: 'Analytics', icon: Activity },
-  { id: 'standing', label: 'Standing & streak', icon: BarChart3 },
-  { id: 'plan', label: 'Study plan', icon: CalendarDays },
+  { id: 'overview', label: 'Overview', icon: Gauge },
+  { id: 'topics', label: 'Topics', icon: LayoutGrid },
+  { id: 'weak-spots', label: 'Weak spots', icon: Crosshair },
+  { id: 'confidence', label: 'Confidence', icon: Target },
+  { id: 'habits', label: 'Habits', icon: CalendarDays },
+  { id: 'plan', label: 'Study plan', icon: ClipboardList },
 ];
+
+const TabSkeleton = () => (
+  <div role="status" aria-live="polite" className="flex flex-col gap-4">
+    <span className="sr-only">Loading…</span>
+    <Skeleton className="h-28" />
+    <Skeleton className="h-64" />
+  </div>
+);
+
+function TabBody({ tab, stats, kpi, currentUser }) {
+  switch (tab) {
+    case 'topics': return <TopicsTab stats={stats} />;
+    case 'weak-spots': return <WeakSpotsTab />;
+    case 'confidence': return <ConfidenceTab stats={stats} />;
+    case 'habits': return <HabitsTab stats={stats} />;
+    case 'plan': return <StrategicPlannerTab currentUser={currentUser} />;
+    default: return <OverviewTab stats={stats} kpi={kpi} />;
+  }
+}
+
+// Tabs that draw from the dashboard aggregate wait for it; the rest fetch
+// their own data and can start at once.
+const NEEDS_STATS = new Set(['overview', 'topics', 'confidence', 'habits']);
 
 export default function Progress() {
   const { currentUser } = useAuth();
-  const { stats, setStats } = useStore(useShallow((s) => ({ stats: s.stats, setStats: s.setStats })));
-  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), 'analytics');
-
-  // The streak, calendar and milestones read store stats; hydrate them from
-  // the server aggregate like Today does, so a new device isn't blank.
-  useEffect(() => {
-    if (currentUser?.uid && navigator.onLine) syncDashboardStats(currentUser.uid).catch(() => {});
-  }, [currentUser?.uid]);
+  const { activeStats, loading, kpi } = useDashboardStats();
+  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), 'overview');
+  const label = TABS.find((t) => t.id === tab)?.label;
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-6xl mx-auto pt-4">
-      <PageHeader title="Progress" subtitle="How your readiness is moving, where you stand, and your study plan." />
+    <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-6xl mx-auto">
+      <PageHeader title="Progress" subtitle="How your readiness is moving, topic by topic, and your study plan." />
       <Tabs label="Progress sections" active={tab} onChange={setTab} tabs={TABS} />
 
-      {tab === 'analytics' && (
-        <ErrorBoundary name="Analytics">
-          <Suspense fallback={<Skeleton className="h-64" />}>
-            <AnalyticsDeepDive />
-          </Suspense>
+      {currentUser && (
+        <ErrorBoundary name={`Progress: ${label}`} key={tab}>
+          {loading && NEEDS_STATS.has(tab) ? (
+            <TabSkeleton />
+          ) : (
+            <Suspense fallback={<TabSkeleton />}>
+              <TabBody tab={tab} stats={activeStats} kpi={kpi} currentUser={currentUser} />
+            </Suspense>
+          )}
         </ErrorBoundary>
       )}
-      {tab === 'standing' && <ComparativeAnalyticsTab currentUser={currentUser} stats={stats} />}
-      {tab === 'plan' && <StrategicPlannerTab currentUser={currentUser} stats={stats} setStats={setStats} />}
     </div>
   );
 }

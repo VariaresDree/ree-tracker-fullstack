@@ -53,6 +53,7 @@ export {
   Trash2,
   RefreshCw,
   Clock,
+  History,
   CircleAlert,
   CheckCircle2,
   // Session & content actions
