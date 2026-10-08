@@ -6,15 +6,20 @@
 import { PRC_FORMAT_SUMMARY } from '../../config/examStandards';
 import { drillPreset, dueReviewPreset, quickReviewPreset } from '../active-recall/presets';
 import { isTaskDone, taskLaunch } from '../profile/plannerTasks';
+import { dailyCountsToday } from '../../services/analyticsSync';
 
 const MAX_ACTIONS = 4;
 const DEFAULT_TARGET = 50;
 const DUE_SESSION_MAX = 30;
 
-/** Today's answers against the daily target. */
-export function dailyProgress(stats) {
-  const done = (stats?.dailyMath || 0) + (stats?.dailyESAS || 0) + (stats?.dailyEE || 0);
-  return { done, target: stats?.dailyTarget || DEFAULT_TARGET };
+/**
+ * Today's answers against the daily target, with the per-subject counts.
+ * Counters saved on an earlier day (offline, or open past midnight) read 0.
+ */
+export function dailyProgress(stats, today) {
+  const counts = dailyCountsToday(stats, today);
+  const done = counts.dailyMath + counts.dailyESAS + counts.dailyEE;
+  return { done, target: stats?.dailyTarget || DEFAULT_TARGET, counts };
 }
 
 /**

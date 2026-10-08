@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { todayManila, dayBefore } from '@ree/shared';
 
 let forecast;
 let srs;
@@ -67,7 +68,7 @@ describe('TodayPanel', () => {
   it('shows the readiness index with its breakdown, the pass probability and today’s target', () => {
     renderPanel({
       readiness: { score: 54, breakdown: { topicCoverage: 61, accuracyRate: 58, thetaNormalized: 52, consistency: 40 } },
-      stats: { dailyMath: 4, dailyESAS: 2, dailyEE: 6, dailyTarget: 40 },
+      stats: { lastActiveDate: todayManila(), dailyMath: 4, dailyESAS: 2, dailyEE: 6, dailyTarget: 40 },
     });
     expect(screen.getByRole('heading', { level: 2, name: /what to do next/ })).toBeInTheDocument();
     expect(screen.getByText('54')).toBeInTheDocument();
@@ -81,6 +82,19 @@ describe('TodayPanel', () => {
     expect(screen.getByRole('progressbar', { name: 'EE: 6 of 18' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Change' })).toHaveAttribute('href', '/account#exam-plan');
     expect(screen.getByRole('link', { name: /in Progress/ })).toHaveAttribute('href', '/progress');
+  });
+
+  it('a new day’s target starts at 0, not at the last study day’s counts', () => {
+    // Saved yesterday and not yet cleared: the first answer today does that.
+    const yesterday = dayBefore(todayManila());
+    renderPanel({
+      readiness: null,
+      stats: { lastActiveDate: yesterday, activityCalendar: { [yesterday]: 12 }, dailyMath: 4, dailyESAS: 2, dailyEE: 6, dailyTarget: 40 },
+    });
+    expect(screen.getByRole('progressbar', { name: 'Mathematics: 0 of 10' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'ESAS: 0 of 12' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'EE: 0 of 18' })).toBeInTheDocument();
+    expect(screen.getByText('40 more to hit today’s target')).toBeInTheDocument();
   });
 
   it('a readiness index still loading shows a skeleton, never a stand-in number', () => {
