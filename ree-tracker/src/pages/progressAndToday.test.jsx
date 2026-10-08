@@ -25,6 +25,8 @@ vi.mock('../features/progress/WeakSpotsTab', () => ({ default: () => <p>weak-spo
 vi.mock('../features/progress/ConfidenceTab', () => ({ default: () => <p>confidence</p> }));
 vi.mock('../features/progress/HabitsTab', () => ({ default: () => <p>habits</p> }));
 vi.mock('../features/profile/StrategicPlannerTab', () => ({ default: ({ currentUser }) => <p>planner uid={currentUser.uid}</p> }));
+vi.mock('../features/syllabus/SyllabusTab', () => ({ default: ({ examDate }) => <p>syllabus exam={String(examDate)}</p> }));
+vi.mock('../features/syllabus/SyllabusCoverageLink', () => ({ default: () => <a href="/progress?tab=syllabus">Syllabus 42% covered</a> }));
 
 const { default: Today } = await import('./Today');
 const { default: Progress } = await import('./Progress');
@@ -71,6 +73,11 @@ describe('Today', () => {
     vi.useRealTimers();
   });
 
+  it('links to the syllabus checklist from the header', () => {
+    at('/', Today);
+    expect(screen.getByRole('link', { name: 'Syllabus 42% covered' })).toHaveAttribute('href', '/progress?tab=syllabus');
+  });
+
   it('without an exam date, offers to set one; without a streak, shows none', () => {
     at('/', Today);
     expect(screen.getByRole('link', { name: 'Set your exam date' })).toHaveAttribute('href', '/account#exam-plan');
@@ -108,7 +115,7 @@ describe('Progress', () => {
     at('/progress', Progress);
     expect(screen.getByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
     const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-    expect(tabs).toEqual(['Overview', 'Topics', 'Weak spots', 'Confidence', 'Habits', 'Study plan']);
+    expect(tabs).toEqual(['Overview', 'Topics', 'Weak spots', 'Confidence', 'Habits', 'Syllabus', 'Study plan']);
     expect(await screen.findByText('overview accuracy=64')).toBeInTheDocument();
   });
 
@@ -118,6 +125,7 @@ describe('Progress', () => {
     ['confidence', 'confidence'],
     ['habits', 'habits'],
     ['plan', 'planner uid=u1'],
+    ['syllabus', 'syllabus exam=null'],
   ])('?tab=%s opens that tab', async (tab, text) => {
     at(`/progress?tab=${tab}`, Progress);
     expect(await screen.findByText(text)).toBeInTheDocument();

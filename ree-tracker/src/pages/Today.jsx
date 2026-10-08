@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import TodayPanel from '../features/today/TodayPanel';
+import SyllabusCoverageLink from '../features/syllabus/SyllabusCoverageLink';
 import { daysToExam } from '../features/today/todayActions';
 import { TodaySkeleton } from '../components/SkeletonLoaders';
 import { PageHeader, StatusPill } from '../components/ui';
@@ -54,6 +55,7 @@ export default function Today() {
         meta={
           <>
             <ExamCountdown examDate={activeStats.examDate} />
+            <SyllabusCoverageLink />
             {kpi.streak > 0 && (
               <StatusPill tone="amber" dot={false}>
                 <Flame size={13} strokeWidth={2} aria-hidden="true" /> {kpi.streak}-day streak

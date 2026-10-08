@@ -70,6 +70,7 @@ model User {
   // --- V7: Phase 4.2 — FCM push (Capacitor native app) ---
   deviceTokens       DeviceToken[]
   outsideScores      OutsideScore[]
+  syllabusProgress   SyllabusProgress[]
 
   @@index([thetaRating])
   @@index([lastActive])
@@ -113,6 +114,7 @@ model Topic {
   questions         Question[]
   topicPerformances UserTopicPerformance[]
   referenceCards    ReferenceCard[]
+  syllabusProgress  SyllabusProgress[]
 
   @@unique([subject, normKey])
   @@index([subject, active, sortOrder])
@@ -572,6 +574,31 @@ model OutsideScore {
 
   @@index([userId, takenOn])
   @@index([retestOfId])
+}
+
+// The syllabus checklist (Progress > Syllabus): per TOS topic, whether the
+// learner has READ it, WATCHED a lecture on it, and DRILLED it by hand, with
+// the dates they started and finished and a note. Display only, like
+// OutsideScore: never read by θ, the forecast, readiness or the rankings
+// (tests/displayOnlyTables.test.js). "Drilled" also ticks itself from the
+// learner's answers; that part is computed when read, never stored here.
+model SyllabusProgress {
+  id         String   @id @default(uuid())
+  userId     String
+  topicId    String
+  read       Boolean  @default(false)
+  watched    Boolean  @default(false)
+  drilled    Boolean  @default(false) // the learner's own tick
+  startedOn  String?  // Manila YYYY-MM-DD
+  finishedOn String?  // Manila YYYY-MM-DD
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic      Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([topicId])
 }
 
 model PlannerTask {

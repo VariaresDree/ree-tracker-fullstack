@@ -54,6 +54,15 @@ import {
     outsideScorePercent,
     outsideScoreSummary,
     retestDelta,
+    AUTO_DRILL_ANSWERS,
+    AUTO_DRILL_MIN_ANSWERS,
+    SYLLABUS_SUBJECTS,
+    SYLLABUS_NOTE_MAX,
+    isAutoDrilled,
+    isTopicDrilled,
+    isTopicCovered,
+    syllabusCoverage,
+    syllabusProgressErrors,
 } from '@ree/shared';
 
 describe('@ree/shared resolves from the client bundle', () => {
@@ -425,5 +434,50 @@ describe('outside scores — self-reported, display only', () => {
         expect(outsideScorePercent({ score: 45, total: 60 })).toBe(75);
         expect(retestDelta({ score: 45, total: 60 }, { score: 30, total: 50 })).toBe(15);
         expect(retestDelta({ score: 45, total: 60 }, null)).toBeNull();
+    });
+});
+
+describe('syllabus checklist — read, drilled, covered', () => {
+    it('ticks Drilled itself at 20 answers, or 10 at Developing mastery or better', () => {
+        expect(AUTO_DRILL_ANSWERS).toBe(20);
+        expect(AUTO_DRILL_MIN_ANSWERS).toBe(10);
+        expect(isAutoDrilled({ attempts: 19, pMastery: 0.2 })).toBe(false);
+        expect(isAutoDrilled({ attempts: 20, pMastery: null })).toBe(true);
+        expect(isAutoDrilled({ attempts: 9, pMastery: 0.95 })).toBe(false);
+        expect(isAutoDrilled({ attempts: 10, pMastery: 0.45 })).toBe(true);
+        expect(isAutoDrilled({ attempts: 10, pMastery: 0.44 })).toBe(false);
+        expect(isAutoDrilled({ attempts: 10, pMastery: null })).toBe(false);
+    });
+
+    it('a topic is covered once read and drilled; watching is optional', () => {
+        expect(isTopicCovered({ read: true, drilled: true })).toBe(true);
+        expect(isTopicCovered({ read: true, attempts: 25 })).toBe(true);
+        expect(isTopicCovered({ read: false, drilled: true, watched: true })).toBe(false);
+        expect(isTopicCovered({ read: true, watched: true })).toBe(false);
+        expect(isTopicDrilled({ drilled: false, attempts: 30 })).toBe(true);
+    });
+
+    it('weights overall coverage by the board, over the subjects that have topics', () => {
+        const rows = [
+            { subject: 'Mathematics', read: true, drilled: true },
+            { subject: 'EE', read: true, drilled: true },
+            { subject: 'EE', read: true },
+        ];
+        const { subjects, overall } = syllabusCoverage(rows, { Mathematics: 0.25, ESAS: 0.30, EE: 0.45 });
+        expect(subjects.map((s) => [s.subject, s.covered, s.total, s.percent])).toEqual([
+            ['Mathematics', 1, 1, 100], ['ESAS', 0, 0, 0], ['EE', 1, 2, 50],
+        ]);
+        // (0.25 × 1 + 0.45 × 0.5) / (0.25 + 0.45): ESAS has no topics, so it can't drag the total down.
+        expect(overall).toEqual({ total: 3, covered: 2, percent: 67.9 });
+        expect(syllabusCoverage([]).overall).toEqual({ total: 0, covered: 0, percent: 0 });
+    });
+
+    it('checks one topic’s full state the same way on both sides', () => {
+        const ok = { read: true, watched: false, drilled: false, startedOn: '2026-10-01', finishedOn: null, note: null };
+        expect(syllabusProgressErrors(ok)).toEqual({});
+        expect(Object.keys(syllabusProgressErrors({ read: true }))).toEqual(['watched', 'drilled']);
+        expect(Object.keys(syllabusProgressErrors({ ...ok, finishedOn: '2026-09-30' }))).toEqual(['finishedOn']);
+        expect(Object.keys(syllabusProgressErrors({ ...ok, note: 'x'.repeat(SYLLABUS_NOTE_MAX + 1) }))).toEqual(['note']);
+        expect(SYLLABUS_SUBJECTS).toEqual(['Mathematics', 'ESAS', 'EE']);
     });
 });

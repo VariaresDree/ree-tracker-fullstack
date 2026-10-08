@@ -16,6 +16,7 @@ const SRC = resolve(__dirname, '..', 'src');
 // model accessor / SQL table name -> the only files allowed to use it
 const DISPLAY_ONLY = {
     outsideScore: ['routes/outsideScoreRoutes.js'],
+    syllabusProgress: ['routes/syllabusRoutes.js'],
 };
 
 function sourceFiles(dir) {

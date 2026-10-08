@@ -72,7 +72,7 @@ describe('TodayPanel', () => {
     });
     expect(screen.getByRole('heading', { level: 2, name: /what to do next/ })).toBeInTheDocument();
     expect(screen.getByText('54')).toBeInTheDocument();
-    expect(screen.getByText('Coverage').nextSibling).toHaveTextContent('61%');
+    expect(screen.getByText('Topics practised').nextSibling).toHaveTextContent('61%');
     expect(screen.getByText('31')).toBeInTheDocument();
     expect(screen.getByText(/Projected average 68.2%/)).toBeInTheDocument();
     expect(screen.getByText(/12% risk of a subject under the floor/)).toBeInTheDocument();

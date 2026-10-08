@@ -48,6 +48,7 @@ const MUST_NOT_MATCH = [
     '/healthz',
     '/api/readinessX',      // segment equality, not a prefix test
     '/api/user/outside-scores', // per-user, edited offline: never served from the SW cache
+    '/api/user/syllabus',
     '/api',
     '/',
 ];

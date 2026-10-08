@@ -6,6 +6,7 @@
 //   Weak spots  — blind spots, time sinks, recommended fixes, the drills
 //   Confidence  — does confidence match accuracy?
 //   Habits      — study calendar, study time, time per question
+//   Syllabus    — the Read / Watched / Drilled checklist per TOS topic
 //   Study plan  — the planner
 // These were spread over the old Dashboard, Profile's "Comparative analytics"
 // and "Deep analytics", and the planner. The tab lives in ?tab=, and each tab
@@ -15,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import useTabParam from '../hooks/useTabParam';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { PageHeader, Tabs, Skeleton } from '../components/ui';
-import { CalendarDays, ClipboardList, Crosshair, Gauge, LayoutGrid, Target } from '../components/ui/icons';
+import { CalendarDays, ClipboardList, Crosshair, Gauge, LayoutGrid, ListChecks, Target } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 const OverviewTab = lazy(() => import('../features/progress/OverviewTab'));
@@ -23,6 +24,7 @@ const TopicsTab = lazy(() => import('../features/progress/TopicsTab'));
 const WeakSpotsTab = lazy(() => import('../features/progress/WeakSpotsTab'));
 const ConfidenceTab = lazy(() => import('../features/progress/ConfidenceTab'));
 const HabitsTab = lazy(() => import('../features/progress/HabitsTab'));
+const SyllabusTab = lazy(() => import('../features/syllabus/SyllabusTab'));
 const StrategicPlannerTab = lazy(() => import('../features/profile/StrategicPlannerTab'));
 
 const TABS = [
@@ -31,6 +33,7 @@ const TABS = [
   { id: 'weak-spots', label: 'Weak spots', icon: Crosshair },
   { id: 'confidence', label: 'Confidence', icon: Target },
   { id: 'habits', label: 'Habits', icon: CalendarDays },
+  { id: 'syllabus', label: 'Syllabus', icon: ListChecks },
   { id: 'plan', label: 'Study plan', icon: ClipboardList },
 ];
 
@@ -48,6 +51,8 @@ function TabBody({ tab, stats, kpi, currentUser }) {
     case 'weak-spots': return <WeakSpotsTab />;
     case 'confidence': return <ConfidenceTab stats={stats} />;
     case 'habits': return <HabitsTab stats={stats} />;
+    // The exam date only feeds the pace line, so the tab doesn't wait for the aggregate.
+    case 'syllabus': return <SyllabusTab examDate={stats?.examDate ?? null} />;
     case 'plan': return <StrategicPlannerTab currentUser={currentUser} />;
     default: return <OverviewTab stats={stats} kpi={kpi} />;
   }
