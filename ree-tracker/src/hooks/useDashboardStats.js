@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { effectiveStreak } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
-import { useTelemetrySlice, useTOSSlice } from '../store/slices';
+import { useStore } from '../store/useStore';
 import { useManilaDay } from './useManilaDay';
 import { fetchReadinessScore } from '../services/dbQueries';
 import {
@@ -53,8 +53,12 @@ export function deriveKpi(stats, today) {
 export function useDashboardStats({ withReadiness = false } = {}) {
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;
-  const { stats, syncStatus } = useTelemetrySlice();
-  const { dynamicTOS } = useTOSSlice();
+  // Three narrow subscriptions. The telemetry slice also carried the sync
+  // queue and the session fields, so Today and Progress re-rendered on every
+  // answer queued anywhere in the app.
+  const stats = useStore((s) => s.stats);
+  const syncStatus = useStore((s) => s.syncStatus);
+  const dynamicTOS = useStore((s) => s.dynamicTOS);
   const today = useManilaDay();
 
   const sqlData = useSyncExternalStore(subscribeDashboardStats, () => cachedDashboardStats(uid, dynamicTOS));

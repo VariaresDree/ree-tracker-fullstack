@@ -21,11 +21,11 @@ import { GENERAL_AVERAGE } from '@ree/shared';
 const CACHE_KEY = 'ree_gauntlet_cache';
 
 export const useGauntletEngine = (level) => {
-    // Actions come from the stable-reference engine slice; `stats` is the one
-    // live value the submit closure reads, so subscribe to just it (not the
-    // whole store, which re-rendered on every syncQueue/syncStatus flip).
+    // Actions come from the stable-reference engine slice. No subscription to
+    // `stats`: boot and submit read it with useStore.getState() at the moment
+    // they need it, so a run doesn't re-render on every stats change and the
+    // submit never writes back a copy from an earlier render.
     const { setStats, startSession: startStoreSession, endSession: endStoreSession } = useEngineActionsSlice();
-    const stats = useStore((s) => s.stats);
     const navigate = useNavigate();
     // 'loading' | 'resume' | 'active' | 'diagnostics' | 'pending' | 'error'
     //   'resume'      — a matching-level cache was found on entry; waits for
@@ -541,10 +541,14 @@ export const useGauntletEngine = (level) => {
                 const uid = auth.currentUser?.uid;
                 if (uid) {
                     const profile = await getAnalyticsProfile(uid);
+                    // The stats as they are NOW, after that request: spreading
+                    // the copy this render closed over wrote back whatever it
+                    // held, undoing any change made while the request was out.
+                    const current = useStore.getState().stats || {};
                     // Only the BLENDED ladder advances gauntletLevel. Subject
                     // boards (5-7) are parallel, re-takeable endgame exams — a
                     // pass just shows the diagnostics, it doesn't bump the level.
-                    const advancesLevel = !isSubjectTier(tier) && stats.gauntletLevel === parseInt(level);
+                    const advancesLevel = !isSubjectTier(tier) && current.gauntletLevel === parseInt(level);
                     const LOCK_MS = 12 * 60 * 60 * 1000;
                     if (profile?.data?.profile) {
                         // FULL server replace — mirror Active Review / Board Sim so
@@ -553,7 +557,7 @@ export const useGauntletEngine = (level) => {
                         // left activityCalendar stale, so the Dashboard KPI diverged
                         // from the Consistency Matrix after every Gauntlet run.
                         setStats({
-                            ...stats,
+                            ...current,
                             ...profile.data.profile,
                             irt: { theta: profile.data.profile.thetaRating || 0 },
                             activityCalendar: profile.data.activityCalendar,
@@ -564,9 +568,9 @@ export const useGauntletEngine = (level) => {
                                 : { gauntletLockUntil: Date.now() + LOCK_MS }),
                         });
                     } else if (isPassed && advancesLevel) {
-                        setStats({ ...stats, gauntletLevel: parseInt(level) + 1 });
+                        setStats({ ...current, gauntletLevel: parseInt(level) + 1 });
                     } else if (!isPassed) {
-                        setStats({ ...stats, gauntletLockUntil: Date.now() + LOCK_MS });
+                        setStats({ ...current, gauntletLockUntil: Date.now() + LOCK_MS });
                     }
                 }
             } catch (refreshErr) {

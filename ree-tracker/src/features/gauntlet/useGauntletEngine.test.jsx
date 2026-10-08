@@ -232,6 +232,30 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(result.current.status).toBe('pending');
   });
 
+  // The post-submit refresh waits on the profile request, then writes stats.
+  // It used to spread the copy the render had closed over, so anything that
+  // changed while the request was out (an exam date set on another screen, a
+  // sync landing) was written back over with the older copy.
+  it('after grading, writes the lock on top of the stats as they are then, not as they were', async () => {
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    act(() => { result.current.handleAnswer(0, 'B'); }); // wrong: the run fails
+
+    apiRequestMock.mockImplementationOnce(() => Promise.resolve({ results: [] }));
+    let releaseProfile;
+    getAnalyticsProfileMock.mockImplementationOnce(() => new Promise((resolve) => { releaseProfile = () => resolve({ data: null }); }));
+
+    let submitting;
+    await act(async () => { submitting = result.current.submitExam(); });
+    await waitFor(() => expect(getAnalyticsProfileMock).toHaveBeenCalled());
+    storeState.stats = { ...storeState.stats, examDate: '2027-04-01' }; // changed meanwhile
+    await act(async () => { releaseProfile(); await submitting; });
+
+    const last = setStats.mock.calls.at(-1)[0];
+    expect(last.examDate).toBe('2027-04-01');
+    expect(last.gauntletLockUntil).toBeGreaterThan(Date.now());
+  });
+
   it('a 4xx from the grade call is NOT deferred — resending the same payload cannot succeed', async () => {
     const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('active'));
