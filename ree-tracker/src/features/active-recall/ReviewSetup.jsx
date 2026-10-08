@@ -1,6 +1,6 @@
 // src/features/active-recall/ReviewSetup.jsx
 import { useState } from 'react';
-import { Card, Button, FormField, Select, SegmentedControl, cn } from '../../components/ui';
+import { Card, Button, FormField, Select, SegmentedControl, PageHeader, cn } from '../../components/ui';
 import { Shuffle, Crosshair, Layers, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { dueReviewPreset } from './presets';
@@ -90,10 +90,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
 
   return (
     <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
-      <div>
-        <h1 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Active Review</h1>
-        <p className="text-sm text-muted2 mt-1">Pick a preset or build a custom session.</p>
-      </div>
+      <PageHeader title="Practice" subtitle="Pick a preset or build your own session." />
 
       {/* Spaced review — what the schedule says is due today. Shown only once
           there is a queue: every miss and every low-confidence answer starts a

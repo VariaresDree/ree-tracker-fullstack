@@ -6,6 +6,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('./Arena', () => ({ default: ({ tab }) => <p>arena:{tab}</p> }));
+vi.mock('../components/MockBoardAnalytics', () => ({ default: () => <p>past-sittings</p> }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1' }, isAdmin: false }) }));
 vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../features/reference/ReferenceBrowser', () => ({
@@ -39,6 +40,13 @@ describe('Exams', () => {
     it.each(['gauntlet', 'battles', 'rankings'])('?tab=%s shows that section', async (tab) => {
         at(`/exams?tab=${tab}`, Exams);
         expect(await screen.findByText(`arena:${tab}`)).toBeInTheDocument();
+    });
+
+    it('past sittings (the mock-board ledger, from the old dashboard) is its own tab', async () => {
+        at('/exams?tab=history', Exams);
+        const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
+        expect(tabs).toEqual(['Mock board', 'Gauntlet', 'Battles', 'Rankings', 'Past sittings']);
+        expect(await screen.findByText('past-sittings')).toBeInTheDocument();
     });
 });
 

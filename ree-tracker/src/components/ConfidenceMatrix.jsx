@@ -62,7 +62,7 @@ function ConfidenceMatrix({ stats }) {
         <CircleAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: 'var(--accent-danger)' }} />
         <p className="text-[0.7rem] text-muted2 leading-relaxed">
           <strong className="text-textMain font-semibold">Blind spots</strong> (high confidence, wrong) hurt your
-          predicted score the most — target them first in Active Review.
+          predicted score the most — target them first in Practice.
         </p>
       </div>
     </Panel>

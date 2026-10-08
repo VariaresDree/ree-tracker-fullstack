@@ -28,7 +28,8 @@ export function useSyncLifecycle() {
   // mounted. So an offline batch that synced while the user was on Review,
   // Profile, or Arena left those surfaces' cached numbers stale until the
   // user happened to visit Dashboard again — read as "offline answers don't
-  // tally." This mirrors Dashboard's exact syncing->synced watch, but here,
+  // tally." This is that syncing->synced watch, moved here (Today and Progress
+  // now subscribe to the payload it refreshes, see useDashboardStats),
   // mounted once app-wide in App.jsx regardless of route.
   const syncStatus = useStore((s) => s.syncStatus);
   const prevSyncStatusRef = useRef(syncStatus);

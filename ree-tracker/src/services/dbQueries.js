@@ -591,6 +591,10 @@ export const updateExplanationStatus = async (questionId, status) => apiRequest(
 // still-PENDING rows and audit-logs each approval. { approved, failed } shape.
 export const bulkApproveExplanations = async (ids) => apiRequest('/api/questions/explanations/approve-bulk', 'POST', { ids });
 
+// Planner tasks, each planned one carrying `progress` from the day's answers.
+// Null when offline or unreachable: the planner says so, and Today simply
+// leaves the plan task out.
+export const fetchPlannerTasks = async () => safeApiRequest('/api/user/tasks', 'GET', null, null);
 export const generateStudyPlan = async (examDate, topics) => apiRequest('/api/user/tasks/generate-plan', 'POST', { examDate, topics });
 export const clearStudyPlan = async () => apiRequest('/api/user/tasks/clear-plan', 'DELETE');
 

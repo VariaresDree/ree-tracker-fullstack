@@ -8,7 +8,7 @@ import { Toaster } from 'react-hot-toast';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import RouteFallback from './components/RouteFallback';
-import { DashboardSkeleton } from './components/SkeletonLoaders';
+import { TodaySkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
 import NotificationOptIn from './components/NotificationOptIn';
 import Login from './pages/Login';
@@ -17,7 +17,7 @@ import AdminRoute from './routes/AdminRoute';
 import { materialsTarget } from './routes/legacyRoutes';
 
 // Lazy Loaded Pages
-const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Today = lazy(() => import('./pages/Today'));
 const ActiveReview = lazy(() => import('./pages/ActiveReview'));
 const Exams = lazy(() => import('./pages/Exams'));
 const Progress = lazy(() => import('./pages/Progress'));
@@ -70,7 +70,7 @@ const SecureAppTerminal = () => {
         <Routes>
           {/* The five destinations (layouts/navModel.js), Account and Admin. */}
           <Route element={<AppShell />}>
-            <Route index element={page('Today', <Suspense fallback={<DashboardSkeleton />}><Dashboard /></Suspense>)} />
+            <Route index element={page('Today', <Suspense fallback={<TodaySkeleton />}><Today /></Suspense>)} />
             <Route path="practice" element={page('Practice', <ActiveReview />)} />
             <Route path="exams" element={page('Exams', <Exams />)} />
             <Route path="progress" element={page('Progress', <Progress />)} />

@@ -9,6 +9,7 @@ import { Button, FormField, Input, Select, Modal, Tabs, StatusPill, Badge, Empty
 import { Check, Swords, Settings2, Landmark, Scale, Shield, Trophy, Lock, Flame, ChevronDown, ChevronUp } from '../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier, PRC_TIMES, PRC_FORMAT_SUMMARY } from '../config/examStandards';
 import { normalizeSubject } from '@ree/shared';
+import YourRankCard from '../features/exams/YourRankCard';
 import toast from 'react-hot-toast';
 
 // secs → "Xh Ym" / "Ym" for the tier cards.
@@ -529,6 +530,8 @@ export default function Arena({ tab: hubTab }) {
             })()}
         </div>
       )}
+
+      {activeTab === 'leaderboard' && <YourRankCard />}
 
       {activeTab === 'leaderboard' && (
         <div className="bg-surface border border-border2 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px] h-[65vh] animate-in fade-in slide-in-from-bottom-2">

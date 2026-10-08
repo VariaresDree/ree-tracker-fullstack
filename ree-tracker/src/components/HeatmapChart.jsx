@@ -27,7 +27,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
   // Narrow selector, not `useStore()`. Zustand v5 compares the whole state
   // object with Object.is and every set() produces a new one, so subscribing to
   // the root re-rendered this component on EVERY recordAttempt, syncStatus flip
-  // and syncQueue push — and this one sits on the Dashboard.
+  // and syncQueue push — and this one sits on Progress › Topics.
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
   const microTopics = stats?.microTopics || {};

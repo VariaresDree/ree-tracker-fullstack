@@ -39,7 +39,7 @@ export default function WeakSignalsPanel({ data }) {
     <div className="flex flex-col gap-5">
       <Card elevated className="p-5 flex flex-col gap-3">
         <div>
-          <h3 className="text-textMain font-semibold">Blind spots</h3>
+          <h2 className="text-textMain font-semibold">Blind spots</h2>
           <p className="text-xs text-muted2">Topics you answered confidently and got wrong. Fix these first — you don&apos;t know you don&apos;t know them.</p>
         </div>
         {blindSpots.length === 0 ? (
@@ -63,7 +63,7 @@ export default function WeakSignalsPanel({ data }) {
 
       <Card elevated className="p-5 flex flex-col gap-3">
         <div>
-          <h3 className="text-textMain font-semibold">Time sinks</h3>
+          <h2 className="text-textMain font-semibold">Time sinks</h2>
           <p className="text-xs text-muted2">Topics whose median answer runs past the {Math.round(TIME_SINK_MS / 60000)}-minute board pace.</p>
         </div>
         {timeSinks.length === 0 ? (
@@ -90,7 +90,7 @@ export default function WeakSignalsPanel({ data }) {
 
       {recent.length > 0 && (
         <Card elevated className="p-5 flex flex-col gap-3">
-          <h3 className="text-textMain font-semibold">Recently answered confidently wrong</h3>
+          <h2 className="text-textMain font-semibold">Recently answered confidently wrong</h2>
           <ul className="flex flex-col gap-2">
             {recent.map((m) => (
               <li key={m.questionId} className="p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">

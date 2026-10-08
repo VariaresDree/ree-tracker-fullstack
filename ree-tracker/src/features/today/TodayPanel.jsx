@@ -1,10 +1,9 @@
 // src/features/today/TodayPanel.jsx
 //
-// The dashboard's first screen: where the learner stands (readiness index,
-// PRC pass probability, today's target) and an ordered shortlist of what to do
-// next. Everything here already existed somewhere on the page — the readiness
-// breakdown the API returned but nothing rendered, the forecast, the review
-// queue — but the "what now?" answer was ~10 cards down on a phone.
+// The Today page's one card: where the learner stands (readiness index, PRC
+// pass probability, today's target split by subject) and an ordered shortlist
+// of what to do next, today's study-plan task included. The charts and
+// breakdowns that used to follow it on the old dashboard live in Progress.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchReadinessHistory } from '../../services/dbQueries';
@@ -14,7 +13,10 @@ import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
+import { usePlanToday } from './usePlanToday';
 import { launchPractice } from '../active-recall/presets';
+import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
+import { ArrowRight } from '../../components/ui/icons';
 
 const BREAKDOWN = [
   ['topicCoverage', 'Coverage'],
@@ -107,16 +109,45 @@ function PassBlock({ snapshot, loading }) {
   );
 }
 
-function TargetBlock({ daily }) {
+// The day's target split by the PRC syllabus weights (the shared
+// largest-remainder rule), so a reviewer sees which subject is behind.
+const SUBJECT_ROWS = [
+  ['Mathematics', 'dailyMath', 'var(--color-reeCyan)'],
+  ['ESAS', 'dailyESAS', 'var(--color-reeAmber)'],
+  ['EE', 'dailyEE', 'var(--color-reePurple)'],
+];
+
+function TargetBlock({ daily, stats }) {
   const met = daily.done >= daily.target;
+  const split = apportionItems(daily.target, DEFAULT_SYLLABUS_WEIGHTS);
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-eyebrow">Today’s target</span>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-eyebrow">Today’s target</span>
+        <Link to="/account#exam-plan" className="text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">Change</Link>
+      </div>
       <span className="text-display text-4xl text-textMain tabular-nums">
         {daily.done}<span className="text-lg text-muted2">/{daily.target}</span>
       </span>
       <ProgressIndicator value={Math.min(daily.done, daily.target)} max={daily.target} tone={met ? 'success' : 'velocity'} ariaLabel="Today's target progress" size="sm" />
-      <span className="text-xs text-muted2">{met ? 'Target met — anything more is a bonus.' : 'Questions answered today across all subjects.'}</span>
+      <dl className="flex flex-col gap-1.5 text-xs mt-1">
+        {SUBJECT_ROWS.map(([label, key, color]) => {
+          const cur = stats?.[key] || 0;
+          const goal = split[label] || 0;
+          return (
+            <div key={label} className="grid grid-cols-[6.5rem_1fr] items-center gap-x-3 gap-y-1">
+              <dt className="text-muted2 flex justify-between gap-2">
+                <span>{label}</span>
+                <span className="text-textMain tabular-nums">{cur}/{goal}</span>
+              </dt>
+              <dd>
+                <ProgressIndicator value={Math.min(cur, goal)} max={goal || 1} color={color} size="sm" ariaLabel={`${label}: ${cur} of ${goal}`} />
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      <span className="text-xs text-muted2">{met ? 'Target met — anything more is a bonus.' : 'Split by the board’s subject weights.'}</span>
     </div>
   );
 }
@@ -126,6 +157,7 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
   const isOnline = useNetworkStatus();
   const { snapshot, loading } = useForecast();
   const { summary: srs } = useSrsSummary({ enabled: isOnline });
+  const planTask = usePlanToday({ enabled: isOnline });
   const daily = dailyProgress(stats);
   // One readiness snapshot per Manila day is recorded server-side; the last
   // 30 draw the trend.
@@ -140,6 +172,7 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
 
   const actions = buildTodayActions({
     srs,
+    planTask,
     forecast: snapshot,
     daily,
     examInDays: daysToExam(stats?.examDate),
@@ -150,15 +183,12 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
       <PlacementPrompt uid={uid} answered={answered} />
 
       <Card elevated glow grain className="p-5 sm:p-6 flex flex-col gap-6">
-        <div>
-          <span className="text-eyebrow">Today</span>
-          <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain mt-1">Where you stand, and what to do next</h2>
-        </div>
+        <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain">Where you stand, and what to do next</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <ReadinessBlock readiness={readiness} trend={trend} />
           <PassBlock snapshot={snapshot} loading={loading} />
-          <TargetBlock daily={daily} />
+          <TargetBlock daily={daily} stats={stats} />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -184,6 +214,10 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
             ))}
           </ol>
         </div>
+
+        <Link to="/progress" className="self-start inline-flex items-center gap-1.5 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
+          Charts, topics and your study plan are in Progress <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
+        </Link>
       </Card>
     </section>
   );

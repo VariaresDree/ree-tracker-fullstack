@@ -6,7 +6,7 @@ import { fetchReadinessScore } from '../../services/dbQueries';
 
 export default function CredentialsTab({ currentUser, stats }) {
   const currentTheta = stats?.irt?.theta || 0;
-  // Certificate unlock uses the SAME composite readiness the Dashboard KPI
+  // Certificate unlock uses the SAME composite readiness the Today card
   // shows (/api/readiness: coverage + accuracy + θ + consistency + blind
   // spots). The old pure-θ formula here could disagree with the dashboard —
   // it remains only as the offline fallback until the fetch resolves.

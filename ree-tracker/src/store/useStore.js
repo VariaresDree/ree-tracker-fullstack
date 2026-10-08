@@ -648,8 +648,8 @@ export const useStore = create(
         // participation.
         await apiRequest('/api/analytics/purge', 'DELETE');
         // Reset to a clean baseline stats object instead of `null`. A null
-        // stats traps the Dashboard on its skeleton until the page reloads,
-        // because `if (!activeStats) return <DashboardSkeleton />`. Giving
+        // stats traps Today on its skeleton until the page reloads, because
+        // useDashboardStats reports `loading` while stats is null. Giving
         // the user a zeroed-out object lets them keep navigating; the next
         // dashboard fetch (or telemetry sync) will hydrate fresh numbers.
         set({

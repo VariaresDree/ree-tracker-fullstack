@@ -46,7 +46,7 @@ export function PrescriptionPanel({ onAction }) {
       <Card elevated>
         <CardHeader>
           <div>
-            <CardEyebrow>Today’s prescription</CardEyebrow>
+            <CardEyebrow>Recommended fixes</CardEyebrow>
             <CardTitle>Picking your highest-leverage actions</CardTitle>
           </div>
         </CardHeader>
@@ -66,7 +66,7 @@ export function PrescriptionPanel({ onAction }) {
       <Card elevated>
         <CardHeader>
           <div>
-            <CardEyebrow>Today’s prescription</CardEyebrow>
+            <CardEyebrow>Recommended fixes</CardEyebrow>
             <CardTitle>Prescription unavailable</CardTitle>
           </div>
         </CardHeader>
@@ -88,7 +88,7 @@ export function PrescriptionPanel({ onAction }) {
     <Card elevated>
       <CardHeader>
         <div>
-          <CardEyebrow>Today’s prescription</CardEyebrow>
+          <CardEyebrow>Recommended fixes</CardEyebrow>
           <CardTitle>Three actions to close your widest gaps</CardTitle>
         </div>
         {weak[0] && <Badge tone="danger">Weak: {weak[0].topic}</Badge>}

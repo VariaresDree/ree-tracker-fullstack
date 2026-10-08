@@ -84,7 +84,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
         <div className="bg-surface border border-border2 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-5">
                 <div>
-                    <h3 className="text-lg font-black text-textMain tracking-tight">Study Plan Generator</h3>
+                    <h2 className="text-lg font-black text-textMain tracking-tight">Study plan generator</h2>
                     <p className="text-xs text-muted mt-1">
                         Plans the next six weeks from your mastery and the PRC weights: a targeted drill most days, a timed
                         sitting each week, light review before the exam. Tasks tick themselves off from your answers.
