@@ -3,14 +3,15 @@
 // Your place on the rankings, above the list in Exams → Rankings. It used to
 // sit in Profile's "Comparative analytics" as a large ring labelled "Global
 // Matrix Ranking", far from the list it summarized. One request: /me already
-// returns the rank and the number ranked.
+// returns the rank and the number ranked. When you're in the list below, its
+// position wins (`listRank`), so the two never disagree on screen.
 import { useEffect, useState } from 'react';
 import { fetchLeaderboardMe } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Card, Skeleton } from '../../components/ui';
 import { Trophy } from '../../components/ui/icons';
 
-export default function YourRankCard() {
+export default function YourRankCard({ listRank = null }) {
   const isOnline = useNetworkStatus();
   // undefined = loading, null = unavailable, else the /me payload.
   const [me, setMe] = useState(undefined);
@@ -24,19 +25,21 @@ export default function YourRankCard() {
     return () => { live = false; };
   }, [isOnline]);
 
-  const ranked = typeof me?.rank === 'number' && me.rank > 0;
-  const total = me?.total || 0;
+  const rank = listRank || (typeof me?.rank === 'number' && me.rank > 0 ? me.rank : null);
+  const ranked = rank != null;
+  // The number ranked comes from /me; until it arrives, show the rank alone.
+  const total = me?.total ? Math.max(me.total, rank || 0) : null;
 
   let body;
   if (!isOnline) {
     body = <p className="text-sm text-muted2">Reconnect to see your rank.</p>;
-  } else if (me === undefined) {
+  } else if (me === undefined && !ranked) {
     body = <Skeleton className="h-9 w-40" />;
   } else if (ranked) {
     body = (
       <p className="flex items-baseline gap-2">
-        <span className="text-display text-3xl text-textMain tabular-nums">#{me.rank}</span>
-        <span className="text-sm text-muted2">of {total} reviewer{total === 1 ? '' : 's'}</span>
+        <span className="text-display text-3xl text-textMain tabular-nums">#{rank}</span>
+        {total && <span className="text-sm text-muted2">of {total} reviewer{total === 1 ? '' : 's'}</span>}
       </p>
     );
   } else if (me) {

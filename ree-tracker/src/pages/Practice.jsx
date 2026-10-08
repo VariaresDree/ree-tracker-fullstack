@@ -1,4 +1,8 @@
-// src/pages/ActiveReview.jsx
+// src/pages/Practice.jsx
+//
+// Practice: the setup screen (presets, due reviews, a custom session), the
+// running session, and the summary when it ends. Other screens start a
+// session here with launchPractice(navigate, preset).
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,11 +12,13 @@ import Scratchpad from '../components/Scratchpad';
 import { Button, Badge, StatusPill, Card } from '../components/ui';
 import { Pencil, Flag, Bookmark, Sparkles } from '../components/ui/icons';
 import ReviewSetup from '../features/active-recall/ReviewSetup';
+import SessionSummary from '../features/active-recall/SessionSummary';
+import { drillPreset } from '../features/active-recall/presets';
 import MCQMode from '../features/active-recall/MCQMode';
 import FlashcardMode from '../features/active-recall/FlashcardMode';
 import { useReviewSession } from '../features/active-recall/useReviewSession';
 
-export default function ActiveReview() {
+export default function Practice() {
   const isOnline = useNetworkStatus();
   const { currentUser } = useAuth();
   
@@ -20,15 +26,16 @@ export default function ActiveReview() {
     config, setConfig, session, setSession, elapsedTime, bookmarks,
     startSession, endSession, loadNextQuestion, 
     handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
-    toggleBookmark, handleFlagQuestion, fetchOrToggleAI, safeTOS, isSubmitting
+    toggleBookmark, handleFlagQuestion, fetchOrToggleAI, safeTOS, isSubmitting,
+    lastSummary, clearSummary,
   } = useReviewSession(currentUser, isOnline);
 
   const [showScratchpad, setShowScratchpad] = useState(false);
   const currentQ = session.questions[session.currentIndex];
 
-  // Prescription deep-link: the dashboard's "Today's prescription" Start
-  // buttons navigate here with a session preset in router state. Auto-start
-  // once, then clear the state so back-navigation doesn't relaunch it.
+  // Deep links (Today's next steps, Progress, the planner) navigate here with a
+  // session preset in router state. Auto-start once, then clear the state so
+  // back-navigation doesn't relaunch it.
   const location = useLocation();
   const navigate = useNavigate();
   const presetLaunched = useRef(false);
@@ -77,6 +84,19 @@ export default function ActiveReview() {
   }, [session, config.sessionMode, showScratchpad, currentQ, handleFlashcardReveal, handleFlashcardRating, loadNextQuestion]);
 
   const formatTime = (secs) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
+
+  if (!session.isActive && lastSummary) {
+      return (
+        <SessionSummary
+          summary={lastSummary}
+          isOnline={isOnline}
+          loading={session.loading}
+          onAgain={() => startSession(lastSummary.config)}
+          onDrill={(t) => startSession(drillPreset({ topic: t.topic, subject: t.subject }))}
+          onDone={clearSummary}
+        />
+      );
+  }
 
   if (!session.isActive) {
       return <ReviewSetup config={config} setConfig={setConfig} isOnline={isOnline} startSession={startSession} session={session} safeTOS={safeTOS} />;

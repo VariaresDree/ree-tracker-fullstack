@@ -437,6 +437,9 @@ const normalizeAgent = (a) => ({
     questionsAnswered: typeof a.questionsAnswered === 'number' ? a.questionsAnswered : 0,
     accuracy: typeof a.accuracy === 'number' ? a.accuracy : 0,
     lastActive: a.lastActive || null,
+    // The paginated first page leads with your own row when you're outside it
+    // (the server's "you are here"). It has no place in the order.
+    offBoard: !!a.offBoard,
 });
 
 export const fetchGlobalLeaderboard = async (limitCount = 100) => {
@@ -494,8 +497,10 @@ export const registerDeviceToken = async (token, platform) => apiRequest('/api/u
 export const unregisterDeviceToken = async (token) => apiRequest('/api/user/device-token', 'DELETE', { token });
 export const saveBookmark = async (uid, itemData) => apiRequest('/api/bookmarks', 'POST', itemData);
 export const removeBookmark = async (uid, itemId) => apiRequest(`/api/bookmarks/${itemId}`, 'DELETE');
-export const fetchBookmarks = async () => {
-    const data = await safeApiRequest('/api/bookmarks', 'GET', null, null);
+// Newest first, with answers (the vault and a bookmarks practice session both
+// need them). The server caps `limit` at 100; [] when offline.
+export const fetchBookmarks = async ({ limit = 100 } = {}) => {
+    const data = await safeApiRequest(`/api/bookmarks?limit=${limit}`, 'GET', null, null);
     return normalizeQuestions(data);
 };
 // (updateBookmarkCache removed — it targeted a /api/bookmarks/:id/cache route

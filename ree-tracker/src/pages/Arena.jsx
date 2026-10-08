@@ -41,7 +41,7 @@ function RankDetailStat({ label, value, accent }) {
 // rows whose data actually changed, not the whole (growing) list on each page.
 // The summary keeps the competitive headline (streak + theta) always visible;
 // tapping the row expands the per-user detail (active days / answered / accuracy).
-const LeaderboardRow = memo(function LeaderboardRow({ agent, idx, isMe, rowRef }) {
+const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef }) {
   const [open, setOpen] = useState(false);
   const detailId = `agent-detail-${agent.uid}`;
 
@@ -58,8 +58,8 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, idx, isMe, rowRef }
         className="w-full grid grid-cols-12 gap-3 p-3 items-center text-left rounded-[var(--radius-default)] cursor-pointer hover-glow"
       >
         <div className="col-span-2 sm:col-span-1 flex justify-center">
-          <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rankBadge(idx)}`}>
-            {idx + 1}
+          <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rank ? rankBadge(rank - 1) : rankBadge(-1)}`}>
+            {rank ?? '—'}
           </div>
         </div>
         <div className="col-span-5 sm:col-span-6 flex items-center gap-3 min-w-0">
@@ -309,6 +309,14 @@ export default function Arena({ tab: hubTab }) {
       }
   };
 
+  // Rows are numbered by their place in the list, not counting a leading
+  // "you are here" row. "Your rank" uses the same number when you're in the
+  // list: it comes from a separate request, which can straddle a snapshot
+  // rebuild and briefly disagree with the list below it.
+  const offBoardLead = leaderboard?.[0]?.offBoard ? 1 : 0;
+  const myIndex = (leaderboard || []).findIndex((a) => a.uid === currentUser?.uid && !a.offBoard);
+  const myListRank = myIndex >= 0 ? myIndex + 1 - offBoardLead : null;
+
   return (
     <div className={hubTab ? 'flex flex-col gap-6 w-full' : 'max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full pt-4'}>
 
@@ -531,7 +539,7 @@ export default function Arena({ tab: hubTab }) {
         </div>
       )}
 
-      {activeTab === 'leaderboard' && <YourRankCard />}
+      {activeTab === 'leaderboard' && <YourRankCard listRank={myListRank} />}
 
       {activeTab === 'leaderboard' && (
         <div className="bg-surface border border-border2 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px] h-[65vh] animate-in fade-in slide-in-from-bottom-2">
@@ -573,7 +581,7 @@ export default function Arena({ tab: hubTab }) {
                   <LeaderboardRow
                     key={agent.uid}
                     agent={agent}
-                    idx={idx}
+                    rank={agent.offBoard ? null : idx + 1 - offBoardLead}
                     isMe={agent.uid === currentUser?.uid}
                     rowRef={idx === (leaderboard || []).length - 1 ? lastElementRef : null}
                   />

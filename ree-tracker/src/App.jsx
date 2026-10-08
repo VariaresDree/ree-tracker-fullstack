@@ -18,7 +18,7 @@ import { materialsTarget } from './routes/legacyRoutes';
 
 // Lazy Loaded Pages
 const Today = lazy(() => import('./pages/Today'));
-const ActiveReview = lazy(() => import('./pages/ActiveReview'));
+const Practice = lazy(() => import('./pages/Practice'));
 const Exams = lazy(() => import('./pages/Exams'));
 const Progress = lazy(() => import('./pages/Progress'));
 const BoardSimulator = lazy(() => import('./pages/BoardSimulator'));
@@ -71,7 +71,7 @@ const SecureAppTerminal = () => {
           {/* The five destinations (layouts/navModel.js), Account and Admin. */}
           <Route element={<AppShell />}>
             <Route index element={page('Today', <Suspense fallback={<TodaySkeleton />}><Today /></Suspense>)} />
-            <Route path="practice" element={page('Practice', <ActiveReview />)} />
+            <Route path="practice" element={page('Practice', <Practice />)} />
             <Route path="exams" element={page('Exams', <Exams />)} />
             <Route path="progress" element={page('Progress', <Progress />)} />
             <Route path="library" element={page('Library', <Library />)} />

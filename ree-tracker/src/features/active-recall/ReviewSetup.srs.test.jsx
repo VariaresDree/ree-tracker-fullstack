@@ -55,13 +55,56 @@ describe('ReviewSetup — due for review', () => {
   });
 });
 
-describe('ReviewSetup — weak points scope', () => {
-  it('runs the targeted drill, not a Mathematics library session', async () => {
+describe('ReviewSetup — presets and the custom form', () => {
+  beforeEach(() => {
     fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 0, bySubject: {}, nextDueAt: null });
+  });
+
+  it('four presets: Quick 20, Weak spots (the adaptive drill), Flashcards, Bookmarks', () => {
     const props = baseProps();
     render(<ReviewSetup {...props} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Practice' })).toBeInTheDocument();
+    const names = ['Quick 20', 'Weak spots', 'Flashcards', 'Bookmarks'];
+    names.forEach((n) => expect(screen.getByText(n)).toBeInTheDocument());
+
+    const starts = screen.getAllByRole('button', { name: 'Start' });
+    fireEvent.click(starts[1]);
+    expect(props.startSession).toHaveBeenLastCalledWith(expect.objectContaining({ source: 'smart-drill', drillTopic: null, count: 20 }));
+    fireEvent.click(starts[3]);
+    expect(props.startSession).toHaveBeenLastCalledWith(expect.objectContaining({ source: 'bookmarks', count: 20 }));
+  });
+
+  it('offline, the drill and bookmarks presets say they need a connection', () => {
+    render(<ReviewSetup {...baseProps()} isOnline={false} />);
+    expect(screen.getAllByText('Needs a connection')).toHaveLength(2);
+  });
+
+  it('the custom form has one way to drill: none. Scope is all, one subject or one topic', () => {
+    render(<ReviewSetup {...baseProps()} />);
     fireEvent.click(screen.getByRole('button', { name: /Custom session/ }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Weak points' }));
-    expect(props.setConfig).toHaveBeenCalledWith(expect.objectContaining({ studyMode: 'bleeding', source: 'smart-drill', subject: 'All' }));
+    expect(screen.queryByRole('radio', { name: 'Weak points' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /Smart drill/ })).not.toBeInTheDocument();
+    ['All subjects', 'One subject', 'One topic', 'Question bank', 'My bookmarks', 'AI generated']
+      .forEach((n) => expect(screen.getByRole('radio', { name: new RegExp(n) })).toBeInTheDocument());
+  });
+
+  it('a drill left in the form shows, and starts, as a question-bank session over every subject', () => {
+    const props = baseProps();
+    props.config = { ...props.config, studyMode: 'bleeding', source: 'smart-drill', subject: 'EE', drillTopic: 'Protection' };
+    render(<ReviewSetup {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: /Custom session/ }));
+    expect(screen.getByRole('radio', { name: 'All subjects' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Question bank' })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Start session' }));
+    expect(props.startSession).toHaveBeenCalledWith(expect.objectContaining({ source: 'library', studyMode: 'interleaved', subject: 'All' }));
+  });
+
+  it('choosing one subject keeps the chosen source', () => {
+    const props = baseProps();
+    props.config = { ...props.config, source: 'bookmarks' };
+    render(<ReviewSetup {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: /Custom session/ }));
+    fireEvent.click(screen.getByRole('radio', { name: 'One subject' }));
+    expect(props.setConfig).toHaveBeenCalledWith(expect.objectContaining({ studyMode: 'subject', subject: 'Mathematics', source: 'bookmarks' }));
   });
 });
