@@ -51,7 +51,7 @@ export default function QuizFilePicker({ onFilesSelected }) {
       >
         <span
           className="inline-flex h-12 w-12 items-center justify-center rounded-full"
-          style={{ background: 'color-mix(in srgb, var(--accent-velocity) 12%, transparent)', color: 'var(--accent-velocity)' }}
+          style={{ background: 'color-mix(in srgb, var(--accent-velocity) 12%, transparent)', color: 'var(--accent-text)' }}
         >
           <FileUp size={22} strokeWidth={1.75} aria-hidden="true" />
         </span>

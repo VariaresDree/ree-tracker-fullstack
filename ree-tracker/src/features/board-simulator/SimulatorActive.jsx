@@ -304,7 +304,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
               {activeSolution === 'ai' && (aiResponse || q.cachedExplanation) && (
                 <div className="p-6 sm:p-8 rounded-[var(--radius-lg)] bg-surface2 border shadow-inner relative animate-in fade-in slide-in-from-top-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 30%, transparent)' }}>
                   <div className="flex justify-between items-center mb-5 border-b pb-3" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 20%, transparent)' }}>
-                    <div className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-velocity)' }}>
+                    <div className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-text)' }}>
                       <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
                     </div>
                     <button

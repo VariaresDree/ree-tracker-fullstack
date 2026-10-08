@@ -97,6 +97,18 @@ describe('TodayPanel', () => {
     expect(screen.getByText('40 more to hit today’s target')).toBeInTheDocument();
   });
 
+  // Today passes the day it judged on (useManilaDay), so a screen left open
+  // overnight shows the new day's target, not the render clock's guess.
+  it('judges today’s target on the day it is given', () => {
+    const stats = { lastActiveDate: '2026-10-08', activityCalendar: { '2026-10-08': 12 }, dailyMath: 4, dailyESAS: 2, dailyEE: 6, dailyTarget: 40 };
+    const { unmount } = renderPanel({ readiness: null, stats, today: '2026-10-08' });
+    expect(screen.getByRole('progressbar', { name: 'Mathematics: 4 of 10' })).toBeInTheDocument();
+    unmount();
+    renderPanel({ readiness: null, stats, today: '2026-10-09' });
+    expect(screen.getByRole('progressbar', { name: 'Mathematics: 0 of 10' })).toBeInTheDocument();
+    expect(screen.getByText('40 more to hit today’s target')).toBeInTheDocument();
+  });
+
   it('a readiness index still loading shows a skeleton, never a stand-in number', () => {
     renderPanel({ readiness: null, stats: {} });
     expect(screen.queryByText('/100')).not.toBeInTheDocument();

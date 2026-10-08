@@ -39,7 +39,7 @@ export function deriveKpi(stats, today) {
     // stats saved on this device (offline, or open past midnight) can still
     // hold a run that broke days ago; once a whole Manila day passes
     // unanswered it reads 0.
-    streak: effectiveStreak(stats?.globalStreak, lastStudyDay(stats), today),
+    streak: effectiveStreak(stats?.globalStreak, lastStudyDay(stats, today), today),
   };
 }
 

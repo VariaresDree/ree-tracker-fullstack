@@ -49,6 +49,8 @@ const {
     lastStudyDay,
     nextManilaMidnight,
     DISPLAY_NAME_MAX,
+    clampDisplayName,
+    dayAfter,
 } = shared;
 
 describe('@ree/shared resolves from the server', () => {
@@ -337,6 +339,32 @@ describe('lastStudyDay — the newest day with answers', () => {
         expect(lastStudyDay(null)).toBeNull();
         expect(lastStudyDay({})).toBeNull();
         expect(lastStudyDay({ lastActiveDate: 'yesterday', activityCalendar: { total: 9 } })).toBeNull();
+    });
+
+    it('counts tomorrow (a clock a little ahead) but ignores days further ahead', () => {
+        const stats = { activityCalendar: { '2026-10-07': 3, '2026-10-09': 1, '2027-03-01': 2 }, lastActiveDate: '2031-01-01' };
+        expect(lastStudyDay(stats, '2026-10-08')).toBe('2026-10-09');
+        expect(lastStudyDay(stats, '2026-10-07')).toBe('2026-10-07');
+        expect(dayAfter('2026-12-31')).toBe('2027-01-01');
+        expect(dayAfter('2028-02-28')).toBe('2028-02-29');
+        expect(dayAfter('nope')).toBeNull();
+    });
+});
+
+describe('clampDisplayName — a name as the server stores it', () => {
+    it('trims, cuts to the limit and trims again, so it matches the stored name', () => {
+        expect(clampDisplayName('  Engr. Cruz  ')).toBe('Engr. Cruz');
+        // The 32nd character is a space: the cut must not keep it.
+        expect(clampDisplayName('Engr. Juan Miguel dela Cruz San Jose Reyes')).toBe('Engr. Juan Miguel dela Cruz San');
+        expect(clampDisplayName('x'.repeat(40))).toHaveLength(DISPLAY_NAME_MAX);
+        expect(clampDisplayName(null)).toBe('');
+    });
+
+    it('never splits an emoji, and stays within the limit in UTF-16 units', () => {
+        const name = 'a'.repeat(31) + '\u{1F50C}';
+        const clamped = clampDisplayName(name);
+        expect(clamped).toBe('a'.repeat(31));
+        expect(clampDisplayName('\u{26A1}'.repeat(40)).length).toBeLessThanOrEqual(DISPLAY_NAME_MAX);
     });
 });
 

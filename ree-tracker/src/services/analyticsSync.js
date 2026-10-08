@@ -165,7 +165,7 @@ export function mergeServerIntoStats(stats, sqlData, today = todayManila()) {
     // last day it answered — and used to win the max and resurrect "3-day
     // streak" days after the run broke. It only counts while its own last
     // study day is today or yesterday (e.g. an answer the server hasn't seen).
-    globalStreak: pickMax(sqlData.profile?.globalStreak, effectiveStreak(stats?.globalStreak, lastStudyDay(stats), today)),
+    globalStreak: pickMax(sqlData.profile?.globalStreak, effectiveStreak(stats?.globalStreak, lastStudyDay(stats, today), today)),
     totalAnswered,
     totalCorrect: pickMax(
       stats?.totalCorrect,

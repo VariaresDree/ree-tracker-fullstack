@@ -238,7 +238,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // it as it stands today, judged from the calendar above: the last Manila
         // day with answered questions. Not user.lastActive — the profile route
         // re-stamps that on every app open.
-        const globalStreak = effectiveStreak(user.globalStreak, lastStudyDay({ activityCalendar }), today);
+        const globalStreak = effectiveStreak(user.globalStreak, lastStudyDay({ activityCalendar }, today), today);
 
         const manilaFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
         const thetaHistory = thetaRows.map((r) => ({

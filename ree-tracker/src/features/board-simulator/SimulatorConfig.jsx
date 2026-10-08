@@ -114,7 +114,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
                     className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-default)]"
                     style={{
                       background: selected ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'var(--bg-surface3)',
-                      color: selected ? 'var(--accent)' : 'var(--text-muted2)',
+                      color: selected ? 'var(--accent-text)' : 'var(--text-muted2)',
                     }}
                   >
                     <Icon size={20} strokeWidth={1.75} aria-hidden="true" />

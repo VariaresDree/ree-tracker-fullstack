@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { DISPLAY_NAME_MAX } from '@ree/shared';
+import { clampDisplayName } from '@ree/shared';
 import { auth } from '../config/firebaseDb';
 import {
   onAuthStateChanged,
@@ -94,9 +94,10 @@ export const AuthProvider = ({ children }) => {
         // aggregate a second time on every first load, to rewrite a name that
         // was already there. The profile request below returns the stored
         // name; a failed one still mirrors, so drift heals regardless.
+        let storedNameKnown = false;
         const mirrorDisplayName = (storedName) => {
           try {
-            const wanted = (user.displayName || '').trim().slice(0, DISPLAY_NAME_MAX);
+            const wanted = clampDisplayName(user.displayName);
             if (!wanted || wanted === storedName || sessionStorage.getItem('dn_mirrored')) return;
             sessionStorage.setItem('dn_mirrored', '1');
             updateUserProfile({ displayName: wanted }).catch(() => {});
@@ -144,6 +145,7 @@ export const AuthProvider = ({ children }) => {
           seedDashboardRequest(user.uid, profilePromise);
 
           const profileResponse = await profilePromise;
+          storedNameKnown = true;
           mirrorDisplayName(profileResponse?.data?.profile?.displayName);
           const dbRole = profileResponse?.data?.profile?.role;
           const isUserAdmin = dbRole === 'ADMIN' || dbRole === 'admin';
@@ -175,7 +177,9 @@ export const AuthProvider = ({ children }) => {
 
         } catch (err) {
           console.warn("Clearance lookup failed; treating this session as non-admin.", err);
-          mirrorDisplayName(undefined);
+          // Only when the profile itself failed: a later step throwing must not
+          // rewrite a name the profile already showed is stored.
+          if (!storedNameKnown) mirrorDisplayName(undefined);
 
           // Fail CLOSED. The old path fell back to the email allowlist on ANY
           // failure — including the server's own 503 readiness gate — which

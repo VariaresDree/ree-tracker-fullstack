@@ -47,7 +47,7 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
             tabIndex={-1}
             role="region"
             aria-label="Answer"
-            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-xl)] text-center overflow-x-auto math-scroll-mobile outline-none"
+            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-xl)] text-center overflow-x-auto math-scroll-mobile"
             style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 10%, transparent), transparent)' }}
           >
             <div className="text-eyebrow mb-4 flex items-center justify-center gap-2" style={{ color: 'var(--accent-success)' }}>

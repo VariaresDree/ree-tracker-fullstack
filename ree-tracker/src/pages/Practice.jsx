@@ -199,7 +199,7 @@ export default function Practice() {
 
                   {session.showAi && session.aiResponse && (
                       <div className="p-6 rounded-[var(--radius-lg)] bg-surface2/40 border shadow-inner" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 30%, transparent)' }}>
-                          <div className="text-eyebrow mb-3 flex items-center justify-between gap-2" style={{ color: 'var(--accent-velocity)' }}>
+                          <div className="text-eyebrow mb-3 flex items-center justify-between gap-2" style={{ color: 'var(--accent-text)' }}>
                               <span className="flex items-center gap-2">
                                   <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
                               </span>

@@ -216,6 +216,12 @@ describe('AuthProvider — display-name mirror', () => {
     expect(updateUserProfile).toHaveBeenCalledWith({ displayName: 'Engr. Cruz' });
   });
 
+  it('cuts a long name the way the server stores it, so a cut after a space still matches', async () => {
+    vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.resolve({ data: { profile: { displayName: 'Engr. Juan Miguel dela Cruz San' } } }));
+    await signInAs('Engr. Juan Miguel dela Cruz San Jose Reyes');
+    expect(updateUserProfile).not.toHaveBeenCalled();
+  });
+
   it('trims a signup name to the server limit, so it can be stored and then matches', async () => {
     const long = 'Engr. Maria Clara de los Santos-Reyes'; // 37 characters
     vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.resolve({ data: { profile: { displayName: long.slice(0, 32) } } }));

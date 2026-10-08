@@ -23,9 +23,9 @@ export const calculateUpdatedStats = (currentStats = {}, isCorrect, confidence, 
     // already hold today's (or yesterday's) answers while lastActiveDate is
     // still this device's older day; judging by lastActiveDate alone reset a
     // live streak to 1 and today's counts to 0 on this device's first answer.
-    // A day after today (another device whose clock runs ahead) counts as
-    // today, not as a gap.
-    const prevDay = lastStudyDay(currentStats);
+    // Tomorrow (another device whose clock runs a little ahead) counts as
+    // today, not as a gap; lastStudyDay ignores anything later.
+    const prevDay = lastStudyDay(currentStats, todayStr);
     if (prevDay && prevDay >= todayStr) {
         globalStreak = Math.max(globalStreak, 1);
     } else {

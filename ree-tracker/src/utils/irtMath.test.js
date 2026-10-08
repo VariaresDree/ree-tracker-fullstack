@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateUpdatedStats } from './irtMath.js';
-import { dayBefore } from '@ree/shared';
+import { dayAfter, dayBefore } from '@ree/shared';
 import { todayManila } from './manilaDate';
 
 // Match the code under test: calculateUpdatedStats keys every date on Asia/Manila
@@ -198,12 +198,21 @@ describe('calculateUpdatedStats', () => {
       expect(next.activityCalendar[TODAY]).toBe(17);
     });
 
-    it('treats a synced day after today (a device clock running ahead) as today, not a gap', () => {
-      const tomorrow = '9999-12-31';
-      const s = { ...emptyStats(), globalStreak: 3, lastActiveDate: YESTERDAY, dailyEE: 2, activityCalendar: { [tomorrow]: 2 } };
+    it('treats a synced answer from tomorrow (a device clock running a little ahead) as today, not a gap', () => {
+      const s = { ...emptyStats(), globalStreak: 3, lastActiveDate: YESTERDAY, dailyEE: 2, activityCalendar: { [dayAfter(TODAY)]: 2 } };
       const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
       expect(next.globalStreak).toBe(3);
       expect(next.dailyEE).toBe(3);
+    });
+
+    // A clock once set days ahead leaves a future key in the calendar for
+    // good (merges keep local keys). Counting it pinned "already answered
+    // today": the daily counts added up across days and the streak froze.
+    it('ignores a calendar day further ahead than tomorrow', () => {
+      const s = { ...emptyStats(), globalStreak: 4, lastActiveDate: YESTERDAY, dailyEE: 40, activityCalendar: { [YESTERDAY]: 40, '2099-01-01': 6 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.globalStreak).toBe(5);
+      expect(next.dailyEE).toBe(1);
     });
 
     it('ignores empty or malformed calendar days', () => {

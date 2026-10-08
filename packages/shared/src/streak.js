@@ -32,6 +32,14 @@ function dayBefore(day) {
     return Number.isNaN(prev.getTime()) ? null : prev.toISOString().slice(0, 10);
 }
 
+/** The calendar day after a YYYY-MM-DD day, or null for anything else. */
+function dayAfter(day) {
+    if (typeof day !== 'string' || !DAY_RE.test(day)) return null;
+    const [y, m, d] = day.split('-').map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    return Number.isNaN(next.getTime()) ? null : next.toISOString().slice(0, 10);
+}
+
 /**
  * @param {number} globalStreak     the stored streak
  * @param {string|null} lastStudyDay  Manila YYYY-MM-DD of the last answered question
@@ -59,14 +67,22 @@ function effectiveStreak(globalStreak, lastStudyDay, today = todayManila()) {
  * `lastActiveDate` is still this device's own last day, so judging by
  * `lastActiveDate` alone misread a live streak, and today's counts, as stale.
  *
+ * Days after tomorrow are ignored. Tomorrow can be real (a device whose clock
+ * runs a little ahead answered just before midnight); anything later is a
+ * clock that was once set wrong, and the calendar keeps that key for good, so
+ * counting it would read as "answered today" forever.
+ *
  * @param {{ lastActiveDate?: string, activityCalendar?: Object<string, number> }} stats
+ * @param {string} [today] Manila YYYY-MM-DD; defaults to now
  * @returns {string|null}
  */
-function lastStudyDay(stats) {
+function lastStudyDay(stats, today = todayManila()) {
+    const limit = dayAfter(today);
+    const usable = (day) => typeof day === 'string' && DAY_RE.test(day) && (!limit || day <= limit);
     const own = stats?.lastActiveDate;
-    let latest = typeof own === 'string' && DAY_RE.test(own) ? own : null;
+    let latest = usable(own) ? own : null;
     for (const [day, n] of Object.entries(stats?.activityCalendar || {})) {
-        if ((Number(n) || 0) > 0 && DAY_RE.test(day) && (!latest || day > latest)) latest = day;
+        if ((Number(n) || 0) > 0 && usable(day) && (!latest || day > latest)) latest = day;
     }
     return latest;
 }
@@ -92,4 +108,4 @@ function longestStreak(calendar) {
     return best;
 }
 
-module.exports = { effectiveStreak, longestStreak, lastStudyDay, dayBefore };
+module.exports = { effectiveStreak, longestStreak, lastStudyDay, dayBefore, dayAfter };

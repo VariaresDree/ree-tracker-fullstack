@@ -85,8 +85,12 @@
   --color-success: var(--accent-success, #34d399);
 
   /* Single dominant accent alias — overhauled surfaces reference `accent`
-     instead of scattering brand colors. Resolves to the velocity violet. */
+     instead of scattering brand colors. Resolves to the velocity violet.
+     For backgrounds, borders and tints only: as text it fails AA in every
+     theme. Text and icons use `text-accent-text` (src/test/accentText.test.js
+     rejects the other spellings). */
   --color-accent: var(--accent-velocity, #7c5cff);
+  --color-accent-text: var(--accent-text);
 
   /* Radii */
   --radius-default: 10px;
@@ -430,6 +434,14 @@
   :focus-visible {
     outline: 2px solid var(--focus-ring-color, #7c5cff);
     outline-offset: 2px;
+  }
+
+  /* The ring's colour is in place before focus, so focusing changes only the
+     outline's style. `transition-colors` (fields, most buttons) animates
+     outline-color, and the ring used to fade in from the text colour, a white
+     flash on the dark themes. */
+  *, ::before, ::after {
+    outline-color: var(--focus-ring-color, #7c5cff);
   }
 
   /* Respect reduced-motion across the entire app. animation-delay must be
