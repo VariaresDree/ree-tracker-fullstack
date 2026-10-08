@@ -43,6 +43,8 @@ const {
     masteryBand,
     storableTimeMs,
     fallbackDisplayName,
+    effectiveStreak,
+    dayBefore,
 } = shared;
 
 describe('@ree/shared resolves from the server', () => {
@@ -262,5 +264,44 @@ describe('fallbackDisplayName', () => {
         expect(fallbackDisplayName('k3Jd8sP2abc')).toBe('Reviewer-k3Jd8s');
         expect(fallbackDisplayName('')).toBe('Reviewer');
         expect(fallbackDisplayName(undefined)).toBe('Reviewer');
+    });
+});
+
+describe('effectiveStreak — the streak as it stands today', () => {
+    const TODAY = '2026-10-08';
+
+    it('keeps a streak whose last study day is today or yesterday', () => {
+        expect(effectiveStreak(3, '2026-10-08', TODAY)).toBe(3);
+        // Yesterday counts: the streak is still alive until today ends unanswered.
+        expect(effectiveStreak(3, '2026-10-07', TODAY)).toBe(3);
+    });
+
+    it('reads 0 once a whole Manila day has passed with no answers', () => {
+        // The live report: last answers 2026-10-05, viewed 2026-10-08.
+        expect(effectiveStreak(3, '2026-10-05', TODAY)).toBe(0);
+        expect(effectiveStreak(12, '2026-10-06', TODAY)).toBe(0);
+    });
+
+    it('steps back across month and year boundaries', () => {
+        expect(dayBefore('2026-03-01')).toBe('2026-02-28');
+        expect(dayBefore('2028-03-01')).toBe('2028-02-29');
+        expect(dayBefore('2027-01-01')).toBe('2026-12-31');
+        expect(effectiveStreak(4, '2026-12-31', '2027-01-01')).toBe(4);
+        expect(effectiveStreak(4, '2026-12-30', '2027-01-01')).toBe(0);
+    });
+
+    it('never vouches for a streak without evidence of a study day', () => {
+        expect(effectiveStreak(5, null, TODAY)).toBe(0);
+        expect(effectiveStreak(5, undefined, TODAY)).toBe(0);
+        expect(effectiveStreak(5, 'not-a-day', TODAY)).toBe(0);
+        expect(effectiveStreak(0, TODAY, TODAY)).toBe(0);
+        expect(effectiveStreak(null, TODAY, TODAY)).toBe(0);
+        expect(effectiveStreak(-2, TODAY, TODAY)).toBe(0);
+        expect(dayBefore('nope')).toBeNull();
+    });
+
+    it('defaults today to the Manila calendar day', () => {
+        expect(effectiveStreak(2, todayManila())).toBe(2);
+        expect(effectiveStreak(2, dayBefore(dayBefore(todayManila())))).toBe(0);
     });
 });

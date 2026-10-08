@@ -4,7 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { isStale, refreshLeaderboard, noteLeaderboardDemand } = require('../services/leaderboardService');
-const { fallbackDisplayName } = require('@ree/shared');
+const { fallbackDisplayName, effectiveStreak, dayBefore, todayManila } = require('@ree/shared');
 
 // Phase 4.1: reads are served from the materialized LeaderboardEntry snapshot
 // (rebuilt every ~45s by leaderboardService) instead of sorting/counting the
@@ -20,6 +20,26 @@ const SELECT_FIELDS = {
     globalStreak: true,
     lastActive: true,
 };
+
+// Streaks on LIVE User rows. The stored streak is only rewritten when answers
+// are recorded, so on its own it outlived a missed day ("3 STREAK" days after
+// the run broke). Live rows therefore join the ActivityLog rows dated yesterday
+// or later — the only days that keep a streak alive, so at most two per user —
+// and serve the streak as it stands today. Not lastActive: the profile route
+// re-stamps that on every app open. (Snapshot rows already carry the judged
+// value; buildEntries applies the same rule at refresh time.)
+const liveSelect = (today) => ({
+    ...SELECT_FIELDS,
+    activityLogs: { where: { date: { gte: dayBefore(today) } }, select: { date: true } },
+});
+
+function withLiveStreak(u, today) {
+    let lastStudyDay = null;
+    for (const { date } of u.activityLogs || []) {
+        if (!lastStudyDay || date > lastStudyDay) lastStudyDay = date;
+    }
+    return { ...u, globalStreak: effectiveStreak(u.globalStreak, lastStudyDay, today) };
+}
 
 const toAgent = (u) => ({
     uid: u.id,
@@ -95,13 +115,11 @@ router.get('/me', authMiddleware, async (req, res) => {
             return liveFallbackMe(req, res);
         }
 
+        const today = todayManila();
         const [entry, total, me] = await Promise.all([
             prisma.leaderboardEntry.findUnique({ where: { userId: req.user.id } }),
             prisma.leaderboardEntry.count(),
-            prisma.user.findUnique({
-                where: { id: req.user.id },
-                select: { thetaRating: true, displayName: true, globalStreak: true, lastActive: true, role: true },
-            }),
+            prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
         ]);
 
         // Unranked = the user exists but hasn't earned a theta score yet
@@ -114,7 +132,7 @@ router.get('/me', authMiddleware, async (req, res) => {
             const s = entry
                 ? { activeDays: entry.activeDays, questionsAnswered: entry.questionsAnswered, accuracy: entry.accuracy }
                 : await computeUserStats(req.user.id);
-            self = toAgent({ id: req.user.id, ...me, ...s });
+            self = toAgent({ id: req.user.id, ...withLiveStreak(me, today), ...s });
         }
 
         res.status(200).json({
@@ -180,11 +198,12 @@ router.get('/paginated', authMiddleware, async (req, res) => {
         if (!afterRank) {
             const meVisible = items.some((u) => u.uid === req.user.id);
             if (!meVisible) {
+                const today = todayManila();
                 const [me, meStats] = await Promise.all([
-                    prisma.user.findUnique({ where: { id: req.user.id }, select: SELECT_FIELDS }),
+                    prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
                     computeUserStats(req.user.id),
                 ]);
-                if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
+                if (me) items = [{ ...toAgent({ ...withLiveStreak(me, today), ...meStats }), isSelf: true, offBoard: true }, ...items];
             }
         }
 
@@ -206,10 +225,8 @@ router.get('/paginated', authMiddleware, async (req, res) => {
 
 async function liveFallbackMe(req, res) {
     try {
-        const me = await prisma.user.findUnique({
-            where: { id: req.user.id },
-            select: { thetaRating: true, displayName: true, globalStreak: true, lastActive: true, role: true },
-        });
+        const today = todayManila();
+        const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) });
 
         const [total, above] = await Promise.all([
             prisma.user.count({ where: activeWindow() }),
@@ -221,7 +238,7 @@ async function liveFallbackMe(req, res) {
         const unranked = !me || (me.thetaRating ?? 0) <= 0;
 
         const self = me
-            ? toAgent({ id: req.user.id, ...me, ...(await computeUserStats(req.user.id)) })
+            ? toAgent({ id: req.user.id, ...withLiveStreak(me, today), ...(await computeUserStats(req.user.id)) })
             : null;
 
         res.status(200).json({
@@ -239,13 +256,14 @@ async function liveFallbackMe(req, res) {
 
 async function liveFallbackList(req, res, limit) {
     try {
+        const today = todayManila();
         const users = await prisma.user.findMany({
             where: activeWindow(),
             orderBy: { thetaRating: 'desc' },
             take: limit,
-            select: SELECT_FIELDS,
+            select: liveSelect(today),
         });
-        res.status(200).json({ success: true, leaderboard: users.map(toAgent) });
+        res.status(200).json({ success: true, leaderboard: users.map((u) => toAgent(withLiveStreak(u, today))) });
     } catch (error) {
         logger.error('leaderboard fallback error', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch leaderboard.' });
@@ -257,23 +275,24 @@ async function liveFallbackPaginated(req, res, limit) {
         // The live path can't rank-cursor; serve the first page (the common
         // case during the brief stale window) and let the next poll hit the
         // rebuilt snapshot.
+        const today = todayManila();
         const users = await prisma.user.findMany({
             where: activeWindow(),
             orderBy: { thetaRating: 'desc' },
             take: limit + 1,
-            select: SELECT_FIELDS,
+            select: liveSelect(today),
         });
         const hasMore = users.length > limit;
         if (hasMore) users.pop();
 
-        let items = users.map(toAgent);
+        let items = users.map((u) => toAgent(withLiveStreak(u, today)));
         const meVisible = items.some((u) => u.uid === req.user.id);
         if (!meVisible) {
             const [me, meStats] = await Promise.all([
-                prisma.user.findUnique({ where: { id: req.user.id }, select: SELECT_FIELDS }),
+                prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
                 computeUserStats(req.user.id),
             ]);
-            if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
+            if (me) items = [{ ...toAgent({ ...withLiveStreak(me, today), ...meStats }), isSelf: true, offBoard: true }, ...items];
         }
 
         res.status(200).json({
