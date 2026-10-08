@@ -15,7 +15,7 @@ export default function PhoneHeader() {
   const [timerOpen, setTimerOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-[40] bg-surface border-b border-border2 shadow-sm flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+    <header className="sticky top-0 z-[40] h-[var(--phone-header-h,auto)] bg-surface border-b border-border2 shadow-sm flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
       <Link to="/" className="text-lg font-bold tracking-tight text-[var(--accent)]">
         REE<span className="text-textMain">.ai</span>
       </Link>

@@ -812,7 +812,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         // Don't silently ship a key with '-' entries — tell the user which
         // items need a fix (usually a stored answer that isn't verbatim one of
         // its options).
-        toast(`Exam paper ready (${res.items} items, ${res.setLabel}) — but ${res.unmatched} answer${res.unmatched === 1 ? '' : 's'} couldn't be matched to an option and show "-" in the key. Review those items.`, { id: toastId, icon: '⚠️', duration: 8000 });
+        toast(`Exam paper ready (${res.items} items, ${res.setLabel}) — but ${res.unmatched} answer${res.unmatched === 1 ? '' : 's'} couldn't be matched to an option and show "-" in the key. Review those items.`, { id: toastId, duration: 8000 });
       } else {
         toast.success(`Exam paper ready — ${res.items} items, ${res.pages} pages (${res.setLabel}).`, { id: toastId });
       }

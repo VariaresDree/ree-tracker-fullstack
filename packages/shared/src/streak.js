@@ -34,19 +34,41 @@ function dayBefore(day) {
 
 /**
  * @param {number} globalStreak     the stored streak
- * @param {string|null} lastActiveDay  Manila YYYY-MM-DD of the last answered question
+ * @param {string|null} lastStudyDay  Manila YYYY-MM-DD of the last answered question
+ *   (never derived from User.lastActive, which an app open re-stamps)
  * @param {string} [today]          Manila YYYY-MM-DD; defaults to now
  * @returns {number} the stored streak while it is still alive, else 0. No
  *   evidence of a study day (null, malformed) also reads 0.
  */
-function effectiveStreak(globalStreak, lastActiveDay, today = todayManila()) {
+function effectiveStreak(globalStreak, lastStudyDay, today = todayManila()) {
     const streak = Number(globalStreak);
     if (!Number.isFinite(streak) || streak <= 0) return 0;
-    if (typeof lastActiveDay !== 'string' || !DAY_RE.test(lastActiveDay)) return 0;
+    if (typeof lastStudyDay !== 'string' || !DAY_RE.test(lastStudyDay)) return 0;
     const yesterday = dayBefore(today);
     if (!yesterday) return 0;
     // Same-shape ISO days compare correctly as strings.
-    return lastActiveDay >= yesterday ? streak : 0;
+    return lastStudyDay >= yesterday ? streak : 0;
 }
 
-module.exports = { effectiveStreak, dayBefore };
+/**
+ * The longest run of consecutive Manila days with answers in a study calendar
+ * ({ 'YYYY-MM-DD': count }). What milestones are judged by: a streak once
+ * reached stays reached after the run breaks, and it comes from the days
+ * actually studied, not from a stored counter.
+ */
+function longestStreak(calendar) {
+    const days = Object.keys(calendar || {})
+        .filter((d) => DAY_RE.test(d) && Number(calendar[d]) > 0)
+        .sort();
+    let best = 0;
+    let run = 0;
+    let prev = null;
+    for (const d of days) {
+        run = prev && dayBefore(d) === prev ? run + 1 : 1;
+        if (run > best) best = run;
+        prev = d;
+    }
+    return best;
+}
+
+module.exports = { effectiveStreak, longestStreak, dayBefore };

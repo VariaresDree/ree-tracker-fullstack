@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Button, Modal } from '../../components/ui';
+import NotificationOptIn from '../../components/NotificationOptIn';
 import { Shield, Zap, Clock, TriangleAlert } from '../../components/ui/icons';
 import { VERDICT } from '@ree/shared';
 
@@ -267,6 +268,12 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                             </div>
                         )}
                     </div>
+                </div>
+
+                {/* The one-time reminder offer after a first session, in the
+                    page rather than floating over the exit button below. */}
+                <div className="relative z-10 max-w-md w-full mx-auto">
+                    <NotificationOptIn inline />
                 </div>
 
                 {/* Exit */}
