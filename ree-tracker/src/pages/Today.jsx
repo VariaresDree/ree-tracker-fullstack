@@ -42,7 +42,7 @@ function ExamCountdown({ examDate }) {
 
 export default function Today() {
   const { currentUser } = useAuth();
-  const { activeStats, readiness, loading, kpi } = useDashboardStats({ withReadiness: true });
+  const { activeStats, readiness, loading, kpi, today } = useDashboardStats({ withReadiness: true });
 
   if (loading) return <TodaySkeleton />;
 
@@ -63,7 +63,9 @@ export default function Today() {
         }
       />
 
-      <TodayPanel stats={activeStats} readiness={readiness} uid={currentUser?.uid} answered={kpi.answered} />
+      {/* Keyed on the date so a new day remounts the panel: the forecast,
+          due reviews, plan task and readiness trend all refetch. */}
+      <TodayPanel key={today} today={today} stats={activeStats} readiness={readiness} uid={currentUser?.uid} answered={kpi.answered} />
     </div>
   );
 }

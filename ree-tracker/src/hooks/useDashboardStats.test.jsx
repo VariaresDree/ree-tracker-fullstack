@@ -9,7 +9,10 @@ import { todayManila, dayBefore } from '@ree/shared';
 const TODAY = todayManila();
 
 let uid = 'u1';
+// The Manila date the hook judges on; a test moves it to cross midnight.
+let day = TODAY;
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: uid ? { uid } : null }) }));
+vi.mock('./useManilaDay', () => ({ useManilaDay: () => day }));
 vi.mock('../services/dbQueries', () => ({
   apiRequest: vi.fn(),
   fetchReadinessScore: vi.fn(),
@@ -33,13 +36,14 @@ const payload = (totalAnswered, theta = 0.4) => ({
   data: {
     profile: { totalAnswered, thetaRating: theta, globalStreak: 3 },
     microTopics: { Algebra: { subject: 'Mathematics', subtopic: 'Algebra', totalAttempts: 10, correctHits: 7, totalTimeSecs: 300 } },
-    activityCalendar: { '2026-10-08': totalAnswered },
+    activityCalendar: { [TODAY]: totalAnswered },
   },
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
   uid = 'u1';
+  day = TODAY;
   __resetDashboardCache();
   useStore.setState({ stats: { dailyTarget: 50 }, dynamicTOS: {}, syncStatus: 'synced' });
   apiRequest.mockResolvedValue(payload(10));
@@ -109,6 +113,23 @@ describe('useDashboardStats', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.kpi.streak).toBe(0);
   });
+
+  // A screen left open overnight: nothing else re-renders it at midnight.
+  it('at a new Manila day, re-judges the numbers and fetches the new day’s aggregate', async () => {
+    const { result, rerender } = renderHook(() => useDashboardStats({ withReadiness: true }));
+    await waitFor(() => expect(result.current.readiness).toEqual({ score: 61 }));
+    expect(result.current.today).toBe(TODAY);
+    expect(result.current.kpi.streak).toBe(3);
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+
+    day = dayBefore('2099-01-03'); // days after TODAY's answers: the run is over
+    apiRequest.mockReturnValue(new Promise(() => {})); // still on its way
+    rerender();
+    expect(result.current.today).toBe('2099-01-02');
+    expect(result.current.kpi.streak).toBe(0);
+    expect(apiRequest).toHaveBeenCalledTimes(2);
+    expect(fetchReadinessScore).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('deriveKpi', () => {
@@ -122,5 +143,11 @@ describe('deriveKpi', () => {
     const yesterday = dayBefore(TODAY);
     expect(deriveKpi({ globalStreak: 5, activityCalendar: { [yesterday]: 3 } }).streak).toBe(5);
     expect(deriveKpi({ globalStreak: 5, activityCalendar: { [dayBefore(yesterday)]: 3 } }).streak).toBe(0);
+  });
+
+  it('streak: judged on the day it is given', () => {
+    const stats = { globalStreak: 5, activityCalendar: { '2026-10-08': 3 } };
+    expect(deriveKpi(stats, '2026-10-09').streak).toBe(5);
+    expect(deriveKpi(stats, '2026-10-10').streak).toBe(0);
   });
 });

@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { effectiveStreak } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
 import { useTelemetrySlice, useTOSSlice } from '../store/slices';
+import { useManilaDay } from './useManilaDay';
 import { fetchReadinessScore } from '../services/dbQueries';
 import {
   cachedDashboardStats, lastStudyDay, mergeServerIntoStats, renormalizeDashboardStats,
@@ -20,7 +21,7 @@ import {
 } from '../services/analyticsSync';
 
 /** KPI values, from the same microTopics aggregate the heatmap uses. */
-export function deriveKpi(stats) {
+export function deriveKpi(stats, today) {
   const mt = stats?.microTopics || {};
   let attempts = 0, correct = 0, timeMs = 0;
   Object.values(mt).forEach((t) => {
@@ -38,20 +39,23 @@ export function deriveKpi(stats) {
     // stats saved on this device (offline, or open past midnight) can still
     // hold a run that broke days ago; once a whole Manila day passes
     // unanswered it reads 0.
-    streak: effectiveStreak(stats?.globalStreak, lastStudyDay(stats)),
+    streak: effectiveStreak(stats?.globalStreak, lastStudyDay(stats), today),
   };
 }
 
 /**
  * @param {{ withReadiness?: boolean }} [options] Today shows the composite
  *   readiness index (/api/readiness); Progress doesn't, so it skips the call.
- * @returns {{ activeStats: object|null, readiness: object|null, loading: boolean, kpi: object }}
+ * @returns {{ activeStats: object|null, readiness: object|null, loading: boolean, kpi: object, today: string }}
+ *   `today` is the Manila date the numbers were judged on; it changes at
+ *   midnight, which re-merges, re-derives and refetches.
  */
 export function useDashboardStats({ withReadiness = false } = {}) {
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;
   const { stats, syncStatus } = useTelemetrySlice();
   const { dynamicTOS } = useTOSSlice();
+  const today = useManilaDay();
 
   const sqlData = useSyncExternalStore(subscribeDashboardStats, () => cachedDashboardStats(uid, dynamicTOS));
   // True once this mount's fetch has finished, whether or not it succeeded:
@@ -72,9 +76,10 @@ export function useDashboardStats({ withReadiness = false } = {}) {
     }
     // Keyed on the UID, not the `currentUser` object (Firebase hands back a new
     // one on token refresh), and not on dynamicTOS: a TOS change needs
-    // re-bucketing, not a refetch. The effect below does that.
+    // re-bucketing, not a refetch. The effect below does that. A new Manila
+    // day does refetch: yesterday's payload holds yesterday's daily counts.
     return () => { live = false; };
-  }, [uid, withReadiness]);
+  }, [uid, withReadiness, today]);
 
   // The TOS arrived or changed: re-bucket the payload already fetched, so the
   // store (which other pages read) gets every topic's tile. No network.
@@ -98,13 +103,14 @@ export function useDashboardStats({ withReadiness = false } = {}) {
   // The store already holds the merged result; merging again at render keeps
   // answers recorded after the fetch on top (the answered total is the server
   // count plus this device's not-yet-synced excess).
-  const activeStats = useMemo(() => mergeServerIntoStats(stats, sqlData), [stats, sqlData]);
-  const kpi = useMemo(() => deriveKpi(activeStats), [activeStats]);
+  const activeStats = useMemo(() => mergeServerIntoStats(stats, sqlData, today), [stats, sqlData, today]);
+  const kpi = useMemo(() => deriveKpi(activeStats, today), [activeStats, today]);
 
   return {
     activeStats,
     readiness,
     loading: !activeStats || (!sqlData && !settled),
     kpi,
+    today,
   };
 }

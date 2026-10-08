@@ -51,6 +51,27 @@ function effectiveStreak(globalStreak, lastStudyDay, today = todayManila()) {
 }
 
 /**
+ * The newest Manila day with answers that these stats know about: the study
+ * calendar's latest non-empty day, or `lastActiveDate` (stamped by the client's
+ * optimistic update when this device answers). Null when there is none.
+ *
+ * Merged stats can hold answers from another device in the calendar while
+ * `lastActiveDate` is still this device's own last day, so judging by
+ * `lastActiveDate` alone misread a live streak, and today's counts, as stale.
+ *
+ * @param {{ lastActiveDate?: string, activityCalendar?: Object<string, number> }} stats
+ * @returns {string|null}
+ */
+function lastStudyDay(stats) {
+    const own = stats?.lastActiveDate;
+    let latest = typeof own === 'string' && DAY_RE.test(own) ? own : null;
+    for (const [day, n] of Object.entries(stats?.activityCalendar || {})) {
+        if ((Number(n) || 0) > 0 && DAY_RE.test(day) && (!latest || day > latest)) latest = day;
+    }
+    return latest;
+}
+
+/**
  * The longest run of consecutive Manila days with answers in a study calendar
  * ({ 'YYYY-MM-DD': count }). What milestones are judged by: a streak once
  * reached stays reached after the run breaks, and it comes from the days
@@ -71,4 +92,4 @@ function longestStreak(calendar) {
     return best;
 }
 
-module.exports = { effectiveStreak, longestStreak, dayBefore };
+module.exports = { effectiveStreak, longestStreak, lastStudyDay, dayBefore };

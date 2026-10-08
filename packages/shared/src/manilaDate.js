@@ -39,4 +39,17 @@ function manilaDateOf(d) {
     return MANILA_FMT.format(d instanceof Date ? d : new Date(d));
 }
 
-module.exports = { todayManila, yesterdayManila, manilaDateOf };
+// Manila is UTC+8 all year (no DST), so midnight is a fixed offset from UTC.
+const MANILA_OFFSET_MS = 8 * 3600000;
+const DAY_MS = 86400000;
+
+/**
+ * The instant (epoch ms) of the next Manila midnight after `now`. The server
+ * caps its dashboard cache at it, and the client schedules its day-change
+ * re-render with it.
+ */
+function nextManilaMidnight(now = Date.now()) {
+    return Math.floor((now + MANILA_OFFSET_MS) / DAY_MS) * DAY_MS + DAY_MS - MANILA_OFFSET_MS;
+}
+
+module.exports = { todayManila, yesterdayManila, manilaDateOf, nextManilaMidnight };

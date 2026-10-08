@@ -7,10 +7,15 @@
 
 'use strict';
 
+// The longest display name the server stores (rankings, battles, the readiness
+// certificate). The name inputs cap at it too: Account allowed 60, so a longer
+// name failed to save with a generic error.
+const DISPLAY_NAME_MAX = 32;
+
 /** 'k3Jd8sP2…' → 'Reviewer-k3Jd8s'; 'Reviewer' when there is no id. */
 function fallbackDisplayName(uid) {
     const short = String(uid || '').slice(0, 6);
     return short ? `Reviewer-${short}` : 'Reviewer';
 }
 
-module.exports = { fallbackDisplayName };
+module.exports = { fallbackDisplayName, DISPLAY_NAME_MAX };

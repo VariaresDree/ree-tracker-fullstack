@@ -7,7 +7,7 @@
 // diverged from what the Dashboard displayed. Now the fetch + normalization +
 // merge live here, and the merged result is WRITTEN INTO the store — all
 // surfaces read the same reconciled numbers.
-import { effectiveStreak, todayManila } from '@ree/shared';
+import { effectiveStreak, lastStudyDay, todayManila } from '@ree/shared';
 import { apiRequest } from './dbQueries';
 import { useStore } from '../store/useStore';
 import { takeDashboardSeed, invalidateDashboardSeed } from './dashboardSeed';
@@ -58,18 +58,10 @@ export function normalizeMicroTopics(rawMicroTopics = {}, safeTOS = {}) {
   return normalized;
 }
 
-/**
- * Pure: the newest Manila day these stats show answers on — the calendar's
- * latest non-empty day, or the optimistic `lastActiveDate` that
- * calculateUpdatedStats stamps beside the streak it computes. Null when none.
- */
-export function lastStudyDay(stats) {
-  let latest = stats?.lastActiveDate || null;
-  for (const [day, n] of Object.entries(stats?.activityCalendar || {})) {
-    if ((Number(n) || 0) > 0 && (!latest || day > latest)) latest = day;
-  }
-  return latest;
-}
+// The newest Manila day these stats show answers on now lives in @ree/shared
+// (calculateUpdatedStats and the dashboard route judge by it too); re-exported
+// for the callers that import it from here.
+export { lastStudyDay };
 
 /**
  * Pure: the per-subject daily counters (dailyMath/ESAS/EE) as they stand on

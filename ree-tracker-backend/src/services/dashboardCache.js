@@ -8,16 +8,10 @@
 // Single-instance by design; swap for Redis if the backend ever scales out
 // (see SCALING.md).
 
+const { nextManilaMidnight } = require('@ree/shared');
+
 const DASHBOARD_TTL_MS = 30_000;
 const MAX_CACHE = 5000;
-
-// The payload is judged against a Manila day: the day's per-subject counts
-// and the streak as it stands today. An entry cached just before Manila
-// midnight must not be served after it, so no entry outlives its day.
-// Manila is UTC+8 all year (no DST).
-const MANILA_OFFSET_MS = 8 * 3600_000;
-const DAY_MS = 86_400_000;
-const nextManilaMidnight = (now) => Math.floor((now + MANILA_OFFSET_MS) / DAY_MS) * DAY_MS + DAY_MS - MANILA_OFFSET_MS;
 
 const store = new Map(); // uid -> { payload, expiresAt }
 
@@ -36,6 +30,9 @@ function set(uid, payload) {
         const oldest = store.keys().next().value;
         store.delete(oldest);
     }
+    // The payload is judged against a Manila day: the day's per-subject counts
+    // and the streak as it stands today. An entry cached just before Manila
+    // midnight must not be served after it, so no entry outlives its day.
     const now = Date.now();
     store.set(uid, { payload, expiresAt: Math.min(now + DASHBOARD_TTL_MS, nextManilaMidnight(now)) });
 }

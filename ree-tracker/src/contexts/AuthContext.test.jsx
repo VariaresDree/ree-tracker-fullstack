@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
-import { getAnalyticsProfile } from '../services/dbQueries';
+import { getAnalyticsProfile, updateUserProfile } from '../services/dbQueries';
 
 let authStateCallback = null;
 
@@ -177,5 +177,49 @@ describe('AuthProvider — roleResolved', () => {
     vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.reject(new Error('503')));
     await signIn();
     expect(screen.getByTestId('role').textContent).toBe('resolved:learner');
+  });
+});
+
+// The once-per-session display-name write is a mutation: it drops the boot
+// dashboard seed, so Today fetched the aggregate twice on every first load.
+// It now goes out only when the stored name differs.
+describe('AuthProvider — display-name mirror', () => {
+  const signInAs = async (displayName) => {
+    render(<AuthProvider><div>APP</div></AuthProvider>);
+    await act(async () => { authStateCallback({ uid: 'u1', email: 'u@example.com', displayName }); });
+  };
+
+  beforeEach(() => {
+    authStateCallback = null;
+    sessionStorage.clear();
+    vi.mocked(updateUserProfile).mockClear();
+  });
+
+  it('skips the write when the server already has the name', async () => {
+    vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.resolve({ data: { profile: { displayName: 'Engr. Cruz' } } }));
+    await signInAs('Engr. Cruz');
+    expect(updateUserProfile).not.toHaveBeenCalled();
+  });
+
+  it('writes a name that differs, once per session', async () => {
+    const stale = () => Promise.resolve({ data: { profile: { displayName: 'Old name' } } });
+    vi.mocked(getAnalyticsProfile).mockImplementationOnce(stale).mockImplementationOnce(stale);
+    await signInAs('Engr. Cruz');
+    expect(updateUserProfile).toHaveBeenCalledWith({ displayName: 'Engr. Cruz' });
+    await signInAs('Engr. Cruz');
+    expect(updateUserProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('still writes when the profile request fails, so drift heals regardless', async () => {
+    vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.reject(new Error('503')));
+    await signInAs('Engr. Cruz');
+    expect(updateUserProfile).toHaveBeenCalledWith({ displayName: 'Engr. Cruz' });
+  });
+
+  it('trims a signup name to the server limit, so it can be stored and then matches', async () => {
+    const long = 'Engr. Maria Clara de los Santos-Reyes'; // 37 characters
+    vi.mocked(getAnalyticsProfile).mockImplementationOnce(() => Promise.resolve({ data: { profile: { displayName: long.slice(0, 32) } } }));
+    await signInAs(long);
+    expect(updateUserProfile).not.toHaveBeenCalled();
   });
 });
