@@ -13,7 +13,7 @@
 //     write per topic. Queued states are laid over the server's copy.
 //   • A list fetched while a change was being made may predate it, so it is
 //     dropped and fetched again once the change lands.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { syllabusProgressErrors, todayManila } from '@ree/shared';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStore } from '../../store/useStore';
@@ -53,14 +53,17 @@ const withTopic = (value, topicId, state) => (value
 
 /**
  * The full state after `patch`. The first tick of a topic fills in today as
- * its start date, unless the learner set one.
+ * its start date, unless the learner set one; a finish date already set
+ * before today is used instead, so the start never lands after the finish.
  */
 export function nextTopicState(row, patch, today = todayManila()) {
   const before = topicState(row);
   const next = { ...before, ...patch };
   const tickedBefore = before.read || before.watched || before.drilled;
   const tickedNow = next.read || next.watched || next.drilled;
-  if (!tickedBefore && tickedNow && !next.startedOn && patch.startedOn === undefined) next.startedOn = today;
+  if (!tickedBefore && tickedNow && !next.startedOn && patch.startedOn === undefined) {
+    next.startedOn = next.finishedOn && next.finishedOn < today ? next.finishedOn : today;
+  }
   return next;
 }
 
@@ -133,6 +136,9 @@ export function useSyllabus({ fetchIfOlderThanMs = 0 } = {}) {
       if (!live) return;
       // Only into an empty screen: a copy already fetched is newer.
       if (entry?.value) {
+        // Into memory too, so the effect above doesn't write the copy it was
+        // just read from straight back to IndexedDB.
+        if (memory.uid !== uid) memory = { uid, value: entry.value, at: entry.savedAt || 0 };
         setData((prev) => (prev.uid === uid && prev.value ? prev : { uid, value: entry.value, at: entry.savedAt || 0 }));
       }
       if (!entry?.value || Date.now() - (entry.savedAt || 0) >= fetchIfOlderThanMs) load();
@@ -150,18 +156,32 @@ export function useSyllabus({ fetchIfOlderThanMs = 0 } = {}) {
     if (drained && navigator.onLine) load();
   }, [queuedCount, load]);
 
+  // The newest state, including changes made since the last render: two
+  // changes to one topic before React re-renders must build on each other,
+  // not both on the same stale row (the second full state would erase the
+  // first). Refreshed at commit; advanced by saveTopic itself in between.
+  const latest = useRef(value);
+  useLayoutEffect(() => { latest.current = value; }, [value]);
+  // Per topic, the newest change: a rejection undoes its change only if no
+  // later change to that topic was made meanwhile.
+  const changeSeq = useRef(new Map());
+
   /**
    * Change one topic. Resolves 'sent' or 'queued'; rejects (with the topic put
    * back) when the change is invalid or the server refuses it.
    */
   const saveTopic = useCallback(async (topicId, patch) => {
-    const row = value?.topics.find((t) => t.topicId === topicId);
+    const base = latest.current;
+    const row = base?.topics.find((t) => t.topicId === topicId);
     if (!row) throw new Error('That topic isn’t in the syllabus.');
     const next = nextTopicState(row, patch);
     const problems = syllabusProgressErrors(next);
     if (Object.keys(problems).length > 0) throw Object.assign(new Error(Object.values(problems)[0]), { fields: problems });
 
     const previous = topicState(row);
+    const seq = (changeSeq.current.get(topicId) || 0) + 1;
+    changeSeq.current.set(topicId, seq);
+    latest.current = withTopic(base, topicId, next);
     const w = writes.current;
     w.made += 1;
     w.sending += 1;
@@ -170,7 +190,10 @@ export function useSyllabus({ fetchIfOlderThanMs = 0 } = {}) {
       const result = await writeOrQueue(`${SYLLABUS_ENDPOINT}/${encodeURIComponent(topicId)}`, 'PUT', next, { queueKey: SYLLABUS_ENDPOINT, supersede: true });
       return result.status;
     } catch (err) {
-      setServer((prev) => withTopic(prev, topicId, previous));
+      if (changeSeq.current.get(topicId) === seq) {
+        setServer((prev) => withTopic(prev, topicId, previous));
+        if (latest.current) latest.current = withTopic(latest.current, topicId, previous);
+      }
       throw err;
     } finally {
       w.sending -= 1;
@@ -179,7 +202,7 @@ export function useSyllabus({ fetchIfOlderThanMs = 0 } = {}) {
         loadRef.current?.();
       }
     }
-  }, [value, setServer]);
+  }, [setServer]);
 
   return {
     weights: value?.weights || null,

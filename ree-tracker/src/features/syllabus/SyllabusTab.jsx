@@ -93,7 +93,11 @@ function TopicDetails({ id, row, onSave, onDrill }) {
 const TopicRow = memo(function TopicRow({ row, onSave, onDrill }) {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
-  const tick = (field) => onSave(row.topicId, { [field]: !row[field] }).catch(() => {});
+  // A tick has no form to show a field error in, so it gets a toast. (A
+  // refused request was already toasted by onSave.)
+  const tick = (field) => onSave(row.topicId, { [field]: !row[field] }).catch((err) => {
+    if (err?.fields) toast.error(err.message);
+  });
   const answers = `${row.attempts} ${row.attempts === 1 ? 'answer' : 'answers'}`;
 
   return (
@@ -123,7 +127,18 @@ const TopicRow = memo(function TopicRow({ row, onSave, onDrill }) {
           <ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" className={cn('transition-transform', open && 'rotate-180')} />
         </button>
       </div>
-      {open && <TopicDetails id={detailsId} row={row} onSave={onSave} onDrill={onDrill} />}
+      {/* Keyed on the saved values: when they change underneath an open form
+          (a refetch, another device), the form starts again from them
+          instead of saving a stale copy back over them. */}
+      {open && (
+        <TopicDetails
+          key={`${row.startedOn}|${row.finishedOn}|${row.note}`}
+          id={detailsId}
+          row={row}
+          onSave={onSave}
+          onDrill={onDrill}
+        />
+      )}
     </li>
   );
 });
@@ -179,6 +194,16 @@ export default function SyllabusTab({ examDate = null }) {
       />
     );
   }
+  if (!topics && (status === 'offline' || status === 'unreachable')) {
+    return (
+      <EmptyState
+        icon={CloudOff}
+        title={status === 'offline' ? 'You’re offline' : 'Couldn’t reach the server'}
+        description="The checklist loads once over a connection; after that it works offline."
+        action={<Button size="sm" variant="secondary" onClick={() => reload()}><RotateCcw size={14} strokeWidth={1.75} aria-hidden="true" /> Try again</Button>}
+      />
+    );
+  }
   if (!topics) {
     return (
       <div role="status" aria-live="polite" className="flex flex-col gap-4">
@@ -193,13 +218,16 @@ export default function SyllabusTab({ examDate = null }) {
       <EmptyState
         icon={ListChecks}
         title="No syllabus topics yet"
-        description={status === 'ready' ? 'The topic list comes from the board’s table of specifications, and none is set up yet.' : 'Connect once to load the topic list; after that it works offline.'}
+        description="The topic list comes from the board’s table of specifications, and none is set up yet."
       />
     );
   }
 
   const { overall } = coverage;
   const pace = paceLine(overall.total - overall.covered, daysToExam(examDate));
+  // Shares of the exam, from the weights as stored (fractions or percents).
+  const weightSum = coverage.subjects.reduce((s, x) => s + (x.weight > 0 ? x.weight : 0), 0);
+  const share = (w) => (weightSum > 0 ? Math.round((w / weightSum) * 100) : 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -216,7 +244,7 @@ export default function SyllabusTab({ examDate = null }) {
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="text-textMain font-medium">
                   {s.subject}
-                  <span className="text-muted2 font-normal"> · {Math.round(s.weight * 100)}% of the exam</span>
+                  <span className="text-muted2 font-normal"> · {share(s.weight)}% of the exam</span>
                 </span>
                 <span className="tabular-nums text-muted2 shrink-0">{s.covered} of {s.total}</span>
               </div>

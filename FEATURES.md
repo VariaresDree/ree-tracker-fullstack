@@ -25,6 +25,7 @@ every feature add, change, or removal, not on a schedule.
   - **Weak spots** — the weak-spot and blind-spot drills, the cross-session blind spots and time sinks, and **Recommended fixes** (the prescription panel; its routing is `features/progress/prescriptionRouting.js`).
   - **Confidence** — the confidence matrix, the calibration curve, and accuracy at each confidence level.
   - **Habits** — the **study calendar**, study time over the last 14 days, and time per question by topic.
+  - **Syllabus** — the Read / Watched / Drilled checklist per TOS topic and board-weighted coverage (see Syllabus checklist).
   - **Study plan** — the planner.
   - These were spread over the Dashboard, Profile's "Comparative analytics" and "Deep analytics" (`features/analytics/AnalyticsDeepDive.jsx`, now split into `useDeepAnalytics.js` and `features/analytics/sections/*`), and the planner. Each section has an h2 heading under the page's h1 (they were h3, with emoji). **Dropped:** the deep dive's "Score history" tab (the same sittings as Exams → Past sittings) and the "Active Network Agents" online list.
   - `useDeepAnalytics` keeps each result per account for the session: a tab shown again appears at once and refreshes in the background after two minutes. A failed fetch shows an error with Try again, never "no data".

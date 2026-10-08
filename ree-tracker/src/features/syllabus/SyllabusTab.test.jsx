@@ -4,7 +4,7 @@
 // queueing with supersede, board-weighted coverage, and the 30-minute cache
 // behind the Today link.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { render, renderHook, act, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { todayManila } from '@ree/shared';
 
@@ -31,7 +31,7 @@ vi.mock('react-hot-toast', () => ({ default: toastFn }));
 const { useStore } = await import('../../store/useStore');
 const { default: SyllabusTab } = await import('./SyllabusTab');
 const { default: SyllabusCoverageLink } = await import('./SyllabusCoverageLink');
-const { __resetSyllabusMemory, nextTopicState, queuedTopicStates } = await import('./useSyllabus');
+const { __resetSyllabusMemory, nextTopicState, queuedTopicStates, useSyllabus } = await import('./useSyllabus');
 const { paceLine } = await import('./syllabusPace');
 
 const KEY = '/api/user/syllabus';
@@ -149,6 +149,22 @@ describe('SyllabusTab', () => {
     expect(screen.getByText('No topics in this subject yet.')).toBeInTheDocument();
   });
 
+  it('offline on a first visit, with nothing saved, says so instead of loading forever', async () => {
+    apiRequest.mockImplementation(async () => { throw new Error('[OFFLINE]'); });
+    renderTab();
+    expect(await screen.findByText('You’re offline')).toBeInTheDocument();
+    routeApi();
+    fireEvent.click(screen.getByRole('button', { name: /Try again/ }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Syllabus coverage' })).toBeInTheDocument();
+  });
+
+  it('reads the exam share from the stored weights, whether fractions or percents', async () => {
+    apiRequest.mockResolvedValue({ weights: { Mathematics: 25, ESAS: 30, EE: 45 }, topics: TOPICS });
+    renderTab();
+    expect(await screen.findByText(/· 25% of the exam/)).toBeInTheDocument();
+    expect(screen.getByText(/· 45% of the exam/)).toBeInTheDocument();
+  });
+
   it('a refused list shows an error with a retry', async () => {
     apiRequest.mockImplementation(async () => { throw Object.assign(new Error('Forbidden'), { status: 403 }); });
     renderTab();
@@ -206,5 +222,47 @@ describe('syllabus helpers', () => {
     expect(paceLine(0, 30)).toMatch(/Every topic covered/);
     expect(paceLine(5, null)).toBeNull();
     expect(paceLine(5, -2)).toBeNull();
+  });
+
+  it('the first tick never starts a topic after the finish date already set', () => {
+    const r = row('a', 'EE', 'x', { finishedOn: '2026-09-30' });
+    expect(nextTopicState(r, { read: true }, '2026-10-09')).toMatchObject({ startedOn: '2026-09-30', finishedOn: '2026-09-30' });
+  });
+});
+
+describe('useSyllabus changes', () => {
+  const wrapperHook = () => renderHook(() => useSyllabus());
+
+  it('two changes to one topic before a re-render build on each other', async () => {
+    const { result } = wrapperHook();
+    await waitFor(() => expect(result.current.topics).not.toBeNull());
+    await act(async () => {
+      // Both called from the same render: the second must not erase the first.
+      await Promise.all([
+        result.current.saveTopic('e1', { read: true }),
+        result.current.saveTopic('e1', { note: 'Per-unit first' }),
+      ]);
+    });
+    const puts = apiRequest.mock.calls.filter((c) => c[1] === 'PUT').map((c) => c[2]);
+    expect(puts[1]).toMatchObject({ read: true, note: 'Per-unit first' });
+    expect(result.current.topics.find((t) => t.topicId === 'e1')).toMatchObject({ read: true, note: 'Per-unit first' });
+  });
+
+  it('a refused change is undone only if nothing newer was made to that topic', async () => {
+    let rejectFirst;
+    apiRequest.mockImplementation(async (endpoint, method = 'GET', body) => {
+      if (method === 'GET') return { weights: WEIGHTS, topics: TOPICS };
+      if (!rejectFirst) return new Promise((_, reject) => { rejectFirst = () => reject(Object.assign(new Error('Validation failed.'), { status: 400 })); });
+      return { item: body };
+    });
+    const { result } = wrapperHook();
+    await waitFor(() => expect(result.current.topics).not.toBeNull());
+    let first;
+    await act(async () => {
+      first = result.current.saveTopic('e1', { read: true }).catch(() => 'rejected');
+      await result.current.saveTopic('e1', { watched: true });
+    });
+    await act(async () => { rejectFirst(); await first; });
+    expect(result.current.topics.find((t) => t.topicId === 'e1')).toMatchObject({ read: true, watched: true });
   });
 });

@@ -20,7 +20,7 @@ export default function SyllabusCoverageLink() {
   return (
     <Link
       to="/progress?tab=syllabus"
-      className="inline-flex items-center gap-1.5 min-h-8 text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2"
+      className="touch-target inline-flex items-center gap-1.5 min-h-8 text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2"
     >
       <ListChecks size={13} strokeWidth={2} aria-hidden="true" />
       {started ? `Syllabus ${pct}% covered` : 'Start your syllabus checklist'}
