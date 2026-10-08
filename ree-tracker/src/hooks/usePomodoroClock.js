@@ -43,7 +43,7 @@ export function usePomodoroClock({ owner = false } = {}) {
         const finishedWork = pomodoro.isWork;
         switchPomodoroMode();
         const message = finishedWork ? 'Focus block done — break time.' : 'Break over — back to focus.';
-        toast(message, { icon: '⏱️' });
+        toast(message);
         if (notificationsEnabled) notifySessionOver(message);
     }, [owner, pomodoro.isRunning, remaining, pomodoro.isWork, switchPomodoroMode, notificationsEnabled]);
 

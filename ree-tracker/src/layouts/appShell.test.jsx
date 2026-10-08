@@ -113,3 +113,24 @@ describe('desktop shell', () => {
         expect(within(primaryNav()).getByRole('link', { name: /admin/i })).toHaveAttribute('href', '/admin');
     });
 });
+
+describe('sticky offsets', () => {
+    // Sticky children (a mock's review toolbar, Practice's Start button) read
+    // these from whichever layout they're in.
+    it('on a phone, clear the header and the bottom bar, safe areas included', () => {
+        const { container } = at('/');
+        const root = container.firstChild;
+        // The header sizes itself from --phone-header-h; sticky children sit below it.
+        expect(root.style.getPropertyValue('--phone-header-h')).toContain('safe-area-inset-top');
+        expect(root.style.getPropertyValue('--sticky-top')).toBe('calc(var(--phone-header-h) + 0.25rem)');
+        expect(screen.getAllByRole('banner')[0].className).toContain('h-[var(--phone-header-h,auto)]');
+        expect(root.style.getPropertyValue('--bottom-bar-h')).toContain('safe-area-inset-bottom');
+    });
+
+    it('on desktop there is no header or bottom bar to clear', () => {
+        desktop();
+        const { container } = at('/');
+        expect(container.firstChild.style.getPropertyValue('--sticky-top')).toBe('0.75rem');
+        expect(container.firstChild.style.getPropertyValue('--bottom-bar-h')).toBe('0px');
+    });
+});

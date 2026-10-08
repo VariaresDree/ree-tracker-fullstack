@@ -7,7 +7,11 @@ export default function ExamLayout({
   message = 'Distraction-free board simulation active — real-time penalties apply',
 }) {
   return (
-    <div className="exam-environment min-h-dvh flex flex-col bg-bg">
+    // Sticky children sit just under the exam banner; there is no bottom bar.
+    <div
+      className="exam-environment min-h-dvh flex flex-col bg-bg"
+      style={{ '--sticky-top': 'calc(max(0.5rem, env(safe-area-inset-top)) + 2.25rem)', '--bottom-bar-h': '0px' }}
+    >
       {/* Minimalist high-contrast warning header (sticky so it stays visible).
           Copy + size step down on phones so it stays one line and doesn't
           double the sticky chrome above the toolbar.

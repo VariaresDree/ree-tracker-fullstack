@@ -10,6 +10,7 @@ import { Button, Card, PageHeader, ProgressIndicator, StatusPill } from '../../c
 import { Crosshair, RotateCcw } from '../../components/ui/icons';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
+import NotificationOptIn from '../../components/NotificationOptIn';
 import { formatDuration } from './buildSessionSummary';
 
 function Figure({ label, value, sub }) {
@@ -86,6 +87,10 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
           <Button variant="ghost" onClick={onDone} disabled={loading}>Done</Button>
         </div>
       </Card>
+
+      {/* The one-time reminder offer after a first session, as a card here
+          rather than a floating one over the buttons above. */}
+      <NotificationOptIn inline />
 
       {byTopic.length > 0 && (
         <SectionCard eyebrow="Topics" title="How you did by topic">

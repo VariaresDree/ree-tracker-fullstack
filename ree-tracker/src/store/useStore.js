@@ -295,9 +295,21 @@ export const useStore = create(
       //     online, so an error can't spin a tight retry loop).
       flushQueueToCloud: async () => {
         // If a flush is already running, wait for it (its success path will have
-        // cleared its own ids) before we evaluate what's left to send.
-        if (inFlightFlush) {
-          await inFlightFlush.catch(() => {});
+        // cleared its own ids) before we evaluate what's left to send. A LOOP,
+        // not an `if`: several callers (end of session, the debounced timer,
+        // the sync lifecycle, the drain below) can be waiting on the same
+        // flush, and with an `if` they all woke when it settled and POSTed the
+        // same batch at once under the same idempotency key, so the server
+        // answered the duplicates 409 "Duplicate request already in progress".
+        // Re-checking after every wake, and claiming the slot below with no
+        // await in between, lets exactly one waiter run at a time.
+        while (inFlightFlush) {
+          const ok = await inFlightFlush.catch(() => false);
+          // The flush we waited on failed (offline, 5xx, timeout): its batch is
+          // still queued, and the backoff decides when to try again. Retrying
+          // here, once per waiter, sent back-to-back requests to a failing
+          // backend and kept "Saving your session…" up for one timeout each.
+          if (!ok) return;
         }
 
         const run = async () => {

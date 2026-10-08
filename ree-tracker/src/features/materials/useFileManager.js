@@ -101,7 +101,7 @@ export const useFileManager = (currentUser, isAdmin) => {
         // would break rename/move/delete attempted against it before sync) —
         // just make sure the admin knows this queued rather than vanished.
         useStore.getState().queuePendingWrite('/api/materials/folders', 'POST', { name, parentId });
-        toast('Offline — "' + name + '" will be created when you reconnect.', { icon: '📡' });
+        toast('Offline — "' + name + '" will be created when you reconnect.');
       } else {
         toast.error('Failed to create folder.');
       }
@@ -117,7 +117,7 @@ export const useFileManager = (currentUser, isAdmin) => {
     } catch (error) {
       if (isOfflineErr(error)) {
         useStore.getState().queuePendingWrite('/api/materials/upload', 'POST', payload);
-        toast('Offline — "' + name + '" will be added when you reconnect.', { icon: '📡' });
+        toast('Offline — "' + name + '" will be added when you reconnect.');
       } else {
         toast.error('Failed to add material.');
       }
@@ -136,7 +136,7 @@ export const useFileManager = (currentUser, isAdmin) => {
         // The delete WILL happen once the queued write lands — reflect that now.
         if (isFolder) setFolders(prev => prev.filter(f => f.id !== id));
         else setMaterials(prev => prev.filter(m => m.id !== id));
-        toast('Offline — deletion queued, will sync when you reconnect.', { icon: '📡' });
+        toast('Offline — deletion queued, will sync when you reconnect.');
       } else {
         toast.error('Delete failed.');
       }
@@ -154,7 +154,7 @@ export const useFileManager = (currentUser, isAdmin) => {
         useStore.getState().queuePendingWrite(endpoint, 'PATCH', { name: newName });
         if (isFolder) setFolders(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
         else setMaterials(prev => prev.map(m => m.id === id ? { ...m, name: newName } : m));
-        toast('Offline — rename will sync when you reconnect.', { icon: '📡' });
+        toast('Offline — rename will sync when you reconnect.');
       } else {
         toast.error('Rename failed.');
       }
@@ -179,7 +179,7 @@ export const useFileManager = (currentUser, isAdmin) => {
         // in its pre-move location looking like nothing happened.
         if (itemType === 'folder') setFolders(prev => prev.map(f => f.id === itemId ? { ...f, parentId: folderId } : f));
         else setMaterials(prev => prev.map(m => m.id === itemId ? { ...m, folderId } : m));
-        toast('Offline — saved locally, move will sync when you reconnect.', { icon: '📡' });
+        toast('Offline — saved locally, move will sync when you reconnect.');
       } else {
         toast.error('Move failed.');
       }
@@ -252,7 +252,7 @@ export const useFileManager = (currentUser, isAdmin) => {
               url: downloadURL,
               storagePath: uploadTask.snapshot.ref.fullPath,
             });
-            toast('Uploaded to storage — record queued, will save when you reconnect.', { icon: '📡' });
+            toast('Uploaded to storage — record queued, will save when you reconnect.');
           } else {
             toast.error('Uploaded to storage, but saving the record failed.');
           }

@@ -265,13 +265,13 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
               if (reconciledTotal > 0) {
                   toast(
                       `${reconciledTotal} item${reconciledTotal === 1 ? '' : 's'} ${reconciledTotal === 1 ? 'was' : 'were'} already processed by an earlier attempt despite the connection issue, and ${reconciledTotal === 1 ? 'has' : 'have'} left the queue.`,
-                      { icon: 'ℹ️', duration: 8000 },
+                      { duration: 8000 },
                   );
               }
               if (recordkeepingPendingTotal > 0) {
                   toast(
                       `${recordkeepingPendingTotal} item${recordkeepingPendingTotal === 1 ? '' : 's'} published but still need${recordkeepingPendingTotal === 1 ? 's' : ''} a bookkeeping retry — reopen the queue and Accept All again (it will not duplicate).`,
-                      { icon: '⚠️', duration: 8000 },
+                      { duration: 8000 },
                   );
               }
               if (plainFailedTotal > 0) {

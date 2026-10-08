@@ -57,7 +57,7 @@ export async function initPushNotifications(uid, { flagEnabled } = {}) {
         PushNotifications.addListener('pushNotificationReceived', (n) => {
             const title = n?.title || n?.data?.title;
             const body = n?.body || n?.data?.body;
-            if (title || body) toast(`${title ? `${title} — ` : ''}${body || ''}`, { icon: '🔔' });
+            if (title || body) toast(`${title ? `${title} — ` : ''}${body || ''}`);
         });
 
         // Tap on a notification → optional in-app route from the data payload.

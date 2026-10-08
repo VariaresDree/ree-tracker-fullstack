@@ -1,6 +1,7 @@
 // src/features/gauntlet/GauntletDiagnostics.jsx
 import React from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
+import NotificationOptIn from '../../components/NotificationOptIn';
 
 export default function GauntletDiagnostics({ diagnostics, level, navigate, formatTime }) {
     const { scorePct, correctCount, totalItems, isPassed, failedSubtopics, review = [], timeUsedSecs, isTimeOut } = diagnostics;
@@ -91,6 +92,12 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
                     </div>
                 </div>
             )}
+
+            {/* The one-time reminder offer after a first session, in the page
+                rather than floating over the button below. */}
+            <div className="text-left">
+                <NotificationOptIn inline />
+            </div>
 
             <button onClick={() => navigate('/exams?tab=gauntlet')} className="mt-4 px-8 py-4 bg-surface2 hover:bg-surface3 border border-border2 text-textMain rounded-xl text-xs font-black uppercase tracking-widest transition-colors cursor-pointer">
                 Back to Exams
