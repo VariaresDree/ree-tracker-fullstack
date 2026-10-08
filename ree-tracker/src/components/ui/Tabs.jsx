@@ -48,7 +48,7 @@ export function Tabs({ tabs, active, onChange, label, className }) {
               'inline-flex items-center gap-2 whitespace-nowrap min-h-11 px-4 text-sm font-medium',
               'rounded-t-[var(--radius-default)] transition-colors border-b-2 -mb-px',
               on
-                ? 'text-[var(--accent)] border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]'
+                ? 'text-[var(--accent-text)] border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]'
                 : 'text-muted2 border-transparent hover:text-textMain hover:bg-surface2'
             )}
           >

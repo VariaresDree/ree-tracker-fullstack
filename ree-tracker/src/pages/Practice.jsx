@@ -102,7 +102,7 @@ export default function Practice() {
       return <ReviewSetup config={config} setConfig={setConfig} isOnline={isOnline} startSession={startSession} session={session} safeTOS={safeTOS} />;
   }
 
-  if (!currentQ) return <div className="flex justify-center items-center h-64 text-[var(--accent)]"><span className="telemetry-spinner !w-12 !h-12"></span></div>;
+  if (!currentQ) return <div className="flex justify-center items-center h-64 text-[var(--accent-text)]"><span className="telemetry-spinner !w-12 !h-12"></span></div>;
 
   const isBookmarked = bookmarks.has(currentQ.id);
 

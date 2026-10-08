@@ -148,21 +148,26 @@
   /* Editorial accent layer */
   --accent-velocity: #7c5cff;
   --accent: #7c5cff;
-  /* Accent as TEXT. Not interchangeable with --accent: the brand purple on
-     the 12%-accent active-nav tint measures 3.6:1, below the 4.5:1 AA floor
-     for body text. The share below is the most accent each theme can carry
-     and still clear 4.5:1 against its own tinted surface -- themes with
-     colourful mid-tone surfaces (math, ocean, forest) can hold far less than
-     the dark neutral ones. Backgrounds, borders and the large bold wordmark
-     keep plain --accent: large text needs only 3:1, which it already meets.
-     Recompute if --accent, --text-main or --text-muted2 change here. */
+  /* Accent as TEXT (and icons). Not interchangeable with --accent: the brand
+     purple on the 12%-accent active-nav tint measures 3.6:1, below the 4.5:1
+     AA floor for body text, and 1.5-2.4:1 on the math, ocean and forest
+     surfaces. The share below is the most accent each theme can carry and
+     still clear 4.5:1 against its own tinted surface -- themes with colourful
+     mid-tone surfaces (math, ocean, forest) can hold far less than the dark
+     neutral ones. Every foreground use (labels, active tabs, the wordmark,
+     icons) takes this token; backgrounds, borders and tints keep --accent.
+     themeContrast.test.js holds it to 4.5:1. */
   --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
   --accent-signal: #22d3ee;
   --accent-danger: #ff4d6d;
   --accent-success: #34d399;
 
-  /* Focus ring (high-contrast, never decorative) */
-  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px color-mix(in srgb, var(--accent-velocity) 70%, transparent);
+  /* Focus ring (high-contrast, never decorative). The colour is the accent
+     text colour: plain --accent-velocity fell under the 3:1 non-text floor on
+     the math, ocean, forest and organs surfaces. --focus-ring is the
+     box-shadow form for the few controls that draw their own ring. */
+  --focus-ring-color: var(--accent-text);
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--focus-ring-color);
 }
 
 /* 2. LIGHT MODE (PRC STANDARD) */
@@ -179,6 +184,17 @@
   --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
   --accent-success: #1b7957;
   --accent-danger: #d00025;
+  /* The stock brand hues read at 1.8-3.8:1 as text on near-white. Darker
+     shades of the same hues serve both uses on a light theme: text clears
+     4.5:1, and white-on-colour buttons gain contrast too. */
+  --brand-blue: #1d4ed8;
+  --brand-blue2: #1e40af;
+  --brand-cyan: #155e75;
+  --brand-amber: #92400e;
+  --brand-green: #166534;
+  --brand-red: #b91c1c;
+  --brand-purple: #6d28d9;
+  --accent-signal: #155e75;
 }
 
 /* 3. MIDNIGHT (OLED PURE BLACK) */
@@ -209,9 +225,18 @@
   --text-muted2: #92400e;
   --border-main: rgba(69, 26, 3, 0.1);
   --border-light: rgba(69, 26, 3, 0.2);
-  --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-main));
   --accent-success: #197755;
   --accent-danger: #cc0025;
+  /* Darker brand hues, as in the light theme. */
+  --brand-blue: #1d4ed8;
+  --brand-blue2: #1e40af;
+  --brand-cyan: #155e75;
+  --brand-amber: #92400e;
+  --brand-green: #166534;
+  --brand-red: #b91c1c;
+  --brand-purple: #6d28d9;
+  --accent-signal: #155e75;
 }
 
 /* 5. CYBERPUNK (NEON GRIT) */
@@ -279,7 +304,7 @@
   --text-muted2: #d5f0fe;
   --border-main: rgba(125, 211, 252, 0.15);
   --border-light: rgba(125, 211, 252, 0.3);
-  --accent-text: color-mix(in srgb, var(--accent) 40%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
   --accent-success: #7ce3bd;
   --accent-danger: #ffc0cb;
 }
@@ -297,7 +322,16 @@
   --text-muted2: #961951;
   --border-main: rgba(190, 24, 93, 0.1);
   --border-light: rgba(190, 24, 93, 0.2);
-  --brand-blue: #db2777;
+  /* Darker brand hues, as in the light theme; one step deeper for the pink
+     surfaces. Blue stays the theme's pink. */
+  --brand-blue: #9d174d;
+  --brand-blue2: #831843;
+  --brand-cyan: #155e75;
+  --brand-amber: #92400e;
+  --brand-green: #166534;
+  --brand-red: #991b1b;
+  --brand-purple: #5b21b6;
+  --accent-signal: #155e75;
   --accent-text: color-mix(in srgb, var(--accent) 60%, var(--text-main));
   --accent-success: #186d4e;
   --accent-danger: #bc0022;
@@ -333,7 +367,7 @@
   --border-main: rgba(252, 165, 165, 0.2);
   --border-light: rgba(252, 165, 165, 0.4);
   --brand-blue: #f87171;
-  --accent-text: color-mix(in srgb, var(--accent) 50%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
   --accent-success: #44d6a1;
   --accent-danger: #ffaab9;
 }
@@ -388,12 +422,14 @@
       background-size: 20px 20px;
   }
 
-  /* Global focus-visible — editorial high-contrast ring */
+  /* Global focus-visible ring. An outline, not a box-shadow: this rule sits
+     in the base layer, so the .elevate-* and shadow-* utilities replaced a
+     box-shadow ring and every elevated control (primary buttons included)
+     showed no focus at all. Outlines also survive Windows forced-colours
+     mode, which drops box-shadows, and follow the element's own corners. */
   :focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring, 0 0 0 2px var(--bg-primary), 0 0 0 4px #7c5cff);
-    border-radius: var(--radius-sm);
-    transition: box-shadow var(--duration-fast) var(--ease-out-quart);
+    outline: 2px solid var(--focus-ring-color, #7c5cff);
+    outline-offset: 2px;
   }
 
   /* Respect reduced-motion across the entire app. animation-delay must be

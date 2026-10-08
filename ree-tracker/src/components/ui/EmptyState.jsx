@@ -16,7 +16,7 @@ export function EmptyState({ icon: Icon, title, description, action, compact = f
           className="inline-flex h-12 w-12 items-center justify-center rounded-full"
           style={{
             background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-            color: 'var(--accent)',
+            color: 'var(--accent-text)',
           }}
         >
           <Icon size={22} strokeWidth={1.75} aria-hidden="true" />

@@ -57,7 +57,7 @@ export function FormField({ label, hint, error, required, id: idProp, className,
 // under the 44px minimum. min-height only (not height), so desktop is unchanged.
 const fieldBase =
   'w-full bg-bg border border-border text-textMain text-sm ' +
-  'rounded-[var(--radius-default)] px-3.5 py-2.5 outline-none pointer-coarse:min-h-11 ' +
+  'rounded-[var(--radius-default)] px-3.5 py-2.5 pointer-coarse:min-h-11 ' +
   'focus:border-[var(--accent)] transition-colors ' +
   'disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted';
 

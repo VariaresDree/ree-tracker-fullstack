@@ -33,7 +33,7 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
           {isPassed
             ? <Trophy size={22} strokeWidth={1.75} style={{ color: 'var(--accent-success)' }} />
             : isUnlocked
-              ? <Swords size={22} strokeWidth={1.75} style={{ color: 'var(--accent)' }} />
+              ? <Swords size={22} strokeWidth={1.75} style={{ color: 'var(--accent-text)' }} />
               : <Lock size={22} strokeWidth={1.75} className="text-muted" />}
         </span>
       </div>
@@ -122,7 +122,7 @@ export default function GauntletTab() {
       >
         <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}></div>
         <h2 className="text-display text-2xl text-textMain tracking-tight mb-2 relative z-10 flex items-center gap-3">
-          <Shield size={24} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent)' }} /> The Gauntlet
+          <Shield size={24} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-text)' }} /> The Gauntlet
         </h2>
         <p className="text-sm text-muted2 relative z-10 leading-relaxed max-w-2xl">
           Clear the four blended tiers to rank up. Once all four are cleared, the per-subject
@@ -132,7 +132,7 @@ export default function GauntletTab() {
         <div className="mt-4 flex gap-4 relative z-10 flex-wrap">
           <div className="bg-bg border border-border2 px-4 py-2 rounded-[var(--radius-default)] flex flex-col">
             <span className="text-eyebrow mb-0.5">Current tier</span>
-            <span className="font-mono text-lg font-bold tabular-nums" style={{ color: 'var(--accent)' }}>Level {currentLevel}</span>
+            <span className="font-mono text-lg font-bold tabular-nums" style={{ color: 'var(--accent-text)' }}>Level {currentLevel}</span>
           </div>
           <div className="bg-bg border border-border2 px-4 py-2 rounded-[var(--radius-default)] flex flex-col">
             <span className="text-eyebrow mb-0.5">Questions answered</span>

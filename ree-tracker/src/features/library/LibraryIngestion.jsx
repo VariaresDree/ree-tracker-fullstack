@@ -99,7 +99,7 @@ export default function LibraryIngestion({
               taller drop target is easier to hit. */}
           <div className="flex flex-col flex-1">
             <h3 className="text-base font-semibold text-textMain flex items-center gap-2 mb-1">
-              <FileText size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent)' }} /> PDF & image extraction
+              <FileText size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-text)' }} /> PDF & image extraction
             </h3>
             <p className="text-xs text-muted2 mb-5">Drop a PDF or schematic image — the AI extracts questions ready for review.</p>
 
@@ -119,7 +119,7 @@ export default function LibraryIngestion({
                     size={30}
                     strokeWidth={1.5}
                     aria-hidden="true"
-                    className={`mb-2 transition-transform duration-300 ${isDragging ? '-translate-y-2 text-[var(--accent)]' : 'opacity-60 text-muted group-hover:opacity-100 group-hover:-translate-y-1'}`}
+                    className={`mb-2 transition-transform duration-300 ${isDragging ? '-translate-y-2 text-[var(--accent-text)]' : 'opacity-60 text-muted group-hover:opacity-100 group-hover:-translate-y-1'}`}
                   />
                   Drag & drop a PDF or image
                 </div>

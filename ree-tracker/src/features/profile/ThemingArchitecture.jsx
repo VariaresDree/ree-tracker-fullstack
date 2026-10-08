@@ -26,7 +26,7 @@ export default function ThemingArchitecture({ theme, setTheme }) {
     <div className="bg-surface border border-border p-6 rounded-[var(--radius-lg)] shadow-sm">
       <div className="border-b border-border pb-4 mb-6">
         <h3 className="text-sm font-semibold text-textMain flex items-center gap-2">
-          <Palette size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" /> Theme
+          <Palette size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Theme
         </h3>
         <p className="text-xs text-muted2 mt-1">Choose how the app looks.</p>
       </div>

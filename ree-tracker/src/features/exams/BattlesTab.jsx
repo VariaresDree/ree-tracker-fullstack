@@ -97,7 +97,7 @@ export default function BattlesTab() {
             const Icon = m.icon;
             return (
               <li key={m.id} className="flex items-start gap-3 text-sm">
-                <Icon size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                <Icon size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent-text)' }} />
                 <span><span className="font-semibold text-textMain">{m.name}</span> <span className="text-muted2">— {m.description}</span></span>
               </li>
             );

@@ -120,7 +120,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
                     <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
                   </span>
                   <div>
-                    <h2 className={cn('text-sm font-semibold mb-1', selected ? 'text-[var(--accent)]' : 'text-textMain')}>{p.name}</h2>
+                    <h2 className={cn('text-sm font-semibold mb-1', selected ? 'text-[var(--accent-text)]' : 'text-textMain')}>{p.name}</h2>
                     <p className="text-xs text-muted2 leading-relaxed">{p.description}</p>
                   </div>
                 </button>

@@ -53,7 +53,7 @@ export default function Sidebar() {
     <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)] transition-[width] duration-300', collapsed ? 'w-20' : 'w-72')}>
       <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'justify-center' : 'justify-between')}>
         {!collapsed && (
-          <Link to="/" className="text-2xl font-bold tracking-tight text-[var(--accent)]">
+          <Link to="/" className="text-2xl font-bold tracking-tight text-[var(--accent-text)]">
             REE<span className="text-textMain">.ai</span> Core
           </Link>
         )}

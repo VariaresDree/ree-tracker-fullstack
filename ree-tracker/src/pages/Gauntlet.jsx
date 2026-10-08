@@ -42,7 +42,7 @@ export default function Gauntlet() {
   if (status === 'loading') {
     return (
       <MainLayout>
-        <div role="status" className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent)]">
+        <div role="status" className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent-text)]">
           <span className="telemetry-spinner !w-12 !h-12 border-t-transparent"></span>
           <span className="text-sm font-semibold animate-pulse">Building your exam…</span>
         </div>

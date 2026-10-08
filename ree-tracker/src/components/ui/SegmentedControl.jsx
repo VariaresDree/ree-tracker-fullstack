@@ -74,7 +74,7 @@ export function SegmentedControl({
               // feels chunky/tactile on desktop too, not just compliant.
               size === 'sm' ? 'min-h-8 px-2.5 text-xs' : size === 'lg' ? 'min-h-12 px-4 text-sm' : 'min-h-9 px-3 text-sm',
               selected
-                ? 'bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)] border border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
+                ? 'bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent-text)] border border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
                 : 'text-muted2 hover:text-textMain hover:bg-surface2 border border-transparent'
             )}
           >

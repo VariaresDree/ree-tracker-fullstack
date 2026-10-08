@@ -24,7 +24,7 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
       <Card elevated grain className="p-6 sm:p-8 flex flex-col gap-6">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-default)]"
-            style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}>
+            style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent-text)' }}>
             <Landmark size={22} strokeWidth={1.75} aria-hidden="true" />
           </span>
           <div>

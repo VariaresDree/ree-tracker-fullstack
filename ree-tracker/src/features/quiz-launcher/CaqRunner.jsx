@@ -118,7 +118,7 @@ function CaqRun({ fileName, questions: rawQuestions, warnings, onExit, onRetake 
                 aria-label={`Question ${i + 1}${answered ? ', answered' : ''}`}
                 className={`w-7 h-7 rounded-[var(--radius-sm)] text-[11px] font-mono flex items-center justify-center transition-colors cursor-pointer border touch-target ${
                   isCurrent
-                    ? 'border-[var(--accent-velocity)] text-[var(--accent-velocity)] font-bold'
+                    ? 'border-[var(--accent-velocity)] text-[var(--accent-text)] font-bold'
                     : answered
                       ? 'border-transparent bg-surface3 text-textMain'
                       : 'border-transparent bg-surface2/50 text-muted'

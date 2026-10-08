@@ -24,7 +24,7 @@ export default function Pomodoro() {
             value={pomodoro.workDuration}
             onChange={(e) => updatePomodoro({ workDuration: Number(e.target.value) })}
             aria-label="Focus minutes"
-            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold outline-none focus:border-[var(--accent)]"
+            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold focus:border-[var(--accent)]"
             style={{ color: 'var(--color-reeAmber)' }}
             title="Focus minutes"
           />
@@ -34,7 +34,7 @@ export default function Pomodoro() {
             value={pomodoro.breakDuration}
             onChange={(e) => updatePomodoro({ breakDuration: Number(e.target.value) })}
             aria-label="Break minutes"
-            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold outline-none focus:border-[var(--accent)]"
+            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold focus:border-[var(--accent)]"
             style={{ color: 'var(--accent-success)' }}
             title="Break minutes"
           />

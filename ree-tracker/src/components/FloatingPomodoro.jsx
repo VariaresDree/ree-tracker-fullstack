@@ -100,7 +100,7 @@ export default function FloatingPomodoro() {
         onClick={() => setPomodoroWidget({ pinned: !pomodoroWidget.pinned })}
         aria-label={pomodoroWidget.pinned ? 'Unpin floating timer' : 'Pin floating timer'}
         aria-pressed={pomodoroWidget.pinned}
-        className={`p-1.5 rounded-full transition-colors cursor-pointer hover:bg-surface3 touch-target inline-flex items-center justify-center ${pomodoroWidget.pinned ? 'text-[var(--accent)]' : 'text-muted hover:text-textMain'}`}
+        className={`p-1.5 rounded-full transition-colors cursor-pointer hover:bg-surface3 touch-target inline-flex items-center justify-center ${pomodoroWidget.pinned ? 'text-[var(--accent-text)]' : 'text-muted hover:text-textMain'}`}
       >
         {pomodoroWidget.pinned ? <Pin size={14} strokeWidth={1.75} aria-hidden="true" /> : <PinOff size={14} strokeWidth={1.75} aria-hidden="true" />}
       </button>

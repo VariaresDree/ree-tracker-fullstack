@@ -103,7 +103,7 @@ export default function NotificationOptIn({ inline = false }) {
     >
       <div className="bg-surface border border-border2 rounded-[var(--radius-lg)] elevate-3 p-4">
         <div className="flex items-start gap-3">
-          <div className="shrink-0 mt-0.5 text-[var(--accent)]">
+          <div className="shrink-0 mt-0.5 text-[var(--accent-text)]">
             <Bell size={20} strokeWidth={1.75} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
