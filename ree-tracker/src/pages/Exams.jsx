@@ -14,7 +14,10 @@ import { Zap, Shield, Swords, Trophy, History } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 import MockBoardTab from '../features/exams/MockBoardTab';
 
-const Arena = lazy(() => import('./Arena'));
+// One chunk per tab: each was a section of the 700-line Arena page.
+const GauntletTab = lazy(() => import('../features/exams/GauntletTab'));
+const BattlesTab = lazy(() => import('../features/exams/BattlesTab'));
+const RankingsTab = lazy(() => import('../features/exams/RankingsTab'));
 // The mock-board ledger (score trend, verdicts, reviews). It was the last card
 // on the old Dashboard.
 const MockBoardAnalytics = lazy(() => import('../components/MockBoardAnalytics'));
@@ -38,9 +41,12 @@ export default function Exams() {
       {tab === 'mock' ? (
         <MockBoardTab />
       ) : (
-        <ErrorBoundary name="Exams" key={tab === 'history' ? 'history' : 'arena'}>
+        <ErrorBoundary name="Exams" key={tab}>
           <Suspense fallback={<Skeleton className="h-64" />}>
-            {tab === 'history' ? <MockBoardAnalytics /> : <Arena tab={tab} />}
+            {tab === 'gauntlet' && <GauntletTab />}
+            {tab === 'battles' && <BattlesTab />}
+            {tab === 'rankings' && <RankingsTab />}
+            {tab === 'history' && <MockBoardAnalytics />}
           </Suspense>
         </ErrorBoundary>
       )}

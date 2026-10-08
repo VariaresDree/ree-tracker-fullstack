@@ -1,11 +1,13 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
 import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
 import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { stratifiedSample } from '../../utils/shuffle';
+import { normalizeSubject } from '@ree/shared';
+import { buildSessionSummary } from './buildSessionSummary';
 import toast from 'react-hot-toast';
 
 export const useReviewSession = (currentUser, isOnline) => {
@@ -32,6 +34,13 @@ export const useReviewSession = (currentUser, isOnline) => {
     const [elapsedTime, setElapsedTime] = useState(0);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // The finished session's summary (buildSessionSummary.js), shown until the
+    // learner starts another session or dismisses it. Null after a session
+    // with no answers.
+    const [lastSummary, setLastSummary] = useState(null);
+    // The config the running session started with, presets' targets included,
+    // so "Practise again" repeats exactly that session.
+    const sessionConfigRef = useRef(null);
 
     // startTimeRef is the PER-QUESTION anchor: loadNextQuestion resets it on
     // every item so each answer gets its own timeSpentMs. sessionStartRef is
@@ -62,6 +71,11 @@ export const useReviewSession = (currentUser, isOnline) => {
     // reflects what actually ran.
     const startSession = async (overrides = null) => {
         const cfg = overrides ? { ...config, ...overrides } : config;
+        // A drill's target comes ONLY from the launching preset (a Today
+        // action, a heatmap tile). Read from `cfg` it would survive into the
+        // next untargeted weak-spot drill, since overrides are merged into the
+        // persistent form config.
+        const target = overrides || {};
         if (overrides) setConfig(cfg);
         setSession(prev => ({ ...prev, loading: true }));
         try {
@@ -74,16 +88,25 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (!freshData || freshData.length === 0) throw new Error("Nothing is due for review right now.");
             } else if (cfg.source === 'smart-drill') {
                 if (!isOnline) throw new Error("Smart drill needs a connection.");
-                // The target comes ONLY from the launching preset (a dashboard
-                // prescription, a heatmap tile). Read from `cfg` it would
-                // survive into the next untargeted "Weak points" run, since
-                // overrides are merged into the persistent form config.
-                const target = overrides || {};
                 const drillResult = await fetchSmartDrillQuestions(cfg.count || 10, {
                     topicId: target.drillTopicId, topic: target.drillTopic, subject: target.drillSubject, mode: target.drillMode,
                 });
                 freshData = drillResult.items || [];
                 if (freshData.length === 0) throw new Error("Answer a few questions first — the drill targets your weakest topics.");
+            } else if (cfg.source === 'bookmarks') {
+                if (!isOnline) throw new Error("Your bookmarks need a connection.");
+                const saved = await fetchBookmarks({ limit: 100 });
+                if (!saved || saved.length === 0) {
+                    throw new Error("No bookmarks yet. Tap the bookmark icon on a question to save it for later.");
+                }
+                // Mark them as bookmarked, so the icon shows filled and a tap
+                // removes one instead of adding it again.
+                setBookmarks(new Set(saved.map((q) => q.id)));
+                const subject = cfg.subject && cfg.subject !== 'All' ? normalizeSubject(cfg.subject) : null;
+                freshData = saved.filter((q) =>
+                    (!subject || normalizeSubject(q.subject) === subject)
+                    && (cfg.subtopic === 'All' || !cfg.subtopic || q.subtopic === cfg.subtopic));
+                if (freshData.length === 0) throw new Error("None of your bookmarks match this subject or topic.");
             } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("The AI generator needs a connection.");
                 // Random topic within the subject (not always the first) so
@@ -140,6 +163,10 @@ export const useReviewSession = (currentUser, isOnline) => {
             startTimeRef.current = Date.now();
             sessionStartRef.current = Date.now();
             setElapsedTime(0);
+            sessionConfigRef.current = cfg.source === 'smart-drill'
+                ? { ...cfg, drillTopicId: target.drillTopicId ?? null, drillTopic: target.drillTopic ?? null, drillSubject: target.drillSubject ?? null, drillMode: target.drillMode ?? null }
+                : cfg;
+            setLastSummary(null);
 
             // Bracket the session in the store so the per-answer events know
             // which ExamSession id, mode, and target subject to attach. The
@@ -267,11 +294,20 @@ export const useReviewSession = (currentUser, isOnline) => {
             // clear the session pointer so the next start gets a fresh id.
             await endStoreSession();
             setIsSubmitting(false);
+            setLastSummary(null);
             setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
             return;
         }
 
-        const toastId = toast.loading("Encrypting and Syncing Telemetry...");
+        // Summarize from what was recorded, before the batch is cleared below.
+        const recap = buildSessionSummary(
+            telemetryBatchRef.current,
+            session.questions,
+            (Date.now() - sessionStartRef.current) / 1000,
+        );
+        setLastSummary(recap ? { ...recap, config: sessionConfigRef.current } : null);
+
+        const toastId = toast.loading("Saving your session…");
 
         try {
             // endStoreSession() flushes any pending debounced batch THEN clears
@@ -319,7 +355,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                         matrix: freshProfile.data.matrix,
                     });
                 }
-                toast.success("Session data synced.", { id: toastId });
+                toast.success("Session saved.", { id: toastId });
             } else {
                 // Per-attempt telemetry is already queued via recordAttempt; also
                 // defer the aggregate session summary so nothing is lost offline.
@@ -358,7 +394,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 toast.success("Removed bookmark");
             } else {
                 await saveBookmark(currentUser?.uid, { questionId: currentQ.id });
-                toast.success("Bookmarked — find it in Materials › Bookmark Vault");
+                toast.success("Bookmarked — find it in Library › Bookmarks");
             }
         } catch (err) {
             // 409 = the server already has it (e.g. bookmarked in another
@@ -381,7 +417,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 newQs[prev.currentIndex] = { ...currentQ, isFlagged: true };
                 return { ...prev, questions: newQs };
             });
-            toast.success("Anomaly Reported.");
+            toast.success("Thanks — we'll review this question.");
         } catch (err) { toast.error("Flag failed."); }
     };
 
@@ -404,7 +440,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 return { ...prev, questions: newQs, aiResponse: resp, aiLoading: false };
             });
         } catch (err) {
-            toast.error("AI Core Offline.");
+            toast.error("AI explanation unavailable right now.");
             setSession(prev => ({ ...prev, aiLoading: false, showAi: false }));
         }
     };
@@ -413,6 +449,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         config, setConfig, session, setSession, elapsedTime, bookmarks,
         startSession, endSession, loadNextQuestion, 
         handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
-        toggleBookmark, handleFlagQuestion, fetchOrToggleAI, safeTOS, isSubmitting
+        toggleBookmark, handleFlagQuestion, fetchOrToggleAI, safeTOS, isSubmitting,
+        lastSummary, clearSummary: () => setLastSummary(null),
     };
 };

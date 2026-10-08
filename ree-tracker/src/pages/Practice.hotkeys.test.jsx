@@ -50,7 +50,7 @@ vi.mock('../features/active-recall/useReviewSession', () => ({
   }),
 }));
 
-const { default: ActiveReview } = await import('./ActiveReview');
+const { default: Practice } = await import('./Practice');
 
 const QUESTION = {
   id: 'q1',
@@ -81,11 +81,11 @@ beforeEach(() => {
 
 const renderPage = () => render(
   <MemoryRouter>
-    <ActiveReview />
+    <Practice />
   </MemoryRouter>,
 );
 
-describe('Active Review hotkeys', () => {
+describe('Practice hotkeys', () => {
   it('records exactly one answer per option keypress', () => {
     renderPage();
     fireEvent.keyDown(window, { key: '1' });

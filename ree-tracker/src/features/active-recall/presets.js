@@ -19,6 +19,9 @@ const BASE = {
 /** A mixed library set across every subject. */
 export const quickReviewPreset = (count = 20) => ({ ...BASE, count, source: 'library' });
 
+/** The learner's bookmarked questions, newest first. */
+export const bookmarksPreset = (count = 20) => ({ ...BASE, count, source: 'bookmarks' });
+
 /** The spaced-review queue (engine/srs). */
 export const dueReviewPreset = (count = 20) => ({ ...BASE, count, source: 'srs-due' });
 

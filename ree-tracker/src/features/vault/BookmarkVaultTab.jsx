@@ -1,12 +1,23 @@
 // src/features/vault/BookmarkVaultTab.jsx
+//
+// Library › Bookmarks: the questions saved while practising, with their
+// answers and explanations, and a way to practise them.
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { Button } from '../../components/ui';
+import { Play } from '../../components/ui/icons';
+import { bookmarksPreset, launchPractice } from '../active-recall/presets';
 import { fetchBookmarks, removeBookmark, updateQuestionCache } from '../../services/dbQueries';
 import * as geminiApi from '../../services/geminiApi'; 
 import SmartText from '../../components/SmartText';           
 import LatexRenderer from '../../components/LatexRenderer';
 
+// A bookmarks session draws up to this many of the saved questions.
+const PRACTICE_COUNT = 20;
+
 export default function BookmarkVaultTab({ currentUser, isOnline }) {
+  const navigate = useNavigate();
   const [bookmarks, setBookmarks] = useState([]);
   const [isLoadingBookmarks, setIsLoadingBookmarks] = useState(false);
   const [expandedBookmarkId, setExpandedBookmarkId] = useState(null); 
@@ -25,10 +36,10 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
   const loadBookmarks = async () => {
     setIsLoadingBookmarks(true);
     try {
-      const data = await fetchBookmarks(currentUser.uid);
+      const data = await fetchBookmarks({ limit: 100 });
       setBookmarks(data);
     } catch (error) {
-      toast.error("Failed to decrypt bookmark data.");
+      toast.error("Couldn't load your bookmarks.");
     } finally {
       setIsLoadingBookmarks(false);
     }
@@ -38,7 +49,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     try {
       await removeBookmark(currentUser.uid, itemId);
       setBookmarks(prev => prev.filter(item => item.id !== itemId));
-      toast.success("Bookmark purged from vault.");
+      toast.success("Bookmark removed.");
     } catch (error) {
       toast.error("Failed to remove bookmark.");
     }
@@ -93,27 +104,36 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
 
   return (
     <div className="animate-in fade-in flex flex-col gap-6">
-      <div className="border-b border-border2 pb-6 flex justify-between items-end">
+      <div className="border-b border-border2 pb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
-          <h2 className="text-2xl font-black text-textMain tracking-tight">Bookmark Vault <span className="text-reeAmber">🔐</span></h2>
-          <p className="text-muted2 mt-1 text-sm">Encrypted storage for critical blind spots and high-probability board questions.</p>
+          <h2 className="text-2xl font-black text-textMain tracking-tight">Bookmarks</h2>
+          <p className="text-muted2 mt-1 text-sm">
+            Questions you saved while practising. Open one to see its answer, or practise them as a session.
+          </p>
         </div>
-        <span className="px-4 py-2 bg-surface2 border border-border2 rounded-lg text-xs font-bold font-mono text-muted">
-          {bookmarks.length} Encrypted Items
-        </span>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs text-muted2 tabular-nums">{bookmarks.length} saved</span>
+          <Button
+            size="sm"
+            onClick={() => launchPractice(navigate, bookmarksPreset(Math.min(PRACTICE_COUNT, bookmarks.length)))}
+            disabled={bookmarks.length === 0 || !isOnline}
+            title={isOnline ? undefined : 'Needs a connection'}
+          >
+            <Play size={14} strokeWidth={2} aria-hidden="true" /> Practise bookmarks
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">
         {isLoadingBookmarks ? (
             <div className="p-12 border-2 border-dashed border-border2 rounded-2xl flex flex-col items-center justify-center bg-surface/50 text-center">
               <span className="telemetry-spinner mb-4"></span>
-              <span className="text-sm font-bold text-muted font-mono uppercase tracking-widest">Decrypting Vault Data...</span>
+              <span className="text-sm font-bold text-muted font-mono uppercase tracking-widest">Loading bookmarks…</span>
             </div>
         ) : bookmarks.length === 0 ? (
            <div className="p-12 border-2 border-dashed border-border2 rounded-2xl flex flex-col items-center justify-center bg-surface/50 text-center">
-              <span className="text-4xl mb-4 opacity-50">🗄️</span>
-              <h3 className="text-lg font-bold text-textMain mb-2">Vault is Empty</h3>
-              <p className="text-sm text-muted">You haven't bookmarked any flashcards or items during Active Review.</p>
+              <h3 className="text-lg font-bold text-textMain mb-2">No bookmarks yet</h3>
+              <p className="text-sm text-muted">Tap the bookmark icon on a question in Practice to save it here.</p>
            </div>
         ) : (
           bookmarks.map(item => {
@@ -151,7 +171,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
                     <button onClick={() => toggleBookmarkExpand(item.id)} className={`flex-1 md:flex-none px-6 py-2.5 border rounded-lg text-xs font-bold transition-colors cursor-pointer ${isExpanded ? 'bg-surface3 border-border2 text-textMain' : 'bg-surface2 hover:bg-surface3 text-textMain border-border2'}`}>
                       {isExpanded ? '✕ Close Viewer' : 'Review Data'}
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleRemoveBookmark(item.id); }} className="px-4 py-2.5 bg-bg border border-border2 text-muted hover:text-reeRed hover:border-reeRed/30 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center justify-center" title="Purge from Vault">
+                    <button onClick={(e) => { e.stopPropagation(); handleRemoveBookmark(item.id); }} className="px-4 py-2.5 bg-bg border border-border2 text-muted hover:text-reeRed hover:border-reeRed/30 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center justify-center" title="Remove bookmark" aria-label="Remove bookmark">
                       ✕
                     </button>
                   </div>

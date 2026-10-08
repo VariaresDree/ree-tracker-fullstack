@@ -138,12 +138,6 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
 
   return (
     <div className="animate-in fade-in flex flex-col gap-6">
-      {!isAdmin && (
-        <div className="bg-reeBlue/10 border border-reeBlue/30 text-reeBlue p-3 rounded-xl text-xs font-bold uppercase tracking-widest text-center">
-            Viewing Global Vault in Read-Only Mode
-        </div>
-      )}
-
       {clipboard && isAdmin && (
         <div className="bg-reeBlue/10 border border-reeBlue/30 p-3 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 animate-in slide-in-from-top-4 shadow-sm">
           <div className="flex items-center gap-3 text-sm">
@@ -163,7 +157,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-border2 pb-6 gap-4">
         <div>
-          <h2 className="text-display text-2xl tracking-tight text-textMain">Cloud Vault</h2>
+          <h2 className="text-display text-2xl tracking-tight text-textMain">Handouts</h2>
+          <p className="text-sm text-muted2 mt-1">
+            {isAdmin
+              ? 'Upload and organize handouts. Reviewers can open them but not change them.'
+              : 'Review notes and reference files, by folder. Tap a file to open it.'}
+          </p>
           <div className="flex items-center gap-2 mt-3 font-mono text-xs text-muted2 flex-wrap">
             {breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={crumb.id}>
@@ -212,7 +211,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
               <input type="file" accept=".pdf,.doc,.docx,image/*,audio/*,video/*" onChange={handleLocalFileUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" />
               <div className="text-sm font-bold text-muted2 flex flex-col items-center gap-3">
                 {isUploading ? (
-                  <><span className="telemetry-spinner border-reeBlue border-t-transparent"></span> Uplinking media to cloud matrix...</>
+                  <><span className="telemetry-spinner border-reeBlue border-t-transparent"></span> Uploading…</>
                 ) : (
                   <><span className="text-3xl opacity-50">📥</span><span>Click or Drop to scan local storage for PDF, Image, Video, or Audio</span></>
                 )}
@@ -242,9 +241,8 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
 
       {visibleFolders.length === 0 && visibleMaterials.length === 0 ? (
         <div className="py-20 text-center border-2 border-dashed border-border2 rounded-2xl flex flex-col items-center gap-3 animate-in fade-in">
-          <div className="text-4xl opacity-50">📭</div>
-          <div className="text-sm font-bold text-muted2">This directory is empty.</div>
-          {isAdmin && <div className="text-xs text-muted">Create a folder or import media to build your matrix.</div>}
+          <div className="text-sm font-bold text-muted2">This folder is empty.</div>
+          {isAdmin && <div className="text-xs text-muted">Create a folder or upload a file to start.</div>}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

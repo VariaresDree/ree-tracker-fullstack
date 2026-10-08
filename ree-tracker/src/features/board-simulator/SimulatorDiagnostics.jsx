@@ -36,9 +36,10 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
         const reset = (s) => ({ ...s, isActive: false, isFinished: false, diagnostics: null, questions: [] });
         if (engine && typeof engine.setSession === 'function') engine.setSession(reset);
         else if (typeof setSession === 'function') setSession(reset);
-        // SPA navigation home (there is no '/dashboard' route — the old
-        // window.location.href hard-reloaded and dropped in-memory state).
-        navigate('/');
+        // Back to Exams › Past sittings, where this report now sits in the
+        // ledger. SPA navigation: the old window.location.href hard-reloaded
+        // and dropped in-memory state.
+        navigate('/exams?tab=history');
     };
 
     const scrollbarClasses = '[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted/60 [&::-webkit-scrollbar-thumb]:rounded-full';
@@ -52,12 +53,12 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                 footer={
                     <>
                         <Button variant="secondary" onClick={() => setShowExitConfirm(false)}>Stay</Button>
-                        <Button onClick={handleExit}>Back to dashboard</Button>
+                        <Button onClick={handleExit}>Back to Exams</Button>
                     </>
                 }
             >
                 <p className="text-sm text-muted2">
-                    Your report is saved to the simulation ledger — you can revisit it from the dashboard.
+                    Your report is saved. You can open it again from Exams › Past sittings.
                 </p>
             </Modal>
 
@@ -271,7 +272,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                 {/* Exit */}
                 <div className="flex justify-center mt-10 relative z-10">
                     <Button size="lg" onClick={() => setShowExitConfirm(true)}>
-                        Back to dashboard
+                        Back to Exams
                     </Button>
                 </div>
 

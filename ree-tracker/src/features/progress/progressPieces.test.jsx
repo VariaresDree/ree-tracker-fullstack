@@ -60,6 +60,14 @@ describe('YourRankCard', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Your rank' })).toBeInTheDocument();
   });
 
+  it('your place in the list below wins over the snapshot rank, so the two never disagree', async () => {
+    fetchLeaderboardMe.mockResolvedValue({ rank: 2, total: 4 });
+    render(<YourRankCard listRank={1} />);
+    expect(screen.getByText('#1')).toBeInTheDocument();
+    expect(await screen.findByText('of 4 reviewers')).toBeInTheDocument();
+    expect(screen.queryByText('#2')).not.toBeInTheDocument();
+  });
+
   it('unranked says how to join', async () => {
     fetchLeaderboardMe.mockResolvedValue({ rank: null, total: 37, unranked: true });
     render(<YourRankCard />);
