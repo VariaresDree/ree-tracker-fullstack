@@ -141,7 +141,7 @@ export const useGauntletEngine = (level) => {
         const currentLevel = s.gauntletLevel || 1;
 
         if (lockUntil && lockUntil > Date.now()) {
-            toast.error("Security Breach: System is currently on a cooldown lock.");
+            toast.error("The Gauntlet is locked after a failed run. Check the cooldown in Exams › Gauntlet.");
             navigate('/exams?tab=gauntlet');
             return;
         }
@@ -155,7 +155,7 @@ export const useGauntletEngine = (level) => {
         if (gateFailed) {
             toast.error(subjectTier
                 ? "Locked: clear the blended Gauntlet tiers first to unlock the subject boards."
-                : "Security Breach: You lack the required telemetry to enter this sector.");
+                : "This tier is locked. Clear the tier before it and answer enough questions to open it.");
             navigate('/exams?tab=gauntlet');
             return;
         }
@@ -172,7 +172,7 @@ export const useGauntletEngine = (level) => {
                 : ((await apiRequest(`/api/exams?limit=${tier.items * 2}`))?.items || []).filter(q => !q.isFlagged);
 
             if (allQs.length < tier.items) {
-                toast.error("Insufficient bank questions to construct this Gauntlet.");
+                toast.error("There aren't enough questions in the bank for this tier yet.");
                 return setStatus('error');
             }
 
@@ -385,11 +385,11 @@ export const useGauntletEngine = (level) => {
         persistDraft();
 
         const q = questionsRef.current?.[idx];
-        if (!q?.id) { toast.success(had ? "Removed Bookmark." : "Bookmarked."); return; }
+        if (!q?.id) { toast.success(had ? "Bookmark removed." : "Bookmarked."); return; }
         const uid = auth.currentUser?.uid;
         const write = had ? removeBookmark(uid, q.id) : saveBookmark(uid, { questionId: q.id });
         write
-            .then(() => toast.success(had ? "Removed Bookmark." : "Bookmarked — in Materials › Bookmark Vault."))
+            .then(() => toast.success(had ? "Bookmark removed." : "Bookmarked — find it in Library › Bookmarks."))
             .catch((err) => {
                 if (!had && err?.status === 409) return; // already saved server-side
                 const revert = new Set(bookmarksRef.current);
@@ -417,7 +417,7 @@ export const useGauntletEngine = (level) => {
             flagsRef.current = next;
             setFlags(next);
             persistDraft();
-            toast.success("Anomaly reported.");
+            toast.success("Thanks — we'll review this question.");
         } catch (error) {
             toast.error("Flag failed.");
         }
@@ -476,7 +476,7 @@ export const useGauntletEngine = (level) => {
             useStore.getState().queuePendingWrite('/api/exams/grade', 'POST', { answers: gradePayload, mode: 'GAUNTLET' });
             setDiagnostics({ pending: true, totalItems: tier.items, isTimeOut });
             setStatus('pending');
-            toast(toastMsg, { icon: '📡' });
+            toast(toastMsg);
         };
 
         try {
@@ -592,7 +592,7 @@ export const useGauntletEngine = (level) => {
                 deferToOutbox('Submitted — saving is delayed; your score posts shortly.');
             } else {
                 console.error("Gauntlet grading error:", err);
-                toast.error("Failed to grade gauntlet. Please try again.");
+                toast.error("Couldn't grade this run. Please try again.");
                 setStatus('error');
             }
         } finally {

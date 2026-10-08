@@ -138,8 +138,8 @@ export default function StrategicPlannerTab({ currentUser }) {
 
         <div className="bg-surface border border-border2 rounded-xl shadow-sm flex flex-col lg:col-span-2 p-6 md:p-8 h-[600px]">
             <div className="mb-6">
-                <h2 className="text-2xl font-black text-textMain tracking-tight">Active Objectives</h2>
-                <p className="text-sm text-muted2 mt-1">Temporal task tracking. Prioritize red and amber objectives.</p>
+                <h2 className="text-2xl font-black text-textMain tracking-tight">Your tasks</h2>
+                <p className="text-sm text-muted2 mt-1">Your plan's tasks and your own, by due date. Overdue tasks are red; today's are amber.</p>
             </div>
 
             <form onSubmit={handleAddTask} className="flex flex-col sm:flex-row gap-3 mb-6">
@@ -147,7 +147,7 @@ export default function StrategicPlannerTab({ currentUser }) {
                     type="text"
                     value={newTask}
                     onChange={(e) => setNewTask(e.target.value)}
-                    placeholder="Designate new objective..."
+                    placeholder="Add a task…"
                     className="flex-1 bg-bg border border-border2 text-textMain p-3.5 rounded-xl text-sm outline-none focus:border-reeBlue transition-colors shadow-inner"
                 />
                 <input
@@ -165,13 +165,13 @@ export default function StrategicPlannerTab({ currentUser }) {
                 {isLoading ? (
                     <div className="flex items-center justify-center h-full">
                         <span className="telemetry-spinner inline-block mr-2"></span>
-                        <span className="text-muted2 text-sm font-mono uppercase tracking-widest">Loading Objectives...</span>
+                        <span className="text-muted2 text-sm font-mono uppercase tracking-widest">Loading your tasks…</span>
                     </div>
                 ) : sortedTasks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center border-2 border-dashed border-border2 rounded-xl p-8 opacity-70">
                         <span className="text-4xl mb-3">🎯</span>
-                        <span className="text-sm font-bold text-textMain">Tracker is Empty</span>
-                        <span className="text-xs text-muted font-mono mt-1">You are clear to engage in free study or set new directives.</span>
+                        <span className="text-sm font-bold text-textMain">No tasks yet</span>
+                        <span className="text-xs text-muted font-mono mt-1">Generate a plan above, or add your own tasks.</span>
                     </div>
                 ) : (
                     sortedTasks.map(task => {

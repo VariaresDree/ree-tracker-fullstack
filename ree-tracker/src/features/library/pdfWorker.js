@@ -12,7 +12,7 @@ self.onmessage = async (e) => {
         let fullText = '';
 
         for (let i = 1; i <= pagesToExtract; i++) {
-            self.postMessage({ type: 'progress', message: `Extracting telemetry from page ${i} of ${pagesToExtract}...` });
+            self.postMessage({ type: 'progress', message: `Reading page ${i} of ${pagesToExtract}…` });
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
             const pageText = textContent.items.map(item => item.str).join(' ');

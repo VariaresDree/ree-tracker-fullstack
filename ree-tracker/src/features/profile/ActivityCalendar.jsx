@@ -103,7 +103,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       
       {/* Dynamic Spectrum Legend */}
       <div className="w-full flex flex-wrap justify-between items-center gap-4 mt-6 pt-4 border-t border-border2 text-xs text-muted uppercase font-bold tracking-widest">
-        <span className="shrink-0 text-textMain">Activity Intensity Spectrum</span>
+        <span className="shrink-0 text-textMain">Questions a day</span>
         <div className="flex items-center gap-3 md:gap-4 flex-wrap">
             <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-surface2 border border-border2"></div> <span className="hidden md:inline text-[11px]">0 Qs</span></div>
             <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/20 border border-reeGreen/30"></div> <span className="hidden md:inline text-[11px]">1-{(targetQuota*0.3).toFixed(0)} Qs</span></div>

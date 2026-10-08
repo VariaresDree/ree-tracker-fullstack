@@ -39,7 +39,7 @@ export default function CaqResults({ fileName, questions, answers, score, elapse
 
         <p className="text-xs text-muted2">
           This result is shown for this session only — nothing here is saved, uploaded, or reflected
-          in your Dashboard analytics, streak, or readiness score.
+          in your progress, streak, or readiness score.
         </p>
 
         {(warnings.length > 0 || defectiveCount > 0) && (

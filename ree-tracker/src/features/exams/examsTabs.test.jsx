@@ -56,7 +56,7 @@ describe('BattlesTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
     const formats = within(screen.getByRole('radiogroup', { name: 'Battle format' })).getAllByRole('radio');
     expect(formats.map((r) => r.textContent.trim())).toEqual(
-      expect.arrayContaining([expect.stringMatching(/Custom/), expect.stringMatching(/PRC Standard/), expect.stringMatching(/Blended/)]),
+      expect.arrayContaining([expect.stringMatching(/Custom mock/), expect.stringMatching(/One subject/), expect.stringMatching(/Mixed paper/)]),
     );
   });
 });

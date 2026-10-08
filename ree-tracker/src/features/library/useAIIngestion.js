@@ -68,7 +68,7 @@ export const useAIIngestion = (onIngestSuccess) => {
         });
 
         setGenStatus(`✅ Generated ${newQs.length} items! Routed to Quarantine Queue.`);
-        toast.success(`${newQs.length} items sent to Quarantine.`);
+        toast.success(`${newQs.length} questions sent to the review queue.`);
         if(onIngestSuccess) onIngestSuccess(true);
       } else {
         setGenStatus('❌ Sync Error. Confirm AI network state.');
@@ -177,7 +177,7 @@ export const useAIIngestion = (onIngestSuccess) => {
       if (generatedQuestions.length === 0) return;
       
       setIsCommitting(true);
-      const toastId = toast.loading("Injecting verified items into Quarantine Queue...");
+      const toastId = toast.loading("Adding questions to the review queue…");
       
       try {
           for (const q of generatedQuestions) {
@@ -194,12 +194,12 @@ export const useAIIngestion = (onIngestSuccess) => {
               await saveQuestionToBank(payload);
           }
           
-          toast.success(`${generatedQuestions.length} items routed to Admin Quarantine!`, { id: toastId });
+          toast.success(`${generatedQuestions.length} questions added to the review queue.`, { id: toastId });
           setShowQAModal(false);
           setGeneratedQuestions([]);
           if(onIngestSuccess) onIngestSuccess(true);
       } catch (error) {
-          toast.error("Injection failed. Database restricted.", { id: toastId });
+          toast.error("Couldn't add the questions. Please try again.", { id: toastId });
       } finally {
           setIsCommitting(false);
       }

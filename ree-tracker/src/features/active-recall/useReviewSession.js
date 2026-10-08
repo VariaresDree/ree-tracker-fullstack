@@ -130,7 +130,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                         }));
                     } catch (persistErr) {
                         console.warn('AI question persist failed:', persistErr);
-                        toast("Couldn't save the AI questions — this session won't count toward analytics.", { icon: '⚠️' });
+                        toast("Couldn't save the AI questions — this session won't count toward your progress.");
                     }
                 }
             } else {
@@ -360,7 +360,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 // Per-attempt telemetry is already queued via recordAttempt; also
                 // defer the aggregate session summary so nothing is lost offline.
                 queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
-                toast("Offline — progress will sync when you reconnect.", { id: toastId, icon: '📡' });
+                toast("Offline — progress will sync when you reconnect.", { id: toastId });
             }
             telemetryBatchRef.current = [];
         } catch (error) {
@@ -391,7 +391,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         try {
             if (had) {
                 await removeBookmark(currentUser?.uid, currentQ.id);
-                toast.success("Removed bookmark");
+                toast.success("Bookmark removed.");
             } else {
                 await saveBookmark(currentUser?.uid, { questionId: currentQ.id });
                 toast.success("Bookmarked — find it in Library › Bookmarks");

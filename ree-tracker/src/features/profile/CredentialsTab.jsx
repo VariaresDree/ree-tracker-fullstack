@@ -45,9 +45,9 @@ export default function CredentialsTab({ currentUser, stats }) {
                 <div className="text-[11px] text-reePurple font-bold uppercase tracking-widest mb-1 flex items-center justify-center sm:justify-start gap-2">
                     {readinessScore >= 70 ? <><span className="w-2 h-2 bg-reePurple rounded-full animate-pulse"></span> Unlocked</> : <><span className="w-2 h-2 bg-reeRed rounded-full"></span> Locked (Requires 70% Readiness)</>}
                 </div>
-                <h3 className="text-2xl font-black text-textMain tracking-tight mb-2">Certificate of Operational Readiness</h3>
+                <h3 className="text-2xl font-black text-textMain tracking-tight mb-2">Readiness certificate</h3>
                 <p className="text-sm text-muted2 leading-relaxed mb-6">
-                    An officially formatted, verifiable digital document confirming your statistical probability of passing the actual licensure examination based on deep telemetry.
+                    A printable certificate of your Board Readiness Index, unlocked once it reaches 70%. It records your practice results; it isn't an official PRC document.
                 </p>
                 
                 <button

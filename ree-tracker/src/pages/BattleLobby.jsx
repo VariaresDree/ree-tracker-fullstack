@@ -197,7 +197,7 @@ export default function BattleLobby() {
                         <Trophy size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> Final scores
                     </h3>
                     <p className="text-xs text-muted2 mb-4">
-                        Results are recorded. Dashboard analytics can take a minute to catch up after a multiplayer exam.
+                        Results are recorded. Progress can take a minute to catch up after a multiplayer exam.
                     </p>
                     <div className="flex flex-col gap-3">
                         {results.map((r, idx) => (

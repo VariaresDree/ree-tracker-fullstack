@@ -39,7 +39,7 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
       setLastDoc(qData.nextOffset);
       setHasMore(qData.items.length === PAGE_SIZE);
     } catch (error) {
-      toast.error(`Vault Error: ${error.message}`);
+      toast.error(`Couldn't load questions: ${error.message}`);
     } finally {
       setIsFetchingVault(false);
     }

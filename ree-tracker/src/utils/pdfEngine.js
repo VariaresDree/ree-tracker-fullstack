@@ -27,7 +27,7 @@ export const generateDiagnosticReport = async (user, stats) => {
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
-    doc.text("Cognitive Telemetry Summary", 20, cursorY);
+    doc.text("Performance summary", 20, cursorY);
     
     cursorY += 10;
     doc.setFontSize(11);

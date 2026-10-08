@@ -183,8 +183,8 @@ export default function MockBoardAnalytics() {
       {/* Trajectory: mini-stats + chart */}
       <Panel
         icon={BarChart3}
-        eyebrow="Board simulations"
-        title="Pre-board trajectory"
+        eyebrow="Mock boards"
+        title="Mock score trend"
         action={
           <Button variant="secondary" size="sm" onClick={() => loadHistory(true)}>
             <RefreshCw size={14} strokeWidth={1.75} /> Sync
@@ -193,7 +193,7 @@ export default function MockBoardAnalytics() {
         bodyClassName="flex flex-col gap-5"
       >
         <div className="grid grid-cols-3 gap-3">
-          <MiniStat label="Simulations" value={totalRuns} />
+          <MiniStat label="Sittings" value={totalRuns} />
           <MiniStat label="Avg score" value={`${avgScore}%`} tone={avgScore >= 70 ? 'success' : 'amber'} />
           <MiniStat label="Pass rate" value={`${passRate}%`} tone={passRate >= 70 ? 'success' : 'danger'} />
         </div>
@@ -202,7 +202,7 @@ export default function MockBoardAnalytics() {
           <div className="h-[320px] flex items-center justify-center"><SkeletonChart /></div>
         ) : chartData.length === 0 ? (
           <div className="h-[320px] flex items-center justify-center text-muted2 text-sm border-2 border-dashed border-border rounded-xl text-center px-6">
-            No simulations yet. Complete a board simulation to plot your trajectory.
+            No mock boards yet. Finish one to plot your scores.
           </div>
         ) : (
           <div className="h-[320px] w-full min-w-0">
@@ -238,8 +238,8 @@ export default function MockBoardAnalytics() {
       <Panel
         icon={BarChart3}
         eyebrow="History"
-        title="Simulation ledger"
-        action={<span className="text-[11px] text-muted2 tabular-nums">{history.length} records</span>}
+        title="Past sittings"
+        action={<span className="text-[11px] text-muted2 tabular-nums">{history.length} sitting{history.length === 1 ? '' : 's'}</span>}
         bodyClassName="max-h-[520px] overflow-y-auto custom-scrollbar"
       >
         {loading ? (

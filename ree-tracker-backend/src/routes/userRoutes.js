@@ -5,13 +5,14 @@ const { validate } = require('../middlewares/validate');
 const { profileUpdateSchema, settingsUpdateSchema, deviceTokenSchema } = require('../schemas/userSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const { fallbackDisplayName } = require('@ree/shared');
 
 const emailPrefix = (email) => (email && email.includes('@') ? email.split('@')[0] : null);
 
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
         const { id, email, name, picture } = req.user;
-        const fallbackName = name || emailPrefix(email) || `Agent-${id.slice(0, 6)}`;
+        const fallbackName = name || emailPrefix(email) || fallbackDisplayName(id);
 
         const user = await prisma.user.upsert({
             where: { id },

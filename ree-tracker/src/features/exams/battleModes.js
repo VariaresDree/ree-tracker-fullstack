@@ -1,8 +1,8 @@
 // src/features/exams/battleModes.js
 //
 // Battle formats, named after the mock-board profiles they match
-// (features/board-simulator/profiles.js): a "PRC Standard" battle and a "PRC
-// Standard" mock board are the same sitting.
+// (features/board-simulator/profiles.js): a "One subject (PRC clock)" battle
+// and mock board are the same sitting.
 import { SIM_PROFILES } from '../board-simulator/profiles';
 
 const profile = (id) => SIM_PROFILES.find((p) => p.id === id);

@@ -6,7 +6,7 @@ import { cn } from '../../components/ui';
 // ([bg-primary, bg-surface(2), text-main/accent]) — far more informative than
 // the emoji they replace, and immune to platform emoji fonts.
 const THEMES = [
-  { id: 'dark', label: 'Original', desc: 'Deep Space Matrix', swatch: ['#0b0f1a', '#1a2236', '#7c5cff'] },
+  { id: 'dark', label: 'Original', desc: 'Deep space', swatch: ['#0b0f1a', '#1a2236', '#7c5cff'] },
   { id: 'light', label: 'Light', desc: 'PRC Standard', swatch: ['#f8fafc', '#e2e8f0', '#0f172a'] },
   { id: 'midnight', label: 'Midnight', desc: 'OLED Pure Black', swatch: ['#000000', '#09090b', '#fafafa'] },
   { id: 'paper', label: 'Paper', desc: 'Warm Sepia', swatch: ['#fdf6e3', '#fefce8', '#451a03'] },

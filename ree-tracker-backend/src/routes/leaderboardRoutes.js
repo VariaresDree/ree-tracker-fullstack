@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { isStale, refreshLeaderboard, noteLeaderboardDemand } = require('../services/leaderboardService');
+const { fallbackDisplayName } = require('@ree/shared');
 
 // Phase 4.1: reads are served from the materialized LeaderboardEntry snapshot
 // (rebuilt every ~45s by leaderboardService) instead of sorting/counting the
@@ -22,7 +23,7 @@ const SELECT_FIELDS = {
 
 const toAgent = (u) => ({
     uid: u.id,
-    displayName: u.displayName || `Agent-${u.id.slice(0, 6)}`,
+    displayName: u.displayName || fallbackDisplayName(u.id),
     role: u.role,
     thetaRating: u.thetaRating,
     streak: u.globalStreak,

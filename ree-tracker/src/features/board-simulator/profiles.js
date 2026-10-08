@@ -10,19 +10,19 @@ export const SIM_PROFILES = [
   {
     id: 'custom',
     icon: Settings2,
-    name: 'Custom Drill',
+    name: 'Custom mock',
     description: 'Pick the item count, topic, and source for focused practice.',
   },
   {
     id: 'prc_subject',
     icon: Landmark,
-    name: 'PRC Standard',
+    name: 'One subject (PRC clock)',
     description: `One subject, 100 items, on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
   },
   {
     id: 'prc_blended',
     icon: Scale,
-    name: 'Full Blended',
+    name: 'Mixed paper',
     description: 'One 100-item mixed paper in 5 hours.',
   },
   {

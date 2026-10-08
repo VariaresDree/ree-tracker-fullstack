@@ -29,27 +29,27 @@ export const generateCertificate = async (currentUser, readinessScore) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(36);
   doc.setFont('helvetica', 'bold');
-  doc.text('CERTIFICATE OF OPERATIONAL READINESS', width / 2, 50, { align: 'center' });
+  doc.text('READINESS CERTIFICATE', width / 2, 50, { align: 'center' });
 
   // Subtitle
   doc.setTextColor(148, 163, 184); // muted
   doc.setFontSize(14);
   doc.setFont('helvetica', 'normal');
-  doc.text('THIS SECURE DOCUMENT VERIFIES THAT', width / 2, 70, { align: 'center' });
+  doc.text('THIS CERTIFIES THAT', width / 2, 70, { align: 'center' });
 
   // User Name
   doc.setTextColor(6, 182, 212); // reeCyan
   doc.setFontSize(48);
   doc.setFont('helvetica', 'bold');
-  const agentName = currentUser?.displayName || 'Authorized Agent';
+  const agentName = currentUser?.displayName || 'Reviewer';
   doc.text(agentName.toUpperCase(), width / 2, 100, { align: 'center' });
 
   // Achievement Text
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'normal');
-  const text1 = `Has successfully surpassed the minimum passing threshold within the REE.ai Core`;
-  const text2 = `Pressure Chamber, achieving an authorized Board Readiness Index of ${readinessScore}%.`;
+  const text1 = `has reached a Board Readiness Index of ${readinessScore}% in REE.ai practice,`;
+  const text2 = `at or above the 70% readiness mark for the Electrical Engineering board exam.`;
   doc.text(text1, width / 2, 120, { align: 'center' });
   doc.text(text2, width / 2, 130, { align: 'center' });
 
@@ -58,7 +58,7 @@ export const generateCertificate = async (currentUser, readinessScore) => {
   doc.setTextColor(100, 116, 139);
   const issueDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   doc.text(`ISSUED: ${issueDate}`, 30, height - 30);
-  doc.text(`UID: ${currentUser?.uid || 'AWAITING-UPLINK'}`, width - 30, height - 30, { align: 'right' });
+  doc.text(`ID: ${currentUser?.uid || '—'}`, width - 30, height - 30, { align: 'right' });
   
   // Seal / Stamp
   doc.setDrawColor(6, 182, 212);
@@ -67,7 +67,7 @@ export const generateCertificate = async (currentUser, readinessScore) => {
   doc.setTextColor(6, 182, 212);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('VERIFIED', width / 2, height - 39, { align: 'center' });
+  doc.text('REE.ai', width / 2, height - 39, { align: 'center' });
 
   doc.save(`REE_Readiness_Certificate_${agentName.replace(/\s+/g, '_')}.pdf`);
 };

@@ -9,6 +9,7 @@ const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitize
 const { applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants } = require('../utils/battleLogic');
 const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSchemas');
 const logger = require('../utils/logger');
+const { fallbackDisplayName } = require('@ree/shared');
 const { retryInBackground } = require('../services/retryInBackground');
 const { finalizeSession } = require('../services/examHistory');
 
@@ -106,7 +107,7 @@ function setupBattleSocket(io) {
         try {
             const decoded = await getAuth().verifyIdToken(token);
             socket.userId = decoded.uid;
-            socket.displayName = decoded.name || decoded.email?.split('@')[0] || 'Agent';
+            socket.displayName = decoded.name || decoded.email?.split('@')[0] || fallbackDisplayName(decoded.uid);
             next();
         } catch (err) {
             logger.warn('Socket auth failed', { error: err.message });

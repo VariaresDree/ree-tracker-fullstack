@@ -84,7 +84,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
       q.cachedExplanation = resp;
       if (q.id) updateQuestionCache(q.id, resp).catch(() => {});
     } catch (err) {
-      toast.error('AI Core unreachable.');
+      toast.error('AI explanation unavailable right now.');
       setActiveSolution(null);
     } finally {
       setAiLoading(false);

@@ -1,7 +1,7 @@
 // src/features/exams/BattlesTab.jsx
 //
 // Exams › Battles: join a friend's battle by code, or host one. Moved out of
-// the Arena page, where it was the "Combat Terminal".
+// the Arena page.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';

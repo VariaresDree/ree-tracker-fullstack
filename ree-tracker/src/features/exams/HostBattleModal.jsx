@@ -2,8 +2,8 @@
 //
 // Host a battle: pick a format, subject and length, create the lobby, and go
 // to it. The formats share their names and icons with the mock-board profiles
-// (features/board-simulator/profiles.js), so a "PRC Standard" battle and a
-// "PRC Standard" mock board are the same thing.
+// (features/board-simulator/profiles.js), so a "One subject (PRC clock)"
+// battle and mock board are the same thing.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
