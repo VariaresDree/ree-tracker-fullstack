@@ -4,7 +4,12 @@
 // + confidence + choices + reveal, keeps its own chrome (level header, clock,
 // right-flank navigator grid, submit/leave actions). Confidence is now
 // captured on every item (silent MED default if skipped) so gauntlet attempts
-// feed the same calibration analytics as Active Review and Simulator.
+// feed the same calibration analytics as Practice and the Simulator.
+//
+// Only the running exam uses ExamLayout. Loading, resume, the offline-pending
+// and error screens, and the results get the normal app chrome (MainLayout),
+// so the navigation is there whenever no clock is running. They used to
+// render with no chrome at all.
 
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -12,6 +17,7 @@ import { useGauntletEngine } from '../features/gauntlet/useGauntletEngine';
 import GauntletDiagnostics from '../features/gauntlet/GauntletDiagnostics';
 import QuestionCard from '../features/quiz/QuestionCard';
 import ExamLayout from '../layouts/ExamLayout';
+import MainLayout from '../layouts/MainLayout';
 import ExamNavigator from '../components/exam/ExamNavigator';
 import ExamClock from '../components/exam/ExamClock';
 import { formatExamTime } from '../utils/examFormat';
@@ -35,10 +41,12 @@ export default function Gauntlet() {
 
   if (status === 'loading') {
     return (
-      <div className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent)]">
-        <span className="telemetry-spinner !w-12 !h-12 border-t-transparent"></span>
-        <span className="text-sm font-semibold animate-pulse">Building your exam…</span>
-      </div>
+      <MainLayout>
+        <div role="status" className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent)]">
+          <span className="telemetry-spinner !w-12 !h-12 border-t-transparent"></span>
+          <span className="text-sm font-semibold animate-pulse">Building your exam…</span>
+        </div>
+      </MainLayout>
     );
   }
 
@@ -47,6 +55,7 @@ export default function Gauntlet() {
   // mid-exam, a killed tab, or a crash all land here on the next visit.
   if (status === 'resume') {
     return (
+      <MainLayout>
       <div className="flex items-center justify-center h-[70vh] page-fade-in">
         <EmptyState
           icon={TriangleAlert}
@@ -60,6 +69,7 @@ export default function Gauntlet() {
           }
         />
       </div>
+      </MainLayout>
     );
   }
 
@@ -68,19 +78,22 @@ export default function Gauntlet() {
   // pool intentionally never carries answer keys), so no score is invented.
   if (status === 'pending') {
     return (
+      <MainLayout>
       <div className="flex items-center justify-center h-[70vh] page-fade-in">
         <EmptyState
           icon={WifiOff}
           title="Submitted — grading when you reconnect"
-          description="Your answers are saved and queued. This run is done; you don't need to retry or stay on this screen — the score posts to your Dashboard once you're back online."
+          description="Your answers are saved and queued. This run is done; you don't need to retry or stay on this screen. The score is posted once you're back online."
           action={<Button onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>}
         />
       </div>
+      </MainLayout>
     );
   }
 
   if (status === 'error') {
     return (
+      <MainLayout>
       <div className="flex items-center justify-center h-[70vh] page-fade-in">
         <EmptyState
           icon={TriangleAlert}
@@ -89,11 +102,16 @@ export default function Gauntlet() {
           action={<Button onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>}
         />
       </div>
+      </MainLayout>
     );
   }
 
   if (status === 'diagnostics') {
-    return <GauntletDiagnostics diagnostics={diagnostics} level={level} questions={questions} answers={answers} formatTime={formatExamTime} navigate={navigate} />;
+    return (
+      <MainLayout>
+        <GauntletDiagnostics diagnostics={diagnostics} level={level} questions={questions} answers={answers} formatTime={formatExamTime} navigate={navigate} />
+      </MainLayout>
+    );
   }
 
   const currentQ = questions[currentIndex];

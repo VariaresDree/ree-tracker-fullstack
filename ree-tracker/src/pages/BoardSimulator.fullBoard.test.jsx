@@ -90,3 +90,26 @@ describe('Board Simulator — full PRC board', () => {
     expect(screen.getByText('config-screen')).toBeInTheDocument();
   });
 });
+
+describe('Board Simulator — layout', () => {
+  it('a running exam is in the exam layout; its results are not', () => {
+    engine = baseEngine({ session: { isActive: true, isFinished: false, answers: {}, questions: [], diagnostics: null } });
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('exam')).toBeInTheDocument();
+    expect(screen.queryByTestId('main')).not.toBeInTheDocument();
+    unmount();
+
+    // Finished: the red "exam in progress" banner used to stay up over the results.
+    engine = baseEngine({ session: { isActive: true, isFinished: true, answers: {}, questions: [], diagnostics: { score: 70 } } });
+    renderPage();
+    expect(screen.getByTestId('main')).toBeInTheDocument();
+    expect(screen.queryByTestId('exam')).not.toBeInTheDocument();
+    expect(screen.getByText('section-diagnostics')).toBeInTheDocument();
+  });
+
+  it('setup has the app chrome', () => {
+    engine = baseEngine();
+    renderPage();
+    expect(screen.getByTestId('main')).toBeInTheDocument();
+  });
+});

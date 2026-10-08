@@ -5,7 +5,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-vi.mock('./Arena', () => ({ default: ({ tab }) => <p>arena:{tab}</p> }));
+vi.mock('../features/exams/GauntletTab', () => ({ default: () => <p>exams:gauntlet</p> }));
+vi.mock('../features/exams/BattlesTab', () => ({ default: () => <p>exams:battles</p> }));
+vi.mock('../features/exams/RankingsTab', () => ({ default: () => <p>exams:rankings</p> }));
 vi.mock('../components/MockBoardAnalytics', () => ({ default: () => <p>past-sittings</p> }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1' }, isAdmin: false }) }));
 vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
@@ -39,7 +41,7 @@ describe('Exams', () => {
 
     it.each(['gauntlet', 'battles', 'rankings'])('?tab=%s shows that section', async (tab) => {
         at(`/exams?tab=${tab}`, Exams);
-        expect(await screen.findByText(`arena:${tab}`)).toBeInTheDocument();
+        expect(await screen.findByText(`exams:${tab}`)).toBeInTheDocument();
     });
 
     it('past sittings (the mock-board ledger, from the old dashboard) is its own tab', async () => {

@@ -33,10 +33,14 @@ if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollTo) {
 vi.mock('../features/gauntlet/GauntletDiagnostics', () => ({
   default: () => <div>diagnostics</div>,
 }));
+// The two chromes, told apart: the app shell for every screen with no clock
+// running, the exam layout only for the run itself.
+vi.mock('../layouts/MainLayout', () => ({ default: ({ children }) => <div data-testid="app-chrome">{children}</div> }));
+vi.mock('../layouts/ExamLayout', () => ({ default: ({ children }) => <div data-testid="exam-chrome">{children}</div> }));
 
-function renderAtIndex(index, total = 3) {
+function renderAtIndex(index, total = 3, status = 'active') {
   engineState = {
-    status: 'active',
+    status,
     questions: makeQuestions(total),
     answers: {},
     confidences: {},
@@ -63,6 +67,20 @@ function renderAtIndex(index, total = 3) {
     </MemoryRouter>,
   );
 }
+
+describe('Gauntlet — layouts', () => {
+  it.each(['loading', 'resume', 'pending', 'error', 'diagnostics'])('the %s screen has the app chrome, not the exam banner', (status) => {
+    renderAtIndex(0, 3, status);
+    expect(screen.getByTestId('app-chrome')).toBeInTheDocument();
+    expect(screen.queryByTestId('exam-chrome')).not.toBeInTheDocument();
+  });
+
+  it('a running exam is distraction-free', () => {
+    renderAtIndex(0, 3);
+    expect(screen.getByTestId('exam-chrome')).toBeInTheDocument();
+    expect(screen.queryByTestId('app-chrome')).not.toBeInTheDocument();
+  });
+});
 
 describe('Gauntlet — Submit exam placement', () => {
   beforeEach(() => {
