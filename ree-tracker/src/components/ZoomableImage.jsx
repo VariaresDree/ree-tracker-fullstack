@@ -21,13 +21,13 @@ export default function ZoomableImage({ src, alt }) {
           <>
             {/* Manual Controls for Desktop/Mouse users */}
             <div className="absolute bottom-4 right-4 z-10 flex gap-2">
-              <button onClick={() => zoomIn()} className="w-8 h-8 bg-surface3 hover:bg-reeBlue/20 border border-border2 hover:border-reeBlue/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
+              <button type="button" onClick={() => zoomIn()} aria-label="Zoom in" className="touch-target w-8 h-8 bg-surface3 hover:bg-reeBlue/20 border border-border2 hover:border-reeBlue/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
                 +
               </button>
-              <button onClick={() => zoomOut()} className="w-8 h-8 bg-surface3 hover:bg-reeBlue/20 border border-border2 hover:border-reeBlue/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
+              <button type="button" onClick={() => zoomOut()} aria-label="Zoom out" className="touch-target w-8 h-8 bg-surface3 hover:bg-reeBlue/20 border border-border2 hover:border-reeBlue/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
                 -
               </button>
-              <button onClick={() => resetTransform()} className="w-8 h-8 bg-surface3 hover:bg-reeRed/20 border border-border2 hover:border-reeRed/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
+              <button type="button" onClick={() => resetTransform()} aria-label="Reset zoom" className="touch-target w-8 h-8 bg-surface3 hover:bg-reeRed/20 border border-border2 hover:border-reeRed/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
                 ↺
               </button>
             </div>

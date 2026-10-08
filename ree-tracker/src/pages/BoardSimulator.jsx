@@ -227,6 +227,7 @@ export default function BoardSimulator() {
 {engine.session.isFinished && !showBoardBreak && (
         <SimulatorDiagnostics
             onExit={showBoardResult ? leaveBoardResults : undefined}
+            headingLevel={showBoardResult ? 2 : 1}
             session={engine.session}
             engine={engine}
             isBattle={!!activeBattleId}

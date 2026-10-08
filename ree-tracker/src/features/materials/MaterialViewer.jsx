@@ -9,7 +9,10 @@ import { X, Maximize2, Minimize2 } from '../../components/ui/icons';
 import MediaViewer from '../../components/MediaViewer';
 import FullscreenPdfViewer from '../../components/FullscreenPdfViewer';
 
-export default function MaterialViewer({ material, onClose }) {
+// `headingLevel`: 1 where the viewer replaces the page (Library), 2 inside a
+// page that has its own h1 (Admin).
+export default function MaterialViewer({ material, onClose, headingLevel = 1 }) {
+  const Heading = `h${headingLevel}`;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pdfFullscreen, setPdfFullscreen] = useState(false);
   const isPdf = material?.type === 'pdf';
@@ -34,7 +37,7 @@ export default function MaterialViewer({ material, onClose }) {
           )}
         </div>
         <div className="flex flex-col items-end min-w-0">
-          <span title={material.name} className="font-bold text-sm text-textMain tracking-wide block truncate max-w-full">{material.name}</span>
+          <Heading title={material.name} className="font-bold text-sm text-textMain tracking-wide block truncate max-w-full">{material.name}</Heading>
           <Badge tone="signal" className="mt-1 uppercase">{material.type}</Badge>
         </div>
       </div>

@@ -6,6 +6,8 @@
 // rest of the sitting). The result places each subject against the PRC marks
 // and, for a new account, seeds the abilities practice starts from.
 import { useEffect, useRef, useState } from 'react';
+import ModeGuide from '../features/exams/ModeGuide';
+import { startingMode } from '../features/exams/modes';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import MainLayout from '../layouts/MainLayout';
@@ -215,8 +217,10 @@ function PlacementResult({ result }) {
         })}
       </div>
 
+      <ModeGuide start={startingMode(gwa)} />
+
       <div className="flex flex-wrap gap-3">
-        <Button size="lg" as={Link} to="/">Go to my dashboard</Button>
+        <Button size="lg" as={Link} to="/">Go to Today</Button>
         <Button
           variant="secondary"
           as={Link}

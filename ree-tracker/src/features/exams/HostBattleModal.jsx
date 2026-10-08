@@ -93,9 +93,9 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
                     : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'
                 )}
               >
-                <h3 className={cn('text-sm font-semibold mb-1 flex items-center gap-2', selected ? 'text-[var(--accent-text)]' : 'text-textMain')}>
+                <span className={cn('text-sm font-semibold mb-1 flex items-center gap-2', selected ? 'text-[var(--accent-text)]' : 'text-textMain')}>
                   <Icon size={16} strokeWidth={1.75} aria-hidden="true" /> {m.name}
-                </h3>
+                </span>
                 <p className="text-xs text-muted2 leading-relaxed hidden sm:block">{m.description}</p>
               </button>
             );

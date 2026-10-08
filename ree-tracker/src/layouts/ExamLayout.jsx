@@ -3,8 +3,8 @@ import { ShieldAlert } from '../components/ui/icons';
 
 export default function ExamLayout({
   children,
-  shortMessage = 'Distraction-free exam — timer running',
-  message = 'Distraction-free board simulation active — real-time penalties apply',
+  shortMessage = 'Exam in progress — clock running',
+  message = 'Exam in progress — the clock is running, and results come at the end',
 }) {
   return (
     // Sticky children sit just under the exam banner; there is no bottom bar.
@@ -15,11 +15,9 @@ export default function ExamLayout({
       {/* Minimalist high-contrast warning header (sticky so it stays visible).
           Copy + size step down on phones so it stays one line and doesn't
           double the sticky chrome above the toolbar.
-          shortMessage/message default to the original Board Simulator copy —
-          this layout is shared with Gauntlet, which was getting that same
-          "board simulation... real-time penalties" text unconditionally on
-          desktop (only the mobile string was generic enough to read as
-          accurate there). Gauntlet now passes its own pair.
+          shortMessage/message default to plain mock-board copy. The old
+          default promised "real-time penalties" that don't exist, and the
+          Gauntlet (which shares this layout) passes its own pair.
           Background is a darkened accent-danger, not the raw token: measured
           white-on-raw-accent-danger at ~3.2:1, under the 4.5:1 AA floor for
           text this size (12.8px semibold doesn't qualify as "large text").

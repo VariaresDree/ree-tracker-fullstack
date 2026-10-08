@@ -29,9 +29,9 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
           </span>
           <div>
             <span className="text-eyebrow">Full PRC board</span>
-            <h2 className="text-display text-2xl text-textMain mt-1">
+            <h1 className="text-display text-2xl text-textMain mt-1">
               {done === 0 ? 'Ready when you are' : `Section ${done} of ${FULL_BOARD_SECTIONS.length} complete`}
-            </h2>
+            </h1>
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export function FullBoardResults({ board }) {
     <Card elevated glow className="p-6 sm:p-8 flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <span className="text-eyebrow">Full PRC board result</span>
+          <h1 className="text-eyebrow">Full PRC board result</h1>
           <p className="text-display text-5xl text-textMain tabular-nums mt-1">{summary.generalAverage.toFixed(1)}%</p>
           <p className="text-sm text-muted2">General weighted average · {fmtDuration(summary.timeTakenSecs)} across three sections</p>
         </div>

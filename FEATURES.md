@@ -62,6 +62,16 @@ every feature add, change, or removal, not on a schedule.
   - **Admin tools:** questions go to "the review queue", not "Admin Quarantine" or "into the Matrix".
   - **Fallback name:** an account without a name is **Reviewer-xxxxxx** (was Agent-xxxxxx, or a bare "Agent" in battles). It is one definition, `fallbackDisplayName` in `@ree/shared`, used by the leaderboard and profile routes, the battle socket and the client. Stored names are unchanged.
   - **Copy guard** (`src/test/copyGuard.test.js`): fails if any source file outside comments reintroduces a retired phrase (Global Matrix, Operational Readiness, Encrypted, Security Breach, Anomaly reported, AI Core, Combat Terminal, Assessment Core, Uplinking, Agent-, Initiate Protocol, Apex Agent, into the Matrix, Matrix API). "REE.ai Core", the brand on the login screen, stays.
+  - **Second pass (2026-10, polish):**
+    - The app title and installed-app name are **"REE.ai — Electrical Engineering board review"** (were "REE.ai | Tactical Reviewer"). The update prompt asks "A new version of REE.ai is ready. Reload now?" (was "Reload the matrix?").
+    - **Gauntlet results:** "Tier passed" / "Not passed this time", "What to review" and "N missed", with no emoji. They were "Gauntlet Mastered", "Simulation Failed", a "Post-Action Prescription Plan" about "vulnerabilities in your knowledge matrix" and "N Errors".
+    - **Error screens:** "Something went wrong" with Reload, and per-section "… couldn't load" with Try again. They were "Critical System Error", "Reload Engine" and "encountered an error".
+    - **Exam banner:** "Exam in progress — the clock is running, and results come at the end". The old default promised "real-time penalties" that don't exist. The Gauntlet banner says that not passing locks the Gauntlet for 12 hours (the lock is one timestamp for the whole ladder, not per tier).
+    - **No more "vault":** Question bank (mock-board source, admin overview, Add to question bank), Formula cards (Library's reference browser), and "Show question" / "Saved offline" in Bookmarks.
+    - **AI text:** the fallback messages are plain, and the board-report prompt asks for plain English (it asked for "tactical direction").
+    - **Rankings** rows show how many questions each reviewer answered, not the first 8 characters of their account id.
+    - The placement result's button says "Go to Today".
+    - The copy guard now also reads `index.html` and `vite.config.js` (the title and the installed-app name), and rejects Tactical, "the matrix", "knowledge matrix", Critical System Error, Reload Engine, Simulation Failed, real-time penalties, and "vault" as a word.
 
 ## Exam & Practice Modes
 
@@ -201,6 +211,25 @@ every feature add, change, or removal, not on a schedule.
   - **Light themes' brand colours:** blue, cyan, amber, green, red, purple and the signal cyan are used as text in about 80 places, and the stock hues read at 1.5–3.8:1 on near-white. Light, paper and sakura now carry darker shades of the same hues (cyan-800, amber-800, green-800…), which also give white-on-colour buttons more contrast. They're held to 4.5:1 on page, card and panel and 3:1 on the chip layer. The dark themes keep the stock values that their white-on-colour buttons need; their text uses still fall short on forest, ocean, organs and math (red, purple, blue) and move to dedicated text tokens in a later pass.
   - The test strips CSS comments before parsing and resolves `var()` and `color-mix()`, so derived tokens are measured as rendered.
 - [x] **Visible keyboard focus** — the global `:focus-visible` ring was a `box-shadow` in the base layer, so the `.elevate-*` and `shadow-*` utilities replaced it and every elevated control, primary buttons included, showed no focus at all. It is now a 2px `outline` with a 2px offset: no shadow utility touches it, it survives Windows forced-colours mode (box-shadows are dropped there), and it follows each element's own corners. Its colour, `--focus-ring-color`, is the accent text colour; the old purple ring fell under 3:1 on the math, ocean, forest and organs surfaces. Every element carries that outline colour before focus, so focusing changes only the outline's style: `transition-colors` animates outline-color, and the ring used to fade in from the text colour (a white flash on the dark themes). Form fields, the planner, vault and Pomodoro inputs, the revealed flashcard answer and the Scratchpad dialog dropped `outline-none`, which would now have hidden their only ring; the answer options keep their own ring, in the same colour (`styles/index.css`, `components/ui/FormField.jsx`, `features/quiz/QuestionCard.jsx`)
+- [x] **Headings, keyboard and touch pass (2026-10 polish)**
+  - **One h1 per screen:**
+    - Battle room, Gauntlet run (screen-reader only) and Gauntlet results.
+    - Full-board break and result, mock-board results, and the mock board in progress or under review (screen-reader only).
+    - Under the full-board result, the last section's diagnostics step down to h2, so that screen keeps one h1 (pinned in `BoardSimulator.fullBoard.test.jsx`).
+    - The handout viewer (an h2 inside Admin) and the full-page error screen.
+    - The simulator setup's h1 is **"Mock board"**, matching Exams (was "Board Simulator").
+    - Their sections step down to h2.
+    - Option cards in the simulator setup and Host-a-battle are radio-style buttons, so their names are no longer headings (a heading inside a button is announced twice and breaks heading navigation).
+    - The explanation review queue is an h2.
+  - **Keyboard:** Library › Handouts folders open from the keyboard (Enter or Space). The folder name is a focusable button-role control whose click bubbles to the tile, so mouse and keyboard open a folder the same way and the admin buttons stay separate controls. It's a span rather than a <button> because Firefox won't start a drag on a button, and admins drag folders by their names (`CloudVaultTab.keyboard.test.jsx`).
+  - **Touch targets and names:** image zoom controls are named "Zoom in" / "Zoom out" / "Reset zoom" and get `touch-target`, as do the reminder dismiss, the bookmark remove button, the Handouts rename/cut/delete icons and the error screens' buttons.
+  - **Overflow:**
+    - The Scratchpad is an 85dvh bottom sheet on phones, still see-through so the learner writes over the question; it used to cover, and size its canvas to, the whole page.
+    - The account menu scrolls inside `max-h-[min(70dvh,32rem)]`.
+    - Tab strips scroll sideways without a scrollbar track, which showed under Progress's seven tabs on phones.
+- [x] **"Which mode do I use?"** (`features/exams/{ModeGuide.jsx,modes.js}`) — Practice (untimed, answers after every question), Mock board (timed on the PRC clock, results at the end), Gauntlet (ranked ladder; not passing locks a tier for 12 hours) and Battles (the same timed set with friends), each linking to where it starts.
+  - **Placement result:** shown open, with **Start here** on Practice below a 60% projected average, Mock board below the 70% pass mark, and the Gauntlet above it (`startingMode`). Folded, the modes are h2s (the summary isn't a heading).
+  - **Exams and Practice:** folded under their page headers.
 - [x] **Answer feedback without colour** — the answering surfaces now work for a screen-reader or keyboard user.
   - **QuestionCard** speaks the graded result through a polite status region: "Correct.", "Incorrect. The answer is A." or "Not answered. The answer is A." It gives letters, not the option text, which is often LaTeX. A results list of graded cards opts out with `announce={false}`.
   - **Exam navigator** cells name their state ("Go to item 3, not answered, marked for review") and mark the current item `aria-current="step"`.

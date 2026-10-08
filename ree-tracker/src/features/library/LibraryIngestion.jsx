@@ -191,7 +191,7 @@ export default function LibraryIngestion({
         footer={
           <>
             <span className="text-xs text-muted mr-auto max-w-md leading-relaxed hidden sm:block">
-              Added questions go to the admin review queue before they appear in the vault.
+              Added questions go to the admin review queue before they appear in the question bank.
             </span>
             <Button variant="ghost" tone="danger" onClick={() => setShowDiscardConfirm(true)}>
               Discard all
@@ -201,7 +201,7 @@ export default function LibraryIngestion({
               loading={isCommitting}
               disabled={isCommitting || generatedQuestions.length === 0}
             >
-              Add {generatedQuestions.length} question{generatedQuestions.length === 1 ? '' : 's'} to vault
+              Add {generatedQuestions.length} question{generatedQuestions.length === 1 ? '' : 's'} for review
             </Button>
           </>
         }

@@ -292,7 +292,7 @@ export default function VaultDataGrid({
           </>
         }
       >
-        <p className="text-sm text-muted2">It will be removed from the vault for everyone. This can't be undone.</p>
+        <p className="text-sm text-muted2">It will be removed from the question bank for everyone. This can't be undone.</p>
       </Modal>
 
       {/* Edit modal */}

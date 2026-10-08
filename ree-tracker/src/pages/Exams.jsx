@@ -10,6 +10,7 @@
 import { lazy, Suspense } from 'react';
 import useTabParam from '../hooks/useTabParam';
 import { PageHeader, Tabs, Skeleton } from '../components/ui';
+import ModeGuide from '../features/exams/ModeGuide';
 import { Zap, Shield, Swords, Trophy, History } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 import MockBoardTab from '../features/exams/MockBoardTab';
@@ -36,6 +37,7 @@ export default function Exams() {
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-5xl mx-auto pt-4">
       <PageHeader title="Exams" subtitle="Timed tests under board conditions: mock boards, the Gauntlet ladder, and battles with friends." />
+      <ModeGuide folded />
       <Tabs label="Exam types" active={tab} onChange={setTab} tabs={TABS} />
 
       {tab === 'mock' ? (

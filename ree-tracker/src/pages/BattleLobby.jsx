@@ -94,7 +94,7 @@ export default function BattleLobby() {
                     >
                         <Swords size={26} strokeWidth={1.75} aria-hidden="true" />
                     </span>
-                    <h2 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Multiplayer Mock Battle</h2>
+                    <h1 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Battle room</h1>
 
                     <span aria-live="polite" className="mt-3">
                         <StatusPill tone={connected ? 'success' : 'danger'}>
@@ -131,9 +131,9 @@ export default function BattleLobby() {
             {/* Players */}
             <Card elevated className="overflow-hidden">
                 <div className="p-5 border-b border-border2 bg-surface2/50 flex justify-between items-center">
-                    <h3 className="text-sm font-semibold text-textMain flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-textMain flex items-center gap-2">
                         <Users size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-signal)]" /> Players
-                    </h3>
+                    </h2>
                     <StatusPill tone="success">{participants.length} online</StatusPill>
                 </div>
                 <div className="p-4 flex flex-col gap-2">
@@ -193,9 +193,9 @@ export default function BattleLobby() {
                 <Card elevated className="p-6 animate-in fade-in slide-in-from-bottom-2"
                     style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)' }}
                 >
-                    <h3 className="text-lg font-semibold text-textMain mb-4 flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-textMain mb-4 flex items-center gap-2">
                         <Trophy size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> Final scores
-                    </h3>
+                    </h2>
                     <p className="text-xs text-muted2 mb-4">
                         Results are recorded. Progress can take a minute to catch up after a multiplayer exam.
                     </p>

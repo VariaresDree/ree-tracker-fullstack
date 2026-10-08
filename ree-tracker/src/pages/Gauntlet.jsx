@@ -137,9 +137,10 @@ export default function Gauntlet() {
   // QuestionCard, and linear + submit controls.
   return (
     <ExamLayout
-      shortMessage="Distraction-free exam — timer running"
-      message="Distraction-free Gauntlet run — timer running, failure locks you out for 12 hours"
+      shortMessage="Gauntlet run — clock running"
+      message="Gauntlet run — the clock is running, and not passing locks the Gauntlet for 12 hours"
     >
+      <h1 className="sr-only">Gauntlet level {level}</h1>
       <Modal
         open={showSubmitConfirm}
         onClose={() => setShowSubmitConfirm(false)}
