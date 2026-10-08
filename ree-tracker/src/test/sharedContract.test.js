@@ -41,6 +41,11 @@ import {
     effectiveStreak,
     longestStreak,
     dayBefore,
+    lastStudyDay,
+    nextManilaMidnight,
+    DISPLAY_NAME_MAX,
+    clampDisplayName,
+    dayAfter,
 } from '@ree/shared';
 
 describe('@ree/shared resolves from the client bundle', () => {
@@ -305,5 +310,61 @@ describe('longestStreak — the best run in a study calendar', () => {
         expect(longestStreak({})).toBe(0);
         expect(longestStreak(null)).toBe(0);
         expect(longestStreak({ total: 9, '2026-10-01': 1 })).toBe(1);
+    });
+});
+
+describe('lastStudyDay — the newest day with answers', () => {
+    it('takes the later of lastActiveDate and the newest non-empty calendar day', () => {
+        expect(lastStudyDay({ lastActiveDate: '2026-10-05', activityCalendar: { '2026-10-07': 3 } })).toBe('2026-10-07');
+        expect(lastStudyDay({ lastActiveDate: '2026-10-08', activityCalendar: { '2026-10-07': 3 } })).toBe('2026-10-08');
+        expect(lastStudyDay({ activityCalendar: { '2026-10-07': 3, '2026-10-08': 0 } })).toBe('2026-10-07');
+    });
+
+    it('is null without evidence, and ignores malformed days', () => {
+        expect(lastStudyDay(null)).toBeNull();
+        expect(lastStudyDay({})).toBeNull();
+        expect(lastStudyDay({ lastActiveDate: 'yesterday', activityCalendar: { total: 9 } })).toBeNull();
+    });
+
+    it('counts tomorrow (a clock a little ahead) but ignores days further ahead', () => {
+        const stats = { activityCalendar: { '2026-10-07': 3, '2026-10-09': 1, '2027-03-01': 2 }, lastActiveDate: '2031-01-01' };
+        expect(lastStudyDay(stats, '2026-10-08')).toBe('2026-10-09');
+        expect(lastStudyDay(stats, '2026-10-07')).toBe('2026-10-07');
+        expect(dayAfter('2026-12-31')).toBe('2027-01-01');
+        expect(dayAfter('2028-02-28')).toBe('2028-02-29');
+        expect(dayAfter('nope')).toBeNull();
+    });
+});
+
+describe('clampDisplayName — a name as the server stores it', () => {
+    it('trims, cuts to the limit and trims again, so it matches the stored name', () => {
+        expect(clampDisplayName('  Engr. Cruz  ')).toBe('Engr. Cruz');
+        // The 32nd character is a space: the cut must not keep it.
+        expect(clampDisplayName('Engr. Juan Miguel dela Cruz San Jose Reyes')).toBe('Engr. Juan Miguel dela Cruz San');
+        expect(clampDisplayName('x'.repeat(40))).toHaveLength(DISPLAY_NAME_MAX);
+        expect(clampDisplayName(null)).toBe('');
+    });
+
+    it('never splits an emoji, and stays within the limit in UTF-16 units', () => {
+        const name = 'a'.repeat(31) + '\u{1F50C}';
+        const clamped = clampDisplayName(name);
+        expect(clamped).toBe('a'.repeat(31));
+        expect(clampDisplayName('\u{26A1}'.repeat(40)).length).toBeLessThanOrEqual(DISPLAY_NAME_MAX);
+    });
+});
+
+describe('nextManilaMidnight', () => {
+    it('is the next 00:00 in Manila (16:00 UTC), never the current instant', () => {
+        const at = (iso) => new Date(nextManilaMidnight(Date.parse(iso))).toISOString();
+        expect(at('2026-10-08T10:00:00+08:00')).toBe('2026-10-08T16:00:00.000Z');
+        expect(at('2026-10-08T23:59:59+08:00')).toBe('2026-10-08T16:00:00.000Z');
+        expect(at('2026-10-09T00:00:00+08:00')).toBe('2026-10-09T16:00:00.000Z');
+        expect(at('2026-12-31T20:00:00+08:00')).toBe('2026-12-31T16:00:00.000Z');
+    });
+});
+
+describe('DISPLAY_NAME_MAX', () => {
+    it('is the 32-character limit the profile route and the name inputs share', () => {
+        expect(DISPLAY_NAME_MAX).toBe(32);
     });
 });

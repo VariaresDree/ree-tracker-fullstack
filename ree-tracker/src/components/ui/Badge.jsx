@@ -3,7 +3,7 @@ import { cn } from './cn';
 const tones = {
   neutral: 'bg-surface2 text-muted2 border-border',
   velocity:
-    'bg-[color-mix(in_srgb,var(--accent-velocity)_15%,transparent)] text-[var(--accent-velocity)] border-[color-mix(in_srgb,var(--accent-velocity)_35%,transparent)]',
+    'bg-[color-mix(in_srgb,var(--accent-velocity)_15%,transparent)] text-[var(--accent-text)] border-[color-mix(in_srgb,var(--accent-velocity)_35%,transparent)]',
   signal:
     'bg-[color-mix(in_srgb,var(--accent-signal)_15%,transparent)] text-[var(--accent-signal)] border-[color-mix(in_srgb,var(--accent-signal)_35%,transparent)]',
   success:

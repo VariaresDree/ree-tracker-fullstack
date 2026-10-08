@@ -8,7 +8,7 @@ const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { recordAttempts, todayManila } = require('../services/telemetryService');
-const { normalizeSubject, effectiveStreak } = require('@ree/shared');
+const { normalizeSubject, effectiveStreak, lastStudyDay } = require('@ree/shared');
 const { Prisma } = require('@prisma/client');
 const { manilaDaySql } = require('../utils/manilaDate');
 const { PRIOR_SE } = require('../engine/irt');
@@ -238,11 +238,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // it as it stands today, judged from the calendar above: the last Manila
         // day with answered questions. Not user.lastActive — the profile route
         // re-stamps that on every app open.
-        let lastStudyDay = null;
-        for (const [day, n] of Object.entries(activityCalendar)) {
-            if (n > 0 && (!lastStudyDay || day > lastStudyDay)) lastStudyDay = day;
-        }
-        const globalStreak = effectiveStreak(user.globalStreak, lastStudyDay, today);
+        const globalStreak = effectiveStreak(user.globalStreak, lastStudyDay({ activityCalendar }, today), today);
 
         const manilaFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
         const thetaHistory = thetaRows.map((r) => ({

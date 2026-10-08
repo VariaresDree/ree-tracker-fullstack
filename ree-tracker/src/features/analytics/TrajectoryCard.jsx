@@ -136,7 +136,7 @@ export function TrajectoryCard() {
               type="button"
               onClick={recompute}
               disabled={loading}
-              className="underline-offset-2 hover:underline disabled:opacity-50 pointer-coarse:p-4 pointer-coarse:-m-4 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+              className="underline-offset-2 hover:underline disabled:opacity-50 pointer-coarse:p-4 pointer-coarse:-m-4 rounded-sm"
             >
               {loading ? 'Retrying…' : 'Recompute'}
             </button>

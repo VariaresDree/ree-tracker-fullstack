@@ -125,7 +125,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, totalQuestions, isReview, showScratchpad, showSubmitConfirm, q, handleSelectConfidence, handleSelectOption, handleIndexChange]);
 
-  if (!q) return <div className="flex justify-center p-12 text-[var(--accent)]"><span className="telemetry-spinner !w-12 !h-12"></span></div>;
+  if (!q) return <div className="flex justify-center p-12 text-[var(--accent-text)]"><span className="telemetry-spinner !w-12 !h-12"></span></div>;
 
   // Per-question action icons (scratchpad / flag / bookmark) — injected into
   // QuestionCard's headerSlot so they sit next to the subject eyebrow.
@@ -213,7 +213,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
 
               let btnClass = 'bg-surface2/30 border-border2/40 text-muted hover:border-textMain/40 hover:text-textMain';
               if (!isReview) {
-                if (isAnswered) btnClass = 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_40%,transparent)] text-[var(--accent)] font-bold shadow-sm';
+                if (isAnswered) btnClass = 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_40%,transparent)] text-[var(--accent-text)] font-bold shadow-sm';
                 if (isCurrent) btnClass = 'bg-[var(--accent)] border-[var(--accent)] text-white font-bold elevate-1 scale-110';
               } else {
                 const ans = session.answers[idx];
@@ -304,7 +304,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
               {activeSolution === 'ai' && (aiResponse || q.cachedExplanation) && (
                 <div className="p-6 sm:p-8 rounded-[var(--radius-lg)] bg-surface2 border shadow-inner relative animate-in fade-in slide-in-from-top-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 30%, transparent)' }}>
                   <div className="flex justify-between items-center mb-5 border-b pb-3" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 20%, transparent)' }}>
-                    <div className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-velocity)' }}>
+                    <div className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-text)' }}>
                       <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
                     </div>
                     <button

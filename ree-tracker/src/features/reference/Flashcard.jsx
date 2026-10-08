@@ -81,7 +81,7 @@ export default function Flashcard({ card }) {
           <div className="flex items-start justify-between gap-2 min-w-0">
             <div className="min-w-0">
               {card.symbol && (
-                <div className="text-fluid-lg font-bold text-[var(--accent)] [&_p]:!mb-0">
+                <div className="text-fluid-lg font-bold text-[var(--accent-text)] [&_p]:!mb-0">
                   <LatexRenderer content={withMathDelimiters(card.symbol)} />
                 </div>
               )}
@@ -140,7 +140,7 @@ export default function Flashcard({ card }) {
               <div className="flex flex-col gap-1">
                 {card.variables.map((v, i) => (
                   <div key={i} className="flex items-baseline gap-2 text-fluid-sm min-w-0">
-                    <span className="font-mono font-bold text-[var(--accent)] shrink-0 [&_p]:!mb-0">
+                    <span className="font-mono font-bold text-[var(--accent-text)] shrink-0 [&_p]:!mb-0">
                       <LatexRenderer compact content={withMathDelimiters(v.symbol)} />
                     </span>
                     <span className="text-muted2 min-w-0 [overflow-wrap:anywhere]">

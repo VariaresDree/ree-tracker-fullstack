@@ -1,4 +1,5 @@
 // src/utils/irtMath.js
+import { dayBefore, lastStudyDay } from '@ree/shared';
 import { todayManila } from './manilaDate';
 
 // Note: timeSpent defaults to 0 to prevent NaN errors on legacy data.
@@ -13,26 +14,25 @@ export const calculateUpdatedStats = (currentStats = {}, isCorrect, confidence, 
     const todayStr = todayManila();
     
     let globalStreak = currentStats?.globalStreak || 0;
-    let lastActiveDate = currentStats?.lastActiveDate || null;
     let dailyMath = currentStats?.dailyMath || 0;
     let dailyESAS = currentStats?.dailyESAS || 0;
     let dailyEE = currentStats?.dailyEE || 0;
 
-    if (lastActiveDate !== todayStr) {
+    // The last day with answers, judged from the merged calendar as well as
+    // this device's own lastActiveDate. Stats synced from another device can
+    // already hold today's (or yesterday's) answers while lastActiveDate is
+    // still this device's older day; judging by lastActiveDate alone reset a
+    // live streak to 1 and today's counts to 0 on this device's first answer.
+    // Tomorrow (another device whose clock runs a little ahead) counts as
+    // today, not as a gap; lastStudyDay ignores anything later.
+    const prevDay = lastStudyDay(currentStats, todayStr);
+    if (prevDay && prevDay >= todayStr) {
+        globalStreak = Math.max(globalStreak, 1);
+    } else {
         dailyMath = 0;
         dailyESAS = 0;
         dailyEE = 0;
-
-        if (!lastActiveDate) {
-            globalStreak = 1;
-        } else {
-            const lastDate = new Date(lastActiveDate + 'T00:00:00');
-            const currentDate = new Date(todayStr + 'T00:00:00');
-            const diffDays = Math.round((currentDate - lastDate) / (1000 * 60 * 60 * 24));
-
-            if (diffDays === 1) globalStreak += 1; 
-            else if (diffDays > 1) globalStreak = 1; 
-        }
+        globalStreak = prevDay === dayBefore(todayStr) ? globalStreak + 1 : 1;
     }
 
     // ==========================================

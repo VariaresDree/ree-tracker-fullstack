@@ -1,7 +1,8 @@
 const { z } = require('zod');
+const { DISPLAY_NAME_MAX } = require('@ree/shared');
 
 const profileUpdateSchema = z.object({
-    displayName: z.string().trim().min(1).max(32),
+    displayName: z.string().trim().min(1).max(DISPLAY_NAME_MAX),
 });
 
 // PUT /api/user/settings — partial update; at least one field required.

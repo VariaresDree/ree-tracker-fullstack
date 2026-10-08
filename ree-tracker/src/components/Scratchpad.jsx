@@ -124,7 +124,7 @@ export default function Scratchpad({ isOpen, onClose }) {
       role="dialog"
       aria-label="Scratchpad"
       tabIndex={-1}
-      className="absolute inset-0 z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-xl overflow-hidden flex flex-col page-fade-in outline-none"
+      className="absolute inset-0 z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-xl overflow-hidden flex flex-col page-fade-in"
     >
       <div className="flex justify-between items-center p-2 bg-bg/90 border-b border-border2 pointer-events-auto">
         <span className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-signal)' }}>

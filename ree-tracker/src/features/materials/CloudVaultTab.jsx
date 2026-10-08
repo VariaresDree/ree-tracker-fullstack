@@ -142,9 +142,9 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
         <div className="bg-reeBlue/10 border border-reeBlue/30 p-3 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 animate-in slide-in-from-top-4 shadow-sm">
           <div className="flex items-center gap-3 text-sm">
             {clipboard.type === 'folder'
-              ? <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" />
-              : <FileText size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent)]" />}
-            <span className="text-textMain font-medium">Moving <span className="font-bold text-[var(--accent)]">"{clipboard.name}"</span></span>
+              ? <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" />
+              : <FileText size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" />}
+            <span className="text-textMain font-medium">Moving <span className="font-bold text-[var(--accent-text)]">"{clipboard.name}"</span></span>
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" onClick={() => setClipboard(null)}>Cancel</Button>
@@ -175,7 +175,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
           </div>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="appearance-none bg-surface2 border border-border2 text-muted hover:text-textMain px-4 py-2.5 rounded-lg text-xs font-bold outline-none focus:border-reeBlue cursor-pointer transition-colors">
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="appearance-none bg-surface2 border border-border2 text-muted hover:text-textMain px-4 py-2.5 rounded-lg text-xs font-bold focus:border-reeBlue cursor-pointer transition-colors">
             <option value="name">Sort Files: A-Z</option>
             <option value="date">Sort Files: Recent</option>
           </select>
@@ -190,8 +190,8 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
 
       {isCreatingFolder && isAdmin && (
         <div className="p-5 bg-surface border border-reeBlue/40 rounded-xl flex flex-col sm:flex-row gap-3 items-center shadow-lg animate-in fade-in slide-in-from-top-2">
-          <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="hidden sm:block text-[var(--accent)]" />
-          <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Enter new subfolder name..." className="flex-1 w-full bg-bg border border-border2 text-sm text-textMain px-4 py-2.5 rounded-lg outline-none focus:border-reeBlue transition-colors" />
+          <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="hidden sm:block text-[var(--accent-text)]" />
+          <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Enter new subfolder name..." className="flex-1 w-full bg-bg border border-border2 text-sm text-textMain px-4 py-2.5 rounded-lg focus:border-reeBlue transition-colors" />
           <div className="flex gap-2 w-full sm:w-auto">
             <button onClick={handleCreateFolderClick} className="flex-1 sm:flex-none px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors">Create</button>
             <button onClick={() => setIsCreatingFolder(false)} className="flex-1 sm:flex-none px-4 py-2.5 bg-surface2 hover:bg-surface3 text-muted border border-border2 font-bold rounded-lg text-xs cursor-pointer transition-colors">Cancel</button>
@@ -221,11 +221,11 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Media Display Title</label>
-                <input value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="e.g. AC Circuits Lecture" className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan transition-colors" />
+                <input value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="e.g. AC Circuits Lecture" className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm focus:border-reeCyan transition-colors" />
               </div>
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Target Web Vector (URL)</label>
-                <input value={newMaterial.url} onChange={e => setNewMaterial({...newMaterial, url: e.target.value})} placeholder="Paste YouTube link or Google Drive Shareable Link..." className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm outline-none focus:border-reeCyan transition-colors" />
+                <input value={newMaterial.url} onChange={e => setNewMaterial({...newMaterial, url: e.target.value})} placeholder="Paste YouTube link or Google Drive Shareable Link..." className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm focus:border-reeCyan transition-colors" />
               </div>
             </div>
           )}
@@ -264,9 +264,9 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                 }`}
               >
                 <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0 pointer-events-none">
-                  <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className="opacity-90 group-hover:scale-110 transition-transform text-[var(--accent)] shrink-0" />
+                  <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className="opacity-90 group-hover:scale-110 transition-transform text-[var(--accent-text)] shrink-0" />
                   {editingItem.id === f.id && editingItem.type === 'folder' ? (
-                    <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded outline-none w-full font-bold pointer-events-auto" />
+                    <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded w-full font-bold pointer-events-auto" />
                   ) : (
                     <span title={f.name} className="font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5">{f.name}</span>
                   )}
@@ -274,7 +274,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                 {isAdmin && (
                   <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2 shrink-0 bg-surface2/80 backdrop-blur rounded p-1">
                     {!(editingItem.id === f.id && editingItem.type === 'folder') && (
-                      <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="p-1.5 text-muted hover:text-[var(--accent)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                      <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="p-1.5 text-muted hover:text-[var(--accent-text)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
                     <button onClick={(e) => handleCut(f, 'folder', e)} aria-label="Cut folder to move" className="p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
@@ -305,7 +305,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
                 )}
               </div>
               {editingItem.id === m.id && editingItem.type === 'material' ? (
-                <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} className="bg-bg border border-reeCyan text-sm text-textMain px-2 py-1 rounded outline-none w-full mt-3 font-bold flex-1" />
+                <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} className="bg-bg border border-reeCyan text-sm text-textMain px-2 py-1 rounded w-full mt-3 font-bold flex-1" />
               ) : (
                 <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 pointer-events-none line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
               )}

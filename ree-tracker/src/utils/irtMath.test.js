@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateUpdatedStats } from './irtMath.js';
+import { dayAfter, dayBefore } from '@ree/shared';
 import { todayManila } from './manilaDate';
 
 // Match the code under test: calculateUpdatedStats keys every date on Asia/Manila
@@ -149,6 +150,76 @@ describe('calculateUpdatedStats', () => {
     const next = calculateUpdatedStats(emptyStats(), true, 'high', 't', 'EE', 'q1');
     expect(next.globalStreak).toBe(1);
     expect(next.lastActiveDate).toBe(TODAY);
+  });
+
+  describe('streak and daily counts judge the last day with answers, not this device alone', () => {
+    const YESTERDAY = dayBefore(TODAY);
+    const LONG_AGO = dayBefore(dayBefore(YESTERDAY));
+
+    it('extends the streak when the last answers were yesterday', () => {
+      const s = { ...emptyStats(), globalStreak: 4, lastActiveDate: YESTERDAY, dailyEE: 9, activityCalendar: { [YESTERDAY]: 9 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.globalStreak).toBe(5);
+      expect(next.dailyEE).toBe(1); // yesterday's counts start over
+    });
+
+    it('restarts the streak at 1 after a missed day', () => {
+      const s = { ...emptyStats(), globalStreak: 4, lastActiveDate: LONG_AGO, dailyEE: 9, activityCalendar: { [LONG_AGO]: 9 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.globalStreak).toBe(1);
+      expect(next.dailyEE).toBe(1);
+    });
+
+    it('keeps the streak and counts on a second answer today', () => {
+      let s = { ...emptyStats(), globalStreak: 4, lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 3 } };
+      s = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      s = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q2');
+      expect(s.globalStreak).toBe(5);
+      expect(s.dailyEE).toBe(2);
+    });
+
+    it("keeps another device's streak: the phone answered yesterday, this laptop last answered days ago", () => {
+      // Synced stats: the merge brought the phone's calendar day and its live
+      // streak in, but lastActiveDate is still the laptop's own old day.
+      const s = { ...emptyStats(), globalStreak: 6, lastActiveDate: LONG_AGO, activityCalendar: { [LONG_AGO]: 2, [YESTERDAY]: 5 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.globalStreak).toBe(7);
+      expect(next.lastActiveDate).toBe(TODAY);
+    });
+
+    it("adds to today's synced counts when another device already answered today", () => {
+      // The phone answered 12 EE questions today; the laptop (offline now)
+      // synced them before its own first answer of the day.
+      const s = { ...emptyStats(), globalStreak: 3, lastActiveDate: YESTERDAY, dailyEE: 12, dailyMath: 4, activityCalendar: { [YESTERDAY]: 7, [TODAY]: 16 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.dailyEE).toBe(13);
+      expect(next.dailyMath).toBe(4);
+      expect(next.globalStreak).toBe(3); // today already counted
+      expect(next.activityCalendar[TODAY]).toBe(17);
+    });
+
+    it('treats a synced answer from tomorrow (a device clock running a little ahead) as today, not a gap', () => {
+      const s = { ...emptyStats(), globalStreak: 3, lastActiveDate: YESTERDAY, dailyEE: 2, activityCalendar: { [dayAfter(TODAY)]: 2 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.globalStreak).toBe(3);
+      expect(next.dailyEE).toBe(3);
+    });
+
+    // A clock once set days ahead leaves a future key in the calendar for
+    // good (merges keep local keys). Counting it pinned "already answered
+    // today": the daily counts added up across days and the streak froze.
+    it('ignores a calendar day further ahead than tomorrow', () => {
+      const s = { ...emptyStats(), globalStreak: 4, lastActiveDate: YESTERDAY, dailyEE: 40, activityCalendar: { [YESTERDAY]: 40, '2099-01-01': 6 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.globalStreak).toBe(5);
+      expect(next.dailyEE).toBe(1);
+    });
+
+    it('ignores empty or malformed calendar days', () => {
+      const s = { ...emptyStats(), globalStreak: 4, lastActiveDate: LONG_AGO, activityCalendar: { [YESTERDAY]: 0, 'not-a-day': 3 } };
+      const next = calculateUpdatedStats(s, true, 'high', 't', 'EE', 'q1');
+      expect(next.globalStreak).toBe(1);
+    });
   });
 
   it('does not mutate the input state (Zustand-safe)', () => {

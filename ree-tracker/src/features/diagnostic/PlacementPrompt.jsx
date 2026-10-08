@@ -43,7 +43,7 @@ export default function PlacementPrompt({ uid, answered = 0 }) {
     <Card elevated glow className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
       <span
         className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-default)]"
-        style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent)' }}
+        style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent-text)' }}
       >
         <Compass size={22} strokeWidth={1.75} aria-hidden="true" />
       </span>

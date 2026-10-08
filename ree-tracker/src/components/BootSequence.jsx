@@ -61,7 +61,7 @@ export default function BootSequence({ label = 'Preparing your session' }) {
       <BrandMark size={76} />
 
       <div className="flex flex-col items-center gap-1.5">
-        <p className="text-xl font-bold tracking-tight text-[var(--accent)]">
+        <p className="text-xl font-bold tracking-tight text-[var(--accent-text)]">
           REE<span className="text-textMain">.ai</span>
         </p>
         <p className="text-eyebrow">{label}</p>

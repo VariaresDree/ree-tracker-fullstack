@@ -9,6 +9,22 @@ const { fallbackDisplayName } = require('@ree/shared');
 
 const emailPrefix = (email) => (email && email.includes('@') ? email.split('@')[0] : null);
 
+// The caller's account fields, not the raw User row. The row also carries
+// globalStreak, which only an answer rewrites, so it can still show a run that
+// broke days ago (the dashboard route judges it with effectiveStreak), plus the
+// legacy JSON blobs and rating columns. No client reads any of them from here.
+const profileView = (u) => ({
+    id: u.id,
+    email: u.email,
+    displayName: u.displayName,
+    photoURL: u.photoURL,
+    role: u.role,
+    examDate: u.examDate,
+    dailyTarget: u.dailyTarget,
+    createdAt: u.createdAt,
+    lastActive: u.lastActive,
+});
+
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
         const { id, email, name, picture } = req.user;
@@ -37,10 +53,10 @@ router.get('/profile', authMiddleware, async (req, res) => {
                 where: { id },
                 data: { displayName: fallbackName },
             });
-            return res.status(200).json({ success: true, user: updated });
+            return res.status(200).json({ success: true, user: profileView(updated) });
         }
 
-        res.status(200).json({ success: true, user });
+        res.status(200).json({ success: true, user: profileView(user) });
     } catch (error) {
         logger.error('User profile sync error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Profile sync failed' });
@@ -53,7 +69,7 @@ router.put('/profile', authMiddleware, validate(profileUpdateSchema), async (req
             where: { id: req.user.id },
             data: { displayName: req.body.displayName },
         });
-        res.status(200).json({ success: true, user });
+        res.status(200).json({ success: true, user: profileView(user) });
     } catch (error) {
         logger.error('User profile update error', { error: error.message });
         res.status(500).json({ error: 'Profile update failed.' });

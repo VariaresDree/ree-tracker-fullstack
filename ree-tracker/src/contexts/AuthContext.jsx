@@ -1,5 +1,6 @@
 // src/contexts/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { clampDisplayName } from '@ree/shared';
 import { auth } from '../config/firebaseDb';
 import {
   onAuthStateChanged,
@@ -84,16 +85,24 @@ export const AuthProvider = ({ children }) => {
 
         // Mirror the Firebase display name into the Postgres User row (the
         // leaderboard's source of truth) once per session, so a name set at
-        // signup — or edited on another device — propagates to the Arena and
-        // can't drift from the Profile header. Best-effort: offline/failed
-        // writes are swallowed and retried next session. Runs regardless of the
-        // admin/profile fetch below so drift heals even if that request fails.
-        try {
-          if (user.displayName && !sessionStorage.getItem('dn_mirrored')) {
+        // signup — or edited on another device — propagates to rankings and
+        // can't drift from the Account header. Best-effort: offline/failed
+        // writes are swallowed and retried next session.
+        //
+        // Only when the stored name differs. The write is a mutation, so it
+        // dropped the boot dashboard seed below and Today fetched the
+        // aggregate a second time on every first load, to rewrite a name that
+        // was already there. The profile request below returns the stored
+        // name; a failed one still mirrors, so drift heals regardless.
+        let storedNameKnown = false;
+        const mirrorDisplayName = (storedName) => {
+          try {
+            const wanted = clampDisplayName(user.displayName);
+            if (!wanted || wanted === storedName || sessionStorage.getItem('dn_mirrored')) return;
             sessionStorage.setItem('dn_mirrored', '1');
-            updateUserProfile({ displayName: user.displayName }).catch(() => {});
-          }
-        } catch { /* sessionStorage unavailable (private mode) — skip */ }
+            updateUserProfile({ displayName: wanted }).catch(() => {});
+          } catch { /* sessionStorage unavailable (private mode) — skip */ }
+        };
 
         try {
           // All three requests are started before any of them is awaited.
@@ -136,6 +145,8 @@ export const AuthProvider = ({ children }) => {
           seedDashboardRequest(user.uid, profilePromise);
 
           const profileResponse = await profilePromise;
+          storedNameKnown = true;
+          mirrorDisplayName(profileResponse?.data?.profile?.displayName);
           const dbRole = profileResponse?.data?.profile?.role;
           const isUserAdmin = dbRole === 'ADMIN' || dbRole === 'admin';
           setIsAdmin(isUserAdmin);
@@ -166,6 +177,9 @@ export const AuthProvider = ({ children }) => {
 
         } catch (err) {
           console.warn("Clearance lookup failed; treating this session as non-admin.", err);
+          // Only when the profile itself failed: a later step throwing must not
+          // rewrite a name the profile already showed is stored.
+          if (!storedNameKnown) mirrorDisplayName(undefined);
 
           // Fail CLOSED. The old path fell back to the email allowlist on ANY
           // failure — including the server's own 503 readiness gate — which

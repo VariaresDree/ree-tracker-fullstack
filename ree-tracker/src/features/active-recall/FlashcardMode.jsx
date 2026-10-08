@@ -34,7 +34,7 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
         <button
           ref={revealRef}
           onClick={handleFlashcardReveal}
-          className="w-full py-12 bg-surface2/20 hover:bg-surface2/40 border-2 border-dashed border-border2/60 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] rounded-[var(--radius-xl)] text-muted hover:text-[var(--accent)] font-semibold transition-all duration-300 cursor-pointer shadow-sm hover:-translate-y-1 flex items-center justify-center gap-2"
+          className="w-full py-12 bg-surface2/20 hover:bg-surface2/40 border-2 border-dashed border-border2/60 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] rounded-[var(--radius-xl)] text-muted hover:text-[var(--accent-text)] font-semibold transition-all duration-300 cursor-pointer shadow-sm hover:-translate-y-1 flex items-center justify-center gap-2"
         >
           Show answer <KBD>Space</KBD>
         </button>
@@ -47,7 +47,7 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
             tabIndex={-1}
             role="region"
             aria-label="Answer"
-            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-xl)] text-center overflow-x-auto math-scroll-mobile outline-none"
+            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-xl)] text-center overflow-x-auto math-scroll-mobile"
             style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 10%, transparent), transparent)' }}
           >
             <div className="text-eyebrow mb-4 flex items-center justify-center gap-2" style={{ color: 'var(--accent-success)' }}>

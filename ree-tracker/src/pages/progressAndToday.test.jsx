@@ -8,7 +8,17 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 let statsState;
 vi.mock('../hooks/useDashboardStats', () => ({ useDashboardStats: () => statsState }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1', displayName: 'Dree' } }) }));
-vi.mock('../features/today/TodayPanel', () => ({ default: ({ answered }) => <p>today-panel answered={answered}</p> }));
+// Counts mounts: a new Manila day must remount the card so its own requests
+// (forecast, due reviews, plan task, readiness trend) run again.
+let panelMounts = 0;
+vi.mock('../features/today/TodayPanel', async () => {
+  const { useEffect } = await import('react');
+  function TodayPanelStub({ answered, today }) {
+    useEffect(() => { panelMounts += 1; }, []);
+    return <><p>today-panel answered={answered}</p><p>panel-day={String(today)}</p></>;
+  }
+  return { default: TodayPanelStub };
+});
 vi.mock('../features/progress/OverviewTab', () => ({ default: ({ kpi }) => <p>overview accuracy={kpi.accuracy}</p> }));
 vi.mock('../features/progress/TopicsTab', () => ({ default: () => <p>topics</p> }));
 vi.mock('../features/progress/WeakSpotsTab', () => ({ default: () => <p>weak-spots</p> }));
@@ -65,6 +75,24 @@ describe('Today', () => {
     at('/', Today);
     expect(screen.getByRole('link', { name: 'Set your exam date' })).toHaveAttribute('href', '/account#exam-plan');
     expect(screen.queryByText(/streak/)).not.toBeInTheDocument();
+  });
+
+  it('at a new Manila day, remounts the card on that day', () => {
+    const page = <MemoryRouter><Today /></MemoryRouter>;
+    statsState = { ...loaded(), today: '2026-10-08' };
+    const { rerender } = render(page);
+    expect(screen.getByText('panel-day=2026-10-08')).toBeInTheDocument();
+    const mounts = panelMounts;
+
+    statsState = { ...loaded({}, { answered: 121 }), today: '2026-10-08' };
+    rerender(<MemoryRouter><Today /></MemoryRouter>);
+    expect(screen.getByText('today-panel answered=121')).toBeInTheDocument();
+    expect(panelMounts).toBe(mounts); // same day: an update, not a remount
+
+    statsState = { ...loaded(), today: '2026-10-09' };
+    rerender(<MemoryRouter><Today /></MemoryRouter>);
+    expect(screen.getByText('panel-day=2026-10-09')).toBeInTheDocument();
+    expect(panelMounts).toBe(mounts + 1);
   });
 
   it('shows the Today skeleton until the stats arrive', () => {

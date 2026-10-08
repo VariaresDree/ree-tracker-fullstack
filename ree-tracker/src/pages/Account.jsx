@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { updateProfile } from 'firebase/auth';
 import { useShallow } from 'zustand/react/shallow';
+import { DISPLAY_NAME_MAX } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { syncDashboardStats } from '../services/analyticsSync';
@@ -66,7 +67,7 @@ function NameForm({ currentUser }) {
   return (
     <form onSubmit={save} className="flex flex-col sm:flex-row sm:items-end gap-3">
       <FormField label="Display name" hint="Shown on rankings and your readiness certificate." className="flex-1">
-        <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
+        <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={DISPLAY_NAME_MAX} autoComplete="name" />
       </FormField>
       <Button type="submit" loading={saving} disabled={saving || unchanged || !name.trim()}>Save name</Button>
     </form>

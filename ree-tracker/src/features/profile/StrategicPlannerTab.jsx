@@ -148,13 +148,13 @@ export default function StrategicPlannerTab({ currentUser }) {
                     value={newTask}
                     onChange={(e) => setNewTask(e.target.value)}
                     placeholder="Add a task…"
-                    className="flex-1 bg-bg border border-border2 text-textMain p-3.5 rounded-xl text-sm outline-none focus:border-reeBlue transition-colors shadow-inner"
+                    className="flex-1 bg-bg border border-border2 text-textMain p-3.5 rounded-xl text-sm focus:border-reeBlue transition-colors shadow-inner"
                 />
                 <input
                     type="date"
                     value={newDueDate}
                     onChange={(e) => setNewDueDate(e.target.value)}
-                    className="bg-bg border border-border2 text-muted p-3.5 rounded-xl text-sm outline-none focus:border-reeBlue transition-colors shadow-inner w-full sm:w-auto cursor-pointer"
+                    className="bg-bg border border-border2 text-muted p-3.5 rounded-xl text-sm focus:border-reeBlue transition-colors shadow-inner w-full sm:w-auto cursor-pointer"
                 />
                 <button type="submit" disabled={!newTask.trim()} className="px-6 py-3.5 bg-reeBlue hover:bg-reeBlue2 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-colors shadow-md disabled:opacity-50 cursor-pointer">
                     Add

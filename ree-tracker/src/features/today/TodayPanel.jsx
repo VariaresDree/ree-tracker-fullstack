@@ -152,13 +152,13 @@ function TargetBlock({ daily }) {
   );
 }
 
-export default function TodayPanel({ stats, readiness, uid, answered = 0 }) {
+export default function TodayPanel({ stats, readiness, uid, answered = 0, today }) {
   const navigate = useNavigate();
   const isOnline = useNetworkStatus();
   const { snapshot, loading } = useForecast();
   const { summary: srs } = useSrsSummary({ enabled: isOnline });
   const planTask = usePlanToday({ enabled: isOnline });
-  const daily = dailyProgress(stats);
+  const daily = dailyProgress(stats, today);
   // One readiness snapshot per Manila day is recorded server-side; the last
   // 30 draw the trend.
   const [history, setHistory] = useState(null);

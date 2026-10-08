@@ -1,5 +1,6 @@
 // src/pages/Login.jsx
 import { useState } from 'react';
+import { DISPLAY_NAME_MAX } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, FormField, Input } from '../components/ui';
 import { Eye, EyeOff } from '../components/ui/icons';
@@ -59,7 +60,7 @@ export default function Login() {
             <div className="w-full max-w-md p-8 bg-surface border border-border rounded-[var(--radius-xl)] elevate-3 relative z-10">
                 <div className="text-center mb-8">
                     <h1 className="text-display text-3xl text-textMain tracking-tight mb-2">
-                        REE<span className="text-[var(--accent)]">.ai</span> Core
+                        REE<span className="text-[var(--accent-text)]">.ai</span> Core
                     </h1>
                     <p className="text-sm text-muted2 leading-relaxed">
                         {isRegistering
@@ -85,7 +86,7 @@ export default function Login() {
                 <form onSubmit={handleSubmit} className="flex flex-col gap-5">
                     {isRegistering && (
                         <FormField label="Display name" className="animate-in fade-in slide-in-from-top-2">
-                            <Input required type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Engr. Cruz" autoComplete="name" />
+                            <Input required type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={DISPLAY_NAME_MAX} placeholder="e.g. Engr. Cruz" autoComplete="name" />
                         </FormField>
                     )}
                     <FormField label="Email address">

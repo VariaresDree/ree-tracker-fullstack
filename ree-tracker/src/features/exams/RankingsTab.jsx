@@ -59,7 +59,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
         </div>
         <div className="col-span-5 sm:col-span-6 flex items-center gap-3 min-w-0">
           <div className="flex flex-col min-w-0">
-            <span className={`text-sm font-bold truncate flex items-center gap-2 ${isMe ? 'text-[var(--accent)]' : 'text-textMain'}`}>
+            <span className={`text-sm font-bold truncate flex items-center gap-2 ${isMe ? 'text-[var(--accent-text)]' : 'text-textMain'}`}>
               {agent.displayName}
               {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
             </span>

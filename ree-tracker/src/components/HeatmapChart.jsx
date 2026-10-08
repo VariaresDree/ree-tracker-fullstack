@@ -77,7 +77,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
                 aria-pressed={on}
                 className={`text-[0.7rem] px-2.5 py-1.5 rounded-lg border cursor-pointer font-medium transition-colors touch-target inline-flex items-center justify-center ${
                   on
-                    ? 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent)]'
+                    ? 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent-text)]'
                     : 'border-border bg-surface2 hover:bg-surface3 text-muted'
                 }`}
               >
@@ -99,7 +99,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
               onClick={() => setActiveTab(subj)}
               className={`flex-1 py-2 rounded-lg text-[0.7rem] font-medium tracking-wide transition-colors border cursor-pointer ${
                 on
-                  ? 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent)]'
+                  ? 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent-text)]'
                   : 'bg-surface2/40 border-border text-muted hover:text-textMain'
               }`}
             >
@@ -187,7 +187,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
               type="button"
               onClick={() => onDrillTopic(item.name, activeTab)}
               aria-label={`Drill ${item.name}: ${subLabel}, ${metricDisplay}`}
-              className={`${tileClass} w-full text-left cursor-pointer hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]`}
+              className={`${tileClass} w-full text-left cursor-pointer hover:brightness-110`}
             >
               {tileBody}
             </button>

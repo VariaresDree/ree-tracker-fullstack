@@ -136,7 +136,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
                 className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-default)]"
                 style={{
                   background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                  color: 'var(--accent)',
+                  color: 'var(--accent-text)',
                 }}
               >
                 <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
