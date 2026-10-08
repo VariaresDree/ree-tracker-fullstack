@@ -191,7 +191,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
           // Fallback: If filter is too strict, return the raw mix instead of crashing
           if (filtered.length === 0 && rawPool.length > 0) {
-              toast("Strict cognitive filter yielded 0. Reverting to Standard Mix.", { icon: '⚠️' });
+              toast("No questions matched that focus, so this mock uses the mixed set.");
               return rawPool; 
           }
           return filtered;
@@ -241,7 +241,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       }
 
       if (pool.length < totalCount && pool.length > 0) {
-          toast(`Only acquired ${pool.length} items from the vault.`, { icon: '⚠️' });
+          toast(`Only ${pool.length} questions were available for this mock.`);
       }
       if (pool.length === 0) throw new Error("Vault empty for selected parameters.");
       
@@ -345,7 +345,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       // queued, at the end of submitExam. The Gauntlet resume path does the
       // same, for the same reason.
       setHasSavedSession(false);
-      toast.success("Matrix restored. Resuming simulation.");
+      toast.success("Mock restored. Picking up where you left off.");
     } catch (_) {
       localStorage.removeItem('ree_sim_cache');
       setHasSavedSession(false);
@@ -403,10 +403,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     persistDraft();
 
     const q = session.questions?.[idx];
-    if (!q?.id) { toast.success(had ? "Removed Bookmark." : "Bookmarked."); return; }
+    if (!q?.id) { toast.success(had ? "Bookmark removed." : "Bookmarked."); return; }
     const write = had ? removeBookmark(currentUser?.uid, q.id) : saveBookmark(currentUser?.uid, { questionId: q.id });
     write
-      .then(() => toast.success(had ? "Removed Bookmark." : "Bookmarked — in Materials › Bookmark Vault."))
+      .then(() => toast.success(had ? "Bookmark removed." : "Bookmarked — find it in Library › Bookmarks."))
       .catch((err) => {
         if (!had && err?.status === 409) return; // already saved server-side
         // Roll the UI Set back to match the server.
@@ -422,7 +422,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const submitExam = async () => {
     if (isSubmitting || session.isFinished) return;
     setIsSubmitting(true);
-    const loadingToastId = toast.loading("Transmitting telemetry to Assessment Core...");
+    const loadingToastId = toast.loading("Submitting your exam…");
 
     try {
         // NOTE: the draft in localStorage is intentionally left in place until
@@ -593,9 +593,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                     useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                     queueFinalize();
                     if (syncError?.message === '[OFFLINE]') {
-                        toast('Offline — exam queued; analytics will sync on reconnect.', { icon: '📡' });
+                        toast('Offline — exam queued; your results will sync when you reconnect.');
                     } else {
-                        toast('Sync deferred — exam saved and queued; it will retry automatically.', { icon: '📡' });
+                        toast('Not synced yet — exam saved and queued; it will retry automatically.');
                     }
                 }
             } else {
@@ -603,7 +603,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 // session + mode so it lands exactly like an online submit later.
                 useStore.getState().queuePendingWrite('/api/analytics/telemetry-bulk', 'POST', offlineBulkBody);
                 queueFinalize();
-                toast('Offline — exam saved locally; analytics will sync on reconnect.', { icon: '📡' });
+                toast('Offline — exam saved on this device; your results will sync when you reconnect.');
             }
         }
 
@@ -667,7 +667,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             setHasSavedSession(false);
         } catch (_) { /* storage unavailable — nothing left to protect */ }
 
-        toast.success('Simulation telemetry verified and saved.', { id: loadingToastId });
+        toast.success('Exam graded and saved.', { id: loadingToastId });
 
     } catch (err) {
         toast.error(`Error: ${err.message}`, { id: loadingToastId });
@@ -684,7 +684,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     if (!currentQ || !currentQ.id) return toast.error("Cannot flag dynamic items.");
     try {
         await updateQuestionInBank(currentQ.id, { isFlagged: true });
-        toast.success("Anomaly reported.");
+        toast.success("Thanks — we'll review this question.");
     } catch (error) { toast.error("Flag failed."); }
   };
 

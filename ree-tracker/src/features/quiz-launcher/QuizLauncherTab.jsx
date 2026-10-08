@@ -60,7 +60,7 @@ export default function QuizLauncherTab() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-display text-2xl text-textMain tracking-tight">Quiz Launcher</h2>
+        <h2 className="text-display text-2xl text-textMain tracking-tight">Imported quizzes</h2>
         <p className="text-sm text-muted2 mt-1">
           Import your own quiz files and run them as a practice exam — entirely offline, entirely on
           this device.

@@ -37,6 +37,7 @@ import {
     MASTERY_BANDS,
     masteryBand,
     storableTimeMs,
+    fallbackDisplayName,
 } from '@ree/shared';
 
 describe('@ree/shared resolves from the client bundle', () => {
@@ -238,5 +239,13 @@ describe('mastery bands', () => {
         expect(masteryBand(0.45).key).toBe('developing');
         expect(masteryBand(0.1).key).toBe('novice');
         expect(masteryBand(null)).toBeNull();
+    });
+});
+
+describe('fallbackDisplayName', () => {
+    it('names an account with no name of its own Reviewer-xxxxxx', () => {
+        expect(fallbackDisplayName('k3Jd8sP2abc')).toBe('Reviewer-k3Jd8s');
+        expect(fallbackDisplayName('')).toBe('Reviewer');
+        expect(fallbackDisplayName(undefined)).toBe('Reviewer');
     });
 });

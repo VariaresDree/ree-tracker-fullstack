@@ -76,8 +76,8 @@ export default function QuizFilePicker({ onFilesSelected }) {
         <Lock size={15} strokeWidth={1.75} className="shrink-0 mt-0.5 text-muted2" aria-hidden="true" />
         <p className="text-xs text-muted2 leading-relaxed">
           Runs entirely on this device. Your quiz file is never uploaded, and the session isn't saved
-          anywhere — closing or reloading this tab discards it. It also doesn't affect your Dashboard
-          analytics, streak, or readiness score.
+          anywhere — closing or reloading this tab discards it. It also doesn't affect your progress,
+          streak, or readiness score.
         </p>
       </div>
     </div>

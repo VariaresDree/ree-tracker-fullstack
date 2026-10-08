@@ -31,4 +31,5 @@ module.exports = {
     ...require('./thresholds'),
     ...require('./exam'),
     ...require('./mastery'),
+    ...require('./displayName'),
 };

@@ -34,10 +34,10 @@ export const PRC_FORMAT_SUMMARY = [
 //               but does NOT advance the linear level (they're parallel endgame
 //               exams, not a ladder).
 export const GAUNTLET_TIERS = [
-  { level: 1, name: 'Initiate Protocol', subject: 'BLENDED',     items: 50,  timeLimitSecs: 75 * 60,          reqQs: 200 },
-  { level: 2, name: 'Specialist Matrix', subject: 'BLENDED',     items: 75,  timeLimitSecs: 110 * 60,         reqQs: 500 },
-  { level: 3, name: 'Architect Core',    subject: 'BLENDED',     items: 100, timeLimitSecs: 150 * 60,         reqQs: 1000 },
-  { level: 4, name: 'Apex Agent',        subject: 'BLENDED',     items: 100, timeLimitSecs: 120 * 60,         reqQs: 2000 },
+  { level: 1, name: 'Warm-up',           subject: 'BLENDED',     items: 50,  timeLimitSecs: 75 * 60,          reqQs: 200 },
+  { level: 2, name: 'Stretch',           subject: 'BLENDED',     items: 75,  timeLimitSecs: 110 * 60,         reqQs: 500 },
+  { level: 3, name: 'Full length',       subject: 'BLENDED',     items: 100, timeLimitSecs: 150 * 60,         reqQs: 1000 },
+  { level: 4, name: 'Pressure round',    subject: 'BLENDED',     items: 100, timeLimitSecs: 120 * 60,         reqQs: 2000 },
   { level: 5, name: 'Mathematics Board', subject: 'Mathematics', items: 100, timeLimitSecs: PRC_TIMES.Mathematics, unlockAfterBlended: true },
   { level: 6, name: 'ESAS Board',        subject: 'ESAS',        items: 100, timeLimitSecs: PRC_TIMES.ESAS,        unlockAfterBlended: true },
   { level: 7, name: 'EE Board',          subject: 'EE',          items: 100, timeLimitSecs: PRC_TIMES.EE,          unlockAfterBlended: true },

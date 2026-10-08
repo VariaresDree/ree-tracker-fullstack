@@ -42,6 +42,7 @@ const {
     MASTERY_BANDS,
     masteryBand,
     storableTimeMs,
+    fallbackDisplayName,
 } = shared;
 
 describe('@ree/shared resolves from the server', () => {
@@ -253,5 +254,13 @@ describe('createBoardGrader', () => {
             }
             expect(fast(scores)).toEqual(gradeBoardExam(scores));
         }
+    });
+});
+
+describe('fallbackDisplayName', () => {
+    it('names an account with no name of its own Reviewer-xxxxxx', () => {
+        expect(fallbackDisplayName('k3Jd8sP2abc')).toBe('Reviewer-k3Jd8s');
+        expect(fallbackDisplayName('')).toBe('Reviewer');
+        expect(fallbackDisplayName(undefined)).toBe('Reviewer');
     });
 });

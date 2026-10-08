@@ -54,7 +54,7 @@ export const useManualIngestion = (onSuccessCallback) => {
         setIsSubmitting(true);
         try {
             await saveQuestionToBank(payload);
-            toast.success("Question injected successfully into the Matrix.");
+            toast.success("Question added to the bank.");
 
             setManualQ({
                 type: 'calculation', difficulty: '2', text: '', answer: '',
@@ -63,7 +63,7 @@ export const useManualIngestion = (onSuccessCallback) => {
 
             if (onSuccessCallback) onSuccessCallback();
         } catch (err) {
-            toast.error("Failed to inject question.");
+            toast.error("Couldn't add the question.");
             console.error(err);
         } finally {
             setIsSubmitting(false);

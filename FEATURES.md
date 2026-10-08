@@ -51,6 +51,15 @@ every feature add, change, or removal, not on a schedule.
   - `/profile` → `/account`;
   - `/materials` → `/library?tab=…`, mapping its old tabs, with `manage_ref` going to `/admin?tab=references`.
   - Every "start a session" deep link goes through `launchPractice()` in `features/active-recall/presets.js`.
+- [x] **Plain, professional wording** (M4) — the sci-fi voice is gone from every screen and message:
+  - **Gauntlet tiers:** Warm-up · Stretch · Full length · Pressure round, then the subject boards. They were Initiate Protocol, Specialist Matrix, Architect Core and Apex Agent (`config/examStandards.js`).
+  - **Mock-board formats:** Custom mock · One subject (PRC clock) · Mixed paper · Full PRC board. They were Custom Drill, PRC Standard and Full Blended. Battles use the same names.
+  - **Past sittings:** the ledger is "Past sittings" and its chart "Mock score trend" (were "Simulation ledger" and "Pre-board trajectory"). Library's quiz tab is "Imported quizzes"; the planner says "Your tasks", not "Active Objectives".
+  - **Messages:** "Submitting your exam…", "Exam graded and saved.", "Thanks — we'll review this question.", "AI explanation unavailable right now.", and plain Gauntlet lock messages. They were "Transmitting telemetry to Assessment Core", "Anomaly reported", "AI Core unreachable" and "Security Breach: You lack the required telemetry to enter this sector". Emoji toast icons are gone.
+  - **Readiness certificate:** it no longer claims to be a "secure", "verified" "Certificate of Operational Readiness". It records a practice result and says it isn't an official PRC document (`utils/certificateEngine.js`, `CredentialsTab.jsx`).
+  - **Admin tools:** questions go to "the review queue", not "Admin Quarantine" or "into the Matrix".
+  - **Fallback name:** an account without a name is **Reviewer-xxxxxx** (was Agent-xxxxxx, or a bare "Agent" in battles). It is one definition, `fallbackDisplayName` in `@ree/shared`, used by the leaderboard and profile routes, the battle socket and the client. Stored names are unchanged.
+  - **Copy guard** (`src/test/copyGuard.test.js`): fails if any source file outside comments reintroduces a retired phrase (Global Matrix, Operational Readiness, Encrypted, Security Breach, Anomaly reported, AI Core, Combat Terminal, Assessment Core, Uplinking, Agent-, Initiate Protocol, Apex Agent, into the Matrix, Matrix API). "REE.ai Core", the brand on the login screen, stays.
 
 ## Exam & Practice Modes
 

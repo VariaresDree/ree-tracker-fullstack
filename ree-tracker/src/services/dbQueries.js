@@ -3,7 +3,7 @@ import { auth } from '../config/firebaseDb';
 import { invalidateDashboardSeed } from './dashboardSeed';
 import { get, set } from 'idb-keyval';
 import { fnv1a } from '../utils/contentHash';
-import { DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
+import { DEFAULT_SYLLABUS_WEIGHTS, fallbackDisplayName } from '@ree/shared';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
 // ============================================================================
@@ -58,7 +58,7 @@ export const getAuthToken = async (user) => {
 
 export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS, idempotencyKey: idempotencyKeyOverride = null } = {}) => {
     const user = auth.currentUser;
-    if (!user) throw new Error("Agent session disconnected. Authentication required.");
+    if (!user) throw new Error("You're signed out. Sign in again to continue.");
 
     // Known-offline: fail fast with the sentinel every offline consumer
     // (pack fallback, outbox) understands — before auth can throw raw.
@@ -123,7 +123,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const err = new Error(errorData.error || `Matrix API Exception: ${response.status}`);
+        const err = new Error(errorData.error || `Request failed (${response.status}).`);
         err.status = response.status;
         throw err;
     }
@@ -426,7 +426,7 @@ export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 
 // Normalizes any agent row to the shape the UI expects: { uid, displayName, thetaRating, streak, ... }
 const normalizeAgent = (a) => ({
     uid: a.uid || a.id,
-    displayName: a.displayName || `Agent-${(a.uid || a.id || '').slice(0, 6)}`,
+    displayName: a.displayName || fallbackDisplayName(a.uid || a.id),
     role: a.role || 'USER',
     thetaRating: typeof a.thetaRating === 'number' ? a.thetaRating : 0,
     streak: typeof a.streak === 'number' ? a.streak : (a.globalStreak || 0),

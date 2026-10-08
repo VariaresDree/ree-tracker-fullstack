@@ -108,7 +108,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                         {isBattle && (
                             <div className="mt-8 max-w-lg mx-auto text-xs text-muted2 bg-bg/50 border border-border2/50 rounded-[var(--radius-default)] px-5 py-3 flex items-center gap-2 justify-center">
                                 <Clock size={14} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} />
-                                Your result is recorded. Dashboard analytics can take a minute to catch up after a multiplayer exam.
+                                Your result is recorded. Progress can take a minute to catch up after a multiplayer exam.
                             </div>
                         )}
                     </div>
