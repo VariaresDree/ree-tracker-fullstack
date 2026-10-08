@@ -34,4 +34,5 @@ module.exports = {
     ...require('./mastery'),
     ...require('./displayName'),
     ...require('./outsideScores'),
+    ...require('./syllabus'),
 };
