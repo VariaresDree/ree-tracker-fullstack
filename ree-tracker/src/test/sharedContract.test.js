@@ -39,6 +39,7 @@ import {
     storableTimeMs,
     fallbackDisplayName,
     effectiveStreak,
+    longestStreak,
     dayBefore,
 } from '@ree/shared';
 
@@ -288,5 +289,21 @@ describe('effectiveStreak — the streak as it stands today', () => {
     it('defaults today to the Manila calendar day', () => {
         expect(effectiveStreak(2, todayManila())).toBe(2);
         expect(effectiveStreak(2, dayBefore(dayBefore(todayManila())))).toBe(0);
+    });
+});
+
+describe('longestStreak — the best run in a study calendar', () => {
+    it('counts consecutive answered days, across month ends', () => {
+        expect(longestStreak({
+            '2026-09-29': 4, '2026-09-30': 2, '2026-10-01': 1, // 3 in a row
+            '2026-10-03': 5, '2026-10-04': 0, '2026-10-05': 2,  // a zero breaks the run
+        })).toBe(3);
+        expect(longestStreak({ '2026-12-31': 1, '2027-01-01': 1 })).toBe(2);
+    });
+
+    it('is 0 for an empty or missing calendar, and ignores malformed keys', () => {
+        expect(longestStreak({})).toBe(0);
+        expect(longestStreak(null)).toBe(0);
+        expect(longestStreak({ total: 9, '2026-10-01': 1 })).toBe(1);
     });
 });

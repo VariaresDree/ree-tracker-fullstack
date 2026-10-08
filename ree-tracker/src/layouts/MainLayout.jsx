@@ -39,8 +39,22 @@ export default function MainLayout({ children }) {
     else window.scrollTo?.(0, 0);
   }, [location.pathname, location.hash]);
 
+  // Offsets for sticky children, set by the layout that knows its chrome.
+  // --phone-header-h IS the phone header's height (PhoneHeader sizes itself
+  // from it), so --sticky-top can't drift from it; there is no top bar on
+  // desktop, where the sidebar is beside the page. --bottom-bar-h clears the
+  // phone bottom bar and the home-indicator inset. A finished mock's review
+  // toolbar used the exam banner's 2.25rem and slid under the phone header.
+  const chromeOffsets = isDesktop
+    ? { '--sticky-top': '0.75rem', '--bottom-bar-h': '0px' }
+    : {
+        '--phone-header-h': 'calc(max(0.5rem, env(safe-area-inset-top)) + 3.4rem)',
+        '--sticky-top': 'calc(var(--phone-header-h) + 0.25rem)',
+        '--bottom-bar-h': 'calc(3.6rem + env(safe-area-inset-bottom))',
+      };
+
   return (
-    <div className="min-h-screen bg-bg flex flex-col md:flex-row font-sans text-textMain relative">
+    <div className="min-h-screen bg-bg flex flex-col md:flex-row font-sans text-textMain relative" style={chromeOffsets}>
       {/* First stop for a keyboard user: past the navigation, straight to the page. */}
       <a
         href="#main-content"

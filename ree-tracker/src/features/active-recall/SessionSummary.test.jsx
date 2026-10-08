@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
+vi.mock('../../components/NotificationOptIn', () => ({ default: ({ inline }) => <p>reminder-offer inline={String(inline)}</p> }));
 
 const { default: SessionSummary } = await import('./SessionSummary');
 const { buildSessionSummary } = await import('./buildSessionSummary');
@@ -37,6 +38,8 @@ describe('SessionSummary', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Questions you missed' })).toBeInTheDocument();
     expect(screen.getByText('Relay pickup current?')).toBeInTheDocument();
     expect(screen.getByText('5 A')).toBeInTheDocument();
+    // The reminder offer sits in the page, not over the buttons.
+    expect(screen.getByText('reminder-offer inline=true')).toBeInTheDocument();
   });
 
   it('each next step does what it says', () => {

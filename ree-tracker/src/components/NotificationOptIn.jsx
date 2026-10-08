@@ -13,7 +13,13 @@
 //     Notification permission and says so honestly.
 //   • iOS in a browser tab: permission would silently no-op, so we show an
 //     "Add to Home Screen" explainer instead of a prompt.
-import { useState } from 'react';
+//
+// Placement: every session ends on a results screen (Practice's summary, a
+// mock board's or the Gauntlet's results), and a floating card there covered
+// the screen's last buttons on a phone. So each results screen renders an
+// `inline` copy as a card in the page, and while any inline copy is mounted
+// the app-wide floating copy stays hidden. Elsewhere it floats as before.
+import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import { Capacitor } from '@capacitor/core';
 import toast from 'react-hot-toast';
 import { Button } from './ui';
@@ -21,11 +27,34 @@ import { Bell, X } from './ui/icons';
 import { useNotificationSlice } from '../store/slices';
 import { scheduleDailyReminder } from '../services/localReminders';
 
-export default function NotificationOptIn() {
+// How many inline copies are mounted (a results screen hosting the offer).
+let inlineHosts = 0;
+const hostListeners = new Set();
+const subscribeHosts = (listener) => {
+  hostListeners.add(listener);
+  return () => hostListeners.delete(listener);
+};
+const countHosts = () => inlineHosts;
+function registerInlineHost() {
+  inlineHosts += 1;
+  hostListeners.forEach((l) => l());
+  return () => {
+    inlineHosts -= 1;
+    hostListeners.forEach((l) => l());
+  };
+}
+
+export default function NotificationOptIn({ inline = false }) {
   const { notifications, optInEligible, setNotificationPrefs, markOptInPrompted } = useNotificationSlice();
   const [busy, setBusy] = useState(false);
+  const hostedInline = useSyncExternalStore(subscribeHosts, countHosts) > 0;
+
+  // Layout effect: register before paint, so the floating copy never flashes
+  // over a results screen for a frame.
+  useLayoutEffect(() => (inline ? registerInlineHost() : undefined), [inline]);
 
   if (!optInEligible || notifications.promptedForOptIn) return null;
+  if (!inline && hostedInline) return null;
 
   const isNative = Capacitor.isNativePlatform();
   const isStandalone =
@@ -50,7 +79,7 @@ export default function NotificationOptIn() {
           setNotificationPrefs({ enabled: true, dailyReminderEnabled: true });
           toast.success('Daily reminder set — change the time anytime in Account.');
         } else {
-          toast('Notifications are off in your system settings.', { icon: '🔕' });
+          toast('Notifications are off in your system settings.');
         }
       } else if ('Notification' in window) {
         const perm = await Notification.requestPermission();
@@ -58,7 +87,7 @@ export default function NotificationOptIn() {
           setNotificationPrefs({ enabled: true });
           toast.success('Session notifications on. Daily reminders need the installed app.');
         } else {
-          toast('Notifications blocked — you can enable them later in Account.', { icon: '🔕' });
+          toast('Notifications blocked — you can enable them later in Account.');
         }
       }
     } finally {
@@ -68,7 +97,10 @@ export default function NotificationOptIn() {
   };
 
   return (
-    <div className="fixed z-[60] left-4 right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] md:left-auto md:right-6 md:bottom-6 md:max-w-sm animate-in fade-in slide-in-from-bottom-4">
+    <div className={inline
+      ? 'animate-in fade-in'
+      : 'fixed z-[60] left-4 right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] md:left-auto md:right-6 md:bottom-6 md:max-w-sm animate-in fade-in slide-in-from-bottom-4'}
+    >
       <div className="bg-surface border border-border2 rounded-[var(--radius-lg)] elevate-3 p-4">
         <div className="flex items-start gap-3">
           <div className="shrink-0 mt-0.5 text-[var(--accent)]">

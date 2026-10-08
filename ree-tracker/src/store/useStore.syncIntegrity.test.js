@@ -219,3 +219,56 @@ describe('a pending write cannot block the outbox forever', () => {
     expect(useStore.getState().pendingWrites[0].tries).toBeUndefined();
   });
 });
+
+describe('concurrent flushes', () => {
+  // Live, after a practice session: the end-of-session flush, the debounced
+  // timer and the sync lifecycle all called flushQueueToCloud while one POST
+  // was in flight. Each waited on it with a single `if`, so when it finished
+  // they ALL woke and POSTed the same batch at once, under the same
+  // idempotency key; the server answered the duplicates 409 "Duplicate
+  // request already in progress", and the client logged sync errors and
+  // backed off.
+  it('callers waiting on an in-flight flush send each batch once, one at a time', async () => {
+    seed(attempts(3));
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const releases = [];
+    apiRequestMock.mockImplementation(() => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      return new Promise((resolve) => releases.push(() => { inFlight -= 1; resolve({ updatedTheta: 0.1 }); }));
+    });
+
+    const first = useStore.getState().flushQueueToCloud();
+    // Three more callers arrive while the first POST is pending.
+    const waiting = [1, 2, 3].map(() => useStore.getState().flushQueueToCloud());
+    await vi.waitFor(() => expect(releases).toHaveLength(1));
+    // New attempts staged mid-flight are a second batch, sent after the first.
+    useStore.setState((st) => ({ syncQueue: [...st.syncQueue, ...attempts(2, 'b')] }));
+    releases[0]();
+    await vi.waitFor(() => expect(releases).toHaveLength(2));
+    releases[1]();
+    await Promise.all([first, ...waiting]);
+
+    expect(maxInFlight).toBe(1);
+    const batches = apiRequestMock.mock.calls.map(([, , body]) => body.attempts.map((a) => a.id).join(','));
+    expect(batches).toEqual(['a00000,a00001,a00002', 'b00000,b00001']);
+    expect(useStore.getState().syncQueue).toEqual([]);
+  });
+
+  it('after a failed flush, waiters leave the batch queued for the backoff instead of retrying it', async () => {
+    seed(attempts(2));
+    let reject;
+    apiRequestMock.mockImplementationOnce(() => new Promise((_, r) => { reject = r; }));
+
+    const first = useStore.getState().flushQueueToCloud();
+    const waiting = [1, 2, 3].map(() => useStore.getState().flushQueueToCloud());
+    await vi.waitFor(() => expect(apiRequestMock).toHaveBeenCalledTimes(1));
+    reject(Object.assign(new Error('Server error'), { status: 503 }));
+    await Promise.all([first, ...waiting]);
+
+    expect(apiRequestMock).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().syncQueue.map((a) => a.id)).toEqual(['a00000', 'a00001']);
+    expect(useStore.getState().deadLetters).toEqual([]);
+  });
+});

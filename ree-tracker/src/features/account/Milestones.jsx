@@ -4,6 +4,8 @@
 // from Profile's analytics tab to Account › Achievements, with icons in place
 // of emoji and plain names.
 import { useEffect, useState } from 'react';
+import { effectiveStreak, longestStreak } from '@ree/shared';
+import { lastStudyDay } from '../../services/analyticsSync';
 import { useStore } from '../../store/useStore';
 import { fetchMockHistory } from '../../services/dbQueries';
 import { GraduationCap, Zap, Flame, Shield, Brain, Lock } from '../../components/ui/icons';
@@ -20,7 +22,14 @@ export default function Milestones() {
     return () => { alive = false; };
   }, []);
 
-  const streak = stats?.globalStreak || 0;
+  // Reached streaks stay reached: the best run in the study calendar, or the
+  // current run as it stands today if the calendar here is partial. The raw
+  // stored streak outlived a missed day, and a judged current streak alone
+  // would take an earned milestone away after one.
+  const streak = Math.max(
+    longestStreak(stats?.activityCalendar),
+    effectiveStreak(stats?.globalStreak, lastStudyDay(stats)),
+  );
   const theta = stats?.irt?.theta;
   const milestones = [
     { id: 'first-mock', icon: GraduationCap, name: 'First mock board', detail: 'Finish one mock board', done: mockCount >= 1 },
