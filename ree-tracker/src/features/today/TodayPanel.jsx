@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchReadinessHistory } from '../../services/dbQueries';
-import { Card, Button, Skeleton, ProgressIndicator } from '../../components/ui';
+import { Card, Button, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
@@ -24,23 +24,6 @@ const BREAKDOWN = [
   ['thetaNormalized', 'Ability'],
   ['consistency', 'Consistency'],
 ];
-
-// A dependency-free sparkline — the Today panel sits on the boot path of the
-// dashboard, where recharts must not load.
-function Sparkline({ scores }) {
-  if (scores.length < 2) return null;
-  const w = 120;
-  const h = 28;
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
-  const span = Math.max(1, max - min);
-  const pts = scores.map((v, i) => `${(i / (scores.length - 1)) * w},${h - ((v - min) / span) * (h - 4) - 2}`).join(' ');
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" className="overflow-visible">
-      <polyline points={pts} fill="none" stroke="var(--accent-velocity)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function ReadinessBlock({ readiness, trend }) {
   return (

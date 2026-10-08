@@ -15,4 +15,5 @@ export { SegmentedControl } from './SegmentedControl';
 export { Tabs } from './Tabs';
 export { PageHeader } from './PageHeader';
 export { ProgressIndicator } from './ProgressIndicator';
+export { Sparkline } from './Sparkline';
 export { cn } from './cn';

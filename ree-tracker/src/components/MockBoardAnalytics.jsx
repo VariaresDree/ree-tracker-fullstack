@@ -12,6 +12,7 @@ import { isPassingVerdict } from '@ree/shared';
 import { SkeletonChart } from './SkeletonLoaders';
 import { Panel, DataTable, StatusPill, Button, Modal } from './ui';
 import { BarChart3, RefreshCw, Trash2, ShieldAlert } from './ui/icons';
+import OutsideScoresPanel from '../features/exams/OutsideScoresPanel';
 
 // Mock history is SERVER-authoritative (GET /api/analytics/deep/mock-history):
 // every Board Simulator and battle sitting, graded on the server from its own
@@ -254,6 +255,9 @@ export default function MockBoardAnalytics() {
           />
         )}
       </Panel>
+
+      {/* Scores from outside the app, beside (never inside) the in-app ones. */}
+      <OutsideScoresPanel inAppAverage={totalRuns > 0 ? avgScore : null} inAppCount={totalRuns} />
 
       <Modal
         open={deleteModal.isOpen}
