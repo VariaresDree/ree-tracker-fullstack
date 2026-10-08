@@ -14,7 +14,9 @@ vi.mock('../hooks/useBattleSocket', () => ({ useBattleSocket: () => ({ connected
 vi.mock('../services/dbQueries', () => ({ getAnalyticsProfile: vi.fn(), hideExamSession: vi.fn().mockResolvedValue({}) }));
 vi.mock('../features/board-simulator/SimulatorConfig', () => ({ default: () => <div>config-screen</div> }));
 vi.mock('../features/board-simulator/SimulatorActive', () => ({ default: () => <div>exam-review</div> }));
-vi.mock('../features/board-simulator/SimulatorDiagnostics', () => ({ default: () => <div>section-diagnostics</div> }));
+vi.mock('../features/board-simulator/SimulatorDiagnostics', () => ({
+  default: ({ headingLevel = 1 }) => { const H = `h${headingLevel}`; return <H>section-diagnostics</H>; },
+}));
 
 let engine;
 vi.mock('../features/board-simulator/useSimulatorEngine', () => ({ useSimulatorEngine: () => engine }));
@@ -75,6 +77,9 @@ describe('Board Simulator — full PRC board', () => {
     });
     renderPage();
     expect(screen.getByText('Full PRC board result')).toBeInTheDocument();
+    // One h1: the board result. The last section's diagnostics step down.
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Full PRC board result']);
+    expect(screen.getByRole('heading', { level: 2, name: 'section-diagnostics' })).toBeInTheDocument();
     expect(screen.getByText('70.0%')).toBeInTheDocument();
     expect(screen.getByText('CONDITIONAL PASS')).toBeInTheDocument();
     expect(screen.getByText(/under the 50% floor/)).toBeInTheDocument();

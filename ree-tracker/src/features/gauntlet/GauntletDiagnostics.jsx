@@ -47,7 +47,7 @@ export default function GauntletDiagnostics({ diagnostics, level, navigate, form
                 <div className="bg-surface border border-border2 rounded-2xl p-6 text-left shadow-sm">
                     <h2 className="text-sm font-semibold text-textMain mb-2">What to review</h2>
                     <p className="text-xs text-muted2 mb-6 leading-relaxed">
-                        This tier unlocks again in 12 hours. These are the topics your misses came from, most first.
+                        The Gauntlet unlocks again in 12 hours. These are the topics your misses came from, most first.
                     </p>
                     
                     <div className="flex flex-col gap-3">

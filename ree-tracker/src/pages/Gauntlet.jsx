@@ -138,7 +138,7 @@ export default function Gauntlet() {
   return (
     <ExamLayout
       shortMessage="Gauntlet run — clock running"
-      message="Gauntlet run — the clock is running, and not passing locks this tier for 12 hours"
+      message="Gauntlet run — the clock is running, and not passing locks the Gauntlet for 12 hours"
     >
       <h1 className="sr-only">Gauntlet level {level}</h1>
       <Modal

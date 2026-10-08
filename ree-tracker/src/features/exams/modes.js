@@ -23,7 +23,7 @@ export const MODES = [
     name: 'Gauntlet',
     icon: Shield,
     when: 'Pushing your level',
-    how: 'A ranked ladder of timed tiers. Not passing a tier locks it for 12 hours.',
+    how: 'A ranked ladder of timed tiers. Not passing one locks the Gauntlet for 12 hours.',
     to: '/exams?tab=gauntlet',
   },
   {

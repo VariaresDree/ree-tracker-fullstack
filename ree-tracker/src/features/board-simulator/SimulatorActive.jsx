@@ -145,7 +145,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
 
   return (
     <>
-      <h1 className="sr-only">Mock board in progress</h1>
+      <h1 className="sr-only">{isReview ? 'Mock board review' : 'Mock board in progress'}</h1>
       {/* Submit confirmation */}
       <Modal
         open={showSubmitConfirm}

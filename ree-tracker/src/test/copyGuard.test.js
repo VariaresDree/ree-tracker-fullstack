@@ -63,7 +63,9 @@ describe('copy guard', () => {
 
   it('no source file uses the retired sci-fi phrases', () => {
     const hits = [];
-    for (const file of sourceFiles(SRC)) {
+    // Plus the page title and the PWA manifest: the first words people see.
+    const extra = ['index.html', 'vite.config.js'].map((f) => resolve(process.cwd(), f));
+    for (const file of [...sourceFiles(SRC), ...extra]) {
       const lines = withoutComments(readFileSync(file, 'utf8')).split('\n');
       lines.forEach((line, i) => {
         BANNED.forEach((re) => {

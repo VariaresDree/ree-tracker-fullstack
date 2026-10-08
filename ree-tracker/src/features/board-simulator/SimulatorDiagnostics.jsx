@@ -16,7 +16,9 @@ const VERDICT_ACCENT = {
     [VERDICT.FAILED]: 'var(--accent-danger)',
 };
 
-export default function SimulatorDiagnostics({ session, setSession, engine, isBattle = false, onExit }) {
+// `headingLevel`: 1 on its own; 2 under the full-board result, which has the h1.
+export default function SimulatorDiagnostics({ session, setSession, engine, isBattle = false, onExit, headingLevel = 1 }) {
+    const Heading = `h${headingLevel}`;
     const { diagnostics } = session;
     const [showExitConfirm, setShowExitConfirm] = useState(false);
     const navigate = useNavigate();
@@ -77,7 +79,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
                     ></div>
 
                     <div className="relative z-10">
-                        <h1 className="text-eyebrow mb-4">Mock board results</h1>
+                        <Heading className="text-eyebrow mb-4">{headingLevel === 1 ? 'Mock board results' : 'Last section'}</Heading>
                         <div className="text-display text-8xl sm:text-9xl tracking-tighter drop-shadow-lg mb-2" style={{ color: accent }}>
                             {diagnostics.score}%
                         </div>

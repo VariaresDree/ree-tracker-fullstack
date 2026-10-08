@@ -14,7 +14,7 @@ describe('ModeGuide', () => {
     const links = screen.getAllByRole('link');
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['/practice', '/exams?tab=mock', '/exams?tab=gauntlet', '/exams?tab=battles']);
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(MODES.map((m) => m.name));
-    expect(screen.getByText(/Not passing a tier locks it for 12 hours/)).toBeInTheDocument();
+    expect(screen.getByText(/Not passing one locks the Gauntlet for 12 hours/)).toBeInTheDocument();
   });
 
   it('marks the one to start with', () => {
@@ -31,6 +31,8 @@ describe('ModeGuide', () => {
     expect(details.open).toBe(false);
     fireEvent.click(summary);
     expect(details.open).toBe(true);
+    // The summary isn't a heading, so the modes are h2 under the page's h1.
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(4);
   });
 });
 

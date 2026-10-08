@@ -66,12 +66,12 @@ every feature add, change, or removal, not on a schedule.
     - The app title and installed-app name are **"REE.ai — Electrical Engineering board review"** (were "REE.ai | Tactical Reviewer"). The update prompt asks "A new version of REE.ai is ready. Reload now?" (was "Reload the matrix?").
     - **Gauntlet results:** "Tier passed" / "Not passed this time", "What to review" and "N missed", with no emoji. They were "Gauntlet Mastered", "Simulation Failed", a "Post-Action Prescription Plan" about "vulnerabilities in your knowledge matrix" and "N Errors".
     - **Error screens:** "Something went wrong" with Reload, and per-section "… couldn't load" with Try again. They were "Critical System Error", "Reload Engine" and "encountered an error".
-    - **Exam banner:** "Exam in progress — the clock is running, and results come at the end". The old default promised "real-time penalties" that don't exist. The Gauntlet banner says that not passing locks the tier for 12 hours.
+    - **Exam banner:** "Exam in progress — the clock is running, and results come at the end". The old default promised "real-time penalties" that don't exist. The Gauntlet banner says that not passing locks the Gauntlet for 12 hours (the lock is one timestamp for the whole ladder, not per tier).
     - **No more "vault":** Question bank (mock-board source, admin overview, Add to question bank), Formula cards (Library's reference browser), and "Show question" / "Saved offline" in Bookmarks.
     - **AI text:** the fallback messages are plain, and the board-report prompt asks for plain English (it asked for "tactical direction").
     - **Rankings** rows show how many questions each reviewer answered, not the first 8 characters of their account id.
     - The placement result's button says "Go to Today".
-    - The copy guard now also rejects Tactical, "the matrix", "knowledge matrix", Critical System Error, Reload Engine, Simulation Failed, real-time penalties, and "vault" as a word.
+    - The copy guard now also reads `index.html` and `vite.config.js` (the title and the installed-app name), and rejects Tactical, "the matrix", "knowledge matrix", Critical System Error, Reload Engine, Simulation Failed, real-time penalties, and "vault" as a word.
 
 ## Exam & Practice Modes
 
@@ -214,20 +214,21 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Headings, keyboard and touch pass (2026-10 polish)**
   - **One h1 per screen:**
     - Battle room, Gauntlet run (screen-reader only) and Gauntlet results.
-    - Full-board break and result, mock-board results and mock board in progress (screen-reader only).
+    - Full-board break and result, mock-board results, and the mock board in progress or under review (screen-reader only).
+    - Under the full-board result, the last section's diagnostics step down to h2, so that screen keeps one h1 (pinned in `BoardSimulator.fullBoard.test.jsx`).
     - The handout viewer (an h2 inside Admin) and the full-page error screen.
     - The simulator setup's h1 is **"Mock board"**, matching Exams (was "Board Simulator").
     - Their sections step down to h2.
     - Option cards in the simulator setup and Host-a-battle are radio-style buttons, so their names are no longer headings (a heading inside a button is announced twice and breaks heading navigation).
     - The explanation review queue is an h2.
-  - **Keyboard:** Library › Handouts folders open from the keyboard. The folder name is a real button whose click bubbles to the tile, so mouse and keyboard open a folder the same way and the admin buttons stay separate controls (`CloudVaultTab.keyboard.test.jsx`).
-  - **Touch targets and names:** image zoom controls are named "Zoom in" / "Zoom out" / "Reset zoom" and get `touch-target`, as do the reminder dismiss, the bookmark remove button and the error screens' buttons.
+  - **Keyboard:** Library › Handouts folders open from the keyboard (Enter or Space). The folder name is a focusable button-role control whose click bubbles to the tile, so mouse and keyboard open a folder the same way and the admin buttons stay separate controls. It's a span rather than a <button> because Firefox won't start a drag on a button, and admins drag folders by their names (`CloudVaultTab.keyboard.test.jsx`).
+  - **Touch targets and names:** image zoom controls are named "Zoom in" / "Zoom out" / "Reset zoom" and get `touch-target`, as do the reminder dismiss, the bookmark remove button, the Handouts rename/cut/delete icons and the error screens' buttons.
   - **Overflow:**
-    - The Scratchpad is an 85dvh bottom sheet on phones; it used to cover, and size its canvas to, the whole page.
+    - The Scratchpad is an 85dvh bottom sheet on phones, still see-through so the learner writes over the question; it used to cover, and size its canvas to, the whole page.
     - The account menu scrolls inside `max-h-[min(70dvh,32rem)]`.
     - Tab strips scroll sideways without a scrollbar track, which showed under Progress's seven tabs on phones.
 - [x] **"Which mode do I use?"** (`features/exams/{ModeGuide.jsx,modes.js}`) — Practice (untimed, answers after every question), Mock board (timed on the PRC clock, results at the end), Gauntlet (ranked ladder; not passing locks a tier for 12 hours) and Battles (the same timed set with friends), each linking to where it starts.
-  - **Placement result:** shown open, with **Start here** on Practice below a 60% projected average, Mock board below the 70% pass mark, and the Gauntlet above it (`startingMode`).
+  - **Placement result:** shown open, with **Start here** on Practice below a 60% projected average, Mock board below the 70% pass mark, and the Gauntlet above it (`startingMode`). Folded, the modes are h2s (the summary isn't a heading).
   - **Exams and Practice:** folded under their page headers.
 - [x] **Answer feedback without colour** — the answering surfaces now work for a screen-reader or keyboard user.
   - **QuestionCard** speaks the graded result through a polite status region: "Correct.", "Incorrect. The answer is A." or "Not answered. The answer is A." It gives letters, not the option text, which is often LaTeX. A results list of graded cards opts out with `announce={false}`.

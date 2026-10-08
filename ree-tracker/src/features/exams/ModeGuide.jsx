@@ -50,7 +50,7 @@ function ModeList({ start, headingLevel = 3 }) {
  *   start: the mode to mark "Start here"; folded: a disclosure that opens on
  *   tap (Exams and Practice), instead of the open card (placement result).
  */
-export default function ModeGuide({ start, folded = false, headingLevel = 3 }) {
+export default function ModeGuide({ start, folded = false, headingLevel = folded ? 2 : 3 }) {
   if (folded) {
     return (
       <details className="group rounded-[var(--radius-lg)] border border-border bg-surface/60">
