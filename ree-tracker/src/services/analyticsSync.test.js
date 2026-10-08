@@ -124,6 +124,15 @@ describe('mergeServerIntoStats — streak', () => {
     expect(out.globalStreak).toBe(1);
   });
 
+  it('judges the streak on the same day as everything else in the merge', () => {
+    const out = mergeServerIntoStats(
+      { globalStreak: 4, lastActiveDate: '2026-01-01', activityCalendar: { '2026-01-01': 6 } },
+      { profile: { globalStreak: 0 }, activityCalendar: {} },
+      '2026-01-02',
+    );
+    expect(out.globalStreak).toBe(4);
+  });
+
   it('keeps a local streak still alive from yesterday', () => {
     const out = mergeServerIntoStats(
       { globalStreak: 4, lastActiveDate: YESTERDAY, activityCalendar: { [YESTERDAY]: 6 } },
