@@ -20,7 +20,7 @@ vi.mock('idb-keyval', () => ({
 }));
 
 const { useStore } = await import('../store/useStore');
-const { writeOrQueue, pendingWritesFor } = await import('./writeOrQueue');
+const { writeOrQueue } = await import('./writeOrQueue');
 const { readUserCache, writeUserCache, clearUserCaches } = await import('./userCache');
 
 const KEY = '/api/user/outside-scores';
@@ -71,7 +71,29 @@ describe('writeOrQueue', () => {
     // Online, so it starts draining at once — create first, then the edit.
     await vi.waitFor(() => expect(apiRequestMock).toHaveBeenCalledTimes(2));
     expect(apiRequestMock.mock.calls.map((c) => `${c[1]} ${c[0]}`)).toEqual([`POST ${KEY}`, `PUT ${KEY}/x`]);
-    expect(pendingWritesFor(KEY)).toEqual([]);
+    await vi.waitFor(() => expect(useStore.getState().pendingWrites).toEqual([]));
+  });
+
+  it('a write queued while a flush is already running goes out in that same flush', async () => {
+    useStore.getState().queuePendingWrite(KEY, 'POST', { id: 'x', score: 1 });
+    let releaseCreate;
+    apiRequestMock.mockImplementationOnce(() => new Promise((resolve) => { releaseCreate = resolve; }));
+    apiRequestMock.mockResolvedValue({});
+    const flushing = useStore.getState().flushPendingWrites(); // the reconnect's flush, now sending the create
+    await vi.waitFor(() => expect(apiRequestMock).toHaveBeenCalledTimes(1));
+
+    await writeOrQueue(`${KEY}/x`, 'PUT', { score: 2 }, { queueKey: KEY }); // finds the flush running
+    releaseCreate({});
+    await flushing;
+    expect(apiRequestMock.mock.calls.map((c) => `${c[1]} ${c[0]}`)).toEqual([`POST ${KEY}`, `PUT ${KEY}/x`]);
+    expect(useStore.getState().pendingWrites).toEqual([]);
+  });
+
+  it('another account’s queued writes don’t hold this account’s back', async () => {
+    useStore.setState({ pendingWrites: [{ id: 'w1', endpoint: KEY, method: 'POST', body: { id: 'b' }, ownerUid: 'user-B' }] });
+    apiRequestMock.mockResolvedValue({ item: { id: 'x' } });
+    const result = await writeOrQueue(KEY, 'POST', { id: 'x' }, { queueKey: KEY });
+    expect(result.status).toBe('sent');
   });
 
   it('a write for another list is not held back', async () => {

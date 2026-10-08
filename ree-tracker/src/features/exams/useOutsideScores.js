@@ -54,10 +54,15 @@ export function applyChange(items, change) {
   return [...list.filter((e) => e.id !== next.id), next].sort(byNewest);
 }
 
-/** Queued writes for this list as changes, oldest first. */
-export function pendingChanges(writes) {
+/**
+ * This account's queued writes for the list, as changes, oldest first.
+ * Another account's are left out: they are quarantined on replay, never sent.
+ * An unstamped write belongs to the device's owner (`ownerUid`).
+ */
+export function pendingChanges(writes, uid, ownerUid = null) {
   return (writes || [])
-    .filter((w) => w.endpoint === OUTSIDE_SCORES_ENDPOINT || w.endpoint.startsWith(`${OUTSIDE_SCORES_ENDPOINT}/`))
+    .filter((w) => (w.endpoint === OUTSIDE_SCORES_ENDPOINT || w.endpoint.startsWith(`${OUTSIDE_SCORES_ENDPOINT}/`))
+      && (w.ownerUid ?? ownerUid) === uid)
     .map((w) => {
       if (w.method === 'DELETE') return { type: 'delete', id: idFrom(w.endpoint) };
       if (w.method === 'PUT') return { type: 'upsert', item: { ...w.body, id: idFrom(w.endpoint) } };
@@ -69,6 +74,7 @@ export function useOutsideScores() {
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;
   const pendingWrites = useStore((s) => s.pendingWrites);
+  const ownerUid = useStore((s) => s.ownerUid);
   // Held with the account it belongs to: after a sign-in as someone else the
   // previous list reads as null at once, with no reset needed.
   const [data, setData] = useState(() => ({ uid: memory.uid, items: memory.items }));
@@ -77,9 +83,10 @@ export function useOutsideScores() {
     const current = prev.uid === uid ? prev.items : null;
     return { uid, items: typeof next === 'function' ? next(current) : next };
   }), [uid]);
-  const [status, setStatus] = useState('loading'); // loading | ready | offline | error
+  // loading | ready | offline (no connection) | unreachable (server error) | error (rejected)
+  const [status, setStatus] = useState('loading');
 
-  const queued = useMemo(() => pendingChanges(pendingWrites), [pendingWrites]);
+  const queued = useMemo(() => pendingChanges(pendingWrites, uid, ownerUid), [pendingWrites, uid, ownerUid]);
   const items = useMemo(
     () => (server ? queued.reduce(applyChange, server) : null),
     [server, queued],
@@ -92,8 +99,16 @@ export function useOutsideScores() {
     writeUserCache(uid, CACHE, server);
   }, [uid, server]);
 
+  // Changes made on this screen: how many, and how many are still being sent.
+  // A list fetched while one was made may predate it; applying that list
+  // would bring back a just-deleted entry, so it waits for the writes to
+  // finish and is fetched again.
+  const writes = useRef({ made: 0, sending: 0, refetch: false });
+  const loadRef = useRef(null);
+
   const load = useCallback(() => {
     if (!uid) return Promise.resolve();
+    const madeBefore = writes.current.made;
     // Queued changes first, so the list fetched includes them.
     const flushed = navigator.onLine
       ? useStore.getState().flushPendingWrites().catch(() => {})
@@ -101,14 +116,22 @@ export function useOutsideScores() {
     return flushed
       .then(() => apiRequest(OUTSIDE_SCORES_ENDPOINT))
       .then((res) => {
+        const w = writes.current;
+        if (w.made !== madeBefore || w.sending > 0) {
+          if (w.sending > 0) w.refetch = true;
+          else loadRef.current?.();
+          return;
+        }
         setServer(res?.items || []);
         setStatus('ready');
       })
       .catch((err) => {
-        setStatus(classifySyncError(err) === SYNC_OUTCOME.PERMANENT ? 'error' : 'offline');
+        const outcome = classifySyncError(err);
+        setStatus(outcome === SYNC_OUTCOME.OFFLINE ? 'offline' : outcome === SYNC_OUTCOME.TRANSIENT ? 'unreachable' : 'error');
         setServer((prev) => prev || []);
       });
   }, [uid, setServer]);
+  useEffect(() => { loadRef.current = load; }, [load]);
 
   useEffect(() => {
     if (!uid) return undefined;
@@ -132,10 +155,16 @@ export function useOutsideScores() {
     if (drained && navigator.onLine) load();
   }, [queuedCount, load]);
 
-  // Each change shows at once; a permanent rejection puts the list back and
+  // Each change shows at once. A permanent rejection undoes that one change
+  // (not the whole list, which may hold other changes made meanwhile) and
   // rethrows for the caller to explain.
   const change = useCallback(async (local, endpoint, method, body, supersede) => {
-    const before = server;
+    const id = local.type === 'delete' ? local.id : local.item.id;
+    const previous = (server || []).find((e) => e.id === id) || null;
+    const linked = local.type === 'delete' ? (server || []).filter((e) => e.retestOfId === id).map((e) => e.id) : [];
+    const w = writes.current;
+    w.made += 1;
+    w.sending += 1;
     setServer((prev) => applyChange(prev, local));
     try {
       const result = await writeOrQueue(endpoint, method, body, { queueKey: OUTSIDE_SCORES_ENDPOINT, supersede });
@@ -144,8 +173,18 @@ export function useOutsideScores() {
       }
       return result.status;
     } catch (err) {
-      setServer(before);
+      setServer((prev) => {
+        const list = (prev || []).filter((e) => e.id !== id)
+          .map((e) => (linked.includes(e.id) ? { ...e, retestOfId: id } : e));
+        return previous ? applyChange(list, { type: 'upsert', item: previous }) : list;
+      });
       throw err;
+    } finally {
+      w.sending -= 1;
+      if (w.sending === 0 && w.refetch) {
+        w.refetch = false;
+        loadRef.current?.();
+      }
     }
   }, [server, setServer]);
 

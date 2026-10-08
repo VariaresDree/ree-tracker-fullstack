@@ -9,7 +9,16 @@ import { Button, Modal } from './ui';
 
 export default function LogoutConfirm({ open, onClose }) {
   const signOut = useSignOut();
-  const unsynced = useStore((st) => (st.syncQueue?.length || 0) + (st.pendingWrites?.length || 0));
+  const answers = useStore((st) => st.syncQueue?.length || 0);
+  // Finished sessions, offline mock exams, outside scores…: not answers.
+  const others = useStore((st) => st.pendingWrites?.length || 0);
+  const unsynced = answers + others;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const what = answers > 0 && others > 0
+    ? `${plural(answers, 'answer', 'answers')} and ${plural(others, 'other change', 'other changes')} haven’t`
+    : answers > 0
+      ? `${plural(answers, 'answer hasn’t', 'answers haven’t')}`
+      : `${plural(others, 'change hasn’t', 'changes haven’t')}`;
 
   return (
     <Modal
@@ -25,7 +34,7 @@ export default function LogoutConfirm({ open, onClose }) {
     >
       {unsynced > 0 ? (
         <p className="text-sm text-textMain">
-          {unsynced} {unsynced === 1 ? 'answer hasn’t' : 'answers haven’t'} synced yet. Logging out now discards {unsynced === 1 ? 'it' : 'them'} — reconnect and let them sync first.
+          {what} synced yet. Logging out now discards {unsynced === 1 ? 'it' : 'them'} — reconnect and let them sync first.
         </p>
       ) : (
         <p className="text-sm text-muted2">You’ll need to sign in again to continue.</p>

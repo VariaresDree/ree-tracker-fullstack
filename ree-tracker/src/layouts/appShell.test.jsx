@@ -82,6 +82,17 @@ describe('phone shell', () => {
         expect(screen.getByRole('dialog')).toHaveTextContent('3 answers haven’t synced yet');
     });
 
+    // Queued writes that aren't answers (an outside score saved offline, a
+    // finished session) are counted, but not called answers.
+    it('logging out names queued changes that aren’t answers for what they are', () => {
+        storeState.syncQueue = [{}];
+        storeState.pendingWrites = [{}, {}];
+        at('/');
+        fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
+        expect(screen.getByRole('dialog')).toHaveTextContent('1 answer and 2 other changes haven’t synced yet');
+    });
+
     it('mounts the offline badge once', () => {
         at('/');
         expect(screen.getAllByTestId('offline-badge')).toHaveLength(1);

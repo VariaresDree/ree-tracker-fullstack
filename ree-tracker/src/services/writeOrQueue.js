@@ -13,6 +13,9 @@
 //   • Writes for the same list already waiting in the queue: this one queues
 //     behind them instead of overtaking. An edit sent before its own offline
 //     create would 404, and a delete could land before the create it undoes.
+//     Only this account's writes count: another account's are quarantined on
+//     replay, never sent, so they must not hold this one back.
+import { auth } from '../config/firebaseDb';
 import { useStore } from '../store/useStore';
 import { apiRequest } from './dbQueries';
 import { classifySyncError, SYNC_OUTCOME } from './syncPolicy';
@@ -28,7 +31,9 @@ import { classifySyncError, SYNC_OUTCOME } from './syncPolicy';
  */
 export async function writeOrQueue(endpoint, method, body, { queueKey, supersede = false } = {}) {
   const store = useStore.getState();
-  const waiting = (store.pendingWrites || []).some((w) => queueKey && w.endpoint.startsWith(queueKey));
+  const me = auth.currentUser?.uid || store.ownerUid || null;
+  const waiting = (store.pendingWrites || []).some((w) => queueKey && w.endpoint.startsWith(queueKey)
+    && (w.ownerUid ?? store.ownerUid ?? null) === me);
 
   if (!waiting) {
     try {
@@ -44,9 +49,4 @@ export async function writeOrQueue(endpoint, method, body, { queueKey, supersede
   // next reconnect. Its own errors go to Sync issues, as for every queued write.
   if (waiting && navigator.onLine) store.flushPendingWrites().catch(() => {});
   return { status: 'queued' };
-}
-
-/** Writes for this list still waiting to sync, oldest first. */
-export function pendingWritesFor(queueKey) {
-  return (useStore.getState().pendingWrites || []).filter((w) => w.endpoint.startsWith(queueKey));
 }

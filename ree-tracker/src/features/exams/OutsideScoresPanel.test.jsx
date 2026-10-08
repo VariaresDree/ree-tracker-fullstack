@@ -28,7 +28,7 @@ vi.mock('react-hot-toast', () => ({ default: toastFn }));
 
 const { useStore } = await import('../../store/useStore');
 const { default: OutsideScoresPanel } = await import('./OutsideScoresPanel');
-const { __resetOutsideScoresMemory } = await import('./useOutsideScores');
+const { __resetOutsideScoresMemory, applyChange, pendingChanges } = await import('./useOutsideScores');
 
 const KEY = '/api/user/outside-scores';
 const FIRST = { id: '11111111-1111-4111-8111-111111111111', title: 'RC Preboard 1', source: 'Review center', takenOn: '2026-09-01', subject: 'EE', score: 60, total: 100, note: null, retestOfId: null, createdAt: '2026-09-01T10:00:00Z' };
@@ -130,13 +130,13 @@ describe('OutsideScoresPanel', () => {
     expect(queued).toEqual([expect.objectContaining({ endpoint: KEY, method: 'POST', ownerUid: 'user-A' })]);
     expect(queued[0].body.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(screen.getByText('1 change saved on this device, waiting to sync.')).toBeInTheDocument();
-    expect(toastFn).toHaveBeenCalledWith(expect.stringMatching(/Saved on this device/), expect.anything());
+    expect(toastFn).toHaveBeenCalledWith(expect.stringMatching(/Saved/));
   });
 
   it('deletes after a confirmation', async () => {
     serverItems = [FIRST];
     render(<OutsideScoresPanel />);
-    fireEvent.click(await screen.findByRole('button', { name: `Delete ${FIRST.title}` }));
+    fireEvent.click(await screen.findByRole('button', { name: `Delete ${FIRST.title}, Sep 1, 2026` }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/${FIRST.id}`, 'DELETE', null));
@@ -147,7 +147,7 @@ describe('OutsideScoresPanel', () => {
     serverItems = [FIRST];
     routeApi({ failWrites: () => Object.assign(new Error('Validation failed.'), { status: 400 }) });
     render(<OutsideScoresPanel />);
-    fireEvent.click(await screen.findByRole('button', { name: `Edit ${FIRST.title}` }));
+    fireEvent.click(await screen.findByRole('button', { name: `Edit ${FIRST.title}, Sep 1, 2026` }));
     const dialog = await screen.findByRole('dialog');
     expect(screen.getByLabelText('Name', { exact: false })).toHaveValue(FIRST.title);
     fill('Your score', '65');
@@ -155,5 +155,76 @@ describe('OutsideScoresPanel', () => {
     await waitFor(() => expect(toastFn.error).toHaveBeenCalled());
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('60/100')).toBeInTheDocument();
+  });
+
+  // The list paints from the device cache while the fetch is still on its
+  // way; a delete made in that window must not be undone by the older list.
+  it('a list fetched before a delete doesn’t bring the deleted entry back', async () => {
+    idbMem.set('ree-user-cache-v1:outsideScores', { uid: 'user-A', value: [FIRST] });
+    let releaseFirstGet;
+    let gets = 0;
+    apiRequest.mockImplementation(async (endpoint, method = 'GET') => {
+      if (method === 'GET') {
+        gets += 1;
+        if (gets === 1) return new Promise((resolve) => { releaseFirstGet = () => resolve({ items: [FIRST] }); });
+        return { items: [] };
+      }
+      return { success: true, deleted: 1 };
+    });
+    render(<OutsideScoresPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: `Delete ${FIRST.title}, Sep 1, 2026` }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/${FIRST.id}`, 'DELETE', null));
+    releaseFirstGet();
+    await waitFor(() => expect(gets).toBe(2)); // fetched again instead
+    expect(screen.queryByRole('heading', { level: 3, name: FIRST.title })).not.toBeInTheDocument();
+  });
+
+  it('a list the server refuses shows an error with a retry, not an empty list', async () => {
+    apiRequest.mockImplementation(async () => { throw Object.assign(new Error('Forbidden'), { status: 403 }); });
+    render(<OutsideScoresPanel />);
+    expect(await screen.findByText('Couldn’t load your outside scores')).toBeInTheDocument();
+    expect(screen.queryByText('No outside scores yet')).not.toBeInTheDocument();
+    routeApi();
+    fireEvent.click(screen.getByRole('button', { name: /Try again/ }));
+    expect(await screen.findByText('No outside scores yet')).toBeInTheDocument();
+  });
+
+  it('a server error while online says so, not “offline”', async () => {
+    serverItems = [FIRST];
+    idbMem.set('ree-user-cache-v1:outsideScores', { uid: 'user-A', value: [FIRST] });
+    apiRequest.mockImplementation(async () => { throw Object.assign(new Error('Unavailable'), { status: 503 }); });
+    render(<OutsideScoresPanel />);
+    expect(await screen.findByText(/Couldn’t reach the server/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: FIRST.title })).toBeInTheDocument();
+  });
+});
+
+describe('the queued-change overlay', () => {
+  const write = (method, endpoint, body, ownerUid = 'user-A') => ({ id: Math.random().toString(36), method, endpoint, body, ownerUid, createdAt: '2026-10-08T00:00:00Z' });
+
+  it('applies this account’s queued writes in order: create, edit, then delete', () => {
+    const changes = pendingChanges([
+      write('POST', KEY, { ...FIRST, id: 'n1', title: 'New' }),
+      write('PUT', `${KEY}/n1`, { ...FIRST, title: 'Renamed' }),
+      write('DELETE', `${KEY}/${FIRST.id}`, null),
+      write('POST', KEY, { ...FIRST, id: 'b1', title: 'Someone else’s' }, 'user-B'),
+      write('POST', '/api/materials/folders', { name: 'x' }),
+    ], 'user-A');
+    const list = changes.reduce(applyChange, [FIRST, RETEST]);
+    expect(list.map((e) => e.title)).toEqual(['RC Preboard 1 retake', 'Renamed']);
+    // Deleting the first try leaves its retest as an ordinary entry.
+    expect(list.find((e) => e.id === RETEST.id).retestOfId).toBeNull();
+  });
+
+  it('an unstamped write belongs to the device’s owner', () => {
+    const legacy = { ...write('POST', KEY, { ...FIRST, id: 'old' }), ownerUid: undefined };
+    expect(pendingChanges([legacy], 'user-A', 'user-A')).toHaveLength(1);
+    expect(pendingChanges([legacy], 'user-B', 'user-A')).toHaveLength(0);
+  });
+
+  it('applying a change twice is the same as once', () => {
+    const c = { type: 'upsert', item: { ...FIRST, score: 99 } };
+    expect(applyChange(applyChange([FIRST], c), c)).toEqual(applyChange([FIRST], c));
   });
 });

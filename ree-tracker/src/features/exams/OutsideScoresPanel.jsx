@@ -11,7 +11,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { outsideScorePercent, outsideScoreSummary, retestDelta } from '@ree/shared';
 import { Panel, Button, Modal, EmptyState, StatusPill, Sparkline, Skeleton } from '../../components/ui';
-import { ClipboardList, Plus, Pencil, Trash2, ShieldAlert, CloudOff } from '../../components/ui/icons';
+import { ClipboardList, Plus, Pencil, Trash2, ShieldAlert, CloudOff, RotateCcw } from '../../components/ui/icons';
 import { useOutsideScores } from './useOutsideScores';
 import OutsideScoreForm from './OutsideScoreForm';
 import { subjectLabel } from './outsideScoreLabels';
@@ -41,6 +41,8 @@ function SubjectTile({ s }) {
 function EntryRow({ entry, firstTry, onEdit, onDelete }) {
   const pct = outsideScorePercent(entry);
   const delta = firstTry ? retestDelta(entry, firstTry) : null;
+  // A retest often shares its first try's name: the date tells them apart.
+  const name = `${entry.title}, ${fmtDate(entry.takenOn)}`;
   return (
     <li className="rounded-xl border border-border bg-surface2/30 p-3.5 flex items-start gap-3">
       <div className="min-w-0 flex-1 flex flex-col gap-1">
@@ -65,7 +67,7 @@ function EntryRow({ entry, firstTry, onEdit, onDelete }) {
         <button
           type="button"
           onClick={() => onEdit(entry)}
-          aria-label={`Edit ${entry.title}`}
+          aria-label={`Edit ${name}`}
           className="touch-target inline-flex items-center justify-center p-1.5 rounded-md text-muted hover:text-textMain hover:bg-surface2 transition-colors"
         >
           <Pencil size={15} strokeWidth={1.75} aria-hidden="true" />
@@ -73,7 +75,7 @@ function EntryRow({ entry, firstTry, onEdit, onDelete }) {
         <button
           type="button"
           onClick={() => onDelete(entry)}
-          aria-label={`Delete ${entry.title}`}
+          aria-label={`Delete ${name}`}
           className="touch-target inline-flex items-center justify-center p-1.5 rounded-md text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] transition-colors"
         >
           <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
@@ -88,7 +90,7 @@ function EntryRow({ entry, firstTry, onEdit, onDelete }) {
  *   the app's own mock boards, for the one-line comparison.
  */
 export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0 }) {
-  const { items, status, queuedCount, add, update, remove } = useOutsideScores();
+  const { items, status, queuedCount, add, update, remove, reload } = useOutsideScores();
   // `key` makes each opening a fresh form, starting from the entry being edited.
   const [form, setForm] = useState({ open: false, entry: null, key: 0 });
   const [confirm, setConfirm] = useState(null);
@@ -98,7 +100,10 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
 
   const explain = (err, action) => toast.error(err?.message ? `Couldn’t ${action}: ${err.message}` : `Couldn’t ${action}. Try again.`);
   const saved = (result) => {
-    if (result === 'queued') toast('Saved on this device. It syncs when you’re back online.', { icon: '☁️' });
+    if (result !== 'queued') return;
+    toast(navigator.onLine
+      ? 'Saved. It syncs in a moment, after your earlier changes.'
+      : 'Saved on this device. It syncs when you’re back online.');
   };
 
   const save = async (payload) => {
@@ -141,16 +146,28 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
         Review-center preboards, book drills and other mocks. These are yours to track: they don’t count toward your readiness, forecast or rankings.
       </p>
 
-      {(queuedCount > 0 || status === 'offline') && (
+      {(queuedCount > 0 || status === 'offline' || status === 'unreachable' || (status === 'error' && list.length > 0)) && (
         <p role="status" className="flex items-center gap-2 text-xs text-muted2">
           <CloudOff size={14} strokeWidth={1.75} aria-hidden="true" />
           {queuedCount > 0
             ? `${queuedCount} change${queuedCount === 1 ? '' : 's'} saved on this device, waiting to sync.`
-            : 'Offline. Showing the scores saved on this device.'}
+            : status === 'offline'
+              ? 'Offline. Showing the scores saved on this device.'
+              : status === 'unreachable'
+                ? 'Couldn’t reach the server. Showing the scores saved on this device.'
+                : 'Couldn’t refresh. Showing the scores saved on this device.'}
         </p>
       )}
 
-      {items === null ? (
+      {status === 'error' && list.length === 0 ? (
+        <EmptyState
+          compact
+          icon={ClipboardList}
+          title="Couldn’t load your outside scores"
+          description="The server turned the request down. Try again in a moment."
+          action={<Button size="sm" variant="secondary" onClick={() => reload()}><RotateCcw size={14} strokeWidth={1.75} aria-hidden="true" /> Try again</Button>}
+        />
+      ) : items === null ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-16 w-full" />

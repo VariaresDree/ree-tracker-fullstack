@@ -153,6 +153,36 @@ describe('POST /outside-scores', () => {
     });
 });
 
+describe('POST /outside-scores replay', () => {
+    // The offline queue resends the same body with the same Idempotency-Key
+    // (a hash of the body, which carries the device's id). The second send
+    // must answer from the first, not create again.
+    it('answers a replayed key from the first response without creating twice', async () => {
+        const records = new Map();
+        vi.spyOn(prisma.idempotencyRecord, 'create').mockImplementation(async ({ data }) => {
+            if (records.has(data.key)) throw Object.assign(new Error('dup'), { code: 'P2002' });
+            records.set(data.key, { ...data, createdAt: new Date(), updatedAt: new Date() });
+            return records.get(data.key);
+        });
+        vi.spyOn(prisma.idempotencyRecord, 'findUnique').mockImplementation(async ({ where }) => records.get(where.key) || null);
+        vi.spyOn(prisma.idempotencyRecord, 'update').mockImplementation(async ({ where, data }) => {
+            records.set(where.key, { ...records.get(where.key), ...data });
+            return records.get(where.key);
+        });
+        vi.spyOn(prisma.idempotencyRecord, 'deleteMany').mockResolvedValue({ count: 0 });
+
+        const app = makeApp();
+        const send = () => request(app).post('/api/user/outside-scores').set(as(UID)).set('Idempotency-Key', 'c-abc123').send(entry());
+        const first = await send();
+        const replay = await send();
+        expect(first.status).toBe(201);
+        expect(replay.status).toBe(201);
+        expect(replay.headers['idempotency-replay']).toBe('true');
+        expect(replay.body).toEqual(first.body);
+        expect(prisma.outsideScore.create).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('PUT /outside-scores/:id', () => {
     const body = (over = {}) => { const { id: _id, ...rest } = entry(over); return rest; };
 

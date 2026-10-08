@@ -529,7 +529,17 @@ export const useStore = create(
         const run = async () => {
           const signedIn = auth.currentUser?.uid;
           if (!signedIn) return;
-          for (const w of getStore().pendingWrites.slice()) {
+          // The queue is re-read after every write, not walked as a snapshot:
+          // a write queued while this pass runs (an edit to an entry whose
+          // offline create is being sent right now) goes out in the same pass,
+          // in order. As a snapshot it waited for the next reconnect, because a
+          // caller that finds a flush running only waits for it. Each write is
+          // tried at most once per pass.
+          const tried = new Set();
+          for (;;) {
+            const w = getStore().pendingWrites.find((p) => !tried.has(p.id));
+            if (!w) break;
+            tried.add(w.id);
             // Owner guard. A write without an owner predates the stamp and
             // belongs to the device's persisted owner.
             const owner = w.ownerUid ?? getStore().ownerUid;
