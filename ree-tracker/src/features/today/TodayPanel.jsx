@@ -19,7 +19,9 @@ import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
 import { ArrowRight } from '../../components/ui/icons';
 
 const BREAKDOWN = [
-  ['topicCoverage', 'Coverage'],
+  // "Topics practised", not "Coverage": the syllabus checklist's coverage
+  // (read and drilled) is a different number, shown on Progress › Syllabus.
+  ['topicCoverage', 'Topics practised'],
   ['accuracyRate', 'Accuracy'],
   ['thetaNormalized', 'Ability'],
   ['consistency', 'Consistency'],
