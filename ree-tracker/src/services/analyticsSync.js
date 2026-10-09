@@ -288,11 +288,18 @@ export function cachedDashboardStats(uid, tos) {
   return memo.value;
 }
 
-/** Test seam: forget the cached payload between cases. */
-export function __resetDashboardCache() {
+/**
+ * Forget the last dashboard payload (and the boot seed) and tell Today and
+ * Progress. Called after "Delete all analytics", which left them painting the
+ * deleted numbers until the next refetch.
+ */
+export function forgetDashboardStats() {
   lastRawDashboard = null;
   lastRawUid = null;
   memo = { raw: null, tos: null, value: null };
   invalidateDashboardSeed();
   listeners.forEach((l) => l());
 }
+
+/** Test seam: forget the cached payload between cases. */
+export const __resetDashboardCache = forgetDashboardStats;

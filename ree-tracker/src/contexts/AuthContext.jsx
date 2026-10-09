@@ -219,10 +219,18 @@ export const AuthProvider = ({ children }) => {
 
   // Firebase refuses a password change on an old session, so prove the
   // current password first (re-authentication), then set the new one.
-  const changePassword = async (currentPassword, newPassword) => {
+  // Confirms the signed-in learner's password. Firebase demands a recent
+  // sign-in before a password change or an account deletion; doing it first
+  // means a wrong password fails before anything is changed.
+  const reauthenticate = async (currentPassword) => {
     const user = auth.currentUser;
-    if (!user?.email) throw new Error('Sign in again to change your password.');
+    if (!user?.email) throw new Error('Sign in again first.');
     await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+    return user;
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    const user = await reauthenticate(currentPassword);
     await updatePassword(user, newPassword);
   };
 
@@ -246,7 +254,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, loading }}>
+    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, reauthenticate, loading }}>
       {!loading ? children : authStalled ? (
         // AUTH_STALL_MS elapsed with no onAuthStateChanged callback at all —
         // NOT the same as "logged out". A weak connection must never eject an

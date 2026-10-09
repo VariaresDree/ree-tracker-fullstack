@@ -17,7 +17,7 @@ import { authErrorMessage, MIN_PASSWORD } from '../../utils/authErrors';
 const passwordError = (err) => authErrorMessage(err, 'change-password');
 
 export default function SecuritySettings() {
-  const { currentUser, resetPassword, changePassword } = useAuth();
+  const { currentUser, resetPassword, changePassword, reauthenticate } = useAuth();
   const resetStore = useStore((s) => s.resetStore);
 
   const [sending, setSending] = useState(false);
@@ -27,6 +27,9 @@ export default function SecuritySettings() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteText, setDeleteText] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const sendReset = async () => {
     if (!currentUser?.email) return;
@@ -58,14 +61,27 @@ export default function SecuritySettings() {
     }
   };
 
+  // Order matters. Firebase refuses to delete a sign-in that isn't recent, and
+  // this used to find out only AFTER the server had erased the data: the
+  // learner was told to sign in again, with nothing left to come back to.
+  // Confirming the password first means a wrong password, a stale session or
+  // a lost connection stops before anything is deleted.
   const deleteForever = async () => {
-    if (deleteText !== 'DELETE') return;
+    if (deleteText !== 'DELETE' || deleting) return;
+    if (!deletePassword) { setDeleteError('Enter your password.'); return; }
+    setDeleteError('');
+    setDeleting(true);
     const toastId = toast.loading('Deleting your account…');
     try {
-      // The server row first: wiping the sign-in on a failed purge would
-      // orphan the data with no way back in to retry.
-      await deleteAccount();
+      try {
+        await reauthenticate(deletePassword);
+      } catch (err) {
+        setDeleteError(authErrorMessage(err, 'current-password'));
+        toast.dismiss(toastId);
+        return;
+      }
       const uid = currentUser.uid;
+      await deleteAccount();
       await deleteUser(currentUser);
       try { await purgeSimulationLedger(uid); } catch { /* device-only, best-effort */ }
       await resetStore();
@@ -77,7 +93,17 @@ export default function SecuritySettings() {
           : 'Couldn’t delete your account — try again.',
         { id: toastId },
       );
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const closeDelete = () => {
+    if (deleting) return;
+    setConfirmDelete(false);
+    setDeleteText('');
+    setDeletePassword('');
+    setDeleteError('');
   };
 
   const field = (key) => ({ value: form[key], onChange: (e) => setForm({ ...form, [key]: e.target.value }) });
@@ -125,21 +151,27 @@ export default function SecuritySettings() {
 
       <Modal
         open={confirmDelete}
-        onClose={() => { setConfirmDelete(false); setDeleteText(''); }}
+        onClose={closeDelete}
+        closeOnBackdrop={!deleting}
         tone="danger"
         icon={TriangleAlert}
         title="Delete account?"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { setConfirmDelete(false); setDeleteText(''); }}>Cancel</Button>
-            <Button tone="danger" disabled={deleteText !== 'DELETE'} onClick={deleteForever}>Delete permanently</Button>
+            <Button variant="secondary" disabled={deleting} onClick={closeDelete}>Cancel</Button>
+            <Button tone="danger" loading={deleting} disabled={deleteText !== 'DELETE' || !deletePassword || deleting} onClick={deleteForever}>Delete permanently</Button>
           </>
         }
       >
         <p className="text-sm text-muted2 mb-4">This can’t be undone. Your answers, mock boards and analytics will be permanently erased.</p>
-        <FormField label='Type "DELETE" to confirm'>
-          <Input type="text" value={deleteText} onChange={(e) => setDeleteText(e.target.value)} placeholder="DELETE" />
-        </FormField>
+        <div className="flex flex-col gap-4">
+          <FormField label="Your password" error={deleteError || undefined}>
+            <Input type="password" autoComplete="current-password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} />
+          </FormField>
+          <FormField label='Type "DELETE" to confirm'>
+            <Input type="text" value={deleteText} onChange={(e) => setDeleteText(e.target.value)} placeholder="DELETE" />
+          </FormField>
+        </div>
       </Modal>
     </div>
   );

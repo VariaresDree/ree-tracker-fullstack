@@ -115,7 +115,7 @@ export default function Account() {
 
       <Section id="achievements" title="Achievements">
         <Milestones />
-        <CredentialsTab currentUser={currentUser} stats={stats} />
+        <CredentialsTab currentUser={currentUser} />
       </Section>
 
       <Section id="data" title="Your data">

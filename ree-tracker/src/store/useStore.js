@@ -179,7 +179,9 @@ export const useStore = create(
         if (!currentUser) throw new Error('Authentication required.');
 
         const payload = {};
-        if (examDate !== undefined && examDate !== null) payload.examDate = examDate;
+        // null (or '') clears the date; the server accepts null. It used to be
+        // dropped here, so a date once set could never be removed.
+        if (examDate !== undefined) payload.examDate = examDate || null;
         if (dailyTarget !== undefined && dailyTarget !== null) payload.dailyTarget = Number(dailyTarget);
         if (Object.keys(payload).length === 0) return;
 
@@ -630,11 +632,6 @@ export const useStore = create(
         deadLetters: state.deadLetters.filter((d) => (typeof target === 'string' ? d.id !== target : d !== target)),
       })),
 
-      resetDailyQuotas: () => set((state) => {
-        if (!state.stats) return state;
-        return { stats: { ...state.stats, dailyMath: 0, dailyESAS: 0, dailyEE: 0 } };
-      }),
-
       // Wipe every trace of the current account from the device. Profile.jsx
       // has always called this on logout and on account deletion — but the
       // action did not exist, so the call threw AFTER Firebase had already
@@ -682,6 +679,10 @@ export const useStore = create(
         // resolution and error parsing, and had no timeout or circuit-breaker
         // participation.
         await apiRequest('/api/analytics/purge', 'DELETE');
+        // The exam plan is a setting, not analytics: the server keeps
+        // User.examDate/dailyTarget, so the local copy keeps them too (the
+        // form used to show a blank date after a purge).
+        const { examDate = null, dailyTarget } = getStore().stats || {};
         // Reset to a clean baseline stats object instead of `null`. A null
         // stats traps Today on its skeleton until the page reloads, because
         // useDashboardStats reports `loading` while stats is null. Giving
@@ -702,6 +703,8 @@ export const useStore = create(
                 totalAnswered: 0,
                 totalCorrect: 0,
                 irt: { theta: 0, consecutiveCorrect: 0, consecutiveWrong: 0 },
+                examDate,
+                ...(dailyTarget ? { dailyTarget } : {}),
             },
             syncQueue: [],
             pendingWrites: [],

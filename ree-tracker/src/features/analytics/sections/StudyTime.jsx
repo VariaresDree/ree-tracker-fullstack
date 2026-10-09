@@ -50,7 +50,9 @@ export default function StudyTime() {
             </div>
             <div className="flex flex-col gap-2">
               <h3 className="text-eyebrow">Minutes per day, last 14 days</h3>
-              <BarList items={window14} valueKey="minutes" labelKey="shortDate" empty="" />
+              {/* All 14 days. The list's 12-row default cut the two newest — today
+                  and yesterday — off a list ordered oldest first. */}
+              <BarList items={window14} valueKey="minutes" labelKey="shortDate" empty="" limit={window14.length} />
             </div>
           </div>
         )}

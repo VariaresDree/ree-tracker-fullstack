@@ -36,7 +36,7 @@ export default function ExamPlanForm() {
     setError('');
     setSaving(true);
     try {
-      await saveExamConfig({ examDate: examDate || undefined, dailyTarget: target });
+      await saveExamConfig({ examDate: examDate || null, dailyTarget: target });
       toast.success('Exam plan saved.');
     } catch (err) {
       toast.error(err?.message === '[OFFLINE]' ? 'Reconnect to save your exam plan.' : 'Couldn’t save — try again.');
@@ -48,7 +48,7 @@ export default function ExamPlanForm() {
   return (
     <form onSubmit={save} noValidate className="flex flex-col gap-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <FormField label="Exam date" hint={days == null ? 'Not set yet' : days > 0 ? `${days} days to go` : days === 0 ? 'Today' : 'This date has passed'}>
+        <FormField label="Exam date" hint={days == null ? 'Not set yet. Clear the date to remove it.' : days > 1 ? `${days} days to go` : days === 1 ? '1 day to go' : days === 0 ? 'Today' : 'This date has passed'}>
           <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
         </FormField>
         <FormField
