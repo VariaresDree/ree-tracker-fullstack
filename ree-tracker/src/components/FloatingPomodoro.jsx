@@ -68,7 +68,9 @@ export default function FloatingPomodoro() {
   const pos = dragPos ?? (pomodoroWidget.x != null ? { x: pomodoroWidget.x, y: pomodoroWidget.y } : null);
   const style = pos
     ? { left: pos.x, top: pos.y }
-    : { right: 24, bottom: 88 }; // default: above the mobile bottom nav
+    // Default: just above the phone's bottom bar (which includes the home-
+    // indicator inset); a fixed 88px sat under it on a phone with a tall inset.
+    : { right: 24, bottom: 'calc(var(--bottom-bar-h, 0px) + 1rem)' };
 
   // Colours the mode label (text) and its dot: the text form of amber.
   const modeColor = pomodoro.isWork ? 'var(--color-reeAmber-text)' : 'var(--accent-success)';

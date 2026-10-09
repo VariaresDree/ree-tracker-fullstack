@@ -29,7 +29,7 @@ function ExamCountdown({ examDate }) {
   const days = daysToExam(examDate);
   if (days == null) {
     return (
-      <Link to="/account#exam-plan" className="text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">
+      <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">
         Set your exam date
       </Link>
     );

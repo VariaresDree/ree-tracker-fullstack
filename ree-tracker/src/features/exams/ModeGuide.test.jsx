@@ -8,6 +8,13 @@ import { MODES, startingMode } from './modes';
 const renderGuide = (props) => render(<MemoryRouter><ModeGuide {...props} /></MemoryRouter>);
 
 describe('ModeGuide', () => {
+  it('the page’s own mode is marked, not a link back to the same page', () => {
+    renderGuide({ folded: true, here: 'practice' });
+    expect(screen.queryByRole('link', { name: /^Practice/ })).toBeNull();
+    expect(screen.getByText("You're here")).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Mock board/ })).toHaveAttribute('href', '/exams?tab=mock');
+  });
+
   it('lists the four modes, each linking to where it starts', () => {
     renderGuide({ start: 'mock' });
     expect(screen.getByRole('heading', { level: 2, name: 'Which mode do I use?' })).toBeInTheDocument();

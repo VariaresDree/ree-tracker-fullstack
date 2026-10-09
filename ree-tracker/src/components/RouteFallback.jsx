@@ -14,7 +14,7 @@ export default function RouteFallback() {
   return (
     <div role="status" aria-live="polite" className="flex flex-col items-center justify-center h-[60vh] gap-4">
       <BrandMark size={52} />
-      <span className="text-eyebrow">Loading module</span>
+      <span className="text-eyebrow">Loading…</span>
     </div>
   );
 }

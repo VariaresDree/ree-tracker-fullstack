@@ -3,13 +3,16 @@
 // Desktop navigation: the five destinations (layouts/navModel.js), the Admin
 // link for admins, the focus timer, connection status, and the Account card.
 // Collapsible to an icon rail.
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Pomodoro from '../components/Pomodoro';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { useUISlice } from '../store/slices';
 import { cn } from '../components/ui';
-import { PanelLeftClose, PanelLeftOpen, Timer } from '../components/ui/icons';
+import { LogOut, PanelLeftClose, PanelLeftOpen, Timer } from '../components/ui/icons';
+import Avatar from '../components/Avatar';
+import LogoutConfirm from '../components/LogoutConfirm';
 import { PRIMARY_NAV, ADMIN_NAV, activeNavId } from './navModel';
 
 const ACTIVE = 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent-text)]';
@@ -48,6 +51,9 @@ export default function Sidebar() {
   const active = activeNavId(pathname);
   const CollapseIcon = collapsed ? PanelLeftOpen : PanelLeftClose;
   const name = currentUser?.displayName || 'Reviewer';
+  // Log out was only in the phone header's menu; on a desktop it took a trip
+  // to Account › Sign-in & security.
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   return (
     <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)] transition-[width] duration-300', collapsed ? 'w-20' : 'w-72')}>
@@ -101,22 +107,20 @@ export default function Sidebar() {
         <OfflineStatusBadge collapsed={collapsed} />
       </div>
 
-      <div className={cn('p-4 border-t border-border2 bg-surface2/10 shrink-0', collapsed && 'flex justify-center')}>
+      <div className={cn('p-4 border-t border-border2 bg-surface2/10 shrink-0 flex gap-2', collapsed ? 'flex-col items-center' : 'items-center')}>
         <Link
           to="/account"
           aria-current={active === 'account' ? 'page' : undefined}
           title={collapsed ? 'Account' : undefined}
           className={cn(
             'flex items-center gap-3 p-2.5 rounded-xl transition-all border shadow-sm',
-            collapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'w-full',
+            collapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'flex-1 min-w-0',
             active === 'account'
               ? 'bg-surface3 border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
               : 'bg-surface hover:bg-surface3 border-border2 hover:border-[color-mix(in_srgb,var(--accent)_45%,transparent)]',
           )}
         >
-          <span className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-signal)] flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">
-            {name.charAt(0).toUpperCase()}
-          </span>
+          <Avatar user={currentUser} />
           {collapsed ? (
             <span className="sr-only">Account</span>
           ) : (
@@ -126,7 +130,17 @@ export default function Sidebar() {
             </span>
           )}
         </Link>
+        <button
+          type="button"
+          onClick={() => setConfirmingLogout(true)}
+          aria-label="Log out"
+          title="Log out"
+          className="touch-target inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-border2 bg-surface text-muted hover:text-textMain hover:bg-surface3 cursor-pointer transition-colors"
+        >
+          <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
+        </button>
       </div>
+      <LogoutConfirm open={confirmingLogout} onClose={() => setConfirmingLogout(false)} />
     </aside>
   );
 }

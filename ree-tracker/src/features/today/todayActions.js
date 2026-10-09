@@ -131,7 +131,7 @@ export function buildTodayActions({ srs, planTask, forecast, daily, examInDays }
       key: 'mock',
       title: 'Sit a timed mock board',
       detail: examInDays != null && examInDays >= 0
-        ? `${examInDays} days to go — rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`
+        ? `${examInDays === 1 ? '1 day' : `${examInDays} days`} to go — rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`
         : `Rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
       cta: 'Open simulator',
       to: '/simulator',

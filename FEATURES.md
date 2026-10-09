@@ -14,7 +14,13 @@ every feature add, change, or removal, not on a schedule.
   - The phone's hamburger drawer is gone. Its top bar (`layouts/PhoneHeader.jsx`) holds the focus timer (a sheet), connection status (to `/account#offline`) and an **account menu** (`layouts/AccountMenu.jsx`: Account · Admin for admins · Log out, which says how many unsynced answers a logout would discard).
   - The shell is an `AppShell` layout route, so navigation stays on screen while a page chunk loads. A new page opens at its top, or at the linked section.
   - The "Enter the Board Simulator?" confirm modal is gone; the same warning is a line above Start on the setup screen.
-- [x] **Today** (`pages/Today.jsx`, was the Dashboard) — the home screen answers "what should I do now?": an exam countdown (Manila days, or a link to set the date), the streak, and the **Today card** (contents under Analytics & insights).
+  - **Desktop Log out:** the sidebar has a Log out button beside the Account card (with the same unsynced-answers warning); it was only in the phone menu.
+  - **One avatar** (`components/Avatar.jsx`) for the sidebar and the phone menu, falling back to the email's initial in both. **A rename shows at once:** Firebase updates the user in place, so the sidebar and menu kept the old name until a reload; `updateDisplayName` in AuthContext re-renders them.
+  - **Connection badge:** in the collapsed sidebar the state was only a hover title; a screen reader now hears "Online"/"Offline" as it changes and can read the counts. The badge text is at least 12 px (it was 9–10 px) and plain: "3 waiting to sync", "300 saved for offline".
+  - **Focus timer:** the floating timer sits just above the phone's bottom bar, home-indicator inset included (a fixed 88 px sat under it). Its settings edit a draft: minutes are kept to 1–120 (clearing a field set a 0-minute block), there's a Cancel, and Save restarts the timer only when a duration changed (`components/Pomodoro.jsx`, `utils/pomodoroLogic.js` `clampMinutes`).
+  - **App update:** a new version shows a toast with **Reload** instead of a blocking `confirm()` that interrupted whatever the learner was doing (`main.jsx`).
+  - **Loading screens:** only the boot screen's label is a live region, so the rotating tips are no longer read out every few seconds; a page chunk loading says "Loading…" (was "Loading module").
+- [x] **Today** (`pages/Today.jsx`, was the Dashboard) — the home screen answers "what should I do now?": an exam countdown (Manila days, or a link to set the date), the streak, and the **Today card** (contents under Analytics & insights). "Set your exam date" and the target's "Change" are full touch targets; the next-step buttons sit full width under their text on a phone; "1 day to go" (was "1 days").
   - It used to be eleven stacked cards. Pass chance and the projected average appeared twice, today's target three times, and "Next best actions" overlapped "Today's prescription". The KPI strip, ability chart, forecast card, heatmap, confidence matrix and AI report moved to Progress; the mock ledger to Exams → Past sittings; the "Daily targets" panel became the Today card's per-subject bars.
   - The header's sync pill is gone (the shell's connection badge covers it), and the skeleton matches the new page (`TodaySkeleton`).
   - **Shared stats** (`hooks/useDashboardStats.js`): the reconciled aggregate Today and Progress both read, lifted from the Dashboard. The payload lives in `services/analyticsSync`, and both pages subscribe to it (`useSyncExternalStore`). Moving between them shows the last numbers at once instead of a skeleton, and the app-wide sync refresh reaches them. The Dashboard used to refetch on its own after every sync as well, doubling that request. The cached payload is keyed by account, so signing in as someone else never shows the previous account's numbers.
@@ -29,7 +35,7 @@ every feature add, change, or removal, not on a schedule.
   - **Study plan** — the planner.
   - These were spread over the Dashboard, Profile's "Comparative analytics" and "Deep analytics" (`features/analytics/AnalyticsDeepDive.jsx`, now split into `useDeepAnalytics.js` and `features/analytics/sections/*`), and the planner. Each section has an h2 heading under the page's h1 (they were h3, with emoji). **Dropped:** the deep dive's "Score history" tab (the same sittings as Exams → Past sittings) and the "Active Network Agents" online list.
   - `useDeepAnalytics` keeps each result per account for the session: a tab shown again appears at once and refreshes in the background after two minutes. A failed fetch shows an error with Try again, never "no data".
-- [x] **Account** (`pages/Account.jsx`, replaces Profile) — one scrolling page with anchored sections that other screens link to (`/account#offline`).
+- [x] **Account** (`pages/Account.jsx`, replaces Profile) — one scrolling page with anchored sections that other screens link to (`/account#offline`). **Jump links** to the nine sections sit under the header; on a phone "Sign-in & security" was a long scroll away with nothing saying it was there.
   - **Your name.**
   - **Exam plan** (`features/account/ExamPlanForm.jsx`): the **only** editor for the exam date and daily target (10–500), with days to go and the per-subject split. The date used to be editable in three places (Profile, Daily targets "Config", the planner), and the target only in Config. **The date can be cleared**: an empty date is saved as none (the store used to drop it, so a date once set could never be removed).
   - **Appearance** (the 13 themes).
@@ -83,6 +89,12 @@ every feature add, change, or removal, not on a schedule.
 ## Exam & Practice Modes
 
 - [x] **Practice** (`pages/Practice.jsx`, was Active Review) — per-question reveal MCQ and flashcard practice (`features/active-recall/{FlashcardMode,MCQMode,ReviewSetup,useReviewSession}.jsx`).
+  - **Launched from elsewhere** (Today, Progress, a review), it says "Starting your session…" until the session opens; the setup form flashed up first, as if the tap had gone nowhere.
+  - The **Flashcards** preset uses conceptual items only: a calculation as a flip card had a bare number on the back.
+  - **AI questions on "All subjects"** pick one real subject and one of its topics per batch; they asked the model for subject "All", topic "General".
+  - With no live syllabus loaded (a new device offline), the subject and topic lists fall back to the built-in syllabus instead of being empty.
+  - The per-question clock is labelled "This question" and stops pulsing when it passes three minutes (it turns red).
+  - The summary's three figures stack on a narrow phone. The mode guide marks Practice "You're here" instead of linking to the page it's on.
   - **Setup:** due reviews, then four one-tap presets: **Quick 20 · Weak spots · Flashcards · Bookmarks**. "Weak spots" is the one learner entry to the adaptive drill. It used to be offered three ways: that preset, a "Weak points" scope, and a "Smart drill" source that silently ignored the chosen subject.
   - **Custom session:** mode, focus, scope (**all subjects / one subject / one topic**), length, and source (**Question bank / My bookmarks / AI generated**). A preset's config left in the form (a drill, the due queue) shows and starts as a question-bank session over every subject (`features/active-recall/customView.js`).
   - **A fixed set** (`itemsPreset`): practises exactly the questions handed over — a past sitting's misses from its review — offline too, and "Practise again" repeats the set. The list never stays in the custom form's config.
@@ -297,7 +309,7 @@ every feature add, change, or removal, not on a schedule.
     - The Scratchpad is an 85dvh bottom sheet on phones, still see-through so the learner writes over the question; it used to cover, and size its canvas to, the whole page.
     - The account menu scrolls inside `max-h-[min(70dvh,32rem)]`.
     - Tab strips scroll sideways without a scrollbar track, which showed under Progress's seven tabs on phones.
-- [x] **"Which mode do I use?"** (`features/exams/{ModeGuide.jsx,modes.js}`) — Practice (untimed, answers after every question), Mock board (timed on the PRC clock, results at the end), Gauntlet (ranked ladder; not passing locks a tier for 12 hours) and Battles (the same timed set with friends), each linking to where it starts.
+- [x] **"Which mode do I use?"** (`features/exams/{ModeGuide.jsx,modes.js}`) — Practice (untimed, answers after every question), Mock board (timed on the PRC clock, results at the end), Gauntlet (ranked ladder; not passing locks a tier for 12 hours) and Battles (the same timed set with friends), each linking to where it starts. On a mode's own page it's marked "You're here", not a link to itself.
   - **Placement result:** shown open, with **Start here** on Practice below a 60% projected average, Mock board below the 70% pass mark, and the Gauntlet above it (`startingMode`). Folded, the modes are h2s (the summary isn't a heading).
   - **Exams and Practice:** folded under their page headers.
 - [x] **Answer feedback without colour** — the answering surfaces now work for a screen-reader or keyboard user.

@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
 import { generateQuestionsAI } from '../../services/geminiApi';
+import { TOS as fallbackTOS } from '../../config/constants';
 import { useAiExplanation } from '../quiz/useAiExplanation';
 import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
@@ -15,7 +16,10 @@ export const useReviewSession = (currentUser, isOnline) => {
     // Narrow, stable-reference slice on the per-answer hot path (avoids the
     // whole-store re-render storm); useStore.getState() below stays imperative.
     const { dynamicTOS, setStats, recordAttempt, queuePendingWrite, startSession: startStoreSession, endSession: endStoreSession } = useEngineActionsSlice();
-    const safeTOS = dynamicTOS || {};
+    // The built-in syllabus when the live one is empty (a new device offline,
+    // or a taxonomy fetch that returned nothing): the subject and topic lists
+    // were blank, and a session could not be set up at all.
+    const safeTOS = dynamicTOS && Object.keys(dynamicTOS).length > 0 ? dynamicTOS : fallbackTOS;
 
     const [config, setConfig] = useState({
         studyMode: 'subject', sessionMode: 'mcq',
@@ -121,13 +125,19 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (freshData.length === 0) throw new Error("None of your bookmarks match this subject or topic.");
             } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("The AI generator needs a connection.");
-                // Random topic within the subject (not always the first) so
-                // consecutive AI sessions vary.
-                const topics = safeTOS[cfg.subject] || [];
-                const targetTopic = cfg.studyMode === 'subtopic'
+                // "All subjects" picks one subject for this batch; it used to
+                // ask the model for subject "All", topic "General". Then a
+                // random topic within it (not always the first) so consecutive
+                // AI sessions vary.
+                const subjects = Object.keys(safeTOS).filter((k) => (safeTOS[k] || []).length > 0);
+                const aiSubject = cfg.subject && cfg.subject !== 'All'
+                    ? cfg.subject
+                    : (subjects[Math.floor(Math.random() * subjects.length)] || 'EE');
+                const topics = safeTOS[aiSubject] || [];
+                const targetTopic = cfg.studyMode === 'subtopic' && cfg.subtopic && cfg.subtopic !== 'All'
                     ? cfg.subtopic
                     : (topics[Math.floor(Math.random() * topics.length)] || 'General');
-                freshData = await generateQuestionsAI(cfg.subject, targetTopic, false);
+                freshData = await generateQuestionsAI(aiSubject, targetTopic, false);
 
                 // AI questions have no DB id, so their attempts were silently
                 // dropped by both the client (recordAttempt requires an id) and

@@ -10,7 +10,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { updateProfile } from 'firebase/auth';
 import { useShallow } from 'zustand/react/shallow';
 import { DISPLAY_NAME_MAX } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,6 +26,20 @@ import Milestones from '../features/account/Milestones';
 import DataSettings from '../features/account/DataSettings';
 import SecuritySettings from '../features/account/SecuritySettings';
 
+// Jump links to each section: Account is nine sections long, and on a phone
+// "Sign-in & security" was a long scroll down with no way to see what was there.
+const SECTIONS = [
+  ['profile', 'Name'],
+  ['exam-plan', 'Exam plan'],
+  ['appearance', 'Appearance'],
+  ['notifications', 'Notifications'],
+  ['offline', 'Offline & sync'],
+  ['placement', 'Placement test'],
+  ['achievements', 'Achievements'],
+  ['data', 'Your data'],
+  ['security', 'Sign-in & security'],
+];
+
 function Section({ id, title, description, children }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-20">
@@ -42,6 +55,7 @@ function Section({ id, title, description, children }) {
 }
 
 function NameForm({ currentUser }) {
+  const { updateDisplayName } = useAuth();
   const [name, setName] = useState(currentUser?.displayName || '');
   const [saving, setSaving] = useState(false);
   const unchanged = name.trim() === (currentUser?.displayName || '');
@@ -55,7 +69,7 @@ function NameForm({ currentUser }) {
       // The server row first — it's what rankings show — so a failed write
       // leaves both names unchanged rather than out of step.
       await updateUserProfile({ displayName: next });
-      await updateProfile(currentUser, { displayName: next });
+      await updateDisplayName(next);
       toast.success('Name updated.');
     } catch (err) {
       toast.error(err?.message === '[OFFLINE]' ? 'Reconnect to change your name.' : 'Couldn’t update your name — try again.');
@@ -87,6 +101,18 @@ export default function Account() {
   return (
     <Page width="narrow">
       <PageHeader title="Account" subtitle={currentUser?.email || undefined} />
+
+      <nav aria-label="Account sections" className="flex flex-wrap gap-2">
+        {[...SECTIONS, ...(isAdmin ? [['admin', 'Admin']] : [])].map(([id, label]) => (
+          <Link
+            key={id}
+            to={{ hash: id }}
+            className="touch-target inline-flex items-center px-3 py-1.5 rounded-full border border-border bg-surface2 text-xs font-medium text-muted2 hover:text-textMain hover:bg-surface3 transition-colors"
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
 
       <Section id="profile" title="Your name">
         <NameForm currentUser={currentUser} />

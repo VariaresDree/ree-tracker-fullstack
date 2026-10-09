@@ -44,12 +44,16 @@ export default function Practice() {
   const location = useLocation();
   const navigate = useNavigate();
   const presetLaunched = useRef(false);
+  // A session launched from another page shows "Starting…" until it opens;
+  // the setup form used to flash up first, as if the tap had gone nowhere.
+  const [launchingPreset, setLaunchingPreset] = useState(() => !!location.state?.preset);
   useEffect(() => {
     const preset = location.state?.preset;
-    if (!preset || presetLaunched.current || session.isActive || session.loading) return;
+    if (!preset || presetLaunched.current) return;
     presetLaunched.current = true;
     navigate(location.pathname, { replace: true, state: null });
-    startSession(preset);
+    const launch = session.isActive || session.loading ? Promise.resolve() : startSession(preset);
+    Promise.resolve(launch).finally(() => setLaunchingPreset(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
@@ -92,6 +96,15 @@ export default function Practice() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [session, config.sessionMode, showScratchpad, confirmEnd, currentQ, handleFlashcardReveal, handleFlashcardRating, loadNextQuestion]);
 
+
+  if (launchingPreset && !session.isActive) {
+      return (
+        <div role="status" className="flex flex-col items-center justify-center gap-4 h-[60vh] text-[var(--accent-text)]">
+          <span className="telemetry-spinner !w-10 !h-10 border-t-transparent" aria-hidden="true"></span>
+          <span className="text-sm font-semibold">Starting your session…</span>
+        </div>
+      );
+  }
 
   if (!session.isActive && lastSummary) {
       return (
@@ -145,8 +158,17 @@ export default function Practice() {
             <Badge tone={config.sessionMode === 'mcq' ? 'velocity' : 'signal'}>
                 {config.sessionMode === 'mcq' ? 'MCQ' : 'Flashcards'}
             </Badge>
-            <div className={`text-sm font-bold font-mono tabular-nums w-14 text-right ${elapsedTime > 180 ? 'text-[var(--accent-danger)] animate-pulse' : 'text-textMain'}`}>
-                {formatClock(elapsedTime, { pad: true })}
+            {/* Labelled: a bare "02:41" didn't say it was this question's time,
+                or why it turns red (past three minutes, the board's slowest
+                pace). */}
+            <div className="flex flex-col items-end leading-tight">
+                <span className="text-[11px] text-muted2">This question</span>
+                <span
+                  className={`text-sm font-bold font-mono tabular-nums ${elapsedTime > 180 ? 'text-[var(--accent-danger)]' : 'text-textMain'}`}
+                  title={elapsedTime > 180 ? 'Over three minutes on this question' : undefined}
+                >
+                  {formatClock(elapsedTime, { pad: true })}
+                </span>
             </div>
         </div>
       </div>

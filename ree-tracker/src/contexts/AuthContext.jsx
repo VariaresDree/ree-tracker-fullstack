@@ -47,6 +47,10 @@ const AUTH_STALL_MS = 25000;
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
+  // Firebase updates the user object in place, so a rename re-rendered
+  // nothing: the sidebar and menu kept the old name until a reload. Bumping
+  // this after updateProfile re-renders every consumer with the new name.
+  const [, bumpProfile] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   // False until this session's role is known. isAdmin arrives with the profile
   // request — seconds after sign-in on a cold backend — and the Admin route
@@ -253,8 +257,14 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
+  const updateDisplayName = async (displayName) => {
+    if (!auth.currentUser) throw new Error('Not signed in');
+    await updateProfile(auth.currentUser, { displayName });
+    bumpProfile((n) => n + 1);
+  };
+
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, reauthenticate, loading }}>
+    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, reauthenticate, updateDisplayName, loading }}>
       {!loading ? children : authStalled ? (
         // AUTH_STALL_MS elapsed with no onAuthStateChanged callback at all —
         // NOT the same as "logged out". A weak connection must never eject an

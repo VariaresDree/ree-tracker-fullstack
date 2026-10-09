@@ -112,7 +112,7 @@ function TargetBlock({ daily }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-eyebrow">Today’s target</span>
-        <Link to="/account#exam-plan" className="text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">Change</Link>
+        <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2" aria-label="Change your daily target">Change</Link>
       </div>
       <span className="text-display text-4xl text-textMain tabular-nums">
         {daily.done}<span className="text-lg text-muted2">/{daily.target}</span>
@@ -183,7 +183,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
           <h3 className="text-eyebrow">Next best actions</h3>
           <ol className="flex flex-col gap-2">
             {actions.map((a, i) => (
-              <li key={a.key} className="flex items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
+              <li key={a.key} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
                 <span aria-hidden="true" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums bg-surface3 text-textMain">
                   {i + 1}
                 </span>
@@ -191,10 +191,12 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
                   <p className="text-sm font-medium text-textMain">{a.title}</p>
                   <p className="text-xs text-muted2 line-clamp-2">{a.detail}</p>
                 </div>
+                {/* Full width under the text on a phone, where a long title
+                    squeezed the button to a sliver beside it. */}
                 {a.to ? (
-                  <Button size="sm" variant="secondary" as={Link} to={a.to}>{a.cta}</Button>
+                  <Button size="sm" variant="secondary" as={Link} to={a.to} className="w-full sm:w-auto">{a.cta}</Button>
                 ) : (
-                  <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} onClick={() => launchPractice(navigate, a.preset)}>
+                  <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} className="w-full sm:w-auto" onClick={() => launchPractice(navigate, a.preset)}>
                     {a.cta}
                   </Button>
                 )}

@@ -49,7 +49,9 @@ const PRESETS = [
     name: 'Flashcards',
     meta: '20 cards for definitions and facts',
     needsConnection: false,
-    overrides: { ...quickReviewPreset(20), sessionMode: 'flashcard' },
+    // Conceptual items only: a calculation as a flip card shows a bare number
+    // on the back, with nothing to recall.
+    overrides: { ...quickReviewPreset(20), sessionMode: 'flashcard', cognitiveFocus: 'conceptual' },
   },
   {
     id: 'bookmarks',
@@ -96,7 +98,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   return (
     <Page>
       <PageHeader title="Practice" subtitle="Pick a preset or build your own session." />
-      <ModeGuide folded />
+      <ModeGuide folded here="practice" />
 
       {/* Spaced review — what the schedule says is due today. Shown only once
           there is a queue: every miss and every low-confidence answer starts a

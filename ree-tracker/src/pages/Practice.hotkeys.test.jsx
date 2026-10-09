@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { act } from 'react';
 
 vi.mock('../components/LatexRenderer', () => ({
   default: ({ content }) => <span>{content}</span>,
@@ -27,6 +28,7 @@ const handleAnswerSelection = vi.fn();
 const setSession = vi.fn();
 const endSession = vi.fn();
 const loadNextQuestion = vi.fn();
+const startSession = vi.fn();
 let sessionState;
 
 vi.mock('../features/active-recall/useReviewSession', () => ({
@@ -37,7 +39,7 @@ vi.mock('../features/active-recall/useReviewSession', () => ({
     setSession,
     elapsedTime: 0,
     bookmarks: new Set(),
-    startSession: vi.fn(),
+    startSession,
     endSession,
     loadNextQuestion,
     handleAnswerSelection,
@@ -133,5 +135,22 @@ describe('Practice session controls', () => {
     expect(loadNextQuestion).not.toHaveBeenCalled();
     fireEvent.keyDown(document.body, { key: 'Enter' });
     expect(loadNextQuestion).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Practice launched from another page', () => {
+  it('shows "Starting your session…" until it opens, not the setup form', async () => {
+    let finish;
+    startSession.mockImplementationOnce(() => new Promise((r) => { finish = r; }));
+    sessionState = { ...sessionState, isActive: false, questions: [] };
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/practice', state: { preset: { count: 20 } } }]}>
+        <Practice />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Starting your session');
+    expect(startSession).toHaveBeenCalledWith({ count: 20 });
+    await act(async () => { finish(); });
+    expect(screen.queryByText('Starting your session…')).not.toBeInTheDocument();
   });
 });

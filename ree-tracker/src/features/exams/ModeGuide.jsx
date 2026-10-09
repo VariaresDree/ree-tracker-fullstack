@@ -10,17 +10,20 @@ import { Badge, cn } from '../../components/ui';
 import { ChevronDown } from '../../components/ui/icons';
 import { MODES } from './modes';
 
-function ModeList({ start, headingLevel = 3 }) {
+function ModeList({ start, here, headingLevel = 3 }) {
   const Heading = `h${headingLevel}`;
   return (
     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {MODES.map((m) => {
         const Icon = m.icon;
         const isStart = m.id === start;
+        // The page's own mode is not a link back to the page it's on.
+        const isHere = m.id === here;
+        const Tag = isHere ? 'div' : Link;
         return (
           <li key={m.id}>
-            <Link
-              to={m.to}
+            <Tag
+              {...(isHere ? { 'aria-current': 'page' } : { to: m.to })}
               className={cn(
                 'h-full flex gap-3 p-4 rounded-[var(--radius-lg)] border transition-colors',
                 isStart
@@ -33,11 +36,12 @@ function ModeList({ start, headingLevel = 3 }) {
                 <span className="flex flex-wrap items-center gap-2">
                   <Heading className="text-sm font-semibold text-textMain">{m.name}</Heading>
                   {isStart && <Badge tone="velocity">Start here</Badge>}
+                  {isHere && <Badge>You're here</Badge>}
                 </span>
                 <span className="text-xs font-medium text-muted2">{m.when}</span>
                 <span className="text-xs text-muted2 leading-relaxed">{m.how}</span>
               </span>
-            </Link>
+            </Tag>
           </li>
         );
       })}
@@ -50,7 +54,7 @@ function ModeList({ start, headingLevel = 3 }) {
  *   start: the mode to mark "Start here"; folded: a disclosure that opens on
  *   tap (Exams and Practice), instead of the open card (placement result).
  */
-export default function ModeGuide({ start, folded = false, headingLevel = folded ? 2 : 3 }) {
+export default function ModeGuide({ start, here, folded = false, headingLevel = folded ? 2 : 3 }) {
   if (folded) {
     return (
       <details className="group rounded-[var(--radius-lg)] border border-border bg-surface/60">
@@ -59,7 +63,7 @@ export default function ModeGuide({ start, folded = false, headingLevel = folded
           <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className="text-muted2 transition-transform group-open:rotate-180" />
         </summary>
         <div className="px-4 pb-4">
-          <ModeList start={start} headingLevel={headingLevel} />
+          <ModeList start={start} here={here} headingLevel={headingLevel} />
         </div>
       </details>
     );
@@ -67,7 +71,7 @@ export default function ModeGuide({ start, folded = false, headingLevel = folded
   return (
     <section aria-labelledby="mode-guide-heading" className="flex flex-col gap-3">
       <h2 id="mode-guide-heading" className="text-base font-semibold text-textMain">Which mode do I use?</h2>
-      <ModeList start={start} headingLevel={headingLevel} />
+      <ModeList start={start} here={here} headingLevel={headingLevel} />
     </section>
   );
 }

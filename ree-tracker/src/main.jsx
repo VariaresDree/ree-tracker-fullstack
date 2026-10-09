@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import toast from 'react-hot-toast';
 import App from './App';
 import './styles/index.css';
 
@@ -8,11 +9,21 @@ import { registerSW } from 'virtual:pwa-register';
 
 // Initializes background caching and auto-updates when a new deployment is detected
 const updateSW = registerSW({
+  // A toast with Reload, not a blocking confirm(): the dialog stopped
+  // whatever the learner was doing (mid-question, mid-exam) to ask.
   onNeedRefresh() {
-    // Optional: You can trigger a custom toast notification here later
-    if (confirm('A new version of REE.ai is ready. Reload now?')) {
-      updateSW(true);
-    }
+    toast((t) => (
+      <span className="flex items-center gap-3">
+        A new version of REE.ai is ready.
+        <button
+          type="button"
+          className="touch-target px-3 py-1.5 rounded-[var(--radius-default)] bg-surface2 border border-border text-textMain text-sm font-medium cursor-pointer"
+          onClick={() => { toast.dismiss(t.id); updateSW(true); }}
+        >
+          Reload
+        </button>
+      </span>
+    ), { id: 'app-update', duration: Infinity });
   },
   onOfflineReady() {
     console.log('REE.ai is ready to work offline.');

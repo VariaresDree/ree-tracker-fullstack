@@ -220,3 +220,23 @@ describe('items source (a past sitting’s misses)', () => {
     expect(toast.error).toHaveBeenLastCalledWith("There's nothing to practise from that sitting.");
   });
 });
+
+describe('AI source', () => {
+  it('"All subjects" asks the model for one real subject and one of its topics', async () => {
+    const { generateQuestionsAI } = await import('../../services/geminiApi');
+    const { saveQuestionToBank } = await import('../../services/dbQueries');
+    generateQuestionsAI.mockResolvedValue([q(null, 'EE', 'Machines')].map((x, i) => ({ ...x, id: undefined, text: `AI ${i}` })));
+    saveQuestionToBank.mockResolvedValue('new-id');
+    const { result } = setup();
+    await act(() => result.current.startSession({ source: 'ai', subject: 'All', subtopic: 'All', studyMode: 'interleaved', count: 1, sessionMode: 'mcq', cognitiveFocus: 'mixed' }));
+    const [subject, topic] = generateQuestionsAI.mock.calls[0];
+    expect(['Mathematics', 'ESAS', 'EE']).toContain(subject);
+    expect(topic).not.toBe('General');
+    expect(result.current.safeTOS[subject]).toContain(topic);
+  });
+
+  it('with no live syllabus, the subject lists fall back to the built-in one', () => {
+    const { result } = setup();
+    expect(Object.keys(result.current.safeTOS)).toEqual(expect.arrayContaining(['Mathematics', 'ESAS', 'EE']));
+  });
+});

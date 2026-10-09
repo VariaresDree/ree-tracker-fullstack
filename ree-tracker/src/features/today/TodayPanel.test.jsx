@@ -80,7 +80,7 @@ describe('TodayPanel', () => {
     // 40 a day by the PRC weights: Mathematics 10, ESAS 12, EE 18.
     expect(screen.getByRole('progressbar', { name: 'ESAS: 2 of 12' })).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'EE: 6 of 18' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Change' })).toHaveAttribute('href', '/account#exam-plan');
+    expect(screen.getByRole('link', { name: 'Change your daily target' })).toHaveAttribute('href', '/account#exam-plan');
     expect(screen.getByRole('link', { name: /in Progress/ })).toHaveAttribute('href', '/progress');
   });
 
