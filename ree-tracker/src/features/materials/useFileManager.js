@@ -33,8 +33,11 @@ export const useFileManager = (currentUser, isAdmin) => {
   const [folders, setFolders] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [currentFolderId, setCurrentFolderId] = useState('root');
-  const [breadcrumbs, setBreadcrumbs] = useState([{ id: 'root', name: 'Review Materials' }]);
+  const [breadcrumbs, setBreadcrumbs] = useState([{ id: 'root', name: 'Handouts' }]);
   const [isLoading, setIsLoading] = useState(true);
+  // null | 'offline' | 'failed'. The tab shows these instead of "This folder
+  // is empty" — a failed load used to toast and then claim there was nothing.
+  const [loadError, setLoadError] = useState(null);
 
   const [isUploading, setIsUploading] = useState(false);
   const [dragOverFolderId, setDragOverFolderId] = useState(null);
@@ -48,10 +51,13 @@ export const useFileManager = (currentUser, isAdmin) => {
             setFolders(data.folders || []);
             setMaterials(data.materials || []);
         }
+        setLoadError(null);
     } catch (error) {
-      if (!error.message?.includes('[OFFLINE]')) {
-        console.error("PostgreSQL read failure:", error);
-        toast.error("Failed to load files.");
+      if (isOfflineErr(error)) {
+        setLoadError('offline');
+      } else {
+        console.error("Handouts load failure:", error);
+        setLoadError('failed');
       }
     }
     setIsLoading(false);
@@ -294,7 +300,7 @@ export const useFileManager = (currentUser, isAdmin) => {
   };
 
   return {
-    folders, materials, currentFolderId, breadcrumbs, isLoading, isUploading, dragOverFolderId,
+    folders, materials, currentFolderId, breadcrumbs, isLoading, loadError, reload: fetchContents, isUploading, dragOverFolderId,
     navigateToFolder, navigateToBreadcrumb, createFolder, uploadAndCommitMaterial, addMaterialRecord,
     deleteItem, renameItem, moveItem,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop

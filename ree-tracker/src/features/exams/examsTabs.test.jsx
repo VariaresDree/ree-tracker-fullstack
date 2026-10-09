@@ -110,6 +110,16 @@ describe('RankingsTab', () => {
     expect(rows[1]).toMatch(/^2ME/);
   });
 
+  it('a failed load says so with Try again, not "No rankings yet"', async () => {
+    fetchPaginatedLeaderboard.mockRejectedValueOnce(new Error('500')).mockResolvedValueOnce({ agents: [agent('a', 0.9)], lastDoc: null });
+    fetchLeaderboardMe.mockResolvedValue({ rank: 1, total: 1 });
+    renderTab(<RankingsTab />);
+    expect(await screen.findByText("Couldn't load the rankings")).toBeInTheDocument();
+    expect(screen.queryByText('No rankings yet')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('A')).toBeInTheDocument();
+  });
+
   it('the server’s leading "you are here" row is not numbered #1', async () => {
     fetchPaginatedLeaderboard.mockResolvedValue({
       agents: [agent('me', -0.5, { offBoard: true }), agent('a', 0.9), agent('b', 0.4)],

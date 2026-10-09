@@ -10,6 +10,10 @@ const tones = {
     'bg-[color-mix(in_srgb,var(--accent-success)_15%,transparent)] text-[var(--accent-success)] border-[color-mix(in_srgb,var(--accent-success)_35%,transparent)]',
   danger:
     'bg-[color-mix(in_srgb,var(--accent-danger)_15%,transparent)] text-[var(--accent-danger)] border-[color-mix(in_srgb,var(--accent-danger)_35%,transparent)]',
+  // A conditional pass, "Today", "N marked". Callers asked for it before it
+  // existed, so those badges rendered with no colour at all.
+  amber:
+    'bg-[color-mix(in_srgb,var(--color-reeAmber)_15%,transparent)] text-[var(--color-reeAmber-text)] border-[color-mix(in_srgb,var(--color-reeAmber)_35%,transparent)]',
 };
 
 export function Badge({ tone = 'neutral', className, children }) {

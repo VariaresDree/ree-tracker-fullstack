@@ -1,9 +1,14 @@
 // src/features/materials/CloudVaultTab.jsx
+//
+// Library › Handouts: folders and files (PDFs, images, video, audio, links).
+// Learners browse and open; admins also organise. A failed load shows an
+// error with Try again and offline says so — both used to read "This folder
+// is empty" — and the first load has a skeleton.
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useFileManager } from './useFileManager';
-import { Button, Modal } from '../../components/ui';
-import { FolderOpen, FileText, Pencil, Scissors, X, Download, TriangleAlert } from '../../components/ui/icons';
+import { Button, EmptyState, FormField, Input, Modal, Select, Skeleton } from '../../components/ui';
+import { FolderOpen, FileText, FileUp, Pencil, Plus, Scissors, X, Download, TriangleAlert, CloudOff } from '../../components/ui/icons';
 
 export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) {
   const [sortBy, setSortBy] = useState('name');
@@ -17,7 +22,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, type: null, name: '' });
 
   const {
-    folders, materials, currentFolderId, breadcrumbs, isUploading, dragOverFolderId,
+    folders, materials, currentFolderId, breadcrumbs, isLoading, loadError, reload, isUploading, dragOverFolderId,
     navigateToFolder, navigateToBreadcrumb, createFolder, uploadAndCommitMaterial, addMaterialRecord,
     deleteItem, renameItem, moveItem,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
@@ -27,7 +32,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
     e.stopPropagation();
     if (!isAdmin) return;
     setClipboard({ id: item.id, type, name: item.name, oldParentId: item.parentId || 'root' });
-    toast.success(`Cut "${item.name}". Use "Paste Here" to move.`);
+    toast.success(`Cut "${item.name}". Open the folder to move it to and choose Paste here.`);
   };
 
   const handlePaste = async () => {
@@ -174,15 +179,17 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-3 items-center">
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="appearance-none bg-surface2 border border-border2 text-muted hover:text-textMain px-4 py-2.5 rounded-lg text-xs font-bold focus:border-reeBlue cursor-pointer transition-colors">
-            <option value="name">Sort Files: A-Z</option>
-            <option value="date">Sort Files: Recent</option>
-          </select>
+        <div className="flex flex-wrap gap-3 items-end">
+          <FormField label="Sort files" className="w-40">
+            <Select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="name">Name (A–Z)</option>
+              <option value="date">Newest first</option>
+            </Select>
+          </FormField>
           {isAdmin && (
             <>
-              <button onClick={() => setIsCreatingFolder(true)} className="px-4 py-2.5 bg-surface2 hover:bg-surface3 border border-border2 text-textMain rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm flex items-center gap-2"><span>+</span> Folder</button>
-              <button onClick={() => setIsAddingMaterial(true)} className="px-5 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-md flex items-center gap-2"><span>+</span> Import Media</button>
+              <Button variant="secondary" onClick={() => setIsCreatingFolder(true)}><Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Folder</Button>
+              <Button onClick={() => setIsAddingMaterial(true)}><Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Add a file or link</Button>
             </>
           )}
         </div>
@@ -191,59 +198,80 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
       {isCreatingFolder && isAdmin && (
         <div className="p-5 bg-surface border border-reeBlue/40 rounded-xl flex flex-col sm:flex-row gap-3 items-center shadow-lg animate-in fade-in slide-in-from-top-2">
           <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="hidden sm:block text-[var(--accent-text)]" />
-          <input autoFocus value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Enter new subfolder name..." className="flex-1 w-full bg-bg border border-border2 text-sm text-textMain px-4 py-2.5 rounded-lg focus:border-reeBlue transition-colors" />
+          <Input autoFocus aria-label="New folder name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolderClick(); }} placeholder="Folder name" className="flex-1" />
           <div className="flex gap-2 w-full sm:w-auto">
-            <button onClick={handleCreateFolderClick} className="flex-1 sm:flex-none px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors">Create</button>
-            <button onClick={() => setIsCreatingFolder(false)} className="flex-1 sm:flex-none px-4 py-2.5 bg-surface2 hover:bg-surface3 text-muted border border-border2 font-bold rounded-lg text-xs cursor-pointer transition-colors">Cancel</button>
+            <Button className="flex-1 sm:flex-none" onClick={handleCreateFolderClick} disabled={!newFolderName.trim()}>Create</Button>
+            <Button className="flex-1 sm:flex-none" variant="secondary" onClick={() => setIsCreatingFolder(false)}>Cancel</Button>
           </div>
         </div>
       )}
 
       {isAddingMaterial && isAdmin && (
         <div className="p-6 bg-surface border border-border2 rounded-xl flex flex-col gap-5 shadow-xl animate-in fade-in slide-in-from-top-2">
-          <div className="flex gap-4 border-b border-border2 pb-3">
-            <button onClick={() => setUploadMode('local')} className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 cursor-pointer transition-colors ${uploadMode === 'local' ? 'border-reeBlue text-reeBlue-text' : 'border-transparent text-muted hover:text-muted2'}`}>💻 Direct Media Upload</button>
-            <button onClick={() => setUploadMode('link')} className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 cursor-pointer transition-colors ${uploadMode === 'link' ? 'border-reeCyan text-reeCyan-text' : 'border-transparent text-muted hover:text-muted2'}`}>🔗 Cloud URL (YouTube/Drive)</button>
+          <div className="flex gap-2" role="group" aria-label="Add from">
+            <Button size="sm" variant={uploadMode === 'local' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'local'} onClick={() => setUploadMode('local')}>Upload a file</Button>
+            <Button size="sm" variant={uploadMode === 'link' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'link'} onClick={() => setUploadMode('link')}>Link (YouTube or Google Drive)</Button>
           </div>
-          
+
+
           {uploadMode === 'local' ? (
             <div className="border-2 border-dashed border-border2 rounded-xl p-8 text-center hover:bg-surface2 transition-colors relative cursor-pointer">
-              <input type="file" accept=".pdf,.doc,.docx,image/*,audio/*,video/*" onChange={handleLocalFileUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" />
-              <div className="text-sm font-bold text-muted2 flex flex-col items-center gap-3">
+              <input type="file" aria-label="Choose a file to upload" accept=".pdf,.doc,.docx,image/*,audio/*,video/*" onChange={handleLocalFileUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" />
+              <div className="text-sm text-muted2 flex flex-col items-center gap-3" aria-live="polite">
                 {isUploading ? (
-                  <><span className="telemetry-spinner border-reeBlue border-t-transparent"></span> Uploading…</>
+                  <><span className="telemetry-spinner border-reeBlue border-t-transparent" aria-hidden="true"></span> Uploading…</>
                 ) : (
-                  <><span className="text-3xl opacity-50">📥</span><span>Click or Drop to scan local storage for PDF, Image, Video, or Audio</span></>
+                  <><FileUp size={28} strokeWidth={1.5} aria-hidden="true" className="text-muted" /><span>Choose or drop a file: PDF, Word, image, video or audio.</span></>
                 )}
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Media Display Title</label>
-                <input value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="e.g. AC Circuits Lecture" className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm focus:border-reeCyan transition-colors" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Target Web Vector (URL)</label>
-                <input value={newMaterial.url} onChange={e => setNewMaterial({...newMaterial, url: e.target.value})} placeholder="Paste YouTube link or Google Drive Shareable Link..." className="w-full bg-bg border border-border2 text-textMain p-3 rounded-lg text-sm focus:border-reeCyan transition-colors" />
-              </div>
+              <FormField label="Title">
+                <Input value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="e.g. AC circuits lecture" />
+              </FormField>
+              <FormField label="Link" hint="A YouTube link, or a Google Drive link shared with anyone who has it.">
+                <Input type="url" value={newMaterial.url} onChange={e => setNewMaterial({...newMaterial, url: e.target.value})} placeholder="https://" />
+              </FormField>
             </div>
           )}
           
           <div className="flex justify-end gap-3 mt-2 border-t border-border2 pt-4">
-            <button onClick={() => setIsAddingMaterial(false)} className="px-5 py-2.5 bg-surface2 hover:bg-surface3 text-textMain border border-border2 rounded-lg text-xs font-bold cursor-pointer transition-colors">Cancel</button>
+            <Button variant="secondary" onClick={() => setIsAddingMaterial(false)}>Cancel</Button>
             {uploadMode === 'link' && (
-                <button onClick={handleAddMaterialClick} disabled={!newMaterial.url || isUploading} className="px-6 py-2.5 bg-reeBlue hover:bg-reeBlue2 text-white font-bold rounded-lg text-xs disabled:opacity-40 cursor-pointer transition-colors shadow-md">Commit Media</button>
+                <Button onClick={handleAddMaterialClick} disabled={!newMaterial.name || !newMaterial.url || isUploading}>Add link</Button>
             )}
           </div>
         </div>
       )}
 
-      {visibleFolders.length === 0 && visibleMaterials.length === 0 ? (
-        <div className="py-20 text-center border-2 border-dashed border-border2 rounded-2xl flex flex-col items-center gap-3 animate-in fade-in">
-          <div className="text-sm font-bold text-muted2">This folder is empty.</div>
-          {isAdmin && <div className="text-xs text-muted">Create a folder or upload a file to start.</div>}
+      {isLoading && folders.length === 0 && materials.length === 0 ? (
+        <div role="status" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <span className="sr-only">Loading the handouts…</span>
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[72px] rounded-xl" />)}
         </div>
+      ) : loadError && folders.length === 0 && materials.length === 0 ? (
+        loadError === 'offline' ? (
+          <EmptyState
+            icon={CloudOff}
+            title="Handouts need a connection"
+            description="Reconnect to browse them."
+            action={<Button variant="secondary" onClick={reload}>Try again</Button>}
+          />
+        ) : (
+          <EmptyState
+            icon={TriangleAlert}
+            title="Couldn't load the handouts"
+            description="Something went wrong on our side or the connection dropped."
+            action={<Button onClick={reload}>Try again</Button>}
+          />
+        )
+      ) : visibleFolders.length === 0 && visibleMaterials.length === 0 ? (
+        <EmptyState
+          icon={FolderOpen}
+          title="This folder is empty"
+          description={isAdmin ? 'Create a folder or add a file to start.' : 'Nothing has been added here yet.'}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {visibleFolders.map(f => {
@@ -299,7 +327,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
               key={m.id}
               draggable={isAdmin ? "true" : "false"}
               onDragStart={(e) => handleDragStart(e, m, 'material')}
-              className="p-5 bg-surface border border-border2 rounded-xl flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors cursor-grab active:cursor-grabbing"
+              className={`p-5 bg-surface border border-border2 rounded-xl flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
             >
               <div className="flex justify-between items-start">
                 <span className={`px-2 py-0.5 bg-bg border border-border2 text-[11px] font-mono rounded uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>

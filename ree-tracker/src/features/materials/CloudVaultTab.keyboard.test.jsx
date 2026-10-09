@@ -7,6 +7,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const navigateToFolder = vi.fn();
+const reload = vi.fn();
+let hookState = {};
 vi.mock('./useFileManager', () => ({
   useFileManager: () => ({
     folders: [{ id: 'f1', name: 'Power Systems notes', parentId: 'root' }],
@@ -27,6 +29,10 @@ vi.mock('./useFileManager', () => ({
     handleDragOver: vi.fn(),
     handleDragLeave: vi.fn(),
     handleDrop: vi.fn(),
+    isLoading: false,
+    loadError: null,
+    reload,
+    ...hookState,
   }),
 }));
 
@@ -45,5 +51,36 @@ describe('Handouts folders', () => {
     expect(navigateToFolder).toHaveBeenCalledTimes(2);
     fireEvent.keyDown(open, { key: 'a' });
     expect(navigateToFolder).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Handouts states', () => {
+  const renderTab = () => render(<CloudVaultTab currentUser={{ uid: 'u1' }} isAdmin={false} onViewMaterial={vi.fn()} />);
+
+  it('a failed load is an error with Try again, not "This folder is empty"', () => {
+    hookState = { folders: [], loadError: 'failed' };
+    renderTab();
+    expect(screen.getByText("Couldn't load the handouts")).toBeInTheDocument();
+    expect(screen.queryByText('This folder is empty')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it('offline says it needs a connection', () => {
+    hookState = { folders: [], loadError: 'offline' };
+    renderTab();
+    expect(screen.getByText('Handouts need a connection')).toBeInTheDocument();
+  });
+
+  it('the first load shows a skeleton', () => {
+    hookState = { folders: [], isLoading: true };
+    renderTab();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the handouts');
+  });
+
+  it('the sort control is labelled', () => {
+    hookState = {};
+    renderTab();
+    expect(screen.getByLabelText('Sort files')).toBeInTheDocument();
   });
 });

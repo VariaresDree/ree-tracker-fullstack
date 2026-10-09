@@ -7,7 +7,7 @@
 //
 // Pages that switch between this and ExamLayout (Simulator, Gauntlet,
 // placement test) render it themselves; the rest get it from App's AppShell.
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import FloatingPomodoro from '../components/FloatingPomodoro';
 import { useUISlice } from '../store/slices';
@@ -33,10 +33,35 @@ export default function MainLayout({ children }) {
 
   // A new page starts at its top — or at the section a link points to
   // (/account#offline). The router keeps the old scroll position otherwise.
+  // Pages are lazy, so the section is often not there yet when this runs: it
+  // waits (up to 3 s) for it to mount. It used to look once, find nothing and
+  // leave the page at the top.
+  //
+  // On a change of page, focus moves to the page itself, so a keyboard or
+  // screen-reader user starts at its heading instead of on the link that led
+  // there (deep in the navigation). Not on first load, and not for a section
+  // link within the same page.
+  const lastPathRef = useRef(location.pathname);
   useEffect(() => {
-    const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
-    if (target) target.scrollIntoView?.({ block: 'start' });
-    else window.scrollTo?.(0, 0);
+    const pageChanged = lastPathRef.current !== location.pathname;
+    lastPathRef.current = location.pathname;
+    if (pageChanged) document.getElementById('main-content')?.focus?.({ preventScroll: true });
+
+    const id = location.hash ? decodeURIComponent(location.hash.slice(1)) : '';
+    if (!id) { window.scrollTo?.(0, 0); return undefined; }
+    const scrollToSection = () => {
+      const target = document.getElementById(id);
+      if (!target) return false;
+      target.scrollIntoView?.({ block: 'start' });
+      return true;
+    };
+    if (scrollToSection() || typeof MutationObserver === 'undefined') return undefined;
+    const observer = new MutationObserver(() => {
+      if (scrollToSection()) { observer.disconnect(); clearTimeout(timer); }
+    });
+    observer.observe(document.getElementById('main-content') || document.body, { childList: true, subtree: true });
+    const timer = setTimeout(() => observer.disconnect(), 3000);
+    return () => { observer.disconnect(); clearTimeout(timer); };
   }, [location.pathname, location.hash]);
 
   // Offsets for sticky children, set by the layout that knows its chrome.
@@ -74,7 +99,7 @@ export default function MainLayout({ children }) {
         key={location.pathname}
         id="main-content"
         tabIndex={-1}
-        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 overflow-x-clip relative page-fade-in outline-none"
+        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem)] md:pb-8 overflow-x-clip relative page-fade-in outline-none"
       >
         {children}
       </main>

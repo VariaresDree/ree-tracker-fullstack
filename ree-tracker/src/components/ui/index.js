@@ -14,6 +14,7 @@ export { EmptyState } from './EmptyState';
 export { SegmentedControl } from './SegmentedControl';
 export { Tabs } from './Tabs';
 export { PageHeader } from './PageHeader';
+export { Page } from './Page';
 export { ProgressIndicator } from './ProgressIndicator';
 export { Sparkline } from './Sparkline';
 export { cn } from './cn';

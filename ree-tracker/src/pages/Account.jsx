@@ -17,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { syncDashboardStats } from '../services/analyticsSync';
 import { updateUserProfile } from '../services/dbQueries';
-import { PageHeader, Card, Button, FormField, Input } from '../components/ui';
+import { Page, PageHeader, Card, Button, FormField, Input } from '../components/ui';
 import ThemingArchitecture from '../features/profile/ThemingArchitecture';
 import CredentialsTab from '../features/profile/CredentialsTab';
 import ExamPlanForm from '../features/account/ExamPlanForm';
@@ -85,7 +85,7 @@ export default function Account() {
   }, [currentUser?.uid]);
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-3xl mx-auto pt-4">
+    <Page width="narrow">
       <PageHeader title="Account" subtitle={currentUser?.email || undefined} />
 
       <Section id="profile" title="Your name">
@@ -131,6 +131,6 @@ export default function Account() {
           <Button as={Link} to="/admin" variant="secondary" className="self-start">Open admin tools</Button>
         </Section>
       )}
-    </div>
+    </Page>
   );
 }

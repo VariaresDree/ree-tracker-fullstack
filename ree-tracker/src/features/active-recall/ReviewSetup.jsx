@@ -3,7 +3,7 @@
 // Practice's setup screen: due reviews, four one-tap presets, and a custom
 // session behind a disclosure.
 import { useState } from 'react';
-import { Card, Button, FormField, Select, SegmentedControl, PageHeader, cn } from '../../components/ui';
+import { Card, Button, FormField, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
 import { Shuffle, Crosshair, Layers, Bookmark, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
@@ -94,7 +94,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   };
 
   return (
-    <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
+    <Page>
       <PageHeader title="Practice" subtitle="Pick a preset or build your own session." />
       <ModeGuide folded />
 
@@ -290,6 +290,6 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           </div>
         )}
       </Card>
-    </div>
+    </Page>
   );
 }

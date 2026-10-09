@@ -11,7 +11,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
-import { PageHeader, Tabs, Skeleton } from '../components/ui';
+import { Page, PageHeader, Tabs, Skeleton } from '../components/ui';
 import { Cloud, BookOpen, Bookmark, FileUp } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -45,7 +45,7 @@ export default function Library() {
   }
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-6xl mx-auto pt-4">
+    <Page>
       <PageHeader title="Library" subtitle="Formula cards, handouts, the questions you bookmarked, and quizzes you imported." />
 
       <Tabs label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
@@ -72,6 +72,6 @@ export default function Library() {
           </Suspense>
         </ErrorBoundary>
       )}
-    </div>
+    </Page>
   );
 }

@@ -27,7 +27,7 @@ const BREAKDOWN = [
   ['consistency', 'Consistency'],
 ];
 
-function ReadinessBlock({ readiness, trend }) {
+function ReadinessBlock({ readiness, trend, settled, isOnline }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-eyebrow">Board readiness index</span>
@@ -57,6 +57,9 @@ function ReadinessBlock({ readiness, trend }) {
             </dl>
           )}
         </>
+      ) : settled ? (
+        // Offline it never arrives; this used to stay a skeleton.
+        <span className="text-sm text-muted2">{isOnline ? 'Readiness unavailable right now.' : 'Unavailable offline.'}</span>
       ) : (
         <Skeleton className="h-16 w-32" />
       )}
@@ -64,7 +67,7 @@ function ReadinessBlock({ readiness, trend }) {
   );
 }
 
-function PassBlock({ snapshot, loading }) {
+function PassBlock({ snapshot, loading, isOnline }) {
   const projection = snapshot?.subjectForecasts;
   return (
     <div className="flex flex-col gap-2">
@@ -88,7 +91,7 @@ function PassBlock({ snapshot, loading }) {
       ) : loading ? (
         <Skeleton className="h-16 w-32" />
       ) : (
-        <span className="text-sm text-muted2">Forecast unavailable right now.</span>
+        <span className="text-sm text-muted2">{isOnline ? 'Forecast unavailable right now.' : 'Unavailable offline.'}</span>
       )}
     </div>
   );
@@ -137,7 +140,7 @@ function TargetBlock({ daily }) {
   );
 }
 
-export default function TodayPanel({ stats, readiness, uid, answered = 0, today }) {
+export default function TodayPanel({ stats, readiness, readinessSettled = false, uid, answered = 0, today }) {
   const navigate = useNavigate();
   const isOnline = useNetworkStatus();
   const { snapshot, loading } = useForecast();
@@ -171,8 +174,8 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0, today 
         <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain">Where you stand, and what to do next</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <ReadinessBlock readiness={readiness} trend={trend} />
-          <PassBlock snapshot={snapshot} loading={loading} />
+          <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} />
+          <PassBlock snapshot={snapshot} loading={loading} isOnline={isOnline} />
           <TargetBlock daily={daily} />
         </div>
 

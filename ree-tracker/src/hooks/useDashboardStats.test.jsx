@@ -63,6 +63,22 @@ describe('useDashboardStats', () => {
     expect(result.current.readiness).toBeNull();
   });
 
+  it('a failed fetch on a device with no saved stats ends loading as unavailable, and retry fetches again', async () => {
+    useStore.setState({ stats: null });
+    apiRequest.mockRejectedValueOnce(new Error('[OFFLINE]'));
+    fetchReadinessScore.mockResolvedValueOnce(null);
+    const { result } = renderHook(() => useDashboardStats({ withReadiness: true }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.unavailable).toBe(true);
+    expect(result.current.readinessSettled).toBe(true);
+    expect(result.current.readiness).toBeNull();
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.unavailable).toBe(false));
+    expect(apiRequest).toHaveBeenCalledTimes(2);
+    expect(result.current.activeStats.totalAnswered).toBe(10);
+  });
+
   it('with readiness, fetches the composite index too', async () => {
     const { result } = renderHook(() => useDashboardStats({ withReadiness: true }));
     await waitFor(() => expect(result.current.readiness).toEqual({ score: 61 }));

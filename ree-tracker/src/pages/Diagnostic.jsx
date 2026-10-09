@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
 import QuestionCard from '../features/quiz/QuestionCard';
-import { Button, Card, Badge, ProgressIndicator, Skeleton, EmptyState } from '../components/ui';
+import { Button, Card, Badge, Page, PageHeader, ProgressIndicator, Skeleton, EmptyState } from '../components/ui';
 import { Compass, ArrowRight } from '../components/ui/icons';
 import { fetchDiagnosticStatus, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
@@ -36,11 +36,16 @@ export default function Diagnostic() {
   const [result, setResult] = useState(null);
   const shownAt = useRef(Date.now());
 
+  // Try again asks again; it used to reload the whole app.
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    let cancelled = false;
     fetchDiagnosticStatus()
-      .then((s) => { setStatus(s); setPhase('intro'); })
-      .catch(() => setPhase('error'));
-  }, []);
+      .then((s) => { if (!cancelled) { setStatus(s); setPhase('intro'); } })
+      .catch(() => { if (!cancelled) setPhase('error'); });
+    return () => { cancelled = true; };
+  }, [attempt]);
+  const retry = () => { setPhase('loading'); setAttempt((n) => n + 1); };
 
   const showItem = (next, prog) => {
     setItem(next);
@@ -95,6 +100,7 @@ export default function Diagnostic() {
   if (phase === 'question' && item) {
     return (
       <ExamLayout shortMessage="Placement test" message="Placement test — answers are revealed at the end">
+        <h1 className="sr-only">Placement test</h1>
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between text-xs text-muted2">
@@ -129,13 +135,15 @@ export default function Diagnostic() {
 
   return (
     <MainLayout>
-      <div className="max-w-3xl mx-auto w-full flex flex-col gap-6 page-fade-in">
-        <div>
-          <h1 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Placement test</h1>
-          <p className="text-sm text-muted2 mt-1">Find where you stand on the PRC scale before you plan your review.</p>
-        </div>
+      <Page width="narrow">
+        <PageHeader title="Placement test" subtitle="Find where you stand on the PRC scale before you plan your review." />
 
-        {phase === 'loading' && <Skeleton className="h-48" />}
+        {phase === 'loading' && (
+          <div role="status">
+            <span className="sr-only">Loading the placement test…</span>
+            <Skeleton className="h-48" />
+          </div>
+        )}
 
         {phase === 'error' && (
           <Card elevated>
@@ -143,7 +151,7 @@ export default function Diagnostic() {
               icon={Compass}
               title="Placement test unavailable"
               description="The service could not be reached. Check your connection and try again."
-              action={<Button onClick={() => window.location.reload()}>Try again</Button>}
+              action={<Button onClick={retry}>Try again</Button>}
             />
           </Card>
         )}
@@ -182,7 +190,7 @@ export default function Diagnostic() {
         )}
 
         {phase === 'result' && result && <PlacementResult result={result} sessionId={sessionId} />}
-      </div>
+      </Page>
     </MainLayout>
   );
 }

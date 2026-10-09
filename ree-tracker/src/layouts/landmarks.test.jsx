@@ -10,8 +10,9 @@
 //   - animate-in / fade-in / slide-in-from-* were used ~190 times and defined
 //     nowhere (the tailwindcss-animate plugin was never installed).
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { MemoryRouter, Link, Routes, Route } from 'react-router-dom';
+import React from 'react';
 import fs from 'node:fs';
 import path from 'node:path';
 import MainLayout from './MainLayout';
@@ -42,6 +43,37 @@ describe('MainLayout landmarks', () => {
         const main = screen.getByRole('main');
         expect(main).toHaveAttribute('id', 'main-content');
         expect(main).toHaveAttribute('tabindex', '-1');
+    });
+
+    it('a change of page moves focus to the page; first load does not', () => {
+        render(
+            <MemoryRouter initialEntries={['/a']}>
+                <MainLayout>
+                    <Link to="/b">Go to B</Link>
+                    <Routes><Route path="/a" element={<p>A</p>} /><Route path="/b" element={<p>B</p>} /></Routes>
+                </MainLayout>
+            </MemoryRouter>,
+        );
+        expect(document.activeElement).not.toBe(screen.getByRole('main'));
+        const link = screen.getByRole('link', { name: 'Go to B' });
+        link.focus();
+        fireEvent.click(link);
+        expect(screen.getByText('B')).toBeInTheDocument();
+        expect(document.activeElement).toBe(screen.getByRole('main'));
+    });
+
+    it('a section link waits for a page that mounts late', async () => {
+        const scrolled = vi.fn();
+        function Late() {
+            // Mounts its section a moment after the layout's effect ran, as a lazy page does.
+            const [ready, setReady] = React.useState(false);
+            React.useEffect(() => { const t = setTimeout(() => setReady(true), 20); return () => clearTimeout(t); }, []);
+            return ready ? <section id="offline" ref={(el) => { if (el) el.scrollIntoView = scrolled; }}>Offline</section> : null;
+        }
+        render(<MemoryRouter initialEntries={['/account#offline']}><MainLayout><Late /></MainLayout></MemoryRouter>);
+        expect(scrolled).not.toHaveBeenCalled();
+        await act(() => new Promise((r) => setTimeout(r, 60)));
+        expect(scrolled).toHaveBeenCalled();
     });
 
     it('<main> does not capture sticky children', () => {
