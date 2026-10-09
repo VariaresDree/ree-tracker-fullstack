@@ -44,7 +44,7 @@ export default function LibraryIngestion({
         <div className="p-6 bg-surface border border-border rounded-[var(--radius-lg)] flex flex-col justify-between shadow-sm">
           <div>
             <h3 className="text-base font-semibold text-textMain flex items-center gap-2 mb-1">
-              <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> AI ingestion
+              <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> AI ingestion
             </h3>
             <p className="text-xs text-muted2 mb-5">Generate new questions targeted at a specific topic from the syllabus.</p>
             <div className="flex flex-col gap-3">

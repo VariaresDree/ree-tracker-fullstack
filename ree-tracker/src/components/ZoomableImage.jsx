@@ -1,5 +1,4 @@
 // src/components/ZoomableImage.jsx
-import React from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 export default function ZoomableImage({ src, alt }) {

@@ -93,7 +93,7 @@ export function useSyncLifecycle() {
         } else {
           localStorage.removeItem('ree_pending_sync');
         }
-      } catch (_) { /* quota/serialization — best effort */ }
+      } catch { /* quota/serialization — best effort */ }
 
       const user = auth.currentUser;
       if (!user || syncQueue.length === 0 || !navigator.onLine) return;

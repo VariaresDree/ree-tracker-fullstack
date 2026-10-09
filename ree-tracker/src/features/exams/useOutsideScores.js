@@ -9,19 +9,13 @@
 //     server last said, so the list never jumps back while they wait.
 //   • Ids are made on the device, so an entry created offline and then edited
 //     or deleted offline is one row when the queue replays.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useStore } from '../../store/useStore';
-import { apiRequest } from '../../services/dbQueries';
-import { readUserCache, writeUserCache } from '../../services/userCache';
+// The caching, overlay, stale-list and status rules are hooks/useSyncedUserData.
+import { useCallback } from 'react';
+import { useSyncedUserData, resetSyncedMemory } from '../../hooks/useSyncedUserData';
 import { writeOrQueue } from '../../services/writeOrQueue';
-import { classifySyncError, SYNC_OUTCOME } from '../../services/syncPolicy';
 
 export const OUTSIDE_SCORES_ENDPOINT = '/api/user/outside-scores';
 const CACHE = 'outsideScores';
-
-// Module-level, keyed by account: a remount (tab switch) paints instantly.
-let memory = { uid: null, items: null };
 
 /** A v4 UUID. crypto.randomUUID needs a secure context; the fallback doesn't. */
 export function newEntryId() {
@@ -70,90 +64,21 @@ export function pendingChanges(writes, uid, ownerUid = null) {
     });
 }
 
+const fromResponse = (res) => res?.items || [];
+const NO_ENTRIES = [];
+const overlay = (items, writes, uid, ownerUid) => {
+  const queued = pendingChanges(writes, uid, ownerUid);
+  return { value: items == null ? null : queued.reduce(applyChange, items), count: queued.length };
+};
+
 export function useOutsideScores() {
-  const { currentUser } = useAuth();
-  const uid = currentUser?.uid;
-  const pendingWrites = useStore((s) => s.pendingWrites);
-  const ownerUid = useStore((s) => s.ownerUid);
-  // Held with the account it belongs to: after a sign-in as someone else the
-  // previous list reads as null at once, with no reset needed.
-  const [data, setData] = useState(() => ({ uid: memory.uid, items: memory.items }));
-  const server = data.uid === uid ? data.items : null;
-  const setServer = useCallback((next) => setData((prev) => {
-    const current = prev.uid === uid ? prev.items : null;
-    return { uid, items: typeof next === 'function' ? next(current) : next };
-  }), [uid]);
-  // loading | ready | offline (no connection) | unreachable (server error) | error (rejected)
-  const [status, setStatus] = useState('loading');
-
-  const queued = useMemo(() => pendingChanges(pendingWrites, uid, ownerUid), [pendingWrites, uid, ownerUid]);
-  const items = useMemo(
-    () => (server ? queued.reduce(applyChange, server) : null),
-    [server, queued],
-  );
-
-  // Keep memory and the device cache in step with what the screen shows.
-  useEffect(() => {
-    if (!uid || !server) return;
-    memory = { uid, items: server };
-    writeUserCache(uid, CACHE, server);
-  }, [uid, server]);
-
-  // Changes made on this screen: how many, and how many are still being sent.
-  // A list fetched while one was made may predate it; applying that list
-  // would bring back a just-deleted entry, so it waits for the writes to
-  // finish and is fetched again.
-  const writes = useRef({ made: 0, sending: 0, refetch: false });
-  const loadRef = useRef(null);
-
-  const load = useCallback(() => {
-    if (!uid) return Promise.resolve();
-    const madeBefore = writes.current.made;
-    // Queued changes first, so the list fetched includes them.
-    const flushed = navigator.onLine
-      ? useStore.getState().flushPendingWrites().catch(() => {})
-      : Promise.resolve();
-    return flushed
-      .then(() => apiRequest(OUTSIDE_SCORES_ENDPOINT))
-      .then((res) => {
-        const w = writes.current;
-        if (w.made !== madeBefore || w.sending > 0) {
-          if (w.sending > 0) w.refetch = true;
-          else loadRef.current?.();
-          return;
-        }
-        setServer(res?.items || []);
-        setStatus('ready');
-      })
-      .catch((err) => {
-        const outcome = classifySyncError(err);
-        setStatus(outcome === SYNC_OUTCOME.OFFLINE ? 'offline' : outcome === SYNC_OUTCOME.TRANSIENT ? 'unreachable' : 'error');
-        setServer((prev) => prev || []);
-      });
-  }, [uid, setServer]);
-  useEffect(() => { loadRef.current = load; }, [load]);
-
-  useEffect(() => {
-    if (!uid) return undefined;
-    let live = true;
-    if (memory.uid !== uid) {
-      readUserCache(uid, CACHE).then((cached) => {
-        if (live && cached) setServer((prev) => prev || cached);
-      });
-    }
-    load();
-    return () => { live = false; };
-  }, [uid, load, setServer]);
-
-  // The queue drained (the app reconnected and replayed it): read back the
-  // server's copy, which now holds those changes with its own timestamps.
-  const queuedCount = queued.length;
-  const prevQueued = useRef(queuedCount);
-  useEffect(() => {
-    const drained = prevQueued.current > 0 && queuedCount === 0;
-    prevQueued.current = queuedCount;
-    if (drained && navigator.onLine) load();
-  }, [queuedCount, load]);
+  const { server, value: items, status, queuedCount, setServer, trackWrite, reload } = useSyncedUserData({
+    endpoint: OUTSIDE_SCORES_ENDPOINT,
+    cacheName: CACHE,
+    fromResponse,
+    overlay,
+    emptyValue: NO_ENTRIES, // a failed first load shows the empty list, with the status line
+  });
 
   // Each change shows at once. A permanent rejection undoes that one change
   // (not the whole list, which may hold other changes made meanwhile) and
@@ -162,31 +87,24 @@ export function useOutsideScores() {
     const id = local.type === 'delete' ? local.id : local.item.id;
     const previous = (server || []).find((e) => e.id === id) || null;
     const linked = local.type === 'delete' ? (server || []).filter((e) => e.retestOfId === id).map((e) => e.id) : [];
-    const w = writes.current;
-    w.made += 1;
-    w.sending += 1;
     setServer((prev) => applyChange(prev, local));
-    try {
-      const result = await writeOrQueue(endpoint, method, body, { queueKey: OUTSIDE_SCORES_ENDPOINT, supersede });
-      if (result.status === 'sent' && result.data?.item) {
-        setServer((prev) => applyChange(prev, { type: 'upsert', item: result.data.item }));
+    return trackWrite(async () => {
+      try {
+        const result = await writeOrQueue(endpoint, method, body, { queueKey: OUTSIDE_SCORES_ENDPOINT, supersede });
+        if (result.status === 'sent' && result.data?.item) {
+          setServer((prev) => applyChange(prev, { type: 'upsert', item: result.data.item }));
+        }
+        return result.status;
+      } catch (err) {
+        setServer((prev) => {
+          const list = (prev || []).filter((e) => e.id !== id)
+            .map((e) => (linked.includes(e.id) ? { ...e, retestOfId: id } : e));
+          return previous ? applyChange(list, { type: 'upsert', item: previous }) : list;
+        });
+        throw err;
       }
-      return result.status;
-    } catch (err) {
-      setServer((prev) => {
-        const list = (prev || []).filter((e) => e.id !== id)
-          .map((e) => (linked.includes(e.id) ? { ...e, retestOfId: id } : e));
-        return previous ? applyChange(list, { type: 'upsert', item: previous }) : list;
-      });
-      throw err;
-    } finally {
-      w.sending -= 1;
-      if (w.sending === 0 && w.refetch) {
-        w.refetch = false;
-        loadRef.current?.();
-      }
-    }
-  }, [server, setServer]);
+    });
+  }, [server, setServer, trackWrite]);
 
   // The stored retest link is always the FIRST try (the server normalises the
   // same way), so a retest of a retest still compares with the original.
@@ -211,10 +129,10 @@ export function useOutsideScores() {
     { type: 'delete', id }, `${OUTSIDE_SCORES_ENDPOINT}/${encodeURIComponent(id)}`, 'DELETE', null, false,
   ), [change]);
 
-  return { items, status, queuedCount, add, update, remove, reload: load };
+  return { items, status, queuedCount, add, update, remove, reload };
 }
 
 /** Test seam: forget the module-level copy between cases. */
 export function __resetOutsideScoresMemory() {
-  memory = { uid: null, items: null };
+  resetSyncedMemory(CACHE);
 }

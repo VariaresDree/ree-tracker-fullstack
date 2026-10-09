@@ -12,7 +12,7 @@ import { VERDICT } from '@ree/shared';
 // with a subject under 50% read green beside "CONDITIONAL PASS".
 const VERDICT_ACCENT = {
     [VERDICT.PASSED]: 'var(--accent-success)',
-    [VERDICT.CONDITIONAL]: 'var(--color-reeAmber)',
+    [VERDICT.CONDITIONAL]: 'var(--color-reeAmber-text)', // colours the score
     [VERDICT.FAILED]: 'var(--accent-danger)',
 };
 
@@ -110,7 +110,7 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
 
                         {isBattle && (
                             <div className="mt-8 max-w-lg mx-auto text-xs text-muted2 bg-bg/50 border border-border2/50 rounded-[var(--radius-default)] px-5 py-3 flex items-center gap-2 justify-center">
-                                <Clock size={14} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} />
+                                <Clock size={14} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} />
                                 Your result is recorded. Progress can take a minute to catch up after a multiplayer exam.
                             </div>
                         )}
@@ -167,11 +167,11 @@ export default function SimulatorDiagnostics({ session, setSession, engine, isBa
 
                     <div className="bg-surface/80 backdrop-blur-md border border-border2/60 p-6 sm:p-8 rounded-[var(--radius-lg)] shadow-sm flex flex-col">
                         <h3 className="text-sm font-semibold text-textMain flex items-center gap-2 mb-2">
-                            <Clock size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> Slow items
+                            <Clock size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> Slow items
                             <span
                                 className="px-2 py-0.5 rounded-[var(--radius-sm)] border text-xs tabular-nums"
                                 style={{
-                                    color: 'var(--color-reeAmber)',
+                                    color: 'var(--color-reeAmber-text)',
                                     background: 'color-mix(in srgb, var(--color-reeAmber) 10%, transparent)',
                                     borderColor: 'color-mix(in srgb, var(--color-reeAmber) 20%, transparent)',
                                 }}

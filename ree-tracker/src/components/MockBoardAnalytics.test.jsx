@@ -1,6 +1,5 @@
 // Mock history comes from the server, headlines the PRC weighted average, and
 // "removing" a sitting hides it — it never deletes the answers behind it.
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 

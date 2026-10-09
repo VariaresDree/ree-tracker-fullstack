@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
@@ -66,7 +66,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
             const result = await clearStudyPlan();
             toast.success(`Cleared ${result.deleted} plan tasks`);
             onPlanGenerated?.();
-        } catch (error) {
+        } catch {
             toast.error('Failed to clear plan');
         }
         setIsClearing(false);
@@ -93,7 +93,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                 <button
                     onClick={handleClear}
                     disabled={isClearing}
-                    className="text-xs text-reeRed hover:underline cursor-pointer disabled:opacity-50"
+                    className="text-xs text-reeRed-text hover:underline cursor-pointer disabled:opacity-50"
                 >
                     {isClearing ? 'Clearing...' : 'Clear Plan'}
                 </button>
@@ -109,9 +109,9 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                     </Link>
                     {daysUntilExam !== null && (
                         <div className={`text-sm font-bold px-3 py-2 rounded-lg border ${
-                            daysUntilExam <= 30 ? 'bg-reeRed/10 text-reeRed border-reeRed/30' :
-                            daysUntilExam <= 90 ? 'bg-reeAmber/10 text-reeAmber border-reeAmber/30' :
-                            'bg-reeGreen/10 text-reeGreen border-reeGreen/30'
+                            daysUntilExam <= 30 ? 'bg-reeRed/10 text-reeRed-text border-reeRed/30' :
+                            daysUntilExam <= 90 ? 'bg-reeAmber/10 text-reeAmber-text border-reeAmber/30' :
+                            'bg-reeGreen/10 text-reeGreen-text border-reeGreen/30'
                         }`}>
                             {daysUntilExam} days
                         </div>
@@ -135,7 +135,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                                 onClick={() => toggleSubject(subject)}
                                 className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border ${
                                     isSelected
-                                        ? 'bg-reeBlue/10 text-reeBlue border-reeBlue/30'
+                                        ? 'bg-reeBlue/10 text-reeBlue-text border-reeBlue/30'
                                         : 'bg-surface2 text-muted border-border2 hover:border-reeBlue/20'
                                 }`}
                             >
@@ -160,7 +160,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                     </div>
                     <div>
                         <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-1">Tasks</div>
-                        <div className="text-xl font-black text-reeBlue">
+                        <div className="text-xl font-black text-reeBlue-text">
                             {daysUntilExam ? Math.min(daysUntilExam, 42) : '—'}
                         </div>
                     </div>

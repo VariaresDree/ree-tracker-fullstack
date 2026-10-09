@@ -1,7 +1,6 @@
 // The results hero is coloured by the VERDICT. It used to band on the raw score
 // (>= 70 green, >= 60 amber), so a 65% sitting showed amber beside "FAILED"
 // and a 75% with a subject under 50% showed green beside "CONDITIONAL PASS".
-import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -28,7 +27,8 @@ describe('SimulatorDiagnostics', () => {
   it('colours a 75% CONDITIONAL PASS amber, not green', () => {
     renderIt({ score: 75, generalAverage: 76.25, verdict: 'CONDITIONAL PASS' });
     const verdict = screen.getByText('CONDITIONAL PASS');
-    expect(verdict.getAttribute('style')).toContain('var(--color-reeAmber)');
+    // The text form of amber: it reads at 4.5:1 in every theme.
+    expect(verdict.getAttribute('style')).toContain('var(--color-reeAmber-text)');
   });
 
   it('colours a 65% FAILED red, not amber', () => {

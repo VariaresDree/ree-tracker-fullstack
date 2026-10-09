@@ -198,7 +198,7 @@ export const useAIIngestion = (onIngestSuccess) => {
           setShowQAModal(false);
           setGeneratedQuestions([]);
           if(onIngestSuccess) onIngestSuccess(true);
-      } catch (error) {
+      } catch {
           toast.error("Couldn't add the questions. Please try again.", { id: toastId });
       } finally {
           setIsCommitting(false);

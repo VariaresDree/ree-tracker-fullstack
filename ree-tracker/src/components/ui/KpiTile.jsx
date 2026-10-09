@@ -7,12 +7,13 @@ import { TrendingUp, TrendingDown } from './icons';
 // delta pill. The single building block of the dashboard's top strip
 // (Testora/Kravio pattern). Colors come from CSS accent vars via inline style so
 // the tone stays dynamic without fighting Tailwind's JIT.
+// Each tone colours the tile's icon (and its tint): the text forms.
 const TONE_VAR = {
-  velocity: 'var(--accent-velocity)',
+  velocity: 'var(--accent-text)',
   signal: 'var(--accent-signal)',
   success: 'var(--accent-success)',
   danger: 'var(--accent-danger)',
-  amber: 'var(--color-reeAmber)',
+  amber: 'var(--color-reeAmber-text)',
 };
 
 export function KpiTile({

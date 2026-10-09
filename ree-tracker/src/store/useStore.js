@@ -666,12 +666,12 @@ export const useStore = create(
           currentSessionMode: null,
           currentSubject: null,
         });
-        try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch (_) {}
-        try { await useStore.persist?.clearStorage?.(); } catch (_) {}
+        try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch { /* best effort */ }
+        try { await useStore.persist?.clearStorage?.(); } catch { /* best effort */ }
         // The pre-scoping mock ledger had no owner. Once its user has signed
         // out it can never be attributed, so it goes rather than surfacing for
         // whoever signs in next. Per-account ledgers stay (they are scoped).
-        try { await dropLegacyLedger(); } catch (_) {}
+        try { await dropLegacyLedger(); } catch { /* best effort */ }
         // Per-account lists cached on the device (outside scores…). Reads are
         // already uid-checked; this keeps them from outliving the session.
         try { await clearUserCaches(); } catch { /* best effort, like the ledger above */ }
@@ -813,8 +813,8 @@ export const useStore = create(
               state.syncQueue = merged.slice(-MAX_SYNC_QUEUE);
             }
           }
-        } catch (_) { /* corrupt mirror — ignore */ }
-        try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch (_) {}
+        } catch { /* corrupt mirror — ignore */ }
+        try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch { /* best effort */ }
       }
     }
   )

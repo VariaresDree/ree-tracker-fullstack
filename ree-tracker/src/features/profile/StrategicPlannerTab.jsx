@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/dbQueries';
 import { Button } from '../../components/ui';
@@ -26,7 +26,7 @@ export default function StrategicPlannerTab({ currentUser }) {
     try {
       const data = await apiRequest('/api/user/tasks');
       setTasks(data?.items || []);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load planner tasks.");
     } finally {
       setIsLoading(false);
@@ -48,7 +48,7 @@ export default function StrategicPlannerTab({ currentUser }) {
       if (data?.task) setTasks(prev => [data.task, ...prev]);
       setNewTask('');
       setNewDueDate('');
-    } catch (err) {
+    } catch {
       toast.error("Failed to create task.");
     }
   };
@@ -58,7 +58,7 @@ export default function StrategicPlannerTab({ currentUser }) {
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: updated } : t));
     try {
       await apiRequest(`/api/user/tasks/${task.id}`, 'PUT', { completed: updated });
-    } catch (err) {
+    } catch {
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: !updated } : t));
       toast.error("Failed to update task.");
     }
@@ -69,7 +69,7 @@ export default function StrategicPlannerTab({ currentUser }) {
     setTasks(t => t.filter(x => x.id !== id));
     try {
       await apiRequest(`/api/user/tasks/${id}`, 'DELETE');
-    } catch (err) {
+    } catch {
       setTasks(prev);
       toast.error("Failed to delete task.");
     }
@@ -184,10 +184,10 @@ export default function StrategicPlannerTab({ currentUser }) {
                         if (!done && task.dueDate) {
                             if (task.dueDate < today) {
                                 statusColor = 'border-reeRed/50 bg-reeRed/5';
-                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeRed bg-reeRed/10 px-2 py-0.5 rounded ml-2">Overdue</span>;
+                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeRed-text bg-reeRed/10 px-2 py-0.5 rounded ml-2">Overdue</span>;
                             } else if (task.dueDate === today) {
                                 statusColor = 'border-reeAmber/50 bg-reeAmber/5';
-                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeAmber bg-reeAmber/10 px-2 py-0.5 rounded ml-2">Today</span>;
+                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeAmber-text bg-reeAmber/10 px-2 py-0.5 rounded ml-2">Today</span>;
                             } else {
                                 dateBadge = <span className="text-[11px] font-mono text-muted2 ml-2">{task.dueDate}</span>;
                             }
@@ -219,7 +219,7 @@ export default function StrategicPlannerTab({ currentUser }) {
                                 {!done && taskLaunch(task) && (
                                     <Button size="sm" variant="secondary" onClick={() => launch(task)}>Start</Button>
                                 )}
-                                <button onClick={() => deleteTask(task.id)} aria-label="Delete task" className="text-muted hover:text-reeRed p-2 pointer-coarse:p-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 transition-opacity cursor-pointer">✕</button>
+                                <button onClick={() => deleteTask(task.id)} aria-label="Delete task" className="text-muted hover:text-reeRed-text p-2 pointer-coarse:p-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 transition-opacity cursor-pointer">✕</button>
                             </div>
                         );
                     })

@@ -55,7 +55,9 @@ const LatexRenderer = ({ content, className = "", compact = false }) => {
                     rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: 'var(--accent-danger)' }]]}
                     components={{
                         // Optional: Custom styling for standard paragraphs if needed
-                        p: ({node, ...props}) => <p className="mb-2 leading-relaxed" {...props} />,
+                        // `node` is taken out so it never reaches the DOM as an attribute.
+                        // eslint-disable-next-line no-unused-vars
+                        p: ({ node, ...props }) => <p className="mb-2 leading-relaxed" {...props} />,
                     }}
                 >
                     {content}

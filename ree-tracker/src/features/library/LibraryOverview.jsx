@@ -21,10 +21,11 @@ import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
 // Per-subject track colors — data-viz distinction routed through theme vars.
+// They colour the column titles and counts (text), so the text forms.
 const TRACK_ACCENT = {
   Mathematics: 'var(--accent-signal)',
-  ESAS: 'var(--accent-velocity)',
-  EE: 'var(--color-reeAmber)',
+  ESAS: 'var(--accent-text)',
+  EE: 'var(--color-reeAmber-text)',
 };
 
 // Client mirror of the server's Accept-All clean-item gate
@@ -106,7 +107,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           // one queue, so both drain through the same UI.
           const items = await fetchReviewQueue();
           setQuarantineItems(items);
-      } catch (err) {
+      } catch {
           toast.error("Couldn't load the review queue.");
       }
       setIsLoadingQueue(false);
@@ -304,7 +305,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
               toast.success("Question rejected.");
           }
           setQuarantineItems(prev => prev.filter(q => q.id !== item.id));
-      } catch (err) {
+      } catch {
           toast.error("Reject failed.");
       }
   };
@@ -339,7 +340,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           setEditingId(null);
           setEditDraft(null);
           toast.success("Edits saved.");
-      } catch (err) {
+      } catch {
           toast.error("Couldn't save the edits.");
       }
   };
@@ -349,7 +350,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
     try {
       await resyncVaultMetadata();
       toast.success("Question counts refreshed.");
-    } catch (err) {
+    } catch {
       toast.error("Refresh failed.");
     }
     setIsSyncing(false);
@@ -389,7 +390,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           setDynamicTOS(editTOS); // Updates global UI immediately without reload
           setShowTOSManager(false);
           toast.success("Syllabus updated.");
-      } catch (error) {
+      } catch {
           toast.error("Couldn't save the syllabus changes.");
       }
       setIsSavingTOS(false);

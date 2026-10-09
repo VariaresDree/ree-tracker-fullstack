@@ -175,7 +175,7 @@ export default function Flashcard({ card }) {
                 borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
               }}
             >
-              <div className="text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber)' }}>Board use & traps</div>
+              <div className="text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber-text)' }}>Board use & traps</div>
               <div className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere] [&_p]:!m-0">
                 <LatexRenderer content={card.purposeExamTip} />
               </div>

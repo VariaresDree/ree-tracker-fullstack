@@ -1,5 +1,5 @@
 // src/features/profile/ActivityCalendar.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { todayManila } from '../../utils/manilaDate';
 
 export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 50 }) {
@@ -33,7 +33,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
   const getIntensityClass = (count) => {
       if (!count || count === 0) return 'bg-surface2 border-border2 text-muted2';
       const pct = count / targetQuota;
-      if (pct < 0.3) return 'bg-reeGreen/20 border-reeGreen/30 text-reeGreen';
+      if (pct < 0.3) return 'bg-reeGreen/20 border-reeGreen/30 text-reeGreen-text';
       if (pct < 0.7) return 'bg-reeGreen/50 border-reeGreen/60 text-white shadow-sm';
       if (pct < 1.0) return 'bg-reeGreen/80 border-reeGreen text-white shadow-md';
       return 'bg-reeGreen border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.6)] font-black';

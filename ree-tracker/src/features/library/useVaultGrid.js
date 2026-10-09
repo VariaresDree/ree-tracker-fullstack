@@ -53,7 +53,7 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
       setQuestions(prev => [...prev, ...items]);
       setLastDoc(nextOffset);
       if (items.length < PAGE_SIZE) setHasMore(false);
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch more items.');
     }
     setIsLoadingMore(false);

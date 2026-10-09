@@ -1,7 +1,6 @@
 // Full PRC board orchestration on the Board Simulator page: sections run one
 // at a time on one session, results are withheld between sections, and the
 // board result appears after the last.
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -41,7 +40,7 @@ beforeEach(() => localStorage.clear());
 describe('Board Simulator — full PRC board', () => {
   it('a board between sections shows the break, and continues with the next section on the same session', () => {
     let board = startFullBoard('board-1');
-    board = recordSection(board, 0, { correct: 60, total: 100, answered: 98, timeTakenSecs: 15000 });
+    recordSection(board, 0, { correct: 60, total: 100, answered: 98, timeTakenSecs: 15000 });
     engine = baseEngine();
     renderPage();
 
@@ -55,7 +54,7 @@ describe('Board Simulator — full PRC board', () => {
 
   it('withholds a mid-board section result: no diagnostics, no answer review', () => {
     let board = startFullBoard('board-1');
-    board = recordSection(board, 0, { correct: 60, total: 100, timeTakenSecs: 15000 });
+    recordSection(board, 0, { correct: 60, total: 100, timeTakenSecs: 15000 });
     engine = baseEngine({
       config: { fullBoard: { sessionId: 'board-1', sectionIndex: 0 } },
       session: { isActive: true, isFinished: true, answers: {}, questions: [], diagnostics: { score: 60 } },
@@ -70,7 +69,7 @@ describe('Board Simulator — full PRC board', () => {
     let board = startFullBoard('board-1');
     board = recordSection(board, 0, { correct: 40, total: 100, timeTakenSecs: 15000 });
     board = recordSection(board, 1, { correct: 80, total: 100, timeTakenSecs: 12000 });
-    board = recordSection(board, 2, { correct: 80, total: 100, timeTakenSecs: 18000 });
+    recordSection(board, 2, { correct: 80, total: 100, timeTakenSecs: 18000 });
     engine = baseEngine({
       config: { fullBoard: { sessionId: 'board-1', sectionIndex: 2 } },
       session: { isActive: true, isFinished: true, answers: {}, questions: [], diagnostics: { score: 80 } },

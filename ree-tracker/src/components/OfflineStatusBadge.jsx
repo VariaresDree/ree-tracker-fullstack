@@ -4,7 +4,6 @@
 //   • how many items are cached for offline sessions (and their freshness),
 //   • a count of unsynced attempts / deferred writes still waiting to upload,
 //   • a one-tap "Download" to (re)build the offline pack.
-import React from 'react';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflinePack } from '../hooks/useOfflinePack';
 import { useStore } from '../store/useStore';
@@ -57,7 +56,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                     </span>
                 </div>
                 {pending > 0 && (
-                    <span className="text-[0.6rem] font-bold text-reeAmber uppercase tracking-wider" title="Attempts / summaries waiting to upload">
+                    <span className="text-[0.6rem] font-bold text-reeAmber-text uppercase tracking-wider" title="Attempts / summaries waiting to upload">
                         {pending} pending
                     </span>
                 )}
@@ -80,7 +79,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                     className={`shrink-0 px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:min-h-11 rounded-lg border text-[0.55rem] font-black uppercase tracking-wider transition-all ${
                         !isOnline || isRefreshing
                             ? 'opacity-40 cursor-not-allowed border-border2 text-muted'
-                            : 'cursor-pointer border-reeBlue/40 text-reeBlue hover:bg-reeBlue/10'
+                            : 'cursor-pointer border-reeBlue/40 text-reeBlue-text hover:bg-reeBlue/10'
                     }`}
                 >
                     {isRefreshing ? 'Syncing…' : ready ? 'Refresh' : 'Download'}

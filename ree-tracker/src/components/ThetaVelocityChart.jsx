@@ -1,5 +1,5 @@
 // src/components/ThetaVelocityChart.jsx
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine
@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload }) => {
           {data.date} <span className="text-muted font-medium ml-2">({data.name})</span>
         </p>
         <div className="flex flex-col gap-1">
-            <p className="text-sm font-black text-reeCyan drop-shadow-sm">
+            <p className="text-sm font-black text-reeCyan-text drop-shadow-sm">
               θ: {data.theta > 0 ? '+' : ''}{data.theta}
             </p>
             {/* θ only. This used to print a linear (θ + 4) / 8 as "Pass
