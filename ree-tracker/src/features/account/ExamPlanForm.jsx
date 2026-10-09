@@ -15,7 +15,7 @@ import { daysToExam } from '../today/todayActions';
 const MIN_TARGET = 10;
 const MAX_TARGET = 500;
 
-export default function ExamPlanForm() {
+export default function ExamPlanForm({ onDirtyChange }) {
   const { stats, saveExamConfig } = useStore(useShallow((s) => ({ stats: s.stats, saveExamConfig: s.saveExamConfig })));
   const [examDate, setExamDate] = useState(stats?.examDate || '');
   const [dailyTarget, setDailyTarget] = useState(String(stats?.dailyTarget || 50));
@@ -37,6 +37,7 @@ export default function ExamPlanForm() {
     setSaving(true);
     try {
       await saveExamConfig({ examDate: examDate || null, dailyTarget: target });
+      onDirtyChange?.(false);
       toast.success('Exam plan saved.');
     } catch (err) {
       toast.error(err?.message === '[OFFLINE]' ? 'Reconnect to save your exam plan.' : 'Couldn’t save — try again.');
@@ -49,14 +50,14 @@ export default function ExamPlanForm() {
     <form onSubmit={save} noValidate className="flex flex-col gap-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <FormField label="Exam date" hint={days == null ? 'Not set yet. Clear the date to remove it.' : days > 1 ? `${days} days to go` : days === 1 ? '1 day to go' : days === 0 ? 'Today' : 'This date has passed'}>
-          <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
+          <Input type="date" value={examDate} onChange={(e) => { setExamDate(e.target.value); onDirtyChange?.(true); }} />
         </FormField>
         <FormField
           label="Daily target"
           hint={split ? `Questions a day — Mathematics ${split.Mathematics} · ESAS ${split.ESAS} · EE ${split.EE}` : `Questions a day (${MIN_TARGET}–${MAX_TARGET})`}
           error={error || undefined}
         >
-          <Input type="number" inputMode="numeric" min={MIN_TARGET} max={MAX_TARGET} value={dailyTarget} onChange={(e) => setDailyTarget(e.target.value)} />
+          <Input type="number" inputMode="numeric" min={MIN_TARGET} max={MAX_TARGET} value={dailyTarget} onChange={(e) => { setDailyTarget(e.target.value); onDirtyChange?.(true); }} />
         </FormField>
       </div>
       <Button type="submit" loading={saving} disabled={saving} className="self-start">Save exam plan</Button>

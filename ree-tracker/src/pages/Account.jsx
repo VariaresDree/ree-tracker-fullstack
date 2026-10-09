@@ -92,6 +92,14 @@ export default function Account() {
   const { currentUser, isAdmin } = useAuth();
   const { stats, theme, setTheme } = useStore(useShallow((s) => ({ stats: s.stats, theme: s.theme, setTheme: s.setTheme })));
 
+  // The exam plan form is keyed on the saved values, so a change saved
+  // elsewhere re-seeds it — but not while it's being edited: stats landing
+  // from the server mid-typing used to wipe what had been typed.
+  const liveKey = `${stats?.examDate || ''}|${stats?.dailyTarget || ''}`;
+  const [planDirty, setPlanDirty] = useState(false);
+  const [planKey, setPlanKey] = useState(liveKey);
+  if (!planDirty && planKey !== liveKey) setPlanKey(liveKey);
+
   // Achievements and the exam plan read store stats; hydrate them from the
   // server aggregate so a new device isn't blank.
   useEffect(() => {
@@ -119,8 +127,7 @@ export default function Account() {
       </Section>
 
       <Section id="exam-plan" title="Exam plan" description="Your board exam date and how many questions a day you aim for. Today, the forecast and your study plan all use these.">
-        {/* Keyed on the saved values: a change saved elsewhere re-seeds the form. */}
-        <ExamPlanForm key={`${stats?.examDate || ''}|${stats?.dailyTarget || ''}`} />
+        <ExamPlanForm key={planKey} onDirtyChange={setPlanDirty} />
       </Section>
 
       <Section id="appearance" title="Appearance">

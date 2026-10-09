@@ -54,6 +54,15 @@ describe('ExamPlanForm — the one editor for the exam date and daily target', (
         expect(toast.success).toHaveBeenCalled();
     });
 
+    it('reports when it has unsaved edits, and when they are saved', async () => {
+        const onDirtyChange = vi.fn();
+        render(<ExamPlanForm onDirtyChange={onDirtyChange} />);
+        fireEvent.change(screen.getByLabelText('Daily target'), { target: { value: '70' } });
+        expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+        fireEvent.click(screen.getByRole('button', { name: 'Save exam plan' }));
+        await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+    });
+
     it('shows the per-subject split of the target', () => {
         render(<ExamPlanForm />);
         expect(screen.getByText(/Mathematics 12 · ESAS 15 · EE 23/)).toBeInTheDocument();

@@ -26,13 +26,13 @@ export default function OfflineSyncSettings() {
 
   const restore = async () => {
     setConfirmRestore(false);
-    const toastId = toast.loading('Restoring from cloud backup…');
+    const toastId = toast.loading('Bringing in your cloud progress…');
     try {
       const restored = await syncDashboardStats(currentUser.uid);
-      if (restored) toast.success('Restored from cloud backup.', { id: toastId });
+      if (restored) toast.success('Cloud progress merged into this device.', { id: toastId });
       else toast.error('No cloud backup found for this account.', { id: toastId });
     } catch {
-      toast.error('Couldn’t restore — try again when you’re online.', { id: toastId });
+      toast.error('Couldn’t reach the cloud backup — try again when you’re online.', { id: toastId });
     }
   };
 
@@ -53,7 +53,7 @@ export default function OfflineSyncSettings() {
           <span className="text-xs text-muted2">{status.detail}</span>
         </div>
         <Button size="sm" variant="ghost" onClick={() => setConfirmRestore(true)} className="self-start -ml-2 text-muted hover:text-textMain">
-          Restore from cloud backup…
+          Merge from cloud backup…
         </Button>
       </div>
 
@@ -61,15 +61,17 @@ export default function OfflineSyncSettings() {
         open={confirmRestore}
         onClose={() => setConfirmRestore(false)}
         icon={Cloud}
-        title="Restore from cloud backup?"
+        title="Merge your cloud progress?"
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirmRestore(false)}>Cancel</Button>
-            <Button onClick={restore}>Restore backup</Button>
+            <Button onClick={restore}>Merge</Button>
           </>
         }
       >
-        <p className="text-sm text-muted2">This replaces the progress stored on this device with your last cloud backup.</p>
+        {/* It merges (syncDashboardStats → mergeServerIntoStats): the copy said
+            it replaced the device's progress, which it never did. */}
+        <p className="text-sm text-muted2">Your progress saved in the cloud is merged into this device. Answers on this device that haven’t synced yet are kept.</p>
       </Modal>
     </div>
   );
