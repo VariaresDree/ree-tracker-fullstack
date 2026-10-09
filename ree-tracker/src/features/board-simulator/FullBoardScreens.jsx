@@ -4,13 +4,13 @@
 // not have: the break between sections, and the board result.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Button, Badge, Modal, ProgressIndicator } from '../../components/ui';
+import { Card, Button, Badge, IconChip, Modal, ProgressIndicator } from '../../components/ui';
 import { Landmark, TriangleAlert, ClipboardList, ChevronLeft } from '../../components/ui/icons';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, PRC_EXAM_FORMAT, toDisplaySubject, VERDICT } from '@ree/shared';
 import { FULL_BOARD_SECTIONS, FULL_BOARD_TTL_MS, fullBoardSummary } from './fullBoard';
+import { formatDuration as fmtDuration } from '../../utils/time';
 
 const hours = (subject) => `${PRC_EXAM_FORMAT[subject].minutes / 60}h`;
-const fmtDuration = (secs) => `${Math.floor(secs / 3600)}h ${String(Math.floor((secs % 3600) / 60)).padStart(2, '0')}m`;
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 
 /** Between sections (or returning to an unfinished board). */
@@ -29,10 +29,7 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
       )}
       <Card elevated grain className="p-6 sm:p-8 flex flex-col gap-6">
         <div className="flex items-start gap-3">
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-default)]"
-            style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent-text)' }}>
-            <Landmark size={22} strokeWidth={1.75} aria-hidden="true" />
-          </span>
+          <IconChip icon={Landmark} size="lg" />
           <div>
             <span className="text-eyebrow">Full PRC board</span>
             <h1 className="text-display text-2xl text-textMain mt-1">

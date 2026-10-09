@@ -9,14 +9,7 @@ import { normalizeSubject } from '@ree/shared';
 
 const MAX_MISSED = 10;
 
-/** 42 → '42s', 125 → '2m 05s', 3725 → '1h 02m'. */
-export const formatDuration = (secs) => {
-  const s = Math.max(0, Math.round(secs || 0));
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
-  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
-};
+// Lengths of time print through utils/time (formatDuration).
 
 /**
  * @param {Array<{questionId, subject, subtopic, isCorrect, confidenceLevel, timeSpentMs}>} attempts

@@ -22,7 +22,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '../ui';
 import { Eye, EyeOff } from '../ui/icons';
-import { formatExamTime } from '../../utils/examFormat';
+import { formatClock } from '../../utils/time';
 import { crossedMilestone } from './examAnnouncements';
 
 /** Seconds left until `endTime`, floored at 0. */
@@ -103,7 +103,7 @@ export default function ExamClock({
                 // screen reader unusable for the length of an exam.
                 aria-live="off"
             >
-                {formatExamTime(remaining)}
+                {formatClock(remaining, { pad: true })}
             </div>
         </div>
     );

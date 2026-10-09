@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { paceBand, pacingSummary, paceStatus, formatSecs } from './pacing';
+import { paceBand, pacingSummary, paceStatus } from './pacing';
+import { formatClock as formatSecs } from '../../utils/time';
 
 describe('pacing against the board', () => {
   it('bands an item by its own subject’s pace', () => {

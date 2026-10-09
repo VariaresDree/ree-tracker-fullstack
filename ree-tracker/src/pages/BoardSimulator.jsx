@@ -18,13 +18,14 @@ import ExamLayout from '../layouts/ExamLayout';
 import { Card, Button } from '../components/ui';
 import { Layers } from '../components/ui/icons';
 import { setupConfig } from '../features/board-simulator/profiles';
+import { formatClock } from '../utils/time';
 import { toDisplaySubject } from '@ree/shared';
 
 import { getAnalyticsProfile } from '../services/dbQueries';
 import { useStore } from '../store/useStore';
 import { normalizeMicroTopics } from '../services/analyticsSync';
 
-const formatTimerMinutes = (s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`;
+const formatTimerMinutes = (s) => formatClock(s, { pad: true });
 
 export default function BoardSimulator() {
   const { currentUser } = useAuth();

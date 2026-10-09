@@ -13,8 +13,8 @@ import { Button, Card, EmptyState } from '../../components/ui';
 import { Crosshair } from '../../components/ui/icons';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 import { toDisplaySubject, TIME_SINK_MS } from '@ree/shared';
+import { formatDuration as fmtSecs } from '../../utils/time';
 
-const fmtSecs = (s) => `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
 
 export default function WeakSignalsPanel({ data }) {
   const navigate = useNavigate();

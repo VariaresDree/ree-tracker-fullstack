@@ -22,7 +22,7 @@ import { explanationKey } from '../../services/aiExplanations';
 import SolutionPanel from '../quiz/SolutionPanel';
 import { useAiExplanation } from '../quiz/useAiExplanation';
 import { drillPreset, launchPractice } from '../active-recall/presets';
-import { formatExamTime } from '../../utils/examFormat';
+import { formatDuration } from '../../utils/time';
 import { outcomeCopy } from './outcome';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
@@ -82,7 +82,7 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
           </div>
           <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
             <dt className="text-eyebrow">Time used</dt>
-            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{formatExamTime(Math.max(0, timeUsedSecs || 0))}</dd>
+            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{formatDuration(timeUsedSecs)}</dd>
           </div>
         </dl>
 

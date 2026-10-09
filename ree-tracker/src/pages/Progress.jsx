@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import useTabParam from '../hooks/useTabParam';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import StatsUnavailable from '../components/StatsUnavailable';
-import { Page, PageHeader, Tabs, Skeleton } from '../components/ui';
+import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
 import { CalendarDays, ClipboardList, Crosshair, Gauge, LayoutGrid, ListChecks, Target } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -72,8 +72,9 @@ export default function Progress() {
   return (
     <Page>
       <PageHeader title="Progress" subtitle="How your readiness is moving, topic by topic, and your study plan." />
-      <Tabs label="Progress sections" active={tab} onChange={setTab} tabs={TABS} />
+      <Tabs id="progress" label="Progress sections" active={tab} onChange={setTab} tabs={TABS} />
 
+      <TabPanel id="progress" active={tab}>
       {currentUser && (
         <ErrorBoundary name={`Progress: ${label}`} key={tab}>
           {loading && NEEDS_STATS.has(tab) ? (
@@ -87,6 +88,7 @@ export default function Progress() {
           )}
         </ErrorBoundary>
       )}
+      </TabPanel>
     </Page>
   );
 }

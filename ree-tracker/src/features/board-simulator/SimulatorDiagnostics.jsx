@@ -16,7 +16,7 @@ import NotificationOptIn from '../../components/NotificationOptIn';
 import { Badge, Button, Card, EmptyState, ProgressIndicator, StatusPill } from '../../components/ui';
 import { Shield, TriangleAlert, ClipboardList, Clock, Play } from '../../components/ui/icons';
 import PacingPanel from '../exams/PacingPanel';
-import { formatSecs } from '../exams/pacing';
+import { formatDuration } from '../../utils/time';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
@@ -87,7 +87,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
           </div>
           <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
             <dt className="text-eyebrow">Time used</dt>
-            <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{formatSecs(diagnostics.timeTakenSecs)}</dd>
+            <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{formatDuration(diagnostics.timeTakenSecs)}</dd>
           </div>
         </dl>
 

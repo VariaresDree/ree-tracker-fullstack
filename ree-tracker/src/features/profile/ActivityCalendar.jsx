@@ -36,7 +36,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       if (pct < 0.3) return 'bg-reeGreen/20 border-reeGreen/30 text-reeGreen-text';
       if (pct < 0.7) return 'bg-reeGreen/50 border-reeGreen/60 text-white shadow-sm';
       if (pct < 1.0) return 'bg-reeGreen/80 border-reeGreen text-white shadow-md';
-      return 'bg-reeGreen border-green-400 text-white shadow-[0_0_15px_rgba(34,197,94,0.6)] font-black';
+      return 'bg-reeGreen border-reeGreen text-white font-black ring-2 ring-reeGreen/40';
   };
 
   return (
@@ -92,8 +92,8 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
                         )}
                         
                         {/* Hover Tooltip */}
-                        <div className="absolute opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-1 bg-black text-white text-[11px] px-2 py-1 rounded whitespace-nowrap z-10 pointer-events-none transition-opacity shadow-xl font-mono">
-                            {count} Questions Answered
+                        <div className="absolute opacity-0 group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-1 bg-surface3 border border-border text-textMain text-[11px] px-2 py-1 rounded whitespace-nowrap z-10 pointer-events-none transition-opacity shadow-xl">
+                            {count} {count === 1 ? 'question' : 'questions'} answered
                         </div>
                     </div>
                 );
@@ -109,7 +109,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
             <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/20 border border-reeGreen/30"></div> <span className="hidden md:inline text-[11px]">1-{(targetQuota*0.3).toFixed(0)} Qs</span></div>
             <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/50 border border-reeGreen/60"></div> <span className="hidden md:inline text-[11px]">{(targetQuota*0.3).toFixed(0)}-{(targetQuota*0.7).toFixed(0)} Qs</span></div>
             <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen/80 border border-reeGreen"></div> <span className="hidden md:inline text-[11px]">{(targetQuota*0.7).toFixed(0)}-{targetQuota-1} Qs</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen border-green-400 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div> <span className="hidden md:inline text-[11px]">{targetQuota}+ Qs</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-reeGreen border border-reeGreen ring-2 ring-reeGreen/40"></div> <span className="hidden md:inline text-[11px]">{targetQuota}+ Qs</span></div>
         </div>
       </div>
     </div>

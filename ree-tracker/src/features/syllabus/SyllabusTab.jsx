@@ -15,7 +15,7 @@ import { SYLLABUS_NOTE_MAX, SYLLABUS_SUBJECTS, isTopicCovered, syllabusCoverage,
 import {
   Panel, Button, SegmentedControl, ProgressIndicator, StatusPill, EmptyState, Skeleton, FormField, Input, Textarea, cn,
 } from '../../components/ui';
-import { ListChecks, BookOpen, CloudOff, RotateCcw, ChevronDown, Crosshair } from '../../components/ui/icons';
+import { ListChecks, BookOpen, CloudOff, RotateCcw, ChevronDown, Crosshair, Check, Plus } from '../../components/ui/icons';
 import { useSyllabus } from './useSyllabus';
 import { daysToExam } from '../today/todayActions';
 import { drillPreset, launchPractice } from '../active-recall/presets';
@@ -41,7 +41,7 @@ function Tick({ pressed, disabled, onClick, title, children }) {
         disabled && 'cursor-default',
       )}
     >
-      <span aria-hidden="true">{pressed ? '✓' : '+'}</span>
+      {pressed ? <Check size={14} strokeWidth={2} aria-hidden="true" /> : <Plus size={14} strokeWidth={2} aria-hidden="true" />}
       {children}
     </button>
   );

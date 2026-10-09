@@ -20,6 +20,7 @@ import { useReviewSession } from '../features/active-recall/useReviewSession';
 import SolutionPanel from '../features/quiz/SolutionPanel';
 import { explanationKey } from '../services/aiExplanations';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
+import { formatClock } from '../utils/time';
 
 export default function Practice() {
   const isOnline = useNetworkStatus();
@@ -91,7 +92,6 @@ export default function Practice() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [session, config.sessionMode, showScratchpad, confirmEnd, currentQ, handleFlashcardReveal, handleFlashcardRating, loadNextQuestion]);
 
-  const formatTime = (secs) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
 
   if (!session.isActive && lastSummary) {
       return (
@@ -146,7 +146,7 @@ export default function Practice() {
                 {config.sessionMode === 'mcq' ? 'MCQ' : 'Flashcards'}
             </Badge>
             <div className={`text-sm font-bold font-mono tabular-nums w-14 text-right ${elapsedTime > 180 ? 'text-[var(--accent-danger)] animate-pulse' : 'text-textMain'}`}>
-                {formatTime(elapsedTime)}
+                {formatClock(elapsedTime, { pad: true })}
             </div>
         </div>
       </div>

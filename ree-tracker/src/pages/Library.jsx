@@ -11,7 +11,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
-import { Page, PageHeader, Tabs, Skeleton } from '../components/ui';
+import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
 import { Cloud, BookOpen, Bookmark, FileUp } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -48,8 +48,9 @@ export default function Library() {
     <Page>
       <PageHeader title="Library" subtitle="Formula cards, handouts, the questions you bookmarked, and quizzes you imported." />
 
-      <Tabs label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
+      <Tabs id="library" label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
 
+      <TabPanel id="library" active={tab}>
       {tab === 'formulas' && (
         <div className="animate-in fade-in slide-in-from-bottom-2">
           <p className="text-sm text-muted2 mb-6">Constants, formulas and concepts as flip cards. Browse by subject, topic and subtopic, or search directly.</p>
@@ -72,6 +73,7 @@ export default function Library() {
           </Suspense>
         </ErrorBoundary>
       )}
+      </TabPanel>
     </Page>
   );
 }

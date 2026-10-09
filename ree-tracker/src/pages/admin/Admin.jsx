@@ -10,7 +10,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import useTabParam from '../../hooks/useTabParam';
-import { Page, PageHeader, Tabs, Skeleton } from '../../components/ui';
+import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../../components/ui';
 import { Library, ClipboardList, BookOpen, Cloud } from '../../components/ui/icons';
 import ErrorBoundary from '../../components/ErrorBoundary';
 
@@ -39,8 +39,9 @@ export default function Admin() {
   return (
     <Page>
       <PageHeader title="Admin" subtitle="Content tools. Only admins see this area." />
-      <Tabs label="Admin sections" active={tab} onChange={setTab} tabs={TABS} />
+      <Tabs id="admin" label="Admin sections" active={tab} onChange={setTab} tabs={TABS} />
 
+      <TabPanel id="admin" active={tab}>
       <ErrorBoundary name="Admin">
         <Suspense fallback={<TabFallback />}>
           {tab === 'questions' && <QuestionBank />}
@@ -62,6 +63,7 @@ export default function Admin() {
             : <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />)}
         </Suspense>
       </ErrorBoundary>
+      </TabPanel>
     </Page>
   );
 }

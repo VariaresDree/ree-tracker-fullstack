@@ -56,6 +56,14 @@ const withoutComments = (text) => text
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/(^|\s)\/\/.*$/gm, '$1');
 
+// Emoji and pictographs in UI text. Icons come from components/ui/icons (they
+// take the theme's colour and size, and are hidden from screen readers, which
+// read an emoji out by name: "rocket", "cross mark"). The ✓ / ✗ / ✕ glyphs
+// stood in for icons too. Typographic marks (– — · … ’ → ×) are fine.
+// The variation selector (U+FE0F) sits outside the class: in one it reads as
+// a combining mark.
+const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B50}\u{2B55}]|\u{FE0F}/u;
+
 describe('copy guard', () => {
   it('finds the source tree', () => {
     expect(sourceFiles(SRC).length).toBeGreaterThan(100);
@@ -82,6 +90,23 @@ describe('copy guard', () => {
     expect(vault.test('<h2>Vault overview</h2>'.replace('<h2>', '>'))).toBe(true);
     expect(vault.test("import X from '../features/vault/BookmarkVaultTab';")).toBe(false);
     expect(vault.test('const CloudVaultTab = lazy(() => null);')).toBe(false);
+  });
+
+  it('no source file puts an emoji or a glyph icon in the UI', () => {
+    const hits = [];
+    for (const file of sourceFiles(SRC)) {
+      const lines = withoutComments(readFileSync(file, 'utf8')).split('\n');
+      lines.forEach((line, i) => {
+        if (EMOJI.test(line)) hits.push(`${relative(SRC, file)}:${i + 1}  ${line.trim().slice(0, 80)}`);
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+
+  it('the emoji rule spares typographic marks', () => {
+    expect(EMOJI.test('Next → · 3 × 4 — “done”…')).toBe(false);
+    expect(EMOJI.test('✅ Saved')).toBe(true);
+    expect(EMOJI.test('✕')).toBe(true);
   });
 
   it('would catch a reintroduced phrase', () => {

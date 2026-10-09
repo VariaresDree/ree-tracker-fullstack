@@ -3,7 +3,7 @@
 // Practice's setup screen: due reviews, four one-tap presets, and a custom
 // session behind a disclosure.
 import { useState } from 'react';
-import { Card, Button, FormField, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
+import { Card, Button, FormField, IconChip, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
 import { Shuffle, Crosshair, Layers, Bookmark, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
@@ -103,12 +103,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           card, so it fills from ordinary practice. */}
       {srs && srs.total > 0 && (
         <Card elevated className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
-          <span
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-default)]"
-            style={{ background: 'color-mix(in srgb, var(--accent-success) 14%, transparent)', color: 'var(--accent-success)' }}
-          >
-            <RotateCcw size={20} strokeWidth={1.75} aria-hidden="true" />
-          </span>
+          <IconChip icon={RotateCcw} tone="success" />
           <div className="flex-1 min-w-0">
             <p className="text-textMain font-semibold">
               {dueCount > 0 ? `${dueCount} question${dueCount === 1 ? '' : 's'} due for review` : 'Review queue is clear'}
@@ -134,15 +129,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           const Icon = preset.icon;
           return (
             <Card key={preset.id} elevated className="p-5 flex flex-col gap-3 hover-glow">
-              <span
-                className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-default)]"
-                style={{
-                  background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
-              </span>
+              <IconChip icon={Icon} />
               <div className="flex-1">
                 <p className="text-textMain font-semibold">{preset.name}</p>
                 <p className="text-xs text-muted2 mt-0.5">{preset.meta}</p>

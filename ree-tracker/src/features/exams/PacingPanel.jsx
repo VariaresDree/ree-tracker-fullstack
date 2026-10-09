@@ -8,7 +8,8 @@ import { toDisplaySubject } from '@ree/shared';
 import { Card, ProgressIndicator, Button } from '../../components/ui';
 import { Clock } from '../../components/ui/icons';
 import SmartText from '../../components/SmartText';
-import { pacingSummary, formatSecs } from './pacing';
+import { pacingSummary } from './pacing';
+import { formatClock as formatSecs } from '../../utils/time';
 
 /**
  * @param items  [{ order, subject, timeSpentMs, isCorrect?, text? }]

@@ -9,7 +9,7 @@
 // /battle/:id) and light Exams in the nav.
 import { lazy, Suspense } from 'react';
 import useTabParam from '../hooks/useTabParam';
-import { Page, PageHeader, Tabs, Skeleton } from '../components/ui';
+import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
 import ModeGuide from '../features/exams/ModeGuide';
 import { Zap, Shield, Swords, Trophy, History } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -38,8 +38,9 @@ export default function Exams() {
     <Page>
       <PageHeader title="Exams" subtitle="Timed tests under board conditions: mock boards, the Gauntlet ladder, and battles with friends." />
       <ModeGuide folded />
-      <Tabs label="Exam types" active={tab} onChange={setTab} tabs={TABS} />
+      <Tabs id="exams" label="Exam types" active={tab} onChange={setTab} tabs={TABS} />
 
+      <TabPanel id="exams" active={tab}>
       {tab === 'mock' ? (
         <MockBoardTab />
       ) : (
@@ -52,6 +53,7 @@ export default function Exams() {
           </Suspense>
         </ErrorBoundary>
       )}
+      </TabPanel>
     </Page>
   );
 }

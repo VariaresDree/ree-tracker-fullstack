@@ -65,11 +65,4 @@ export function paceStatus({ elapsedSecs, totalSecs, totalItems, answered }) {
   return { status, expected, answered };
 }
 
-/** "2:24" or "1:02:05". */
-export function formatSecs(secs) {
-  const s = Math.max(0, Math.round(secs || 0));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const r = String(s % 60).padStart(2, '0');
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
-}
+// Times print through utils/time (formatClock).

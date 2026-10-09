@@ -25,7 +25,7 @@ import QuestionCard from '../features/quiz/QuestionCard';
 import SolutionPanel from '../features/quiz/SolutionPanel';
 import { useAiExplanation } from '../features/quiz/useAiExplanation';
 import PacingPanel from '../features/exams/PacingPanel';
-import { formatSecs } from '../features/exams/pacing';
+import { formatClock as formatSecs, formatDuration } from '../utils/time';
 import { REVIEW_FILTERS, filterCounts, filterItems, subjectsIn } from '../features/exams/review/reviewFilters';
 import { missedItems, retakeState, reviewItemToQuestion } from '../features/exams/review/retake';
 import { itemsPreset, launchPractice } from '../features/active-recall/presets';
@@ -136,7 +136,7 @@ export default function SittingReview() {
       </Button>
       <PageHeader
         title={`${kind} review`}
-        subtitle={[date, `${items.length} items`, session.timeTakenSecs ? `${formatSecs(session.timeTakenSecs)} used` : null].filter(Boolean).join(' · ')}
+        subtitle={[date, `${items.length} items`, session.timeTakenSecs ? `${formatDuration(session.timeTakenSecs)} used` : null].filter(Boolean).join(' · ')}
         meta={session.verdict ? <Badge tone={VERDICT_TONE[session.verdict] || 'neutral'}>{session.verdict}</Badge> : null}
       />
 

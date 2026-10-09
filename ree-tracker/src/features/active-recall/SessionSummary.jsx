@@ -11,7 +11,7 @@ import { Crosshair, RotateCcw } from '../../components/ui/icons';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
 import NotificationOptIn from '../../components/NotificationOptIn';
-import { formatDuration } from './buildSessionSummary';
+import { formatDuration } from '../../utils/time';
 
 function Figure({ label, value, sub }) {
   return (

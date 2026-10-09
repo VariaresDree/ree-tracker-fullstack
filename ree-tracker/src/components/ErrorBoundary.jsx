@@ -1,4 +1,6 @@
 import React from 'react';
+import { Button, Card, EmptyState } from './ui';
+import { TriangleAlert } from './ui/icons';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -22,47 +24,39 @@ class ErrorBoundary extends React.Component {
         // couple of attempts, offer a full reload instead.
         const exhausted = this.state.retryCount >= 2;
         return (
-          <div role="alert" aria-live="assertive" className="p-6 bg-surface border border-reeRed/30 rounded-xl text-center">
-            <div className="text-sm font-bold text-reeRed-text mb-1">
-              {this.props.name} couldn’t load
-            </div>
-            <div className="text-xs text-muted2 mb-3">
-              {this.state.error?.message || 'An unexpected error occurred.'}
-            </div>
-            {exhausted ? (
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="touch-target px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold transition-colors cursor-pointer border border-border2"
-              >
-                Reload page
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => this.setState((s) => ({ hasError: false, error: null, retryCount: s.retryCount + 1 }))}
-                className="touch-target px-4 py-2 bg-surface2 hover:bg-surface3 text-textMain rounded-lg text-xs font-bold transition-colors cursor-pointer border border-border2"
-              >
-                Try again
-              </button>
+          <Card role="alert" aria-live="assertive" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 35%, transparent)' }}>
+            <EmptyState
+              compact
+              icon={TriangleAlert}
+              title={`${this.props.name} couldn’t load`}
+              description="Something went wrong while showing this part of the page. The rest of the app still works."
+              action={exhausted ? (
+                <Button variant="secondary" onClick={() => window.location.reload()}>Reload page</Button>
+              ) : (
+                <Button variant="secondary" onClick={() => this.setState((st) => ({ hasError: false, error: null, retryCount: st.retryCount + 1 }))}>Try again</Button>
+              )}
+            />
+            {this.state.error?.message && (
+              <details className="px-5 pb-4 text-xs text-muted2 text-center">
+                <summary className="cursor-pointer">Details</summary>
+                <p className="mt-1 break-words">{this.state.error.message}</p>
+              </details>
             )}
-          </div>
+          </Card>
         );
       }
 
       return (
         <div role="alert" aria-live="assertive" className="min-h-screen flex items-center justify-center bg-bg p-4">
-          <div className="p-8 bg-surface border border-reeRed/40 rounded-2xl text-center max-w-md">
-            <h1 className="text-xl font-bold text-textMain mb-2">Something went wrong</h1>
-            <p className="text-sm text-muted2 mb-4">REE.ai hit an error it can’t recover from on this page. Reloading usually fixes it; answers you’ve saved stay on this device.</p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="touch-target px-6 py-2 bg-reeBlue hover:bg-reeBlue2 text-white rounded-lg text-sm font-bold cursor-pointer"
-            >
-              Reload
-            </button>
-          </div>
+          <Card className="max-w-md w-full">
+            <EmptyState
+              titleAs="h1"
+              icon={TriangleAlert}
+              title="Something went wrong"
+              description="REE.ai hit an error it can’t recover from on this page. Reloading usually fixes it; answers you’ve saved stay on this device."
+              action={<Button onClick={() => window.location.reload()}>Reload</Button>}
+            />
+          </Card>
         </div>
       );
     }
