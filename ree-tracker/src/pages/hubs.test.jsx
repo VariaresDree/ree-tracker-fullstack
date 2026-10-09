@@ -2,8 +2,8 @@
 // Admin. Their tabs live in ?tab=; heavy children are mocked so these tests
 // pin the wiring, not the children.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, within, fireEvent } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 
 vi.mock('../features/exams/GauntletTab', () => ({ default: () => <p>exams:gauntlet</p> }));
 vi.mock('../features/exams/BattlesTab', () => ({ default: () => <p>exams:battles</p> }));
@@ -14,7 +14,15 @@ vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../features/reference/ReferenceBrowser', () => ({
     default: ({ initialSearch, initialKind }) => <p>formula-cards search={initialSearch} kind={initialKind}</p>,
 }));
-vi.mock('../features/materials/CloudVaultTab', () => ({ default: ({ isAdmin }) => <p>handouts admin={String(isAdmin)}</p> }));
+vi.mock('../features/materials/CloudVaultTab', () => ({
+    default: ({ isAdmin, onViewMaterial, openMaterialId }) => (
+        <div>
+            <p>handouts admin={String(isAdmin)} open={String(openMaterialId)}</p>
+            <button type="button" onClick={() => onViewMaterial({ id: 'm1', name: 'AC notes', type: 'pdf', url: 'x' })}>open m1</button>
+        </div>
+    ),
+}));
+vi.mock('../features/materials/MaterialViewer', () => ({ default: ({ material, onClose }) => <div><p>viewing {material.name}</p><button type="button" onClick={onClose}>close viewer</button></div> }));
 vi.mock('../features/vault/BookmarkVaultTab', () => ({ default: () => <p>bookmarks</p> }));
 vi.mock('../features/quiz-launcher/QuizLauncherTab', () => ({ default: () => <p>quizzes</p> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
@@ -25,7 +33,8 @@ const { default: Exams } = await import('./Exams');
 const { default: Library } = await import('./Library');
 const { default: Admin } = await import('./admin/Admin');
 
-const at = (entry, Page) => render(<MemoryRouter initialEntries={[entry]}><Page /></MemoryRouter>);
+function UrlProbe() { const l = useLocation(); return <p data-testid="url">{l.pathname + l.search}</p>; }
+const at = (entry, Page) => render(<MemoryRouter initialEntries={[entry]}><Page /><UrlProbe /></MemoryRouter>);
 
 describe('Exams', () => {
     it('opens on the mock board, each format linking to its setup', () => {
@@ -61,9 +70,26 @@ describe('Library (learner)', () => {
 
     it('handouts are read-only, and there is no admin tab', () => {
         at('/library?tab=handouts', Library);
-        expect(screen.getByText('handouts admin=false')).toBeInTheDocument();
+        expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
         expect(tabs).toEqual(['Formula cards', 'Handouts', 'Bookmarks', 'Imported quizzes']);
+    });
+});
+
+describe('Library handout viewer', () => {
+    it('an open handout is in the URL, and closing it goes back to the list', () => {
+        at('/library?tab=handouts', Library);
+        fireEvent.click(screen.getByRole('button', { name: 'open m1' }));
+        expect(screen.getByText('viewing AC notes')).toBeInTheDocument();
+        expect(screen.getByTestId('url')).toHaveTextContent('material=m1');
+        fireEvent.click(screen.getByRole('button', { name: 'close viewer' }));
+        expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
+        expect(screen.getByTestId('url')).not.toHaveTextContent('material=');
+    });
+
+    it('a link with ?material= asks the handouts list to open it', () => {
+        at('/library?tab=handouts&material=m7', Library);
+        expect(screen.getByText('handouts admin=false open=m7')).toBeInTheDocument();
     });
 });
 
@@ -78,6 +104,6 @@ describe('Admin', () => {
 
     it('?tab=handouts gives the editable handouts', async () => {
         at('/admin?tab=handouts', Admin);
-        expect(await screen.findByText('handouts admin=true')).toBeInTheDocument();
+        expect(await screen.findByText(/handouts admin=true/)).toBeInTheDocument();
     });
 });

@@ -7,7 +7,7 @@
 // import graph never reaches the telemetry/store/scoring modules.
 import { useEffect, useState } from 'react';
 import ExamLayout from '../../layouts/ExamLayout';
-import { Button } from '../../components/ui';
+import { Button, Modal } from '../../components/ui';
 import { ChevronLeft, ChevronRight, Check, X as XIcon } from '../../components/ui/icons';
 import QuestionCard from '../quiz/QuestionCard';
 import { useCaqSession } from './useCaqSession';
@@ -51,6 +51,10 @@ function CaqRun({ fileName, questions: rawQuestions, warnings, onExit, onRetake 
     questions, currentQuestion, currentIndex, total, answers, selectAnswer, next, prev, goTo,
     finished, submit, elapsedMs, startClock, score,
   } = session;
+  // Exit asks first once there are answers: nothing here is saved, and one
+  // stray tap used to throw a half-done quiz away.
+  const [confirmExit, setConfirmExit] = useState(false);
+  const requestExit = () => (score.answered > 0 ? setConfirmExit(true) : onExit());
 
   useEffect(() => {
     startClock();
@@ -92,7 +96,7 @@ function CaqRun({ fileName, questions: rawQuestions, warnings, onExit, onRetake 
           <p className="text-eyebrow">Item {currentIndex + 1} / {total}</p>
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-muted2 tabular-nums">{formatElapsed(elapsedMs)}</span>
-            <Button variant="ghost" size="sm" onClick={onExit}>Exit</Button>
+            <Button variant="ghost" size="sm" onClick={requestExit}>Exit</Button>
           </div>
         </div>
 
@@ -144,6 +148,21 @@ function CaqRun({ fileName, questions: rawQuestions, warnings, onExit, onRetake 
             </Button>
           )}
         </div>
+
+        <Modal
+          open={confirmExit}
+          onClose={() => setConfirmExit(false)}
+          title="Leave this quiz?"
+          size="sm"
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setConfirmExit(false)}>Keep going</Button>
+              <Button tone="danger" onClick={onExit}>Leave</Button>
+            </>
+          )}
+        >
+          <p className="text-sm text-muted2">Your {score.answered} answer{score.answered === 1 ? '' : 's'} aren’t saved anywhere, so they’ll be lost.</p>
+        </Modal>
 
         {isLast && score.answered < total && (
           <p className="text-xs text-muted2 flex items-center gap-1.5">

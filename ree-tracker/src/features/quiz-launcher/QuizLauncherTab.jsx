@@ -10,18 +10,21 @@
 // relying on the wrapping ErrorBoundary: a malformed file is an EXPECTED
 // outcome for a third-party format, not an app bug, and deserves an inline
 // "try another file" message rather than the boundary's generic crash UI.
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui';
 import { FileText, Play, Trash2, Clock, CircleAlert, CheckCircle2 } from '../../components/ui/icons';
 import QuizFilePicker from './QuizFilePicker';
-import CaqRunner from './CaqRunner';
 import { parseCaqArchive } from './caqParser';
+import { setActiveQuiz, setQuizEntries as setEntries, useQuizSession } from './quizSession';
 
 let nextEntryId = 0;
 
 export default function QuizLauncherTab() {
-  const [entries, setEntries] = useState([]); // { id, fileName, status: 'parsing'|'ready'|'error', result, error }
-  const [activeEntryId, setActiveEntryId] = useState(null);
+  const navigate = useNavigate();
+  // { id, fileName, status: 'parsing'|'ready'|'error', result, error }, kept
+  // in quizSession so they outlast a tab switch.
+  const { entries } = useQuizSession();
 
   const handleFilesSelected = useCallback((files) => {
     const newEntries = files.map((file) => ({ id: nextEntryId++, fileName: file.name, status: 'parsing', file, result: null, error: null }));
@@ -44,18 +47,7 @@ export default function QuizLauncherTab() {
     setEntries((prev) => prev.filter((e) => e.id !== id));
   }, []);
 
-  const activeEntry = entries.find((e) => e.id === activeEntryId) || null;
-
-  if (activeEntry?.status === 'ready') {
-    return (
-      <CaqRunner
-        fileName={activeEntry.fileName}
-        questions={activeEntry.result.questions}
-        warnings={activeEntry.result.warnings}
-        onExit={() => setActiveEntryId(null)}
-      />
-    );
-  }
+  const start = (id) => { setActiveQuiz(id); navigate('/library/quiz'); };
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,7 +89,7 @@ export default function QuizLauncherTab() {
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {entry.status === 'ready' && (
-                  <Button size="sm" variant="primary" onClick={() => setActiveEntryId(entry.id)}>
+                  <Button size="sm" variant="primary" onClick={() => start(entry.id)}>
                     <Play size={13} strokeWidth={1.75} aria-hidden="true" /> Start
                   </Button>
                 )}

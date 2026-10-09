@@ -18,7 +18,7 @@ export default function MaterialViewer({ material, onClose, headingLevel = 1 }) 
   const isPdf = material?.type === 'pdf';
 
   return (
-    <div className={isFullscreen ? 'fixed inset-0 z-[200] bg-bg flex flex-col w-full h-full animate-in fade-in' : 'flex flex-col h-[85vh] page-fade-in w-full max-w-6xl mx-auto pt-4'}>
+    <div className={isFullscreen ? 'fixed inset-0 z-[200] bg-bg flex flex-col w-full h-full animate-in fade-in' : 'flex flex-col h-[85dvh] page-fade-in w-full max-w-6xl mx-auto pt-4'}>
       <div className={`flex justify-between items-center p-4 bg-surface border-b border-border2 shadow-sm z-10 ${isFullscreen ? '' : 'rounded-t-[var(--radius-lg)] border-x border-t'}`}>
         <div className="flex gap-2 shrink-0">
           <Button variant="secondary" size="sm" onClick={() => { setIsFullscreen(false); onClose(); }}>

@@ -6,8 +6,8 @@
 // Handouts are read-only here — uploading and organising them is an Admin tab.
 // The tab lives in ?tab=; an old /materials deep link arrives with
 // { search, kind } state for the formula cards (routes/legacyRoutes.js).
-import { lazy, Suspense, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { lazy, Suspense, useRef, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
@@ -38,10 +38,31 @@ export default function Library() {
 
   const location = useLocation();
   const deepLink = location.state || {};
+  // An open handout is in the URL (?material=<id>), pushed: Back closes it
+  // (it used to leave Library), and a reload or a shared link reopens it once
+  // the handouts have loaded.
+  const [params, setParams] = useSearchParams();
+  const materialId = params.get('material');
+  const navigate = useNavigate();
   const [viewingMaterial, setViewingMaterial] = useState(null);
+  // Whether this visit pushed the ?material= entry: then Close is Back, so
+  // the history doesn't fill with copies of the list.
+  const pushedRef = useRef(false);
+  const openMaterial = (m) => {
+    setViewingMaterial(m);
+    if (String(m.id) !== materialId) {
+      pushedRef.current = true;
+      setParams((prev) => { const p = new URLSearchParams(prev); p.set('tab', 'handouts'); p.set('material', String(m.id)); return p; });
+    }
+  };
+  const closeMaterial = () => {
+    setViewingMaterial(null);
+    if (pushedRef.current) { pushedRef.current = false; navigate(-1); return; }
+    setParams((prev) => { const p = new URLSearchParams(prev); p.delete('material'); return p; }, { replace: true });
+  };
 
-  if (viewingMaterial) {
-    return <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} />;
+  if (viewingMaterial && materialId && String(viewingMaterial.id) === materialId) {
+    return <MaterialViewer material={viewingMaterial} onClose={closeMaterial} />;
   }
 
   return (
@@ -59,7 +80,7 @@ export default function Library() {
       )}
 
       {tab === 'handouts' && (
-        <CloudVaultTab currentUser={currentUser} isAdmin={false} onViewMaterial={setViewingMaterial} />
+        <CloudVaultTab currentUser={currentUser} isAdmin={false} onViewMaterial={openMaterial} openMaterialId={materialId} />
       )}
 
       {tab === 'bookmarks' && (

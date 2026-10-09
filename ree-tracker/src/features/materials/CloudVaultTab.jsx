@@ -4,13 +4,13 @@
 // Learners browse and open; admins also organise. A failed load shows an
 // error with Try again and offline says so — both used to read "This folder
 // is empty" — and the first load has a skeleton.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useFileManager } from './useFileManager';
 import { Button, EmptyState, FormField, Input, Modal, Select, Skeleton } from '../../components/ui';
 import { FolderOpen, FileText, FileUp, Pencil, Plus, Scissors, X, Download, TriangleAlert, CloudOff } from '../../components/ui/icons';
 
-export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) {
+export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, openMaterialId = null }) {
   const [sortBy, setSortBy] = useState('name');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -27,6 +27,15 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
     deleteItem, renameItem, moveItem,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   } = useFileManager(currentUser, isAdmin);
+
+  // A handout named in the URL (a reload, a shared link) opens once the list
+  // has it.
+  useEffect(() => {
+    if (!openMaterialId) return;
+    const m = materials.find((x) => String(x.id) === String(openMaterialId));
+    if (m) onViewMaterial(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openMaterialId, materials]);
 
   const handleCut = (item, type, e) => {
     e.stopPropagation();

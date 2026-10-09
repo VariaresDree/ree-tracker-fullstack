@@ -189,13 +189,12 @@ export const BOOT_TIMEOUT_MS = 30_000;
 // Re-exported from @ree/shared so this fallback and the server sampler's cannot
 // drift. Previously four separate literals, one of them UPPERCASE-keyed and
 // therefore incompatible with the other three.
-export const SYLLABUS_WEIGHTS_FALLBACK = DEFAULT_SYLLABUS_WEIGHTS;
 export const fetchSyllabusWeights = async () => {
     try {
         const r = await apiRequest('/api/config/syllabus-weights');
-        return r?.weights || SYLLABUS_WEIGHTS_FALLBACK;
+        return r?.weights || DEFAULT_SYLLABUS_WEIGHTS;
     } catch {
-        return SYLLABUS_WEIGHTS_FALLBACK;
+        return DEFAULT_SYLLABUS_WEIGHTS;
     }
 };
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
@@ -236,7 +235,6 @@ export const syncTelemetryBatch = async (uid, sessionId, targetSubject, mode, at
         attempts,
     });
 };
-export const purgeUserAnalytics = async () => apiRequest('/api/analytics/purge', 'DELETE');
 
 // ----------------------------------------------------------------------
 // 2. Question Bank & Review Queue
@@ -245,7 +243,6 @@ export const saveQuestionToBank = async (questionObject) => {
     const result = await apiRequest('/api/questions', 'POST', questionObject);
     return result.id;
 };
-export const fetchQuarantineQueue = async () => normalizeQuestions(await apiRequest('/api/questions/quarantine'));
 export const approveQuarantinedQuestion = async (id, subject, subtopic) => apiRequest(`/api/questions/quarantine/${id}/approve`, 'PUT', { subject, subtopic });
 
 // AI review loop (Phase 3.6). New AI/vision submissions live in the
@@ -376,14 +373,6 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
     return getOfflinePackMeta();
 };
 
-// Build the pack only when it's missing or stale — cheap no-op otherwise.
-export const ensureOfflinePack = async () => {
-    if (!navigator.onLine) return getOfflinePackMeta();
-    const meta = await getOfflinePackMeta();
-    if (!meta.exists || meta.stale) return refreshOfflinePack();
-    return meta;
-};
-
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
     const data = await apiRequest(`/api/questions/flagged?${queryParams.toString()}`);
@@ -401,25 +390,11 @@ export const updateQuestionCache = async (id, explanation) => {
     return await apiRequest(`/api/questions/${id}/cache`, 'PUT', { cachedExplanation: explanation });
 };
 
-export const fetchReviewQuestions = async (mode, subject, subtopic, blindSpots) => {
-    const data = await apiRequest('/api/questions/review', 'POST', { mode, subject, subtopic, blindSpots, limit: 20 });
-    return normalizeQuestions(data);
-};
-
-export const initializeReviewSession = async (config) => {
-    const data = await apiRequest('/api/questions/review', 'POST', { 
-        subject: config.subject, 
-        limit: config.count || 20 
-    });
-    return normalizeQuestions(data);
-};
-
 // ----------------------------------------------------------------------
 // 3. Metadata Handlers
 // ----------------------------------------------------------------------
 export const fetchVaultMetadata = async () => safeApiRequest('/api/metadata/vault', 'GET', null, null);
 export const resyncVaultMetadata = async () => apiRequest('/api/metadata/vault/resync', 'POST');
-export const resyncVault = async () => apiRequest('/api/metadata/vault/resync', 'POST'); 
 
 // ----------------------------------------------------------------------
 // 4. The Social Matrix (Leaderboards)
@@ -443,13 +418,6 @@ const normalizeAgent = (a) => ({
     // (the server's "you are here"). It has no place in the order.
     offBoard: !!a.offBoard,
 });
-
-export const fetchGlobalLeaderboard = async (limitCount = 100) => {
-    const data = await safeApiRequest(`/api/leaderboard?limit=${limitCount}`, 'GET', null, null);
-    if (!data) return [];
-    const raw = data?.leaderboard || data?.items || data || [];
-    return Array.isArray(raw) ? raw.map(normalizeAgent) : [];
-};
 
 export const fetchPaginatedLeaderboard = async (limitCount = 20, cursor = null) => {
     const qs = new URLSearchParams({ limit: String(limitCount) });
@@ -511,32 +479,12 @@ export const fetchBookmarks = async ({ limit = 100 } = {}) => {
 // ----------------------------------------------------------------------
 // 7. Study Materials & Files
 // ----------------------------------------------------------------------
-export const uploadMaterial = async (file, folderId, subject) => {
-    const user = auth.currentUser;
-    if (!user) throw new Error("Authentication required.");
-    const token = await getAuthToken(user);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folderId', folderId || '');
-    formData.append('subject', subject || 'General');
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/materials/upload`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
-    });
-    if (!response.ok) throw new Error("Upload failed.");
-    return response.json();
-};
-
-export const fetchMaterials = async (folderId = null) => {
-    const url = folderId ? `/api/materials?folderId=${folderId}` : '/api/materials';
-    return await apiRequest(url);
-};
-
 export const createFolder = async (name, parentId = null) => apiRequest('/api/materials/folders', 'POST', { name, parentId });
 export const deleteMaterial = async (id) => apiRequest(`/api/materials/${id}`, 'DELETE');
 export const deleteFolder = async (id) => apiRequest(`/api/materials/folders/${id}`, 'DELETE');
 // Persist an already-hosted material (e.g. a Firebase Storage downloadURL) via
-// the JSON `url` branch of POST /upload — NOT the multipart `uploadMaterial`
-// helper above, which the express.json() route would reject.
+// the JSON `url` branch of POST /upload (the route reads JSON; a multipart
+// upload helper that it would have rejected was removed, unused).
 export const commitMaterialLink = async ({ folderId = null, name, type, url, storagePath = null }) =>
     apiRequest('/api/materials/upload', 'POST', { folderId, name, type, url, storagePath });
 export const updateMaterial = async (id, data) => apiRequest(`/api/materials/${id}`, 'PATCH', data);
@@ -592,7 +540,6 @@ export const recomputeForecast = async () => apiRequest('/api/forecast/recompute
 
 // CAT — server-side next-item selection. `body` lets the caller include the
 // in-session attempts so the picker can refine theta before choosing.
-export const fetchNextCatItem = async (body) => apiRequest('/api/exams/next-item', 'POST', body || {});
 
 export const fetchAnalyticsDeep = async (type) => safeApiRequest(`/api/analytics/deep/${type}`, 'GET', null, null);
 
@@ -644,7 +591,6 @@ export const fetchReferenceSources = async () => {
     return data?.items || [];
 };
 export const createReferenceSource = (body) => apiRequest('/api/reference-cards/sources', 'POST', body);
-export const updateReferenceSource = (id, body) => apiRequest(`/api/reference-cards/sources/${id}`, 'PUT', body);
 export const deleteReferenceSource = (id) => apiRequest(`/api/reference-cards/sources/${id}`, 'DELETE');
 
 // Account deletion. Profile.jsx used to inline a bare fetch for this — the only

@@ -28,6 +28,7 @@ const BattleLobby = lazy(() => import('./pages/BattleLobby'));
 const Gauntlet = lazy(() => import('./pages/Gauntlet'));
 const Diagnostic = lazy(() => import('./pages/Diagnostic'));
 const SittingReview = lazy(() => import('./pages/SittingReview'));
+const QuizRunPage = lazy(() => import('./features/quiz-launcher/QuizRunPage'));
 
 // The app shell as a layout route: the navigation stays on screen while a page
 // chunk loads, and only the page area shows the loading state.
@@ -101,6 +102,8 @@ const SecureAppTerminal = () => {
           {/* Placement test — owns its layout like the Simulator: MainLayout
               for the intro and result, ExamLayout while answering. */}
           <Route path="/diagnostic" element={<ErrorBoundary name="Placement test"><Diagnostic /></ErrorBoundary>} />
+          {/* An imported quiz being run — exam layout, outside the app shell. */}
+          <Route path="/library/quiz" element={<ErrorBoundary name="Imported quiz"><QuizRunPage /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

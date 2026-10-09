@@ -46,7 +46,7 @@ export default function MediaViewer({ item }) {
       
     case 'image':
       return (
-        <div className="w-full h-[60vh] sm:h-[80vh]">
+        <div className="w-full h-[60dvh] sm:h-[80dvh]">
           <ZoomableImage src={item.url} alt={item.title} />
         </div>
       );
@@ -55,7 +55,7 @@ export default function MediaViewer({ item }) {
       const finalPdfUrl = normalizePdfUrl(item.url);
 
       return (
-        <div className="w-full h-[80vh] rounded-xl overflow-hidden border border-border2 shadow-sm bg-surface2 relative">
+        <div className="w-full h-[80dvh] rounded-xl overflow-hidden border border-border2 shadow-sm bg-surface2 relative">
           {/* 🚀 ROOT CAUSE FIXED: The strict "sandbox" attribute was removed. 
               Google Drive requires unrestricted iframe access to execute its own UI scripts. */}
           <iframe 

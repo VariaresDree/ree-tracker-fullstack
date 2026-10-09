@@ -71,3 +71,22 @@ function mapConfidence(level) {
   if (!level) return null;
   return CONFIDENCE_MAP[String(level).toUpperCase()] ?? null;
 }
+
+// How far a confidence level's accuracy may sit from the probability it stands
+// for (CONFIDENCE_MAP) and still count as calibrated, in percentage points.
+export const LEVEL_TOLERANCE_PTS = 15;
+
+/**
+ * One confidence level against its own accuracy: 'calibrated', 'over'
+ * (right less often than the level claims) or 'under'. The per-level cards
+ * used a rule of their own (low under 50%, high at least 70%, medium always
+ * fine) that disagreed with the curve above them.
+ */
+export function levelCalibration(level, accuracyPct) {
+  const p = mapConfidence(level);
+  if (p == null || !Number.isFinite(accuracyPct)) return null;
+  const gap = accuracyPct - p * 100;
+  if (gap < -LEVEL_TOLERANCE_PTS) return 'over';
+  if (gap > LEVEL_TOLERANCE_PTS) return 'under';
+  return 'calibrated';
+}
