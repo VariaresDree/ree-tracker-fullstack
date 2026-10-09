@@ -59,6 +59,16 @@ describe('SittingReview', () => {
     expect(screen.getByText(/You answered this correctly/)).toBeInTheDocument();
   });
 
+  it('the answer sheet shows your bubble and the correct one', async () => {
+    fetchSittingReview.mockResolvedValue(REVIEW);
+    renderAt();
+    await screen.findByText('Question 1');
+    fireEvent.click(screen.getByRole('radio', { name: 'Answer sheet' }));
+    expect(screen.getByRole('button', { name: 'Item 1, answered B, correct answer B' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Item 2, answered A, correct answer B, marked for review' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Item 3, not answered, correct answer B' })).toBeInTheDocument();
+  });
+
   it('filters to the wrong answers and blanks', async () => {
     fetchSittingReview.mockResolvedValue(REVIEW);
     renderAt();

@@ -15,8 +15,8 @@ import {
 import { hideExamSession } from '../services/dbQueries';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
-import { Button, Modal, Card } from '../components/ui';
-import { TriangleAlert, Layers } from '../components/ui/icons';
+import { Card, Button } from '../components/ui';
+import { Layers } from '../components/ui/icons';
 import { setupConfig } from '../features/board-simulator/profiles';
 import { toDisplaySubject } from '@ree/shared';
 
@@ -31,7 +31,6 @@ export default function BoardSimulator() {
   const isOnline = useNetworkStatus();
   const engine = useSimulatorEngine(currentUser, isOnline);
 
-  const [showTerminateModal, setShowTerminateModal] = useState(false);
 
   // Full PRC board (features/board-simulator/fullBoard): three sections on one
   // server session, results withheld until the last. `board` is the between-
@@ -305,28 +304,13 @@ export default function BoardSimulator() {
           <SimulatorActive
             engine={engine}
             formatTime={formatTimerMinutes}
-            requestTerminate={() => setShowTerminateModal(true)}
             onExitReview={exitReview}
             isOnline={isOnline}
         />
         </div>
       )}
 
-      <Modal
-        open={showTerminateModal}
-        onClose={() => setShowTerminateModal(false)}
-        tone="amber"
-        icon={TriangleAlert}
-        title="Submit this exam?"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowTerminateModal(false)}>Keep working</Button>
-            <Button tone="danger" onClick={() => { setShowTerminateModal(false); engine.submitExam(); }}>Submit exam</Button>
-          </>
-        }
-      >
-        <p className="text-sm text-muted2 leading-relaxed">Submitting grades your answers and saves the report to your ledger.</p>
-      </Modal>
+
 
     </div>
   );

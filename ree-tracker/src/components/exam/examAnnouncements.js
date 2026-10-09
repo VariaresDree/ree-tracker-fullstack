@@ -12,6 +12,13 @@ export function navigatorLabel({ idx, number, answered, reviewState, marked }) {
   return `Go to item ${number ?? idx + 1}, ${state}${marked ? ', marked for review' : ''}`;
 }
 
+/** One answer-sheet row for a screen reader: "Item 12, answered B, marked for review". */
+export function sheetRowLabel({ number, letter, correctLetter, marked }) {
+  const answer = letter ? `answered ${letter}` : 'not answered';
+  const key = correctLetter ? `, correct answer ${correctLetter}` : '';
+  return `Item ${number}, ${answer}${key}${marked ? ', marked for review' : ''}`;
+}
+
 /** Minutes-left marks a screen reader hears. */
 const MILESTONE_MINUTES = [60, 30, 10, 5, 1];
 

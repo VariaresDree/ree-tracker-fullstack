@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { todayManila, dayBefore } from '@ree/shared';
-import { normalizeMicroTopics, mergeServerIntoStats, lastStudyDay, dailyCountsToday } from './analyticsSync';
+import { normalizeMicroTopics, mergeServerIntoStats, lastStudyDay, dailyCountsToday, mergeGauntlet } from './analyticsSync';
 
 const TODAY = todayManila();
 const YESTERDAY = dayBefore(TODAY);
@@ -212,5 +212,43 @@ describe('mergeServerIntoStats — daily counts', () => {
       { profile: { dailyMath: 12, dailyESAS: 3, dailyEE: 5 }, activityCalendar: { [YESTERDAY]: 20 } },
     );
     expect(daily(out)).toEqual([1, 0, 0]);
+  });
+});
+
+describe('mergeGauntlet — the ladder, server and device', () => {
+  const now = Date.now();
+
+  it('a server that tracks the ladder sets the level, even below the device', () => {
+    expect(mergeGauntlet({ gauntletLevel: 4 }, { gauntletLevel: 2, gauntletServerTracked: true }).gauntletLevel).toBe(2);
+  });
+
+  it('until the server tracks it, the higher level is kept, so a device-only ladder survives', () => {
+    expect(mergeGauntlet({ gauntletLevel: 4 }, { gauntletLevel: 1, gauntletServerTracked: false }).gauntletLevel).toBe(4);
+    expect(mergeGauntlet({ gauntletLevel: 1 }, { gauntletLevel: 3, gauntletServerTracked: false }).gauntletLevel).toBe(3);
+  });
+
+  it('the later lock wins — a run left here locks before the server hears of it', () => {
+    const local = now + 12 * 3600e3;
+    const server = now + 2 * 3600e3;
+    expect(mergeGauntlet({ gauntletLockUntil: local }, { gauntletLevel: 1, gauntletLockUntil: server, gauntletServerTracked: true }).gauntletLockUntil).toBe(local);
+    expect(mergeGauntlet({ gauntletLockUntil: null }, { gauntletLevel: 1, gauntletLockUntil: server, gauntletServerTracked: true }).gauntletLockUntil).toBe(server);
+    expect(mergeGauntlet({}, { gauntletLevel: 1, gauntletLockUntil: null }).gauntletLockUntil).toBeNull();
+  });
+
+  it('board clears from both are kept', () => {
+    expect(mergeGauntlet({ gauntletBoardClears: ['EE'] }, { gauntletLevel: 5, gauntletBoardClears: ['Mathematics', 'EE'] }).gauntletBoardClears)
+      .toEqual(['EE', 'Mathematics']);
+  });
+
+  it('an older server with no ladder fields leaves the device copy alone', () => {
+    expect(mergeGauntlet({ gauntletLevel: 3 }, { totalAnswered: 10 })).toEqual({});
+    const merged = mergeServerIntoStats({ gauntletLevel: 3, gauntletLockUntil: now + 1000 }, { profile: { totalAnswered: 0 } });
+    expect(merged.gauntletLevel).toBe(3);
+    expect(merged.gauntletLockUntil).toBe(now + 1000);
+  });
+
+  it('runs inside mergeServerIntoStats', () => {
+    const merged = mergeServerIntoStats({ gauntletLevel: 1 }, { profile: { gauntletLevel: 4, gauntletServerTracked: true, gauntletBoardClears: [] } });
+    expect(merged.gauntletLevel).toBe(4);
   });
 });

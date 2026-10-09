@@ -78,6 +78,23 @@ describe('GauntletTab', () => {
   });
 });
 
+describe('GauntletTab — loading and cleared boards', () => {
+  it('waits for the stats instead of showing level 1 with every tier locked', () => {
+    storeStats = null;
+    renderTab(<GauntletTab />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the Gauntlet');
+    expect(screen.queryByText('Level 1')).not.toBeInTheDocument();
+  });
+
+  it('a cleared subject board says so and can be taken again', () => {
+    storeStats = { gauntletLevel: 5, totalAnswered: 9000, gauntletBoardClears: ['Mathematics'] };
+    renderTab(<GauntletTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Take the Mathematics board again' }));
+    expect(path).toBe('/gauntlet/5');
+    expect(screen.getByRole('button', { name: 'Start the ESAS board' })).toBeInTheDocument();
+  });
+});
+
 describe('RankingsTab', () => {
   const agent = (uid, theta, extra = {}) => ({ uid, displayName: uid.toUpperCase(), thetaRating: theta, streak: 1, ...extra });
 

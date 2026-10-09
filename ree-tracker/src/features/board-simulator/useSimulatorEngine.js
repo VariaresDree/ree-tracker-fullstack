@@ -66,6 +66,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     : 0);
   const [showTime, setShowTime] = useState(true);
   const [bookmarks, setBookmarks] = useState(new Set()); 
+  // Items marked for review in this sitting: a flag for the learner, separate
+  // from Save to bookmarks (which writes to the account). It used to be the
+  // only kind of mark, so marking an item to come back to saved it to
+  // Library › Bookmarks for good. Kept in the draft and sent with the sitting,
+  // so the review's "Marked" filter can show them.
+  const [marked, setMarked] = useState(new Set());
+  // The sitting's full time, for the toolbar's pace indicator.
+  const [examTotalSecs, setExamTotalSecs] = useState(0);
   
   const [hasSavedSession, setHasSavedSession] = useState(!!localStorage.getItem('ree_sim_cache'));
   const [isExporting, setIsExporting] = useState(false);
@@ -88,6 +96,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const currentIndexRef = useRef(0);
   const configRef = useRef(config);
   const bookmarksRef = useRef(bookmarks);
+  const markedRef = useRef(marked);
+  useEffect(() => { markedRef.current = marked; }, [marked]);
   useEffect(() => { configRef.current = config; }, [config]);
   useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { bookmarksRef.current = bookmarks; }, [bookmarks]);
@@ -114,6 +124,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         totalExamTime: totalExamTime.current,
         endTime: endTimeRef.current,
         bookmarks: Array.from(bookmarksRef.current || []),
+        marked: Array.from(markedRef.current || []),
         savedAt: Date.now(),
       }));
     } catch { /* quota / serialization — best effort */ }
@@ -296,10 +307,13 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setCurrentIndex(0); 
       setExamEndTime(endTimeRef.current);
       setBookmarks(new Set());
+      setMarked(new Set());
+      setExamTotalSecs(timeLimitSecs);
       setIsSubmitting(false);
       
       currentIndexRef.current = 0;
       bookmarksRef.current = new Set();
+      markedRef.current = new Set();
       configRef.current = storedConfig;
       persistDraft();
       setHasSavedSession(true);
@@ -347,6 +361,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       const bm = parsed.bookmarks || [];
       setBookmarks(new Set(bm));
       bookmarksRef.current = new Set(bm);
+      const mk = new Set(parsed.marked || []);
+      setMarked(mk);
+      markedRef.current = mk;
+      setExamTotalSecs(totalExamTime.current);
 
       timeSpentPerQuestion.current = parsed.timeSpent || {};
 
@@ -399,6 +417,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     setCurrentIndex(newIdx);
     currentIndexRef.current = newIdx;
     lastActiveTime.current = now;
+    persistDraft();
+  };
+
+  const toggleMarked = (idx) => {
+    const next = new Set(markedRef.current);
+    if (next.has(idx)) next.delete(idx); else next.add(idx);
+    markedRef.current = next;
+    setMarked(next);
     persistDraft();
   };
 
@@ -508,6 +534,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         // Only the LAST section closes a full board; the earlier ones leave the
         // session open for the next section's attempts.
         const shouldFinalize = !isFullBoard || fullBoardSection === FULL_BOARD_SECTIONS.length - 1;
+        const sectionMarkedIds = Array.from(markedRef.current || []).map((i) => finalQs[i]?.id).filter(Boolean);
 
         const attemptsPayload = finalQs.map((q, idx) => {
             const isCorrect = finalAns[idx] === q.answer;
@@ -561,10 +588,16 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             // behind the telemetry when deferred, so the outbox replays them in
             // order; a 409 means the attempts have not landed yet and retries.
             const isRetake = config.source === 'retake';
+            // A full board finalises once, after its last section, so it sends
+            // the marks of every section.
+            const markedIds = isFullBoard
+                ? Array.from(new Set([...(loadFullBoard()?.sections || []).flatMap((sec) => sec?.markedQuestionIds || []), ...sectionMarkedIds]))
+                : sectionMarkedIds;
             const examMeta = {
                 kind: isFullBoard ? 'full-board' : isRetake ? 'retake' : config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
                 isPrcStandard: !!config.isPrcStandard,
                 targetSubject: isFullBoard ? 'Full board' : String(config.subject || '').slice(0, 32),
+                ...(markedIds.length > 0 ? { markedQuestionIds: markedIds.slice(0, 300) } : {}),
             };
             const finalizePath = `/api/exams/sessions/${encodeURIComponent(sessionId)}/finalize`;
             const queueFinalize = () => { if (shouldFinalize) useStore.getState().queuePendingWrite(finalizePath, 'POST', examMeta); };
@@ -656,6 +689,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             recordSection(loadFullBoard(), fullBoardSection, {
                 correct, total: finalQs.length, timeTakenSecs: timeTakenActual,
                 answered: finalQs.filter((_, idx) => finalAns[idx] != null).length,
+                markedQuestionIds: sectionMarkedIds,
             });
         }
 
@@ -760,6 +794,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setCurrentIndex(0);
       setExamEndTime(endTimeRef.current);
       setBookmarks(new Set());
+      setMarked(new Set());
+      markedRef.current = new Set();
+      setExamTotalSecs(timeLimitSecs);
       setIsSubmitting(false);
       gradesAppliedRef.current = false;
 
@@ -886,7 +923,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   return {
     config, setConfig, session, setSession,
     currentIndex, setCurrentIndex, examEndTime, remainingSecsNow, showTime, setShowTime,
-    bookmarks, toggleBookmark, startSimulation, startMultiplayerBattle, handleSelectOption,
+    bookmarks, toggleBookmark, marked, toggleMarked, examTotalSecs, startSimulation, startMultiplayerBattle, handleSelectOption,
     handleSelectConfidence, handleIndexChange, submitExam, applyServerScore, applyBattleGrades,
     hasSavedSession, resumeSimulation, handleFlagQuestion, getElapsedMs,
     exportOfflinePDF, isExporting, isSubmitting, resetToSetup, savedDraftMeta

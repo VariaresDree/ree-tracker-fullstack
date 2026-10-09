@@ -1,12 +1,11 @@
-// Regression coverage for 1.4: Submit exam used to render in an always-visible
-// group right next to Next, one misclick away at every single question. It
-// must now render ONLY on the last item, replacing Next rather than sitting
-// beside it (mirrors the Board Simulator's SimulatorActive.jsx). This test
-// mocks useGauntletEngine directly (its own behavior is covered by
-// useGauntletEngine.test.jsx) so it stays focused on button placement.
+// The Gauntlet page: which chrome each screen gets, Submit (always in the
+// toolbar, through the dialog that lists unanswered items), Leave (counts as
+// not passing, so it forfeits), a saved run (resume or submit as it stands —
+// no "start fresh" around the lock), and Try again after a refused grade.
+// The engine is mocked (its behaviour is in useGauntletEngine.test.jsx).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import Gauntlet from './Gauntlet';
 
 const makeQuestions = (n) =>
@@ -38,14 +37,18 @@ vi.mock('../features/gauntlet/GauntletDiagnostics', () => ({
 vi.mock('../layouts/MainLayout', () => ({ default: ({ children }) => <div data-testid="app-chrome">{children}</div> }));
 vi.mock('../layouts/ExamLayout', () => ({ default: ({ children }) => <div data-testid="exam-chrome">{children}</div> }));
 
-function renderAtIndex(index, total = 3, status = 'active') {
+function PathProbe() {
+  return <p data-testid="path">{useLocation().pathname}</p>;
+}
+
+function renderAtIndex(index, total = 3, status = 'active', extra = {}) {
   engineState = {
     status,
     questions: makeQuestions(total),
     answers: {},
     confidences: {},
-    timeLeft: 600,
-    diagnostics: null,
+    gauntletEndTime: Date.now() + 600_000,
+    diagnostics: status === 'diagnostics' ? { scorePct: 80 } : null,
     currentIndex: index,
     setCurrentIndex: vi.fn(),
     bookmarks: new Set(),
@@ -53,23 +56,30 @@ function renderAtIndex(index, total = 3, status = 'active') {
     flags: new Set(),
     toggleFlag: vi.fn(),
     resumeGauntlet: vi.fn(),
-    discardAndStartFresh: vi.fn(),
+    submitSavedRun: vi.fn(),
+    forfeitRun: vi.fn(),
     handleAnswer: vi.fn(),
     handleConfidence: vi.fn(),
     submitExam: vi.fn(),
+    ...extra,
   };
 
   return render(
     <MemoryRouter initialEntries={['/gauntlet/1']}>
       <Routes>
         <Route path="/gauntlet/:level" element={<Gauntlet />} />
+        <Route path="*" element={<PathProbe />} />
       </Routes>
     </MemoryRouter>,
   );
 }
 
+beforeEach(() => {
+  engineState = null;
+});
+
 describe('Gauntlet — layouts', () => {
-  it.each(['loading', 'resume', 'pending', 'error', 'diagnostics'])('the %s screen has the app chrome, not the exam banner', (status) => {
+  it.each(['loading', 'resume', 'submitting', 'pending', 'submit-error', 'error', 'diagnostics'])('the %s screen has the app chrome, not the exam banner', (status) => {
     renderAtIndex(0, 3, status);
     expect(screen.getByTestId('app-chrome')).toBeInTheDocument();
     expect(screen.queryByTestId('exam-chrome')).not.toBeInTheDocument();
@@ -82,26 +92,81 @@ describe('Gauntlet — layouts', () => {
   });
 });
 
-describe('Gauntlet — Submit exam placement', () => {
-  beforeEach(() => {
-    engineState = null;
+describe('Gauntlet — Submit', () => {
+  it('is in the toolbar from the first item, next to the clock, and asks first with the unanswered items', () => {
+    renderAtIndex(0, 3, 'active', { answers: { 1: 'B' } });
+    expect(screen.getByRole('button', { name: /^next$/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /submit exam/i }));
+    const dialog = screen.getByRole('dialog', { name: 'Submit this exam?' });
+    expect(within(dialog).getByText(/items are unanswered/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Go to item 1' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Go to item 3' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Go to item 2' })).not.toBeInTheDocument();
+    expect(engineState.submitExam).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit exam' }));
+    expect(engineState.submitExam).toHaveBeenCalledTimes(1);
   });
 
-  it('does not render Submit on the first item; Next is the only forward control', () => {
+  it('a jump link in the dialog goes to that item', () => {
     renderAtIndex(0, 3);
-    expect(screen.queryByRole('button', { name: /submit exam/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^next$/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /submit exam/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Go to item 3' }));
+    expect(engineState.setCurrentIndex).toHaveBeenCalledWith(2);
+    expect(engineState.submitExam).not.toHaveBeenCalled();
   });
 
-  it('does not render Submit on a middle item either', () => {
-    renderAtIndex(1, 3);
-    expect(screen.queryByRole('button', { name: /submit exam/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^next$/i })).toBeInTheDocument();
-  });
-
-  it('renders Submit REPLACING Next on the last item — no Next button present alongside it', () => {
+  it('on the last item Next is replaced by a second Submit', () => {
     renderAtIndex(2, 3);
-    expect(screen.getByRole('button', { name: /submit exam/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /submit exam/i })).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /^next$/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('Gauntlet — leaving a run', () => {
+  it('says leaving counts as not passing, then forfeits the run and returns to the ladder', () => {
+    renderAtIndex(0, 3);
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    const dialog = screen.getByRole('dialog', { name: 'Leave this run?' });
+    expect(dialog).toHaveTextContent(/counts as not passing/);
+    expect(dialog).toHaveTextContent(/locks the Gauntlet for 12 hours/);
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep working' }));
+    expect(engineState.forfeitRun).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Leave and lock' }));
+    expect(engineState.forfeitRun).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('path')).toHaveTextContent('/exams');
+  });
+});
+
+describe('Gauntlet — a saved run', () => {
+  it('is resumed, or submitted as it stands after a confirm — there is no start fresh', () => {
+    renderAtIndex(0, 3, 'resume');
+    expect(screen.getByRole('heading', { level: 1, name: 'You have an unfinished run' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /start fresh/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resume run' }));
+    expect(engineState.resumeGauntlet).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit this run' }));
+    expect(engineState.submitSavedRun).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Submit run' }));
+    expect(engineState.submitSavedRun).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Gauntlet — a refused grade', () => {
+  it('keeps the run and offers Try again', () => {
+    renderAtIndex(0, 3, 'submit-error');
+    expect(screen.getByRole('heading', { level: 1, name: "Couldn't grade this run" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(engineState.submitExam).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a waiting state while the run is being sent', () => {
+    renderAtIndex(0, 3, 'submitting');
+    expect(screen.getByRole('status')).toHaveTextContent('Submitting your run');
   });
 });

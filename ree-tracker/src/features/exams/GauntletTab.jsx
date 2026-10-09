@@ -7,18 +7,18 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
-import { Badge, Button, StatusPill } from '../../components/ui';
+import { Badge, Button, Skeleton, StatusPill } from '../../components/ui';
 import { Lock, Shield, Swords, Trophy } from '../../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../../config/examStandards';
 import { cooldownLabel, formatLimit, tierState } from './gauntletTierState';
 
 function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
-  const { subject, isPassed, isUnlocked, isLocked, isCoolingDown } = state;
+  const { subject, isPassed, isCleared, isUnlocked, isLocked, isCoolingDown } = state;
   return (
     <div
       className={`p-6 rounded-[var(--radius-lg)] border flex flex-col transition-all relative overflow-hidden bg-surface ${isLocked ? 'opacity-60' : ''}`}
       style={{
-        borderColor: isPassed
+        borderColor: isCleared
           ? 'color-mix(in srgb, var(--accent-success) 30%, transparent)'
           : isUnlocked
             ? 'color-mix(in srgb, var(--accent) 50%, transparent)'
@@ -26,11 +26,11 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
       }}
     >
       <div className="flex justify-between items-start mb-4 relative z-10">
-        <Badge tone={isPassed ? 'success' : isUnlocked ? 'velocity' : 'neutral'}>
+        <Badge tone={isCleared ? 'success' : isUnlocked ? 'velocity' : 'neutral'}>
           {subject ? tier.subject : `Tier ${tier.level}`}
         </Badge>
         <span className="opacity-80" aria-hidden="true">
-          {isPassed
+          {isCleared
             ? <Trophy size={22} strokeWidth={1.75} style={{ color: 'var(--accent-success)' }} />
             : isUnlocked
               ? <Swords size={22} strokeWidth={1.75} style={{ color: 'var(--accent-text)' }} />
@@ -55,7 +55,8 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
         )}
       </ul>
 
-      <div className="mt-auto relative z-10 flex justify-center">
+      <div className="mt-auto relative z-10 flex flex-col items-center gap-3">
+        {subject && isCleared && <StatusPill tone="success">Cleared</StatusPill>}
         {isPassed ? (
           <StatusPill tone="success">Cleared</StatusPill>
         ) : isCoolingDown ? (
@@ -67,8 +68,8 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
             {subject ? 'Clear the blended tiers first' : `Requires ${tier.reqQs} answered`}
           </Button>
         ) : (
-          <Button fullWidth onClick={() => onStart(tier.level)}>
-            {subject ? `Start ${tier.subject} board` : `Start tier ${tier.level} exam`}
+          <Button fullWidth variant={isCleared ? 'secondary' : 'primary'} onClick={() => onStart(tier.level)}>
+            {subject ? `${isCleared ? 'Take' : 'Start'} the ${tier.subject} board${isCleared ? ' again' : ''}` : `Start tier ${tier.level} exam`}
           </Button>
         )}
       </div>
@@ -103,11 +104,25 @@ export default function GauntletTab() {
     navigate(`/gauntlet/${level}`);
   };
 
+  // Before the stats first load, the ladder would read "Level 1" with every
+  // tier locked — wrong for anyone past it.
+  if (!stats) {
+    return (
+      <div role="status" className="flex flex-col gap-6">
+        <span className="sr-only">Loading the Gauntlet…</span>
+        <Skeleton className="h-36 rounded-[var(--radius-lg)]" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-56 rounded-[var(--radius-lg)]" />)}
+        </div>
+      </div>
+    );
+  }
+
   const card = (tier) => (
     <TierCard
       key={tier.level}
       tier={tier}
-      state={tierState(tier, { currentLevel, totalAnswered, coolingDown: cooldown })}
+      state={tierState(tier, { currentLevel, totalAnswered, coolingDown: cooldown, boardClears: stats?.gauntletBoardClears })}
       cooldown={cooldown}
       totalAnswered={totalAnswered}
       onStart={start}

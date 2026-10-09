@@ -173,7 +173,31 @@ export function mergeServerIntoStats(stats, sqlData, today = todayManila()) {
     ),
     examDate: stats?.examDate || sqlData.profile?.examDate || null,
     dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50,
+    ...mergeGauntlet(stats, sqlData.profile),
     cloudTimestamp: Date.now(),
+  };
+}
+
+/**
+ * The Gauntlet ladder, server and device together. It used to live on the
+ * device only, so a second device or a sign-out lost it. Once the server tracks
+ * the account's ladder its level is the level; until then (an account whose
+ * ladder lived on one device) the higher of the two. The later lock wins — a
+ * run left on this device locks before the server hears of it — and board
+ * clears are kept from both.
+ */
+export function mergeGauntlet(stats, profile) {
+  if (!profile || profile.gauntletLevel === undefined) return {};
+  const localLevel = Number(stats?.gauntletLevel) || 1;
+  const serverLevel = Number(profile.gauntletLevel) || 1;
+  const localLock = Number(stats?.gauntletLockUntil) || 0;
+  const serverLock = Number(profile.gauntletLockUntil) || 0;
+  const lock = Math.max(localLock, serverLock);
+  const clears = new Set([...(stats?.gauntletBoardClears || []), ...(profile.gauntletBoardClears || [])]);
+  return {
+    gauntletLevel: profile.gauntletServerTracked ? serverLevel : Math.max(localLevel, serverLevel),
+    gauntletLockUntil: lock > 0 ? lock : null,
+    gauntletBoardClears: [...clears].sort(),
   };
 }
 

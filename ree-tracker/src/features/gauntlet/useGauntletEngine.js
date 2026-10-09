@@ -11,7 +11,25 @@ import { auth } from '../../config/firebaseDb';
 import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../config/examStandards';
 import toast from 'react-hot-toast';
 import { classifySyncError, SYNC_OUTCOME } from '../../services/syncPolicy';
-import { GENERAL_AVERAGE } from '@ree/shared';
+import { decideGauntletOutcome, forfeitGauntlet, normalizeSubject } from '@ree/shared';
+
+// What a graded run did to the ladder: 'advanced' / 'passed' / 'cleared' are
+// passes; 'failed' locks; 'locked' (started during a lock) changes nothing.
+const PASSING_OUTCOMES = new Set(['advanced', 'passed', 'cleared']);
+const newRunId = () => (globalThis.crypto?.randomUUID?.() ?? `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+
+/** The ladder as the device knows it, for the shared rule. */
+const ladderOf = (stats = {}) => ({
+    level: stats.gauntletLevel || 1,
+    lockUntilMs: stats.gauntletLockUntil || null,
+    boardClears: stats.gauntletBoardClears || [],
+});
+/** The ladder fields to write back into stats. */
+const ladderStats = ({ level, lockUntilMs, boardClears }) => ({
+    gauntletLevel: level,
+    gauntletLockUntil: lockUntilMs || null,
+    gauntletBoardClears: boardClears || [],
+});
 
 // Resume-cache key, scoped by `level` inside the stored payload (mirrors the
 // Board Simulator's ree_sim_cache pattern in useSimulatorEngine.js). A single
@@ -27,12 +45,17 @@ export const useGauntletEngine = (level) => {
     // submit never writes back a copy from an earlier render.
     const { setStats, startSession: startStoreSession, endSession: endStoreSession } = useEngineActionsSlice();
     const navigate = useNavigate();
-    // 'loading' | 'resume' | 'active' | 'diagnostics' | 'pending' | 'error'
-    //   'resume'      — a matching-level cache was found on entry; waits for
-    //                    the user to choose Resume vs. start fresh instead of
-    //                    auto-fetching a brand new set of questions.
-    //   'pending'     — submitted while offline/circuit-broken: queued in the
-    //                    durable outbox, no invented score. See submitExam.
+    // 'loading' | 'resume' | 'active' | 'submitting' | 'diagnostics' | 'pending'
+    // | 'submit-error' | 'forfeited' | 'error'
+    //   'resume'       — a matching-level cache was found on entry; waits for
+    //                     the user to resume it or submit it as it stands,
+    //                     instead of auto-fetching a brand new set of questions.
+    //   'pending'      — submitted while offline/circuit-broken: queued in the
+    //                     durable outbox, no invented score. See submitExam.
+    //   'submit-error' — the server refused the grade (a 4xx); the draft is
+    //                     kept so the run can be sent again.
+    //   'forfeited'    — left mid-run; counts as not passing (forfeitRun).
+    //   'error'        — the questions could not be loaded.
     const [status, setStatus] = useState('loading');
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
@@ -65,6 +88,12 @@ export const useGauntletEngine = (level) => {
     const [bookmarks, setBookmarks] = useState(new Set());
     const [flags, setFlags] = useState(new Set());
     const [hasSavedSession, setHasSavedSession] = useState(false);
+    // The run's identity: its id is the server session the answers record
+    // under (and the sitting review's id); its start time decides whether it
+    // was taken during a lock. Both are kept in the draft.
+    const runIdRef = useRef(null);
+    const startedAtRef = useRef(null);
+    const remainingAtSubmitRef = useRef(null);
 
     // Per-question time tracking. We bucket time on the question that was
     // visible when it was answered (best signal available without page-level
@@ -111,6 +140,8 @@ export const useGauntletEngine = (level) => {
                 bookmarks: Array.from(bookmarksRef.current || []),
                 flags: Array.from(flagsRef.current || []),
                 timeSpentPerQuestion: timeSpentPerQuestionRef.current,
+                runId: runIdRef.current,
+                startedAt: startedAtRef.current,
                 savedAt: Date.now(),
             }));
         } catch { /* quota / serialization — best effort */ }
@@ -160,9 +191,6 @@ export const useGauntletEngine = (level) => {
             return;
         }
 
-        endTimeRef.current = Date.now() + tier.timeLimitSecs * 1000;
-        setGauntletEndTime(endTimeRef.current);
-
         try {
             // Subject tiers pull a subject-filtered pool (like the Board
             // Simulator's PRC subject mode); blended tiers pull across all
@@ -197,12 +225,21 @@ export const useGauntletEngine = (level) => {
             setBookmarks(new Set());
             setFlags(new Set());
 
+            // The clock starts once the questions are on screen. It used to
+            // start before the fetch, so a slow connection ate into the run.
+            endTimeRef.current = Date.now() + tier.timeLimitSecs * 1000;
+            setGauntletEndTime(endTimeRef.current);
+            lastAnswerTimestampRef.current = Date.now();
+            runIdRef.current = newRunId();
+            startedAtRef.current = new Date().toISOString();
+            remainingAtSubmitRef.current = null;
+
             // Bracket the session in the store. Gauntlet's /api/exams/grade
             // endpoint creates the ExamSession server-side, so the
             // frontend doesn't need to send the sessionId — but tracking
             // the session lifecycle in the store keeps the UI's sync
             // status and the dashboard's "session active" UX consistent.
-            startStoreSession({ mode: 'GAUNTLET', subject: tier.subject });
+            startStoreSession({ mode: 'GAUNTLET', subject: tier.subject, sessionId: runIdRef.current });
             setStatus('active');
             persistDraft();
             setHasSavedSession(true);
@@ -239,10 +276,10 @@ export const useGauntletEngine = (level) => {
     // Simulator's resumeSimulation, which deletes on resume) — submitExam is
     // the sole owner of teardown here, so a crash between resume and the next
     // autosave tick can't lose the run again.
-    const resumeGauntlet = () => {
+    const resumeGauntlet = ({ silent = false } = {}) => {
         let raw;
         try { raw = localStorage.getItem(CACHE_KEY); } catch { raw = null; }
-        if (!raw) { fetchFreshGauntlet(); return; }
+        if (!raw) { fetchFreshGauntlet(); return false; }
 
         try {
             const parsed = JSON.parse(raw);
@@ -256,6 +293,10 @@ export const useGauntletEngine = (level) => {
             const restoredFlags = new Set(parsed.flags || []);
 
             timeSpentPerQuestionRef.current = parsed.timeSpentPerQuestion || {};
+            // A draft from before runs had ids gets one now.
+            runIdRef.current = parsed.runId || newRunId();
+            remainingAtSubmitRef.current = null;
+            startedAtRef.current = parsed.startedAt || new Date(parsed.savedAt || Date.now()).toISOString();
             questionsRef.current = restoredQuestions;
             answersRef.current = restoredAnswers;
             confidencesRef.current = restoredConfidences;
@@ -275,26 +316,20 @@ export const useGauntletEngine = (level) => {
             setGauntletEndTime(endTimeRef.current);
 
             const tier = getGauntletTier(level);
-            startStoreSession({ mode: 'GAUNTLET', subject: tier?.subject });
+            startStoreSession({ mode: 'GAUNTLET', subject: tier?.subject, sessionId: runIdRef.current });
             lastAnswerTimestampRef.current = Date.now();
             // Land in 'active' even at remaining<=0 — the timer effect below
             // sees timeLeft<=0 on the next tick and auto-submits exactly like
             // a live run hitting zero, instead of a separate dead-end state.
             setStatus('active');
-            toast.success('Gauntlet run restored. Resuming.');
+            if (!silent) toast.success('Gauntlet run restored. Resuming.');
+            return true;
         } catch {
             clearDraft();
             toast.error('Saved run was corrupt; starting fresh.');
             fetchFreshGauntlet();
+            return false;
         }
-    };
-
-    // Discarding a stale/unwanted draft is a deliberate choice, not silent —
-    // mirrors the "starting a new exam silently discards" guard pattern used
-    // for the Board Simulator's config screen.
-    const discardAndStartFresh = () => {
-        clearDraft();
-        fetchFreshGauntlet();
     };
 
     useEffect(() => {
@@ -430,19 +465,16 @@ export const useGauntletEngine = (level) => {
         if (submittingRef.current) return;
         submittingRef.current = true;
 
-        // Captured before the deadline is torn down below.
-        const remainingAtSubmit = remainingSecsNow();
+        // Captured before the deadline is torn down below — once per run, so
+        // Try again after a refused grade keeps the real time used.
+        if (remainingAtSubmitRef.current === null) remainingAtSubmitRef.current = remainingSecsNow();
+        const remainingAtSubmit = remainingAtSubmitRef.current;
         endTimeRef.current = null;
         setGauntletEndTime(null);
-        // Teardown FIRST — mirrors useSimulatorEngine.js's submitExam exactly:
-        // once submission is initiated the run is considered in flight
-        // (either grading live or queued in the durable outbox below), never
-        // re-offered as a resumable in-progress attempt again. Connection
-        // loss AFTER this point can no longer lose the run — it now lives in
-        // the outbox, not this cache.
-        clearDraft();
-
-        setStatus('loading');
+        // The draft is kept until the run is graded or queued in the outbox.
+        // It used to be cleared first, so a grading request refused outright
+        // (or a bug in handling its result) left nothing to try again with.
+        setStatus('submitting');
         const tier = getGauntletTier(level);
         // This return is BEFORE the try below, so the finally that releases the
         // guard does not cover it — release explicitly or a bad level would wedge
@@ -456,14 +488,30 @@ export const useGauntletEngine = (level) => {
         // Deterministic per-attempt id: a retried grade call (timeout,
         // double-tap, or a replay from the offline outbox) dedupes
         // server-side instead of double-counting.
-        const gauntletSessionId = useStore.getState().currentSessionId || (crypto?.randomUUID?.() ?? String(Date.now()));
+        if (!runIdRef.current) runIdRef.current = newRunId();
+        const runId = runIdRef.current;
         const gradePayload = questionsRef.current.map((q, idx) => ({
             questionId: q.id,
             userAnswer: answersRef.current[idx] || '',
             confidenceLevel: confidencesRef.current[idx] || 'MED',
             timeSpentMs: timeSpentPerQuestionRef.current[idx] || 0,
-            clientAttemptId: `${gauntletSessionId}:${q.id}`,
+            clientAttemptId: `${runId}:${q.id}`,
+            itemIndex: idx,
         }));
+        // The ladder is applied on the server from this block; the device's
+        // level goes along so an account whose ladder only lived here keeps it.
+        const knownLevel = Math.min(SUBJECT_UNLOCK_LEVEL, useStore.getState().stats?.gauntletLevel || 1);
+        const gradeBody = {
+            answers: gradePayload,
+            mode: 'GAUNTLET',
+            gauntlet: {
+                level: Number(level),
+                runId,
+                knownLevel,
+                ...(startedAtRef.current ? { startedAt: startedAtRef.current } : {}),
+                finishedAt: new Date().toISOString(),
+            },
+        };
 
         // GET /api/exams deliberately excludes answer keys, so a run cannot
         // be graded on-device — never invent a score. Both the offline path
@@ -473,7 +521,9 @@ export const useGauntletEngine = (level) => {
         // reconnect with the deterministic clientAttemptIds above making that
         // replay exactly-once no matter how long it sits queued.
         const deferToOutbox = (toastMsg) => {
-            useStore.getState().queuePendingWrite('/api/exams/grade', 'POST', { answers: gradePayload, mode: 'GAUNTLET' });
+            useStore.getState().queuePendingWrite('/api/exams/grade', 'POST', gradeBody);
+            // Queued: the outbox owns the run now.
+            clearDraft();
             setDiagnostics({ pending: true, totalItems: tier.items, isTimeOut });
             setStatus('pending');
             toast(toastMsg);
@@ -485,7 +535,7 @@ export const useGauntletEngine = (level) => {
                 return;
             }
 
-            const gradeResult = await apiRequest('/api/exams/grade', 'POST', { answers: gradePayload, mode: 'GAUNTLET' });
+            const gradeResult = await apiRequest('/api/exams/grade', 'POST', gradeBody);
             const results = gradeResult?.results || [];
 
             // Key results by questionId — the server returns each result WITH
@@ -513,6 +563,8 @@ export const useGauntletEngine = (level) => {
                     review.push({
                         questionId: q.id,
                         text: q.text || q.question,
+                        options: q.options || [],
+                        subject: q.subject || null,
                         subtopic,
                         userAnswer: answersRef.current[idx] || null,
                         correctAnswer: r?.correctAnswer ?? q.answer ?? null,
@@ -522,59 +574,91 @@ export const useGauntletEngine = (level) => {
             });
 
             const scorePct = Math.round((correctCount / tier.items) * 100);
-            const isPassed = scorePct >= GENERAL_AVERAGE;
+
+            // The ladder: the server's outcome (it applied the run to the
+            // account), or — from an older server — the same shared rule run
+            // here. Judged on the PRC rule (weighted 70 average, no subject
+            // under 50); the raw score with no subject floor decided before.
+            let ladder = gradeResult?.gauntlet || null;
+            if (!ladder) {
+                const bySubject = {};
+                questionsRef.current.forEach((q) => {
+                    const subj = normalizeSubject(q.subject);
+                    if (!subj) return;
+                    const row = bySubject[subj] || (bySubject[subj] = { c: 0, t: 0 });
+                    row.t += 1;
+                    if (resultByQ[q.id]?.isCorrect) row.c += 1;
+                });
+                const subjectScores = Object.fromEntries(Object.entries(bySubject).map(([k, v]) => [k, Math.round((v.c / v.t) * 100)]));
+                const local = decideGauntletOutcome({
+                    tier,
+                    state: ladderOf(useStore.getState().stats || {}),
+                    subjectScores,
+                    startedAtMs: Date.parse(startedAtRef.current || '') || undefined,
+                    finishedAtMs: Date.now(),
+                });
+                ladder = {
+                    outcome: local.outcome, verdict: local.verdict, generalAverage: local.generalAverage, subjectScores,
+                    level: local.next.level, lockUntil: local.next.lockUntilMs ? new Date(local.next.lockUntilMs).toISOString() : null,
+                    boardClears: local.next.boardClears, sessionId: null,
+                };
+            }
+            const isPassed = PASSING_OUTCOMES.has(ladder.outcome);
 
             setDiagnostics({
                 scorePct,
                 correctCount,
                 totalItems: tier.items,
                 isPassed,
+                outcome: ladder.outcome,
+                ladderLevel: ladder.level,
+                verdict: ladder.verdict,
+                generalAverage: ladder.generalAverage,
+                subjectScores: ladder.subjectScores || {},
+                lockUntil: ladder.lockUntil || null,
                 failedSubtopics,
                 review,
                 timeUsedSecs: tier.timeLimitSecs - remainingAtSubmit,
-                isTimeOut
+                isTimeOut,
+                // The run's server session: Review opens it item by item.
+                sessionId: ladder.sessionId || (gradeResult?.gauntlet ? runId : null),
+            });
+            // Graded: nothing left to resume.
+            clearDraft();
+
+            const ladderPatch = ladderStats({
+                level: ladder.level,
+                lockUntilMs: ladder.lockUntil ? Date.parse(ladder.lockUntil) : null,
+                boardClears: ladder.boardClears,
             });
 
             // Backend /api/exams/grade now persists telemetry, so refresh the
-            // dashboard cache so Profile/Dashboard reflect the new attempts.
+            // dashboard cache so Today and Progress reflect the new attempts.
             try {
                 const uid = auth.currentUser?.uid;
-                if (uid) {
-                    const profile = await getAnalyticsProfile(uid);
-                    // The stats as they are NOW, after that request: spreading
-                    // the copy this render closed over wrote back whatever it
-                    // held, undoing any change made while the request was out.
-                    const current = useStore.getState().stats || {};
-                    // Only the BLENDED ladder advances gauntletLevel. Subject
-                    // boards (5-7) are parallel, re-takeable endgame exams — a
-                    // pass just shows the diagnostics, it doesn't bump the level.
-                    const advancesLevel = !isSubjectTier(tier) && current.gauntletLevel === parseInt(level);
-                    const LOCK_MS = 12 * 60 * 60 * 1000;
-                    if (profile?.data?.profile) {
-                        // FULL server replace — mirror Active Review / Board Sim so
-                        // the calendar + microTopics + totals all move together. The
-                        // old partial update bumped totalAnswered by tier.items but
-                        // left activityCalendar stale, so the Dashboard KPI diverged
-                        // from the Consistency Matrix after every Gauntlet run.
-                        setStats({
-                            ...current,
-                            ...profile.data.profile,
-                            irt: { theta: profile.data.profile.thetaRating || 0 },
-                            activityCalendar: profile.data.activityCalendar,
-                            microTopics: normalizeMicroTopics(profile.data.microTopics, useStore.getState().dynamicTOS),
-                            matrix: profile.data.matrix,
-                            ...(isPassed
-                                ? (advancesLevel ? { gauntletLevel: parseInt(level) + 1 } : {})
-                                : { gauntletLockUntil: Date.now() + LOCK_MS }),
-                        });
-                    } else if (isPassed && advancesLevel) {
-                        setStats({ ...current, gauntletLevel: parseInt(level) + 1 });
-                    } else if (!isPassed) {
-                        setStats({ ...current, gauntletLockUntil: Date.now() + LOCK_MS });
-                    }
+                const profile = uid ? await getAnalyticsProfile(uid) : null;
+                // The stats as they are NOW, after that request: spreading
+                // the copy this render closed over wrote back whatever it
+                // held, undoing any change made while the request was out.
+                const current = useStore.getState().stats || {};
+                if (profile?.data?.profile) {
+                    // FULL server replace — mirror Practice / Board Sim so the
+                    // calendar + microTopics + totals all move together.
+                    setStats({
+                        ...current,
+                        ...profile.data.profile,
+                        irt: { theta: profile.data.profile.thetaRating || 0 },
+                        activityCalendar: profile.data.activityCalendar,
+                        microTopics: normalizeMicroTopics(profile.data.microTopics, useStore.getState().dynamicTOS),
+                        matrix: profile.data.matrix,
+                        ...ladderPatch,
+                    });
+                } else {
+                    setStats({ ...current, ...ladderPatch });
                 }
             } catch (refreshErr) {
                 console.warn('post-gauntlet analytics refresh failed', refreshErr);
+                setStats({ ...(useStore.getState().stats || {}), ...ladderPatch });
             }
 
             setStatus('diagnostics');
@@ -595,9 +679,11 @@ export const useGauntletEngine = (level) => {
             } else if (outcome === SYNC_OUTCOME.TRANSIENT && err?.status >= 500) {
                 deferToOutbox('Submitted — saving is delayed; your score posts shortly.');
             } else {
+                // Kept on the device (the draft stays), so Try again can
+                // resend it — or the next visit offers to resume it.
                 console.error("Gauntlet grading error:", err);
-                toast.error("Couldn't grade this run. Please try again.");
-                setStatus('error');
+                toast.error("Couldn't grade this run. Your answers are kept — try again.");
+                setStatus('submit-error');
             }
         } finally {
             // Released on EVERY exit path. A submit that failed must be retryable;
@@ -608,11 +694,46 @@ export const useGauntletEngine = (level) => {
         }
     };
 
+    // A saved run is either resumed or submitted as it stands. "Start fresh"
+    // used to discard it — after its questions had been seen, with no lock —
+    // which was a way around the cooldown.
+    const submitSavedRun = () => {
+        if (resumeGauntlet({ silent: true })) submitExam();
+    };
+
+    // Leaving a started run counts as not passing it: the ladder locks for 12
+    // hours from now (the server is told, or the outbox is). "Leave" used to
+    // record nothing — after the questions had been seen.
+    const forfeitRun = async () => {
+        const at = new Date().toISOString();
+        const current = useStore.getState().stats || {};
+        const next = forfeitGauntlet(ladderOf(current), Date.now());
+        setStats({ ...current, ...ladderStats(next) });
+        const body = {
+            level: Number(level),
+            runId: runIdRef.current || newRunId(),
+            knownLevel: Math.min(SUBJECT_UNLOCK_LEVEL, current.gauntletLevel || 1),
+            at,
+        };
+        // Leaving the 'active' status stops the countdown (its effect cleans up),
+        // so the run can't auto-submit or re-save its draft after this.
+        setStatus('forfeited');
+        setGauntletEndTime(null);
+        clearDraft();
+        try { await endStoreSession(); } catch { /* best effort */ }
+        try {
+            if (!navigator.onLine) throw new Error('[OFFLINE]');
+            await apiRequest('/api/exams/gauntlet/forfeit', 'POST', body);
+        } catch {
+            useStore.getState().queuePendingWrite('/api/exams/gauntlet/forfeit', 'POST', body);
+        }
+    };
+
     return {
         status, questions, answers, confidences, gauntletEndTime, diagnostics,
         currentIndex, setCurrentIndex: handleIndexChange,
         bookmarks, toggleBookmark, flags, toggleFlag,
-        hasSavedSession, resumeGauntlet, discardAndStartFresh,
+        hasSavedSession, resumeGauntlet, submitSavedRun, forfeitRun,
         handleAnswer, handleConfidence, submitExam
     };
 };

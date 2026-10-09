@@ -3,7 +3,9 @@
 //     pace for each, and never stores them in the config or draft;
 //   - every attempt carries its position, and a blank says it was blank, so
 //     the review can list items in order and tell blank from not recorded;
-//   - the sitting finalises as a retake, and the results know its session id.
+//   - the sitting finalises as a retake, and the results know its session id;
+//   - marking an item for review is kept in the draft and sent with the
+//     sitting, and never saves it to bookmarks.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
@@ -61,6 +63,27 @@ describe('useSimulatorEngine — retake', () => {
     expect(api.finalizeExamSession).toHaveBeenCalledWith('sess-r', expect.objectContaining({ kind: 'retake' }));
     expect(result.current.session.diagnostics).toMatchObject({ sessionId: 'sess-r', correctItems: 1 });
     expect(result.current.session.diagnostics.pacingItems).toHaveLength(2);
+  });
+
+  it('marks for review go with the sitting and the draft, not to bookmarks', async () => {
+    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startSimulation({
+      mode: 'subject', subject: 'Mixed', isPrcStandard: false, count: 2, source: 'retake',
+      cognitiveFocus: 'mixed', retake: { sourceSessionId: 's1' }, retakeQuestions: QUESTIONS,
+    }));
+    expect(result.current.examTotalSecs).toBe(396);
+
+    act(() => result.current.toggleMarked(1));
+    expect(result.current.marked.has(1)).toBe(true);
+    expect(JSON.parse(localStorage.getItem('ree_sim_cache')).marked).toEqual([1]);
+    act(() => result.current.toggleMarked(0));
+    act(() => result.current.toggleMarked(0));
+    expect([...result.current.marked]).toEqual([1]);
+    expect(api.saveBookmark).not.toHaveBeenCalled();
+
+    const markedId = result.current.session.questions[1].id;
+    await act(() => result.current.submitExam());
+    expect(api.finalizeExamSession).toHaveBeenCalledWith('sess-r', expect.objectContaining({ markedQuestionIds: [markedId] }));
   });
 
   it('back to setup drops what the run left behind', async () => {

@@ -33,6 +33,13 @@ import { sittingKindLabel } from '../features/board-simulator/profiles';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 const CONFIDENCE_LABEL = { HIGH: 'Sure', MED: 'Fairly sure', LOW: 'Unsure' };
+const LETTERS = ['A', 'B', 'C', 'D'];
+// The bubble for an answer on the answer sheet, by its place in the stored options.
+const letterIn = (options, value) => {
+  if (value == null || value === '') return null;
+  const i = (options || []).indexOf(value);
+  return i >= 0 && i < LETTERS.length ? LETTERS[i] : null;
+};
 const BACK = '/exams?tab=history';
 
 const reviewStateOf = (item) => (item.answered === false ? 'skipped' : item.isCorrect ? 'correct' : 'incorrect');
@@ -204,6 +211,10 @@ export default function SittingReview() {
               reviewStateOf={(i) => reviewStateOf(shown[i])}
               isMarked={(i) => !!shown[i]?.marked}
               numberOf={(i) => shown[i]?.order}
+              sheet={{
+                letterOf: (i) => letterIn(shown[i]?.options, shown[i]?.selectedAnswer),
+                correctLetterOf: (i) => letterIn(shown[i]?.options, shown[i]?.correctAnswer),
+              }}
             />
 
             <Card elevated className="p-5 sm:p-8 flex flex-col gap-6">
