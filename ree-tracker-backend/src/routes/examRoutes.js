@@ -3,7 +3,9 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
-const { examSubmitSchema, gradeSchema, nextItemSchema, finalizeSchema } = require('../schemas/examSchemas');
+const { examSubmitSchema, gradeSchema, gauntletForfeitSchema, nextItemSchema, finalizeSchema } = require('../schemas/examSchemas');
+const gauntletService = require('../services/gauntletService');
+const { invalidate: invalidateDashboard } = require('../services/dashboardCache');
 const examHistory = require('../services/examHistory');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
@@ -94,17 +96,22 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
         // to the client, and idempotency releases the key on any non-2xx, so
         // the retry is graded and written normally. Re-grading on retry is
         // harmless: clientAttemptId makes the write exactly-once.
+        // A Gauntlet run records under its own session (its run id), so the
+        // ladder can be graded from the recorded answers and the run reviewed.
+        const run = req.body.gauntlet || null;
         let telemetry = null;
         try {
             telemetry = await recordAttempts({
                 userId: req.user.id,
                 mode: req.body.mode || 'GAUNTLET',
+                ...(run ? { sessionId: run.runId } : {}),
                 attempts: answers.map((a) => ({
                     questionId: a.questionId,
                     userAnswer: a.userAnswer,
                     confidenceLevel: a.confidenceLevel || 'LOW',
                     timeSpentMs: a.timeSpentMs || 0,
                     clientAttemptId: a.clientAttemptId,
+                    itemIndex: a.itemIndex,
                 })),
             });
         } catch (telErr) {
@@ -112,7 +119,31 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
             return res.status(503).json({ error: 'Your answers were graded but not saved. Retrying shortly.' });
         }
 
-        return res.status(200).json({ results, telemetry });
+        // The ladder (level, lock, boards cleared) is the server's now. A
+        // failure here is retryable like the write above: the answers are
+        // already recorded, and applying the run again is a no-op once stored.
+        let gauntlet = null;
+        if (run) {
+            try {
+                gauntlet = await gauntletService.applyGauntletRun({
+                    userId: req.user.id,
+                    runId: run.runId,
+                    level: run.level,
+                    knownLevel: run.knownLevel,
+                    startedAt: run.startedAt,
+                    finishedAt: run.finishedAt,
+                });
+                invalidateDashboard(req.user.id);
+            } catch (ladderErr) {
+                if (ladderErr instanceof gauntletService.GauntletError && ladderErr.status < 500) {
+                    return res.status(ladderErr.status).json({ error: ladderErr.message });
+                }
+                logger.error('gauntlet ladder update failed', { error: ladderErr.message });
+                return res.status(503).json({ error: 'Your run was graded but your Gauntlet progress wasn’t saved. Retrying shortly.' });
+            }
+        }
+
+        return res.status(200).json({ results, telemetry, gauntlet });
     } catch (error) {
         logger.error('Exam grading error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Grading failed.' });
@@ -363,13 +394,29 @@ router.get('/history', authMiddleware, async (req, res) => {
     }
 });
 
-router.delete('/history/:id', authMiddleware, async (req, res) => {
+// LEAVE A GAUNTLET RUN — counts as not passing it: the ladder locks for 12
+// hours from when the learner left. "Exit" used to discard the run with no
+// lock, after the learner had seen its questions.
+router.post('/gauntlet/forfeit', authMiddleware, validate(gauntletForfeitSchema), async (req, res) => {
     try {
-        await prisma.examSession.delete({ where: { id: req.params.id, userId: req.user.id } });
-        res.status(200).json({ success: true });
+        const result = await gauntletService.forfeitGauntletRun({
+            userId: req.user.id,
+            level: req.body.level,
+            knownLevel: req.body.knownLevel,
+            at: req.body.at,
+        });
+        invalidateDashboard(req.user.id);
+        return res.status(200).json(result);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to purge record.' });
+        if (error instanceof gauntletService.GauntletError) return res.status(error.status).json({ error: error.message });
+        logger.error('gauntlet forfeit failed', { error: error.message });
+        return res.status(500).json({ error: 'Could not record leaving the run.' });
     }
 });
+
+// (DELETE /history/:id is gone. It hard-deleted a session, and the cascade
+// took its attempts with it, rewriting every tally and mastery estimate the
+// sitting fed. Nothing called it; POST /sessions/:id/hide is the only way to
+// take a sitting out of history.)
 
 module.exports = router;

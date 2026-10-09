@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { mockHistory } = require('../services/examHistory');
+const { buildSittingReview, SittingReviewError } = require('../services/sittingReview');
 const { loadWeakSignals } = require('../services/topicSignals');
 const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
@@ -211,6 +212,23 @@ router.get('/mock-history', authMiddleware, async (req, res) => {
         res.status(200).json({ items: await mockHistory(req.user.id, limit) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch mock history.' });
+    }
+});
+
+// GET /api/analytics/deep/sittings/:id/review — one finished sitting item by
+// item (question, your answer, the answer, solution, confidence, time), for a
+// mock board, full board, battle, placement test or Gauntlet run. Owner-scoped;
+// 409 while the sitting is still open (answers are never revealed mid-exam) or
+// its answers haven't synced. Under /analytics so the service worker's
+// per-account NetworkFirst cache can reopen a reviewed sitting offline.
+router.get('/sittings/:id/review', authMiddleware, async (req, res) => {
+    const sessionId = String(req.params.id || '');
+    if (!sessionId || sessionId.length > 80) return res.status(400).json({ error: 'Invalid sitting id.' });
+    try {
+        res.status(200).json(await buildSittingReview({ userId: req.user.id, sessionId }));
+    } catch (error) {
+        if (error instanceof SittingReviewError) return res.status(error.status).json({ error: error.message, code: error.code });
+        res.status(500).json({ error: 'Failed to load the sitting.' });
     }
 });
 

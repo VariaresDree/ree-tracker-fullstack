@@ -200,9 +200,10 @@ async function finish(userId, sessionId) {
         sessionId,
         mode: MODE,
         targetSubject: 'BLENDED',
-        attempts: config.responses.map((r) => ({
+        attempts: config.responses.map((r, i) => ({
             questionId: r.questionId,
             userAnswer: r.userAnswer,
+            itemIndex: i,
             confidenceLevel: r.confidenceLevel,
             timeSpentMs: r.timeSpentMs,
             clientAttemptId: `${sessionId}:${r.questionId}`,

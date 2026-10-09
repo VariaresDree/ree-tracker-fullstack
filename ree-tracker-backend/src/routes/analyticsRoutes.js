@@ -257,6 +257,13 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                     lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
                     dailyMath, dailyESAS, dailyEE,
                     totalAnswered,
+                    // The Gauntlet ladder as the server keeps it. Until the
+                    // first run is graded on the server it is untracked, and
+                    // the device's own level stands (analyticsSync merges).
+                    gauntletLevel: user.gauntletLevel || 1,
+                    gauntletLockUntil: user.gauntletLockUntil ? user.gauntletLockUntil.getTime() : null,
+                    gauntletBoardClears: user.gauntletBoardClears || [],
+                    gauntletServerTracked: !!user.gauntletUpdatedAt,
                 },
                 activityCalendar,
                 recentSessions: user.sessions,

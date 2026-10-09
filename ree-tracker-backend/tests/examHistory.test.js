@@ -107,5 +107,16 @@ describe('buildMockHistory', () => {
 
     it('sanitizes the client-described shape of a sitting', () => {
         expect(sanitizeMeta({ kind: 'hacked', isPrcStandard: 'yes', targetSubject: 'EE', verdict: 'PASSED' })).toEqual({ targetSubject: 'EE' });
+        expect(sanitizeMeta({ kind: 'retake', markedQuestionIds: ['q1', '', 5, 'q2'] })).toEqual({ kind: 'retake', markedQuestionIds: ['q1', 'q2'] });
+    });
+});
+
+describe('finalize — items marked for review', () => {
+    it('stores the marks, and a second finalise adds to them rather than replacing', async () => {
+        session.config = { count: 100, markedQuestionIds: ['q1', 'q2'] };
+        const res = await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as(UID))
+            .send({ kind: 'full-board', markedQuestionIds: ['q2', 'q3'] });
+        expect(res.status).toBe(200);
+        expect(prisma.examSession.updateMany.mock.calls[0][0].data.config.markedQuestionIds).toEqual(['q1', 'q2', 'q3']);
     });
 });

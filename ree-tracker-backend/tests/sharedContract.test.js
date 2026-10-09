@@ -496,3 +496,17 @@ describe('syllabus checklist — read, drilled, covered', () => {
         expect(SYLLABUS_SUBJECTS).toEqual(['Mathematics', 'ESAS', 'EE']);
     });
 });
+
+describe('shared contract — board pace and the Gauntlet ladder', () => {
+    it('reads the board pace off the PRC format', () => {
+        expect(['Mathematics', 'Math', 'ESAS', 'EE', 'Unknown'].map(shared.boardPaceSeconds)).toEqual([180, 180, 144, 216, null]);
+    });
+
+    it('has one ladder: seven tiers, subject boards from level 5, a 12-hour lock', () => {
+        expect(shared.GAUNTLET_TIERS.map((t) => t.level)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+        expect(shared.SUBJECT_UNLOCK_LEVEL).toBe(5);
+        expect(shared.GAUNTLET_LOCK_MS).toBe(12 * 3600 * 1000);
+        const d = shared.decideGauntletOutcome({ tier: shared.getGauntletTier(1), state: { level: 1 }, subjectScores: { Mathematics: 90, ESAS: 90, EE: 90 }, finishedAtMs: 0 });
+        expect(d.outcome).toBe('advanced');
+    });
+});

@@ -20,7 +20,8 @@ const { gradeBoardExam, deriveVerdict } = require('@ree/shared');
 const { subjectScoresBySession } = require('./deepAnalyticsHelpers');
 
 const HISTORY_MODES = ['BOARD_SIM', 'BATTLE'];
-const KINDS = new Set(['subject', 'blended', 'custom', 'full-board', 'battle']);
+const KINDS = new Set(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake']);
+const MAX_MARKED = 300;
 
 class ExamHistoryError extends Error {
     constructor(status, message) {
@@ -47,7 +48,17 @@ function sanitizeMeta(meta = {}) {
     if (KINDS.has(meta.kind)) out.kind = meta.kind;
     if (typeof meta.isPrcStandard === 'boolean') out.isPrcStandard = meta.isPrcStandard;
     if (typeof meta.targetSubject === 'string') out.targetSubject = meta.targetSubject.slice(0, 32);
+    if (Array.isArray(meta.markedQuestionIds)) {
+        out.markedQuestionIds = meta.markedQuestionIds
+            .filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 200)
+            .slice(0, MAX_MARKED);
+    }
     return out;
+}
+
+/** Union of two id lists, de-duplicated and capped, in first-seen order. */
+function mergeMarked(a, b) {
+    return Array.from(new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])])).slice(0, MAX_MARKED);
 }
 
 /**
@@ -67,9 +78,15 @@ async function finalizeSession({ userId, sessionId, meta = {} }) {
     if (Object.keys(subjects).length === 0) throw new ExamHistoryError(409, 'No answers are recorded for this session yet.');
 
     const { generalAverage, verdict } = gradeBoardExam(subjects);
+    const prior = session.config && typeof session.config === 'object' ? session.config : {};
+    const described = sanitizeMeta(meta);
     const config = {
-        ...(session.config && typeof session.config === 'object' ? session.config : {}),
-        ...sanitizeMeta(meta),
+        ...prior,
+        ...described,
+        // A union, so finalising again (a replayed request) never drops marks.
+        ...(described.markedQuestionIds || prior.markedQuestionIds
+            ? { markedQuestionIds: mergeMarked(prior.markedQuestionIds, described.markedQuestionIds) }
+            : {}),
         subjectScores: subjects,
         generalAverage,
         finalizedAt: new Date().toISOString(),
@@ -127,4 +144,7 @@ async function mockHistory(userId, limit = 20) {
     return buildMockHistory(sessions, derived);
 }
 
-module.exports = { finalizeSession, hideSession, mockHistory, buildMockHistory, sanitizeMeta, ExamHistoryError, HISTORY_MODES };
+module.exports = {
+    finalizeSession, hideSession, mockHistory, buildMockHistory, sanitizeMeta, subjectRowsFor, mergeMarked,
+    ExamHistoryError, HISTORY_MODES,
+};

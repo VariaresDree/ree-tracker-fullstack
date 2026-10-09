@@ -114,3 +114,19 @@ describe('mapAttemptRows — grading + shape (unchanged behavior)', () => {
     });
   });
 });
+
+describe('mapAttemptRows — what the sitting review needs', () => {
+  it('keeps the option picked and the item’s position', () => {
+    const { mapped } = mapAttemptRows([
+      { questionId: 'q1', userAnswer: 'B', itemIndex: 4 },
+      { questionId: 'q2', userAnswer: '', itemIndex: 5 },
+      { questionId: 'q1', isCorrect: true },
+    ], qMap, ctx);
+    expect(mapped.map((m) => [m.selectedAnswer, m.itemIndex])).toEqual([['B', 4], ['', 5], [null, null]]);
+  });
+
+  it('drops a position that isn’t a small whole number', () => {
+    const { mapped } = mapAttemptRows([{ questionId: 'q1', userAnswer: 'A', itemIndex: -1 }, { questionId: 'q1', userAnswer: 'A', itemIndex: 2.5 }], qMap, ctx);
+    expect(mapped.map((m) => m.itemIndex)).toEqual([null, null]);
+  });
+});
