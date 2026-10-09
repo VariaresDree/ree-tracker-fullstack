@@ -7,7 +7,7 @@ export default function ExamPerformanceCard({ stats }) {
   const accuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
   const readiness = useMemo(() => Math.min(100, Math.max(0, Math.round(((theta + 3) / 6) * 100))), [theta]);
 
-  const readinessColor = readiness >= 70 ? 'text-reeGreen' : readiness >= 50 ? 'text-reeAmber' : 'text-reeRed';
+  const readinessColor = readiness >= 70 ? 'text-reeGreen-text' : readiness >= 50 ? 'text-reeAmber-text' : 'text-reeRed-text';
   const barColor = readiness >= 70 ? 'bg-reeGreen shadow-[0_0_12px_rgba(34,197,94,0.6)]' : readiness >= 50 ? 'bg-reeAmber shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-reeRed';
   const glowBorder = readiness >= 70 ? 'border-reeGreen/20' : readiness >= 50 ? 'border-reeAmber/20' : 'border-reeRed/20';
 
@@ -28,7 +28,7 @@ export default function ExamPerformanceCard({ stats }) {
         <div className="flex-1 space-y-3">
           <div className="flex justify-between text-[11px] font-black text-muted uppercase tracking-widest">
             <span>IRT Ability (θ)</span>
-            <span className="text-reeCyan">{theta.toFixed(3)}</span>
+            <span className="text-reeCyan-text">{theta.toFixed(3)}</span>
           </div>
           <div className="flex justify-between text-[11px] font-black text-muted uppercase tracking-widest">
             <span>Accuracy</span>

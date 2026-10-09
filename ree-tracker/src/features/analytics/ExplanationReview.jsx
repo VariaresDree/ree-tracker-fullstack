@@ -7,9 +7,9 @@ import toast from 'react-hot-toast';
 
 const StatusBadge = ({ status }) => {
     const colors = {
-        PENDING: 'bg-reeAmber/20 text-reeAmber border-reeAmber/30',
-        APPROVED: 'bg-reeGreen/20 text-reeGreen border-reeGreen/30',
-        REJECTED: 'bg-reeRed/20 text-reeRed border-reeRed/30'
+        PENDING: 'bg-reeAmber/20 text-reeAmber-text border-reeAmber/30',
+        APPROVED: 'bg-reeGreen/20 text-reeGreen-text border-reeGreen/30',
+        REJECTED: 'bg-reeRed/20 text-reeRed-text border-reeRed/30'
     };
     return (
         <span className={`px-2 py-0.5 text-[11px] font-bold rounded border ${colors[status] || colors.PENDING}`}>
@@ -89,7 +89,7 @@ export default function ExplanationReview() {
             <div className="text-center py-12">
                 <div className="text-4xl mb-3">✅</div>
                 <p className="text-muted text-sm font-medium">No pending explanations to review</p>
-                <button onClick={loadPending} className="mt-4 text-xs text-reeBlue hover:underline cursor-pointer">
+                <button onClick={loadPending} className="mt-4 text-xs text-reeBlue-text hover:underline cursor-pointer">
                     Refresh
                 </button>
             </div>
@@ -113,7 +113,7 @@ export default function ExplanationReview() {
                     <Button size="sm" tone="success" onClick={() => setShowBulkConfirm(true)} disabled={isBulkApproving}>
                         Accept all {questions.length} shown
                     </Button>
-                    <button onClick={loadPending} className="text-xs text-reeBlue hover:underline cursor-pointer">
+                    <button onClick={loadPending} className="text-xs text-reeBlue-text hover:underline cursor-pointer">
                         Refresh
                     </button>
                 </div>
@@ -189,14 +189,14 @@ export default function ExplanationReview() {
                                 <button
                                     onClick={() => handleAction(q.id, 'APPROVED')}
                                     disabled={processing === q.id}
-                                    className="flex-1 px-3 py-2 bg-reeGreen/10 hover:bg-reeGreen/20 text-reeGreen border border-reeGreen/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                                    className="flex-1 px-3 py-2 bg-reeGreen/10 hover:bg-reeGreen/20 text-reeGreen-text border border-reeGreen/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                                 >
                                     {processing === q.id ? 'Processing...' : '✓ Approve'}
                                 </button>
                                 <button
                                     onClick={() => handleAction(q.id, 'REJECTED')}
                                     disabled={processing === q.id}
-                                    className="flex-1 px-3 py-2 bg-reeRed/10 hover:bg-reeRed/20 text-reeRed border border-reeRed/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                                    className="flex-1 px-3 py-2 bg-reeRed/10 hover:bg-reeRed/20 text-reeRed-text border border-reeRed/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                                 >
                                     ✗ Reject
                                 </button>

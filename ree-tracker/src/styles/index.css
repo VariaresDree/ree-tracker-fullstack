@@ -77,6 +77,17 @@
   --color-reeAmber: var(--brand-amber, #f59e0b);
   --color-reePurple: var(--brand-purple, #8b5cf6);
   --color-reeCyan: var(--brand-cyan, #06b6d4);
+  /* The brand colours AS TEXT (and icons). A theme whose brand hue is too
+     dark to read on its own surfaces sets --brand-*-text to a lighter mix
+     of the same hue; backgrounds and borders keep the base colour, which
+     white-on-colour buttons need. themeContrast.test.js holds every theme
+     to it, and src/test/accentText.test.js rejects the plain spellings. */
+  --color-reeRed-text: var(--brand-red-text, var(--brand-red, #ef4444));
+  --color-reePurple-text: var(--brand-purple-text, var(--brand-purple, #8b5cf6));
+  --color-reeGreen-text: var(--brand-green-text, var(--brand-green, #22c55e));
+  --color-reeAmber-text: var(--brand-amber-text, var(--brand-amber, #f59e0b));
+  --color-reeCyan-text: var(--brand-cyan-text, var(--brand-cyan, #06b6d4));
+  --color-reeBlue-text: var(--brand-blue-text, var(--brand-blue, #3b82f6));
 
   /* Semantic accents (editorial layer over brand) */
   --color-velocity: var(--accent-velocity, #7c5cff);
@@ -172,6 +183,9 @@
      box-shadow form for the few controls that draw their own ring. */
   --focus-ring-color: var(--accent-text);
   --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--focus-ring-color);
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 95%, #ffffff);
 }
 
 /* 2. LIGHT MODE (PRC STANDARD) */
@@ -258,6 +272,9 @@
   --brand-purple: #f472b6;
   --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
   --accent-danger: #ff5674;
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-red-text: color-mix(in srgb, var(--brand-red, #ef4444) 90%, #ffffff);
 }
 
 /* 6. RETROWAVE (SYNTHWAVE NEON) */
@@ -276,6 +293,10 @@
   --brand-amber: #fbbf24;
   --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
   --accent-danger: #ff7f96;
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-red-text: color-mix(in srgb, var(--brand-red, #ef4444) 75%, #ffffff);
+  --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 75%, #ffffff);
 }
 
 /* 7. FOREST (DEEP WOODS) */
@@ -293,6 +314,13 @@
   --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
   --accent-success: #60ddb0;
   --accent-danger: #ffb2c0;
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-red-text: color-mix(in srgb, var(--brand-red, #ef4444) 55%, #ffffff);
+  --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 55%, #ffffff);
+  --brand-green-text: color-mix(in srgb, var(--brand-green, #22c55e) 90%, #ffffff);
+  --brand-amber-text: color-mix(in srgb, var(--brand-amber, #f59e0b) 95%, #ffffff);
+  --brand-cyan-text: color-mix(in srgb, var(--brand-cyan, #06b6d4) 80%, #ffffff);
 }
 
 /* 8. OCEAN (ABYSSAL DEEP) */
@@ -311,6 +339,14 @@
   --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
   --accent-success: #7ce3bd;
   --accent-danger: #ffc0cb;
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-red-text: color-mix(in srgb, var(--brand-red, #ef4444) 40%, #ffffff);
+  --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 40%, #ffffff);
+  --brand-green-text: color-mix(in srgb, var(--brand-green, #22c55e) 65%, #ffffff);
+  --brand-amber-text: color-mix(in srgb, var(--brand-amber, #f59e0b) 75%, #ffffff);
+  --brand-cyan-text: color-mix(in srgb, var(--brand-cyan, #06b6d4) 60%, #ffffff);
+  --brand-blue-text: color-mix(in srgb, var(--brand-blue, #3b82f6) 45%, #ffffff);
 }
 
 /* 9. SAKURA / UME (SOFT CHERRY BLOSSOM) */
@@ -374,6 +410,13 @@
   --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
   --accent-success: #44d6a1;
   --accent-danger: #ffaab9;
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-red-text: color-mix(in srgb, var(--brand-red, #ef4444) 55%, #ffffff);
+  --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 55%, #ffffff);
+  --brand-green-text: color-mix(in srgb, var(--brand-green, #22c55e) 95%, #ffffff);
+  --brand-cyan-text: color-mix(in srgb, var(--brand-cyan, #06b6d4) 85%, #ffffff);
+  --brand-blue-text: color-mix(in srgb, var(--brand-blue, #3b82f6) 75%, #ffffff);
 }
 
 /* 12. MATH (BLUEPRINT GRID) */
@@ -391,6 +434,14 @@
   --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
   --accent-success: #8ae6c4;
   --accent-danger: #ffc5cf;
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-red-text: color-mix(in srgb, var(--brand-red, #ef4444) 45%, #ffffff);
+  --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 45%, #ffffff);
+  --brand-green-text: color-mix(in srgb, var(--brand-green, #22c55e) 75%, #ffffff);
+  --brand-amber-text: color-mix(in srgb, var(--brand-amber, #f59e0b) 85%, #ffffff);
+  --brand-cyan-text: color-mix(in srgb, var(--brand-cyan, #06b6d4) 70%, #ffffff);
+  --brand-blue-text: color-mix(in srgb, var(--brand-blue, #3b82f6) 50%, #ffffff);
 }
 
 /* 13. ELECTRICAL (COPPER & AMBER) */
@@ -407,6 +458,11 @@
   --brand-blue: #f59e0b;
   --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
   --accent-danger: #ff9aac;
+  /* Brand colours as text: lighter mixes of the same hues, the least that
+     reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
+  --brand-red-text: color-mix(in srgb, var(--brand-red, #ef4444) 60%, #ffffff);
+  --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 60%, #ffffff);
+  --brand-cyan-text: color-mix(in srgb, var(--brand-cyan, #06b6d4) 95%, #ffffff);
 }
 
 

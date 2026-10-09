@@ -80,7 +80,7 @@ function PassBlock({ snapshot, loading }) {
               : 'Under the PRC rule: 70% weighted average, no subject below 50%'}
           </span>
           {projection?.conditionalProbability >= 0.05 && (
-            <span className="text-xs" style={{ color: 'var(--color-reeAmber)' }}>
+            <span className="text-xs" style={{ color: 'var(--color-reeAmber-text)' }}>
               {Math.round(projection.conditionalProbability * 100)}% risk of a subject under the floor
             </span>
           )}

@@ -166,7 +166,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
           <div className="flex items-center gap-2 mt-3 font-mono text-xs text-muted2 flex-wrap">
             {breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={crumb.id}>
-                <button onClick={() => navigateToBreadcrumb(idx)} onDragOver={(e) => handleDragOver(e, crumb.id)} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, crumb.id)} className={`px-2 py-1 rounded transition-colors cursor-pointer ${idx === breadcrumbs.length - 1 ? 'text-reeBlue font-bold bg-reeBlue/10' : 'hover:bg-surface2 hover:text-textMain'} ${dragOverFolderId === crumb.id ? 'bg-reeBlue/30 border border-reeBlue shadow-lg scale-105' : 'border border-transparent'}`}>
+                <button onClick={() => navigateToBreadcrumb(idx)} onDragOver={(e) => handleDragOver(e, crumb.id)} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, crumb.id)} className={`px-2 py-1 rounded transition-colors cursor-pointer ${idx === breadcrumbs.length - 1 ? 'text-reeBlue-text font-bold bg-reeBlue/10' : 'hover:bg-surface2 hover:text-textMain'} ${dragOverFolderId === crumb.id ? 'bg-reeBlue/30 border border-reeBlue shadow-lg scale-105' : 'border border-transparent'}`}>
                   {crumb.name}
                 </button>
                 {idx < breadcrumbs.length - 1 && <span className="select-none">/</span>}
@@ -202,8 +202,8 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
       {isAddingMaterial && isAdmin && (
         <div className="p-6 bg-surface border border-border2 rounded-xl flex flex-col gap-5 shadow-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex gap-4 border-b border-border2 pb-3">
-            <button onClick={() => setUploadMode('local')} className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 cursor-pointer transition-colors ${uploadMode === 'local' ? 'border-reeBlue text-reeBlue' : 'border-transparent text-muted hover:text-muted2'}`}>💻 Direct Media Upload</button>
-            <button onClick={() => setUploadMode('link')} className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 cursor-pointer transition-colors ${uploadMode === 'link' ? 'border-reeCyan text-reeCyan' : 'border-transparent text-muted hover:text-muted2'}`}>🔗 Cloud URL (YouTube/Drive)</button>
+            <button onClick={() => setUploadMode('local')} className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 cursor-pointer transition-colors ${uploadMode === 'local' ? 'border-reeBlue text-reeBlue-text' : 'border-transparent text-muted hover:text-muted2'}`}>💻 Direct Media Upload</button>
+            <button onClick={() => setUploadMode('link')} className={`text-xs font-bold uppercase tracking-wider pb-2 border-b-2 cursor-pointer transition-colors ${uploadMode === 'link' ? 'border-reeCyan text-reeCyan-text' : 'border-transparent text-muted hover:text-muted2'}`}>🔗 Cloud URL (YouTube/Drive)</button>
           </div>
           
           {uploadMode === 'local' ? (
@@ -302,7 +302,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial }) 
               className="p-5 bg-surface border border-border2 rounded-xl flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors cursor-grab active:cursor-grabbing"
             >
               <div className="flex justify-between items-start">
-                <span className={`px-2 py-0.5 bg-bg border border-border2 text-[11px] font-mono rounded uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed' : m.type === 'audio' ? 'text-reePurple' : m.type === 'image' ? 'text-reeAmber' : 'text-reeCyan'}`}>
+                <span className={`px-2 py-0.5 bg-bg border border-border2 text-[11px] font-mono rounded uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>
                     {m.type}
                 </span>
                 {isAdmin && (

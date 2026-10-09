@@ -41,7 +41,7 @@ function GlossaryTerm({ term, definition }) {
     <span className="relative inline-block">
       <button
         type="button"
-        className="text-reeCyan border-b border-dashed border-reeCyan font-bold cursor-help focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] rounded-[var(--radius-sm)]"
+        className="text-reeCyan-text border-b border-dashed border-reeCyan font-bold cursor-help focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] rounded-[var(--radius-sm)]"
         aria-describedby={tooltipId}
         onMouseEnter={() => setVisible(true)}
         onMouseLeave={() => setVisible(false)}
@@ -55,7 +55,7 @@ function GlossaryTerm({ term, definition }) {
         role="tooltip"
         className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 ${visible ? 'block' : 'hidden'} w-48 p-2 bg-surface2 border border-border2 rounded-lg shadow-xl text-[11px] text-textMain z-50 text-center pointer-events-none`}
       >
-        <span className="block text-reePurple font-black uppercase mb-1">{term}</span>
+        <span className="block text-reePurple-text font-black uppercase mb-1">{term}</span>
         {definition}
       </span>
     </span>
@@ -92,7 +92,7 @@ export default function SmartText({ text }) {
   // which is invalid HTML. The LaTeX fragments below stay `inline-block`
   // styled so they still flow inline with the surrounding text visually.
   return (
-    <div className="leading-relaxed selection:bg-reeCyan/30 selection:text-reeCyan">
+    <div className="leading-relaxed selection:bg-reeCyan/30 selection:text-reeCyan-text">
       {segments.map((segment, i) => {
         if (!segment) return null;
         if (/^\$\$[\s\S]+\$\$$/.test(segment) || /^\$[^$\n]+\$$/.test(segment)) {

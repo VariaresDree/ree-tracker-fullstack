@@ -6,7 +6,7 @@ import { cn } from './cn';
 const TONE_VAR = {
   success: 'var(--accent-success)',
   danger: 'var(--accent-danger)',
-  amber: 'var(--color-reeAmber)',
+  amber: 'var(--color-reeAmber-text)',
   signal: 'var(--accent-signal)',
   // The pill's label is drawn in this colour, so it is the text form of the
   // accent (plain --accent-velocity fails AA as text in every theme).

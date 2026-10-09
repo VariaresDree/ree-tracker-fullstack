@@ -11,10 +11,10 @@ const VIEW_MODES = ['mastery', 'accuracy', 'speed'];
 const VIEW_LABEL = { mastery: 'Mastery', accuracy: 'Accuracy', speed: 'Speed' };
 const VIEW_ICON = { mastery: Target, accuracy: Flame, speed: Timer };
 const MASTERY_STYLE = {
-  mastered: { bg: 'bg-reeGreen/10 border-reeGreen/40', text: 'text-reeGreen' },
+  mastered: { bg: 'bg-reeGreen/10 border-reeGreen/40', text: 'text-reeGreen-text' },
   proficient: { bg: 'bg-green-400/10 border-green-400/30', text: 'text-green-400' },
-  developing: { bg: 'bg-reeAmber/10 border-reeAmber/30', text: 'text-reeAmber' },
-  novice: { bg: 'bg-reeRed/10 border-reeRed/40', text: 'text-reeRed' },
+  developing: { bg: 'bg-reeAmber/10 border-reeAmber/30', text: 'text-reeAmber-text' },
+  novice: { bg: 'bg-reeRed/10 border-reeRed/40', text: 'text-reeRed-text' },
 };
 
 // `onDrillTopic(topic, subject)` makes each tile a button that starts a
@@ -147,10 +147,10 @@ function HeatmapChart({ stats, onDrillTopic }) {
             if (viewMode === 'accuracy') {
               metricDisplay = `${pct}%`;
               subLabel = `${item.data.correct} / ${item.data.attempts} correct`;
-              if (pct >= 85) { bgClass = 'bg-reeGreen/10 border-reeGreen/40'; textClass = 'text-reeGreen'; }
+              if (pct >= 85) { bgClass = 'bg-reeGreen/10 border-reeGreen/40'; textClass = 'text-reeGreen-text'; }
               else if (pct >= 70) { bgClass = 'bg-green-400/10 border-green-400/30'; textClass = 'text-green-400'; }
-              else if (pct >= 50) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber'; }
-              else { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed'; }
+              else if (pct >= 50) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber-text'; }
+              else { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed-text'; }
             } else if (!item.data.totalTime) {
               // Attempts exist but no plausible timing rows (legacy corrupted
               // data is filtered out server-side) — don't fake "0s optimal".
@@ -160,9 +160,9 @@ function HeatmapChart({ stats, onDrillTopic }) {
               textClass = 'text-muted';
             } else {
               metricDisplay = `${avgTime}s`;
-              if (avgTime > targetLimit + 30) { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed'; subLabel = 'Critical risk'; }
-              else if (avgTime > targetLimit) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber'; subLabel = 'Borderline'; }
-              else { bgClass = 'bg-reeGreen/10 border-reeGreen/40'; textClass = 'text-reeGreen'; subLabel = 'Optimal speed'; }
+              if (avgTime > targetLimit + 30) { bgClass = 'bg-reeRed/10 border-reeRed/40'; textClass = 'text-reeRed-text'; subLabel = 'Critical risk'; }
+              else if (avgTime > targetLimit) { bgClass = 'bg-reeAmber/10 border-reeAmber/30'; textClass = 'text-reeAmber-text'; subLabel = 'Borderline'; }
+              else { bgClass = 'bg-reeGreen/10 border-reeGreen/40'; textClass = 'text-reeGreen-text'; subLabel = 'Optimal speed'; }
             }
           }
 

@@ -128,6 +128,24 @@ describe('theme contrast (WCAG AA)', () => {
     // the stock values, which white-on-colour buttons need; their text uses
     // move to dedicated text tokens in a later pass.
     const BRAND_TEXT = ['--brand-blue', '--brand-cyan', '--brand-amber', '--brand-green', '--brand-red', '--brand-purple', '--accent-signal'];
+    const BRAND_DEFAULTS = { red: '#ef4444', purple: '#8b5cf6', green: '#22c55e', amber: '#f59e0b', cyan: '#06b6d4', blue: '#3b82f6' };
+
+    // What text-ree*-text renders: the theme's --brand-*-text, else its brand
+    // colour, else the @theme default (the same fallback chain as index.css).
+    // Text sits on the page and on cards (4.5:1); chips and panels hold short
+    // bold labels and icons (3:1).
+    for (const [name, t] of Object.entries(all)) {
+        it(`${name}: brand colours as text read on every surface`, () => {
+            const failures = Object.entries(BRAND_DEFAULTS).flatMap(([hue, fallback]) => {
+                const fg = resolve(t, `var(--brand-${hue}-text, var(--brand-${hue}, ${fallback}))`);
+                return SURFACES.map((bg, i) => {
+                    const min = i < 2 ? 4.5 : 3;
+                    return { pair: `${hue} text on ${bg}`, ratio: +contrast(fg, resolve(t, t[bg])).toFixed(2), min };
+                });
+            }).filter((r) => r.ratio < r.min);
+            expect(failures).toEqual([]);
+        });
+    }
     for (const name of ['light', 'paper', 'sakura']) {
         it(`${name}: brand colours used as text clear the floor`, () => {
             const t = all[name];

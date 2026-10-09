@@ -184,7 +184,7 @@ export default function BoardSimulator() {
       {activeBattleId && battleConnected && opponentProgress.length > 0 && engine.session.isActive && !engine.session.isFinished && (
         <div className="bg-surface border border-reeRed/30 rounded-xl p-4 shadow-sm animate-in fade-in">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black uppercase tracking-widest text-reeRed flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-widest text-reeRed-text flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-reeGreen animate-pulse"></span> Live Opponents
             </span>
           </div>
@@ -192,7 +192,7 @@ export default function BoardSimulator() {
             {opponentProgress.map(op => (
               <div key={op.id} className="bg-bg border border-border2 rounded-lg px-3 py-2 flex items-center gap-3">
                 <span className="text-xs font-bold text-textMain truncate max-w-[120px]">{op.displayName}</span>
-                <span className="text-xs font-mono text-reeCyan">{op.itemsAnswered} ans</span>
+                <span className="text-xs font-mono text-reeCyan-text">{op.itemsAnswered} ans</span>
               </div>
             ))}
           </div>

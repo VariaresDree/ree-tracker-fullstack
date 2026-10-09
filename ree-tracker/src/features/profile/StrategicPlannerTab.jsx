@@ -184,10 +184,10 @@ export default function StrategicPlannerTab({ currentUser }) {
                         if (!done && task.dueDate) {
                             if (task.dueDate < today) {
                                 statusColor = 'border-reeRed/50 bg-reeRed/5';
-                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeRed bg-reeRed/10 px-2 py-0.5 rounded ml-2">Overdue</span>;
+                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeRed-text bg-reeRed/10 px-2 py-0.5 rounded ml-2">Overdue</span>;
                             } else if (task.dueDate === today) {
                                 statusColor = 'border-reeAmber/50 bg-reeAmber/5';
-                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeAmber bg-reeAmber/10 px-2 py-0.5 rounded ml-2">Today</span>;
+                                dateBadge = <span className="text-[11px] font-bold uppercase tracking-widest text-reeAmber-text bg-reeAmber/10 px-2 py-0.5 rounded ml-2">Today</span>;
                             } else {
                                 dateBadge = <span className="text-[11px] font-mono text-muted2 ml-2">{task.dueDate}</span>;
                             }
@@ -219,7 +219,7 @@ export default function StrategicPlannerTab({ currentUser }) {
                                 {!done && taskLaunch(task) && (
                                     <Button size="sm" variant="secondary" onClick={() => launch(task)}>Start</Button>
                                 )}
-                                <button onClick={() => deleteTask(task.id)} aria-label="Delete task" className="text-muted hover:text-reeRed p-2 pointer-coarse:p-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 transition-opacity cursor-pointer">✕</button>
+                                <button onClick={() => deleteTask(task.id)} aria-label="Delete task" className="text-muted hover:text-reeRed-text p-2 pointer-coarse:p-3 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 transition-opacity cursor-pointer">✕</button>
                             </div>
                         );
                     })

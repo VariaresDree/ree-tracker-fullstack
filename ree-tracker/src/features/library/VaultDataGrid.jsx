@@ -153,7 +153,7 @@ export default function VaultDataGrid({
               onClick={() => setSortOrder(opt.key)}
               className={`px-3 py-1.5 rounded-lg border text-[0.65rem] font-bold uppercase tracking-wider transition-all cursor-pointer ${
                 sortOrder === opt.key
-                  ? 'bg-reeBlue/10 border-reeBlue/50 text-reeBlue shadow-[0_0_12px_rgba(59,130,246,0.15)]'
+                  ? 'bg-reeBlue/10 border-reeBlue/50 text-reeBlue-text shadow-[0_0_12px_rgba(59,130,246,0.15)]'
                   : 'bg-bg border-border2 text-muted hover:text-textMain hover:border-reeBlue/40'
               }`}
             >

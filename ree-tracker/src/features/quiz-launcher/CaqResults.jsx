@@ -47,7 +47,7 @@ export default function CaqResults({ fileName, questions, answers, score, elapse
             background: 'color-mix(in srgb, var(--color-reeAmber) 8%, transparent)',
             borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
           }}>
-            <TriangleAlert size={16} strokeWidth={1.75} className="shrink-0 mt-0.5" style={{ color: 'var(--color-reeAmber)' }} aria-hidden="true" />
+            <TriangleAlert size={16} strokeWidth={1.75} className="shrink-0 mt-0.5" style={{ color: 'var(--color-reeAmber-text)' }} aria-hidden="true" />
             <div className="text-xs text-muted2 leading-relaxed">
               {warnings.length > 0 && <p>{warnings.length} record{warnings.length === 1 ? '' : 's'} in this file couldn't be read and {warnings.length === 1 ? 'was' : 'were'} skipped.</p>}
               {defectiveCount > 0 && <p>{defectiveCount} question{defectiveCount === 1 ? '' : 's'} had a duplicate answer choice in the source file — either matching option was accepted as correct.</p>}

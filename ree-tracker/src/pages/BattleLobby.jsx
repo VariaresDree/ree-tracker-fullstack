@@ -194,7 +194,7 @@ export default function BattleLobby() {
                     style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)' }}
                 >
                     <h2 className="text-lg font-semibold text-textMain mb-4 flex items-center gap-2">
-                        <Trophy size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> Final scores
+                        <Trophy size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> Final scores
                     </h2>
                     <p className="text-xs text-muted2 mb-4">
                         Results are recorded. Progress can take a minute to catch up after a multiplayer exam.
@@ -213,7 +213,7 @@ export default function BattleLobby() {
                                     <span
                                         className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border tabular-nums shrink-0"
                                         style={idx === 0 ? {
-                                            color: 'var(--color-reeAmber)',
+                                            color: 'var(--color-reeAmber-text)',
                                             background: 'color-mix(in srgb, var(--color-reeAmber) 20%, transparent)',
                                             borderColor: 'var(--color-reeAmber)',
                                         } : { color: 'var(--text-muted)', borderColor: 'var(--border-light)' }}

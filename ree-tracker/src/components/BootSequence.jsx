@@ -78,7 +78,7 @@ export default function BootSequence({ label = 'Preparing your session' }) {
         {elapsedStage >= 1 && (
           <p key={tipIndex} className="text-fluid-sm text-muted2 leading-relaxed animate-in fade-in">
             {elapsedStage >= 2 && (
-              <span className="block text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber)' }}>
+              <span className="block text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber-text)' }}>
                 Taking longer than usual
               </span>
             )}

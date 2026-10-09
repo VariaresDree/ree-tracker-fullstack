@@ -67,7 +67,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
           </div>
         </div>
         <div className="col-span-2 flex flex-col items-end">
-          <span className="text-sm font-bold tabular-nums inline-flex items-center gap-1" style={{ color: 'var(--color-reeAmber)' }}>
+          <span className="text-sm font-bold tabular-nums inline-flex items-center gap-1" style={{ color: 'var(--color-reeAmber-text)' }}>
             <Flame size={13} strokeWidth={2} aria-hidden="true" />{agent.streak || 0}
           </span>
           <span className="text-[10px] text-muted uppercase tracking-wide">Streak</span>
@@ -203,7 +203,7 @@ export default function RankingsTab() {
           <div>
             <p className="text-eyebrow">Rankings</p>
             <h2 className="text-sm font-semibold text-textMain flex items-center gap-2 mt-0.5">
-              <Trophy size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber)' }} /> All reviewers, by ability score
+              <Trophy size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> All reviewers, by ability score
             </h2>
           </div>
           <StatusPill tone={isOnline ? 'signal' : 'danger'}>{isOnline ? 'Live' : 'Offline'}</StatusPill>

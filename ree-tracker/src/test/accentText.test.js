@@ -16,6 +16,10 @@ import { join, relative, resolve } from 'node:path';
 const SRC = resolve(process.cwd(), 'src');
 
 const ACCENT_AS_TEXT = [
+  // The brand colours, the same way: text and icons use the -text form,
+  // which the dark colourful themes lighten (index.css).
+  /\btext-ree(Red|Purple|Green|Amber|Cyan|Blue)\b(?!-text)/,
+  /\bcolor:\s*[^,}\n]*'var\(--color-ree(Red|Purple|Green|Amber|Cyan|Blue)\)'/,
   /\btext-accent\b(?!-text)/, // the @theme alias (accent-velocity)
   /\btext-velocity\b/,
   /\btext-\[var\(--accent(-velocity)?\)\]/,
@@ -54,6 +58,10 @@ describe('accent as text', () => {
     expect(flagged('className="hover:text-[var(--accent)]"')).toBe(true);
     expect(flagged("style={{ color: 'var(--accent-velocity)' }}")).toBe(true);
     expect(flagged("color: selected ? 'var(--accent)' : 'var(--text-muted2)',")).toBe(true);
+    expect(flagged('className="text-reeRed font-bold"')).toBe(true);
+    expect(flagged("style={{ color: 'var(--color-reeAmber)' }}")).toBe(true);
+    expect(flagged('className="text-reeRed-text bg-reeRed/10 border-reeRed/30"')).toBe(false);
+    expect(flagged("background: 'color-mix(in srgb, var(--color-reeAmber) 10%, transparent)'")).toBe(false);
 
     expect(flagged('className="text-accent-text bg-accent border-[var(--accent)]"')).toBe(false);
     expect(flagged("style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent-text)' }}")).toBe(false);

@@ -25,7 +25,7 @@ export default function Pomodoro() {
             onChange={(e) => updatePomodoro({ workDuration: Number(e.target.value) })}
             aria-label="Focus minutes"
             className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold focus:border-[var(--accent)]"
-            style={{ color: 'var(--color-reeAmber)' }}
+            style={{ color: 'var(--color-reeAmber-text)' }}
             title="Focus minutes"
           />
           <span className="text-muted">/</span>
@@ -58,7 +58,7 @@ export default function Pomodoro() {
     <div className="w-full p-4 bg-surface border border-border2 rounded-[var(--radius-lg)] flex flex-col items-center gap-2.5 shadow-md transition-all">
       {/* Header Info */}
       <div className="flex justify-between items-center w-full border-b border-border2/40 pb-2">
-        <span className="text-eyebrow" style={{ color: pomodoro.isWork ? 'var(--color-reeAmber)' : 'var(--accent-success)' }}>
+        <span className="text-eyebrow" style={{ color: pomodoro.isWork ? 'var(--color-reeAmber-text)' : 'var(--accent-success)' }}>
           {pomodoro.isWork ? 'Focus' : 'Break'}
         </span>
         {/* The shared Button primitive's `icon` size already handles the

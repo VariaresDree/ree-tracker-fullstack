@@ -23,7 +23,7 @@ class ErrorBoundary extends React.Component {
         const exhausted = this.state.retryCount >= 2;
         return (
           <div role="alert" aria-live="assertive" className="p-6 bg-surface border border-reeRed/30 rounded-xl text-center">
-            <div className="text-sm font-bold text-reeRed mb-1">
+            <div className="text-sm font-bold text-reeRed-text mb-1">
               {this.props.name} couldn’t load
             </div>
             <div className="text-xs text-muted2 mb-3">

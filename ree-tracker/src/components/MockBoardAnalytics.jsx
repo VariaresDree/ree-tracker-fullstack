@@ -26,7 +26,7 @@ import OutsideScoresPanel from '../features/exams/OutsideScoresPanel';
 let CACHED = { uid: null, rows: null };
 const cachedFor = (uid) => (uid && CACHED.uid === uid ? CACHED.rows : null);
 
-const TONE = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber)', danger: 'var(--accent-danger)' };
+const TONE = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber-text)', danger: 'var(--accent-danger)' };
 const verdictLabel = (v) =>
   v === 'PASSED' ? 'Passed' : v === 'CONDITIONAL PASS' ? 'Conditional' : v === 'FAILED' ? 'Failed' : v || '—';
 const KIND_LABEL = { 'full-board': 'Full PRC board', subject: 'PRC subject', blended: 'Full blended', custom: 'Custom drill', battle: 'Battle' };
@@ -117,9 +117,9 @@ export default function MockBoardAnalytics() {
           <p className="font-semibold mb-1" style={{ color: data.overall >= 70 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
             Overall: {data.overall}%
           </p>
-          {data.math != null && <p className="text-reeCyan">Math: {data.math}%</p>}
-          {data.esas != null && <p className="text-reePurple">ESAS: {data.esas}%</p>}
-          {data.ee != null && <p className="text-reeAmber">EE: {data.ee}%</p>}
+          {data.math != null && <p className="text-reeCyan-text">Math: {data.math}%</p>}
+          {data.esas != null && <p className="text-reePurple-text">ESAS: {data.esas}%</p>}
+          {data.ee != null && <p className="text-reeAmber-text">EE: {data.ee}%</p>}
         </div>
       );
     }
