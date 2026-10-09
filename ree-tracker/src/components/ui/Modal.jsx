@@ -41,9 +41,10 @@ const SIZES = {
 };
 
 const TONE_VAR = {
-  default: 'var(--accent-velocity)',
+  // The header icon is drawn in this colour: the text forms.
+  default: 'var(--accent-text)',
   danger: 'var(--accent-danger)',
-  amber: 'var(--color-reeAmber)',
+  amber: 'var(--color-reeAmber-text)',
 };
 
 export function Modal({

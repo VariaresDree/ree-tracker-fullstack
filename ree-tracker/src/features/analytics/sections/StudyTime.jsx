@@ -44,9 +44,9 @@ export default function StudyTime() {
         ) : (
           <div className="flex flex-col gap-6">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <StatTile label="Active days (last 14)" value={`${activeDays} / 14`} color="var(--accent-velocity)" />
+              <StatTile label="Active days (last 14)" value={`${activeDays} / 14`} color="var(--accent-text)" />
               <StatTile label="Time (last 14 days)" value={fmtDuration(windowSecs)} sub={`All time: ${Math.round(allSecs / 3600)}h`} color="var(--accent-success)" />
-              <StatTile label="Average per active day" value={activeDays > 0 ? `${Math.round(windowSecs / 60 / activeDays)}min` : '—'} color="var(--color-reeCyan)" />
+              <StatTile label="Average per active day" value={activeDays > 0 ? `${Math.round(windowSecs / 60 / activeDays)}min` : '—'} color="var(--color-reeCyan-text)" />
             </div>
             <div className="flex flex-col gap-2">
               <h3 className="text-eyebrow">Minutes per day, last 14 days</h3>

@@ -67,7 +67,11 @@ export function useSyncedUserData({
     return { uid, value: typeof next === 'function' ? next(current) : next, at };
   }), [uid]);
   // loading | ready | offline (no connection) | unreachable (server error) | error (refused)
-  const [status, setStatus] = useState('loading');
+  // Held with its account too: after a switch, the new account starts at
+  // 'loading', not with the previous account's error.
+  const [statusState, setStatusState] = useState({ uid: null, status: 'loading' });
+  const status = statusState.uid === uid ? statusState.status : 'loading';
+  const setStatus = useCallback((next) => setStatusState({ uid, status: next }), [uid]);
 
   const overlaid = useMemo(
     () => (server == null ? { value: null, count: overlay(null, pendingWrites, uid, ownerUid).count } : overlay(server, pendingWrites, uid, ownerUid)),
@@ -110,9 +114,11 @@ export function useSyncedUserData({
       .catch((err) => {
         const outcome = classifySyncError(err);
         setStatus(outcome === SYNC_OUTCOME.OFFLINE ? 'offline' : outcome === SYNC_OUTCOME.TRANSIENT ? 'unreachable' : 'error');
-        if (emptyValue !== undefined) setServer((prev) => prev ?? emptyValue);
+        // Stamped as ancient: a placeholder must never pass for a fresh copy
+        // (a screen using fetchIfOlderThanMs would trust it and skip the network).
+        if (emptyValue !== undefined) setServer((prev) => prev ?? emptyValue, 0);
       });
-  }, [uid, endpoint, fromResponse, emptyValue, setServer]);
+  }, [uid, endpoint, fromResponse, emptyValue, setServer, setStatus]);
   useEffect(() => { loadRef.current = load; }, [load]);
 
   useEffect(() => {
@@ -132,7 +138,7 @@ export function useSyncedUserData({
       else setStatus('ready');
     });
     return () => { live = false; };
-  }, [uid, cacheName, load, fetchIfOlderThanMs]);
+  }, [uid, cacheName, load, fetchIfOlderThanMs, setStatus]);
 
   // The queue drained: read back the server's copy.
   const queuedCount = overlaid.count;

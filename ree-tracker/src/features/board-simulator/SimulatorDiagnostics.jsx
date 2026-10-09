@@ -12,7 +12,7 @@ import { VERDICT } from '@ree/shared';
 // with a subject under 50% read green beside "CONDITIONAL PASS".
 const VERDICT_ACCENT = {
     [VERDICT.PASSED]: 'var(--accent-success)',
-    [VERDICT.CONDITIONAL]: 'var(--color-reeAmber)',
+    [VERDICT.CONDITIONAL]: 'var(--color-reeAmber-text)', // colours the score
     [VERDICT.FAILED]: 'var(--accent-danger)',
 };
 

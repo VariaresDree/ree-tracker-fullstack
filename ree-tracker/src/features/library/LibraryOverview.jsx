@@ -21,10 +21,11 @@ import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
 // Per-subject track colors — data-viz distinction routed through theme vars.
+// They colour the column titles and counts (text), so the text forms.
 const TRACK_ACCENT = {
   Mathematics: 'var(--accent-signal)',
-  ESAS: 'var(--accent-velocity)',
-  EE: 'var(--color-reeAmber)',
+  ESAS: 'var(--accent-text)',
+  EE: 'var(--color-reeAmber-text)',
 };
 
 // Client mirror of the server's Accept-All clean-item gate

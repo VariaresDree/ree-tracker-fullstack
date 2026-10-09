@@ -81,7 +81,7 @@
      dark to read on its own surfaces sets --brand-*-text to a lighter mix
      of the same hue; backgrounds and borders keep the base colour, which
      white-on-colour buttons need. themeContrast.test.js holds every theme
-     to it, and src/test/accentText.test.js rejects the plain spellings. */
+     to it, and src/test/textColors.test.js rejects the plain spellings. */
   --color-reeRed-text: var(--brand-red-text, var(--brand-red, #ef4444));
   --color-reePurple-text: var(--brand-purple-text, var(--brand-purple, #8b5cf6));
   --color-reeGreen-text: var(--brand-green-text, var(--brand-green, #22c55e));
@@ -98,7 +98,7 @@
   /* Single dominant accent alias — overhauled surfaces reference `accent`
      instead of scattering brand colors. Resolves to the velocity violet.
      For backgrounds, borders and tints only: as text it fails AA in every
-     theme. Text and icons use `text-accent-text` (src/test/accentText.test.js
+     theme. Text and icons use `text-accent-text` (src/test/textColors.test.js
      rejects the other spellings). */
   --color-accent: var(--accent-velocity, #7c5cff);
   --color-accent-text: var(--accent-text);
@@ -213,6 +213,9 @@
   --brand-red: #b91c1c;
   --brand-purple: #6d28d9;
   --accent-signal: #155e75;
+  /* The default theme lightens purple text (on :root); this theme's darker
+     purple is already tuned for text. */
+  --brand-purple-text: var(--brand-purple);
 }
 
 /* 3. MIDNIGHT (OLED PURE BLACK) */
@@ -255,6 +258,9 @@
   --brand-red: #b91c1c;
   --brand-purple: #6d28d9;
   --accent-signal: #155e75;
+  /* The default theme lightens purple text (on :root); this theme's darker
+     purple is already tuned for text. */
+  --brand-purple-text: var(--brand-purple);
 }
 
 /* 5. CYBERPUNK (NEON GRIT) */
@@ -375,6 +381,9 @@
   --accent-text: color-mix(in srgb, var(--accent) 60%, var(--text-main));
   --accent-success: #186d4e;
   --accent-danger: #bc0022;
+  /* The default theme lightens purple text (on :root); this theme's darker
+     purple is already tuned for text. */
+  --brand-purple-text: var(--brand-purple);
 }
 
 /* 10. TERMINAL (HACKER MATRIX) */

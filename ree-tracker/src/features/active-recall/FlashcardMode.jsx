@@ -7,7 +7,7 @@ import { KBD, cn } from '../../components/ui';
 // good=signal, easy=success. Keyboard 1-4 mirrors the button order.
 const RATINGS = [
   { id: 'again', label: 'Again', key: '1', accent: 'var(--accent-danger)' },
-  { id: 'hard', label: 'Hard', key: '2', accent: 'var(--color-reeAmber)' },
+  { id: 'hard', label: 'Hard', key: '2', accent: 'var(--color-reeAmber-text)' }, // the button's label colour
   { id: 'good', label: 'Good', key: '3', accent: 'var(--accent-signal)' },
   { id: 'easy', label: 'Easy', key: '4', accent: 'var(--accent-success)' },
 ];

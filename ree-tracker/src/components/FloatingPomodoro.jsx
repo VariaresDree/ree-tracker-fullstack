@@ -70,7 +70,8 @@ export default function FloatingPomodoro() {
     ? { left: pos.x, top: pos.y }
     : { right: 24, bottom: 88 }; // default: above the mobile bottom nav
 
-  const modeColor = pomodoro.isWork ? 'var(--color-reeAmber)' : 'var(--accent-success)';
+  // Colours the mode label (text) and its dot: the text form of amber.
+  const modeColor = pomodoro.isWork ? 'var(--color-reeAmber-text)' : 'var(--accent-success)';
 
   return (
     <div

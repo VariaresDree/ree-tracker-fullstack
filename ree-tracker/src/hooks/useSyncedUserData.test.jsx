@@ -89,4 +89,25 @@ describe('useSyncedUserData', () => {
       unmount();
     }
   });
+
+  it('after a switch the new account starts at loading, not with the old status', async () => {
+    apiRequest.mockRejectedValueOnce(Object.assign(new Error('x'), { status: 403 }));
+    const { result, rerender } = renderHook(() => useSyncedUserData(options));
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    uid = 'user-B';
+    apiRequest.mockReturnValue(new Promise(() => {}));
+    rerender();
+    expect(result.current.status).toBe('loading');
+  });
+
+  it('a failed first load shows the placeholder, stored as ancient so it never passes for fresh', async () => {
+    apiRequest.mockRejectedValueOnce(new Error('[OFFLINE]'));
+    const EMPTY = [];
+    const opts = { ...options, emptyValue: EMPTY };
+    const { result } = renderHook(() => useSyncedUserData(opts));
+    await waitFor(() => expect(result.current.status).toBe('offline'));
+    expect(result.current.value).toBe(EMPTY);
+    await waitFor(() => expect(idbMem.get('ree-user-cache-v1:outsideScores')).toBeTruthy());
+    expect(idbMem.get('ree-user-cache-v1:outsideScores').savedAt).toBe(0);
+  });
 });

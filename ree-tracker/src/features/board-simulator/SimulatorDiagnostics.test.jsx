@@ -27,7 +27,8 @@ describe('SimulatorDiagnostics', () => {
   it('colours a 75% CONDITIONAL PASS amber, not green', () => {
     renderIt({ score: 75, generalAverage: 76.25, verdict: 'CONDITIONAL PASS' });
     const verdict = screen.getByText('CONDITIONAL PASS');
-    expect(verdict.getAttribute('style')).toContain('var(--color-reeAmber)');
+    // The text form of amber: it reads at 4.5:1 in every theme.
+    expect(verdict.getAttribute('style')).toContain('var(--color-reeAmber-text)');
   });
 
   it('colours a 65% FAILED red, not amber', () => {
