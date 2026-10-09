@@ -1,7 +1,8 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
-import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
+import { generateQuestionsAI } from '../../services/geminiApi';
+import { useAiExplanation } from '../quiz/useAiExplanation';
 import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
@@ -28,12 +29,13 @@ export const useReviewSession = (currentUser, isOnline) => {
         isAnswered: false, isFlipped: false,
         confidence: null, selectedOption: null, wrongSelection: null,
         totalAnswered: 0, correctHits: 0,
-        showAi: false, aiLoading: false, showOffline: false
     });
 
     const [elapsedTime, setElapsedTime] = useState(0);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // AI explanations, keyed by question (features/quiz/useAiExplanation).
+    const ai = useAiExplanation(currentUser?.uid);
     // The finished session's summary (buildSessionSummary.js), shown until the
     // learner starts another session or dismisses it. Null after a session
     // with no answers.
@@ -54,6 +56,8 @@ export const useReviewSession = (currentUser, isOnline) => {
     const startTimeRef = useRef(Date.now());
     const sessionStartRef = useRef(Date.now());
     const telemetryBatchRef = useRef([]);
+    // Set while endSession runs, so leaving mid-save doesn't record it twice.
+    const endingRef = useRef(false);
 
     // 🚀 High-Performance Absolute Timer
     useEffect(() => {
@@ -160,6 +164,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             const finalSessionQuestions = stratifiedSample(filteredData, cfg.count || 20);
 
             telemetryBatchRef.current = [];
+            endingRef.current = false;
             startTimeRef.current = Date.now();
             sessionStartRef.current = Date.now();
             setElapsedTime(0);
@@ -179,7 +184,6 @@ export const useReviewSession = (currentUser, isOnline) => {
                 isAnswered: false, isFlipped: false,
                 confidence: null, selectedOption: null, wrongSelection: null,
                 totalAnswered: 0, correctHits: 0,
-                showAi: false, aiLoading: false, showOffline: false
             });
         } catch (error) {
             toast.error(error.message);
@@ -278,13 +282,13 @@ export const useReviewSession = (currentUser, isOnline) => {
                 ...prev, currentIndex: prev.currentIndex + 1,
                 isAnswered: false, isFlipped: false,
                 confidence: null, selectedOption: null, wrongSelection: null,
-                showAi: false, showOffline: false
             }));
         }
     };
 
     const endSession = async () => {
         if (isSubmitting) return;
+        endingRef.current = true;
         setIsSubmitting(true);
 
         const hasBatch = telemetryBatchRef.current.length > 0;
@@ -412,44 +416,52 @@ export const useReviewSession = (currentUser, isOnline) => {
         if (!currentQ?.id) return toast.error("Cannot flag dynamic items.");
         try {
             await updateQuestionInBank(currentQ.id, { isFlagged: true });
-            setSession(prev => {
-                const newQs = [...prev.questions];
-                newQs[prev.currentIndex] = { ...currentQ, isFlagged: true };
-                return { ...prev, questions: newQs };
-            });
+            // By id: the learner may have moved on while the request ran, and
+            // writing to the current index flagged the next question instead.
+            setSession(prev => ({
+                ...prev,
+                questions: prev.questions.map(q => (q.id === currentQ.id ? { ...q, isFlagged: true } : q)),
+            }));
             toast.success("Thanks — we'll review this question.");
         } catch { toast.error("Flag failed."); }
     };
 
-    // `force` = Regenerate: skip the cached short-circuit and overwrite the
-    // stored explanation (the server PUT is an idempotent overwrite).
-    const fetchOrToggleAI = async (force = false) => {
-        if (!force && session.showAi) { setSession(prev => ({ ...prev, showAi: false })); return; }
-        const currentQ = session.questions[session.currentIndex];
-        if (!force && currentQ.cachedExplanation) {
-            setSession(prev => ({ ...prev, showAi: true, aiResponse: currentQ.cachedExplanation })); return;
-        }
+    // AI explanations are kept per question (useAiExplanation), so moving on
+    // while one loads can no longer attach it to the next question.
+    const explainQuestion = (question, opts) => ai.explain(question, opts);
 
-        setSession(prev => ({ ...prev, showAi: true, aiLoading: true }));
-        try {
-            const resp = await generateMasterExplanation(currentQ);
-            if (currentQ.id) await updateQuestionCache(currentQ.id, resp);
-            setSession(prev => {
-                const newQs = [...prev.questions];
-                newQs[prev.currentIndex] = { ...currentQ, cachedExplanation: resp };
-                return { ...prev, questions: newQs, aiResponse: resp, aiLoading: false };
+    // Leaving Practice mid-session (another tab, Back) used to drop the
+    // session: the answers were already queued, but the study-session record
+    // and the store's session pointer were left behind. Queue the record
+    // durably and close the session; there is no screen left to show a summary.
+    const leaveRef = useRef(null);
+    useEffect(() => {
+        leaveRef.current = () => {
+            if (endingRef.current || !session.isActive || telemetryBatchRef.current.length === 0) return;
+            const batch = telemetryBatchRef.current;
+            telemetryBatchRef.current = [];
+            queuePendingWrite('/api/analytics/study-sessions', 'POST', {
+                mode: config.sessionMode,
+                subject: config.subject,
+                subtopic: config.subtopic === 'All' ? null : config.subtopic,
+                totalQuestions: batch.length,
+                correctAnswers: batch.filter(a => a.isCorrect).length,
+                durationSecs: Math.floor((Date.now() - sessionStartRef.current) / 1000),
             });
-        } catch {
-            toast.error("AI explanation unavailable right now.");
-            setSession(prev => ({ ...prev, aiLoading: false, showAi: false }));
-        }
-    };
+            endStoreSession();
+        };
+    });
+    useEffect(() => () => leaveRef.current?.(), []);
+
+    const activeQ = session.questions[session.currentIndex];
 
     return {
+        aiText: activeQ ? ai.textFor(activeQ) : null,
+        aiLoading: activeQ ? ai.isLoading(activeQ) : false,
         config, setConfig, session, setSession, elapsedTime, bookmarks,
         startSession, endSession, loadNextQuestion, 
         handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
-        toggleBookmark, handleFlagQuestion, fetchOrToggleAI, safeTOS, isSubmitting,
+        toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
         lastSummary, clearSummary: () => setLastSummary(null),
     };
 };

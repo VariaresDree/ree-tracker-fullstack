@@ -9,14 +9,17 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import LatexRenderer from '../components/LatexRenderer';
 import Scratchpad from '../components/Scratchpad';
-import { Button, Badge, StatusPill, Card } from '../components/ui';
-import { Pencil, Flag, Bookmark, Sparkles } from '../components/ui/icons';
+import { Button, Badge, StatusPill, Card, Modal } from '../components/ui';
+import { Pencil, Flag, Bookmark } from '../components/ui/icons';
 import ReviewSetup from '../features/active-recall/ReviewSetup';
 import SessionSummary from '../features/active-recall/SessionSummary';
 import { drillPreset } from '../features/active-recall/presets';
 import MCQMode from '../features/active-recall/MCQMode';
 import FlashcardMode from '../features/active-recall/FlashcardMode';
 import { useReviewSession } from '../features/active-recall/useReviewSession';
+import SolutionPanel from '../features/quiz/SolutionPanel';
+import { explanationKey } from '../services/aiExplanations';
+import { shouldIgnoreHotkey } from '../utils/hotkeys';
 
 export default function Practice() {
   const isOnline = useNetworkStatus();
@@ -26,11 +29,12 @@ export default function Practice() {
     config, setConfig, session, setSession, elapsedTime, bookmarks,
     startSession, endSession, loadNextQuestion, 
     handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
-    toggleBookmark, handleFlagQuestion, fetchOrToggleAI, safeTOS, isSubmitting,
-    lastSummary, clearSummary,
+    toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
+    lastSummary, clearSummary, aiText, aiLoading,
   } = useReviewSession(currentUser, isOnline);
 
   const [showScratchpad, setShowScratchpad] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const currentQ = session.questions[session.currentIndex];
 
   // Deep links (Today's next steps, Progress, the planner) navigate here with a
@@ -50,8 +54,12 @@ export default function Practice() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-        if (!session.isActive || !currentQ || showScratchpad) return;
+        if (!session.isActive || !currentQ || showScratchpad || confirmEnd || shouldIgnoreHotkey(e)) return;
         const key = e.key.toLowerCase();
+        // Enter on a focused button already activates it. Handling it here as
+        // well advanced the question, and then the button's own click landed
+        // on the next one.
+        if (key === 'enter' && e.target?.closest?.('button, a, [role="button"]')) return;
 
         // MCQ option (1-4 / A-D) and confidence (Q/W/E) keys belong to
         // QuestionCard, which MCQMode renders with `hotkeys`. They were ALSO
@@ -81,7 +89,7 @@ export default function Practice() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [session, config.sessionMode, showScratchpad, currentQ, handleFlashcardReveal, handleFlashcardRating, loadNextQuestion]);
+  }, [session, config.sessionMode, showScratchpad, confirmEnd, currentQ, handleFlashcardReveal, handleFlashcardRating, loadNextQuestion]);
 
   const formatTime = (secs) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
 
@@ -106,15 +114,30 @@ export default function Practice() {
 
   const isBookmarked = bookmarks.has(currentQ.id);
 
-  // 🚀 FIXED: Dynamic Check for the Last Question in the Session
   const isLastQuestion = session.currentIndex + 1 >= session.questions.length;
 
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 max-w-4xl mx-auto w-full relative z-0">
       <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
+      <Modal
+        open={confirmEnd}
+        onClose={() => setConfirmEnd(false)}
+        title="End this session?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmEnd(false)}>Keep going</Button>
+            <Button onClick={() => { setConfirmEnd(false); endSession(); }}>End and see summary</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-textMain">
+          You’ve answered {session.totalAnswered} of {session.questions.length}. Your answers are saved; the rest of the questions are skipped.
+        </p>
+      </Modal>
 
       <div className="flex justify-between items-center bg-surface/60 backdrop-blur-xl border border-border2/50 px-4 py-3 rounded-full shadow-sm z-10">
-        <Button variant="ghost" tone="danger" size="sm" onClick={endSession} disabled={isSubmitting}>
+        <Button variant="ghost" tone="danger" size="sm" onClick={() => (session.totalAnswered > 0 ? setConfirmEnd(true) : endSession())} disabled={isSubmitting}>
             End session
         </Button>
         <div className="flex items-center gap-3">
@@ -171,57 +194,20 @@ export default function Practice() {
           {session.isAnswered && (
               <div className="mt-10 pt-8 border-t border-border2/40 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 relative z-10">
                   
-                  <div className="flex flex-col sm:flex-row gap-3">
-                      {currentQ.fixedExplanation && (
-                          <Button variant="secondary" className="flex-1" onClick={() => setSession(p => ({ ...p, showOffline: !p.showOffline, showAi: false }))}>
-                              {session.showOffline ? 'Hide solution' : 'Show solution'}
-                          </Button>
-                      )}
-                      <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => fetchOrToggleAI(false)}
-                          loading={session.aiLoading}
-                          disabled={session.aiLoading || (!isOnline && !currentQ.cachedExplanation)}
-                          title={!isOnline && !currentQ.cachedExplanation ? 'Needs a connection' : undefined}
-                      >
-                          {!session.aiLoading && <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" />}
-                          Explain with AI
-                      </Button>
-                  </div>
-
-                  {session.showOffline && currentQ.fixedExplanation && (
-                      <div className="p-6 rounded-[var(--radius-lg)] bg-surface2/40 border shadow-inner" style={{ borderColor: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)' }}>
-                          <div className="text-eyebrow mb-3" style={{ color: 'var(--accent-signal)' }}>Solution</div>
-                          <div className="text-sm text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0"><LatexRenderer content={currentQ.fixedExplanation} /></div>
-                      </div>
-                  )}
-
-                  {session.showAi && session.aiResponse && (
-                      <div className="p-6 rounded-[var(--radius-lg)] bg-surface2/40 border shadow-inner" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 30%, transparent)' }}>
-                          <div className="text-eyebrow mb-3 flex items-center justify-between gap-2" style={{ color: 'var(--accent-text)' }}>
-                              <span className="flex items-center gap-2">
-                                  <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
-                              </span>
-                              <button
-                                  onClick={() => fetchOrToggleAI(true)}
-                                  disabled={session.aiLoading || !isOnline}
-                                  title={!isOnline ? 'Needs a connection' : 'Generate a fresh explanation'}
-                                  className="text-[0.65rem] font-medium normal-case tracking-normal px-2.5 py-1 rounded-md border border-border bg-surface2 hover:bg-surface3 text-muted hover:text-textMain transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center"
-                              >
-                                  ↻ Regenerate
-                              </button>
-                          </div>
-                          <div className="text-sm text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0"><LatexRenderer content={session.aiResponse} /></div>
-                      </div>
-                  )}
+                  <SolutionPanel
+                      key={explanationKey(currentQ)}
+                      question={currentQ}
+                      isOnline={isOnline}
+                      aiText={aiText}
+                      aiLoading={aiLoading}
+                      onExplain={(force) => explainQuestion(currentQ, { force })}
+                  />
 
                   <div className="flex justify-between items-center mt-4 gap-3 flex-wrap">
                       <div className="text-eyebrow bg-surface2/50 border border-border2/60 px-4 py-2 rounded-full">
                           Correct: <span className="text-sm" style={{ color: 'var(--accent-success)' }}>{session.correctHits}</span> / {session.totalAnswered}
                       </div>
 
-                      {/* 🚀 FIXED: Dynamic Button sets accurate psychological expectation */}
                       <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion}>
                           {isLastQuestion ? 'Finish session' : 'Next question'}
                       </Button>

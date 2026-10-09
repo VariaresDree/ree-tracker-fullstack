@@ -8,15 +8,16 @@
 // lockstep with Active Review and Gauntlet.
 
 import { useState, useEffect, useRef } from 'react';
-import LatexRenderer from '../../components/LatexRenderer';
 import Scratchpad from '../../components/Scratchpad';
 import QuestionCard from '../quiz/QuestionCard';
 import { Button, Modal, StatusPill, Badge } from '../../components/ui';
-import { Pencil, Flag, Bookmark, TriangleAlert, Sparkles, Check, X } from '../../components/ui/icons';
-import { generateMasterExplanation } from '../../services/geminiApi';
-import { updateQuestionCache } from '../../services/dbQueries';
-import toast from 'react-hot-toast';
+import { Pencil, Flag, Bookmark, TriangleAlert, Check, X } from '../../components/ui/icons';
 import ExamClock from '../../components/exam/ExamClock';
+import { shouldIgnoreHotkey } from '../../utils/hotkeys';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAiExplanation } from '../quiz/useAiExplanation';
+import SolutionPanel from '../quiz/SolutionPanel';
+import { explanationKey } from '../../services/aiExplanations';
 
 export default function SimulatorActive({ engine, requestTerminate, isOnline }) {
   const {
@@ -28,10 +29,9 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
   const [showScratchpad, setShowScratchpad] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  // Local state for post-exam solution toggles
-  const [activeSolution, setActiveSolution] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResponse, setAiResponse] = useState(null);
+  // Post-exam explanations, kept per question (features/quiz/useAiExplanation).
+  const { currentUser } = useAuth();
+  const ai = useAiExplanation(currentUser?.uid);
 
   const navScrollRef = useRef(null);
 
@@ -45,13 +45,6 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
   // what dragged this whole component — and the KaTeX subtree and the ~100-button
   // navigator below it — into a re-render every second. ExamClock owns both the
   // countdown and its critical styling now.
-
-  // Reset review panels on navigation
-  useEffect(() => {
-    setActiveSolution(null);
-    setAiLoading(false);
-    setAiResponse(null);
-  }, [currentIndex]);
 
   // Keep the active question centered in the horizontal navigator
   useEffect(() => {
@@ -69,28 +62,6 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
   // shared formatExamTime helper, so the Gauntlet and the Board Simulator now
   // render the countdown through exactly one implementation.
 
-  // `force` = Regenerate: skip the cached short-circuit and overwrite. The
-  // fresh explanation is ALSO persisted server-side now (updateQuestionCache)
-  // — simulator-generated explanations previously lived only in this tab.
-  const handleToggleAI = async (force = false) => {
-    if (!force && activeSolution === 'ai') { setActiveSolution(null); return; }
-    setActiveSolution('ai');
-    if (!force && (q.cachedExplanation || aiResponse)) return;
-
-    setAiLoading(true);
-    try {
-      const resp = await generateMasterExplanation(q);
-      setAiResponse(resp);
-      q.cachedExplanation = resp;
-      if (q.id) updateQuestionCache(q.id, resp).catch(() => {});
-    } catch {
-      toast.error('AI explanation unavailable right now.');
-      setActiveSolution(null);
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (!isReview && totalQuestions > 0) {
       const handleBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
@@ -104,8 +75,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
   // hotkeys prop is OFF here to avoid double-binding.
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || showScratchpad || showSubmitConfirm) return;
+      if (shouldIgnoreHotkey(e) || showScratchpad || showSubmitConfirm) return;
       const key = e.key.toLowerCase();
 
       if (key === 'arrowleft') { if (currentIndex > 0) handleIndexChange(currentIndex - 1); return; }
@@ -273,55 +243,16 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
 
           {/* Post-exam solutions */}
           {isReview && (
-            <div className="mt-8 pt-8 border-t border-border2/40 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
-              <div className="flex flex-col sm:flex-row gap-3">
-                {q.fixedExplanation && (
-                  <Button variant="secondary" className="flex-1" onClick={() => setActiveSolution(activeSolution === 'offline' ? null : 'offline')}>
-                    {activeSolution === 'offline' ? 'Hide solution' : 'Show solution'}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => handleToggleAI(false)}
-                  loading={aiLoading}
-                  disabled={!isOnline && !q.cachedExplanation && !aiResponse}
-                  title={!isOnline && !q.cachedExplanation && !aiResponse ? 'Needs a connection' : undefined}
-                >
-                  {!aiLoading && <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" />}
-                  Explain with AI
-                </Button>
-              </div>
-
-              {activeSolution === 'offline' && q.fixedExplanation && (
-                <div className="p-6 sm:p-8 rounded-[var(--radius-lg)] bg-surface2 border shadow-inner animate-in fade-in slide-in-from-top-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)' }}>
-                  <div className="text-eyebrow mb-4" style={{ color: 'var(--accent-signal)' }}>Solution</div>
-                  <div className="text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto custom-scrollbar">
-                    <LatexRenderer content={q.fixedExplanation} />
-                  </div>
-                </div>
-              )}
-
-              {activeSolution === 'ai' && (aiResponse || q.cachedExplanation) && (
-                <div className="p-6 sm:p-8 rounded-[var(--radius-lg)] bg-surface2 border shadow-inner relative animate-in fade-in slide-in-from-top-2" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 30%, transparent)' }}>
-                  <div className="flex justify-between items-center mb-5 border-b pb-3" style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 20%, transparent)' }}>
-                    <div className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-text)' }}>
-                      <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
-                    </div>
-                    <button
-                      onClick={() => handleToggleAI(true)}
-                      disabled={aiLoading || !isOnline}
-                      title={!isOnline ? 'Needs a connection' : 'Generate a fresh explanation'}
-                      className="text-[0.65rem] font-medium px-2.5 py-1 rounded-md border border-border bg-surface2 hover:bg-surface3 text-muted hover:text-textMain transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center"
-                    >
-                      ↻ Regenerate
-                    </button>
-                  </div>
-                  <div className="text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto custom-scrollbar">
-                    <LatexRenderer content={aiResponse || q.cachedExplanation} />
-                  </div>
-                </div>
-              )}
+            <div className="mt-8 pt-8 border-t border-border2/40 animate-in fade-in slide-in-from-bottom-2">
+              <SolutionPanel
+                key={explanationKey(q)}
+                question={q}
+                isOnline={isOnline}
+                aiText={ai.textFor(q)}
+                aiLoading={ai.isLoading(q)}
+                onExplain={(force) => ai.explain(q, { force })}
+                showAnswer
+              />
             </div>
           )}
 

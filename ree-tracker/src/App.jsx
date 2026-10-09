@@ -1,5 +1,5 @@
 // src/App.jsx
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useSyncLifecycle } from './hooks/useSyncLifecycle';
@@ -50,17 +50,16 @@ const SecureAppTerminal = () => {
   // and a last-gasp keepalive flush when the tab hides/closes.
   useSyncLifecycle();
 
-  useEffect(() => {
-    // The previous Firestore listener and TOS initialization have been removed.
-    // User state is now securely handled by Zustand local storage caching
-    // and will be synced via the backend PostgreSQL API.
-  }, []);
+  // One toast host for both branches. It used to mount only inside the signed-in
+  // app, so the login screen's messages ("a reset link is on its way") never
+  // showed, and queued ones popped up after signing in.
+  const toaster = <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }} />;
 
-  if (!currentUser) return <Login />;
+  if (!currentUser) return <>{toaster}<Login /></>;
 
   return (
     <Router>
-      <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }} />
+      {toaster}
       <NotificationOptIn />
 
       {/* Neutral fallback for all routes; the dashboard nests its own

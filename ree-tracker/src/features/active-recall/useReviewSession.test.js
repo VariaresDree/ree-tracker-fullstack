@@ -34,7 +34,8 @@ vi.mock('../../store/slices', () => ({ useEngineActionsSlice: () => engine }));
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => ({ stats: {}, dynamicTOS: {}, }) } }));
 
 const toast = (await import('react-hot-toast')).default;
-const { fetchBookmarks, fetchSmartDrillQuestions } = await import('../../services/dbQueries');
+const { fetchBookmarks, fetchSmartDrillQuestions, updateQuestionInBank, updateQuestionCache } = await import('../../services/dbQueries');
+const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
 const { bookmarksPreset, drillPreset } = await import('./presets');
 
@@ -122,5 +123,81 @@ describe('end-of-session summary', () => {
     await act(() => result.current.startSession(bookmarksPreset()));
     await act(() => result.current.endSession());
     expect(result.current.lastSummary).toBeNull();
+  });
+});
+
+describe('flag, AI explanation and leaving mid-session', () => {
+
+  const startTwo = async (result) => {
+    fetchBookmarks.mockResolvedValue([q('b1', 'EE', 'Protection'), q('b2', 'EE', 'Machines')]);
+    await act(() => result.current.startSession(bookmarksPreset(2)));
+  };
+
+  it('flags the question it was asked about, even after moving on', async () => {
+    let resolveFlag;
+    updateQuestionInBank.mockImplementation(() => new Promise((r) => { resolveFlag = r; }));
+    const { result } = setup();
+    await startTwo(result);
+    const first = result.current.session.questions[0].id;
+    let flagging;
+    act(() => { flagging = result.current.handleFlagQuestion(); });
+    act(() => result.current.setSession((s) => ({ ...s, currentIndex: 1 })));
+    await act(async () => { resolveFlag(); await flagging; });
+    const byId = Object.fromEntries(result.current.session.questions.map((x) => [x.id, x]));
+    expect(byId[first].isFlagged).toBe(true);
+    expect(Object.values(byId).filter((x) => x.isFlagged)).toHaveLength(1);
+  });
+
+  it('keeps an explanation with its own question, and never writes the shared solution', async () => {
+    let resolveAi;
+    generateMasterExplanation.mockImplementation(() => new Promise((r) => { resolveAi = r; }));
+    const { result } = setup();
+    await startTwo(result);
+    const [first, second] = result.current.session.questions;
+    let explaining;
+    act(() => { explaining = result.current.explainQuestion(first); });
+    expect(result.current.aiLoading).toBe(true);
+    act(() => result.current.setSession((s) => ({ ...s, currentIndex: 1 })));
+    await act(async () => { resolveAi('Worked solution for the first'); await explaining; });
+    // The current (second) question has none; the first keeps its own.
+    expect(result.current.aiText).toBeNull();
+    act(() => result.current.setSession((s) => ({ ...s, currentIndex: 0 })));
+    expect(result.current.aiText).toBe('Worked solution for the first');
+    expect(second.id).not.toBe(first.id);
+    expect(updateQuestionCache).not.toHaveBeenCalled();
+  });
+
+  it('a failed explanation resolves to null instead of saving an apology', async () => {
+    generateMasterExplanation.mockRejectedValue(new Error('down'));
+    const { result } = setup();
+    await startTwo(result);
+    let text;
+    await act(async () => { text = await result.current.explainQuestion(result.current.session.questions[0]); });
+    expect(text).toBeNull();
+    expect(result.current.aiText).toBeNull();
+  });
+
+  it('leaving mid-session queues the study-session record and closes the session', async () => {
+    const { result, unmount } = setup();
+    await startTwo(result);
+    act(() => result.current.setSession((s) => ({ ...s, confidence: 'MED' })));
+    act(() => result.current.handleAnswerSelection('A'));
+    unmount();
+    expect(engine.queuePendingWrite).toHaveBeenCalledWith(
+      '/api/analytics/study-sessions', 'POST',
+      expect.objectContaining({ totalQuestions: 1, correctAnswers: 1 }),
+    );
+    expect(engine.endSession).toHaveBeenCalled();
+  });
+
+  it('leaving after the session ended records nothing more', async () => {
+    const { result, unmount } = setup();
+    await startTwo(result);
+    act(() => result.current.setSession((s) => ({ ...s, confidence: 'MED' })));
+    act(() => result.current.handleAnswerSelection('A'));
+    await act(() => result.current.endSession());
+    engine.queuePendingWrite.mockClear();
+    unmount();
+    expect(engine.queuePendingWrite).not.toHaveBeenCalled();
   });
 });

@@ -12,17 +12,9 @@ import { purgeSimulationLedger } from '../../services/simulationLedger';
 import { Button, FormField, Input, Modal } from '../../components/ui';
 import { TriangleAlert, LogOut } from '../../components/ui/icons';
 import LogoutConfirm from '../../components/LogoutConfirm';
+import { authErrorMessage, MIN_PASSWORD } from '../../utils/authErrors';
 
-const MIN_PASSWORD = 6; // Firebase's own minimum
-
-const passwordError = (err) => {
-  const code = err?.code || '';
-  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') return 'That current password isn’t right.';
-  if (code === 'auth/weak-password') return `Use at least ${MIN_PASSWORD} characters.`;
-  if (code === 'auth/too-many-requests') return 'Too many attempts. Wait a few minutes and try again.';
-  if (code === 'auth/network-request-failed') return 'You’re offline. Reconnect and try again.';
-  return 'Couldn’t change your password — try again.';
-};
+const passwordError = (err) => authErrorMessage(err, 'change-password');
 
 export default function SecuritySettings() {
   const { currentUser, resetPassword, changePassword } = useAuth();

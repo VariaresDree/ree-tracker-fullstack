@@ -128,3 +128,15 @@ describe('Login — forgot password', () => {
         await waitFor(() => expect(auth.resetPassword).toHaveBeenCalledWith('rey@example.com'));
     });
 });
+
+describe('Login — error messages', () => {
+    it('shows a plain message, not the raw Firebase error', async () => {
+        auth.login.mockRejectedValueOnce(Object.assign(new Error('Firebase: Error (auth/invalid-credential).'), { code: 'auth/invalid-credential' }));
+        render(<Login />);
+        fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'rey@example.com' } });
+        fireEvent.change(screen.getByLabelText(/^password/i), { target: { value: 'wrong-pass' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('That email and password don’t match an account.');
+        expect(screen.queryByText(/auth\/invalid-credential/)).not.toBeInTheDocument();
+    });
+});

@@ -171,7 +171,7 @@ export const generateMasterExplanation = async (questionObj, isRetry = false) =>
     const retryContext = isRetry ? `CRITICAL WARNING: Your previous attempt produced broken LaTeX. Use standard Markdown tables. DO NOT mix **bold** inside LaTeX math tags. Ensure $ delimiters are perfectly balanced.` : '';
 
     const prompt = `Act as an expert Engineering Tutor. A student is reviewing the following question:
-        Question: ${questionObj.text}
+        Question: ${questionObj.text || questionObj.question || questionObj.content || ''}
         Correct Answer: ${questionObj.answer}
         Options Available: ${questionObj.options ? questionObj.options.join(', ') : 'N/A'}
 
@@ -181,12 +181,9 @@ export const generateMasterExplanation = async (questionObj, isRetry = false) =>
         1. **Step-by-Step Derivation:** How to arrive at the correct answer.
         2. **Option Analysis:** Briefly debunk distractors.`;
 
-    try {
-        return await callAI(prompt, false);
-    } catch (error) {
-        console.error("AI Explanation Error:", error);
-        return "Explanations are busy right now. Try again in a minute, or look the topic up in Library › Formula cards.";
-    }
+    // Throws on failure. It used to return an apology as if it were the
+    // explanation, which then got saved and shown as one.
+    return callAI(prompt, false);
 };
 
 export const generateBoardReadinessReport = async (stats, readinessScore, weakTopics) => {
@@ -313,24 +310,3 @@ export const generateQuestionsFromImages = async (base64Images, subject, subtopi
     }
 };
 
-export const generateDeepExplanation = async (questionText, correctAnswer, options = []) => {
-    const prompt = `Act as an elite engineering and mathematics tutor. Analyze the following question and provide a deep, step-by-step derivation of the solution.
-
-    Question: ${questionText}
-    Correct Answer: ${correctAnswer || "Not provided"}
-    ${options && options.length > 0 ? `Options: ${options.join(' | ')}` : ""}
-
-    FORMATTING RULES:
-    - Use standard Markdown.
-    - Enclose ALL mathematical formulas, numbers, and variables in LaTeX wrappers ($ for inline, $$ for block).
-    - Step 1: Explain the core concept/principle.
-    - Step 2: Show the exact mathematical derivation or logical deduction.
-    - Step 3: Briefly explain why the distractors are incorrect (if options are provided).`;
-
-    try {
-        return await callAI(prompt, false);
-    } catch (error) {
-        console.error("Gemini API error (bookmark explanation):", error);
-        throw new Error("Failed to generate AI derivation.");
-    }
-};

@@ -31,6 +31,9 @@ export default function SyncIssues({ className = '' }) {
     const discardDeadLetter = useStore((s) => s.discardDeadLetter);
     const [open, setOpen] = useState(false);
     const [busyId, setBusyId] = useState(null);
+    // Discard deletes unsynced answers for good, so it asks once more, in the
+    // row itself. It used to delete on the first tap.
+    const [confirmKey, setConfirmKey] = useState(null);
 
     const count = deadLetters?.length || 0;
     if (count === 0) return null;
@@ -82,16 +85,28 @@ export default function SyncIssues({ className = '' }) {
                                     <div className="text-xs text-muted2 truncate">{detail}</div>
                                     <div className="text-xs text-muted2">{new Date(letter.at).toLocaleString()}</div>
                                 </div>
-                                <div className="flex gap-2 shrink-0">
-                                    {letter.id && canRetry(letter) && (
-                                        <Button size="sm" variant="secondary" loading={busyId === letter.id} onClick={() => retry(letter.id)}>
-                                            Retry
+                                {confirmKey === key ? (
+                                    <div className="flex flex-col items-end gap-2 shrink-0" role="group" aria-label="Confirm discard">
+                                        <span className="text-xs text-textMain">Delete for good?</span>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="secondary" onClick={() => setConfirmKey(null)}>Cancel</Button>
+                                            <Button size="sm" tone="danger" onClick={() => { setConfirmKey(null); discardDeadLetter(letter.id || letter); }}>
+                                                Yes, discard
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2 shrink-0">
+                                        {letter.id && canRetry(letter) && (
+                                            <Button size="sm" variant="secondary" loading={busyId === letter.id} onClick={() => retry(letter.id)}>
+                                                Retry
+                                            </Button>
+                                        )}
+                                        <Button size="sm" variant="ghost" tone="danger" onClick={() => setConfirmKey(key)}>
+                                            Discard
                                         </Button>
-                                    )}
-                                    <Button size="sm" variant="ghost" tone="danger" onClick={() => discardDeadLetter(letter.id || letter)}>
-                                        Discard
-                                    </Button>
-                                </div>
+                                    </div>
+                                )}
                             </li>
                         );
                     })}

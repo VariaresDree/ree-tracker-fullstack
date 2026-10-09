@@ -2,11 +2,11 @@
   "no-case-declarations": 2,
   "no-control-regex": 1,
   "no-useless-assignment": 1,
-  "preserve-caught-error": 3,
+  "preserve-caught-error": 2,
   "react-hooks/globals": 1,
-  "react-hooks/immutability": 6,
+  "react-hooks/immutability": 5,
   "react-hooks/purity": 6,
-  "react-hooks/set-state-in-effect": 13,
+  "react-hooks/set-state-in-effect": 12,
   "react-hooks/static-components": 1,
   "react-refresh/only-export-components": 2
 }
