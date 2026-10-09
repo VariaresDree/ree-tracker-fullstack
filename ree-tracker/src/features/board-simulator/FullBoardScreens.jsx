@@ -3,8 +3,9 @@
 // The two screens of a full PRC board that the single-sitting simulator does
 // not have: the break between sections, and the board result.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, Button, Badge, Modal, ProgressIndicator } from '../../components/ui';
-import { Landmark, TriangleAlert } from '../../components/ui/icons';
+import { Landmark, TriangleAlert, ClipboardList, ChevronLeft } from '../../components/ui/icons';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, PRC_EXAM_FORMAT, toDisplaySubject, VERDICT } from '@ree/shared';
 import { FULL_BOARD_SECTIONS, FULL_BOARD_TTL_MS, fullBoardSummary } from './fullBoard';
 
@@ -13,7 +14,7 @@ const fmtDuration = (secs) => `${Math.floor(secs / 3600)}h ${String(Math.floor((
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 
 /** Between sections (or returning to an unfinished board). */
-export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeDraft, onAbandon }) {
+export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeDraft, onAbandon, onBack }) {
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const next = FULL_BOARD_SECTIONS[board.sectionIndex];
   const done = board.sectionIndex;
@@ -21,6 +22,11 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
 
   return (
     <div className="max-w-3xl mx-auto w-full flex flex-col gap-6 page-fade-in">
+      {onBack && (
+        <Button variant="ghost" size="sm" className="self-start -mb-2 text-muted hover:text-textMain" onClick={onBack}>
+          <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Other mock formats
+        </Button>
+      )}
       <Card elevated grain className="p-6 sm:p-8 flex flex-col gap-6">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-default)]"
@@ -130,8 +136,13 @@ export function FullBoardResults({ board }) {
       </div>
       <p className="text-xs text-muted2">
         The board needs a {GENERAL_AVERAGE}% weighted average (Math 25 / ESAS 30 / EE 45) with no subject under {SUBJECT_FLOOR}%.
-        The review below covers the final ({toDisplaySubject(FULL_BOARD_SECTIONS[FULL_BOARD_SECTIONS.length - 1])}) section.
+        The answers below are the final ({toDisplaySubject(FULL_BOARD_SECTIONS[FULL_BOARD_SECTIONS.length - 1])}) section; the full review has all three.
       </p>
+      {board.sessionId && (
+        <Button as={Link} to={`/exams/sittings/${encodeURIComponent(board.sessionId)}`} variant="secondary" className="self-start">
+          <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review all three sections
+        </Button>
+      )}
     </Card>
   );
 }

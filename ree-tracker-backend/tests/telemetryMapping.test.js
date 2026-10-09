@@ -125,6 +125,11 @@ describe('mapAttemptRows — what the sitting review needs', () => {
     expect(mapped.map((m) => [m.selectedAnswer, m.itemIndex])).toEqual([['B', 4], ['', 5], [null, null]]);
   });
 
+  it('records a blank as left blank without making it server-graded', () => {
+    const { mapped } = mapAttemptRows([{ questionId: 'q1', isCorrect: false, blank: true, itemIndex: 7 }], qMap, ctx);
+    expect(mapped[0]).toMatchObject({ selectedAnswer: '', itemIndex: 7, isCorrect: false, _serverGraded: false });
+  });
+
   it('drops a position that isn’t a small whole number', () => {
     const { mapped } = mapAttemptRows([{ questionId: 'q1', userAnswer: 'A', itemIndex: -1 }, { questionId: 'q1', userAnswer: 'A', itemIndex: 2.5 }], qMap, ctx);
     expect(mapped.map((m) => m.itemIndex)).toEqual([null, null]);

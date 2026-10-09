@@ -8,11 +8,13 @@
 //   isAnswered(idx) -> bool
 //   reviewStateOf(idx) -> 'correct' | 'incorrect' | 'skipped' | null  (review mode)
 //   isMarked(idx) -> bool  (bookmark dot; optional)
+//   numberOf(idx) -> number  (the item's own number when the strip shows a
+//                  filtered subset, e.g. a sitting review's wrong answers)
 import { useEffect, useRef } from 'react';
 import { Check, X } from '../ui/icons';
 import { navigatorLabel } from './examAnnouncements';
 
-export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked }) {
+export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked, numberOf }) {
   const scrollRef = useRef(null);
 
   // Keep the active item centered in the horizontal strip — otherwise on a phone
@@ -36,6 +38,7 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
           const isCurrent = idx === currentIndex;
           const reviewState = reviewStateOf?.(idx) ?? null;
           const marked = !!isMarked?.(idx);
+          const number = numberOf ? numberOf(idx) : idx + 1;
 
           // Encode correct/incorrect beyond color (WCAG 1.4.1) with a ✓/✗ glyph
           // + the aria-label.
@@ -57,11 +60,11 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
               key={idx}
               data-index={idx}
               onClick={() => onSelect?.(idx)}
-              aria-label={navigatorLabel({ idx, answered, reviewState, marked })}
+              aria-label={navigatorLabel({ idx, number, answered, reviewState, marked })}
               aria-current={isCurrent ? 'step' : undefined}
               className={`w-10 h-10 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 rounded-[var(--radius-default)] border text-xs transition-all duration-300 cursor-pointer flex items-center justify-center relative ${btnClass}`}
             >
-              {idx + 1}
+              {number}
               {reviewState === 'correct' && <Check aria-hidden strokeWidth={3} className="absolute -bottom-1 -left-1 w-3 h-3" style={{ color: 'var(--accent-success)' }} />}
               {reviewState === 'incorrect' && <X aria-hidden strokeWidth={3} className="absolute -bottom-1 -left-1 w-3 h-3" style={{ color: 'var(--accent-danger)' }} />}
               {marked && <div className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full border-2 border-surface shadow-sm" style={{ background: 'var(--color-reeAmber)' }}></div>}

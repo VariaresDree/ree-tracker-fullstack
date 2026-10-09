@@ -19,7 +19,7 @@ import { useAiExplanation } from '../quiz/useAiExplanation';
 import SolutionPanel from '../quiz/SolutionPanel';
 import { explanationKey } from '../../services/aiExplanations';
 
-export default function SimulatorActive({ engine, requestTerminate, isOnline }) {
+export default function SimulatorActive({ engine, requestTerminate, onExitReview, isOnline }) {
   const {
     session, currentIndex, handleIndexChange, examEndTime, showTime, setShowTime,
     handleSelectConfidence, handleSelectOption, bookmarks, toggleBookmark,
@@ -115,7 +115,10 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
 
   return (
     <>
-      <h1 className="sr-only">{isReview ? 'Mock board review' : 'Mock board in progress'}</h1>
+      {/* While reviewing, the results above carry the page's h1. */}
+      {isReview
+        ? <h2 className="sr-only">Mock board review</h2>
+        : <h1 className="sr-only">Mock board in progress</h1>}
       {/* Submit confirmation */}
       <Modal
         open={showSubmitConfirm}
@@ -144,7 +147,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
               Exit exam
             </Button>
           ) : (
-            <Button variant="secondary" size="sm" onClick={() => engine.setSession((prev) => ({ ...prev, isFinished: false, isActive: false, questions: [] }))}>
+            <Button variant="secondary" size="sm" onClick={() => (onExitReview ? onExitReview() : engine.resetToSetup())}>
               Exit review
             </Button>
           )}

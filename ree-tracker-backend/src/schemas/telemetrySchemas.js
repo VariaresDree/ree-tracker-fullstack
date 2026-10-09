@@ -51,6 +51,8 @@ const telemetryBulkSchema = z.object({
         createdAt: z.string().max(40).optional(),
         // Position in its sitting (0-based), for the sitting review's order.
         itemIndex: z.number().int().min(0).max(999).optional(),
+        // Left blank in a timed sitting (no userAnswer is sent for it).
+        blank: z.boolean().optional(),
     // Cap the batch: unbounded, one request could open a huge write transaction
     // (findMany over thousands of ids + createMany + per-topic upserts). Shared
     // with the client, which chunks its sync queue at the same size — they used

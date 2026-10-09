@@ -35,13 +35,39 @@ export const SIM_PROFILES = [
 
 export const isSimProfile = (id) => SIM_PROFILES.some((p) => p.id === id);
 
+// A recorded sitting's `kind` (services/examHistory on the server) → the name
+// the learner chose it by. Past sittings used its own labels ("Full blended",
+// "Custom drill") that matched none of the format names.
+const PROFILE_BY_KIND = { custom: 'custom', subject: 'prc_subject', blended: 'prc_blended', 'full-board': 'prc_full' };
+const OTHER_KINDS = { battle: 'Battle', retake: 'Retake', placement: 'Placement test', gauntlet: 'Gauntlet run' };
+
+/** "Mixed paper", "Full PRC board", "Battle"… for a sitting kind; null when unknown. */
+export function sittingKindLabel(kind) {
+  const profile = SIM_PROFILES.find((p) => p.id === PROFILE_BY_KIND[kind]);
+  return profile?.name || OTHER_KINDS[kind] || null;
+}
+
 /**
  * The engine config a profile implies, given the current one. Null for the
  * full board, which is a separate flow (features/board-simulator/fullBoard.js)
  * rather than a config.
  */
-export function configForProfile(profile, config) {
-  const subject = config.subject === 'blended' ? 'Mathematics' : config.subject;
+/**
+ * The setup form's view of a config: everything a finished run leaves behind
+ * that must not carry into the next one is dropped. A leftover `battleId` made
+ * the next mock wait for a battle server that would never grade it ("GRADING"
+ * forever); a leftover `fullBoard` filed it under the old board's session and
+ * showed that board's result again.
+ */
+export function setupConfig(config = {}) {
+  // eslint-disable-next-line no-unused-vars
+  const { battleId, fullBoard, retake, retakeQuestions, ...rest } = config;
+  return { ...rest, source: rest.source === 'retake' ? 'library' : (rest.source || 'library') };
+}
+
+export function configForProfile(profile, rawConfig) {
+  const config = setupConfig(rawConfig);
+  const subject = config.subject === 'blended' || config.subject === 'Mixed' ? 'Mathematics' : config.subject;
   if (profile === 'custom') return { ...config, mode: 'subject', isPrcStandard: false, count: 50, subject };
   if (profile === 'prc_subject') return { ...config, mode: 'subject', isPrcStandard: true, count: 100, subject };
   if (profile === 'prc_blended') return { ...config, mode: 'blended', isPrcStandard: true, count: 100, subject: 'blended' };

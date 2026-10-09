@@ -124,6 +124,9 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         const errorData = await response.json().catch(() => ({}));
         const err = new Error(errorData.error || `Request failed (${response.status}).`);
         err.status = response.status;
+        // A machine-readable reason some routes add (e.g. the sitting review's
+        // IN_PROGRESS / SYNCING), so callers needn't match on wording.
+        if (typeof errorData.code === 'string') err.code = errorData.code;
         throw err;
     }
 
@@ -554,6 +557,10 @@ export const fetchMockHistory = async (limit = 20) => {
 };
 export const hideExamSession = async (sessionId) =>
     apiRequest(`/api/exams/sessions/${encodeURIComponent(sessionId)}/hide`, 'POST', {});
+// One finished sitting item by item (pages/SittingReview.jsx). A 409 carries
+// `code`: IN_PROGRESS (still open) or SYNCING (answers still queued).
+export const fetchSittingReview = async (sessionId) =>
+    apiRequest(`/api/analytics/deep/sittings/${encodeURIComponent(sessionId)}/review`);
 
 // Targeted, adaptive drill. With no target the server drills the weakest
 // topics (decayed mastery × syllabus weight); `mode: 'blind-spot'` leads with

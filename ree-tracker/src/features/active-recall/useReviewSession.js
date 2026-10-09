@@ -74,7 +74,10 @@ export const useReviewSession = (currentUser, isOnline) => {
     // setConfig round-trip; the form state is synced so the custom panel
     // reflects what actually ran.
     const startSession = async (overrides = null) => {
-        const cfg = overrides ? { ...config, ...overrides } : config;
+        // A preset's own question list (itemsPreset) never lands in the form
+        // config: it would ride along into every later session.
+        // eslint-disable-next-line no-unused-vars
+        const { items: _presetItems, ...cfg } = overrides ? { ...config, ...overrides } : config;
         // A drill's target comes ONLY from the launching preset (a Today
         // action, a heatmap tile). Read from `cfg` it would survive into the
         // next untargeted weak-spot drill, since overrides are merged into the
@@ -86,7 +89,12 @@ export const useReviewSession = (currentUser, isOnline) => {
             let freshData = [];
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
-            if (cfg.source === 'srs-due') {
+            if (cfg.source === 'items') {
+                // A fixed set handed over by the preset (a past sitting's
+                // misses). It needs no request, so it runs offline too.
+                freshData = Array.isArray(target.items) ? target.items.filter((q) => q?.id && q.text) : [];
+                if (freshData.length === 0) throw new Error("There's nothing to practise from that sitting.");
+            } else if (cfg.source === 'srs-due') {
                 if (!isOnline) throw new Error("The review queue needs a connection.");
                 freshData = await fetchSrsDue(cfg.count || 20, cfg.subject);
                 if (!freshData || freshData.length === 0) throw new Error("Nothing is due for review right now.");
@@ -170,7 +178,10 @@ export const useReviewSession = (currentUser, isOnline) => {
             setElapsedTime(0);
             sessionConfigRef.current = cfg.source === 'smart-drill'
                 ? { ...cfg, drillTopicId: target.drillTopicId ?? null, drillTopic: target.drillTopic ?? null, drillSubject: target.drillSubject ?? null, drillMode: target.drillMode ?? null }
-                : cfg;
+                : cfg.source === 'items'
+                    // "Practise again" repeats the same set.
+                    ? { ...cfg, items: freshData }
+                    : cfg;
             setLastSummary(null);
 
             // Bracket the session in the store so the per-answer events know

@@ -1,6 +1,6 @@
 // src/pages/BoardSimulator.jsx
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useSimulatorEngine } from '../features/board-simulator/useSimulatorEngine';
@@ -15,8 +15,10 @@ import {
 import { hideExamSession } from '../services/dbQueries';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
-import { Button, Modal } from '../components/ui';
-import { TriangleAlert } from '../components/ui/icons';
+import { Button, Modal, Card } from '../components/ui';
+import { TriangleAlert, Layers } from '../components/ui/icons';
+import { setupConfig } from '../features/board-simulator/profiles';
+import { toDisplaySubject } from '@ree/shared';
 
 import { getAnalyticsProfile } from '../services/dbQueries';
 import { useStore } from '../store/useStore';
@@ -35,6 +37,11 @@ export default function BoardSimulator() {
   // server session, results withheld until the last. `board` is the between-
   // section state; the engine runs one section at a time.
   const [board, setBoard] = useState(() => loadFullBoard());
+  // An unfinished board no longer takes over the setup screen: setup shows a
+  // banner, and its break screen opens only when asked (or right after a
+  // section). It used to replace setup for up to seven days, so a format
+  // picked on the Exams hub was ignored.
+  const [boardOpen, setBoardOpen] = useState(false);
   const lastSection = FULL_BOARD_SECTIONS.length - 1;
   const boardSection = engine.config.fullBoard?.sectionIndex;
   const sectionJustFinished = engine.session.isFinished && engine.config.fullBoard;
@@ -68,28 +75,73 @@ export default function BoardSimulator() {
     const current = loadFullBoard();
     clearFullBoard();
     setBoard(null);
+    setBoardOpen(false);
     // Its finished sections still count in analytics; keep the half-board out
     // of mock history, where it would read as a failed sitting.
     if (current?.sessionId) hideExamSession(current.sessionId).catch(() => {});
-    engine.setSession((s) => ({ ...s, isActive: false, isFinished: false, diagnostics: null, questions: [] }));
+    engine.resetToSetup();
   };
   const leaveBoardResults = () => {
     clearFullBoard();
     setBoard(null);
+    setBoardOpen(false);
   };
+  // The saved draft resumes from the break only if it is THIS board's section;
+  // "Resume the section in progress" used to resume any mock left on the device.
+  const draftMeta = engine.hasSavedSession ? engine.savedDraftMeta() : null;
+  const boardDraft = !!board && draftMeta?.fullBoard?.sessionId === board.sessionId
+    && draftMeta?.fullBoard?.sectionIndex === board.sectionIndex;
 
   // Which screen: a mid-board break (results withheld), the board result, or
   // the ordinary single-sitting flow.
   const showBoardBreak = !!board && board.sectionIndex <= lastSection && (
     (sectionJustFinished && boardSection < lastSection)
-    || (!engine.session.isActive && !engine.session.isFinished)
+    || (boardOpen && !engine.session.isActive && !engine.session.isFinished)
   );
+  const showBoardBanner = !!board && board.sectionIndex <= lastSection && !showBoardBreak
+    && !engine.session.isActive && !engine.session.isFinished;
   const showBoardResult = !!sectionJustFinished && boardSection === lastSection;
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // A retake of a past sitting's misses (pages/SittingReview): the questions
+  // come in router state, checked against the signed-in account, then the
+  // state is cleared so Back doesn't start it again.
+  const retakeStarted = useRef(false);
+  useEffect(() => {
+    const retake = location.state?.retake;
+    if (!retake || retakeStarted.current) return;
+    retakeStarted.current = true;
+    navigate(location.pathname, { replace: true, state: null });
+    if (!currentUser?.uid || retake.ownerUid !== currentUser.uid || !Array.isArray(retake.questions) || retake.questions.length === 0) return;
+    const subjects = new Set(retake.questions.map((q) => q.subject));
+    engine.startSimulation({
+      ...setupConfig(engine.config),
+      mode: 'subject',
+      subject: subjects.size === 1 ? [...subjects][0] : 'Mixed',
+      isPrcStandard: false,
+      count: retake.questions.length,
+      source: 'retake',
+      cognitiveFocus: 'mixed',
+      retake: { sourceSessionId: retake.sourceSessionId || null },
+      retakeQuestions: retake.questions,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const activeBattleId = engine.config.battleId || searchParams.get('battleId');
-  const { connected: battleConnected, opponentProgress, graded, answerKey, explanationKey, sendAnswer, submitResult } = useBattleSocket(activeBattleId);
+  const { connected: battleConnected, opponentProgress, graded, answerKey, explanationKey, sendAnswer, submitResult, submitPending: battleSubmitPending } = useBattleSocket(activeBattleId);
+
+  // Leaving the review for setup: a clean config (no battle id, board section
+  // or retake), and the battle id out of the URL, which otherwise kept the
+  // battle socket open and the next mock waiting on it.
+  const exitReview = () => {
+    if (showBoardResult) leaveBoardResults();
+    engine.resetToSetup();
+    if (searchParams.get('battleId')) setSearchParams({}, { replace: true });
+  };
 
   useEffect(() => {
     const bId = searchParams.get('battleId');
@@ -199,12 +251,28 @@ export default function BoardSimulator() {
       {showBoardBreak && (
         <FullBoardBreak
           board={board}
-          hasDraft={!!engine.hasSavedSession && !engine.session.isActive}
+          hasDraft={boardDraft && !engine.session.isActive}
           loading={engine.session.loading}
           onContinue={continueFullBoard}
           onResumeDraft={engine.resumeSimulation}
           onAbandon={abandonFullBoard}
+          onBack={sectionJustFinished ? undefined : () => setBoardOpen(false)}
         />
+      )}
+
+      {showBoardBanner && (
+        <Card className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between" role="region" aria-label="Full PRC board in progress">
+          <div className="flex items-start gap-3">
+            <Layers size={18} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent-text)' }} />
+            <div>
+              <p className="text-sm font-medium text-textMain">You have a full PRC board in progress</p>
+              <p className="text-xs text-muted2">
+                {board.sectionIndex} of {FULL_BOARD_SECTIONS.length} sections done. Next: {toDisplaySubject(FULL_BOARD_SECTIONS[board.sectionIndex])}.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={() => setBoardOpen(true)}>Continue the board</Button>
+        </Card>
       )}
 
       {showBoardResult && board && <FullBoardResults board={board} />}
@@ -221,13 +289,14 @@ export default function BoardSimulator() {
         />
       )}
 
-{engine.session.isFinished && !showBoardBreak && (
+      {engine.session.isFinished && !showBoardBreak && (
         <SimulatorDiagnostics
             onExit={showBoardResult ? leaveBoardResults : undefined}
             headingLevel={showBoardResult ? 2 : 1}
             session={engine.session}
             engine={engine}
             isBattle={!!activeBattleId}
+            submitPending={!!activeBattleId && battleSubmitPending}
         />
       )}
 
@@ -237,6 +306,7 @@ export default function BoardSimulator() {
             engine={engine}
             formatTime={formatTimerMinutes}
             requestTerminate={() => setShowTerminateModal(true)}
+            onExitReview={exitReview}
             isOnline={isOnline}
         />
         </div>

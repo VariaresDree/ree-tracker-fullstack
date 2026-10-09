@@ -13,8 +13,9 @@ import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
 import { computeBattleDiagnostics } from './battleGrades';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
-  PRC_EXAM_FORMAT, prcSectionSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
+  PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
 } from '@ree/shared';
+import { setupConfig } from './profiles';
 import { PRC_TIMES } from '../../config/examStandards';
 import { FULL_BOARD_SECTIONS, loadFullBoard, recordSection } from './fullBoard';
 
@@ -197,7 +198,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           return filtered;
       };
 
-      if (config.source === 'library') {
+      if (config.source === 'retake') {
+          // A past sitting's misses (Exams › Past sittings › Review). The
+          // questions come with the config, so this works offline; the time is
+          // the board's pace for each item's subject.
+          pool = Array.isArray(config.retakeQuestions) ? config.retakeQuestions.filter((q) => q?.id) : [];
+          timeLimitSecs = Math.round(pool.reduce((acc, q) => acc + (boardPaceSeconds(q.subject) || 180), 0));
+          if (pool.length === 0) throw new Error("There's nothing to retake from that sitting.");
+      } else if (config.source === 'library') {
           if (config.mode === 'blended') {
               // Blend by the PRC syllabus weights (server config, one source of
               // truth shared with the backend sampler); falls back to 25/30/45.
@@ -240,7 +248,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           timeLimitSecs = totalCount * 120;
       }
 
-      if (pool.length < totalCount && pool.length > 0) {
+      if (config.source !== 'retake' && pool.length < totalCount && pool.length > 0) {
           toast(`Only ${pool.length} questions were available for this mock.`);
       }
       if (pool.length === 0) throw new Error("No questions match these settings yet.");
@@ -255,7 +263,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const startSimulation = async (overrideConfig = null) => {
     // Only a real config object overrides — never a click event.
     const runConfig = overrideConfig?.mode ? overrideConfig : config;
-    if (runConfig !== config) setConfig(runConfig);
+    // A retake's questions build the pool but are never stored in the config
+    // or the draft (the draft already holds the questions).
+    // eslint-disable-next-line no-unused-vars
+    const { retakeQuestions, ...storedConfig } = runConfig;
+    if (runConfig !== config) setConfig(storedConfig);
     setSession(prev => ({ ...prev, loading: true, error: '' }));
     try {
       const { pool, timeLimitSecs } = await buildExamPool(runConfig);
@@ -288,7 +300,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       
       currentIndexRef.current = 0;
       bookmarksRef.current = new Set();
-      configRef.current = runConfig;
+      configRef.current = storedConfig;
       persistDraft();
       setHasSavedSession(true);
     } catch (err) {
@@ -467,10 +479,13 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 ...prev, isFinished: true, isActive: true, answers: finalAns,
                 questions: mappedQuestions,
                 diagnostics: {
-                    pending: true, score: null, verdict: 'GRADING',
+                    pending: true, score: null, verdict: null,
                     timeTakenSecs: timeTakenActual, totalItems: finalQs.length,
                     correctItems: null, subjectScores: {}, weakTopics: [],
                     chronoAnomalies: [], blindSpots: [], pendingAttempts,
+                    // The battle server records this player's sitting under
+                    // battleId:uid; it opens for review once everyone is done.
+                    sessionId: currentUser?.uid ? `${config.battleId}:${currentUser.uid}` : null,
                 },
             }));
             setCurrentIndex(0);
@@ -514,7 +529,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 // Send the selected option so the server re-grades against its own
                 // answer key — offline client grading is never trusted for stats.
                 // Omitted (not null) when unanswered — schema userAnswer is optional string.
-                ...(finalAns[idx] != null ? { userAnswer: finalAns[idx] } : {}),
+                ...(finalAns[idx] != null ? { userAnswer: finalAns[idx] } : { blank: true }),
+                // Where it sat in this sitting, for the sitting review's order.
+                itemIndex: idx,
                 // `timeSpent[idx]` is ALREADY milliseconds (accumulated as
                 // Date.now() - lastActiveTime). The old `* 1000` inflated it 1000×,
                 // so every attempt recorded ~hours and poisoned the per-question
@@ -543,8 +560,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             // ledger). The client only describes the sitting. Queued right
             // behind the telemetry when deferred, so the outbox replays them in
             // order; a 409 means the attempts have not landed yet and retries.
+            const isRetake = config.source === 'retake';
             const examMeta = {
-                kind: isFullBoard ? 'full-board' : config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
+                kind: isFullBoard ? 'full-board' : isRetake ? 'retake' : config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
                 isPrcStandard: !!config.isPrcStandard,
                 targetSubject: isFullBoard ? 'Full board' : String(config.subject || '').slice(0, 32),
             };
@@ -641,12 +659,25 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             });
         }
 
+        const weakTopics = Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t);
         const diagnosticsPayload = {
             score, generalAverage, verdict, timeTakenSecs: timeTakenActual, subjectScores,
-            weakTopics: Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t),
+            weakTopics,
+            // With each topic's subject, so a weak topic opens a drill on it.
+            weakTopicDetails: weakTopics.map((topic) => ({ topic, subject: finalQs.find((q) => q.subtopic === topic)?.subject || null })),
             totalItems: finalQs.length, correctItems: correct,
             unansweredItems: finalQs.filter((_, idx) => finalAns[idx] == null).length,
-            chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpent[idx] || 0) > TIME_SINK_MS),
+            // The review page reads this sitting back (Exams › Past sittings).
+            // An earlier full-board section isn't reviewable until the board
+            // is finished, so it has none.
+            sessionId: shouldFinalize && currentUser ? sessionId : null,
+            pacingItems: finalQs.map((q, idx) => ({
+                order: idx + 1, subject: q.subject, timeSpentMs: Math.round(timeSpent[idx]) || 0,
+                isCorrect: finalAns[idx] === q.answer, text: q.text || q.question,
+            })),
+            // Over the board's pace for the item's subject (Mathematics 180 s,
+            // ESAS 144 s, EE 216 s); it was a flat three minutes for all three.
+            chronoAnomalies: mappedQuestions.filter((q, idx) => (timeSpent[idx] || 0) > (boardPaceSeconds(q.subject) || TIME_SINK_MS / 1000) * 1000),
             // Confidently WRONG. A blank is a miss, not a blind spot.
             blindSpots: mappedQuestions.filter((q) => q.userAnswer != null && q.userConf === 'HIGH' && q.userAnswer !== q.answer)
         };
@@ -787,6 +818,34 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     // player's sitting, so it appears in server-side mock history.
   };
 
+  // Back to the setup screen after a run, with a config fit to start the next
+  // one: a battle id, a full-board section or a retake's questions left in it
+  // used to carry into the next mock (it never graded, or was filed under the
+  // old board).
+  const resetToSetup = () => {
+    const next = setupConfig(configRef.current);
+    configRef.current = next;
+    setConfig(next);
+    setSession({ isActive: false, isFinished: false, questions: [], answers: {}, confidences: {}, loading: false, error: '', diagnostics: null });
+    setCurrentIndex(0);
+    currentIndexRef.current = 0;
+    gradesAppliedRef.current = false;
+  };
+
+  // What the saved draft is, without loading it: so the full board's break
+  // offers "Resume the section in progress" only for its OWN section, not any
+  // unrelated mock left on this device.
+  const savedDraftMeta = () => {
+    try {
+      const raw = localStorage.getItem('ree_sim_cache');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return { fullBoard: parsed?.config?.fullBoard || null, source: parsed?.config?.source || null, savedAt: parsed?.savedAt || null };
+    } catch {
+      return null;
+    }
+  };
+
   // Export a print-ready PRC-style board-exam packet: questionnaire (2-column
   // options, continuous flow) + answer sheet (bubble grid + a QR encoding the
   // set id / key version) + a COLUMN-MAJOR answer key. LaTeX is flattened to
@@ -830,6 +889,6 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     bookmarks, toggleBookmark, startSimulation, startMultiplayerBattle, handleSelectOption,
     handleSelectConfidence, handleIndexChange, submitExam, applyServerScore, applyBattleGrades,
     hasSavedSession, resumeSimulation, handleFlagQuestion, getElapsedMs,
-    exportOfflinePDF, isExporting, isSubmitting
+    exportOfflinePDF, isExporting, isSubmitting, resetToSetup, savedDraftMeta
   };
 };

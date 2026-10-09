@@ -181,13 +181,13 @@ export default function Diagnostic() {
           </Card>
         )}
 
-        {phase === 'result' && result && <PlacementResult result={result} />}
+        {phase === 'result' && result && <PlacementResult result={result} sessionId={sessionId} />}
       </div>
     </MainLayout>
   );
 }
 
-function PlacementResult({ result }) {
+function PlacementResult({ result, sessionId }) {
   const gwa = result.projectedGWA;
   const subjects = result.subjects || {};
   return (
@@ -221,6 +221,13 @@ function PlacementResult({ result }) {
 
       <div className="flex flex-wrap gap-3">
         <Button size="lg" as={Link} to="/">Go to Today</Button>
+        {/* The answers, as the intro promised: each question with yours and
+            the key (Exams › Past sittings › Review reads the same record). */}
+        {sessionId && (
+          <Button variant="secondary" as={Link} to={`/exams/sittings/${encodeURIComponent(sessionId)}`}>
+            Review your answers
+          </Button>
+        )}
         <Button
           variant="secondary"
           as={Link}

@@ -37,7 +37,7 @@ const toast = (await import('react-hot-toast')).default;
 const { fetchBookmarks, fetchSmartDrillQuestions, updateQuestionInBank, updateQuestionCache } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
-const { bookmarksPreset, drillPreset } = await import('./presets');
+const { bookmarksPreset, drillPreset, itemsPreset } = await import('./presets');
 
 const q = (id, subject, subtopic) => ({ id, subject, subtopic, text: `Q ${id}`, options: ['A', 'B', 'C', 'D'], answer: 'A' });
 const saved = [q('b1', 'EE', 'Protection'), q('b2', 'Mathematics', 'Calculus'), q('b3', 'EE', 'Machines'), q('b4', 'Math', 'Algebra')];
@@ -199,5 +199,24 @@ describe('flag, AI explanation and leaving mid-session', () => {
     engine.queuePendingWrite.mockClear();
     unmount();
     expect(engine.queuePendingWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('items source (a past sitting’s misses)', () => {
+  it('practises exactly the items handed over, offline too, without keeping them in the form', async () => {
+    const items = [q('m1', 'EE', 'Machines'), q('m2', 'Mathematics', 'Calculus')];
+    const { result } = setup(false);
+    await act(() => result.current.startSession(itemsPreset(items)));
+    expect(result.current.session.isActive).toBe(true);
+    expect(result.current.session.questions.map((x) => x.id).sort()).toEqual(['m1', 'm2']);
+    expect(result.current.config.items).toBeUndefined();
+    expect(result.current.config.source).toBe('items');
+  });
+
+  it('says so when there is nothing to practise', async () => {
+    const { result } = setup();
+    await act(() => result.current.startSession(itemsPreset([])));
+    expect(result.current.session.isActive).toBe(false);
+    expect(toast.error).toHaveBeenLastCalledWith("There's nothing to practise from that sitting.");
   });
 });

@@ -62,6 +62,8 @@ describe('Diagnostic page', () => {
     expect(await screen.findByText('63.4%')).toBeInTheDocument();
     expect(screen.getByText('Foundation')).toBeInTheDocument();
     expect(screen.getByText('Board-ready')).toBeInTheDocument();
+    // The intro promises the answers at the end: the result links to them.
+    expect(screen.getByRole('link', { name: 'Review your answers' })).toHaveAttribute('href', '/exams/sittings/s1');
   });
 
   it('offers to resume an unfinished sitting', async () => {

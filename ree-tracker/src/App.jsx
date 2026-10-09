@@ -27,6 +27,7 @@ const Admin = lazy(() => import('./pages/admin/Admin'));
 const BattleLobby = lazy(() => import('./pages/BattleLobby'));
 const Gauntlet = lazy(() => import('./pages/Gauntlet'));
 const Diagnostic = lazy(() => import('./pages/Diagnostic'));
+const SittingReview = lazy(() => import('./pages/SittingReview'));
 
 // The app shell as a layout route: the navigation stays on screen while a page
 // chunk loads, and only the page area shows the loading state.
@@ -71,6 +72,8 @@ const SecureAppTerminal = () => {
             <Route index element={page('Today', <Suspense fallback={<TodaySkeleton />}><Today /></Suspense>)} />
             <Route path="practice" element={page('Practice', <Practice />)} />
             <Route path="exams" element={page('Exams', <Exams />)} />
+            {/* A finished sitting, item by item (Exams › Past sittings › Review). */}
+            <Route path="exams/sittings/:sessionId" element={page('Sitting review', <SittingReview />)} />
             <Route path="progress" element={page('Progress', <Progress />)} />
             <Route path="library" element={page('Library', <Library />)} />
             <Route path="account" element={page('Account', <Account />)} />

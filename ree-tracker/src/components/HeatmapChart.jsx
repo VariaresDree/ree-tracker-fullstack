@@ -1,6 +1,6 @@
 // src/components/HeatmapChart.jsx
 import React, { useState, useMemo } from 'react';
-import { toDisplaySubject, masteryBand } from '@ree/shared';
+import { toDisplaySubject, masteryBand, boardPaceSeconds } from '@ree/shared';
 import { useStore } from '../store/useStore';
 import { Panel } from './ui';
 import { Flame, Timer, Target } from './ui/icons';
@@ -53,7 +53,10 @@ function HeatmapChart({ stats, onDrillTopic }) {
     [safeTOS, activeTab, microByNorm],
   );
 
-  const targetLimit = activeTab === 'EE' ? 216 : 144;
+  // The board's own pace for the subject (Mathematics 180 s, ESAS 144 s, EE
+  // 216 s). It read 144 s for Mathematics, ESAS's pace, so a Math topic at a
+  // comfortable 2:50 per item was flagged as a speed risk.
+  const targetLimit = boardPaceSeconds(activeTab) ?? 144;
   const title =
     viewMode === 'accuracy' ? 'Accuracy by subtopic'
     : viewMode === 'speed' ? `Speed vs ${targetLimit}s limit`
