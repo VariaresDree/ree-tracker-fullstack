@@ -30,22 +30,28 @@ const baseEngine = (over = {}) => ({
   startSimulation: vi.fn(),
   resumeSimulation: vi.fn(),
   setSession: vi.fn(),
+  resetToSetup: vi.fn(),
+  savedDraftMeta: vi.fn(() => null),
   ...over,
 });
 
-const renderPage = () => render(<MemoryRouter><BoardSimulator /></MemoryRouter>);
+const renderPage = (entries = ['/simulator']) => render(<MemoryRouter initialEntries={entries}><BoardSimulator /></MemoryRouter>);
 
 beforeEach(() => localStorage.clear());
 
 describe('Board Simulator — full PRC board', () => {
-  it('a board between sections shows the break, and continues with the next section on the same session', () => {
+  it('an unfinished board leaves setup usable, and continues on the same session when asked', () => {
     let board = startFullBoard('board-1');
     recordSection(board, 0, { correct: 60, total: 100, answered: 98, timeTakenSecs: 15000 });
     engine = baseEngine();
     renderPage();
 
+    // It used to replace setup for up to a week, ignoring a format picked on
+    // the Exams hub. Setup shows, with a banner.
+    expect(screen.getByText('config-screen')).toBeInTheDocument();
+    expect(screen.getByText('You have a full PRC board in progress')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue the board' }));
     expect(screen.getByText('Section 1 of 3 complete')).toBeInTheDocument();
-    expect(screen.queryByText('config-screen')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Start ESAS (4h)' }));
     expect(engine.startSimulation).toHaveBeenCalledWith(expect.objectContaining({
       subject: 'ESAS', count: 100, fullBoard: { sessionId: 'board-1', sectionIndex: 1 },
@@ -88,10 +94,28 @@ describe('Board Simulator — full PRC board', () => {
     startFullBoard('board-1');
     engine = baseEngine();
     renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue the board' }));
     fireEvent.click(screen.getByRole('button', { name: 'Abandon this sitting' }));
     fireEvent.click(screen.getByRole('button', { name: 'Abandon' }));
     expect(localStorage.getItem('ree_full_board')).toBeNull();
+    expect(engine.resetToSetup).toHaveBeenCalled();
     expect(screen.getByText('config-screen')).toBeInTheDocument();
+    expect(screen.queryByText('You have a full PRC board in progress')).not.toBeInTheDocument();
+  });
+
+  it('offers to resume only the board’s own section, not any mock left on the device', () => {
+    startFullBoard('board-1');
+    engine = baseEngine({ hasSavedSession: true, savedDraftMeta: vi.fn(() => ({ fullBoard: null, source: 'library' })) });
+    const { unmount } = renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue the board' }));
+    expect(screen.queryByRole('button', { name: 'Resume the section in progress' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Start Math/ })).toBeInTheDocument();
+    unmount();
+
+    engine = baseEngine({ hasSavedSession: true, savedDraftMeta: vi.fn(() => ({ fullBoard: { sessionId: 'board-1', sectionIndex: 0 } })) });
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue the board' }));
+    expect(screen.getByRole('button', { name: 'Resume the section in progress' })).toBeInTheDocument();
   });
 });
 
@@ -115,5 +139,23 @@ describe('Board Simulator — layout', () => {
     engine = baseEngine();
     renderPage();
     expect(screen.getByTestId('main')).toBeInTheDocument();
+  });
+});
+
+describe('Board Simulator — retake of a past sitting', () => {
+  const questions = [{ id: 'q1', subject: 'EE', text: 'Q1', options: ['A', 'B'], answer: 'A' }, { id: 'q2', subject: 'EE', text: 'Q2', options: ['A', 'B'], answer: 'B' }];
+
+  it('starts a timed retake of exactly those questions', () => {
+    engine = baseEngine();
+    renderPage([{ pathname: '/simulator', state: { retake: { ownerUid: 'u1', sourceSessionId: 's1', questions } } }]);
+    expect(engine.startSimulation).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'retake', subject: 'EE', count: 2, retakeQuestions: questions, retake: { sourceSessionId: 's1' },
+    }));
+  });
+
+  it('ignores a retake handed over for another account', () => {
+    engine = baseEngine();
+    renderPage([{ pathname: '/simulator', state: { retake: { ownerUid: 'someone-else', questions } } }]);
+    expect(engine.startSimulation).not.toHaveBeenCalled();
   });
 });

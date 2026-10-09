@@ -21,7 +21,7 @@ export function SkeletonChart({ className = '' }) {
 
 export function TodaySkeleton() {
   return (
-    <div role="status" aria-live="polite" aria-label="Loading Today" className="flex flex-col gap-6 w-full max-w-5xl mx-auto page-fade-in">
+    <div role="status" aria-live="polite" aria-label="Loading Today" className="flex flex-col gap-6 w-full max-w-6xl mx-auto pt-4 page-fade-in">
       {/* Mirrors the real page: the header with its chips, then the Today
           card's three figures and its action rows, so nothing jumps on load. */}
       <div className="flex flex-col gap-2">

@@ -69,3 +69,13 @@ export function migratePomodoro(raw) {
 }
 
 export const _internals = { durationSecs };
+
+// Minutes a focus or break block can be set to (Pomodoro settings).
+export const MIN_MINUTES = 1;
+export const MAX_MINUTES = 120;
+/** A typed minutes value, kept to 1–120; empty or 0 keeps `fallback`. */
+export const clampMinutes = (value, fallback) => {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, n));
+};

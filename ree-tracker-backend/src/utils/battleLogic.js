@@ -90,4 +90,32 @@ function rankParticipants(participants) {
         .sort((a, b) => b.score - a.score || a.timeTakenSecs - b.timeTakenSecs);
 }
 
-module.exports = { gradeAnswer, applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants };
+// How long after the time limit the server waits before finishing a battle
+// itself: covers a submit already in flight and a slow phone's clock.
+const DEADLINE_GRACE_MS = 30 * 1000;
+
+/**
+ * Milliseconds from `now` until the server should finish the battle on its
+ * own: the time limit plus the grace, counted from the start. A battle used to
+ * finish only once EVERY participant submitted, so one player who dropped out
+ * (closed the tab, lost signal) left everyone else on "waiting" for good.
+ * Null when the battle hasn't started or has no limit.
+ */
+function deadlineDelayMs(startedAt, timeLimitSecs, now, graceMs = DEADLINE_GRACE_MS) {
+    if (!startedAt || !Number.isFinite(timeLimitSecs) || timeLimitSecs <= 0) return null;
+    return Math.max(0, startedAt + timeLimitSecs * 1000 + graceMs - now);
+}
+
+/**
+ * The ids of lobby participants who are not connected when the host starts.
+ * They are dropped from the battle: they can't answer, and they used to be
+ * counted, so the battle waited for their submit forever.
+ */
+function absentAtStart(participants) {
+    return Array.from(participants.values()).filter((p) => !p.connected).map((p) => p.id);
+}
+
+module.exports = {
+    gradeAnswer, applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants,
+    DEADLINE_GRACE_MS, deadlineDelayMs, absentAtStart,
+};

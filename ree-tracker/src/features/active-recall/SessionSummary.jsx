@@ -11,7 +11,7 @@ import { Crosshair, RotateCcw } from '../../components/ui/icons';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
 import NotificationOptIn from '../../components/NotificationOptIn';
-import { formatDuration } from './buildSessionSummary';
+import { formatDuration } from '../../utils/time';
 
 function Figure({ label, value, sub }) {
   return (
@@ -48,7 +48,7 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
       />
 
       <Card elevated glow className="p-5 sm:p-6 flex flex-col gap-6">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-4">
           <Figure label="Score" value={`${correct}/${total}`} sub={`${accuracy}% correct`} />
           <Figure label="Time" value={formatDuration(durationSecs)} />
           <Figure label="Per question" value={avgSecs != null ? `${avgSecs}s` : '—'} sub="average" />

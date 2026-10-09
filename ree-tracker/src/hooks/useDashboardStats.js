@@ -46,7 +46,8 @@ export function deriveKpi(stats, today) {
 /**
  * @param {{ withReadiness?: boolean }} [options] Today shows the composite
  *   readiness index (/api/readiness); Progress doesn't, so it skips the call.
- * @returns {{ activeStats: object|null, readiness: object|null, loading: boolean, kpi: object, today: string }}
+ * @returns {{ activeStats: object|null, readiness: object|null, readinessSettled: boolean, loading: boolean,
+ *   unavailable: boolean, retry: () => void, kpi: object, today: string }}
  *   `today` is the Manila date the numbers were judged on; it changes at
  *   midnight, which re-merges, re-derives and refetches.
  */
@@ -68,6 +69,12 @@ export function useDashboardStats({ withReadiness = false } = {}) {
   // Composite readiness (coverage + accuracy + θ + consistency + blind spots).
   // Until it arrives Today shows a skeleton, never a stand-in number.
   const [readiness, setReadiness] = useState(null);
+  // True once the readiness request has answered or failed, so Today can say
+  // it is unavailable instead of showing a skeleton forever (offline, it never
+  // arrives).
+  const [readinessSettled, setReadinessSettled] = useState(false);
+  // Bumped by retry() to fetch again.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!uid) return undefined;
@@ -76,14 +83,17 @@ export function useDashboardStats({ withReadiness = false } = {}) {
       .catch(() => null)
       .finally(() => { if (live) setSettled(true); });
     if (withReadiness) {
-      fetchReadinessScore().then((r) => { if (live && r) setReadiness(r); }).catch(() => {});
+      fetchReadinessScore()
+        .then((r) => { if (live && r) setReadiness(r); })
+        .catch(() => {})
+        .finally(() => { if (live) setReadinessSettled(true); });
     }
     // Keyed on the UID, not the `currentUser` object (Firebase hands back a new
     // one on token refresh), and not on dynamicTOS: a TOS change needs
     // re-bucketing, not a refetch. The effect below does that. A new Manila
     // day does refetch: yesterday's payload holds yesterday's daily counts.
     return () => { live = false; };
-  }, [uid, withReadiness, today]);
+  }, [uid, withReadiness, today, attempt]);
 
   // The TOS arrived or changed: re-bucket the payload already fetched, so the
   // store (which other pages read) gets every topic's tile. No network.
@@ -113,7 +123,15 @@ export function useDashboardStats({ withReadiness = false } = {}) {
   return {
     activeStats,
     readiness,
-    loading: !activeStats || (!sqlData && !settled),
+    readinessSettled,
+    // Waiting only while this mount's fetch is out. It used to stay true for
+    // good when the fetch failed on a device with no saved stats (a first
+    // visit offline), so Today and Progress showed a skeleton forever.
+    loading: !settled && (!activeStats || !sqlData),
+    // Fetched and still nothing to show: offline, or the server unreachable,
+    // on a device that has never loaded this account's stats.
+    unavailable: settled && !activeStats,
+    retry: () => { setSettled(false); setReadinessSettled(false); setAttempt((n) => n + 1); },
     kpi,
     today,
   };

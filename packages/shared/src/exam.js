@@ -32,6 +32,17 @@ function prcSectionSeconds(subject) {
 }
 
 /**
+ * The board's pace for one subject, in seconds per item: its time over its
+ * items (Mathematics 180, ESAS 144, EE 216). Null for an unknown subject.
+ * Speed limits and "slow item" flags used to restate 144/216 or a flat three
+ * minutes, which put Mathematics on ESAS's pace.
+ */
+function boardPaceSeconds(subject) {
+    const format = PRC_EXAM_FORMAT[normalizeSubject(subject)];
+    return format ? (format.minutes * 60) / format.items : null;
+}
+
+/**
  * Grade a board attempt from its per-subject percentages (0-100).
  *
  * Subjects the attempt never asked about are null/undefined and stay UNRATED:
@@ -78,4 +89,4 @@ function createBoardGrader(weights = DEFAULT_SYLLABUS_WEIGHTS) {
     };
 }
 
-module.exports = { PRC_EXAM_FORMAT, prcSectionSeconds, gradeBoardExam, createBoardGrader };
+module.exports = { PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, gradeBoardExam, createBoardGrader };

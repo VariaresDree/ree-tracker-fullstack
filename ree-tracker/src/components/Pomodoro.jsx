@@ -8,48 +8,61 @@ import { useSessionSlice } from '../store/slices';
 import { usePomodoroClock, formatClock } from '../hooks/usePomodoroClock';
 import { Button } from './ui';
 import { Settings2, Play, Pause, RotateCcw } from './ui/icons';
+import { MIN_MINUTES, MAX_MINUTES, clampMinutes } from '../utils/pomodoroLogic';
 
+// The settings edit a draft: the inputs wrote straight into the timer, so
+// clearing a field set a 0-minute block, and Save reset a running timer even
+// when nothing changed.
 export default function Pomodoro() {
   const { updatePomodoro, startPomodoro, pausePomodoro, resetPomodoro } = useSessionSlice();
   const { pomodoro, remaining } = usePomodoroClock();
-  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(null); // { work, rest } while editing
 
-  if (isEditing) {
+  if (draft) {
+    const save = () => {
+      const workDuration = clampMinutes(draft.work, pomodoro.workDuration);
+      const breakDuration = clampMinutes(draft.rest, pomodoro.breakDuration);
+      setDraft(null);
+      if (workDuration === pomodoro.workDuration && breakDuration === pomodoro.breakDuration) return;
+      updatePomodoro({ workDuration, breakDuration });
+      resetPomodoro();
+    };
     return (
-      <div className="flex flex-col gap-2 p-3 bg-surface border border-border2 rounded-[var(--radius-default)] text-center w-full font-mono text-xs text-textMain transition-all shadow-inner">
+      <div className="flex flex-col gap-2 p-3 bg-surface border border-border2 rounded-[var(--radius-default)] text-center w-full text-xs text-textMain transition-all shadow-inner">
         <div className="text-eyebrow">Timer settings</div>
-        <div className="flex items-center justify-center gap-2">
-          <input
-            type="number"
-            value={pomodoro.workDuration}
-            onChange={(e) => updatePomodoro({ workDuration: Number(e.target.value) })}
-            aria-label="Focus minutes"
-            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold focus:border-[var(--accent)]"
-            style={{ color: 'var(--color-reeAmber-text)' }}
-            title="Focus minutes"
-          />
-          <span className="text-muted">/</span>
-          <input
-            type="number"
-            value={pomodoro.breakDuration}
-            onChange={(e) => updatePomodoro({ breakDuration: Number(e.target.value) })}
-            aria-label="Break minutes"
-            className="w-12 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-bold focus:border-[var(--accent)]"
-            style={{ color: 'var(--accent-success)' }}
-            title="Break minutes"
-          />
+        <div className="flex items-end justify-center gap-3">
+          <label className="flex flex-col gap-1 items-center">
+            <span className="text-muted2">Focus</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={MIN_MINUTES}
+              max={MAX_MINUTES}
+              value={draft.work}
+              onChange={(e) => setDraft((d) => ({ ...d, work: e.target.value }))}
+              className="w-14 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-mono font-bold focus:border-[var(--accent)]"
+              style={{ color: 'var(--color-reeAmber-text)' }}
+            />
+          </label>
+          <label className="flex flex-col gap-1 items-center">
+            <span className="text-muted2">Break</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={MIN_MINUTES}
+              max={MAX_MINUTES}
+              value={draft.rest}
+              onChange={(e) => setDraft((d) => ({ ...d, rest: e.target.value }))}
+              className="w-14 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-mono font-bold focus:border-[var(--accent)]"
+              style={{ color: 'var(--accent-success)' }}
+            />
+          </label>
         </div>
-        <Button
-          size="sm"
-          fullWidth
-          className="mt-1"
-          onClick={() => {
-            setIsEditing(false);
-            resetPomodoro();
-          }}
-        >
-          Save
-        </Button>
+        <p className="text-muted2">Minutes, {MIN_MINUTES}–{MAX_MINUTES}. Changing them restarts the timer.</p>
+        <div className="flex gap-2 mt-1">
+          <Button size="sm" variant="secondary" className="flex-1" onClick={() => setDraft(null)}>Cancel</Button>
+          <Button size="sm" className="flex-1" onClick={save}>Save</Button>
+        </div>
       </div>
     );
   }
@@ -65,7 +78,7 @@ export default function Pomodoro() {
             44x44 touch target correctly (h-9 w-9, pointer-coarse:h-11 w-11)
             — the !h-7 !w-7 override here was defeating it, measuring 28x28
             live at 360px. */}
-        <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)} aria-label="Timer settings" className="text-muted hover:text-textMain">
+        <Button size="icon" variant="ghost" onClick={() => setDraft({ work: String(pomodoro.workDuration), rest: String(pomodoro.breakDuration) })} aria-label="Timer settings" className="text-muted hover:text-textMain">
           <Settings2 size={14} strokeWidth={1.75} aria-hidden="true" />
         </Button>
       </div>

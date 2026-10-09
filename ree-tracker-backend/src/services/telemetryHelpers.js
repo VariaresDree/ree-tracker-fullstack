@@ -94,6 +94,18 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
                 // callers (battle socket, scripts) that never pass through Zod.
                 timeSpentMs: storableTimeMs(a.timeSpentMs),
                 clientAttemptId: a.clientAttemptId || null,
+                // The option the learner picked, kept for the sitting review
+                // ("your answer"). '' = left blank; null = not recorded (a
+                // self-graded flashcard, or a row from before this column).
+                // Attempts used to keep only isCorrect, so a past mock could
+                // never show what was answered.
+                // A blank is sent as `blank: true` with no userAnswer, so it stays
+                // out of the server-graded set that moves θ (as blanks always
+                // have) while the review can still say "left blank".
+                selectedAnswer: a.userAnswer != null ? String(a.userAnswer).slice(0, 500) : (a.blank === true ? '' : null),
+                // Where the item sat in its sitting (0-based), so the review
+                // lists items in the order they were asked.
+                itemIndex: Number.isInteger(a.itemIndex) && a.itemIndex >= 0 && a.itemIndex < 1000 ? a.itemIndex : null,
                 offline: !!a.offline,
                 // When the user actually answered (clamped — see clampAnsweredAt).
                 // The calendar/streak roll up on this, so a batch queued offline

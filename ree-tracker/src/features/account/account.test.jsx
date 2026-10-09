@@ -8,7 +8,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const state = {
     stats: { examDate: '2026-11-20', dailyTarget: 50 },
     saveExamConfig: vi.fn(() => Promise.resolve()),
-    resetDailyQuotas: vi.fn(),
     purgeAnalytics: vi.fn(() => Promise.resolve()),
     syncQueue: [],
     pendingWrites: [],
@@ -19,14 +18,24 @@ const auth = {
     currentUser: { uid: 'u1', email: 'rey@example.com' },
     resetPassword: vi.fn(() => Promise.resolve()),
     changePassword: vi.fn(() => Promise.resolve()),
+    reauthenticate: vi.fn(() => Promise.resolve({})),
     logout: vi.fn(),
     login: vi.fn(),
     register: vi.fn(),
 };
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => auth }));
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
-const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), loading: vi.fn() });
+const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() });
 vi.mock('react-hot-toast', () => ({ default: toast }));
+const forgetDashboardStats = vi.fn();
+vi.mock('../../services/analyticsSync', () => ({ forgetDashboardStats: () => forgetDashboardStats() }));
+const purgeApiCache = vi.fn(() => Promise.resolve(true));
+vi.mock('../../services/apiCache', () => ({ purgeApiCache: () => purgeApiCache() }));
+const deleteAccount = vi.fn(() => Promise.resolve());
+vi.mock('../../services/dbQueries', () => ({ deleteAccount: () => deleteAccount() }));
+vi.mock('../../services/simulationLedger', () => ({ purgeSimulationLedger: vi.fn(() => Promise.resolve()) }));
+const deleteUser = vi.fn(() => Promise.resolve());
+vi.mock('firebase/auth', () => ({ deleteUser: (u) => deleteUser(u) }));
 
 const { default: ExamPlanForm } = await import('./ExamPlanForm');
 const { default: DataSettings } = await import('./DataSettings');
@@ -43,6 +52,15 @@ describe('ExamPlanForm — the one editor for the exam date and daily target', (
         fireEvent.click(screen.getByRole('button', { name: 'Save exam plan' }));
         await waitFor(() => expect(state.saveExamConfig).toHaveBeenCalledWith({ examDate: '2027-04-10', dailyTarget: 80 }));
         expect(toast.success).toHaveBeenCalled();
+    });
+
+    it('reports when it has unsaved edits, and when they are saved', async () => {
+        const onDirtyChange = vi.fn();
+        render(<ExamPlanForm onDirtyChange={onDirtyChange} />);
+        fireEvent.change(screen.getByLabelText('Daily target'), { target: { value: '70' } });
+        expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+        fireEvent.click(screen.getByRole('button', { name: 'Save exam plan' }));
+        await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
     });
 
     it('shows the per-subject split of the target', () => {
@@ -67,20 +85,74 @@ describe('ExamPlanForm — the one editor for the exam date and daily target', (
 });
 
 describe('DataSettings — nothing destructive without a confirm', () => {
-    it('reset today asks first', () => {
+    it('offers no "Reset today" (today’s counts come from recorded answers)', () => {
         render(<DataSettings />);
-        fireEvent.click(screen.getByRole('button', { name: /reset today/i }));
-        expect(state.resetDailyQuotas).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
-        expect(state.resetDailyQuotas).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('button', { name: /reset today/i })).not.toBeInTheDocument();
     });
 
-    it('deleting all analytics asks first', async () => {
+    it('deleting all analytics asks first, then forgets the cached numbers', async () => {
         render(<DataSettings />);
         fireEvent.click(screen.getByRole('button', { name: /delete all analytics/i }));
         expect(state.purgeAnalytics).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole('button', { name: 'Delete analytics' }));
         await waitFor(() => expect(state.purgeAnalytics).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(forgetDashboardStats).toHaveBeenCalledTimes(1));
+        expect(purgeApiCache).toHaveBeenCalledTimes(1);
+    });
+
+    it('says how many unsynced changes it discards', () => {
+        state.syncQueue = [{}, {}];
+        state.pendingWrites = [{}];
+        render(<DataSettings />);
+        fireEvent.click(screen.getByRole('button', { name: /delete all analytics/i }));
+        expect(screen.getByText(/3 changes on this device haven’t synced yet/)).toBeInTheDocument();
+        state.syncQueue = [];
+        state.pendingWrites = [];
+    });
+});
+
+describe('ExamPlanForm — clearing the date', () => {
+    it('sends null so the date is removed', async () => {
+        render(<ExamPlanForm />);
+        fireEvent.change(screen.getByLabelText('Exam date'), { target: { value: '' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save exam plan' }));
+        await waitFor(() => expect(state.saveExamConfig).toHaveBeenCalledWith({ examDate: null, dailyTarget: 50 }));
+    });
+});
+
+describe('SecuritySettings — delete account', () => {
+    const openDelete = () => {
+        render(<SecuritySettings />);
+        fireEvent.click(screen.getByRole('button', { name: /delete account/i }));
+        fireEvent.change(screen.getByLabelText('Type "DELETE" to confirm'), { target: { value: 'DELETE' } });
+    };
+
+    it('a wrong password stops before anything is deleted', async () => {
+        auth.reauthenticate.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'auth/invalid-credential' }));
+        openDelete();
+        fireEvent.change(screen.getByLabelText('Your password'), { target: { value: 'nope' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+        expect(await screen.findByText('That current password isn’t right.')).toBeInTheDocument();
+        expect(deleteAccount).not.toHaveBeenCalled();
+        expect(deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('confirms the password, then deletes the data, then the sign-in', async () => {
+        const order = [];
+        auth.reauthenticate.mockImplementationOnce(async () => { order.push('reauth'); });
+        deleteAccount.mockImplementationOnce(async () => { order.push('server'); });
+        deleteUser.mockImplementationOnce(async () => { order.push('firebase'); });
+        openDelete();
+        fireEvent.change(screen.getByLabelText('Your password'), { target: { value: 'right-pass' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+        await waitFor(() => expect(state.resetStore).toHaveBeenCalled());
+        expect(auth.reauthenticate).toHaveBeenCalledWith('right-pass');
+        expect(order).toEqual(['reauth', 'server', 'firebase']);
+    });
+
+    it('needs the password before it can be pressed', () => {
+        openDelete();
+        expect(screen.getByRole('button', { name: 'Delete permanently' })).toBeDisabled();
     });
 });
 
@@ -126,5 +198,17 @@ describe('Login — forgot password', () => {
         fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'rey@example.com' } });
         fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
         await waitFor(() => expect(auth.resetPassword).toHaveBeenCalledWith('rey@example.com'));
+    });
+});
+
+describe('Login — error messages', () => {
+    it('shows a plain message, not the raw Firebase error', async () => {
+        auth.login.mockRejectedValueOnce(Object.assign(new Error('Firebase: Error (auth/invalid-credential).'), { code: 'auth/invalid-credential' }));
+        render(<Login />);
+        fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'rey@example.com' } });
+        fireEvent.change(screen.getByLabelText(/^password/i), { target: { value: 'wrong-pass' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('That email and password don’t match an account.');
+        expect(screen.queryByText(/auth\/invalid-credential/)).not.toBeInTheDocument();
     });
 });

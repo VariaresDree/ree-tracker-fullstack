@@ -53,13 +53,16 @@ export function StatTile({ label, value, sub, color = 'var(--text-main)' }) {
   );
 }
 
-/** Horizontal bars, at most 12 rows. `unit` is appended to each value. */
-export function BarList({ items, valueKey, labelKey, maxVal, unit = '', color = 'var(--accent-velocity)', empty }) {
+/**
+ * Horizontal bars, at most `limit` rows (12 by default). `unit` is appended to
+ * each value. Rows are shown in the order given.
+ */
+export function BarList({ items, valueKey, labelKey, maxVal, unit = '', color = 'var(--accent-velocity)', empty, limit = 12 }) {
   if (!items?.length) return <p className="text-sm text-muted2">{empty}</p>;
   const max = maxVal || Math.max(...items.map((i) => i[valueKey]));
   return (
     <ul className="flex flex-col gap-2">
-      {items.slice(0, 12).map((item) => (
+      {items.slice(0, limit).map((item) => (
         <li key={item[labelKey]} className="flex items-center gap-3">
           <span className="w-24 sm:w-40 shrink-0 text-xs text-muted2 truncate text-right">{item[labelKey]}</span>
           <span className="flex-1 h-4 bg-surface3 rounded-full overflow-hidden" aria-hidden="true">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchPendingExplanations, updateExplanationStatus, bulkApproveExplanations } from '../../services/dbQueries';
 import { Button, Modal } from '../../components/ui';
-import { CheckCircle2 } from '../../components/ui/icons';
+import { Check, CheckCircle2, X } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
@@ -87,7 +87,7 @@ export default function ExplanationReview() {
     if (questions.length === 0) {
         return (
             <div className="text-center py-12">
-                <div className="text-4xl mb-3">✅</div>
+                <CheckCircle2 size={36} strokeWidth={1.5} aria-hidden="true" className="mx-auto mb-3" style={{ color: 'var(--accent-success)' }} />
                 <p className="text-muted text-sm font-medium">No pending explanations to review</p>
                 <button onClick={loadPending} className="mt-4 text-xs text-reeBlue-text hover:underline cursor-pointer">
                     Refresh
@@ -191,14 +191,14 @@ export default function ExplanationReview() {
                                     disabled={processing === q.id}
                                     className="flex-1 px-3 py-2 bg-reeGreen/10 hover:bg-reeGreen/20 text-reeGreen-text border border-reeGreen/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                                 >
-                                    {processing === q.id ? 'Processing...' : '✓ Approve'}
+                                    {processing === q.id ? 'Saving…' : <><Check size={14} strokeWidth={2} aria-hidden="true" className="inline -mt-0.5 mr-1" />Approve</>}
                                 </button>
                                 <button
                                     onClick={() => handleAction(q.id, 'REJECTED')}
                                     disabled={processing === q.id}
                                     className="flex-1 px-3 py-2 bg-reeRed/10 hover:bg-reeRed/20 text-reeRed-text border border-reeRed/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                                 >
-                                    ✗ Reject
+                                    <X size={14} strokeWidth={2} aria-hidden="true" className="inline -mt-0.5 mr-1" />Reject
                                 </button>
                             </div>
                         </div>

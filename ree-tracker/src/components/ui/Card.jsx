@@ -1,8 +1,9 @@
 import { cn } from './cn';
 
-export function Card({ className, elevated = false, glow = false, grain = false, ...rest }) {
+// `as` renders another element (an <li> in a list of cards, a <section>).
+export function Card({ as: Tag = 'div', className, elevated = false, glow = false, grain = false, ...rest }) {
   return (
-    <div
+    <Tag
       className={cn(
         'bg-surface border border-border rounded-[var(--radius-lg)]',
         elevated && 'elevate-2',

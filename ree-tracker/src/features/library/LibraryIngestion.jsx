@@ -10,7 +10,7 @@ import LatexRenderer from '../../components/LatexRenderer';
 export default function LibraryIngestion({
   genSubject, setGenSubject, genSubtopic, setGenSubtopic,
   genFocus, setGenFocus,
-  genLoading, genStatus, parsingPdf, isOnline, selectedPdf,
+  genLoading, genStatus, genTone, parsingPdf, isOnline, selectedPdf,
   isDragging, handleDragOver, handleDragLeave, handleDrop,
   generatedQuestions, showQAModal, setShowQAModal, isCommitting,
   handleGenerate, handlePdfSelect, executePdfExtraction,
@@ -167,9 +167,9 @@ export default function LibraryIngestion({
             role="status"
             className="lg:col-span-2 p-3 rounded-[var(--radius-default)] text-xs font-medium border border-border bg-surface"
             style={
-              genStatus.includes('✅')
+              genTone === 'success'
                 ? { background: 'color-mix(in srgb, var(--accent-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)', color: 'var(--accent-success)' }
-                : genStatus.includes('❌')
+                : genTone === 'error'
                   ? { background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)', color: 'var(--accent-danger)' }
                   : undefined
             }

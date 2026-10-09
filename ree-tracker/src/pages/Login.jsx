@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button, FormField, Input } from '../components/ui';
 import { Eye, EyeOff } from '../components/ui/icons';
 import toast from 'react-hot-toast';
+import { authErrorMessage } from '../utils/authErrors';
 
 export default function Login() {
     const { login, register, resetPassword } = useAuth();
@@ -15,6 +16,7 @@ export default function Login() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [sendingReset, setSendingReset] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -30,7 +32,7 @@ export default function Login() {
                 toast.success("Signed in.");
             }
         } catch (err) {
-            setError(err.message.replace('Firebase: ', ''));
+            setError(authErrorMessage(err, isRegistering ? 'register' : 'sign-in'));
         }
         setLoading(false);
     };
@@ -43,11 +45,14 @@ export default function Login() {
             setError('Enter your email above, then tap “Forgot password?” again.');
             return;
         }
+        setSendingReset(true);
         try {
             await resetPassword(email.trim());
             toast.success('If an account exists for that email, a reset link is on its way.');
         } catch (err) {
-            setError(err?.code === 'auth/invalid-email' ? 'That email doesn’t look right.' : 'Couldn’t send the reset email — try again.');
+            setError(authErrorMessage(err, 'reset'));
+        } finally {
+            setSendingReset(false);
         }
     };
 
@@ -121,7 +126,7 @@ export default function Login() {
                     </FormField>
 
                     {!isRegistering && (
-                        <Button type="button" variant="ghost" size="sm" onClick={handleForgot} className="self-end -mt-2 text-muted2 hover:text-textMain">
+                        <Button type="button" variant="ghost" size="sm" onClick={handleForgot} loading={sendingReset} disabled={sendingReset} className="self-end -mt-2 text-muted2 hover:text-textMain">
                             Forgot password?
                         </Button>
                     )}

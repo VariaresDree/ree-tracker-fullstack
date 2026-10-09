@@ -36,10 +36,16 @@ describe('BootSequence — escalating disclosure', () => {
     expect(screen.getByText(/taking longer than usual/i)).toBeInTheDocument();
   });
 
-  it('announces itself politely to assistive tech', () => {
+  it('announces itself politely to assistive tech, but not the rotating tips', () => {
+    vi.useFakeTimers();
     render(<BootSequence />);
     const status = screen.getByRole('status');
     expect(status).toHaveAttribute('aria-live', 'polite');
+    act(() => { vi.advanceTimersByTime(1500); });
+    const tip = document.querySelector('p.text-fluid-sm');
+    expect(tip).not.toBeNull();
+    expect(status.contains(tip)).toBe(false);
+    vi.useRealTimers();
   });
 
   it('accepts a custom label so other surfaces can reuse it', () => {

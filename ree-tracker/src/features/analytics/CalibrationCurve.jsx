@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge } from '../../components/ui';
-import { buildCalibrationCurve, brierScore, expectedCalibrationError, CONFIDENCE_MAP } from './calibration';
+import { buildCalibrationCurve, expectedCalibrationError, CONFIDENCE_MAP } from './calibration';
 
 // Renders a reliability diagram: a 45° line means perfect calibration,
 // above the line = under-confident, below = over-confident. We highlight
@@ -10,7 +10,7 @@ import { buildCalibrationCurve, brierScore, expectedCalibrationError, CONFIDENCE
 // Accepts either raw `attempts` (built client-side) or `buckets` already
 // aggregated server-side ({ confidence: 'LOW'|'MED'|'HIGH', accuracy, total }).
 export function CalibrationCurve({ attempts = [], buckets = null }) {
-  const { points, brier, ece, total } = useMemo(() => {
+  const { points, ece, total } = useMemo(() => {
     if (buckets && buckets.length > 0) {
       const pts = buckets
         .map((b) => {
@@ -19,7 +19,7 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
           if (conf == null || !b.total || !Number.isFinite(rawAcc)) return null;
           // The server may send accuracy as a fraction [0,1] or a percent
           // [0,100]. Normalize to the 0–100 scale that the YAxis, the attempts
-          // branch, and the ECE/Brier math below all assume — otherwise fractional
+          // branch, and the gap (ECE) math below all assume — otherwise fractional
           // buckets collapsed to the axis floor and ECE mixed 0–100 vs 0–1 units.
           const accPct = rawAcc > 1 ? rawAcc : rawAcc * 100;
           return {
@@ -32,8 +32,7 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
         .sort((a, b) => a.confidence - b.confidence);
       const n = pts.reduce((acc, p) => acc + p.n, 0);
       const eceVal = n > 0 ? pts.reduce((acc, p) => acc + (p.n / n) * Math.abs(p.confidence - p.accuracy) / 100, 0) : null;
-      const brierVal = n > 0 ? pts.reduce((acc, p) => acc + p.n * ((p.confidence / 100 - p.accuracy / 100) ** 2), 0) / n : null;
-      return { points: pts, brier: brierVal, ece: eceVal, total: n };
+      return { points: pts, ece: eceVal, total: n };
     }
     const c = buildCalibrationCurve(attempts, 5);
     return {
@@ -42,14 +41,15 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
         accuracy: Number((p.accuracy * 100).toFixed(1)),
         n: p.n,
       })),
-      brier: brierScore(attempts),
       ece: expectedCalibrationError(attempts, 5),
       total: attempts.length,
     };
   }, [attempts, buckets]);
 
   const tone = ece == null ? 'neutral' : ece < 0.1 ? 'success' : ece < 0.2 ? 'signal' : 'danger';
-  const calibLabel = ece == null ? 'No data' : `ECE ${(ece * 100).toFixed(1)}%`;
+  // The gap in points, not "ECE 12.3%" beside a "Brier 0.184" that nothing
+  // explained.
+  const calibLabel = ece == null ? 'No data' : `Gap ${(ece * 100).toFixed(1)} pts`;
 
   // Text alternative for the SVG reliability diagram (WCAG 1.1.1).
   const calibSummary = ece == null
@@ -66,10 +66,9 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
         <Badge tone={tone}>{calibLabel}</Badge>
       </CardHeader>
       <CardBody>
-        <div className="flex items-center gap-4 mb-3 text-xs font-mono uppercase tracking-[0.18em] text-muted">
-          <span>Brier {brier == null ? '—' : brier.toFixed(3)}</span>
-          <span>n = {total}</span>
-        </div>
+        <p className="mb-3 text-xs text-muted2">
+          Calibration gap: how far your confidence sits from your accuracy, on average. Under 10 points is well calibrated. {total} answers.
+        </p>
         <div className="h-56" role="img" aria-label={calibSummary}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>

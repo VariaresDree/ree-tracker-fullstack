@@ -7,7 +7,7 @@
 // /diagnostic either way.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Button } from '../../components/ui';
+import { Card, Button, IconChip } from '../../components/ui';
 import { Compass } from '../../components/ui/icons';
 import { fetchDiagnosticStatus } from '../../services/dbQueries';
 
@@ -41,12 +41,7 @@ export default function PlacementPrompt({ uid, answered = 0 }) {
 
   return (
     <Card elevated glow className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-      <span
-        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-default)]"
-        style={{ background: 'color-mix(in srgb, var(--accent) 12%, transparent)', color: 'var(--accent-text)' }}
-      >
-        <Compass size={22} strokeWidth={1.75} aria-hidden="true" />
-      </span>
+      <IconChip icon={Compass} size="lg" />
       <div className="flex-1 min-w-0">
         <h2 className="text-textMain font-semibold">
           {inProgress ? 'Finish your placement test' : 'Find your starting level'}

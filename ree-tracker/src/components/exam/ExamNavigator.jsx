@@ -8,12 +8,21 @@
 //   isAnswered(idx) -> bool
 //   reviewStateOf(idx) -> 'correct' | 'incorrect' | 'skipped' | null  (review mode)
 //   isMarked(idx) -> bool  (bookmark dot; optional)
-import { useEffect, useRef } from 'react';
+//   numberOf(idx) -> number  (the item's own number when the strip shows a
+//                  filtered subset, e.g. a sitting review's wrong answers)
+//   sheet          { letterOf(idx), correctLetterOf?(idx) } — offers a second
+//                  view, the PRC answer sheet (A–D bubbles per item)
+import { useEffect, useRef, useState } from 'react';
 import { Check, X } from '../ui/icons';
+import { SegmentedControl } from '../ui';
 import { navigatorLabel } from './examAnnouncements';
+import AnswerSheet from './AnswerSheet';
 
-export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked }) {
+const VIEWS = [{ value: 'strip', label: 'Strip' }, { value: 'sheet', label: 'Answer sheet' }];
+
+export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked, numberOf, sheet }) {
   const scrollRef = useRef(null);
+  const [view, setView] = useState('strip');
 
   // Keep the active item centered in the horizontal strip — otherwise on a phone
   // (only ~6 cells visible) the current cell scrolls off-screen past item ~7 and
@@ -26,16 +35,33 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
       const scrollTarget = activeBtn.offsetLeft - container.offsetWidth / 2 + activeBtn.offsetWidth / 2;
       container.scrollTo?.({ left: scrollTarget, behavior: 'smooth' });
     }
-  }, [currentIndex]);
+  }, [currentIndex, view]);
 
   return (
     <div className="bg-surface/80 backdrop-blur-md border border-border2/50 rounded-2xl p-4 shadow-sm relative z-10">
+      {sheet && (
+        <div className="flex justify-end mb-3">
+          <SegmentedControl label="Navigator view" size="sm" options={VIEWS} value={view} onChange={setView} />
+        </div>
+      )}
+      {sheet && view === 'sheet' ? (
+        <AnswerSheet
+          count={count}
+          currentIndex={currentIndex}
+          onSelect={onSelect}
+          letterOf={sheet.letterOf}
+          correctLetterOf={sheet.correctLetterOf}
+          isMarked={isMarked}
+          numberOf={numberOf}
+        />
+      ) : (
       <div ref={scrollRef} className="flex overflow-x-auto gap-2.5 pb-4 items-center px-2 scroll-smooth [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 transition-all">
         {Array.from({ length: count }).map((_, idx) => {
           const answered = !!isAnswered?.(idx);
           const isCurrent = idx === currentIndex;
           const reviewState = reviewStateOf?.(idx) ?? null;
           const marked = !!isMarked?.(idx);
+          const number = numberOf ? numberOf(idx) : idx + 1;
 
           // Encode correct/incorrect beyond color (WCAG 1.4.1) with a ✓/✗ glyph
           // + the aria-label.
@@ -57,11 +83,11 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
               key={idx}
               data-index={idx}
               onClick={() => onSelect?.(idx)}
-              aria-label={navigatorLabel({ idx, answered, reviewState, marked })}
+              aria-label={navigatorLabel({ idx, number, answered, reviewState, marked })}
               aria-current={isCurrent ? 'step' : undefined}
               className={`w-10 h-10 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 rounded-[var(--radius-default)] border text-xs transition-all duration-300 cursor-pointer flex items-center justify-center relative ${btnClass}`}
             >
-              {idx + 1}
+              {number}
               {reviewState === 'correct' && <Check aria-hidden strokeWidth={3} className="absolute -bottom-1 -left-1 w-3 h-3" style={{ color: 'var(--accent-success)' }} />}
               {reviewState === 'incorrect' && <X aria-hidden strokeWidth={3} className="absolute -bottom-1 -left-1 w-3 h-3" style={{ color: 'var(--accent-danger)' }} />}
               {marked && <div className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full border-2 border-surface shadow-sm" style={{ background: 'var(--color-reeAmber)' }}></div>}
@@ -69,6 +95,7 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
           );
         })}
       </div>
+      )}
     </div>
   );
 }

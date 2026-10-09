@@ -4,13 +4,18 @@
 // this is for the "deep comprehension" case — flip, absorb, move on, without
 // the surrounding grid competing for attention. Reuses Flashcard as-is (same
 // flip mechanics, same content layout), just one on screen at a time.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, StatusPill } from '../../components/ui';
 import { ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
 import Flashcard from './Flashcard';
 
 export default function ReferenceStudyMode({ cards, onExit }) {
   const [index, setIndex] = useState(0);
+  // The arrow keys and Escape are handled on the wrapper, so it takes focus
+  // when study mode opens; they did nothing until something inside was
+  // clicked or tabbed to.
+  const wrapperRef = useRef(null);
+  useEffect(() => { wrapperRef.current?.focus({ preventScroll: true }); }, []);
   const card = cards[index];
   const atStart = index === 0;
   const atEnd = index === cards.length - 1;
@@ -27,7 +32,14 @@ export default function ReferenceStudyMode({ cards, onExit }) {
   if (!card) return null;
 
   return (
-    <div className="flex flex-col items-center gap-5 animate-in fade-in" onKeyDown={handleKeyDown}>
+    <div
+      ref={wrapperRef}
+      tabIndex={-1}
+      role="region"
+      aria-label="Study mode: arrow keys move between cards, Escape exits"
+      className="flex flex-col items-center gap-5 animate-in fade-in outline-none"
+      onKeyDown={handleKeyDown}
+    >
       <div className="w-full flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" onClick={onExit}>
           <X size={14} strokeWidth={1.75} aria-hidden="true" /> Exit study mode

@@ -6,7 +6,9 @@ const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitize
 // Pure scoring rules live in utils/battleLogic (Phase 4.1) so they're
 // verifiable under simulated latency without a socket — see
 // tests/battleLatency.test.js. Handlers here stay thin callers.
-const { applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants } = require('../utils/battleLogic');
+const {
+    applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants, deadlineDelayMs, absentAtStart,
+} = require('../utils/battleLogic');
 const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSchemas');
 const logger = require('../utils/logger');
 const { fallbackDisplayName } = require('@ree/shared');
@@ -97,6 +99,238 @@ async function ensureAnswerKey(lobby, battleId) {
     return lobby.answerKey;
 }
 
+/**
+ * Grade, record and close one participant's battle. Used by `battle-submit`
+ * (with the attempts the client carries, for answers the server missed during
+ * a disconnect) and by the deadline (with none: a player who dropped out is
+ * scored on what the server already graded). Returns null when the player is
+ * unknown, already finished, or the answer key is gone.
+ */
+async function finishParticipant(battleId, lobby, userId, clientAttempts = []) {
+    const participant = lobby.participants.get(userId);
+    if (!participant || participant.finished) return null;
+    const answerKey = await ensureAnswerKey(lobby, battleId);
+    if (!answerKey) return null;
+
+    // Merge client-carried attempts only for questions the server never saw
+    // live (covers brief disconnects). Graded against the server's key inside
+    // mergeSubmitAttempts — the client's own isCorrect flags are never read.
+    if (clientAttempts?.length > 0) mergeSubmitAttempts(participant, clientAttempts, answerKey);
+
+    const finalAttempts = Array.from(participant.answers.values());
+    const total = lobby.questionCount || Object.keys(answerKey).length;
+
+    // Server-authoritative timing: never trust a client-supplied duration.
+    // Clamped to the battle's time limit.
+    const timeTakenSecs = computeElapsedSecs(lobby.startedAt, Date.now(), lobby.timeLimitSecs);
+
+    // Persist per-question attempts so battle results feed the
+    // dashboard/profile analytics. recordAttempts re-grades against
+    // Question.answer in the DB — its `graded` output is the authoritative
+    // score source.
+    let graded = null;
+    if (finalAttempts.length > 0) {
+        // One ExamSession per player per battle, so the match appears in
+        // server-side mock history (battles used to record session-less
+        // attempts and live only in a device-local ledger), finalised once its
+        // attempts land.
+        const battleSessionId = `${battleId}:${userId}`;
+        const record = () => recordAttempts({
+            userId,
+            sessionId: battleSessionId,
+            mode: 'BATTLE',
+            // Deterministic per-attempt ids: a replayed battle-submit
+            // (reconnect, double emit) — or a background retry below —
+            // dedupes instead of double-counting the whole battle.
+            attempts: finalAttempts.map((a) => ({
+                ...a,
+                clientAttemptId: `${battleId}:${userId}:${a.questionId}`,
+            })),
+        });
+        const persist = async () => {
+            const recorded = await record();
+            try {
+                await finalizeSession({ userId, sessionId: battleSessionId, meta: { kind: 'battle' } });
+            } catch (finErr) {
+                logger.warn('battle session finalise failed', { battleId, userId, error: finErr.message });
+            }
+            return recorded;
+        };
+        try {
+            const result = await persist();
+            graded = result.graded || null;
+        } catch (telErr) {
+            // The battle is already graded in memory, so the result screen is
+            // unaffected — but the attempts used to be dropped here, leaving
+            // the match out of the learner's analytics for good. Retry off the
+            // request path.
+            logger.warn('battle-submit telemetry persist failed; retrying in background', {
+                battleId, userId, error: telErr.message,
+            });
+            retryInBackground(`battle ${battleId}/${userId} telemetry`, persist);
+        }
+    }
+
+    const score = graded
+        ? graded.filter((g) => g.isCorrect).length
+        : finalAttempts.filter((a) => a.isCorrect).length;
+
+    participant.score = score;
+    participant.itemsAnswered = finalAttempts.length;
+    participant.finished = true;
+    participant.timeTakenSecs = timeTakenSecs;
+    participant.attempts = finalAttempts.map((a) => ({
+        questionId: a.questionId,
+        isCorrect: a.isCorrect,
+        timeMs: a.timeSpentMs,
+    }));
+
+    return { participant, score, total, timeTakenSecs, finalAttempts };
+}
+
+/**
+ * Elo, outcomes and the answer-key reveal, once every participant is
+ * finished. Atomic: two callers (two simultaneous submits, or a submit racing
+ * the deadline) can both get here; only the one whose update flips the status
+ * to COMPLETED does the work.
+ */
+async function completeBattle(battleNs, battleId, lobby) {
+    const { count } = await prisma.battle.updateMany({
+        where: { id: battleId, status: { not: 'COMPLETED' } },
+        data: { status: 'COMPLETED' },
+    });
+    if (count !== 1) return false;
+    if (lobby.deadlineTimer) { clearTimeout(lobby.deadlineTimer); lobby.deadlineTimer = null; }
+
+    const answerKey = lobby.answerKey || {};
+    const total = lobby.questionCount || Object.keys(answerKey).length;
+    const ranked = rankParticipants(serializeParticipants(lobby));
+
+    // Phase 6 — ELO + ranked tiers. Pull each participant's current rating,
+    // recompute, persist BattleOutcome rows, and decorate the broadcast with
+    // rating deltas.
+    const userIds = ranked.map((r) => r.id);
+    const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, eloRating: true, tier: true },
+    });
+    const ratingMap = Object.fromEntries(
+        users.map((u) => [u.id, { rating: u.eloRating ?? 1200, tier: u.tier ?? 'BRONZE' }]),
+    );
+
+    const eloInput = ranked.map((r, i) => ({
+        userId: r.id,
+        rating: ratingMap[r.id]?.rating ?? 1200,
+        placement: i + 1,
+    }));
+    const eloDeltas = recomputeRatings(eloInput);
+    const deltaByUser = Object.fromEntries(eloDeltas.map((d) => [d.userId, d]));
+
+    // Persist outcomes + user updates atomically per participant.
+    await prisma.$transaction(
+        ranked.flatMap((r, i) => {
+            const d = deltaByUser[r.id];
+            const p = lobby.participants.get(r.id);
+            return [
+                prisma.battleOutcome.upsert({
+                    where: { battleId_userId: { battleId, userId: r.id } },
+                    update: {},
+                    create: {
+                        battleId,
+                        userId: r.id,
+                        score: r.score ?? 0,
+                        total,
+                        timeTakenSecs: r.timeTakenSecs ?? 0,
+                        placement: i + 1,
+                        eloBefore: d.ratingBefore,
+                        eloAfter: d.ratingAfter,
+                        eloDelta: d.delta,
+                        tierBefore: d.tierBefore,
+                        tierAfter: d.tierAfter,
+                        perQuestion: p?.attempts ?? null,
+                    },
+                }),
+                prisma.user.update({
+                    where: { id: r.id },
+                    // Apply the DELTA as an atomic increment rather than
+                    // writing an absolute value read outside the txn — so if
+                    // the same user finalizes two battles concurrently, neither
+                    // delta is lost (the absolute eloBefore/After stored on
+                    // BattleOutcome is best-effort display).
+                    data: { eloRating: { increment: d.delta }, tier: d.tierAfter },
+                }),
+            ];
+        }),
+    );
+
+    const results = ranked.map((r, i) => {
+        const d = deltaByUser[r.id];
+        return {
+            ...r,
+            total,
+            placement: i + 1,
+            elo: { before: d.ratingBefore, after: d.ratingAfter, delta: d.delta },
+            tier: { before: d.tierBefore, after: d.tierAfter, promoted: d.tierBefore !== d.tierAfter },
+        };
+    });
+
+    // Reveal the answer key (and offline explanations) only now — everyone is
+    // finished, so the post-battle review screen can grade, annotate, and show
+    // solutions locally.
+    battleNs.to(battleId).emit('battle-complete', {
+        results,
+        answerKey,
+        explanationKey: lobby.explanationKey || {},
+    });
+
+    setTimeout(() => battleLobbies.delete(battleId), 5 * 60 * 1000).unref?.();
+
+    logger.info('Battle completed', { battleId, participants: results.length });
+    return true;
+}
+
+/**
+ * The time limit (plus a grace) has passed: finish everyone who hasn't
+ * submitted on what the server already graded, then complete the battle.
+ */
+async function finishAtDeadline(battleNs, battleId) {
+    const lobby = battleLobbies.get(battleId);
+    if (!lobby) return;
+    lobby.deadlineTimer = null;
+    const state = await prisma.battle.findUnique({ where: { id: battleId }, select: { status: true } });
+    if (state?.status !== 'IN_PROGRESS') return;
+
+    for (const p of Array.from(lobby.participants.values())) {
+        if (p.finished) continue;
+        const done = await finishParticipant(battleId, lobby, p.id);
+        if (!done) continue;
+        battleNs.to(battleId).emit('participant-finished', {
+            id: p.id,
+            displayName: p.displayName,
+            score: done.score,
+            total: done.total,
+            timeTakenSecs: done.timeTakenSecs,
+            timedOut: true,
+        });
+    }
+    await completeBattle(battleNs, battleId, lobby);
+    logger.info('Battle finished at its deadline', { battleId });
+}
+
+/** Arm (once) the timer that finishes the battle at its deadline. */
+function armDeadline(battleNs, battleId, lobby, now = Date.now()) {
+    if (lobby.deadlineTimer) return;
+    const delay = deadlineDelayMs(lobby.startedAt, lobby.timeLimitSecs, now);
+    if (delay == null) return;
+    lobby.deadlineTimer = setTimeout(() => {
+        finishAtDeadline(battleNs, battleId).catch((err) => {
+            logger.error('Battle deadline finish failed', { battleId, error: err.message });
+        });
+    }, delay);
+    lobby.deadlineTimer.unref?.();
+}
+
+
 function setupBattleSocket(io) {
     const battleNs = io.of('/battle');
 
@@ -171,6 +405,11 @@ function setupBattleSocket(io) {
                     attempts: existing?.attempts,
                 });
 
+                if (battle.status === 'IN_PROGRESS' && battle.startedAt) {
+                    if (!lobby.startedAt) lobby.startedAt = battle.startedAt.getTime();
+                    armDeadline(battleNs, battleId, lobby);
+                }
+
                 battleNs.to(battleId).emit('lobby-update', {
                     participants: serializeParticipants(lobby),
                     status: battle.status,
@@ -202,6 +441,10 @@ function setupBattleSocket(io) {
 
                 const lobby = getLobby(battleId);
                 lobby.startedAt = Date.now();
+                lobby.timeLimitSecs = battle.timeLimitSecs;
+                // Whoever isn't connected now is out: they can't answer, and
+                // they used to be waited for until the end of time.
+                for (const id of absentAtStart(lobby.participants)) lobby.participants.delete(id);
 
                 await prisma.battle.update({
                     where: { id: battleId },
@@ -214,6 +457,8 @@ function setupBattleSocket(io) {
                     startedAt: lobby.startedAt,
                     timeLimitSecs: battle.timeLimitSecs
                 });
+                battleNs.to(battleId).emit('lobby-update', { participants: serializeParticipants(lobby) });
+                armDeadline(battleNs, battleId, lobby);
 
                 logger.info('Battle started', { battleId, host: socket.userId });
             } catch (err) {
@@ -241,6 +486,9 @@ function setupBattleSocket(io) {
 
                 const answerKey = await ensureAnswerKey(lobby, battleId);
                 if (!answerKey) return;
+                // After a restart the lobby is rebuilt from the database; the
+                // deadline has to be re-armed from the stored start time.
+                armDeadline(battleNs, battleId, lobby);
 
                 // Upsert-by-questionId, graded server-side (utils/battleLogic).
                 const applied = applyAnswer(
@@ -293,85 +541,9 @@ function setupBattleSocket(io) {
                     return socket.emit('error', { message: 'Battle is not in progress' });
                 }
 
-                const answerKey = await ensureAnswerKey(lobby, battleId);
-                if (!answerKey) {
-                    return socket.emit('error', { message: 'Battle not found' });
-                }
-
-                // Merge client-carried attempts only for questions the server
-                // never saw live (covers brief disconnects). Graded against the
-                // server's key inside mergeSubmitAttempts — the client's own
-                // isCorrect flags are never read.
-                mergeSubmitAttempts(participant, clientAttempts, answerKey);
-
-                const finalAttempts = Array.from(participant.answers.values());
-                const total = lobby.questionCount || Object.keys(answerKey).length;
-
-                // Server-authoritative timing: never trust a client-supplied
-                // duration. Clamped to the battle's time limit.
-                const timeTakenSecs = computeElapsedSecs(lobby.startedAt, Date.now(), lobby.timeLimitSecs);
-
-                // Persist per-question attempts so battle results feed the
-                // dashboard/profile analytics. recordAttempts re-grades against
-                // Question.answer in the DB — its `graded` output is the
-                // authoritative score source.
-                let graded = null;
-                if (finalAttempts.length > 0) {
-                    // One ExamSession per player per battle, so the match
-                    // appears in server-side mock history (battles used to
-                    // record session-less attempts and live only in a
-                    // device-local ledger), finalised once its attempts land.
-                    const battleSessionId = `${battleId}:${socket.userId}`;
-                    const record = () => recordAttempts({
-                        userId: socket.userId,
-                        sessionId: battleSessionId,
-                        mode: 'BATTLE',
-                        // Deterministic per-attempt ids: a replayed
-                        // battle-submit (reconnect, double emit) — or a
-                        // background retry below — dedupes instead of
-                        // double-counting the whole battle.
-                        attempts: finalAttempts.map((a) => ({
-                            ...a,
-                            clientAttemptId: `${battleId}:${socket.userId}:${a.questionId}`,
-                        })),
-                    });
-                    const persist = async () => {
-                        const recorded = await record();
-                        try {
-                            await finalizeSession({ userId: socket.userId, sessionId: battleSessionId, meta: { kind: 'battle' } });
-                        } catch (finErr) {
-                            logger.warn('battle session finalise failed', { battleId, userId: socket.userId, error: finErr.message });
-                        }
-                        return recorded;
-                    };
-                    try {
-                        const result = await persist();
-                        graded = result.graded || null;
-                    } catch (telErr) {
-                        // The battle is already graded in memory, so the result
-                        // screen is unaffected — but the attempts used to be
-                        // dropped here, leaving the match out of the learner's
-                        // analytics for good. Retry off the request path.
-                        logger.warn('battle-submit telemetry persist failed; retrying in background', {
-                            battleId, userId: socket.userId, error: telErr.message,
-                        });
-                        retryInBackground(`battle ${battleId}/${socket.userId} telemetry`, persist);
-                    }
-                }
-
-                const score = graded
-                    ? graded.filter((g) => g.isCorrect).length
-                    : finalAttempts.filter((a) => a.isCorrect).length;
-
-                participant.score = score;
-                participant.itemsAnswered = finalAttempts.length;
-                participant.finished = true;
-                participant.timeTakenSecs = timeTakenSecs;
-                participant.attempts = finalAttempts.map((a) => ({
-                    questionId: a.questionId,
-                    isCorrect: a.isCorrect,
-                    timeMs: a.timeSpentMs,
-                }));
+                const done = await finishParticipant(battleId, lobby, socket.userId, clientAttempts);
+                if (!done) return socket.emit('error', { message: 'Battle not found' });
+                const { score, total, timeTakenSecs, finalAttempts } = done;
 
                 // Ack the submitter with their authoritative result. No answer
                 // key yet — opponents may still be mid-battle.
@@ -392,96 +564,7 @@ function setupBattleSocket(io) {
 
                 const allFinished = Array.from(lobby.participants.values()).every(p => p.finished);
                 if (allFinished && lobby.participants.size > 0) {
-                    // Atomic finalize guard: two simultaneous submitters can
-                    // both observe allFinished — only the one whose updateMany
-                    // flips the status runs Elo/outcome persistence.
-                    const { count } = await prisma.battle.updateMany({
-                        where: { id: battleId, status: { not: 'COMPLETED' } },
-                        data: { status: 'COMPLETED' },
-                    });
-                    if (count !== 1) return;
-
-                    const ranked = rankParticipants(serializeParticipants(lobby));
-
-                    // Phase 6 — ELO + ranked tiers. Pull each participant's
-                    // current rating, recompute, persist BattleOutcome rows,
-                    // and decorate the broadcast with rating deltas.
-                    const userIds = ranked.map((r) => r.id);
-                    const users = await prisma.user.findMany({
-                        where: { id: { in: userIds } },
-                        select: { id: true, eloRating: true, tier: true },
-                    });
-                    const ratingMap = Object.fromEntries(
-                        users.map((u) => [u.id, { rating: u.eloRating ?? 1200, tier: u.tier ?? 'BRONZE' }]),
-                    );
-
-                    const eloInput = ranked.map((r, i) => ({
-                        userId: r.id,
-                        rating: ratingMap[r.id]?.rating ?? 1200,
-                        placement: i + 1,
-                    }));
-                    const eloDeltas = recomputeRatings(eloInput);
-                    const deltaByUser = Object.fromEntries(eloDeltas.map((d) => [d.userId, d]));
-
-                    // Persist outcomes + user updates atomically per participant.
-                    await prisma.$transaction(
-                        ranked.flatMap((r, i) => {
-                            const d = deltaByUser[r.id];
-                            const p = lobby.participants.get(r.id);
-                            return [
-                                prisma.battleOutcome.upsert({
-                                    where: { battleId_userId: { battleId, userId: r.id } },
-                                    update: {},
-                                    create: {
-                                        battleId,
-                                        userId: r.id,
-                                        score: r.score ?? 0,
-                                        total,
-                                        timeTakenSecs: r.timeTakenSecs ?? 0,
-                                        placement: i + 1,
-                                        eloBefore: d.ratingBefore,
-                                        eloAfter: d.ratingAfter,
-                                        eloDelta: d.delta,
-                                        tierBefore: d.tierBefore,
-                                        tierAfter: d.tierAfter,
-                                        perQuestion: p?.attempts ?? null,
-                                    },
-                                }),
-                                prisma.user.update({
-                                    where: { id: r.id },
-                                    // Apply the DELTA as an atomic increment rather than
-                                    // writing an absolute value read outside the txn — so
-                                    // if the same user finalizes two battles concurrently,
-                                    // neither delta is lost (the absolute eloBefore/After
-                                    // stored on BattleOutcome is best-effort display).
-                                    data: { eloRating: { increment: d.delta }, tier: d.tierAfter },
-                                }),
-                            ];
-                        }),
-                    );
-
-                    const results = ranked.map((r, i) => {
-                        const d = deltaByUser[r.id];
-                        return {
-                            ...r,
-                            placement: i + 1,
-                            elo: { before: d.ratingBefore, after: d.ratingAfter, delta: d.delta },
-                            tier: { before: d.tierBefore, after: d.tierAfter, promoted: d.tierBefore !== d.tierAfter },
-                        };
-                    });
-
-                    // Reveal the answer key (and offline explanations) only
-                    // now — everyone is finished, so the post-battle review
-                    // screen can grade, annotate, and show solutions locally.
-                    battleNs.to(battleId).emit('battle-complete', {
-                        results,
-                        answerKey,
-                        explanationKey: lobby.explanationKey || {},
-                    });
-
-                    setTimeout(() => battleLobbies.delete(battleId), 5 * 60 * 1000);
-
-                    logger.info('Battle completed', { battleId, participants: results.length });
+                    await completeBattle(battleNs, battleId, lobby);
                 }
             } catch (err) {
                 logger.error('Battle submit error', { error: err.message, battleId });
@@ -528,4 +611,8 @@ function setupBattleSocket(io) {
     });
 }
 
-module.exports = { setupBattleSocket };
+module.exports = {
+    setupBattleSocket,
+    // Test seams for the deadline path (tests/battleDeadline.test.js).
+    __test: { battleLobbies, finishAtDeadline, armDeadline },
+};

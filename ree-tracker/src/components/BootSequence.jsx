@@ -51,16 +51,13 @@ export default function BootSequence({ label = 'Preparing your session' }) {
   }, [elapsedStage]);
 
   return (
-    <div
-      // role=status + aria-live: a screen reader is told the app is working
-      // without the visual choreography meaning anything to it.
-      role="status"
-      aria-live="polite"
-      className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-bg text-textMain px-6 text-center"
-    >
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-bg text-textMain px-6 text-center">
       <BrandMark size={76} />
 
-      <div className="flex flex-col items-center gap-1.5">
+      {/* Only the label is live: a screen reader is told the app is working.
+          The whole screen used to be the live region, so every rotating tip
+          was read out too, every few seconds. */}
+      <div role="status" aria-live="polite" className="flex flex-col items-center gap-1.5">
         <p className="text-xl font-bold tracking-tight text-[var(--accent-text)]">
           REE<span className="text-textMain">.ai</span>
         </p>

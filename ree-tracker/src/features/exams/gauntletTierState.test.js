@@ -17,6 +17,16 @@ describe('tierState', () => {
     expect(tierState(tier(7), { currentLevel: SUBJECT_UNLOCK_LEVEL })).toMatchObject({ subject: true, isUnlocked: true, isPassed: false });
   });
 
+  it('a subject board passed once is cleared and stays open to take again', () => {
+    const open = { currentLevel: SUBJECT_UNLOCK_LEVEL, boardClears: ['Mathematics'] };
+    expect(tierState(tier(5), open)).toMatchObject({ isCleared: true, isUnlocked: true, isPassed: false, isLocked: false });
+    expect(tierState(tier(6), open)).toMatchObject({ isCleared: false, isUnlocked: true });
+    // A stored short spelling counts too.
+    expect(tierState(tier(5), { ...open, boardClears: ['Math'] }).isCleared).toBe(true);
+    // A blended tier below your level is cleared.
+    expect(tierState(tier(1), { currentLevel: 2 }).isCleared).toBe(true);
+  });
+
   it('the cooldown locks only what is open', () => {
     expect(tierState(tier(2), { currentLevel: 2, totalAnswered: 9999, coolingDown: '1h' }).isCoolingDown).toBe(true);
     expect(tierState(tier(3), { currentLevel: 2, totalAnswered: 9999, coolingDown: '1h' }).isCoolingDown).toBe(false);

@@ -1,104 +1,197 @@
 // src/features/gauntlet/GauntletDiagnostics.jsx
+//
+// The result of a Gauntlet run. It leads with what the run did to the ladder
+// (advanced, cleared, not passed and locked until when, or not counted), then
+// the PRC weighted average it was judged on, the subjects, the topics the
+// misses came from (each a drill), and the missed items with their solutions
+// and "Explain with AI". "Review every item" opens the run from the server.
+//
+// It used to show the raw share correct as the verdict (70% with no subject
+// floor), a fixed "unlocks in 12 hours" whatever the lock was, and the missed
+// items with no way to ask why.
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { CANONICAL_SUBJECTS, GENERAL_AVERAGE, SUBJECT_FLOOR, VERDICT, toDisplaySubject } from '@ree/shared';
 import LatexRenderer from '../../components/LatexRenderer';
 import NotificationOptIn from '../../components/NotificationOptIn';
-import { Button } from '../../components/ui';
+import { Badge, Button, Card, ProgressIndicator } from '../../components/ui';
+import { ClipboardList, Play } from '../../components/ui/icons';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { explanationKey } from '../../services/aiExplanations';
+import SolutionPanel from '../quiz/SolutionPanel';
+import { useAiExplanation } from '../quiz/useAiExplanation';
+import { drillPreset, launchPractice } from '../active-recall/presets';
+import { formatDuration } from '../../utils/time';
+import { outcomeCopy } from './outcome';
 
-export default function GauntletDiagnostics({ diagnostics, level, navigate, formatTime }) {
-    const { scorePct, correctCount, totalItems, isPassed, failedSubtopics, review = [], timeUsedSecs, isTimeOut } = diagnostics;
+const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
+const TONE_COLOR = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber-text)', danger: 'var(--accent-danger)' };
+const subjectTone = (pct) => (pct < SUBJECT_FLOOR ? 'danger' : pct >= GENERAL_AVERAGE ? 'success' : 'amber');
+const MISSED_SHOWN = 10;
 
-    // Sort subtopics by most failed
-    const weakTopics = Object.entries(failedSubtopics).sort((a, b) => b[1] - a[1]);
+export default function GauntletDiagnostics({ diagnostics, level }) {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const isOnline = useNetworkStatus();
+  const ai = useAiExplanation(currentUser?.uid);
+  const [showAllMissed, setShowAllMissed] = useState(false);
 
-    return (
-        <div className="max-w-3xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full pt-8 text-center">
-            
-            <div className={`p-10 rounded-3xl border-2 shadow-2xl relative overflow-hidden ${isPassed ? 'bg-surface border-reeGreen/50' : 'bg-surface border-reeRed/50'}`}>
-                {isPassed && <div className="absolute top-0 right-0 w-full h-full bg-reeGreen/5 pointer-events-none"></div>}
-                {!isPassed && <div className="absolute top-0 right-0 w-full h-full bg-reeRed/5 pointer-events-none"></div>}
+  const {
+    scorePct, correctCount, totalItems, isPassed, failedSubtopics = {}, review = [],
+    timeUsedSecs, isTimeOut, verdict, generalAverage, subjectScores = {}, sessionId,
+  } = diagnostics;
 
-                <span className="text-eyebrow relative z-10">Gauntlet level {level}</span>
-                <h1 className={`text-display text-3xl mt-1 mb-2 relative z-10 ${isPassed ? 'text-reeGreen-text' : 'text-reeRed-text'}`}>
-                    {isPassed ? 'Tier passed' : 'Not passed this time'}
-                </h1>
+  const hasGwa = typeof generalAverage === 'number';
+  const tone = VERDICT_TONE[verdict] || (isPassed ? 'success' : 'danger');
+  const { title, line } = outcomeCopy(diagnostics);
+  const weakTopics = Object.entries(failedSubtopics).sort((a, b) => b[1] - a[1]);
+  const subjects = CANONICAL_SUBJECTS.filter((s) => typeof subjectScores[s] === 'number');
+  const missed = showAllMissed ? review : review.slice(0, MISSED_SHOWN);
 
-                <div className="text-xs text-muted2 mb-8 relative z-10">
-                    {isTimeOut ? 'Time ran out, so your answers were submitted.' : 'Graded.'}
-                </div>
-
-                <div className="flex justify-center items-end gap-3 mb-8 relative z-10">
-                    <span className={`text-8xl font-black tracking-tighter leading-none ${isPassed ? 'text-textMain' : 'text-reeRed-text'}`}>{scorePct}%</span>
-                </div>
-
-                <div className="flex justify-center gap-6 relative z-10">
-                    <div className="flex flex-col items-center">
-                        <span className="text-eyebrow mb-1">Correct</span>
-                        <span className="font-mono text-lg font-black">{correctCount} / {totalItems}</span>
-                    </div>
-                    <div className="flex flex-col items-center border-l border-border2 pl-6">
-                        <span className="text-eyebrow mb-1">Time used</span>
-                        <span className="font-mono text-lg font-black">{formatTime(timeUsedSecs)}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* The Prescription Plan */}
-            {!isPassed && weakTopics.length > 0 && (
-                <div className="bg-surface border border-border2 rounded-2xl p-6 text-left shadow-sm">
-                    <h2 className="text-sm font-semibold text-textMain mb-2">What to review</h2>
-                    <p className="text-xs text-muted2 mb-6 leading-relaxed">
-                        The Gauntlet unlocks again in 12 hours. These are the topics your misses came from, most first.
-                    </p>
-                    
-                    <div className="flex flex-col gap-3">
-                        {weakTopics.map(([topic, errors], i) => (
-                            <div key={i} className="flex justify-between items-center gap-2 flex-wrap p-3 bg-bg border border-border2 rounded-lg">
-                                <span className="text-sm font-bold text-textMain min-w-0 [overflow-wrap:anywhere]">{topic}</span>
-                                <span className="text-xs font-semibold text-reeRed-text bg-reeRed/10 px-2 py-1 rounded shrink-0">{errors} missed</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Missed-question review — the diagnostics used to render no answer
-                key, so a failed gauntlet gave the user nothing to learn from. */}
-            {review.length > 0 && (
-                <div className="bg-surface border border-border2 rounded-2xl p-6 text-left shadow-sm">
-                    <h2 className="text-sm font-semibold text-textMain mb-4">Missed questions ({review.length})</h2>
-                    <div className="flex flex-col gap-4 max-h-[560px] overflow-y-auto pr-2 custom-scrollbar">
-                        {review.map((item, i) => (
-                            <div key={item.questionId || i} className="p-4 bg-bg border border-border2 rounded-xl flex flex-col gap-3">
-                                <div className="text-[0.6rem] font-black text-muted uppercase tracking-widest">{item.subtopic}</div>
-                                <div className="text-sm text-textMain [&_p]:!m-0"><LatexRenderer content={item.text} /></div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-border2/50">
-                                    <div className="rounded-lg p-3 border border-reeRed/30 bg-reeRed/5">
-                                        <div className="text-[0.6rem] font-black text-reeRed-text uppercase tracking-widest mb-1">Your answer</div>
-                                        <div className="text-sm text-textMain/90 line-through [&_p]:!m-0"><LatexRenderer content={item.userAnswer || 'No answer'} /></div>
-                                    </div>
-                                    <div className="rounded-lg p-3 border border-reeGreen/30 bg-reeGreen/5">
-                                        <div className="text-[0.6rem] font-black text-reeGreen-text uppercase tracking-widest mb-1">Correct answer</div>
-                                        <div className="text-sm font-bold text-textMain [&_p]:!m-0"><LatexRenderer content={item.correctAnswer || '—'} /></div>
-                                    </div>
-                                </div>
-                                {item.explanation && (
-                                    <div className="text-xs text-muted2 leading-relaxed pt-2 border-t border-border2/40 [&_p]:!m-0"><LatexRenderer content={item.explanation} /></div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* The one-time reminder offer after a first session, in the page
-                rather than floating over the button below. */}
-            <div className="text-left">
-                <NotificationOptIn inline />
-            </div>
-
-            <div className="mt-4 flex justify-center">
-                <Button variant="secondary" onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>
-            </div>
-
+  return (
+    <div className="max-w-3xl mx-auto w-full flex flex-col gap-6 pt-4 pb-12 page-fade-in">
+      <Card elevated className="p-6 sm:p-8 flex flex-col gap-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-eyebrow">Gauntlet level {level}</p>
+            <h1 className="text-display text-3xl text-textMain mt-1">{title}</h1>
+            {line && <p className="text-sm text-muted2 mt-1 max-w-prose">{line}</p>}
+            {isTimeOut && <p className="text-xs text-muted2 mt-1">Time ran out, so your answers were submitted.</p>}
+          </div>
+          {verdict && <Badge tone={tone}>{verdict}</Badge>}
         </div>
-    );
+
+        <div>
+          <p className="text-display text-6xl tabular-nums" style={{ color: TONE_COLOR[tone] }}>
+            {hasGwa ? generalAverage.toFixed(1) : scorePct}%
+          </p>
+          <p className="text-sm text-muted2 mt-1">
+            {hasGwa ? 'General weighted average' : 'Score'} · passing needs {GENERAL_AVERAGE}% with no subject under {SUBJECT_FLOOR}%
+          </p>
+        </div>
+
+        <dl className="grid grid-cols-3 gap-3">
+          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
+            <dt className="text-eyebrow">Correct</dt>
+            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{correctCount} / {totalItems}</dd>
+          </div>
+          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
+            <dt className="text-eyebrow">Raw score</dt>
+            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{scorePct}%</dd>
+          </div>
+          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
+            <dt className="text-eyebrow">Time used</dt>
+            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{formatDuration(timeUsedSecs)}</dd>
+          </div>
+        </dl>
+
+        <div className="flex flex-wrap gap-3">
+          {sessionId && (
+            <Button as={Link} to={`/exams/sittings/${encodeURIComponent(sessionId)}`}>
+              <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review every item
+            </Button>
+          )}
+          <Button variant="secondary" onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>
+        </div>
+      </Card>
+
+      {subjects.length > 0 && (
+        <Card className="p-5 sm:p-6">
+          <h2 className="text-base font-semibold text-textMain mb-4">By subject</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {subjects.map((s) => {
+              const pct = subjectScores[s];
+              return (
+                <div key={s} className="flex flex-col gap-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-textMain font-medium">{toDisplaySubject(s)}</span>
+                    <span className="tabular-nums text-textMain">{pct}%</span>
+                  </div>
+                  <ProgressIndicator value={pct} tone={subjectTone(pct)} size="sm" ariaLabel={`${toDisplaySubject(s)} score`} />
+                  {pct < SUBJECT_FLOOR && <span className="text-xs" style={{ color: 'var(--accent-danger)' }}>Under the {SUBJECT_FLOOR}% floor</span>}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {weakTopics.length > 0 && (
+        <Card className="p-5 sm:p-6 flex flex-col gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-textMain">What to review</h2>
+            <p className="text-sm text-muted2">The topics your misses came from, most first. Drill one to work on it.</p>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {weakTopics.map(([topic, errors]) => (
+              <li key={topic} className="flex items-center justify-between gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
+                <span className="text-sm text-textMain min-w-0 [overflow-wrap:anywhere]">{topic}</span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <Badge tone="danger">{errors} missed</Badge>
+                  {topic !== 'Unknown' && (
+                    <Button size="sm" variant="ghost" onClick={() => launchPractice(navigate, drillPreset({ topic }))} aria-label={`Drill ${topic}`}>
+                      <Play size={14} strokeWidth={1.75} aria-hidden="true" /> Drill
+                    </Button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {review.length > 0 && (
+        <Card className="p-5 sm:p-6 flex flex-col gap-4">
+          <h2 className="text-base font-semibold text-textMain">Missed questions ({review.length})</h2>
+          <ul className="flex flex-col gap-4">
+            {missed.map((item, i) => {
+              const question = {
+                id: item.questionId,
+                text: item.text,
+                options: item.options || [],
+                answer: item.correctAnswer,
+                fixedExplanation: item.explanation,
+              };
+              return (
+                <li key={item.questionId || i} className="p-4 rounded-[var(--radius-lg)] bg-surface2 border border-border flex flex-col gap-3">
+                  <span className="text-eyebrow">{item.subtopic}</span>
+                  <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto custom-scrollbar"><LatexRenderer content={item.text} /></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}>
+                      <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-danger)' }}>Your answer</span>
+                      <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto">
+                        {item.userAnswer ? <span className="line-through"><LatexRenderer content={item.userAnswer} /></span> : <span className="text-muted2">Left blank</span>}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}>
+                      <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-success)' }}>Correct answer</span>
+                      <div className="text-sm font-semibold text-textMain [&_p]:!m-0 overflow-x-auto"><LatexRenderer content={item.correctAnswer || '—'} /></div>
+                    </div>
+                  </div>
+                  <SolutionPanel
+                    key={explanationKey(question)}
+                    question={question}
+                    isOnline={isOnline}
+                    aiText={ai.textFor(question)}
+                    aiLoading={ai.isLoading(question)}
+                    onExplain={(force) => ai.explain(question, { force })}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+          {review.length > MISSED_SHOWN && (
+            <Button variant="ghost" className="self-start" onClick={() => setShowAllMissed((v) => !v)}>
+              {showAllMissed ? 'Show fewer' : `Show all ${review.length}`}
+            </Button>
+          )}
+        </Card>
+      )}
+
+      {/* The one-time reminder offer after a first session, in the page
+          rather than floating over the buttons above. */}
+      <NotificationOptIn inline />
+    </div>
+  );
 }

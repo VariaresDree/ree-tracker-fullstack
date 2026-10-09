@@ -31,6 +31,12 @@ describe('buildTodayActions', () => {
     expect(actions.map((a) => a.key)).toEqual(['mock']);
   });
 
+  it('says "1 day to go", not "1 days"', () => {
+    const mock = buildTodayActions({ examInDays: 1 }).find((a) => a.key === 'mock');
+    expect(mock.detail).toMatch(/^1 day to go/);
+    expect(buildTodayActions({ examInDays: 2 }).find((a) => a.key === 'mock').detail).toMatch(/^2 days to go/);
+  });
+
   it('always has something to do', () => {
     expect(buildTodayActions({}).length).toBeGreaterThan(0);
   });

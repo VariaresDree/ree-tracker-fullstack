@@ -42,3 +42,17 @@ describe('HeatmapChart — drill from a tile', () => {
     expect(onDrillTopic).toHaveBeenCalledWith('Calculus', 'Mathematics');
   });
 });
+
+describe('HeatmapChart — speed against the board pace', () => {
+  it('holds Mathematics to its own 180 s pace, not ESAS’s 144 s', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    render(<HeatmapChart stats={{ microTopics: {
+      // 170 s per item: inside Mathematics' pace.
+      Calculus: topic({ mastery: 0.7, masteryEffective: 0.7, totalTime: 1700, timedAttempts: 10 }),
+    } }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Speed/ }));
+    expect(screen.getByText(/Speed vs 180s limit/)).toBeInTheDocument();
+    expect(screen.queryByText('Borderline')).not.toBeInTheDocument();
+    expect(screen.queryByText('Critical risk')).not.toBeInTheDocument();
+  });
+});

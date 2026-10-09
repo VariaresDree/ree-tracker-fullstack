@@ -13,8 +13,9 @@ import { Button, Card, EmptyState } from '../../components/ui';
 import { Crosshair } from '../../components/ui/icons';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 import { toDisplaySubject, TIME_SINK_MS } from '@ree/shared';
+import { formatDuration as fmtSecs } from '../../utils/time';
+import SmartText from '../../components/SmartText';
 
-const fmtSecs = (s) => `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
 
 export default function WeakSignalsPanel({ data }) {
   const navigate = useNavigate();
@@ -92,10 +93,19 @@ export default function WeakSignalsPanel({ data }) {
         <Card elevated className="p-5 flex flex-col gap-3">
           <h2 className="text-textMain font-semibold">Recently answered confidently wrong</h2>
           <ul className="flex flex-col gap-2">
+            {/* The question renders its maths (it printed the raw "$\\frac{…}$"),
+                and each row ends in an action like the cards above. */}
             {recent.map((m) => (
-              <li key={m.questionId} className="p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
-                <p className="text-xs text-muted2">{toDisplaySubject(m.subject)}{m.subtopic ? ` · ${m.subtopic}` : ''} · {new Date(m.answeredAt).toLocaleDateString()}</p>
-                <p className="text-sm text-textMain line-clamp-2">{m.text}</p>
+              <li key={m.questionId} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted2">{toDisplaySubject(m.subject)}{m.subtopic ? ` · ${m.subtopic}` : ''} · {new Date(m.answeredAt).toLocaleDateString()}</p>
+                  <div className="text-sm text-textMain line-clamp-2 overflow-hidden math-scroll-mobile"><SmartText text={m.text} /></div>
+                </div>
+                {m.subtopic && (
+                  <Button size="sm" variant="ghost" onClick={() => drill({ topic: m.subtopic, subject: m.subject }, 'blind-spot')} aria-label={`Drill ${m.subtopic}`}>
+                    Drill
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

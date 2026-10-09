@@ -2,7 +2,11 @@ import { cn } from './cn';
 
 // Zero-data moments are invitations to act, not blank space. Icon chip +
 // plain-language title/description + optional CTA.
-export function EmptyState({ icon: Icon, title, description, action, compact = false, className }) {
+//
+// `titleAs` makes the title a heading when the empty state IS the page (a
+// refused battle, an offline screen) — 'h1' there, so the screen still has
+// one. Inside a section it stays a paragraph.
+export function EmptyState({ icon: Icon, title, description, action, compact = false, className, titleAs: Title = 'p' }) {
   return (
     <div
       className={cn(
@@ -23,7 +27,7 @@ export function EmptyState({ icon: Icon, title, description, action, compact = f
         </span>
       )}
       <div className="flex flex-col gap-1 max-w-sm">
-        <p className="text-textMain font-semibold">{title}</p>
+        <Title className="text-textMain font-semibold text-base">{title}</Title>
         {description && <p className="text-sm text-muted2">{description}</p>}
       </div>
       {action && <div className="mt-2 flex flex-wrap items-center justify-center gap-2">{action}</div>}

@@ -32,7 +32,7 @@ export default function NotificationSettings() {
     if (on) {
       const ok = await scheduleDailyReminder({ hour: notifications.reminderHour, minute: notifications.reminderMinute });
       if (!ok) {
-        toast(isNative ? 'Turn on notifications for REE.ai in your phone settings first.' : 'Daily reminders need the installed app.');
+        toast(isNative ? 'Turn on notifications for REE.ai in your phone settings first.' : 'Daily reminders need the REE.ai phone app.');
         return;
       }
       setNotificationPrefs({ dailyReminderEnabled: true, enabled: true });
@@ -74,7 +74,9 @@ export default function NotificationSettings() {
             {!isNative && <BellOff size={13} strokeWidth={1.75} aria-hidden="true" className="text-muted" />}
           </p>
           <p className="text-xs text-muted2">
-            {isNative ? 'A daily nudge to practise, even with the app closed.' : 'Needs the installed app — add REE.ai to your Home Screen.'}
+            {/* Adding the web app to the Home Screen doesn't help: the reminder
+                is a phone-app local notification. The copy used to say it would. */}
+            {isNative ? 'A daily nudge to practise, even with the app closed.' : 'Only in the REE.ai phone app. A browser, or the web app added to your Home Screen, can’t schedule it.'}
           </p>
         </div>
         <SegmentedControl

@@ -28,7 +28,7 @@
 // elementsFromPoint at the card's center kept hitting .flip-front — the back
 // face never actually took over the screen position. .flip-scene never
 // declares transform-style, so sizing/clipping there is free of the trap.
-import { useState, useRef, useLayoutEffect, useCallback } from 'react';
+import { useState, useRef, useLayoutEffect, useCallback, useId } from 'react';
 import { Badge } from '../../components/ui';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
@@ -37,6 +37,9 @@ const KIND_TONE = { constant: 'signal', formula: 'velocity', concept: 'neutral' 
 
 export default function Flashcard({ card }) {
   const [flipped, setFlipped] = useState(false);
+  // The button's label names the card; the face on show describes it. The
+  // label alone hid everything on the card from a screen reader.
+  const faceId = useId();
   const frontRef = useRef(null);
   const backRef = useRef(null);
   const [activeHeight, setActiveHeight] = useState(null);
@@ -73,11 +76,12 @@ export default function Flashcard({ card }) {
         type="button"
         aria-pressed={flipped}
         aria-label={`${card.name} flashcard — ${flipped ? 'showing details, press to see the front' : 'press to reveal details'}`}
+        aria-describedby={flipped ? `${faceId}-back` : `${faceId}-front`}
         onClick={() => setFlipped((f) => !f)}
         className={`flip-inner w-full cursor-pointer rounded-[var(--radius-lg)] transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] ${flipped ? 'is-flipped' : ''}`}
       >
         {/* FRONT */}
-        <div ref={frontRef} className={`flip-front ${faceClasses}`} aria-hidden={flipped}>
+        <div ref={frontRef} id={`${faceId}-front`} className={`flip-front ${faceClasses}`} aria-hidden={flipped}>
           <div className="flex items-start justify-between gap-2 min-w-0">
             <div className="min-w-0">
               {card.symbol && (
@@ -109,7 +113,7 @@ export default function Flashcard({ card }) {
         </div>
 
         {/* BACK */}
-        <div ref={backRef} className={`flip-back ${faceClasses}`} aria-hidden={!flipped}>
+        <div ref={backRef} id={`${faceId}-back`} className={`flip-back ${faceClasses}`} aria-hidden={!flipped}>
           {card.valueUnit && (
             <div>
               <div className="text-eyebrow mb-1">Value / unit</div>

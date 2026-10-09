@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  levelCalibration,
   CONFIDENCE_MAP,
   buildCalibrationCurve,
   brierScore,
@@ -150,5 +151,16 @@ describe('expectedCalibrationError', () => {
     const labeled = [...Array(50).fill(HIGH_CORRECT), ...Array(50).fill(HIGH_WRONG)];
     const unlabeled = Array(100).fill({ isCorrect: true }); // no confidenceLevel
     expect(expectedCalibrationError([...labeled, ...unlabeled])).toBeCloseTo(0.35, 5);
+  });
+});
+
+describe('levelCalibration', () => {
+  it('judges each level against the probability it stands for, within 15 points', () => {
+    expect(levelCalibration('HIGH', 80)).toBe('calibrated');
+    expect(levelCalibration('HIGH', 60)).toBe('over');
+    expect(levelCalibration('LOW', 45)).toBe('under');
+    expect(levelCalibration('LOW', 25)).toBe('calibrated');
+    expect(levelCalibration('MED', 30)).toBe('over');
+    expect(levelCalibration('nope', 50)).toBeNull();
   });
 });

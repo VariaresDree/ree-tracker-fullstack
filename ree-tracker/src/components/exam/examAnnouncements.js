@@ -7,9 +7,16 @@
  * The accessible name of a navigator cell. Answered/marked used to be colour
  * and a dot only, so "Go to item 3" said nothing about the item.
  */
-export function navigatorLabel({ idx, answered, reviewState, marked }) {
+export function navigatorLabel({ idx, number, answered, reviewState, marked }) {
   const state = reviewState || (answered ? 'answered' : 'not answered');
-  return `Go to item ${idx + 1}, ${state}${marked ? ', marked for review' : ''}`;
+  return `Go to item ${number ?? idx + 1}, ${state}${marked ? ', marked for review' : ''}`;
+}
+
+/** One answer-sheet row for a screen reader: "Item 12, answered B, marked for review". */
+export function sheetRowLabel({ number, letter, correctLetter, marked }) {
+  const answer = letter ? `answered ${letter}` : 'not answered';
+  const key = correctLetter ? `, correct answer ${correctLetter}` : '';
+  return `Item ${number}, ${answer}${key}${marked ? ', marked for review' : ''}`;
 }
 
 /** Minutes-left marks a screen reader hears. */

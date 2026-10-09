@@ -43,9 +43,22 @@ describe('SyncIssues', () => {
     fireEvent.click(retries[0]);
     expect(retryDeadLetter).toHaveBeenCalledWith('d1');
 
+    // Discard asks once more before deleting unsynced answers for good.
     const discards = screen.getAllByRole('button', { name: 'Discard' });
     fireEvent.click(discards[1]);
+    expect(discardDeadLetter).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
     expect(discardDeadLetter).toHaveBeenCalledWith(legacy);
+  });
+
+  it('keeps the batch when the discard is cancelled', () => {
+    state.deadLetters = [{ id: 'd1', type: 'telemetry', ids: ['a'], attempts: [{ id: 'a' }], error: 'x', at: 1 }];
+    render(<SyncIssues />);
+    fireEvent.click(screen.getByRole('button', { name: /1 sync issue/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(discardDeadLetter).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument();
   });
 
   it('never offers Retry for another account’s answers', () => {

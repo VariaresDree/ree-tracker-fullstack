@@ -25,7 +25,6 @@ export const useTelemetrySlice = () =>
       syncStatus: s.syncStatus,
       syncQueue: s.syncQueue,
       flushQueueToCloud: s.flushQueueToCloud,
-      resetDailyQuotas: s.resetDailyQuotas,
       purgeAnalytics: s.purgeAnalytics,
       // Event-driven analytics: per-answer entry point + manual debounce
       // trigger. Used by Active Review / Board Sim / Gauntlet / Combat to

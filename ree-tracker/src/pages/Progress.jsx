@@ -15,7 +15,8 @@ import { lazy, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import useTabParam from '../hooks/useTabParam';
 import { useDashboardStats } from '../hooks/useDashboardStats';
-import { PageHeader, Tabs, Skeleton } from '../components/ui';
+import StatsUnavailable from '../components/StatsUnavailable';
+import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
 import { CalendarDays, ClipboardList, Crosshair, Gauge, LayoutGrid, ListChecks, Target } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -64,19 +65,22 @@ const NEEDS_STATS = new Set(['overview', 'topics', 'confidence', 'habits']);
 
 export default function Progress() {
   const { currentUser } = useAuth();
-  const { activeStats, loading, kpi } = useDashboardStats();
+  const { activeStats, loading, unavailable, retry, kpi } = useDashboardStats();
   const [tab, setTab] = useTabParam(TABS.map((t) => t.id), 'overview');
   const label = TABS.find((t) => t.id === tab)?.label;
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in pb-12 w-full max-w-6xl mx-auto">
+    <Page>
       <PageHeader title="Progress" subtitle="How your readiness is moving, topic by topic, and your study plan." />
-      <Tabs label="Progress sections" active={tab} onChange={setTab} tabs={TABS} />
+      <Tabs id="progress" label="Progress sections" active={tab} onChange={setTab} tabs={TABS} />
 
+      <TabPanel id="progress" active={tab}>
       {currentUser && (
         <ErrorBoundary name={`Progress: ${label}`} key={tab}>
           {loading && NEEDS_STATS.has(tab) ? (
             <TabSkeleton />
+          ) : unavailable && NEEDS_STATS.has(tab) ? (
+            <StatsUnavailable onRetry={retry} />
           ) : (
             <Suspense fallback={<TabSkeleton />}>
               <TabBody tab={tab} stats={activeStats} kpi={kpi} currentUser={currentUser} />
@@ -84,6 +88,7 @@ export default function Progress() {
           )}
         </ErrorBoundary>
       )}
-    </div>
+      </TabPanel>
+    </Page>
   );
 }

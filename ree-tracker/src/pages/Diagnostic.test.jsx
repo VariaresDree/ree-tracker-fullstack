@@ -37,6 +37,16 @@ beforeEach(() => Object.values(api).forEach((f) => f.mockReset()));
 const renderPage = () => render(<MemoryRouter><Diagnostic /></MemoryRouter>);
 
 describe('Diagnostic page', () => {
+  it('Try again asks the server again instead of reloading the app', async () => {
+    api.fetchDiagnosticStatus.mockRejectedValueOnce(new Error('[OFFLINE]')).mockResolvedValueOnce({ status: 'none' });
+    renderPage();
+    expect(await screen.findByText('Placement test unavailable')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: 'Start placement test' })).toBeInTheDocument();
+    expect(api.fetchDiagnosticStatus).toHaveBeenCalledTimes(2);
+  });
+
   it('runs from the intro to the placement result', async () => {
     api.fetchDiagnosticStatus.mockResolvedValue({ status: 'none' });
     api.startDiagnostic.mockResolvedValue({ sessionId: 's1', item: item('q1'), progress: { answered: 0, total: 19 } });
@@ -62,6 +72,8 @@ describe('Diagnostic page', () => {
     expect(await screen.findByText('63.4%')).toBeInTheDocument();
     expect(screen.getByText('Foundation')).toBeInTheDocument();
     expect(screen.getByText('Board-ready')).toBeInTheDocument();
+    // The intro promises the answers at the end: the result links to them.
+    expect(screen.getByRole('link', { name: 'Review your answers' })).toHaveAttribute('href', '/exams/sittings/s1');
   });
 
   it('offers to resume an unfinished sitting', async () => {

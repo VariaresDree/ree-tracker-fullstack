@@ -186,6 +186,13 @@
   /* Brand colours as text: lighter mixes of the same hues, the least that
      reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
   --brand-purple-text: color-mix(in srgb, var(--brand-purple, #8b5cf6) 95%, #ffffff);
+
+  /* Rankings podium (gold / silver / bronze): data colours, not brand. Used
+     as fills and borders; as text they are mixed toward --text-main so they
+     read on every theme (raw #facc15 was yellow-on-white in light). */
+  --rank-gold: #eab308;
+  --rank-silver: #94a3b8;
+  --rank-bronze: #b45309;
 }
 
 /* 2. LIGHT MODE (PRC STANDARD) */

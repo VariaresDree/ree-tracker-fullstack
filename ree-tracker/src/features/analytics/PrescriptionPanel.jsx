@@ -1,6 +1,8 @@
 import { motion } from 'motion/react';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Button, Skeleton } from '../../components/ui';
+import { ArrowRight } from '../../components/ui/icons';
 import { useForecast } from '../../hooks/useForecast';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 const rowEnter = (i) => ({
   initial: { opacity: 0, y: 6 },
@@ -39,7 +41,8 @@ const ACTION_TONES = {
 };
 
 export function PrescriptionPanel({ onAction }) {
-  const { snapshot, loading, error } = useForecast();
+  const { snapshot, loading, refresh } = useForecast();
+  const isOnline = useNetworkStatus();
 
   if (loading && !snapshot) {
     return (
@@ -59,23 +62,26 @@ export function PrescriptionPanel({ onAction }) {
     );
   }
 
-  // Missing snapshot = service unreachable (not "no data" — the backend always
-  // returns an estimate when it can respond). Keep the copy calm and truthful.
+  // Missing snapshot = the forecast couldn't be reached (not "no data": the
+  // backend always returns an estimate when it can respond). Offline, the
+  // request returns nothing without an error, and this used to read
+  // "Connecting..." for as long as the page stayed open.
   if (!snapshot) {
     return (
       <Card elevated>
         <CardHeader>
           <div>
             <CardEyebrow>Recommended fixes</CardEyebrow>
-            <CardTitle>Prescription unavailable</CardTitle>
+            <CardTitle>{isOnline ? "Couldn't load your recommended fixes" : 'Unavailable offline'}</CardTitle>
           </div>
         </CardHeader>
-        <CardBody className="space-y-3">
+        <CardBody className="flex flex-col items-start gap-3">
           <p className="text-muted2 text-sm">
-            {error
-              ? "Forecast service unreachable - retry in a moment."
-              : "Connecting..."}
+            {isOnline
+              ? 'The forecast didn’t answer. Try again in a moment.'
+              : 'They come from your forecast, which needs a connection.'}
           </p>
+          {isOnline && <Button size="sm" variant="secondary" onClick={refresh} disabled={loading}>Try again</Button>}
         </CardBody>
       </Card>
     );
@@ -125,7 +131,7 @@ function PrescriptionRow({ action, onAction }) {
         <p className="text-muted2 text-xs mt-1 line-clamp-2">{action.reason}</p>
       </div>
       <Button size="sm" variant="ghost" onClick={() => onAction?.(action)}>
-        Start →
+        Start <ArrowRight size={14} strokeWidth={1.75} aria-hidden="true" />
       </Button>
     </div>
   );

@@ -111,6 +111,23 @@ describe('desktop shell', () => {
         expect(screen.getAllByTestId('offline-badge')).toHaveLength(1);
     });
 
+    it('the sidebar has Log out, which asks first', () => {
+        desktop();
+        at('/');
+        fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(auth.logout).not.toHaveBeenCalled();
+    });
+
+    it('the avatar falls back to the email initial', () => {
+        desktop();
+        const saved = auth.currentUser;
+        auth.currentUser = { displayName: '', email: 'zed@example.com' };
+        at('/');
+        expect(screen.getByRole('link', { name: /Reviewer/ })).toHaveTextContent('Z');
+        auth.currentUser = saved;
+    });
+
     it('admins get an Admin link in the sidebar; learners do not', () => {
         desktop();
         at('/');

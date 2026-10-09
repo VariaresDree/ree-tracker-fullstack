@@ -27,7 +27,7 @@ const BREAKDOWN = [
   ['consistency', 'Consistency'],
 ];
 
-function ReadinessBlock({ readiness, trend }) {
+function ReadinessBlock({ readiness, trend, settled, isOnline }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-eyebrow">Board readiness index</span>
@@ -57,6 +57,9 @@ function ReadinessBlock({ readiness, trend }) {
             </dl>
           )}
         </>
+      ) : settled ? (
+        // Offline it never arrives; this used to stay a skeleton.
+        <span className="text-sm text-muted2">{isOnline ? 'Readiness unavailable right now.' : 'Unavailable offline.'}</span>
       ) : (
         <Skeleton className="h-16 w-32" />
       )}
@@ -64,7 +67,7 @@ function ReadinessBlock({ readiness, trend }) {
   );
 }
 
-function PassBlock({ snapshot, loading }) {
+function PassBlock({ snapshot, loading, isOnline }) {
   const projection = snapshot?.subjectForecasts;
   return (
     <div className="flex flex-col gap-2">
@@ -88,7 +91,7 @@ function PassBlock({ snapshot, loading }) {
       ) : loading ? (
         <Skeleton className="h-16 w-32" />
       ) : (
-        <span className="text-sm text-muted2">Forecast unavailable right now.</span>
+        <span className="text-sm text-muted2">{isOnline ? 'Forecast unavailable right now.' : 'Unavailable offline.'}</span>
       )}
     </div>
   );
@@ -109,7 +112,7 @@ function TargetBlock({ daily }) {
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-eyebrow">Today’s target</span>
-        <Link to="/account#exam-plan" className="text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">Change</Link>
+        <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2" aria-label="Change your daily target">Change</Link>
       </div>
       <span className="text-display text-4xl text-textMain tabular-nums">
         {daily.done}<span className="text-lg text-muted2">/{daily.target}</span>
@@ -137,7 +140,7 @@ function TargetBlock({ daily }) {
   );
 }
 
-export default function TodayPanel({ stats, readiness, uid, answered = 0, today }) {
+export default function TodayPanel({ stats, readiness, readinessSettled = false, uid, answered = 0, today }) {
   const navigate = useNavigate();
   const isOnline = useNetworkStatus();
   const { snapshot, loading } = useForecast();
@@ -171,8 +174,8 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0, today 
         <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain">Where you stand, and what to do next</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <ReadinessBlock readiness={readiness} trend={trend} />
-          <PassBlock snapshot={snapshot} loading={loading} />
+          <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} />
+          <PassBlock snapshot={snapshot} loading={loading} isOnline={isOnline} />
           <TargetBlock daily={daily} />
         </div>
 
@@ -180,7 +183,7 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0, today 
           <h3 className="text-eyebrow">Next best actions</h3>
           <ol className="flex flex-col gap-2">
             {actions.map((a, i) => (
-              <li key={a.key} className="flex items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
+              <li key={a.key} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
                 <span aria-hidden="true" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums bg-surface3 text-textMain">
                   {i + 1}
                 </span>
@@ -188,10 +191,12 @@ export default function TodayPanel({ stats, readiness, uid, answered = 0, today 
                   <p className="text-sm font-medium text-textMain">{a.title}</p>
                   <p className="text-xs text-muted2 line-clamp-2">{a.detail}</p>
                 </div>
+                {/* Full width under the text on a phone, where a long title
+                    squeezed the button to a sliver beside it. */}
                 {a.to ? (
-                  <Button size="sm" variant="secondary" as={Link} to={a.to}>{a.cta}</Button>
+                  <Button size="sm" variant="secondary" as={Link} to={a.to} className="w-full sm:w-auto">{a.cta}</Button>
                 ) : (
-                  <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} onClick={() => launchPractice(navigate, a.preset)}>
+                  <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} className="w-full sm:w-auto" onClick={() => launchPractice(navigate, a.preset)}>
                     {a.cta}
                   </Button>
                 )}

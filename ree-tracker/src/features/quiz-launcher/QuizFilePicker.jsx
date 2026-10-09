@@ -15,9 +15,14 @@ function hasAcceptedExtension(name) {
 export default function QuizFilePicker({ onFilesSelected }) {
   const inputRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  // Files that aren't .quiz/.caq, named — they used to be dropped silently,
+  // so a wrong file looked like the picker had done nothing.
+  const [rejected, setRejected] = useState([]);
 
   const handleFiles = useCallback((fileList) => {
-    const files = Array.from(fileList).filter((f) => hasAcceptedExtension(f.name));
+    const all = Array.from(fileList);
+    const files = all.filter((f) => hasAcceptedExtension(f.name));
+    setRejected(all.filter((f) => !hasAcceptedExtension(f.name)).map((f) => f.name));
     if (files.length > 0) onFilesSelected(files);
   }, [onFilesSelected]);
 
@@ -70,6 +75,14 @@ export default function QuizFilePicker({ onFilesSelected }) {
           tabIndex={-1}
         />
       </div>
+
+      {rejected.length > 0 && (
+        <p role="alert" className="text-sm" style={{ color: 'var(--accent-danger)' }}>
+          {rejected.length === 1
+            ? `${rejected[0]} isn’t a quiz file. Choose a .quiz or .caq file.`
+            : `${rejected.length} files aren’t quiz files (${rejected.slice(0, 3).join(', ')}${rejected.length > 3 ? '…' : ''}). Choose .quiz or .caq files.`}
+        </p>
+      )}
 
       {/* Persistent, unmissable — not a tooltip a user could miss before starting. */}
       <div className="flex items-start gap-2.5 rounded-[var(--radius-default)] border border-border2 bg-surface2/40 p-3.5">

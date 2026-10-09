@@ -256,7 +256,7 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(last.gauntletLockUntil).toBeGreaterThan(Date.now());
   });
 
-  it('a 4xx from the grade call is NOT deferred — resending the same payload cannot succeed', async () => {
+  it('a 4xx from the grade call is NOT deferred — the run is kept and Try again resends it', async () => {
     const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
     await waitFor(() => expect(result.current.status).toBe('active'));
     act(() => { result.current.handleAnswer(0, 'A'); });
@@ -268,6 +268,149 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     });
 
     expect(queuePendingWrite).not.toHaveBeenCalled();
-    expect(result.current.status).toBe('error');
+    expect(result.current.status).toBe('submit-error');
+    // The draft used to be cleared before grading, so a refused run was gone.
+    expect(JSON.parse(localStorage.getItem(CACHE_KEY)).answers['0']).toBe('A');
+
+    apiRequestMock.mockImplementationOnce(() => Promise.resolve({ results: [{ questionId: 'q-0', isCorrect: true }] }));
+    await act(async () => { await result.current.submitExam(); });
+    expect(result.current.status).toBe('diagnostics');
+    expect(localStorage.getItem(CACHE_KEY)).toBeNull();
+    const grades = apiRequestMock.mock.calls.filter(([url]) => url === '/api/exams/grade');
+    expect(grades).toHaveLength(2);
+    // The same run both times, so the server dedupes the attempts.
+    expect(grades[1][2].gauntlet.runId).toBe(grades[0][2].gauntlet.runId);
+  });
+});
+
+describe('useGauntletEngine — the ladder on the server', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    storeState = {
+      stats: { totalAnswered: 5000, gauntletLevel: 3, gauntletLockUntil: null },
+      currentSessionId: null,
+      queuePendingWrite,
+    };
+    apiRequestMock = vi.fn().mockResolvedValue({ items: makeQuestions(60) });
+    getAnalyticsProfileMock = vi.fn().mockResolvedValue({ data: null });
+    Object.defineProperty(window.navigator, 'onLine', { value: true, writable: true, configurable: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  it('starts the clock once the questions are loaded, not before the fetch', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(1_000_000);
+    let release;
+    apiRequestMock = vi.fn(() => new Promise((resolve) => { release = () => resolve({ items: makeQuestions(60) }); }));
+
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(apiRequestMock).toHaveBeenCalled());
+    expect(result.current.gauntletEndTime).toBeNull();
+
+    vi.setSystemTime(1_000_000 + 90_000); // a slow connection: 90 s to load
+    await act(async () => { release(); });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    expect(result.current.gauntletEndTime).toBe(1_090_000 + 75 * 60 * 1000);
+  });
+
+  it('sends the run as a gauntlet block with stable attempt ids, and applies the server outcome', async () => {
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    act(() => { result.current.handleAnswer(0, 'A'); });
+
+    apiRequestMock.mockImplementationOnce(() => Promise.resolve({
+      results: [{ questionId: 'q-0', isCorrect: true }],
+      gauntlet: {
+        sessionId: 'run-from-server', outcome: 'advanced', verdict: 'PASSED', generalAverage: 81.5,
+        subjectScores: { Mathematics: 82 }, level: 4, lockUntil: null, boardClears: [],
+      },
+    }));
+    await act(async () => { await result.current.submitExam(); });
+
+    const [, , body] = apiRequestMock.mock.calls.find(([url]) => url === '/api/exams/grade');
+    expect(body.gauntlet).toMatchObject({ level: 1, knownLevel: 3 });
+    expect(typeof body.gauntlet.runId).toBe('string');
+    expect(body.gauntlet.startedAt).toEqual(expect.any(String));
+    expect(body.answers[0]).toMatchObject({ clientAttemptId: `${body.gauntlet.runId}:q-0`, itemIndex: 0 });
+    expect(body.answers[7]).toMatchObject({ itemIndex: 7, userAnswer: '' });
+
+    expect(result.current.status).toBe('diagnostics');
+    expect(result.current.diagnostics).toMatchObject({
+      outcome: 'advanced', isPassed: true, ladderLevel: 4, generalAverage: 81.5, sessionId: 'run-from-server',
+    });
+    expect(setStats.mock.calls.at(-1)[0]).toMatchObject({ gauntletLevel: 4, gauntletLockUntil: null });
+    expect(localStorage.getItem(CACHE_KEY)).toBeNull();
+  });
+
+  it('a run graded by an older server (no gauntlet block) is judged here: not passing locks', async () => {
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    apiRequestMock.mockImplementationOnce(() => Promise.resolve({ results: [] }));
+    await act(async () => { await result.current.submitExam(); });
+
+    expect(result.current.diagnostics.outcome).toBe('failed');
+    expect(result.current.diagnostics.isPassed).toBe(false);
+    expect(result.current.diagnostics.sessionId).toBeNull();
+    expect(setStats.mock.calls.at(-1)[0].gauntletLockUntil).toBeGreaterThan(Date.now() + 11 * 3600 * 1000);
+  });
+
+  it('leaving a run forfeits it: the lock is set here, the server is told, and the draft goes', async () => {
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    expect(localStorage.getItem(CACHE_KEY)).not.toBeNull();
+    apiRequestMock.mockImplementationOnce(() => Promise.resolve({ success: true }));
+
+    await act(async () => { await result.current.forfeitRun(); });
+
+    expect(setStats.mock.calls[0][0].gauntletLockUntil).toBeGreaterThan(Date.now() + 11 * 3600 * 1000);
+    expect(apiRequestMock).toHaveBeenCalledWith('/api/exams/gauntlet/forfeit', 'POST', expect.objectContaining({ level: 1, knownLevel: 3, runId: expect.any(String) }));
+    expect(queuePendingWrite).not.toHaveBeenCalled();
+    expect(localStorage.getItem(CACHE_KEY)).toBeNull();
+    expect(result.current.status).toBe('forfeited');
+  });
+
+  it('a forfeit while offline goes to the outbox', async () => {
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    Object.defineProperty(window.navigator, 'onLine', { value: false, writable: true, configurable: true });
+
+    await act(async () => { await result.current.forfeitRun(); });
+
+    expect(queuePendingWrite).toHaveBeenCalledWith('/api/exams/gauntlet/forfeit', 'POST', expect.objectContaining({ level: 1 }));
+    expect(apiRequestMock).not.toHaveBeenCalledWith('/api/exams/gauntlet/forfeit', expect.anything(), expect.anything());
+  });
+
+  it('a saved run is submitted as it stands, under its own run id', async () => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      level: '1',
+      questions: makeQuestions(50),
+      answers: { 0: 'A', 4: 'C' },
+      confidences: {},
+      currentIndex: 4,
+      endTime: Date.now() + 5 * 60 * 1000,
+      bookmarks: [],
+      flags: [],
+      runId: 'saved-run',
+      startedAt: '2026-10-09T01:00:00.000Z',
+      savedAt: Date.now(),
+    }));
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('resume'));
+    expect(result.current.discardAndStartFresh).toBeUndefined();
+
+    apiRequestMock.mockImplementationOnce(() => Promise.resolve({ results: [] }));
+    await act(async () => { result.current.submitSavedRun(); });
+    await waitFor(() => expect(result.current.status).toBe('diagnostics'));
+
+    const [, , body] = apiRequestMock.mock.calls.find(([url]) => url === '/api/exams/grade');
+    expect(body.gauntlet).toMatchObject({ runId: 'saved-run', startedAt: '2026-10-09T01:00:00.000Z' });
+    expect(body.answers[4]).toMatchObject({ userAnswer: 'C', clientAttemptId: 'saved-run:q-4' });
+    // No fresh question set was fetched.
+    expect(apiRequestMock).not.toHaveBeenCalledWith('/api/exams?limit=100');
   });
 });

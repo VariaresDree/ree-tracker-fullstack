@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { vi } from 'vitest';
 import WeakSignalsPanel from './WeakSignalsPanel';
+
+vi.mock('../../components/SmartText', () => ({ default: ({ text }) => <span data-testid="smart">{text}</span> }));
 
 let lastLocation;
 function Probe() { lastLocation = useLocation(); return <div>landed</div>; }
@@ -42,6 +45,13 @@ describe('WeakSignalsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Formula cards' }));
     expect(lastLocation.pathname + lastLocation.search).toBe('/library?tab=formulas');
     expect(lastLocation.state).toMatchObject({ search: 'Power Systems', kind: 'formula' });
+  });
+
+  it('a recent confident miss renders through SmartText and drills its topic', () => {
+    renderPanel(DATA);
+    expect(screen.getByTestId('smart')).toHaveTextContent('Relay coordination…');
+    fireEvent.click(screen.getByRole('button', { name: 'Drill Protection' }));
+    expect(lastLocation.state.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopic: 'Protection', drillSubject: 'EE' });
   });
 
   it('explains what it tracks when there is nothing yet', () => {

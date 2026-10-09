@@ -78,6 +78,23 @@ describe('GauntletTab', () => {
   });
 });
 
+describe('GauntletTab — loading and cleared boards', () => {
+  it('waits for the stats instead of showing level 1 with every tier locked', () => {
+    storeStats = null;
+    renderTab(<GauntletTab />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the Gauntlet');
+    expect(screen.queryByText('Level 1')).not.toBeInTheDocument();
+  });
+
+  it('a cleared subject board says so and can be taken again', () => {
+    storeStats = { gauntletLevel: 5, totalAnswered: 9000, gauntletBoardClears: ['Mathematics'] };
+    renderTab(<GauntletTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Take the Mathematics board again' }));
+    expect(path).toBe('/gauntlet/5');
+    expect(screen.getByRole('button', { name: 'Start the ESAS board' })).toBeInTheDocument();
+  });
+});
+
 describe('RankingsTab', () => {
   const agent = (uid, theta, extra = {}) => ({ uid, displayName: uid.toUpperCase(), thetaRating: theta, streak: 1, ...extra });
 
@@ -91,6 +108,16 @@ describe('RankingsTab', () => {
     const rows = screen.getAllByRole('button', { expanded: false }).map((b) => b.textContent);
     expect(rows[0]).toMatch(/^1A/);
     expect(rows[1]).toMatch(/^2ME/);
+  });
+
+  it('a failed load says so with Try again, not "No rankings yet"', async () => {
+    fetchPaginatedLeaderboard.mockRejectedValueOnce(new Error('500')).mockResolvedValueOnce({ agents: [agent('a', 0.9)], lastDoc: null });
+    fetchLeaderboardMe.mockResolvedValue({ rank: 1, total: 1 });
+    renderTab(<RankingsTab />);
+    expect(await screen.findByText("Couldn't load the rankings")).toBeInTheDocument();
+    expect(screen.queryByText('No rankings yet')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('A')).toBeInTheDocument();
   });
 
   it('the server’s leading "you are here" row is not numbered #1', async () => {

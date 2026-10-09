@@ -9,12 +9,27 @@
 // browser verification in a real signed-in session wasn't available in this
 // environment, so this is the closest substitute: jsdom's File API is real
 // enough to drive the exact code path a user's file picker/drop would.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import QuizLauncherTab from './QuizLauncherTab';
+import QuizRunPage from './QuizRunPage';
+import { __resetQuizSession } from './quizSession';
+
+// The tab and the run page, as App routes them: Start opens /library/quiz.
+const renderLauncher = () => render(
+  <MemoryRouter initialEntries={['/library']}>
+    <Routes>
+      <Route path="/library" element={<QuizLauncherTab />} />
+      <Route path="/library/quiz" element={<QuizRunPage />} />
+    </Routes>
+  </MemoryRouter>,
+);
+
+beforeEach(() => __resetQuizSession());
 
 // Reads just the answer-text portion of an option row, not the whole button
 // (which also carries the A/B/C/D letter and, in review mode, an sr-only
@@ -30,7 +45,7 @@ function loadFixtureAsFile(name) {
 
 describe('QuizLauncherTab — real file through the real UI', () => {
   it('loads a real .quiz file via the file input and reports the correct question count', async () => {
-    render(<QuizLauncherTab />);
+    renderLauncher();
     const file = loadFixtureAsFile('ac-circuits.quiz');
     const input = document.querySelector('input[type="file"]');
 
@@ -45,7 +60,7 @@ describe('QuizLauncherTab — real file through the real UI', () => {
   });
 
   it('launches a loaded quiz and renders the real question text with UTF-8 intact', async () => {
-    render(<QuizLauncherTab />);
+    renderLauncher();
     const file = loadFixtureAsFile('ac-circuits.quiz');
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
 
@@ -59,7 +74,7 @@ describe('QuizLauncherTab — real file through the real UI', () => {
   });
 
   it('completes a full session and shows the real defect flag in results', async () => {
-    render(<QuizLauncherTab />);
+    renderLauncher();
     const file = loadFixtureAsFile('ac-circuits.quiz');
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
     await waitFor(() => expect(screen.getByText(/36 questions loaded/i)).toBeInTheDocument());
@@ -88,7 +103,7 @@ describe('QuizLauncherTab — real file through the real UI', () => {
     // A) while the answering screen had shown the shuffled order. A user who
     // picked option B while answering would return to review and see the
     // correct answer sitting at A with no memory of B ever existing.
-    render(<QuizLauncherTab />);
+    renderLauncher();
     const file = loadFixtureAsFile('ac-circuits.quiz');
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
     await waitFor(() => expect(screen.getByText(/36 questions loaded/i)).toBeInTheDocument());
@@ -120,7 +135,7 @@ describe('QuizLauncherTab — real file through the real UI', () => {
   });
 
   it('shows a clean, recoverable error for a non-quiz file instead of crashing', async () => {
-    render(<QuizLauncherTab />);
+    renderLauncher();
     const badFile = new File(['not a zip at all'], 'notes.quiz', { type: 'text/plain' });
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [badFile] } });
 
@@ -129,5 +144,59 @@ describe('QuizLauncherTab — real file through the real UI', () => {
     const goodFile = loadFixtureAsFile('alternators.quiz');
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [goodFile] } });
     await waitFor(() => expect(screen.getByText(/49 questions loaded/i)).toBeInTheDocument());
+  });
+});
+
+describe('Imported quizzes outlive a tab switch, and run on their own route', () => {
+  it('the loaded list is still there after the tab unmounts', async () => {
+    const first = renderLauncher();
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [loadFixtureAsFile('ac-circuits.quiz')] } });
+    await waitFor(() => expect(screen.getByText(/36 questions loaded/i)).toBeInTheDocument());
+    first.unmount();
+    renderLauncher();
+    expect(screen.getByText(/36 questions loaded/i)).toBeInTheDocument();
+  });
+
+  it('Exit from the run comes back to the list', async () => {
+    renderLauncher();
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [loadFixtureAsFile('ac-circuits.quiz')] } });
+    await waitFor(() => expect(screen.getByText(/36 questions loaded/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /start/i }));
+    await screen.findByText(/the total voltage in a series RL circuit/i);
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    expect(await screen.findByText(/36 questions loaded/i)).toBeInTheDocument();
+  });
+
+  it('the run page with nothing loaded goes back to the list', () => {
+    render(
+      <MemoryRouter initialEntries={['/library/quiz']}>
+        <Routes>
+          <Route path="/library" element={<p>library</p>} />
+          <Route path="/library/quiz" element={<QuizRunPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('library')).toBeInTheDocument();
+  });
+});
+
+describe('Leaving and picking', () => {
+  it('Exit asks first once there are answers', async () => {
+    renderLauncher();
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [loadFixtureAsFile('ac-circuits.quiz')] } });
+    await waitFor(() => expect(screen.getByText(/36 questions loaded/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /start/i }));
+    await screen.findByText(/the total voltage in a series RL circuit/i);
+    fireEvent.click(screen.getByText('leads, between 0° to 90°'));
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    expect(screen.getByRole('dialog', { name: 'Leave this quiz?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep going' }));
+    expect(screen.getByText(/the total voltage in a series RL circuit/i)).toBeInTheDocument();
+  });
+
+  it('a file that is not a quiz is named, not silently ignored', () => {
+    renderLauncher();
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [new File(['x'], 'notes.pdf')] } });
+    expect(screen.getByRole('alert')).toHaveTextContent('notes.pdf isn’t a quiz file');
   });
 });

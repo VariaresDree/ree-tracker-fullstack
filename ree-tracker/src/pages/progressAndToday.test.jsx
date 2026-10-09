@@ -8,6 +8,8 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 let statsState;
 vi.mock('../hooks/useDashboardStats', () => ({ useDashboardStats: () => statsState }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1', displayName: 'Dree' } }) }));
+let online = true;
+vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online }));
 // Counts mounts: a new Manila day must remount the card so its own requests
 // (forecast, due reviews, plan task, readiness trend) run again.
 let panelMounts = 0;
@@ -52,6 +54,7 @@ const at = (entry, Page) => render(
 beforeEach(() => {
   statsState = loaded();
   search = null;
+  online = true;
 });
 
 describe('Today', () => {
@@ -107,6 +110,26 @@ describe('Today', () => {
     at('/', Today);
     expect(screen.getByRole('status', { name: 'Loading Today' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+});
+
+describe('Stats that never loaded', () => {
+  it('Today says it needs a connection instead of a skeleton forever, and Try again fetches', () => {
+    online = false;
+    const retry = vi.fn();
+    statsState = { loading: false, unavailable: true, activeStats: null, readiness: null, retry, kpi: {} };
+    at('/', Today);
+    expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
+    expect(screen.getByText('Your progress needs a connection')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading Today' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalled();
+  });
+
+  it('Progress shows the same on its stats tabs, and the plan tab still opens', () => {
+    statsState = { loading: false, unavailable: true, activeStats: null, readiness: null, retry: vi.fn(), kpi: {} };
+    at('/progress', Progress);
+    expect(screen.getByText("Couldn't load your progress")).toBeInTheDocument();
   });
 });
 

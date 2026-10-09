@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, ReferenceLine
 } from 'recharts';
 import { computeThetaDomain } from '../utils/thetaDomain';
+import { bucketThetaHistory } from './thetaHistory';
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
@@ -32,50 +33,6 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-// ISO-8601 week key (e.g. "2026-W26") for an YYYY-MM-DD date string.
-function isoWeekKey(dateStr) {
-  const d = new Date(dateStr);
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
-}
-
-// Bucket the daily θ-history by range using PERIOD-LATEST semantics: within each
-// week/month we keep the most recent θ reached (history arrives sorted ascending,
-// so the last write per bucket wins). Day = raw daily points.
-function bucketHistory(history, range) {
-  if (range === 'week' || range === 'month') {
-    const keyOf = (dateStr) => {
-      if (range === 'month') {
-        const d = new Date(dateStr);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      }
-      return isoWeekKey(dateStr);
-    };
-    const map = new Map();
-    for (const h of history) map.set(keyOf(h.date), h); // ascending → latest wins
-    const entries = [...map.values()].slice(-12);
-    return entries.map((h, i) => {
-      const dt = new Date(h.date);
-      const name = range === 'month'
-        ? dt.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-        : `Wk ${i + 1}`;
-      const date = range === 'month'
-        ? dt.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-        : `Week of ${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-      return { name, date, theta: h.theta };
-    });
-  }
-  return history.slice(-30).map((h, i) => ({
-    name: `Day ${i + 1}`,
-    date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    theta: h.theta,
-  }));
-}
-
 export default function ThetaVelocityChart({ history = [], range = 'day' }) {
   const safeHistory = Array.isArray(history) ? history : [];
 
@@ -86,7 +43,7 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
     const clean = safeHistory.filter(
       (h) => h && Number.isFinite(Number(h.theta)) && !Number.isNaN(Date.parse(h.date)),
     );
-    return bucketHistory(clean, range).map((h) => {
+    return bucketThetaHistory(clean, range).map((h) => {
       const theta = Number(Number(h.theta).toFixed(3));
       return { ...h, theta };
     });
@@ -110,74 +67,76 @@ export default function ThetaVelocityChart({ history = [], range = 'day' }) {
   const fmt = (n) => `${n > 0 ? '+' : ''}${n}`;
   const chartSummary = `Ability (theta) over the last ${chartData.length} ${rangeWord}: ${trend}, from ${fmt(first)} to ${fmt(last)}, on an axis from ${fmt(yDomain[0])} to ${fmt(yDomain[1])}.`;
 
+  // One point is a dot: an area needs two, so a first day of history drew an
+  // empty chart with an axis.
+  const fewPoints = chartData.length <= 2;
+
   return (
     <div className="w-full h-full min-h-[220px] min-w-0 relative animate-in fade-in">
         {chartData.length === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center border-2 border-dashed border-border2/50 rounded-xl bg-surface2/20">
-                 <span className="text-[11px] text-muted font-mono uppercase tracking-widest">Awaiting Velocity Data</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-center px-4 border-2 border-dashed border-border rounded-[var(--radius-lg)] bg-surface2/20">
+                 <span className="text-sm font-medium text-textMain">No ability history yet</span>
+                 <span className="text-xs text-muted2">Answer questions on a few days and your ability score's trend shows here.</span>
             </div>
         ) : (
-          /* Measured live: Recharts' ResponsiveContainer can settle on an
-             SVG wider than the box it's told to fill (493px content in a
-             287px box at 360px, confirmed via scrollWidth), with every
-             ancestor `overflow-x: visible` — so part of the chart was
-             silently clipped with no way to reach it. min-w-[340px] on the
-             inner element gives the chart a sane floor and the
-             math-scroll-mobile wrapper (same pattern already used for long
-             formulas) turns any remaining overflow into a real horizontal
-             scroll instead of an invisible clip. */
-          <div className="absolute inset-0 math-scroll-mobile" role="img" aria-label={chartSummary}>
-            <div className="h-full w-full min-w-[340px]">
+          /* It used to force a 340px-wide chart in a sideways-scrolling box,
+             because the "Day 1 … Day 30" labels didn't fit a phone. The axis
+             now shows dates and drops labels that would collide
+             (minTickGap), so it fits the card at 360px. */
+          <div className="absolute inset-0" role="img" aria-label={chartSummary}>
             <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 8, left: -25, bottom: 0 }}>
                     <defs>
                         <linearGradient id="colorTheta" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="var(--accent-signal)" stopOpacity={0.4} />
                             <stop offset="95%" stopColor="var(--accent-signal)" stopOpacity={0.0} />
                         </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.08)" vertical={false} />
-                    <XAxis 
-                        dataKey="name" 
-                        stroke="var(--text-muted)" 
-                        fontSize={10} 
-                        tickLine={false} 
-                        axisLine={false} 
-                        dy={10} 
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-main)" vertical={false} />
+                    <XAxis
+                        dataKey="name"
+                        stroke="var(--text-muted)"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                        dy={10}
+                        minTickGap={18}
+                        interval="preserveStartEnd"
                         tick={{ fill: 'var(--text-muted)', fontWeight: 600 }}
                     />
                     <YAxis
                         domain={yDomain}
                         stroke="var(--text-muted)"
-                        fontSize={10} 
-                        tickLine={false} 
-                        axisLine={false} 
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
                         tick={{ fill: 'var(--text-muted)', fontWeight: 600 }}
                     />
-                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(6, 182, 212, 0.2)', strokeWidth: 2, strokeDasharray: '4 4' }} />
-                    <ReferenceLine y={0} stroke="rgba(148, 163, 184, 0.2)" strokeWidth={1} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)', strokeWidth: 2, strokeDasharray: '4 4' }} />
+                    <ReferenceLine y={0} stroke="var(--border-light)" strokeWidth={1} />
                     {/* Readiness marker on the 3PL scale (θ≈1.0 ≈ ~84th percentile,
                         comfortably above the θ=0 pass cutoff). The forecast card is
                         the authoritative pass-probability source. */}
                     <ReferenceLine
                         y={1.0}
                         stroke="var(--accent-success)"
-                        strokeDasharray="4 4" 
+                        strokeDasharray="4 4"
                         strokeWidth={1.5}
                         strokeOpacity={0.5}
                     />
-                    <Area 
-                        type="monotone" 
-                        dataKey="theta" 
-                        stroke="var(--accent-signal)" 
-                        strokeWidth={3} 
-                        fill="url(#colorTheta)" 
+                    <Area
+                        type="monotone"
+                        dataKey="theta"
+                        stroke="var(--accent-signal)"
+                        strokeWidth={3}
+                        fill="url(#colorTheta)"
+                        dot={fewPoints ? { r: 4, fill: 'var(--accent-signal)', stroke: 'var(--bg-surface)', strokeWidth: 2 } : false}
+                        activeDot={{ r: 5, fill: 'var(--accent-signal)', stroke: 'var(--bg-surface)', strokeWidth: 2 }}
                         animationDuration={1500}
                         animationEasing="ease-out"
                     />
                 </AreaChart>
             </ResponsiveContainer>
-            </div>
           </div>
         )}
     </div>

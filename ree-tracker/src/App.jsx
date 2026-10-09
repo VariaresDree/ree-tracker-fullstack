@@ -1,5 +1,5 @@
 // src/App.jsx
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useSyncLifecycle } from './hooks/useSyncLifecycle';
@@ -27,6 +27,8 @@ const Admin = lazy(() => import('./pages/admin/Admin'));
 const BattleLobby = lazy(() => import('./pages/BattleLobby'));
 const Gauntlet = lazy(() => import('./pages/Gauntlet'));
 const Diagnostic = lazy(() => import('./pages/Diagnostic'));
+const SittingReview = lazy(() => import('./pages/SittingReview'));
+const QuizRunPage = lazy(() => import('./features/quiz-launcher/QuizRunPage'));
 
 // The app shell as a layout route: the navigation stays on screen while a page
 // chunk loads, and only the page area shows the loading state.
@@ -50,17 +52,16 @@ const SecureAppTerminal = () => {
   // and a last-gasp keepalive flush when the tab hides/closes.
   useSyncLifecycle();
 
-  useEffect(() => {
-    // The previous Firestore listener and TOS initialization have been removed.
-    // User state is now securely handled by Zustand local storage caching
-    // and will be synced via the backend PostgreSQL API.
-  }, []);
+  // One toast host for both branches. It used to mount only inside the signed-in
+  // app, so the login screen's messages ("a reset link is on its way") never
+  // showed, and queued ones popped up after signing in.
+  const toaster = <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }} />;
 
-  if (!currentUser) return <Login />;
+  if (!currentUser) return <>{toaster}<Login /></>;
 
   return (
     <Router>
-      <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }} />
+      {toaster}
       <NotificationOptIn />
 
       {/* Neutral fallback for all routes; the dashboard nests its own
@@ -72,6 +73,8 @@ const SecureAppTerminal = () => {
             <Route index element={page('Today', <Suspense fallback={<TodaySkeleton />}><Today /></Suspense>)} />
             <Route path="practice" element={page('Practice', <Practice />)} />
             <Route path="exams" element={page('Exams', <Exams />)} />
+            {/* A finished sitting, item by item (Exams › Past sittings › Review). */}
+            <Route path="exams/sittings/:sessionId" element={page('Sitting review', <SittingReview />)} />
             <Route path="progress" element={page('Progress', <Progress />)} />
             <Route path="library" element={page('Library', <Library />)} />
             <Route path="account" element={page('Account', <Account />)} />
@@ -99,6 +102,8 @@ const SecureAppTerminal = () => {
           {/* Placement test — owns its layout like the Simulator: MainLayout
               for the intro and result, ExamLayout while answering. */}
           <Route path="/diagnostic" element={<ErrorBoundary name="Placement test"><Diagnostic /></ErrorBoundary>} />
+          {/* An imported quiz being run — exam layout, outside the app shell. */}
+          <Route path="/library/quiz" element={<ErrorBoundary name="Imported quiz"><QuizRunPage /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

@@ -99,3 +99,13 @@ describe('Flashcard — active-face height tracking', () => {
     expect(back()).toHaveAttribute('aria-hidden', 'false');
   });
 });
+
+describe('Flashcard description', () => {
+  it('describes the face on show, so its content reaches a screen reader', () => {
+    render(<Flashcard card={CARD} />);
+    const button = screen.getByRole('button');
+    expect(button).toHaveAccessibleDescription(/X_c = 1\/\(2\*pi\*f\*C\)/);
+    fireEvent.click(button);
+    expect(screen.getByRole('button').getAttribute('aria-describedby')).toMatch(/-back$/);
+  });
+});

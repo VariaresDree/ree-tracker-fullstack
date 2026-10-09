@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Card, Button, FormField, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
+import { Card, Button, FormField, IconChip, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
 import { FileText, TriangleAlert } from '../../components/ui/icons';
 import { PRC_TIMES } from '../../config/examStandards';
 import { SIM_PROFILES, configForProfile } from './profiles';
@@ -110,15 +110,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
                       : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'
                   )}
                 >
-                  <span
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-default)]"
-                    style={{
-                      background: selected ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'var(--bg-surface3)',
-                      color: selected ? 'var(--accent-text)' : 'var(--text-muted2)',
-                    }}
-                  >
-                    <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
-                  </span>
+                  <IconChip icon={Icon} tone={selected ? 'accent' : 'muted'} />
                   <div>
                     <span className={cn('block text-sm font-semibold mb-1', selected ? 'text-[var(--accent-text)]' : 'text-textMain')}>{p.name}</span>
                     <p className="text-xs text-muted2 leading-relaxed">{p.description}</p>

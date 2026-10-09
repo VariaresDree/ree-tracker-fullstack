@@ -2,27 +2,57 @@
 //
 // Distraction-free timed gauntlet. Adopts the shared QuestionCard for prompt
 // + confidence + choices + reveal, keeps its own chrome (level header, clock,
-// right-flank navigator grid, submit/leave actions). Confidence is now
-// captured on every item (silent MED default if skipped) so gauntlet attempts
-// feed the same calibration analytics as Practice and the Simulator.
+// pace, navigator, submit/leave actions). Confidence is captured on every item
+// (silent MED default if skipped) so gauntlet attempts feed the same
+// calibration analytics as Practice and the Simulator.
 //
-// Only the running exam uses ExamLayout. Loading, resume, the offline-pending
-// and error screens, and the results get the normal app chrome (MainLayout),
-// so the navigation is there whenever no clock is running. They used to
-// render with no chrome at all.
+// Only the running exam uses ExamLayout. Loading, resume, submitting, the
+// offline-pending and error screens, and the results get the normal app
+// chrome (MainLayout), so the navigation is there whenever no clock is running.
+//
+// Submit is always in the toolbar and opens the same dialog as the Board
+// Simulator (unanswered items, each a link back). Leaving a started run counts
+// as not passing it and locks the ladder for 12 hours; a saved run is resumed
+// or submitted as it stands — there is no "start fresh" around the lock.
 
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGauntletEngine } from '../features/gauntlet/useGauntletEngine';
 import GauntletDiagnostics from '../features/gauntlet/GauntletDiagnostics';
+import SubmitDialog from '../features/board-simulator/SubmitDialog';
 import QuestionCard from '../features/quiz/QuestionCard';
 import ExamLayout from '../layouts/ExamLayout';
 import MainLayout from '../layouts/MainLayout';
 import ExamNavigator from '../components/exam/ExamNavigator';
 import ExamClock from '../components/exam/ExamClock';
-import { formatExamTime } from '../utils/examFormat';
+import PaceIndicator from '../components/exam/PaceIndicator';
+import { getGauntletTier } from '../config/examStandards';
 import { Button, Modal, EmptyState, Badge, StatusPill } from '../components/ui';
 import { TriangleAlert, Flag, Bookmark, WifiOff } from '../components/ui/icons';
+
+const LETTERS = ['A', 'B', 'C', 'D'];
+const BACK_TO_GAUNTLET = '/exams?tab=gauntlet';
+
+function Waiting({ label }) {
+  return (
+    <MainLayout>
+      <div role="status" className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent-text)]">
+        <span className="telemetry-spinner !w-12 !h-12 border-t-transparent" aria-hidden="true"></span>
+        <span className="text-sm font-semibold">{label}</span>
+      </div>
+    </MainLayout>
+  );
+}
+
+function Notice({ icon, title, description, action }) {
+  return (
+    <MainLayout>
+      <div className="flex items-center justify-center min-h-[70vh] page-fade-in px-4">
+        <EmptyState titleAs="h1" icon={icon} title={title} description={description} action={action} />
+      </div>
+    </MainLayout>
+  );
+}
 
 export default function Gauntlet() {
   const { level } = useParams();
@@ -31,186 +61,210 @@ export default function Gauntlet() {
     status, questions, answers, confidences, gauntletEndTime, diagnostics,
     currentIndex, setCurrentIndex,
     bookmarks, toggleBookmark, flags, toggleFlag,
-    resumeGauntlet, discardAndStartFresh,
+    resumeGauntlet, submitSavedRun, forfeitRun,
     handleAnswer, handleConfidence, submitExam,
   } = useGauntletEngine(level);
 
   const [showTime, setShowTime] = useState(true);
-  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showSubmit, setShowSubmit] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [confirmSubmitSaved, setConfirmSubmitSaved] = useState(false);
 
-  if (status === 'loading') {
-    return (
-      <MainLayout>
-        <div role="status" className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent-text)]">
-          <span className="telemetry-spinner !w-12 !h-12 border-t-transparent"></span>
-          <span className="text-sm font-semibold animate-pulse">Building your exam…</span>
-        </div>
-      </MainLayout>
-    );
-  }
+  if (status === 'loading') return <Waiting label="Building your exam…" />;
+  if (status === 'submitting') return <Waiting label="Submitting your run…" />;
+  if (status === 'forfeited') return <Waiting label="Leaving…" />;
 
-  // A saved draft for THIS level exists — offer resume instead of silently
-  // discarding it and building a brand new set of questions. Connection loss
-  // mid-exam, a killed tab, or a crash all land here on the next visit.
+  // A saved draft for THIS level exists — resume it or submit it as it
+  // stands. Connection loss mid-exam, a killed tab, or a crash all land here
+  // on the next visit.
   if (status === 'resume') {
     return (
-      <MainLayout>
-      <div className="flex items-center justify-center h-[70vh] page-fade-in">
-        <EmptyState
+      <>
+        <Notice
           icon={TriangleAlert}
-          title="Resume your last attempt?"
-          description="You have an unfinished Gauntlet run saved on this device for this level."
-          action={
+          title="You have an unfinished run"
+          description="A Gauntlet run for this level is saved on this device. Pick up where you left off, or submit it as it stands."
+          action={(
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button tone="amber" onClick={resumeGauntlet}>Resume run</Button>
-              <Button variant="secondary" onClick={discardAndStartFresh}>Start fresh</Button>
+              <Button tone="amber" onClick={() => resumeGauntlet()}>Resume run</Button>
+              <Button variant="secondary" onClick={() => setConfirmSubmitSaved(true)}>Submit this run</Button>
             </div>
-          }
+          )}
         />
-      </div>
-      </MainLayout>
+        <Modal
+          open={confirmSubmitSaved}
+          onClose={() => setConfirmSubmitSaved(false)}
+          icon={TriangleAlert}
+          tone="amber"
+          title="Submit this run as it stands?"
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setConfirmSubmitSaved(false)}>Cancel</Button>
+              <Button tone="danger" onClick={() => { setConfirmSubmitSaved(false); submitSavedRun(); }}>Submit run</Button>
+            </>
+          )}
+        >
+          <p className="text-sm text-muted2">It is graded with the answers saved so far. Blank items count as wrong.</p>
+        </Modal>
+      </>
     );
   }
 
   // Submitted while offline (or the connection dropped mid-submit) — queued
-  // in the durable outbox; a blended run can't be graded on-device (the exam
-  // pool intentionally never carries answer keys), so no score is invented.
+  // in the durable outbox; a run can't be graded on-device (the exam pool
+  // intentionally never carries answer keys), so no score is invented.
   if (status === 'pending') {
     return (
-      <MainLayout>
-      <div className="flex items-center justify-center h-[70vh] page-fade-in">
-        <EmptyState
-          icon={WifiOff}
-          title="Submitted — grading when you reconnect"
-          description="Your answers are saved and queued. This run is done; you don't need to retry or stay on this screen. The score is posted once you're back online."
-          action={<Button onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>}
-        />
-      </div>
-      </MainLayout>
+      <Notice
+        icon={WifiOff}
+        title="Submitted — grading when you reconnect"
+        description="Your answers are saved and queued. This run is done; you don't need to retry or stay on this screen. The result posts once you're back online."
+        action={<Button onClick={() => navigate(BACK_TO_GAUNTLET)}>Back to Exams</Button>}
+      />
+    );
+  }
+
+  // The server refused the grade outright. The run is still on this device.
+  if (status === 'submit-error') {
+    return (
+      <Notice
+        icon={TriangleAlert}
+        title="Couldn't grade this run"
+        description="Your answers are kept on this device. Try again now, or come back later — this level will offer to resume or submit it."
+        action={(
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button onClick={() => submitExam()}>Try again</Button>
+            <Button variant="secondary" onClick={() => navigate(BACK_TO_GAUNTLET)}>Back to Exams</Button>
+          </div>
+        )}
+      />
     );
   }
 
   if (status === 'error') {
     return (
-      <MainLayout>
-      <div className="flex items-center justify-center h-[70vh] page-fade-in">
-        <EmptyState
-          icon={TriangleAlert}
-          title="Couldn't build this exam"
-          description="Something went wrong while loading the Gauntlet questions. Try again in a moment."
-          action={<Button onClick={() => navigate('/exams?tab=gauntlet')}>Back to Exams</Button>}
-        />
-      </div>
-      </MainLayout>
+      <Notice
+        icon={TriangleAlert}
+        title="Couldn't build this exam"
+        description="Something went wrong while loading the Gauntlet questions. Nothing was recorded; try again in a moment."
+        action={<Button onClick={() => navigate(BACK_TO_GAUNTLET)}>Back to Exams</Button>}
+      />
     );
   }
 
-  if (status === 'diagnostics') {
+  if (status === 'diagnostics' && diagnostics) {
     return (
       <MainLayout>
-        <GauntletDiagnostics diagnostics={diagnostics} level={level} questions={questions} answers={answers} formatTime={formatExamTime} navigate={navigate} />
+        <GauntletDiagnostics diagnostics={diagnostics} level={level} />
       </MainLayout>
     );
   }
 
+  const tier = getGauntletTier(level);
   const currentQ = questions[currentIndex];
-  const answeredCount = Object.keys(answers).length;
+  const answeredCount = Object.values(answers).filter((a) => a != null && a !== '').length;
   const isBookmarked = bookmarks.has(currentIndex);
   const isFlagged = flags.has(currentIndex) || !!currentQ?.isFlagged;
+  const unanswered = questions.map((_, i) => i).filter((i) => answers[i] == null || answers[i] === '');
+  const letterOf = (idx) => {
+    const i = (questions[idx]?.options || []).indexOf(answers[idx]);
+    return i >= 0 && i < LETTERS.length ? LETTERS[i] : null;
+  };
 
-  // Bookmark + flag-for-review, mirroring the Board Simulator's itemActions
-  // pattern (SimulatorActive.jsx) — injected into QuestionCard's headerSlot.
+  const leave = () => {
+    setShowLeaveConfirm(false);
+    // The lock is set on this device before the page changes; telling the
+    // server (or queueing it) carries on in the background.
+    forfeitRun();
+    navigate(BACK_TO_GAUNTLET);
+  };
+
+  // Report + save to bookmarks, injected into QuestionCard's headerSlot.
   const itemActions = (
     <div className="flex gap-2">
-      <Button size="icon" variant="ghost" tone="danger" onClick={() => toggleFlag(currentIndex)} disabled={isFlagged} aria-label={isFlagged ? 'Already flagged' : 'Flag question'} className={isFlagged ? '' : 'text-muted'}>
+      <Button size="icon" variant="ghost" tone="danger" onClick={() => toggleFlag(currentIndex)} disabled={isFlagged} aria-label={isFlagged ? 'Already reported' : 'Report a problem with this question'} title={isFlagged ? 'Already reported' : 'Report a problem'} className={isFlagged ? '' : 'text-muted'}>
         <Flag size={16} strokeWidth={1.75} aria-hidden="true" />
       </Button>
-      <Button size="icon" variant="ghost" tone="amber" onClick={() => toggleBookmark(currentIndex)} aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'} className={isBookmarked ? '' : 'text-muted'}>
+      <Button size="icon" variant="ghost" tone="amber" onClick={() => toggleBookmark(currentIndex)} aria-label={isBookmarked ? 'Remove from bookmarks' : 'Save to bookmarks'} aria-pressed={isBookmarked} title={isBookmarked ? 'Remove from bookmarks' : 'Save to bookmarks'} className={isBookmarked ? '' : 'text-muted'}>
         <Bookmark size={16} strokeWidth={1.75} fill={isBookmarked ? 'currentColor' : 'none'} aria-hidden="true" />
       </Button>
     </div>
   );
 
-  // Adopts the Board Simulator's exam chrome: ExamLayout + a top toolbar with a
-  // show/hide timer, the shared horizontal ExamNavigator, the shared
-  // QuestionCard, and linear + submit controls.
+  const clock = <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />;
+
   return (
     <ExamLayout
       shortMessage="Gauntlet run — clock running"
       message="Gauntlet run — the clock is running, and not passing locks the Gauntlet for 12 hours"
     >
       <h1 className="sr-only">Gauntlet level {level}</h1>
-      <Modal
-        open={showSubmitConfirm}
-        onClose={() => setShowSubmitConfirm(false)}
-        title="Submit exam?"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowSubmitConfirm(false)}>Keep working</Button>
-            <Button onClick={() => { setShowSubmitConfirm(false); submitExam(); }}>Submit exam</Button>
-          </>
-        }
-      >
-        <p className="text-sm text-muted2">
-          Your answers will be graded and count toward this Gauntlet tier. You can't change them after submitting.
-        </p>
-      </Modal>
+
+      <SubmitDialog
+        open={showSubmit}
+        onClose={() => setShowSubmit(false)}
+        onSubmit={() => submitExam()}
+        unanswered={unanswered}
+        onJump={setCurrentIndex}
+      />
 
       <Modal
         open={showLeaveConfirm}
         onClose={() => setShowLeaveConfirm(false)}
         tone="danger"
         icon={TriangleAlert}
-        title="Leave exam?"
+        title="Leave this run?"
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowLeaveConfirm(false)}>Keep working</Button>
-            <Button tone="danger" onClick={() => navigate('/exams?tab=gauntlet')}>Leave exam</Button>
+            <Button tone="danger" onClick={leave}>Leave and lock</Button>
           </>
         }
       >
         <p className="text-sm text-muted2">
-          Leaving now records no progress for this tier attempt.
+          Leaving counts as not passing this tier and locks the Gauntlet for 12 hours. Your answers so far are not graded.
         </p>
       </Modal>
 
       <div className="flex flex-col gap-4 pb-8">
-        {/* Top toolbar — exit / level / answered count / timer. Two balanced
-            rows on phones (so Level + answered stay visible) collapsing to one
-            row at md. The timer renders in whichever cluster is visible. */}
+        {/* Toolbar. Two rows on phones (leave + clock, then level, count,
+            pace and Submit), one row from md. */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-[var(--sticky-top,calc(max(0.5rem,env(safe-area-inset-top))+2.25rem))] z-50">
-          {/* Row 1 (mobile): exit + timer */}
           <div className="flex items-center justify-between gap-3">
             <Button variant="ghost" tone="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
-              Exit exam
+              Leave
             </Button>
-            <div className="md:hidden">
-              <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
-            </div>
+            <div className="md:hidden">{clock}</div>
           </div>
-          {/* Row 2 (mobile) / right cluster (desktop): level + answered + timer */}
-          <div className="flex items-center justify-between md:justify-end gap-3">
+          <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 sm:gap-3">
             <Badge tone="velocity">Level {level}</Badge>
             <StatusPill tone="success" className="tabular-nums">
               {answeredCount}/{questions.length} answered
             </StatusPill>
-            <div className="hidden md:block">
-              <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
-            </div>
+            {tier && (
+              <PaceIndicator
+                endTime={gauntletEndTime}
+                totalSecs={tier.timeLimitSecs}
+                totalItems={questions.length}
+                answered={answeredCount}
+                hidden={!showTime}
+              />
+            )}
+            <div className="hidden md:block">{clock}</div>
+            <Button size="sm" tone="danger" onClick={() => setShowSubmit(true)}>
+              Submit exam
+            </Button>
           </div>
         </div>
 
-        {/* Horizontal 1-N navigator (shared) */}
         <ExamNavigator
           count={questions.length}
           currentIndex={currentIndex}
           onSelect={setCurrentIndex}
-          isAnswered={(idx) => answers[idx] !== undefined}
+          isAnswered={(idx) => answers[idx] != null && answers[idx] !== ''}
+          sheet={{ letterOf }}
         />
 
-        {/* Exam canvas — shared QuestionCard. Confidence shown (silent MED
-            default under time pressure) so gauntlet attempts feed calibration. */}
         <div className="bg-surface border border-border2 rounded-[var(--radius-lg)] p-6 md:p-8 min-h-[420px] flex flex-col relative shadow-md">
           <QuestionCard
             question={currentQ}
@@ -227,21 +281,16 @@ export default function Gauntlet() {
           />
         </div>
 
-        {/* Controls: previous / next, with Submit REPLACING Next only on the
-            last item (mirrors the Board Simulator's SimulatorActive.jsx) —
-            it was previously always visible right next to Next, one misclick
-            away at every question. Reaching the last item via the navigator
-            or Next is now the only path to seeing Submit at all. */}
         <div className="flex justify-between items-center gap-3">
-          <Button variant="secondary" onClick={() => setCurrentIndex((c) => Math.max(0, c - 1))} disabled={currentIndex === 0}>
+          <Button variant="secondary" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
             Previous
           </Button>
           {currentIndex === questions.length - 1 ? (
-            <Button tone="danger" size="lg" onClick={() => setShowSubmitConfirm(true)}>
+            <Button size="lg" tone="danger" onClick={() => setShowSubmit(true)}>
               Submit exam
             </Button>
           ) : (
-            <Button variant="secondary" onClick={() => setCurrentIndex((c) => Math.min(questions.length - 1, c + 1))}>
+            <Button variant="secondary" onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}>
               Next
             </Button>
           )}

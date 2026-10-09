@@ -3,6 +3,7 @@
 // The Gauntlet ladder's rules, pure (they were inline in the Arena page's
 // render): which tier is cleared, open, or locked, and the cooldown left
 // after a failed attempt.
+import { normalizeSubject } from '@ree/shared';
 import { SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../../config/examStandards';
 
 /** secs → "Xh Ym" / "Y min", for the tier cards. */
@@ -16,20 +17,23 @@ export const formatLimit = (secs) => {
 /**
  * A blended tier is cleared once the learner's level is past it, and open at
  * their level once they have answered its required number of questions. The
- * subject boards open together once every blended tier is cleared. Failing
- * any exam locks open tiers until the cooldown ends.
+ * subject boards open together once every blended tier is cleared; a board
+ * passed once is marked cleared (`boardClears`) and stays open to take again.
+ * Failing any exam locks open tiers until the cooldown ends.
  *
- * @returns {{ subject: boolean, isPassed: boolean, isUnlocked: boolean, isLocked: boolean, isCoolingDown: boolean }}
+ * @returns {{ subject: boolean, isPassed: boolean, isCleared: boolean, isUnlocked: boolean, isLocked: boolean, isCoolingDown: boolean }}
  */
-export function tierState(tier, { currentLevel = 1, totalAnswered = 0, coolingDown = false } = {}) {
+export function tierState(tier, { currentLevel = 1, totalAnswered = 0, coolingDown = false, boardClears = [] } = {}) {
   const subject = isSubjectTier(tier);
   const isPassed = !subject && currentLevel > tier.level;
   const isUnlocked = subject
     ? currentLevel >= SUBJECT_UNLOCK_LEVEL
     : currentLevel === tier.level && totalAnswered >= tier.reqQs;
+  const isCleared = isPassed || (subject && (boardClears || []).map(normalizeSubject).includes(normalizeSubject(tier.subject)));
   return {
     subject,
     isPassed,
+    isCleared,
     isUnlocked,
     isLocked: !isPassed && !isUnlocked,
     isCoolingDown: isUnlocked && !!coolingDown,

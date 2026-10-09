@@ -20,6 +20,16 @@ export function useBattleSocket(battleId) {
     const [answerKey, setAnswerKey] = useState(null);
     const [explanationKey, setExplanationKey] = useState(null);
     const [opponentProgress, setOpponentProgress] = useState(new Map());
+    // The server's last refusal ("no longer accepting new players", "battle
+    // is full", "not in progress"). It used to be logged to the console only,
+    // so joining a battle that had already started showed "Waiting for
+    // players" for good.
+    const [error, setError] = useState(null);
+    // A final submit the server hasn't acknowledged. One made while the socket
+    // was down used to be dropped; it is resent once the server has us back in
+    // the lobby, and the UI can say it is waiting to send.
+    const pendingSubmitRef = useRef(null);
+    const [submitPending, setSubmitPending] = useState(false);
 
     useEffect(() => {
         if (!battleId) return;
@@ -65,6 +75,10 @@ export function useBattleSocket(battleId) {
                 if (data.participants) setParticipants(data.participants);
                 if (data.status) setBattleStatus(data.status);
                 if (data.config) setBattleConfig(data);
+                setError(null);
+                // Back in the lobby after a reconnect: send a submit that
+                // hasn't been acknowledged (the server ignores a duplicate).
+                if (pendingSubmitRef.current) socket.emit('battle-submit', { battleId, attempts: pendingSubmitRef.current });
             });
 
             socket.on('battle-started', (data) => {
@@ -89,6 +103,8 @@ export function useBattleSocket(battleId) {
             // Server ack for OUR submission — authoritative score, no answer
             // key yet (opponents may still be playing).
             socket.on('battle-graded', (data) => {
+                pendingSubmitRef.current = null;
+                setSubmitPending(false);
                 setGraded(data);
             });
 
@@ -102,7 +118,7 @@ export function useBattleSocket(battleId) {
             });
 
             socket.on('error', (data) => {
-                console.error('Battle socket error:', data.message);
+                setError(data?.message || 'The battle server refused that.');
             });
         };
 
@@ -132,7 +148,11 @@ export function useBattleSocket(battleId) {
     // Final submission carries only the attempts (for disconnect-gap
     // recovery); the server computes score/total/timing itself.
     const submitResult = useCallback((attempts = []) => {
-        socketRef.current?.emit('battle-submit', { battleId, attempts });
+        pendingSubmitRef.current = attempts;
+        setSubmitPending(true);
+        const socket = socketRef.current;
+        if (socket?.connected) socket.emit('battle-submit', { battleId, attempts });
+        // Otherwise it goes out with the next lobby-update after reconnecting.
     }, [battleId]);
 
     return {
@@ -147,6 +167,8 @@ export function useBattleSocket(battleId) {
         answerKey,
         explanationKey,
         opponentProgress: Array.from(opponentProgress.values()),
+        error,
+        submitPending,
         startBattle,
         sendAnswer,
         submitResult

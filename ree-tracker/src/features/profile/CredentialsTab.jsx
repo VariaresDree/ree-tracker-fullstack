@@ -1,64 +1,84 @@
 // src/features/profile/CredentialsTab.jsx
-import { useEffect, useMemo, useState } from 'react';
+//
+// Account › Achievements: the readiness certificate, unlocked at a Board
+// Readiness Index of 70 — the same composite the Today card shows
+// (/api/readiness). It used to fall back to an ability-only (θ+3)/6 figure
+// while the real score loaded, or whenever it couldn't, so the button could
+// unlock (and print) on a number Today never showed. Until the real score
+// arrives it now says so instead.
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { generateCertificate } from '../../utils/certificateEngine';
 import { fetchReadinessScore } from '../../services/dbQueries';
+import { Badge, Button, Card } from '../../components/ui';
+import { Award, Download, Lock } from '../../components/ui/icons';
+import { cn } from '../../components/ui/cn';
 
-export default function CredentialsTab({ currentUser, stats }) {
-  const currentTheta = stats?.irt?.theta || 0;
-  // Certificate unlock uses the SAME composite readiness the Today card
-  // shows (/api/readiness: coverage + accuracy + θ + consistency + blind
-  // spots). The old pure-θ formula here could disagree with the dashboard —
-  // it remains only as the offline fallback until the fetch resolves.
-  const [readiness, setReadiness] = useState(null);
-  useEffect(() => {
-    fetchReadinessScore().then((r) => { if (r) setReadiness(r); }).catch(() => {});
-  }, []);
-  const thetaFallback = useMemo(() => Math.min(100, Math.max(0, Math.round(((currentTheta + 3) / 6) * 100))), [currentTheta]);
-  const readinessScore = readiness?.score ?? thetaFallback;
+export const CERTIFICATE_MIN_READINESS = 70;
 
-  const handleIssueCertificate = () => {
-    if (readinessScore < 70) {
-        toast.error("Access Denied: Required Readiness Score is 70%.");
-        return;
-    }
-    const toastId = toast.loading("Generating Secure Certificate...");
-    // generateCertificate is async now (it dynamic-imports jsPDF) — surface a
-    // failure instead of an unhandled rejection with a stale loading toast.
-    setTimeout(() => {
-      generateCertificate(currentUser, readinessScore)
-        .then(() => toast.success("Certificate downloaded.", { id: toastId }))
-        .catch(() => toast.error("Couldn't generate the certificate. Try again.", { id: toastId }));
-    }, 300);
+export default function CredentialsTab({ currentUser }) {
+  // 'loading' | 'ready' | 'unavailable'
+  const [status, setStatus] = useState('loading');
+  const [score, setScore] = useState(null);
+  const [making, setMaking] = useState(false);
+
+  const fetchScore = () => fetchReadinessScore()
+    .then((r) => {
+      if (typeof r?.score === 'number') { setScore(Math.round(r.score)); setStatus('ready'); }
+      else setStatus('unavailable');
+    })
+    .catch(() => setStatus('unavailable'));
+  const retry = () => { setStatus('loading'); fetchScore(); };
+  useEffect(() => { fetchScore(); }, []);
+
+  const unlocked = status === 'ready' && score >= CERTIFICATE_MIN_READINESS;
+
+  const download = () => {
+    if (!unlocked || making) return;
+    setMaking(true);
+    const toastId = toast.loading('Making your certificate…');
+    // generateCertificate dynamic-imports jsPDF, so it is async.
+    generateCertificate(currentUser, score)
+      .then(() => toast.success('Certificate downloaded.', { id: toastId }))
+      .catch(() => toast.error('Couldn’t make the certificate — try again.', { id: toastId }))
+      .finally(() => setMaking(false));
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 animate-in fade-in slide-in-from-bottom-2">
-        <div className="p-8 bg-surface border border-border2 rounded-xl shadow-xl flex flex-col sm:flex-row gap-8 items-center sm:items-start relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-reePurple/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-            
-            <div className={`w-32 h-32 shrink-0 rounded-2xl flex items-center justify-center text-5xl shadow-inner border-4 relative z-10 ${readinessScore >= 70 ? 'bg-reePurple/20 border-reePurple text-reePurple-text shadow-[0_0_20px_rgba(139,92,246,0.3)]' : 'bg-surface2 border-border2 text-muted grayscale'}`}>
-                📜
-            </div>
-            
-            <div className="flex-1 flex flex-col justify-center text-center sm:text-left relative z-10">
-                <div className="text-[11px] text-reePurple-text font-bold uppercase tracking-widest mb-1 flex items-center justify-center sm:justify-start gap-2">
-                    {readinessScore >= 70 ? <><span className="w-2 h-2 bg-reePurple rounded-full animate-pulse"></span> Unlocked</> : <><span className="w-2 h-2 bg-reeRed rounded-full"></span> Locked (Requires 70% Readiness)</>}
-                </div>
-                <h3 className="text-2xl font-black text-textMain tracking-tight mb-2">Readiness certificate</h3>
-                <p className="text-sm text-muted2 leading-relaxed mb-6">
-                    A printable certificate of your Board Readiness Index, unlocked once it reaches 70%. It records your practice results; it isn't an official PRC document.
-                </p>
-                
-                <button
-                    onClick={handleIssueCertificate}
-                    disabled={readinessScore < 70}
-                    className={`py-3 px-8 rounded-[var(--radius-default)] text-xs font-bold uppercase tracking-wider transition-all self-center sm:self-start shadow-md cursor-pointer ${readinessScore >= 70 ? 'bg-[var(--accent)] hover:brightness-110 text-white elevate-glow' : 'bg-surface2 text-muted border border-border2 disabled:opacity-50 disabled:cursor-not-allowed'}`}
-                >
-                    {readinessScore >= 70 ? 'Download certificate (PDF)' : 'Requires 70% readiness'}
-                </button>
-            </div>
+    <Card className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 items-start">
+      <div
+        className={cn('w-14 h-14 shrink-0 rounded-[var(--radius-lg)] flex items-center justify-center border', unlocked ? '' : 'bg-surface2 border-border text-muted')}
+        style={unlocked ? { color: 'var(--accent-text)', borderColor: 'var(--accent-velocity)', background: 'color-mix(in srgb, var(--accent-velocity) 14%, transparent)' } : undefined}
+        aria-hidden="true"
+      >
+        {unlocked ? <Award size={26} strokeWidth={1.75} /> : <Lock size={22} strokeWidth={1.75} />}
+      </div>
+
+      <div className="flex-1 min-w-0 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-base font-semibold text-textMain">Readiness certificate</h3>
+          {status === 'ready' && (
+            <Badge tone={unlocked ? 'success' : 'neutral'}>{unlocked ? 'Unlocked' : `Readiness ${score} of ${CERTIFICATE_MIN_READINESS}`}</Badge>
+          )}
         </div>
-    </div>
+        <p className="text-sm text-muted2 leading-relaxed">
+          A printable record of your Board Readiness Index, unlocked once it reaches {CERTIFICATE_MIN_READINESS}. It records your practice results; it isn’t an official PRC document.
+        </p>
+
+        {status === 'loading' && <p className="text-sm text-muted2" role="status">Checking your readiness…</p>}
+        {status === 'unavailable' && (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm text-muted2">Your readiness score needs a connection.</p>
+            <Button size="sm" variant="secondary" onClick={retry}>Try again</Button>
+          </div>
+        )}
+        {status === 'ready' && (
+          <Button size="sm" className="self-start mt-1" onClick={download} loading={making} disabled={!unlocked || making}>
+            {!making && <Download size={14} strokeWidth={1.75} aria-hidden="true" />}
+            {unlocked ? 'Download certificate (PDF)' : `Unlocks at readiness ${CERTIFICATE_MIN_READINESS}`}
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }

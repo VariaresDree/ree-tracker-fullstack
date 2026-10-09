@@ -1,7 +1,9 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionCache, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
-import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
+import { generateQuestionsAI } from '../../services/geminiApi';
+import { TOS as fallbackTOS } from '../../config/constants';
+import { useAiExplanation } from '../quiz/useAiExplanation';
 import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
@@ -14,7 +16,10 @@ export const useReviewSession = (currentUser, isOnline) => {
     // Narrow, stable-reference slice on the per-answer hot path (avoids the
     // whole-store re-render storm); useStore.getState() below stays imperative.
     const { dynamicTOS, setStats, recordAttempt, queuePendingWrite, startSession: startStoreSession, endSession: endStoreSession } = useEngineActionsSlice();
-    const safeTOS = dynamicTOS || {};
+    // The built-in syllabus when the live one is empty (a new device offline,
+    // or a taxonomy fetch that returned nothing): the subject and topic lists
+    // were blank, and a session could not be set up at all.
+    const safeTOS = dynamicTOS && Object.keys(dynamicTOS).length > 0 ? dynamicTOS : fallbackTOS;
 
     const [config, setConfig] = useState({
         studyMode: 'subject', sessionMode: 'mcq',
@@ -28,12 +33,13 @@ export const useReviewSession = (currentUser, isOnline) => {
         isAnswered: false, isFlipped: false,
         confidence: null, selectedOption: null, wrongSelection: null,
         totalAnswered: 0, correctHits: 0,
-        showAi: false, aiLoading: false, showOffline: false
     });
 
     const [elapsedTime, setElapsedTime] = useState(0);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // AI explanations, keyed by question (features/quiz/useAiExplanation).
+    const ai = useAiExplanation(currentUser?.uid);
     // The finished session's summary (buildSessionSummary.js), shown until the
     // learner starts another session or dismisses it. Null after a session
     // with no answers.
@@ -54,6 +60,8 @@ export const useReviewSession = (currentUser, isOnline) => {
     const startTimeRef = useRef(Date.now());
     const sessionStartRef = useRef(Date.now());
     const telemetryBatchRef = useRef([]);
+    // Set while endSession runs, so leaving mid-save doesn't record it twice.
+    const endingRef = useRef(false);
 
     // 🚀 High-Performance Absolute Timer
     useEffect(() => {
@@ -70,7 +78,10 @@ export const useReviewSession = (currentUser, isOnline) => {
     // setConfig round-trip; the form state is synced so the custom panel
     // reflects what actually ran.
     const startSession = async (overrides = null) => {
-        const cfg = overrides ? { ...config, ...overrides } : config;
+        // A preset's own question list (itemsPreset) never lands in the form
+        // config: it would ride along into every later session.
+        // eslint-disable-next-line no-unused-vars
+        const { items: _presetItems, ...cfg } = overrides ? { ...config, ...overrides } : config;
         // A drill's target comes ONLY from the launching preset (a Today
         // action, a heatmap tile). Read from `cfg` it would survive into the
         // next untargeted weak-spot drill, since overrides are merged into the
@@ -82,7 +93,12 @@ export const useReviewSession = (currentUser, isOnline) => {
             let freshData = [];
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
-            if (cfg.source === 'srs-due') {
+            if (cfg.source === 'items') {
+                // A fixed set handed over by the preset (a past sitting's
+                // misses). It needs no request, so it runs offline too.
+                freshData = Array.isArray(target.items) ? target.items.filter((q) => q?.id && q.text) : [];
+                if (freshData.length === 0) throw new Error("There's nothing to practise from that sitting.");
+            } else if (cfg.source === 'srs-due') {
                 if (!isOnline) throw new Error("The review queue needs a connection.");
                 freshData = await fetchSrsDue(cfg.count || 20, cfg.subject);
                 if (!freshData || freshData.length === 0) throw new Error("Nothing is due for review right now.");
@@ -109,13 +125,19 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (freshData.length === 0) throw new Error("None of your bookmarks match this subject or topic.");
             } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("The AI generator needs a connection.");
-                // Random topic within the subject (not always the first) so
-                // consecutive AI sessions vary.
-                const topics = safeTOS[cfg.subject] || [];
-                const targetTopic = cfg.studyMode === 'subtopic'
+                // "All subjects" picks one subject for this batch; it used to
+                // ask the model for subject "All", topic "General". Then a
+                // random topic within it (not always the first) so consecutive
+                // AI sessions vary.
+                const subjects = Object.keys(safeTOS).filter((k) => (safeTOS[k] || []).length > 0);
+                const aiSubject = cfg.subject && cfg.subject !== 'All'
+                    ? cfg.subject
+                    : (subjects[Math.floor(Math.random() * subjects.length)] || 'EE');
+                const topics = safeTOS[aiSubject] || [];
+                const targetTopic = cfg.studyMode === 'subtopic' && cfg.subtopic && cfg.subtopic !== 'All'
                     ? cfg.subtopic
                     : (topics[Math.floor(Math.random() * topics.length)] || 'General');
-                freshData = await generateQuestionsAI(cfg.subject, targetTopic, false);
+                freshData = await generateQuestionsAI(aiSubject, targetTopic, false);
 
                 // AI questions have no DB id, so their attempts were silently
                 // dropped by both the client (recordAttempt requires an id) and
@@ -160,12 +182,16 @@ export const useReviewSession = (currentUser, isOnline) => {
             const finalSessionQuestions = stratifiedSample(filteredData, cfg.count || 20);
 
             telemetryBatchRef.current = [];
+            endingRef.current = false;
             startTimeRef.current = Date.now();
             sessionStartRef.current = Date.now();
             setElapsedTime(0);
             sessionConfigRef.current = cfg.source === 'smart-drill'
                 ? { ...cfg, drillTopicId: target.drillTopicId ?? null, drillTopic: target.drillTopic ?? null, drillSubject: target.drillSubject ?? null, drillMode: target.drillMode ?? null }
-                : cfg;
+                : cfg.source === 'items'
+                    // "Practise again" repeats the same set.
+                    ? { ...cfg, items: freshData }
+                    : cfg;
             setLastSummary(null);
 
             // Bracket the session in the store so the per-answer events know
@@ -179,7 +205,6 @@ export const useReviewSession = (currentUser, isOnline) => {
                 isAnswered: false, isFlipped: false,
                 confidence: null, selectedOption: null, wrongSelection: null,
                 totalAnswered: 0, correctHits: 0,
-                showAi: false, aiLoading: false, showOffline: false
             });
         } catch (error) {
             toast.error(error.message);
@@ -278,13 +303,13 @@ export const useReviewSession = (currentUser, isOnline) => {
                 ...prev, currentIndex: prev.currentIndex + 1,
                 isAnswered: false, isFlipped: false,
                 confidence: null, selectedOption: null, wrongSelection: null,
-                showAi: false, showOffline: false
             }));
         }
     };
 
     const endSession = async () => {
         if (isSubmitting) return;
+        endingRef.current = true;
         setIsSubmitting(true);
 
         const hasBatch = telemetryBatchRef.current.length > 0;
@@ -412,44 +437,52 @@ export const useReviewSession = (currentUser, isOnline) => {
         if (!currentQ?.id) return toast.error("Cannot flag dynamic items.");
         try {
             await updateQuestionInBank(currentQ.id, { isFlagged: true });
-            setSession(prev => {
-                const newQs = [...prev.questions];
-                newQs[prev.currentIndex] = { ...currentQ, isFlagged: true };
-                return { ...prev, questions: newQs };
-            });
+            // By id: the learner may have moved on while the request ran, and
+            // writing to the current index flagged the next question instead.
+            setSession(prev => ({
+                ...prev,
+                questions: prev.questions.map(q => (q.id === currentQ.id ? { ...q, isFlagged: true } : q)),
+            }));
             toast.success("Thanks — we'll review this question.");
         } catch { toast.error("Flag failed."); }
     };
 
-    // `force` = Regenerate: skip the cached short-circuit and overwrite the
-    // stored explanation (the server PUT is an idempotent overwrite).
-    const fetchOrToggleAI = async (force = false) => {
-        if (!force && session.showAi) { setSession(prev => ({ ...prev, showAi: false })); return; }
-        const currentQ = session.questions[session.currentIndex];
-        if (!force && currentQ.cachedExplanation) {
-            setSession(prev => ({ ...prev, showAi: true, aiResponse: currentQ.cachedExplanation })); return;
-        }
+    // AI explanations are kept per question (useAiExplanation), so moving on
+    // while one loads can no longer attach it to the next question.
+    const explainQuestion = (question, opts) => ai.explain(question, opts);
 
-        setSession(prev => ({ ...prev, showAi: true, aiLoading: true }));
-        try {
-            const resp = await generateMasterExplanation(currentQ);
-            if (currentQ.id) await updateQuestionCache(currentQ.id, resp);
-            setSession(prev => {
-                const newQs = [...prev.questions];
-                newQs[prev.currentIndex] = { ...currentQ, cachedExplanation: resp };
-                return { ...prev, questions: newQs, aiResponse: resp, aiLoading: false };
+    // Leaving Practice mid-session (another tab, Back) used to drop the
+    // session: the answers were already queued, but the study-session record
+    // and the store's session pointer were left behind. Queue the record
+    // durably and close the session; there is no screen left to show a summary.
+    const leaveRef = useRef(null);
+    useEffect(() => {
+        leaveRef.current = () => {
+            if (endingRef.current || !session.isActive || telemetryBatchRef.current.length === 0) return;
+            const batch = telemetryBatchRef.current;
+            telemetryBatchRef.current = [];
+            queuePendingWrite('/api/analytics/study-sessions', 'POST', {
+                mode: config.sessionMode,
+                subject: config.subject,
+                subtopic: config.subtopic === 'All' ? null : config.subtopic,
+                totalQuestions: batch.length,
+                correctAnswers: batch.filter(a => a.isCorrect).length,
+                durationSecs: Math.floor((Date.now() - sessionStartRef.current) / 1000),
             });
-        } catch {
-            toast.error("AI explanation unavailable right now.");
-            setSession(prev => ({ ...prev, aiLoading: false, showAi: false }));
-        }
-    };
+            endStoreSession();
+        };
+    });
+    useEffect(() => () => leaveRef.current?.(), []);
+
+    const activeQ = session.questions[session.currentIndex];
 
     return {
+        aiText: activeQ ? ai.textFor(activeQ) : null,
+        aiLoading: activeQ ? ai.isLoading(activeQ) : false,
         config, setConfig, session, setSession, elapsedTime, bookmarks,
         startSession, endSession, loadNextQuestion, 
         handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
-        toggleBookmark, handleFlagQuestion, fetchOrToggleAI, safeTOS, isSubmitting,
+        toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
         lastSummary, clearSummary: () => setLastSummary(null),
     };
 };

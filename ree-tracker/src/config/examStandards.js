@@ -25,28 +25,10 @@ export const PRC_FORMAT_SUMMARY = [
   ['Math', 'Mathematics'], ['ESAS', 'ESAS'], ['EE', 'EE'],
 ].map(([label, key]) => `${label} ${hoursLabel(PRC_EXAM_FORMAT[key].minutes)}`).join(' · ');
 
-// Gauntlet progression.
-//   Levels 1–4: BLENDED tiers (all subjects), gated by lifetime answered-count
-//               (`reqQs`) + sequential level, pass at 70% advances gauntletLevel.
-//   Levels 5–7: per-subject BOARD exams (100 items each at their board time),
-//               unlocked ONLY after the blended progression is cleared
-//               (gauntletLevel >= 5). Passing a subject level records completion
-//               but does NOT advance the linear level (they're parallel endgame
-//               exams, not a ladder).
-export const GAUNTLET_TIERS = [
-  { level: 1, name: 'Warm-up',           subject: 'BLENDED',     items: 50,  timeLimitSecs: 75 * 60,          reqQs: 200 },
-  { level: 2, name: 'Stretch',           subject: 'BLENDED',     items: 75,  timeLimitSecs: 110 * 60,         reqQs: 500 },
-  { level: 3, name: 'Full length',       subject: 'BLENDED',     items: 100, timeLimitSecs: 150 * 60,         reqQs: 1000 },
-  { level: 4, name: 'Pressure round',    subject: 'BLENDED',     items: 100, timeLimitSecs: 120 * 60,         reqQs: 2000 },
-  { level: 5, name: 'Mathematics Board', subject: 'Mathematics', items: 100, timeLimitSecs: PRC_TIMES.Mathematics, unlockAfterBlended: true },
-  { level: 6, name: 'ESAS Board',        subject: 'ESAS',        items: 100, timeLimitSecs: PRC_TIMES.ESAS,        unlockAfterBlended: true },
-  { level: 7, name: 'EE Board',          subject: 'EE',          items: 100, timeLimitSecs: PRC_TIMES.EE,          unlockAfterBlended: true },
-];
-
-// Number of blended tiers that must be cleared before the subject boards unlock.
-// Clearing tier 4 advances gauntletLevel to 5, which is the unlock threshold.
-export const BLENDED_TIER_COUNT = GAUNTLET_TIERS.filter((t) => t.subject === 'BLENDED').length;
-export const SUBJECT_UNLOCK_LEVEL = BLENDED_TIER_COUNT + 1; // 5
-
-export const getGauntletTier = (level) => GAUNTLET_TIERS.find((t) => t.level === Number(level)) || null;
-export const isSubjectTier = (tier) => !!tier && tier.subject !== 'BLENDED';
+// Gauntlet progression: the tiers, the unlock level and the lock live in
+// @ree/shared (gauntlet.js), because the server now applies the same ladder
+// rule when it grades a run. Re-exported so existing imports keep working.
+export {
+  GAUNTLET_TIERS, BLENDED_TIER_COUNT, SUBJECT_UNLOCK_LEVEL, GAUNTLET_LOCK_MS,
+  getGauntletTier, isSubjectTier,
+} from '@ree/shared';

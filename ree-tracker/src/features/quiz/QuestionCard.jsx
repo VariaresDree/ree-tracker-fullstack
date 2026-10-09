@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
 import { answerAnnouncement } from './answerAnnouncement';
+import { shouldIgnoreHotkey } from '../../utils/hotkeys';
 
 const CONFIDENCE_LEVELS = ['LOW', 'MED', 'HIGH'];
 const HOTKEY_TO_CONFIDENCE = { q: 'LOW', w: 'MED', e: 'HIGH' };
@@ -95,12 +96,13 @@ export default function QuestionCard({
 
   // Hotkeys — opt-in so parents that manage their own keyboard (Simulator's
   // arrow-key navigation) don't double-bind. Q/W/E pick confidence, 1-4 / A-D
-  // pick options. Skips when focus is in a form field.
+  // pick options. Skips modifier chords, form fields and open dialogs.
   useEffect(() => {
     if (!hotkeys || isReviewing) return undefined;
     const onKey = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (tag && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+      // Ctrl/Cmd+C used to pick option C; a key pressed behind a confirm
+      // dialog changed the answer underneath it.
+      if (shouldIgnoreHotkey(e)) return;
       const key = e.key.toLowerCase();
       if (HOTKEY_TO_CONFIDENCE[key] && onConfidenceChange) {
         onConfidenceChange(HOTKEY_TO_CONFIDENCE[key]);

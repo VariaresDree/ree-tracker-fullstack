@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import LogoutConfirm from '../components/LogoutConfirm';
 import { User, ShieldCheck, LogOut } from '../components/ui/icons';
+import Avatar from '../components/Avatar';
 
 const ITEM = 'touch-target flex items-center gap-3 w-full px-3 py-2.5 rounded-[var(--radius-default)] text-sm text-textMain hover:bg-surface2 text-left cursor-pointer';
 
@@ -21,7 +22,6 @@ export default function AccountMenu() {
   const panelId = useId();
 
   const name = currentUser?.displayName || 'Reviewer';
-  const initial = (currentUser?.displayName || currentUser?.email || 'R').charAt(0).toUpperCase();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -56,9 +56,7 @@ export default function AccountMenu() {
         onClick={() => setOpen((v) => !v)}
         className="touch-target inline-flex items-center justify-center rounded-full cursor-pointer"
       >
-        <span className="w-9 h-9 rounded-full bg-gradient-to-tr from-[var(--accent)] to-[var(--accent-signal)] flex items-center justify-center text-white font-bold text-sm" aria-hidden="true">
-          {initial}
-        </span>
+        <Avatar user={currentUser} />
       </button>
 
       {open && (

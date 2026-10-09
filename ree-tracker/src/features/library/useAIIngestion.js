@@ -19,7 +19,11 @@ export const useAIIngestion = (onIngestSuccess) => {
   // device, or question style). Blank = generation behaves exactly as before.
   const [genFocus, setGenFocus] = useState('');
   const [genLoading, setGenLoading] = useState(false);
-  const [genStatus, setGenStatus] = useState('');
+  const [genStatus, setGenStatusText] = useState('');
+  // 'success' | 'error' | null — colours the result strip. It used to be read
+  // off a ✅ / ❌ at the start of the message.
+  const [genTone, setGenTone] = useState(null);
+  const setGenStatus = (text, tone = null) => { setGenStatusText(text); setGenTone(tone); };
   const [recentGenerations, setRecentGenerations] = useState([]);
 
   // --- VISION & UPLOAD STATES ---
@@ -44,7 +48,7 @@ export const useAIIngestion = (onIngestSuccess) => {
   // =========================================================================
   const handleGenerate = async (useWeb) => {
     setGenLoading(true);
-    setGenStatus(useWeb ? 'Querying grounded web data...' : 'Querying internal logic core...');
+    setGenStatus(useWeb ? 'Generating from web sources…' : 'Generating…');
     try {
       const newQs = await generateQuestionsAI(genSubject, genSubtopic, useWeb, 5, recentGenerations, genFocus.trim() || null);
 
@@ -67,14 +71,14 @@ export const useAIIngestion = (onIngestSuccess) => {
           return updated.slice(-15);
         });
 
-        setGenStatus(`✅ Generated ${newQs.length} items! Routed to Quarantine Queue.`);
+        setGenStatus(`Generated ${newQs.length} questions. They wait in the review queue until approved.`, 'success');
         toast.success(`${newQs.length} questions sent to the review queue.`);
         if(onIngestSuccess) onIngestSuccess(true);
       } else {
-        setGenStatus('❌ Sync Error. Confirm AI network state.');
+        setGenStatus("Couldn't save the generated questions. Check the connection and try again.", 'error');
       }
     } catch (err) {
-      setGenStatus('❌ Generation failed.');
+      setGenStatus('Generation failed. Try again.', 'error');
       toast.error(`AI generation failed: ${err.message}`);
     }
     setGenLoading(false);
@@ -96,7 +100,7 @@ export const useAIIngestion = (onIngestSuccess) => {
     if (!validTypes.includes(file.type)) return toast.error("Invalid format. Please use PDF or Image.");
     
     setSelectedPdf(file);
-    setGenStatus(`File acquired: ${file.name}. Ready for extraction block.`);
+    setGenStatus(`${file.name} is ready. Extract the questions when you are.`);
   };
 
   const handlePdfSelect = (e) => handleDrop(e);
@@ -108,9 +112,9 @@ export const useAIIngestion = (onIngestSuccess) => {
       if (newQs && newQs.length > 0) {
           setGeneratedQuestions(newQs);
           setShowQAModal(true);
-          setGenStatus(`✅ Successfully extracted ${newQs.length} items! QA required.`);
+          setGenStatus(`Extracted ${newQs.length} questions. Check them before they go to the bank.`, 'success');
       } else {
-          setGenStatus('❌ AI failed to forge questions from source.');
+          setGenStatus("Couldn't extract questions from this file.", 'error');
       }
       setParsingPdf(false);
       setSelectedPdf(null);
@@ -119,11 +123,11 @@ export const useAIIngestion = (onIngestSuccess) => {
   const executePdfExtraction = async () => {
     if (!selectedPdf) return;
     setParsingPdf(true);
-    setGenStatus('Initiating extraction matrix...');
+    setGenStatus('Starting extraction…');
 
     try {
       if (selectedPdf.type.startsWith('image/')) {
-         setGenStatus('Scanning image topology...');
+         setGenStatus('Reading the image…');
          if (typeof generateQuestionsFromImages === 'function') {
              const newQs = await generateQuestionsFromImages(selectedPdf, genSubject, genSubtopic, 5);
              handleExtractionSuccess(newQs);
@@ -131,7 +135,7 @@ export const useAIIngestion = (onIngestSuccess) => {
              throw new Error("Vision AI module missing or disconnected.");
          }
       } else if (selectedPdf.type === 'application/pdf') {
-         setGenStatus('Booting background worker thread...');
+         setGenStatus('Reading the PDF…');
          const arrayBuffer = await selectedPdf.arrayBuffer();
          const worker = new PdfWorker();
 
@@ -140,18 +144,18 @@ export const useAIIngestion = (onIngestSuccess) => {
            if (type === 'progress') {
              setGenStatus(message);
            } else if (type === 'success') {
-             setGenStatus('Transmitting extracted text to Gemini Core...');
+             setGenStatus('Finding the questions in the text…');
              try {
                const newQs = await generateQuestionsFromText(text, genSubject, genSubtopic, 5);
                handleExtractionSuccess(newQs);
              } catch (err) {
-               setGenStatus('❌ AI Processing failed.');
+               setGenStatus("Couldn't process the file. Try again.", 'error');
                toast.error(`Error: ${err.message}`);
                setParsingPdf(false);
              }
              worker.terminate();
            } else if (type === 'error') {
-             setGenStatus('❌ Worker thread failed.');
+             setGenStatus("Couldn't read the PDF. Try again.", 'error');
              toast.error(`Error: ${error}`);
              worker.terminate();
              setParsingPdf(false);
@@ -160,7 +164,7 @@ export const useAIIngestion = (onIngestSuccess) => {
          worker.postMessage({ arrayBuffer });
       }
     } catch (error) {
-       setGenStatus('❌ Extraction failed.');
+       setGenStatus('Extraction failed. Try again.', 'error');
        toast.error(`Error: ${error.message}`);
        setParsingPdf(false);
     }
@@ -208,7 +212,7 @@ export const useAIIngestion = (onIngestSuccess) => {
   return {
     genSubject, setGenSubject, genSubtopic, setGenSubtopic,
     genFocus, setGenFocus,
-    genLoading, genStatus, parsingPdf, selectedPdf,
+    genLoading, genStatus, genTone, parsingPdf, selectedPdf,
     isDragging, handleDragOver, handleDragLeave, handleDrop,
     generatedQuestions, showQAModal, setShowQAModal, isCommitting,
     handleGenerate, handlePdfSelect, executePdfExtraction,

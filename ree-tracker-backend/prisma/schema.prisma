@@ -65,6 +65,12 @@ model User {
   eloRating          Int       @default(1200)
   tier               String    @default("BRONZE")
   gauntletLevel      Int       @default(1)
+  // Server-side Gauntlet ladder (migration 20261010000000): the 12-hour lock,
+  // the subject boards cleared, and when the server last wrote them (null =
+  // never — the first graded run adopts the device's level once).
+  gauntletLockUntil   DateTime?
+  gauntletBoardClears String[]  @default([])
+  gauntletUpdatedAt   DateTime?
   battleOutcomes     BattleOutcome[]
 
   // --- V7: Phase 4.2 — FCM push (Capacitor native app) ---
@@ -290,6 +296,12 @@ model QuestionAttempt {
   // any payload without a usable timestamp) fall back to createdAt via COALESCE.
   // Server-clamped on write — see clampAnsweredAt in telemetryHelpers.
   answeredAt      DateTime?
+  // The option picked ('' = left blank; null = not recorded, e.g. a
+  // self-graded flashcard or a row from before 2026-10) and the item's
+  // position in its sitting — for the sitting review (migration
+  // 20261010000000).
+  selectedAnswer  String?
+  itemIndex       Int?
 
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   question        Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)

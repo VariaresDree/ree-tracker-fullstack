@@ -39,3 +39,10 @@ export const drillPreset = ({ topicId, topic, subject, mode, count = 10 } = {}) 
   drillSubject: subject || null,
   drillMode: mode || null,
 });
+
+/**
+ * A fixed set of questions, e.g. the items missed in a past sitting (Exams ›
+ * Past sittings › Review › Practise missed). The questions travel with the
+ * preset, so it works offline once they are on screen.
+ */
+export const itemsPreset = (items = []) => ({ ...BASE, count: items.length, source: 'items', items });

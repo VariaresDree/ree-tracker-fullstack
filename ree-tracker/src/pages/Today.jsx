@@ -15,7 +15,8 @@ import TodayPanel from '../features/today/TodayPanel';
 import SyllabusCoverageLink from '../features/syllabus/SyllabusCoverageLink';
 import { daysToExam } from '../features/today/todayActions';
 import { TodaySkeleton } from '../components/SkeletonLoaders';
-import { PageHeader, StatusPill } from '../components/ui';
+import StatsUnavailable from '../components/StatsUnavailable';
+import { Page, PageHeader, StatusPill } from '../components/ui';
 import { CalendarDays, Flame } from '../components/ui/icons';
 
 function examLabel(days) {
@@ -28,7 +29,7 @@ function ExamCountdown({ examDate }) {
   const days = daysToExam(examDate);
   if (days == null) {
     return (
-      <Link to="/account#exam-plan" className="text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">
+      <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">
         Set your exam date
       </Link>
     );
@@ -43,12 +44,20 @@ function ExamCountdown({ examDate }) {
 
 export default function Today() {
   const { currentUser } = useAuth();
-  const { activeStats, readiness, loading, kpi, today } = useDashboardStats({ withReadiness: true });
+  const { activeStats, readiness, readinessSettled, loading, unavailable, retry, kpi, today } = useDashboardStats({ withReadiness: true });
 
   if (loading) return <TodaySkeleton />;
+  if (unavailable) {
+    return (
+      <Page>
+        <PageHeader title="Today" subtitle={`Welcome back, ${currentUser?.displayName || 'Reviewer'}.`} />
+        <StatsUnavailable onRetry={retry} />
+      </Page>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in w-full max-w-5xl mx-auto">
+    <Page>
       <PageHeader
         title="Today"
         subtitle={`Welcome back, ${currentUser?.displayName || 'Reviewer'}.`}
@@ -67,7 +76,7 @@ export default function Today() {
 
       {/* Keyed on the date so a new day remounts the panel: the forecast,
           due reviews, plan task and readiness trend all refetch. */}
-      <TodayPanel key={today} today={today} stats={activeStats} readiness={readiness} uid={currentUser?.uid} answered={kpi.answered} />
-    </div>
+      <TodayPanel key={today} today={today} stats={activeStats} readiness={readiness} readinessSettled={readinessSettled} uid={currentUser?.uid} answered={kpi.answered} />
+    </Page>
   );
 }

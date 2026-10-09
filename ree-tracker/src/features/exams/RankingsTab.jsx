@@ -13,13 +13,17 @@ import YourRankCard from './YourRankCard';
 
 const PAGE = 20;
 
-// Podium colors are data-viz (gold/silver/bronze), kept as literal values on
-// purpose — they encode rank, not brand.
-const rankBadge = (index) => {
-  if (index === 0) return 'bg-[#facc15]/20 border-[#facc15] text-[#facc15]';
-  if (index === 1) return 'bg-[#d1d5db]/20 border-[#d1d5db] text-[#d1d5db]';
-  if (index === 2) return 'bg-[#b45309]/20 border-[#b45309] text-[#b45309]';
-  return 'bg-surface2 border-border2 text-muted';
+// Podium colours encode rank, not brand: the --rank-* tokens, with the
+// number mixed toward the text colour so it reads on light themes too.
+const RANK_HUE = ['var(--rank-gold)', 'var(--rank-silver)', 'var(--rank-bronze)'];
+const rankStyle = (index) => {
+  const hue = RANK_HUE[index];
+  if (!hue) return undefined;
+  return {
+    background: `color-mix(in srgb, ${hue} 18%, transparent)`,
+    borderColor: hue,
+    color: `color-mix(in srgb, ${hue} 55%, var(--text-main))`,
+  };
 };
 
 // One expanded-detail stat cell.
@@ -53,7 +57,10 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
         className="w-full grid grid-cols-12 gap-3 p-3 items-center text-left rounded-[var(--radius-default)] cursor-pointer hover-glow"
       >
         <div className="col-span-2 sm:col-span-1 flex justify-center">
-          <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rank ? rankBadge(rank - 1) : rankBadge(-1)}`}>
+          <div
+            className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rank && rank <= 3 ? '' : 'bg-surface2 border-border2 text-muted'}`}
+            style={rank ? rankStyle(rank - 1) : undefined}
+          >
             {rank ?? '—'}
           </div>
         </div>
@@ -100,6 +107,9 @@ export default function RankingsTab() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+  // A failed load shows an error with Try again — it used to fall through to
+  // "No rankings yet", as if nobody had answered a question.
+  const [loadError, setLoadError] = useState(false);
   // Load the rankings ONCE per mount / reconnect. An older effect depended on
   // `leaderboard` and re-fired whenever it changed; offline,
   // fetchPaginatedLeaderboard returns a fresh [] each call, so the empty-array
@@ -121,9 +131,10 @@ export default function RankingsTab() {
         setLeaderboard(agents || []);
         setLastDoc(newLastDoc);
         setHasMore((agents || []).length === PAGE);
+        setLoadError(false);
       } catch {
         rankingsLoadedRef.current = false;          // transient failure — allow a retry
-        toast.error("Couldn't load the rankings.");
+        setLoadError(true);
       }
       setIsLoadingRankings(false);
     })();
@@ -179,9 +190,10 @@ export default function RankingsTab() {
       setLeaderboard(agents || []);
       setLastDoc(newLastDoc);
       setHasMore((agents || []).length === PAGE);
+      setLoadError(false);
       rankingsLoadedRef.current = true;         // mark loaded so the effect won't re-fetch
     } catch {
-      toast.error("Couldn't load the rankings. Try again.");
+      setLoadError(true);
     }
     setIsLoadingRankings(false);
   };
@@ -216,12 +228,19 @@ export default function RankingsTab() {
               <span className="text-xs font-bold text-muted2 uppercase tracking-widest animate-pulse">Loading rankings…</span>
             </div>
           ) : (leaderboard || []).length === 0 ? (
-            !isOnline ? (
+            loadError && isOnline ? (
+              <EmptyState
+                icon={Trophy}
+                title="Couldn't load the rankings"
+                description="Something went wrong on our side or the connection dropped."
+                action={<Button onClick={retryRankings}>Try again</Button>}
+              />
+            ) : !isOnline ? (
               <EmptyState
                 icon={Trophy}
                 title="You're offline"
                 description="Reconnect to view the rankings."
-                action={<Button onClick={retryRankings}>Retry</Button>}
+                action={<Button onClick={retryRankings}>Try again</Button>}
               />
             ) : (
               <EmptyState

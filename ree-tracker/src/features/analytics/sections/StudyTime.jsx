@@ -2,6 +2,7 @@
 // Daily study time over the last 14 Manila days (deep/study-time).
 import { useDeepAnalytics } from '../useDeepAnalytics';
 import { BarList, DeepStatus, SectionCard, StatTile } from './shared';
+import { formatDuration as fmtDuration } from '../../../utils/time';
 
 // 'YYYY-MM-DD' (Manila-keyed by the server) → 'Jul 3' without a timezone
 // round-trip: new Date('YYYY-MM-DD') is UTC midnight and re-localizing can
@@ -20,7 +21,6 @@ const lastManilaDays = (n) => {
   return days;
 };
 
-const fmtDuration = (secs) => (secs >= 3600 ? `${(secs / 3600).toFixed(1)}h` : `${Math.round(secs / 60)}min`);
 
 export default function StudyTime() {
   const { data, status, retry } = useDeepAnalytics('study-time');
@@ -50,7 +50,9 @@ export default function StudyTime() {
             </div>
             <div className="flex flex-col gap-2">
               <h3 className="text-eyebrow">Minutes per day, last 14 days</h3>
-              <BarList items={window14} valueKey="minutes" labelKey="shortDate" empty="" />
+              {/* All 14 days. The list's 12-row default cut the two newest — today
+                  and yesterday — off a list ordered oldest first. */}
+              <BarList items={window14} valueKey="minutes" labelKey="shortDate" empty="" limit={window14.length} />
             </div>
           </div>
         )}

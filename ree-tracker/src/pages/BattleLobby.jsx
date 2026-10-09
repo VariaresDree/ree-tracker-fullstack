@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
@@ -19,22 +20,33 @@ export default function BattleLobby() {
         battleStatus,
         battleConfig,
         results,
+        error,
         startBattle
     } = useBattleSocket(battleId);
 
+    // Only players connected now can take part: the server drops anyone
+    // disconnected when the battle starts.
+    const present = participants.filter(p => p.connected !== false);
     const isHost = participants.some(p => p.id === currentUser?.uid && p.isHost);
-    const canStart = isHost && participants.length >= 2 && battleStatus === 'WAITING';
-    const waitingForHost = !isHost && battleStatus === 'WAITING' && participants.length >= 2;
+    const canStart = isHost && present.length >= 2 && battleStatus === 'WAITING';
+    const waitingForHost = !isHost && battleStatus === 'WAITING' && present.length >= 2;
+    const [starting, setStarting] = useState(false);
 
-    const copyInviteLink = () => {
+    const copyInviteLink = async () => {
         const text = `Join my live REE.ai Board Battle!\n\nBattle code: ${battleId}`;
-        navigator.clipboard.writeText(text);
-        toast.success("Battle code copied — send it to your opponents.");
+        try {
+            await navigator.clipboard.writeText(text);
+            toast.success("Battle code copied — send it to your opponents.");
+        } catch {
+            toast.error(`Couldn’t copy. The code is ${battleId}.`);
+        }
     };
 
+    // "Battle started!" used to show before the server agreed; the status
+    // change (battle-started) now moves the screen on.
     const handleStartBattle = () => {
+        setStarting(true);
         startBattle();
-        toast.success("Battle started!");
     };
 
     const handleEnterChamber = () => {
@@ -50,12 +62,33 @@ export default function BattleLobby() {
                     <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
                 </Button>
                 <EmptyState
+                    titleAs="h1"
                     icon={Swords}
                     title={isOnline ? "Can't reach the battle server" : "You're offline"}
                     description={isOnline
                         ? 'The live battle server is unreachable right now. Check your connection and try again.'
                         : 'Live battles need an internet connection. Reconnect, then retry.'}
                     action={<Button onClick={() => window.location.reload()}>Retry</Button>}
+                />
+            </div>
+        );
+    }
+
+    // The server refused us (the battle already started, is full, or is gone)
+    // and we're not a player in it: say so instead of "Waiting for players".
+    const amIn = participants.some(p => p.id === currentUser?.uid);
+    if (error && !amIn && !results) {
+        return (
+            <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
+                <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/exams?tab=battles')}>
+                    <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
+                </Button>
+                <EmptyState
+                    titleAs="h1"
+                    icon={Swords}
+                    title="You can’t join this battle"
+                    description={error}
+                    action={<Button onClick={() => navigate('/exams?tab=battles')}>Host or join another</Button>}
                 />
             </div>
         );
@@ -134,7 +167,7 @@ export default function BattleLobby() {
                     <h2 className="text-sm font-semibold text-textMain flex items-center gap-2">
                         <Users size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-signal)]" /> Players
                     </h2>
-                    <StatusPill tone="success">{participants.length} online</StatusPill>
+                    <StatusPill tone="success">{present.length} online</StatusPill>
                 </div>
                 <div className="p-4 flex flex-col gap-2">
                     {participants.length === 0 ? (
@@ -222,8 +255,11 @@ export default function BattleLobby() {
                                     {r.id === currentUser?.uid && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
                                 </div>
                                 <div className="text-right shrink-0">
-                                    <div className="text-lg font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{r.score}/{r.itemsAnswered}</div>
-                                    <div className="text-[11px] text-muted font-mono tabular-nums">{Math.round(r.timeTakenSecs / 60)}m</div>
+                                    <div className="text-lg font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{r.score}/{r.total ?? battleConfig?.questionCount ?? r.itemsAnswered}</div>
+                                    <div className="text-[11px] text-muted font-mono tabular-nums">
+                                        {Math.round(r.timeTakenSecs / 60)}m
+                                        {r.elo && Number.isFinite(r.elo.delta) && <> · rating {r.elo.delta >= 0 ? '+' : '−'}{Math.abs(Math.round(r.elo.delta))}</>}
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -238,12 +274,12 @@ export default function BattleLobby() {
                 </Button>
 
                 {canStart && (
-                    <Button tone="success" className="flex-1" onClick={handleStartBattle}>
-                        Start battle ({participants.length} players)
+                    <Button tone="success" className="flex-1" onClick={handleStartBattle} loading={starting} disabled={starting}>
+                        Start battle ({present.length} players)
                     </Button>
                 )}
 
-                {battleStatus === 'WAITING' && isHost && participants.length < 2 && (
+                {battleStatus === 'WAITING' && isHost && present.length < 2 && (
                     <span aria-live="polite" className="flex-1 flex items-center justify-center">
                         <StatusPill tone="amber" dot>Waiting for another player to join</StatusPill>
                     </span>

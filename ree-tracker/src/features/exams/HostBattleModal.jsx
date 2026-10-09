@@ -21,9 +21,13 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
     count: 20,
     timeLimitMins: 30,
   });
+  // A second tap while the first request ran created a second lobby.
+  const [creating, setCreating] = useState(false);
 
   const handleDeployLobby = async () => {
+    if (creating) return;
     if (!isOnline) return toast.error("You're offline — hosting a battle needs a connection.");
+    setCreating(true);
     const toastId = toast.loading('Creating your lobby…');
     try {
       const { createMultiplayerBattle } = await import('../../services/dbQueries');
@@ -54,6 +58,8 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         ? "You're offline — hosting a battle needs a connection."
         : (error?.message || "Couldn't create the lobby.");
       toast.error(msg, { id: toastId });
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -69,8 +75,8 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
       eyebrow="Battles"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleDeployLobby}>Create lobby</Button>
+          <Button variant="secondary" onClick={onClose} disabled={creating}>Cancel</Button>
+          <Button onClick={handleDeployLobby} loading={creating} disabled={creating}>Create lobby</Button>
         </>
       }
     >

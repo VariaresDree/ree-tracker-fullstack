@@ -172,6 +172,26 @@ describe('QuestionCard — hotkeys (opt-in)', () => {
     expect(onConfidenceChange).not.toHaveBeenCalled();
     input.remove();
   });
+
+  it('Ctrl/Cmd+C copies instead of picking option C', () => {
+    const { onSelect, onConfidenceChange } = Harness({ hotkeys: true, confidence: 'HIGH' });
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'c', metaKey: true });
+    fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onConfidenceChange).not.toHaveBeenCalled();
+  });
+
+  it('keys pressed behind an open dialog do not change the answer', () => {
+    const { onSelect } = Harness({ hotkeys: true, confidence: 'HIGH' });
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    document.body.appendChild(dialog);
+    fireEvent.keyDown(window, { key: 'a' });
+    expect(onSelect).not.toHaveBeenCalled();
+    dialog.remove();
+  });
 });
 
 describe('QuestionCard — reviewing state', () => {

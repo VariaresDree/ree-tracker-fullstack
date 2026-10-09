@@ -35,4 +35,5 @@ module.exports = {
     ...require('./displayName'),
     ...require('./outsideScores'),
     ...require('./syllabus'),
+    ...require('./gauntlet'),
 };

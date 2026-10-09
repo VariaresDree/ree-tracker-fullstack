@@ -70,3 +70,49 @@ describe('POST /api/exams/grade', () => {
         expect(res.body.error).toMatch(/not saved/i);
     });
 });
+
+describe('POST /api/exams/grade — Gauntlet ladder', () => {
+    const gauntletService = require('../src/services/gauntletService');
+    const RUN = { level: 2, runId: 'run-abcdef12', knownLevel: 2, startedAt: '2026-10-09T08:00:00Z', finishedAt: '2026-10-09T09:00:00Z' };
+
+    it('records the run under its id and returns the server’s ladder', async () => {
+        recordAttempts.mockResolvedValue({ written: 1 });
+        const apply = vi.spyOn(gauntletService, 'applyGauntletRun').mockResolvedValue({ outcome: 'advanced', level: 3, lockUntil: null, boardClears: [] });
+        const res = await request(makeApp()).post('/api/exams/grade').set(as(UID)).send({ ...BODY, gauntlet: RUN });
+        expect(res.status).toBe(200);
+        expect(recordAttempts).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'run-abcdef12', mode: 'GAUNTLET' }));
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ userId: UID, runId: 'run-abcdef12', level: 2, knownLevel: 2 }));
+        expect(res.body.gauntlet).toMatchObject({ outcome: 'advanced', level: 3 });
+    });
+
+    it('a body without the block is graded exactly as before (old queued entries)', async () => {
+        recordAttempts.mockResolvedValue({ written: 1 });
+        const apply = vi.spyOn(gauntletService, 'applyGauntletRun');
+        const res = await request(makeApp()).post('/api/exams/grade').set(as(UID)).send(BODY);
+        expect(res.status).toBe(200);
+        expect(res.body.gauntlet).toBeNull();
+        expect(apply).not.toHaveBeenCalled();
+        expect(recordAttempts.mock.calls[0][0].sessionId).toBeUndefined();
+    });
+
+    it('a failed ladder write is retryable (503), the answers already saved', async () => {
+        recordAttempts.mockResolvedValue({ written: 1 });
+        vi.spyOn(gauntletService, 'applyGauntletRun').mockRejectedValue(new Error('deadlock'));
+        const res = await request(makeApp()).post('/api/exams/grade').set(as(UID)).send({ ...BODY, gauntlet: RUN });
+        expect(res.status).toBe(503);
+    });
+
+    it('leaving a run locks the ladder', async () => {
+        const forfeit = vi.spyOn(gauntletService, 'forfeitGauntletRun').mockResolvedValue({ outcome: 'forfeited', level: 2, lockUntil: 'x', boardClears: [] });
+        const res = await request(makeApp()).post('/api/exams/gauntlet/forfeit').set(as(UID)).send({ level: 2, runId: 'run-abcdef12', knownLevel: 2 });
+        expect(res.status).toBe(200);
+        expect(forfeit).toHaveBeenCalledWith(expect.objectContaining({ userId: UID, level: 2, knownLevel: 2 }));
+    });
+
+    it('the hard-deleting history route is gone', async () => {
+        const del = vi.spyOn(prisma.examSession, 'delete');
+        const res = await request(makeApp()).delete('/api/exams/history/sess-1').set(as(UID));
+        expect(res.status).toBe(404);
+        expect(del).not.toHaveBeenCalled();
+    });
+});

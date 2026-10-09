@@ -1,5 +1,6 @@
 // src/components/MediaViewer.jsx
 import ZoomableImage from './ZoomableImage';
+import { AudioWaveform } from './ui/icons';
 import { normalizePdfUrl } from '../utils/pdfUrl';
 
 const extractYouTubeId = (url) => {
@@ -32,7 +33,7 @@ export default function MediaViewer({ item }) {
     case 'audio':
       return (
         <div className="w-full p-6 bg-surface border border-border2 rounded-xl shadow-sm flex flex-col items-center gap-4 mt-8">
-          <div className="w-20 h-20 rounded-full bg-reePurple/10 border border-reePurple/30 flex items-center justify-center text-4xl shadow-[0_0_15px_rgba(139,92,246,0.2)] animate-pulse">🎙️</div>
+          <div className="w-20 h-20 rounded-full bg-reePurple/10 border border-reePurple/30 flex items-center justify-center text-[var(--brand-purple-text)]"><AudioWaveform size={32} strokeWidth={1.5} aria-hidden="true" /></div>
           <div className="text-sm font-bold text-textMain text-center mt-2">{item.title}</div>
           <div className="text-[11px] font-mono text-muted uppercase tracking-widest -mt-2">Audio</div>
           <audio controls className="w-full max-w-md mt-4 custom-audio-player">
@@ -45,7 +46,7 @@ export default function MediaViewer({ item }) {
       
     case 'image':
       return (
-        <div className="w-full h-[60vh] sm:h-[80vh]">
+        <div className="w-full h-[60dvh] sm:h-[80dvh]">
           <ZoomableImage src={item.url} alt={item.title} />
         </div>
       );
@@ -54,7 +55,7 @@ export default function MediaViewer({ item }) {
       const finalPdfUrl = normalizePdfUrl(item.url);
 
       return (
-        <div className="w-full h-[80vh] rounded-xl overflow-hidden border border-border2 shadow-sm bg-surface2 relative">
+        <div className="w-full h-[80dvh] rounded-xl overflow-hidden border border-border2 shadow-sm bg-surface2 relative">
           {/* 🚀 ROOT CAUSE FIXED: The strict "sandbox" attribute was removed. 
               Google Drive requires unrestricted iframe access to execute its own UI scripts. */}
           <iframe 
