@@ -1,7 +1,6 @@
 // src/services/dbQueries.js
 import { auth } from '../config/firebaseDb';
 import { invalidateDashboardSeed } from './dashboardSeed';
-import { get, set } from 'idb-keyval';
 import { fnv1a } from '../utils/contentHash';
 import { DEFAULT_SYLLABUS_WEIGHTS, fallbackDisplayName } from '@ree/shared';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
@@ -100,7 +99,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     let response;
     try {
         response = await fetch(url, options);
-    } catch (networkErr) {
+    } catch {
         // A timeout on a LONG-timeout call (AI generation) means "this request
         // was slow", not "the backend is down" — surface it without tripping
         // the circuit breaker, or one slow generation blocks every API call
@@ -234,7 +233,7 @@ export const syncTelemetryBatch = async (uid, sessionId, targetSubject, mode, at
         attempts,
     });
 };
-export const purgeUserAnalytics = async (uid) => apiRequest('/api/analytics/purge', 'DELETE');
+export const purgeUserAnalytics = async () => apiRequest('/api/analytics/purge', 'DELETE');
 
 // ----------------------------------------------------------------------
 // 2. Question Bank & Review Queue
@@ -481,7 +480,7 @@ export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battl
 // 6. System Configuration & Bookmarks
 // ----------------------------------------------------------------------
 export const fetchDynamicTOS = async () => {
-    try { return await apiRequest('/api/config/tos'); } catch (e) { return null; }
+    try { return await apiRequest('/api/config/tos'); } catch { return null; }
 };
 // Feature flags (Phase 4.1): { [key]: { enabled, payload } }. Null on failure —
 // callers keep whatever cached flags the store already holds (flags default off).
@@ -489,7 +488,7 @@ export const fetchFeatureFlags = async () => {
     try {
         const res = await apiRequest('/api/config/flags');
         return res?.flags ?? null;
-    } catch (e) { return null; }
+    } catch { return null; }
 };
 export const updateDynamicTOS = async (newTOS) => apiRequest('/api/config/tos', 'PUT', newTOS);
 // FCM device tokens (Phase 4.2) — registered by the Capacitor native app only.

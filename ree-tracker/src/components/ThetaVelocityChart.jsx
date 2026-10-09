@@ -1,5 +1,5 @@
 // src/components/ThetaVelocityChart.jsx
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine

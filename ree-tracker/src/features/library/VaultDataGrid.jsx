@@ -8,7 +8,6 @@ import { Button, Modal, FormField, Select, Input, Textarea, Badge, StatusPill, E
 import { Calculator, Brain, Pencil, X, Check, Shield, TriangleAlert, Search } from '../../components/ui/icons';
 
 export default function VaultDataGrid({
-  questions = [],
   filteredQuestions,
   filterSubject, setFilterSubject,
   filterSubtopic, setFilterSubtopic,

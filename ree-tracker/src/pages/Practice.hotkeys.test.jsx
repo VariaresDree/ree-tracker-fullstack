@@ -12,7 +12,6 @@
 // The page is rendered for real here — only its data hook and the providers
 // around it are stubbed — so the test exercises both listeners exactly as they
 // coexist in the app.
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';

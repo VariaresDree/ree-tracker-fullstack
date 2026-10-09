@@ -83,7 +83,7 @@ export default function SimulatorActive({ engine, requestTerminate, isOnline }) 
       setAiResponse(resp);
       q.cachedExplanation = resp;
       if (q.id) updateQuestionCache(q.id, resp).catch(() => {});
-    } catch (err) {
+    } catch {
       toast.error('AI explanation unavailable right now.');
       setActiveSolution(null);
     } finally {

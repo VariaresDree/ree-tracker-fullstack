@@ -7,7 +7,6 @@
 // jsdom can't compute layout/paint, so color-contrast and page-structure rules
 // are unmeasurable/irrelevant at the component level — disabled below. The
 // design-token work (theme-var colors) + a manual Lighthouse pass cover contrast.
-import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { axe } from 'vitest-axe';

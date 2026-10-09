@@ -1,4 +1,3 @@
-import React from 'react';
 
 // Pure-decoration placeholders — hidden from assistive tech; the parent
 // container carries the single role="status" loading announcement.

@@ -1,6 +1,6 @@
 // src/pages/BoardSimulator.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useSimulatorEngine } from '../features/board-simulator/useSimulatorEngine';
@@ -17,14 +17,12 @@ import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
 import { Button, Modal } from '../components/ui';
 import { TriangleAlert } from '../components/ui/icons';
-import toast from 'react-hot-toast';
 
 import { getAnalyticsProfile } from '../services/dbQueries';
 import { useStore } from '../store/useStore';
 import { normalizeMicroTopics } from '../services/analyticsSync';
 
 const formatTimerMinutes = (s) => `${Math.floor(s/60).toString().padStart(2, '0')}:${(s%60).toString().padStart(2, '0')}`;
-const formatTimerVerbose = (s) => `${Math.floor(s/60)}m ${(s%60).toString().padStart(2, '0')}s`;
 
 export default function BoardSimulator() {
   const { currentUser } = useAuth();
@@ -89,7 +87,6 @@ export default function BoardSimulator() {
   const showBoardResult = !!sectionJustFinished && boardSection === lastSection;
 
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   const activeBattleId = engine.config.battleId || searchParams.get('battleId');
   const { connected: battleConnected, opponentProgress, graded, answerKey, explanationKey, sendAnswer, submitResult } = useBattleSocket(activeBattleId);

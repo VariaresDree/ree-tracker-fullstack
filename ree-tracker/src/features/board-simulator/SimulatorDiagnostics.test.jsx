@@ -1,7 +1,6 @@
 // The results hero is coloured by the VERDICT. It used to band on the raw score
 // (>= 70 green, >= 60 amber), so a 65% sitting showed amber beside "FAILED"
 // and a 75% with a subject under 50% showed green beside "CONDITIONAL PASS".
-import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';

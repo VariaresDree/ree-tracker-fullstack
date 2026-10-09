@@ -1,5 +1,5 @@
 // src/features/profile/CredentialsTab.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { generateCertificate } from '../../utils/certificateEngine';
 import { fetchReadinessScore } from '../../services/dbQueries';

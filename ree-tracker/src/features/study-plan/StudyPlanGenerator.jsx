@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
@@ -66,7 +66,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
             const result = await clearStudyPlan();
             toast.success(`Cleared ${result.deleted} plan tasks`);
             onPlanGenerated?.();
-        } catch (error) {
+        } catch {
             toast.error('Failed to clear plan');
         }
         setIsClearing(false);

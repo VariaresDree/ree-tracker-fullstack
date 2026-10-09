@@ -4,7 +4,6 @@
 //   • how many items are cached for offline sessions (and their freshness),
 //   • a count of unsynced attempts / deferred writes still waiting to upload,
 //   • a one-tap "Download" to (re)build the offline pack.
-import React from 'react';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflinePack } from '../hooks/useOfflinePack';
 import { useStore } from '../store/useStore';

@@ -209,7 +209,7 @@ export const generateBoardReadinessReport = async (stats, readinessScore, weakTo
 
     try {
         return await callAI(prompt, false);
-    } catch (error) {
+    } catch {
         return "Couldn’t write the board report right now. Try again in a minute.";
     }
 };

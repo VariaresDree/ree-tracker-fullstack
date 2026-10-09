@@ -2,7 +2,6 @@
 // "fading" marker when time away has dropped a topic a band. BKT has no
 // forgetting term, so a topic mastered in month one used to stay "Mastered"
 // however long it went untouched.
-import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 

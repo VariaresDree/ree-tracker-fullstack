@@ -1,7 +1,6 @@
 // The forecast card shows the PRC-rule projection: strict pass probability,
 // the projected weighted average, each subject against the 50% floor, and the
 // subject with the most leverage.
-import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 

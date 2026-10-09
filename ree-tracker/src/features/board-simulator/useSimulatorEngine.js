@@ -1,8 +1,8 @@
 // src/features/board-simulator/useSimulatorEngine.js
 import { useState, useEffect, useRef } from 'react';
-import { generateQuestionsAI, generateMasterExplanation } from '../../services/geminiApi';
+import { generateQuestionsAI } from '../../services/geminiApi';
 import {
-  updateQuestionCache, updateQuestionInBank, fetchVaultQuestions,
+  updateQuestionInBank, fetchVaultQuestions,
   finalizeExamSession, syncTelemetryBatch, getAnalyticsProfile,
   fetchMultiplayerBattle, fetchSyllabusWeights, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
@@ -115,7 +115,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         bookmarks: Array.from(bookmarksRef.current || []),
         savedAt: Date.now(),
       }));
-    } catch (_) { /* quota / serialization — best effort */ }
+    } catch { /* quota / serialization — best effort */ }
   };
 
   // 🚀 ABSOLUTE TIMER: Decoupled from React State Loop
@@ -346,7 +346,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       // same, for the same reason.
       setHasSavedSession(false);
       toast.success("Mock restored. Picking up where you left off.");
-    } catch (_) {
+    } catch {
       localStorage.removeItem('ree_sim_cache');
       setHasSavedSession(false);
       toast.error('Saved simulation was corrupt; starting fresh.');
@@ -643,7 +643,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
         const diagnosticsPayload = {
             score, generalAverage, verdict, timeTakenSecs: timeTakenActual, subjectScores,
-            weakTopics: Object.entries(topicBreakdown).filter(([_, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t),
+            weakTopics: Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t),
             totalItems: finalQs.length, correctItems: correct,
             unansweredItems: finalQs.filter((_, idx) => finalAns[idx] == null).length,
             chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpent[idx] || 0) > TIME_SINK_MS),
@@ -665,7 +665,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         try {
             localStorage.removeItem('ree_sim_cache');
             setHasSavedSession(false);
-        } catch (_) { /* storage unavailable — nothing left to protect */ }
+        } catch { /* storage unavailable — nothing left to protect */ }
 
         toast.success('Exam graded and saved.', { id: loadingToastId });
 
@@ -674,7 +674,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     } finally {
         // Clear the session pointer in the store so the next simulation
         // start gets a fresh id (and any pending debounced queue drains).
-        try { await endStoreSession(); } catch (_) {}
+        try { await endStoreSession(); } catch { /* best effort */ }
         setIsSubmitting(false);
     }
   };
@@ -685,7 +685,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     try {
         await updateQuestionInBank(currentQ.id, { isFlagged: true });
         toast.success("Thanks — we'll review this question.");
-    } catch (error) { toast.error("Flag failed."); }
+    } catch { toast.error("Flag failed."); }
   };
 
   const startMultiplayerBattle = async (battleId) => {

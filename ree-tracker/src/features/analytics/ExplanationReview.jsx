@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchPendingExplanations, updateExplanationStatus, bulkApproveExplanations } from '../../services/dbQueries';
 import { Button, Modal } from '../../components/ui';
 import { CheckCircle2 } from '../../components/ui/icons';
@@ -36,7 +36,7 @@ export default function ExplanationReview() {
         try {
             const data = await fetchPendingExplanations();
             setQuestions(data.items || []);
-        } catch (error) {
+        } catch {
             toast.error('Failed to load pending explanations');
         }
         setLoading(false);
@@ -69,7 +69,7 @@ export default function ExplanationReview() {
             await updateExplanationStatus(questionId, status);
             setQuestions(prev => prev.filter(q => q.id !== questionId));
             toast.success(`Explanation ${status.toLowerCase()}`);
-        } catch (error) {
+        } catch {
             toast.error(`Failed to ${status.toLowerCase()} explanation`);
         }
         setProcessing(null);

@@ -1,5 +1,5 @@
 // src/features/profile/ActivityCalendar.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { todayManila } from '../../utils/manilaDate';
 
 export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 50 }) {

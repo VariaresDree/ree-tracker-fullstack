@@ -1,5 +1,5 @@
 // src/components/MockBoardAnalytics.jsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine, Cell,
@@ -88,7 +88,7 @@ export default function MockBoardAnalytics() {
       CACHED = { uid: currentUser.uid, rows: updated };
       setHistory(updated);
       toast.success(`Removed the ${name} sitting from history.`);
-    } catch (error) {
+    } catch {
       toast.error('Could not update the history. Try again.');
     } finally {
       setDeleteModal({ isOpen: false, id: null, name: '' });

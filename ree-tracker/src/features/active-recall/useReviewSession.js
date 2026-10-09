@@ -329,7 +329,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             if (isOnline) {
                 try {
                     await apiRequest('/api/analytics/study-sessions', 'POST', summary);
-                } catch (e) {
+                } catch {
                     // Backend went unreachable mid-flush — defer the summary instead
                     // of dropping it, so the session history stays complete.
                     queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
@@ -418,7 +418,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 return { ...prev, questions: newQs };
             });
             toast.success("Thanks — we'll review this question.");
-        } catch (err) { toast.error("Flag failed."); }
+        } catch { toast.error("Flag failed."); }
     };
 
     // `force` = Regenerate: skip the cached short-circuit and overwrite the
@@ -439,7 +439,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 newQs[prev.currentIndex] = { ...currentQ, cachedExplanation: resp };
                 return { ...prev, questions: newQs, aiResponse: resp, aiLoading: false };
             });
-        } catch (err) {
+        } catch {
             toast.error("AI explanation unavailable right now.");
             setSession(prev => ({ ...prev, aiLoading: false, showAi: false }));
         }

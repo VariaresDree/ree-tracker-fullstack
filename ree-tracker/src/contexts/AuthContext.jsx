@@ -1,5 +1,5 @@
 // src/contexts/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { clampDisplayName } from '@ree/shared';
 import { auth } from '../config/firebaseDb';
 import {

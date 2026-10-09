@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
 export default function ExamPerformanceCard({ stats }) {
   const theta = stats?.irt?.theta || 0;

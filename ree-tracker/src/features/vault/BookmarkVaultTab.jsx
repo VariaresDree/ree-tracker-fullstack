@@ -2,7 +2,7 @@
 //
 // Library › Bookmarks: the questions saved while practising, with their
 // answers and explanations, and a way to practise them.
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Button } from '../../components/ui';
@@ -38,7 +38,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     try {
       const data = await fetchBookmarks({ limit: 100 });
       setBookmarks(data);
-    } catch (error) {
+    } catch {
       toast.error("Couldn't load your bookmarks.");
     } finally {
       setIsLoadingBookmarks(false);
@@ -50,7 +50,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
       await removeBookmark(currentUser.uid, itemId);
       setBookmarks(prev => prev.filter(item => item.id !== itemId));
       toast.success("Bookmark removed.");
-    } catch (error) {
+    } catch {
       toast.error("Failed to remove bookmark.");
     }
   };
@@ -94,7 +94,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
 
         setBookmarks(prev => prev.map(b => b.id === item.id ? { ...b, cachedAiExplanation: responseText } : b));
         setAiResponses(prev => ({ ...prev, [item.id]: responseText }));
-    } catch (error) {
+    } catch {
         toast.error("Couldn't generate the explanation. Check your connection.");
         setShowAiFor(prev => ({ ...prev, [item.id]: false }));
     } finally {

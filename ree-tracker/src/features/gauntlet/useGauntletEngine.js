@@ -113,11 +113,11 @@ export const useGauntletEngine = (level) => {
                 timeSpentPerQuestion: timeSpentPerQuestionRef.current,
                 savedAt: Date.now(),
             }));
-        } catch (_) { /* quota / serialization — best effort */ }
+        } catch { /* quota / serialization — best effort */ }
     };
 
     const clearDraft = () => {
-        try { localStorage.removeItem(CACHE_KEY); } catch (_) { /* ignore */ }
+        try { localStorage.removeItem(CACHE_KEY); } catch { /* ignore */ }
         setHasSavedSession(false);
     };
 
@@ -220,7 +220,7 @@ export const useGauntletEngine = (level) => {
         try {
             const raw = localStorage.getItem(CACHE_KEY);
             if (raw) cached = JSON.parse(raw);
-        } catch (_) {
+        } catch {
             cached = null;
         }
 
@@ -241,7 +241,7 @@ export const useGauntletEngine = (level) => {
     // autosave tick can't lose the run again.
     const resumeGauntlet = () => {
         let raw;
-        try { raw = localStorage.getItem(CACHE_KEY); } catch (_) { raw = null; }
+        try { raw = localStorage.getItem(CACHE_KEY); } catch { raw = null; }
         if (!raw) { fetchFreshGauntlet(); return; }
 
         try {
@@ -282,7 +282,7 @@ export const useGauntletEngine = (level) => {
             // a live run hitting zero, instead of a separate dead-end state.
             setStatus('active');
             toast.success('Gauntlet run restored. Resuming.');
-        } catch (_) {
+        } catch {
             clearDraft();
             toast.error('Saved run was corrupt; starting fresh.');
             fetchFreshGauntlet();
@@ -418,7 +418,7 @@ export const useGauntletEngine = (level) => {
             setFlags(next);
             persistDraft();
             toast.success("Thanks — we'll review this question.");
-        } catch (error) {
+        } catch {
             toast.error("Flag failed.");
         }
     };
@@ -604,7 +604,7 @@ export const useGauntletEngine = (level) => {
             // one that succeeded moves to 'diagnostics', where the UI no longer
             // offers submit at all.
             submittingRef.current = false;
-            try { await endStoreSession(); } catch (_) {}
+            try { await endStoreSession(); } catch { /* best effort */ }
         }
     };
 

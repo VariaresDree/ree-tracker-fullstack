@@ -11,9 +11,8 @@
 //   - ARIA radiogroup roles for a11y
 //   - reduced-motion gate
 
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import QuestionCard from './QuestionCard';
 
 // Keep tests focused on QuestionCard — render LaTeX as plain text rather than

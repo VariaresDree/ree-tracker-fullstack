@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../../services/dbQueries';
 import { Button } from '../../components/ui';
@@ -26,7 +26,7 @@ export default function StrategicPlannerTab({ currentUser }) {
     try {
       const data = await apiRequest('/api/user/tasks');
       setTasks(data?.items || []);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load planner tasks.");
     } finally {
       setIsLoading(false);
@@ -48,7 +48,7 @@ export default function StrategicPlannerTab({ currentUser }) {
       if (data?.task) setTasks(prev => [data.task, ...prev]);
       setNewTask('');
       setNewDueDate('');
-    } catch (err) {
+    } catch {
       toast.error("Failed to create task.");
     }
   };
@@ -58,7 +58,7 @@ export default function StrategicPlannerTab({ currentUser }) {
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: updated } : t));
     try {
       await apiRequest(`/api/user/tasks/${task.id}`, 'PUT', { completed: updated });
-    } catch (err) {
+    } catch {
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: !updated } : t));
       toast.error("Failed to update task.");
     }
@@ -69,7 +69,7 @@ export default function StrategicPlannerTab({ currentUser }) {
     setTasks(t => t.filter(x => x.id !== id));
     try {
       await apiRequest(`/api/user/tasks/${id}`, 'DELETE');
-    } catch (err) {
+    } catch {
       setTasks(prev);
       toast.error("Failed to delete task.");
     }

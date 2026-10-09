@@ -1,5 +1,4 @@
 // src/features/gauntlet/GauntletDiagnostics.jsx
-import React from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import NotificationOptIn from '../../components/NotificationOptIn';
 import { Button } from '../../components/ui';

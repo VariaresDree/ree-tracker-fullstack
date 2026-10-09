@@ -1,4 +1,3 @@
-import React from 'react';
 import { ShieldAlert } from '../components/ui/icons';
 
 export default function ExamLayout({
