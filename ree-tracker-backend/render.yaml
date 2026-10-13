@@ -75,6 +75,11 @@ services:
         sync: false
       - key: DATABASE_SSL_STRICT
         sync: false
+      # Optional: scheduled reminders (POST /api/cron/reminders). Set the same
+      # long random value as the GitHub repository secret CRON_SECRET, which
+      # .github/workflows/reminders.yml sends. Unset = no reminders (503).
+      - key: CRON_SECRET
+        sync: false
       # Optional R2 / S3 — leave unset to use local-disk driver.
       - key: STORAGE_DRIVER
         sync: false

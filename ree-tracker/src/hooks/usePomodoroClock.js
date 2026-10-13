@@ -7,11 +7,24 @@
 //
 // Exactly ONE mounted instance should pass `owner: true` (MainLayout) — it
 // carries the completion side-effect (mode switch + toast) so finishing a
-// block fires once, not once per visible timer.
+// block fires once, not once per visible timer. It also sends the focus blocks
+// the timer has logged (POST /api/user/focus-blocks, or queued offline), for
+// Progress › Habits › Focus time.
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useStore } from '../store/useStore';
 import { remainingSecs } from '../utils/pomodoroLogic';
+import { writeOrQueue } from '../services/writeOrQueue';
+
+export const FOCUS_BLOCKS_ENDPOINT = '/api/user/focus-blocks';
+const toPayload = (b) => ({
+    clientId: b.clientId,
+    subject: b.subject,
+    minutes: b.minutes,
+    startedAt: new Date(b.startedAt).toISOString(),
+    endedAt: new Date(b.endedAt).toISOString(),
+    completed: !!b.completed,
+});
 
 // Best-effort visual "session over" notification via the active service worker
 // registration (the robust path — plain `new Notification()` doesn't work on
@@ -29,6 +42,8 @@ export function usePomodoroClock({ owner = false } = {}) {
     const pomodoro = useStore((s) => s.pomodoro);
     const switchPomodoroMode = useStore((s) => s.switchPomodoroMode);
     const notificationsEnabled = useStore((s) => s.notifications.enabled);
+    const clearFocusLogs = useStore((s) => s.clearFocusLogs);
+    const pendingFocusLogs = pomodoro.pendingFocusLogs;
     const [, force] = useState(0);
     const remaining = remainingSecs(pomodoro);
 
@@ -46,6 +61,18 @@ export function usePomodoroClock({ owner = false } = {}) {
         toast(message);
         if (notificationsEnabled) notifySessionOver(message);
     }, [owner, pomodoro.isRunning, remaining, pomodoro.isWork, switchPomodoroMode, notificationsEnabled]);
+
+    // Logged focus blocks go out once: taken off the timer's list, then sent
+    // or put in the offline queue (which replays them; the server keeps one
+    // per block id). One the server refuses outright is dropped.
+    useEffect(() => {
+        if (!owner || !pendingFocusLogs?.length) return;
+        const batch = pendingFocusLogs;
+        clearFocusLogs(batch.map((b) => b.clientId));
+        for (const b of batch) {
+            writeOrQueue(FOCUS_BLOCKS_ENDPOINT, 'POST', toPayload(b), { queueKey: FOCUS_BLOCKS_ENDPOINT }).catch(() => {});
+        }
+    }, [owner, pendingFocusLogs, clearFocusLogs]);
 
     return { pomodoro, remaining };
 }

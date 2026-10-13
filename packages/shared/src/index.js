@@ -36,4 +36,8 @@ module.exports = {
     ...require('./outsideScores'),
     ...require('./syllabus'),
     ...require('./gauntlet'),
+    ...require('./notebook'),
+    ...require('./srs'),
+    ...require('./focus'),
+    ...require('./reminders'),
 };

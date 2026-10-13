@@ -101,4 +101,7 @@ export {
   ShieldCheck,
   // Milestones
   GraduationCap,
+  // Notebook (mistakes, personal notes)
+  NotebookPen,
+  StickyNote,
 } from 'lucide-react';

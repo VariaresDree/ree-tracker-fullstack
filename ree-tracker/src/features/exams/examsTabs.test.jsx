@@ -15,6 +15,7 @@ let storeStats;
 vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats }) }));
 vi.mock('../../services/dbQueries', () => ({
   fetchMultiplayerBattle: vi.fn(),
+  fetchActiveBattles: vi.fn(async () => ({ items: [], serverNow: Date.now() })),
   fetchPaginatedLeaderboard: vi.fn(),
   fetchLeaderboardMe: vi.fn(),
 }));

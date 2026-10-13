@@ -716,8 +716,25 @@ export const useStore = create(
       // 3. POMODORO PROTOCOL SLICE — timestamp model (utils/pomodoroLogic).
       // Remaining time is DERIVED from `endsAt`, never ticked into the store,
       // so the timer survives sidebar unmounts, route changes, and reloads.
-      pomodoro: { workDuration: 25, breakDuration: 5, isWork: true, isRunning: false, endsAt: null, pausedRemaining: 25 * 60 },
-      updatePomodoro: (config) => set((state) => ({ pomodoro: { ...state.pomodoro, ...config } })),
+      pomodoro: {
+        workDuration: 25, breakDuration: 5, isWork: true, isRunning: false, endsAt: null, pausedRemaining: 25 * 60,
+        // Focus time: what the focus blocks are for, when this one started,
+        // and finished blocks waiting to be sent (hooks/usePomodoroClock).
+        subject: 'General', focusStartedAt: null, pendingFocusLogs: [],
+      },
+      updatePomodoro: (config) => set((state) => {
+        const p = state.pomodoro;
+        const newLength = (config.workDuration != null && config.workDuration !== p.workDuration)
+          || (config.breakDuration != null && config.breakDuration !== p.breakDuration);
+        // A new length ends the block in progress: what ran of a focus block
+        // is logged on the length it ran at.
+        return { pomodoro: { ...(newLength ? resetTimer(p) : p), ...config } };
+      }),
+      setPomodoroSubject: (subject) => set((state) => ({ pomodoro: { ...state.pomodoro, subject } })),
+      // Sent (or queued) by the owning clock; dropped from the timer's list.
+      clearFocusLogs: (clientIds) => set((state) => ({
+        pomodoro: { ...state.pomodoro, pendingFocusLogs: (state.pomodoro.pendingFocusLogs || []).filter((b) => !clientIds.includes(b.clientId)) },
+      })),
       startPomodoro: () => set((state) => ({
         pomodoro: startTimer(state.pomodoro),
         // A fresh start un-dismisses the floating widget.

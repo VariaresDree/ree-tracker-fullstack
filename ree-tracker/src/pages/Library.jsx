@@ -1,7 +1,7 @@
 // src/pages/Library.jsx
 //
 // The learner's study material in one place: formula cards, handouts,
-// bookmarked questions and imported quizzes. (This was "Materials Hub"; the old
+// bookmarked questions, the Notebook (mistakes and notes) and imported quizzes. (This was "Materials Hub"; the old
 // "Module Library" was the question-bank authoring tool and moved to Admin.)
 // Handouts are read-only here — uploading and organising them is an Admin tab.
 // The tab lives in ?tab=; an old /materials deep link arrives with
@@ -12,10 +12,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
-import { Cloud, BookOpen, Bookmark, FileUp } from '../components/ui/icons';
+import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
+import NotebookTab from '../features/notebook/NotebookTab';
 import CloudVaultTab from '../features/materials/CloudVaultTab';
 import ReferenceBrowser from '../features/reference/ReferenceBrowser';
 import MaterialViewer from '../features/materials/MaterialViewer';
@@ -28,6 +29,7 @@ const TABS = [
   { id: 'formulas', label: 'Formula cards', icon: BookOpen },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
   { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
+  { id: 'notebook', label: 'Notebook', icon: NotebookPen },
   { id: 'quizzes', label: 'Imported quizzes', icon: FileUp },
 ];
 
@@ -67,7 +69,7 @@ export default function Library() {
 
   return (
     <Page>
-      <PageHeader title="Library" subtitle="Formula cards, handouts, the questions you bookmarked, and quizzes you imported." />
+      <PageHeader title="Library" subtitle="Formula cards, handouts, the questions you bookmarked, your mistakes and notes, and quizzes you imported." />
 
       <Tabs id="library" label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
 
@@ -85,6 +87,10 @@ export default function Library() {
 
       {tab === 'bookmarks' && (
         <BookmarkVaultTab currentUser={currentUser} isOnline={isOnline} />
+      )}
+
+      {tab === 'notebook' && (
+        <NotebookTab currentUser={currentUser} isOnline={isOnline} />
       )}
 
       {tab === 'quizzes' && (

@@ -11,7 +11,10 @@ vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid
 vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 const fetchSittingReview = vi.fn();
-vi.mock('../services/dbQueries', () => ({ fetchSittingReview: (...a) => fetchSittingReview(...a) }));
+const apiRequest = vi.fn(async () => ({ items: [], truncated: false }));
+vi.mock('../services/dbQueries', () => ({ fetchSittingReview: (...a) => fetchSittingReview(...a), apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('../config/firebaseDb', () => ({ auth: { currentUser: { uid: 'u1' } } }));
+vi.mock('idb-keyval', () => ({ get: async () => undefined, set: async () => {}, del: async () => {} }));
 vi.mock('../services/geminiApi', () => ({ generateMasterExplanation: vi.fn() }));
 
 const { default: SittingReview } = await import('./SittingReview');
@@ -97,11 +100,44 @@ describe('SittingReview', () => {
     expect(screen.getByText(/^practice:/).textContent).toContain('"source":"items"');
   });
 
+  it('tags why a wrong answer was missed, suggesting a cause from the data', async () => {
+    fetchSittingReview.mockResolvedValue(REVIEW);
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    // Item 2: answered wrong, and sure of it.
+    const concept = await screen.findByRole('button', { name: /Concept/ });
+    expect(concept).toHaveTextContent('suggested');
+    fireEvent.click(screen.getByRole('button', { name: /Misread/ }));
+    expect(screen.getByRole('button', { name: /Misread/ })).toHaveAttribute('aria-pressed', 'true');
+    // The mistakes list doesn't hold it, so the fixed mark is left as it stands.
+    await vi.waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/user/mistakes/q2', 'PUT', { cause: 'misread' }));
+    // A blank is not a mistake to tag.
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.queryByRole('group', { name: 'Why did you miss it?' })).not.toBeInTheDocument();
+  });
+
   it('explains a sitting that is still in progress', async () => {
     fetchSittingReview.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('x'), { status: 409, code: 'IN_PROGRESS' })));
     renderAt();
     expect(await screen.findByRole('heading', { level: 1, name: 'This sitting isn’t finished yet' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+  });
+
+  it("says when a running battle's review opens, and opens it then by itself", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const opensAt = new Date(Date.now() + 60_000);
+      fetchSittingReview.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('x'), { status: 409, code: 'IN_PROGRESS', opensAt: opensAt.toISOString() })));
+      fetchSittingReview.mockResolvedValueOnce(REVIEW);
+      renderAt();
+      const time = opensAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      expect(await screen.findByRole('heading', { level: 1, name: `This battle’s review opens at ${time}` })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+      await vi.advanceTimersByTimeAsync(64_000);
+      expect(await screen.findByText('Question 1')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('offers Try again while the answers are still syncing', async () => {

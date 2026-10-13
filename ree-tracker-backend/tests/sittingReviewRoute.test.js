@@ -108,6 +108,39 @@ describe('GET /sittings/:id/review', () => {
         expect(res.body.items.map((i) => i.questionId)).toEqual(['e1', 'e2']);
     });
 
+    it("says when a running battle's review opens", async () => {
+        session = { id: 'ABC123:uid-review', mode: 'BATTLE', config: { kind: 'battle', finalizedAt: 'x' }, createdAt: new Date() };
+        attempts = [attempt('e1', 'EE')];
+        const startedAt = new Date(Date.now() - 60_000);
+        battle = { id: 'ABC123', status: 'IN_PROGRESS', startedAt, timeLimitSecs: 600, questions: [{ id: 'e1' }] };
+        const res = await get('ABC123:uid-review');
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('IN_PROGRESS');
+        expect(res.body.opensAt).toBe(new Date(startedAt.getTime() + 600_000 + 30_000).toISOString());
+    });
+
+    it('finishes a battle whose time is up before reviewing it (a player left, the server restarted)', async () => {
+        const battleLifecycle = require('../src/services/battleLifecycle');
+        session = { id: 'ABC123:uid-review', mode: 'BATTLE', config: { kind: 'battle', finalizedAt: 'x' }, createdAt: new Date() };
+        attempts = [attempt('e1', 'EE')];
+        battle = { id: 'ABC123', status: 'IN_PROGRESS', startedAt: new Date(Date.now() - 700_000), timeLimitSecs: 600, questions: [{ id: 'e1' }] };
+        const settle = vi.spyOn(battleLifecycle, 'settleWithin').mockImplementation(async () => { battle.status = 'COMPLETED'; return 'completed'; });
+        const res = await get('ABC123:uid-review');
+        expect(settle).toHaveBeenCalledWith('ABC123', expect.any(Number));
+        expect(res.status).toBe(200);
+    });
+
+    it('opens a battle on time even when finishing it takes too long', async () => {
+        const battleLifecycle = require('../src/services/battleLifecycle');
+        session = { id: 'ABC123:uid-review', mode: 'BATTLE', config: { kind: 'battle', finalizedAt: 'x' }, createdAt: new Date() };
+        attempts = [attempt('e1', 'EE')];
+        battle = { id: 'ABC123', status: 'IN_PROGRESS', startedAt: new Date(Date.now() - 700_000), timeLimitSecs: 600, questions: [{ id: 'e1' }] };
+        vi.spyOn(battleLifecycle, 'settleWithin').mockResolvedValue('timeout');
+        const res = await get('ABC123:uid-review');
+        expect(res.status).toBe(200);
+        expect(res.body.items).toHaveLength(1);
+    });
+
     it('reviews a finished placement test from its stored responses', async () => {
         session = {
             id: 'diag', mode: 'DIAGNOSTIC', verdict: 'COMPLETED', createdAt: new Date(),

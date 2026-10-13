@@ -51,6 +51,7 @@ export const useSessionSlice = () =>
       pausePomodoro: s.pausePomodoro,
       resetPomodoro: s.resetPomodoro,
       switchPomodoroMode: s.switchPomodoroMode,
+      setPomodoroSubject: s.setPomodoroSubject,
       pomodoroWidget: s.pomodoroWidget,
       setPomodoroWidget: s.setPomodoroWidget,
     })),

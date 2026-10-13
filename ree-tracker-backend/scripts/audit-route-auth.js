@@ -35,6 +35,9 @@ const ROUTES_DIR = path.join(ROOT, 'src', 'routes');
 // Intentionally-public routes. Key = "<file basename> <METHOD> <path>".
 const PUBLIC_ALLOWLIST = new Set([
   'configRoutes.js GET /tos', // public Terms-of-Service text, shown pre-login
+  // Called by the scheduler, not a user: guarded by the x-cron-secret header
+  // (constant-time compare against CRON_SECRET; 503 when unset), cronRoutes.js.
+  'cronRoutes.js POST /reminders',
 ]);
 
 // Parameterized writes that are deliberately NOT owner-scoped. Every entry needs

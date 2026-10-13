@@ -38,6 +38,10 @@ model User {
   // Settings
   examDate         String?
   dailyTarget      Int?     @default(50)
+  // Scheduled reminder (phone app push): the Manila hour to send it (null =
+  // off) and the Manila day it last went out, so it goes once a day.
+  reminderHour       Int?
+  reminderLastSentOn String?
 
   // V1 Relations
   sessions         ExamSession[]
@@ -72,11 +76,16 @@ model User {
   gauntletBoardClears String[]  @default([])
   gauntletUpdatedAt   DateTime?
   battleOutcomes     BattleOutcome[]
+  battleParticipations BattleParticipant[]
 
   // --- V7: Phase 4.2 — FCM push (Capacitor native app) ---
   deviceTokens       DeviceToken[]
   outsideScores      OutsideScore[]
   syllabusProgress   SyllabusProgress[]
+  mistakeTags        MistakeTag[]
+  notes              UserNote[]
+  cardReviews        CardReview[]
+  focusBlocks        FocusBlock[]
 
   @@index([thetaRating])
   @@index([lastActive])
@@ -176,6 +185,7 @@ model Question {
   bookmarks        Bookmark[]
   srsCards         SRSCard[]
   flags            QuestionFlag[]
+  mistakeTags      MistakeTag[]
 
   @@index([subject, irtB])
   // Readiness groupBy(['subtopic'], where:{isFlagged:false}) and pool sampling
@@ -444,9 +454,37 @@ model Battle {
   startedAt     DateTime?
   createdAt     DateTime @default(now())
   outcomes      BattleOutcome[]
+  participants  BattleParticipant[]
 
   // The finalize guard filters on status; it was unindexed.
   @@index([status])
+}
+
+// Who is in a battle and the answers the server has received from them, kept
+// as they arrive. Players and answers used to live only in the socket server's
+// memory, so a restart, the idle-lobby clean-up or one player closing the app
+// left the battle unable to finish (the deadline had nothing to score) and the
+// player who left unable to come back. A battle now finishes from these rows
+// whatever happened to the process, and a rejoin restores the answers.
+model BattleParticipant {
+  id            String    @id @default(uuid())
+  battleId      String
+  userId        String
+  displayName   String
+  isHost        Boolean   @default(false)
+  // { [questionId]: { userAnswer, confidenceLevel, timeSpentMs } } — no
+  // correctness: it is regraded against the battle's key when read.
+  answers       Json      @default("{}")
+  finishedAt    DateTime?
+  score         Int?
+  timeTakenSecs Int?
+  joinedAt      DateTime  @default(now())
+
+  battle        Battle    @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+  @@index([userId])
 }
 
 // Phase 6: per-participant battle outcomes. Persists ELO deltas so the
@@ -613,6 +651,89 @@ model SyllabusProgress {
   @@index([topicId])
 }
 
+// Spaced repetition for formula cards: the learner rates a card (Again / Hard
+// / Good / Easy) after flipping it in study mode, and SM-2 (@ree/shared srs)
+// schedules the next review at a Manila midnight. One row per learner and
+// card. `lastReviewId` makes a replayed rating (a retry, the offline queue) a
+// no-op. Separate from SRSCard, which schedules questions from telemetry.
+model CardReview {
+  id             String        @id @default(uuid())
+  userId         String
+  cardId         String
+  easeFactor     Float         @default(2.5)
+  interval       Int           @default(0)
+  repetitions    Int           @default(0)
+  nextReviewDate DateTime
+  lastReviewed   DateTime
+  lastReviewId   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card           ReferenceCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+  @@index([userId, nextReviewDate])
+  @@index([cardId])
+}
+
+// Focus time: one Pomodoro focus block, logged by the app when it finishes
+// (or stops early after at least 5 minutes), with what it was for. clientId is
+// the device's id for the block, so a replay (a retry, the offline queue)
+// lands once. Self-reported time: DISPLAY ONLY, never θ, the forecast,
+// readiness or the rankings (tests/displayOnlyTables.test.js).
+model FocusBlock {
+  id        String   @id @default(uuid())
+  userId    String
+  clientId  String
+  subject   String   // 'General' | 'Mathematics' | 'ESAS' | 'EE' (@ree/shared FOCUS_SUBJECTS)
+  minutes   Int
+  startedAt DateTime
+  endedAt   DateTime
+  completed Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([userId, endedAt])
+}
+
+// The mistake notebook (Library › Notebook). The mistakes themselves are
+// derived from QuestionAttempt on read; this row holds only what the learner
+// adds: why they missed it, and when they marked it fixed. DISPLAY ONLY:
+// nothing that reads θ, the forecast, readiness or the rankings may use it
+// (tests/displayOnlyTables.test.js).
+model MistakeTag {
+  id         String    @id @default(uuid())
+  userId     String
+  questionId String
+  cause      String?   // 'concept' | 'computation' | 'misread' | 'time' (@ree/shared MISTAKE_CAUSES)
+  resolvedAt DateTime? // marked fixed; a later miss reopens it
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([questionId])
+}
+
+// The learner's own note on a question or a formula card. One per target.
+// Polymorphic (no foreign key to the target): the route checks the target
+// exists when the note is written. DISPLAY ONLY, like MistakeTag.
+model UserNote {
+  id         String   @id @default(uuid())
+  userId     String
+  targetType String   // 'question' | 'card'
+  targetId   String
+  body       String   // at most NOTE_MAX (@ree/shared); an empty note is deleted
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId, updatedAt])
+}
+
 model PlannerTask {
   id          String    @id @default(uuid())
   userId      String
@@ -753,6 +874,8 @@ model ReferenceCard {
   reviewNote     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  reviews        CardReview[]
 
   @@unique([kind, subject, name])
   @@index([status, subject])

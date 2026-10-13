@@ -14,12 +14,14 @@
 // the Library syllabus manager and heatmap use — not a parallel one. The
 // Subtopic level groups on ReferenceCard.subtopicTag, a free-text label.
 import { useMemo, useState, useDeferredValue } from 'react';
+import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
-import { Input, FormField, SegmentedControl, EmptyState, Button, Skeleton, StatusPill } from '../../components/ui';
-import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid } from '../../components/ui/icons';
+import { Input, FormField, SegmentedControl, EmptyState, Button, Card, Skeleton, StatusPill } from '../../components/ui';
+import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
-import Flashcard from './Flashcard';
+import NotedFlashcard from './NotedFlashcard';
 import ReferenceStudyMode from './ReferenceStudyMode';
+import { dueCardIds, useCardReviews } from './useCardReviews';
 
 const KIND_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -99,10 +101,29 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   // let a set that large be studied as one set too, so a session can now
   // start from either the subject-level topic grid or the subtopic leaf.
   const [studyCards, setStudyCards] = useState([]);
-  const startStudying = (cardsToStudy) => {
+  const [studyMode, setStudyMode] = useState('browse');
+  const startStudying = (cardsToStudy, mode = 'browse') => {
     setStudyCards(cardsToStudy);
+    setStudyMode(mode);
     setStudying(true);
   };
+
+  // Spaced review of the cards you've rated: what's due now, counted against
+  // the clock when the list was last looked at (refreshed on leaving study).
+  const reviews = useCardReviews();
+  const [now, setNow] = useState(() => Date.now());
+  const cardById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
+  const dueCards = useMemo(
+    () => dueCardIds(reviews.items, cardById.keys(), now).map((id) => cardById.get(id)),
+    [reviews.items, cardById, now],
+  );
+  const nextDue = useMemo(() => {
+    const later = reviews.items
+      .filter((r) => cardById.has(r.cardId) && new Date(r.nextReviewDate).getTime() > now)
+      .map((r) => new Date(r.nextReviewDate).getTime());
+    return later.length ? Math.min(...later) : null;
+  }, [reviews.items, cardById, now]);
+  const leaveStudy = () => { setStudying(false); setNow(Date.now()); };
 
   const kindFiltered = useMemo(
     () => (kind === 'all' ? cards : cards.filter((c) => c.kind === kind)),
@@ -253,10 +274,28 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
         <SegmentedControl label="Card kind" size="sm" value={kind} onChange={setKind} options={KIND_OPTIONS} className="self-start" />
       </div>
 
+      {!studying && dueCards.length > 0 && (
+        <Card className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-live="polite">
+          <div className="flex items-start gap-3 min-w-0">
+            <History size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-textMain">{dueCards.length} formula card{dueCards.length === 1 ? '' : 's'} due for review</p>
+              <p className="text-xs text-muted2">Each comes back just before you'd forget it. Flip, then rate how well you knew it.</p>
+            </div>
+          </div>
+          <Button size="sm" className="shrink-0" onClick={() => startStudying(dueCards, 'review')}>Review now</Button>
+        </Card>
+      )}
+      {!studying && dueCards.length === 0 && reviews.items.length > 0 && nextDue && (
+        <p className="text-xs text-muted2">
+          Card reviews: all caught up. Next one due {new Date(nextDue).toDateString() === new Date(now).toDateString() ? `at ${formatTimeOfDay(nextDue)}` : new Date(nextDue).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.
+        </p>
+      )}
+
       {!isSearching && <Breadcrumb items={breadcrumbItems} onNavigate={navigateBreadcrumb} />}
 
       {studying ? (
-        <ReferenceStudyMode cards={studyCards} onExit={() => setStudying(false)} />
+        <ReferenceStudyMode cards={studyCards} mode={studyMode} reviews={reviews} onExit={leaveStudy} />
       ) : isSearching ? (
         searchResults.length === 0 ? (
           <EmptyState
@@ -269,7 +308,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           <>
             <p className="text-eyebrow">{countLabel(searchResults.length)} matching "{deferredSearch.trim()}"</p>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-              {searchResults.map((card) => <Flashcard key={card.id} card={card} />)}
+              {searchResults.map((card) => <NotedFlashcard key={card.id} card={card} />)}
             </div>
           </>
         )
@@ -336,7 +375,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
             </Button>
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-            {leafCards.map((card) => <Flashcard key={card.id} card={card} />)}
+            {leafCards.map((card) => <NotedFlashcard key={card.id} card={card} />)}
           </div>
         </>
       )}

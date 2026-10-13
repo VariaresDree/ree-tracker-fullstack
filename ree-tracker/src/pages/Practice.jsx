@@ -19,6 +19,8 @@ import FlashcardMode from '../features/active-recall/FlashcardMode';
 import { useReviewSession } from '../features/active-recall/useReviewSession';
 import SolutionPanel from '../features/quiz/SolutionPanel';
 import { explanationKey } from '../services/aiExplanations';
+import NoteButton, { NoteView } from '../features/notebook/NoteButton';
+import { questionTarget } from '../features/notebook/targets';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
 import { formatClock } from '../utils/time';
 
@@ -199,6 +201,7 @@ export default function Practice() {
                       <Button size="icon" variant="ghost" tone="amber" onClick={toggleBookmark} aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'} className={isBookmarked ? '' : 'text-muted'}>
                         <Bookmark size={16} strokeWidth={1.75} fill={isBookmarked ? 'currentColor' : 'none'} aria-hidden="true" />
                       </Button>
+                      <NoteButton type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
                     </div>
                   }
               />
@@ -224,6 +227,7 @@ export default function Practice() {
                       aiLoading={aiLoading}
                       onExplain={(force) => explainQuestion(currentQ, { force })}
                   />
+                  <NoteView type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
 
                   <div className="flex justify-between items-center mt-4 gap-3 flex-wrap">
                       <div className="text-eyebrow bg-surface2/50 border border-border2/60 px-4 py-2 rounded-full">

@@ -7,6 +7,7 @@
 //   formatClock     a running clock or a per-item time: "2:24", "1:02:05";
 //                   { pad: true } gives the exam timer's "02:24".
 //   formatDuration  how long something took: "42s", "2m 05s", "1h 02m".
+//   formatTimeOfDay when something will happen today: "3:42 PM".
 
 /** "2:24" or "1:02:05"; with { pad: true }, "02:24". */
 export function formatClock(secs, { pad = false } = {}) {
@@ -16,6 +17,13 @@ export function formatClock(secs, { pad = false } = {}) {
   const r = String(s % 60).padStart(2, '0');
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${r}`;
   return `${pad ? String(m).padStart(2, '0') : m}:${r}`;
+}
+
+/** An instant (epoch ms or Date) as a time of day in the device's locale: "3:42 PM". */
+export function formatTimeOfDay(at) {
+  const d = at instanceof Date ? at : new Date(at);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 /** 42 → "42s", 125 → "2m 05s", 3725 → "1h 02m". */

@@ -1,25 +1,21 @@
 const { getAuth } = require('firebase-admin/auth');
 const prisma = require('../config/db');
-const { recordAttempts } = require('../services/telemetryService');
-const { recomputeRatings } = require('../engine/elo');
-const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitizer');
+const authMiddleware = require('../middlewares/authMiddleware');
 // Pure scoring rules live in utils/battleLogic (Phase 4.1) so they're
 // verifiable under simulated latency without a socket — see
-// tests/battleLatency.test.js. Handlers here stay thin callers.
-const {
-    applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants, deadlineDelayMs, absentAtStart,
-} = require('../utils/battleLogic');
+// tests/battleLatency.test.js. How a battle is rebuilt, saved, finished and
+// completed lives in services/battleLifecycle; handlers here stay thin callers.
+const { applyAnswer, absentAtStart, battleTiming } = require('../utils/battleLogic');
+const lifecycle = require('../services/battleLifecycle');
 const { battleAnswerSchema, battleSubmitSchema } = require('../schemas/battleSchemas');
 const logger = require('../utils/logger');
 const { fallbackDisplayName } = require('@ree/shared');
-const { retryInBackground } = require('../services/retryInBackground');
-const { finalizeSession } = require('../services/examHistory');
 
-// In-memory lobby state (participants, live scores, answer keys).
-const MAX_LOBBIES = 500;
+const { battleLobbies, serializeParticipants } = lifecycle;
 const MAX_PARTICIPANTS = 32;         // per-lobby cap — a join flood can't balloon one lobby
 const LOBBY_GC_GRACE_MS = 60 * 1000; // drop an abandoned lobby this long after the last player leaves
-const battleLobbies = new Map();
+// How long a join waits for a due battle to settle before answering anyway.
+const JOIN_SETTLE_WAIT_MS = 8000;
 
 // Per-socket event rate limiter (fixed window). The /battle namespace sits
 // behind no HTTP rate-limit, so without this an authed client can flood
@@ -33,389 +29,150 @@ function rateLimited(socket) {
     return b.count > RATE_LIMIT.max;
 }
 
-// Evict ONE lobby when at capacity. Prefer a lobby that is safe to drop
-// (completed or with no connected+unfinished players); only fall back to the
-// least-recently-active if every lobby still has a live player — never blindly
-// FIFO-evict a live battle (which wiped its in-memory scores).
-function evictOneLobby() {
-    let lruKey = null;
-    let lruAt = Infinity;
-    for (const [id, lobby] of battleLobbies) {
-        const hasLivePlayer = Array.from(lobby.participants.values())
-            .some((p) => p.connected && !p.finished);
-        if (!hasLivePlayer) {
-            battleLobbies.delete(id);
-            logger.warn('lobby cache evicted (idle)', { evicted: id });
-            return;
-        }
-        const at = lobby.lastActivity ?? 0;
-        if (at < lruAt) { lruAt = at; lruKey = id; }
-    }
-    if (lruKey) {
-        battleLobbies.delete(lruKey);
-        logger.warn('lobby cache evicted (LRU fallback — live battle)', { evicted: lruKey });
-    }
+/** The server's clock for the exam room's timer, while a battle runs. */
+function timingPayload(lobby, now = Date.now()) {
+    const t = lifecycle.lobbyTiming(lobby, now);
+    return t ? { serverNow: now, startedAt: t.startedAt, endsAt: t.endsAt, closesAt: t.closesAt } : null;
 }
 
-function getLobby(battleId) {
-    if (!battleLobbies.has(battleId)) {
-        if (battleLobbies.size >= MAX_LOBBIES) evictOneLobby();
-        battleLobbies.set(battleId, {
-            participants: new Map(),
-            startedAt: null,
-            answerKey: null,
-            questionCount: 0,
-            timeLimitSecs: null,
-            lastActivity: Date.now(),
-        });
-    }
-    const lobby = battleLobbies.get(battleId);
-    lobby.lastActivity = Date.now();
-    return lobby;
-}
-
-// Public view of a participant — strips the server-side answers Map.
-function serializeParticipants(lobby) {
-    return Array.from(lobby.participants.values()).map(({ answers, attempts, ...pub }) => pub);
-}
-
-// The answer key never leaves the server while the battle is live. Built on
-// first join; lazily refetched from the DB if the lobby was FIFO-evicted or
-// the process restarted mid-battle.
-async function ensureAnswerKey(lobby, battleId) {
-    if (lobby.answerKey) return lobby.answerKey;
-    const battle = await prisma.battle.findUnique({
-        where: { id: battleId },
-        select: { questions: true, timeLimitSecs: true, startedAt: true },
-    });
-    if (!battle || !Array.isArray(battle.questions)) return null;
-    lobby.answerKey = buildAnswerKey(battle.questions);
-    lobby.explanationKey = buildExplanationKey(battle.questions);
-    lobby.questionCount = battle.questions.length;
-    lobby.timeLimitSecs = battle.timeLimitSecs;
-    // Restored too — without it every post-restart submit was timed at 0s and
-    // the score-tie placement (which feeds Elo) became arbitrary.
-    if (!lobby.startedAt && battle.startedAt) lobby.startedAt = battle.startedAt.getTime();
-    return lobby.answerKey;
-}
+const questionCountOf = (battle) => (Array.isArray(battle.questions) ? battle.questions.length : 0);
 
 /**
- * Grade, record and close one participant's battle. Used by `battle-submit`
- * (with the attempts the client carries, for answers the server missed during
- * a disconnect) and by the deadline (with none: a player who dropped out is
- * scored on what the server already graded). Returns null when the player is
- * unknown, already finished, or the answer key is gone.
+ * A completed battle, for one socket: its own result (which also clears a
+ * submit it was still waiting to send) and everyone's results with the key.
  */
-async function finishParticipant(battleId, lobby, userId, clientAttempts = []) {
-    const participant = lobby.participants.get(userId);
-    if (!participant || participant.finished) return null;
-    const answerKey = await ensureAnswerKey(lobby, battleId);
-    if (!answerKey) return null;
-
-    // Merge client-carried attempts only for questions the server never saw
-    // live (covers brief disconnects). Graded against the server's key inside
-    // mergeSubmitAttempts — the client's own isCorrect flags are never read.
-    if (clientAttempts?.length > 0) mergeSubmitAttempts(participant, clientAttempts, answerKey);
-
-    const finalAttempts = Array.from(participant.answers.values());
-    const total = lobby.questionCount || Object.keys(answerKey).length;
-
-    // Server-authoritative timing: never trust a client-supplied duration.
-    // Clamped to the battle's time limit.
-    const timeTakenSecs = computeElapsedSecs(lobby.startedAt, Date.now(), lobby.timeLimitSecs);
-
-    // Persist per-question attempts so battle results feed the
-    // dashboard/profile analytics. recordAttempts re-grades against
-    // Question.answer in the DB — its `graded` output is the authoritative
-    // score source.
-    let graded = null;
-    if (finalAttempts.length > 0) {
-        // One ExamSession per player per battle, so the match appears in
-        // server-side mock history (battles used to record session-less
-        // attempts and live only in a device-local ledger), finalised once its
-        // attempts land.
-        const battleSessionId = `${battleId}:${userId}`;
-        const record = () => recordAttempts({
-            userId,
-            sessionId: battleSessionId,
-            mode: 'BATTLE',
-            // Deterministic per-attempt ids: a replayed battle-submit
-            // (reconnect, double emit) — or a background retry below —
-            // dedupes instead of double-counting the whole battle.
-            attempts: finalAttempts.map((a) => ({
-                ...a,
-                clientAttemptId: `${battleId}:${userId}:${a.questionId}`,
-            })),
+async function replayCompletion(socket, battleId, battle = null) {
+    const done = await lifecycle.completionFor(battleId, socket.userId);
+    if (!done) return false;
+    if (battle) {
+        socket.emit('lobby-update', {
+            participants: done.payload.results,
+            status: 'COMPLETED',
+            config: battle.config,
+            timeLimitSecs: battle.timeLimitSecs,
+            questionCount: questionCountOf(battle),
         });
-        const persist = async () => {
-            const recorded = await record();
-            try {
-                await finalizeSession({ userId, sessionId: battleSessionId, meta: { kind: 'battle' } });
-            } catch (finErr) {
-                logger.warn('battle session finalise failed', { battleId, userId, error: finErr.message });
-            }
-            return recorded;
-        };
-        try {
-            const result = await persist();
-            graded = result.graded || null;
-        } catch (telErr) {
-            // The battle is already graded in memory, so the result screen is
-            // unaffected — but the attempts used to be dropped here, leaving
-            // the match out of the learner's analytics for good. Retry off the
-            // request path.
-            logger.warn('battle-submit telemetry persist failed; retrying in background', {
-                battleId, userId, error: telErr.message,
-            });
-            retryInBackground(`battle ${battleId}/${userId} telemetry`, persist);
-        }
     }
-
-    const score = graded
-        ? graded.filter((g) => g.isCorrect).length
-        : finalAttempts.filter((a) => a.isCorrect).length;
-
-    participant.score = score;
-    participant.itemsAnswered = finalAttempts.length;
-    participant.finished = true;
-    participant.timeTakenSecs = timeTakenSecs;
-    participant.attempts = finalAttempts.map((a) => ({
-        questionId: a.questionId,
-        isCorrect: a.isCorrect,
-        timeMs: a.timeSpentMs,
-    }));
-
-    return { participant, score, total, timeTakenSecs, finalAttempts };
-}
-
-/**
- * Elo, outcomes and the answer-key reveal, once every participant is
- * finished. Atomic: two callers (two simultaneous submits, or a submit racing
- * the deadline) can both get here; only the one whose update flips the status
- * to COMPLETED does the work.
- */
-async function completeBattle(battleNs, battleId, lobby) {
-    const { count } = await prisma.battle.updateMany({
-        where: { id: battleId, status: { not: 'COMPLETED' } },
-        data: { status: 'COMPLETED' },
-    });
-    if (count !== 1) return false;
-    if (lobby.deadlineTimer) { clearTimeout(lobby.deadlineTimer); lobby.deadlineTimer = null; }
-
-    const answerKey = lobby.answerKey || {};
-    const total = lobby.questionCount || Object.keys(answerKey).length;
-    const ranked = rankParticipants(serializeParticipants(lobby));
-
-    // Phase 6 — ELO + ranked tiers. Pull each participant's current rating,
-    // recompute, persist BattleOutcome rows, and decorate the broadcast with
-    // rating deltas.
-    const userIds = ranked.map((r) => r.id);
-    const users = await prisma.user.findMany({
-        where: { id: { in: userIds } },
-        select: { id: true, eloRating: true, tier: true },
-    });
-    const ratingMap = Object.fromEntries(
-        users.map((u) => [u.id, { rating: u.eloRating ?? 1200, tier: u.tier ?? 'BRONZE' }]),
-    );
-
-    const eloInput = ranked.map((r, i) => ({
-        userId: r.id,
-        rating: ratingMap[r.id]?.rating ?? 1200,
-        placement: i + 1,
-    }));
-    const eloDeltas = recomputeRatings(eloInput);
-    const deltaByUser = Object.fromEntries(eloDeltas.map((d) => [d.userId, d]));
-
-    // Persist outcomes + user updates atomically per participant.
-    await prisma.$transaction(
-        ranked.flatMap((r, i) => {
-            const d = deltaByUser[r.id];
-            const p = lobby.participants.get(r.id);
-            return [
-                prisma.battleOutcome.upsert({
-                    where: { battleId_userId: { battleId, userId: r.id } },
-                    update: {},
-                    create: {
-                        battleId,
-                        userId: r.id,
-                        score: r.score ?? 0,
-                        total,
-                        timeTakenSecs: r.timeTakenSecs ?? 0,
-                        placement: i + 1,
-                        eloBefore: d.ratingBefore,
-                        eloAfter: d.ratingAfter,
-                        eloDelta: d.delta,
-                        tierBefore: d.tierBefore,
-                        tierAfter: d.tierAfter,
-                        perQuestion: p?.attempts ?? null,
-                    },
-                }),
-                prisma.user.update({
-                    where: { id: r.id },
-                    // Apply the DELTA as an atomic increment rather than
-                    // writing an absolute value read outside the txn — so if
-                    // the same user finalizes two battles concurrently, neither
-                    // delta is lost (the absolute eloBefore/After stored on
-                    // BattleOutcome is best-effort display).
-                    data: { eloRating: { increment: d.delta }, tier: d.tierAfter },
-                }),
-            ];
-        }),
-    );
-
-    const results = ranked.map((r, i) => {
-        const d = deltaByUser[r.id];
-        return {
-            ...r,
-            total,
-            placement: i + 1,
-            elo: { before: d.ratingBefore, after: d.ratingAfter, delta: d.delta },
-            tier: { before: d.tierBefore, after: d.tierAfter, promoted: d.tierBefore !== d.tierAfter },
-        };
-    });
-
-    // Reveal the answer key (and offline explanations) only now — everyone is
-    // finished, so the post-battle review screen can grade, annotate, and show
-    // solutions locally.
-    battleNs.to(battleId).emit('battle-complete', {
-        results,
-        answerKey,
-        explanationKey: lobby.explanationKey || {},
-    });
-
-    setTimeout(() => battleLobbies.delete(battleId), 5 * 60 * 1000).unref?.();
-
-    logger.info('Battle completed', { battleId, participants: results.length });
+    if (done.graded) socket.emit('battle-graded', done.graded);
+    socket.emit('battle-complete', done.payload);
     return true;
 }
 
-/**
- * The time limit (plus a grace) has passed: finish everyone who hasn't
- * submitted on what the server already graded, then complete the battle.
- */
-async function finishAtDeadline(battleNs, battleId) {
-    const lobby = battleLobbies.get(battleId);
-    if (!lobby) return;
-    lobby.deadlineTimer = null;
-    const state = await prisma.battle.findUnique({ where: { id: battleId }, select: { status: true } });
-    if (state?.status !== 'IN_PROGRESS') return;
-
-    for (const p of Array.from(lobby.participants.values())) {
-        if (p.finished) continue;
-        const done = await finishParticipant(battleId, lobby, p.id);
-        if (!done) continue;
-        battleNs.to(battleId).emit('participant-finished', {
-            id: p.id,
-            displayName: p.displayName,
-            score: done.score,
-            total: done.total,
-            timeTakenSecs: done.timeTakenSecs,
-            timedOut: true,
-        });
-    }
-    await completeBattle(battleNs, battleId, lobby);
-    logger.info('Battle finished at its deadline', { battleId });
-}
-
-/** Arm (once) the timer that finishes the battle at its deadline. */
-function armDeadline(battleNs, battleId, lobby, now = Date.now()) {
-    if (lobby.deadlineTimer) return;
-    const delay = deadlineDelayMs(lobby.startedAt, lobby.timeLimitSecs, now);
-    if (delay == null) return;
-    lobby.deadlineTimer = setTimeout(() => {
-        finishAtDeadline(battleNs, battleId).catch((err) => {
-            logger.error('Battle deadline finish failed', { battleId, error: err.message });
-        });
-    }, delay);
-    lobby.deadlineTimer.unref?.();
-}
-
-
 function setupBattleSocket(io) {
     const battleNs = io.of('/battle');
+    lifecycle.setBattleNamespace(battleNs);
 
     battleNs.use(async (socket, next) => {
         const token = socket.handshake.auth?.token;
         if (!token) return next(new Error('Authentication required'));
 
+        let decoded;
         try {
-            const decoded = await getAuth().verifyIdToken(token);
+            decoded = await getAuth().verifyIdToken(token);
             socket.userId = decoded.uid;
             socket.displayName = decoded.name || decoded.email?.split('@')[0] || fallbackDisplayName(decoded.uid);
-            next();
         } catch (err) {
             logger.warn('Socket auth failed', { error: err.message });
-            next(new Error('Invalid token'));
+            return next(new Error('Invalid token'));
         }
+        // The battle's rows reference User. Someone whose first request ever
+        // is a socket join (the HTTP middleware makes the row) would otherwise
+        // fail every write. It logs and swallows its own errors.
+        await authMiddleware.ensureUserExists(decoded);
+        next();
     });
 
     battleNs.on('connection', (socket) => {
         logger.info('Battle socket connected', { userId: socket.userId });
 
         socket.on('join-battle', async ({ battleId } = {}) => {
-            if (!battleId) return;
+            if (!battleId || typeof battleId !== 'string') return;
             if (rateLimited(socket)) return;
 
             try {
-                const battle = await prisma.battle.findUnique({ where: { id: battleId } });
+                let battle = await prisma.battle.findUnique({ where: { id: battleId } });
                 if (!battle) {
                     return socket.emit('error', { message: 'Battle not found' });
                 }
 
-                const lobby = getLobby(battleId);
-                const alreadyIn = lobby.participants.has(socket.userId);
+                // Its time is up but nothing has finished it (a restart, the
+                // idle clean-up): finish it now, so a player coming back gets
+                // the results rather than an exam room with no time left.
+                if (battle.status === 'IN_PROGRESS' && battleTiming(battle)?.closed) {
+                    await lifecycle.settleWithin(battleId, JOIN_SETTLE_WAIT_MS, { ns: battleNs });
+                    battle = (await prisma.battle.findUnique({ where: { id: battleId } })) || battle;
+                }
 
-                // Authorization: a new player may only join while the battle is
-                // still gathering (WAITING). Once it has started or completed,
-                // only an existing participant may (re)connect. This stops anyone
-                // who guesses the 6-char invite code from injecting themselves
-                // into a live/finished battle and skewing everyone's Elo at
-                // finalize. (A full invited-allowlist with host approval is a
-                // follow-up — it needs a schema field + client UX.)
-                if (!alreadyIn && battle.status && battle.status !== 'WAITING') {
+                // Authorization, before any lobby exists: a new player may only
+                // join while the battle is gathering (WAITING). Once it has
+                // started or completed, only a player may (re)connect. A refused
+                // join used to leave an empty lobby behind, which a pending
+                // deadline could then "complete" with nobody in it.
+                if (battle.status !== 'WAITING' && !(await lifecycle.isParticipant(battleId, socket.userId))) {
                     return socket.emit('error', { message: 'This battle is no longer accepting new players.' });
                 }
-                if (!alreadyIn && lobby.participants.size >= MAX_PARTICIPANTS) {
+
+                if (battle.status === 'COMPLETED') {
+                    // To this socket only: the others already have it.
+                    if (!(await replayCompletion(socket, battleId, battle))) {
+                        socket.emit('error', { message: 'Battle not found' });
+                    }
+                    return;
+                }
+
+                const lobby = await lifecycle.hydrateLobby(battleId, { battle });
+                if (!lobby) return socket.emit('error', { message: 'Battle not found' });
+                const existing = lobby.participants.get(socket.userId);
+                if (!existing && lobby.participants.size >= MAX_PARTICIPANTS) {
                     return socket.emit('error', { message: 'This battle is full.' });
                 }
 
                 socket.join(battleId);
                 socket.battleId = battleId;
 
-                if (!lobby.answerKey && Array.isArray(battle.questions)) {
-                    lobby.answerKey = buildAnswerKey(battle.questions);
-                    lobby.explanationKey = buildExplanationKey(battle.questions);
-                    lobby.questionCount = battle.questions.length;
-                    lobby.timeLimitSecs = battle.timeLimitSecs;
+                if (existing) {
+                    // A reconnect or a rejoin keeps the answers and score.
+                    existing.connected = true;
+                } else {
+                    lobby.participants.set(socket.userId, {
+                        id: socket.userId,
+                        displayName: socket.displayName,
+                        score: 0,
+                        itemsAnswered: 0,
+                        connected: true,
+                        isHost: battle.hostId === socket.userId,
+                        finished: false,
+                        answers: new Map(),
+                    });
                 }
 
-                // Merge into any existing entry so a reconnect doesn't wipe the
-                // participant's live score/answers.
-                const existing = lobby.participants.get(socket.userId);
-                lobby.participants.set(socket.userId, {
-                    id: socket.userId,
-                    displayName: socket.displayName,
-                    score: existing?.score ?? 0,
-                    itemsAnswered: existing?.itemsAnswered ?? 0,
-                    connected: true,
-                    isHost: battle.hostId === socket.userId,
-                    finished: existing?.finished ?? false,
-                    timeTakenSecs: existing?.timeTakenSecs,
-                    answers: existing?.answers ?? new Map(),
-                    attempts: existing?.attempts,
-                });
-
-                if (battle.status === 'IN_PROGRESS' && battle.startedAt) {
-                    if (!lobby.startedAt) lobby.startedAt = battle.startedAt.getTime();
-                    armDeadline(battleNs, battleId, lobby);
+                if (battle.status === 'WAITING') {
+                    try {
+                        await prisma.battleParticipant.upsert({
+                            where: { battleId_userId: { battleId, userId: socket.userId } },
+                            update: { displayName: socket.displayName },
+                            create: {
+                                battleId,
+                                userId: socket.userId,
+                                displayName: socket.displayName,
+                                isHost: battle.hostId === socket.userId,
+                            },
+                        });
+                    } catch (err) {
+                        // Not fatal: the first saved answer makes the row.
+                        logger.warn('battle participant row upsert failed', { battleId, userId: socket.userId, error: err.message });
+                    }
                 }
+
+                if (battle.status === 'IN_PROGRESS') lifecycle.armDeadline(battleNs, battleId, lobby);
 
                 battleNs.to(battleId).emit('lobby-update', {
                     participants: serializeParticipants(lobby),
                     status: battle.status,
                     config: battle.config,
                     timeLimitSecs: battle.timeLimitSecs,
-                    questionCount: Array.isArray(battle.questions) ? battle.questions.length : 0
+                    questionCount: questionCountOf(battle),
+                    timing: battle.status === 'IN_PROGRESS' ? timingPayload(lobby) : null,
                 });
 
                 logger.info('User joined battle', { userId: socket.userId, battleId });
@@ -426,7 +183,7 @@ function setupBattleSocket(io) {
         });
 
         socket.on('start-battle', async ({ battleId } = {}) => {
-            if (!battleId) return;
+            if (!battleId || typeof battleId !== 'string') return;
             // Was unthrottled: a flood of start-battle for a battle the caller
             // hosts issued two DB round-trips per emit with no limiter and no
             // HTTP rate limit on the namespace.
@@ -438,27 +195,53 @@ function setupBattleSocket(io) {
                 if (battle.hostId !== socket.userId) {
                     return socket.emit('error', { message: 'Only the host can start the battle' });
                 }
+                // A second start is a no-op. It used to reset startedAt (moving
+                // everyone's deadline) and could reopen a completed battle,
+                // applying its Elo twice.
+                if (battle.status !== 'WAITING') return;
 
-                const lobby = getLobby(battleId);
-                lobby.startedAt = Date.now();
-                lobby.timeLimitSecs = battle.timeLimitSecs;
+                const lobby = await lifecycle.hydrateLobby(battleId, { battle });
+                if (!lobby) return;
                 // Whoever isn't connected now is out: they can't answer, and
                 // they used to be waited for until the end of time.
-                for (const id of absentAtStart(lobby.participants)) lobby.participants.delete(id);
+                const absent = absentAtStart(lobby.participants);
+                const startedAt = Date.now();
 
-                await prisma.battle.update({
-                    where: { id: battleId },
-                    // startedAt is persisted so a restart or eviction mid-battle
-                    // doesn't zero every participant's elapsed time.
-                    data: { status: 'IN_PROGRESS', startedAt: new Date(lobby.startedAt) }
+                // One claim: only the start that flips WAITING → IN_PROGRESS goes on.
+                const claimed = await prisma.$transaction(async (tx) => {
+                    const { count } = await tx.battle.updateMany({
+                        where: { id: battleId, hostId: socket.userId, status: 'WAITING' },
+                        // startedAt is persisted so a restart or eviction
+                        // mid-battle keeps everyone's deadline.
+                        data: { status: 'IN_PROGRESS', startedAt: new Date(startedAt) },
+                    });
+                    if (count !== 1) return false;
+                    if (absent.length > 0) {
+                        await tx.battleParticipant.deleteMany({ where: { battleId, userId: { in: absent } } });
+                    }
+                    return true;
                 });
+                if (!claimed) return;
 
+                for (const id of absent) lobby.participants.delete(id);
+                lobby.startedAt = startedAt;
+                lobby.timeLimitSecs = battle.timeLimitSecs;
+                // Every player has a row from here on (a join's upsert may
+                // have failed), so the battle can finish without this process.
+                for (const p of lobby.participants.values()) lifecycle.persistAnswers(battleId, p);
+
+                const timing = timingPayload(lobby);
                 battleNs.to(battleId).emit('battle-started', {
-                    startedAt: lobby.startedAt,
-                    timeLimitSecs: battle.timeLimitSecs
+                    startedAt,
+                    timeLimitSecs: battle.timeLimitSecs,
+                    ...timing,
                 });
-                battleNs.to(battleId).emit('lobby-update', { participants: serializeParticipants(lobby) });
-                armDeadline(battleNs, battleId, lobby);
+                battleNs.to(battleId).emit('lobby-update', {
+                    participants: serializeParticipants(lobby),
+                    status: 'IN_PROGRESS',
+                    timing,
+                });
+                lifecycle.armDeadline(battleNs, battleId, lobby);
 
                 logger.info('Battle started', { battleId, host: socket.userId });
             } catch (err) {
@@ -467,7 +250,7 @@ function setupBattleSocket(io) {
         });
 
         // Live per-question answer, graded server-side against the lobby's
-        // answer key. Replaces the old client-trusted `battle-progress` event.
+        // answer key, and saved so it survives a restart or the player leaving.
         socket.on('battle-answer', async (payload) => {
             if (rateLimited(socket)) return;
             const parsed = battleAnswerSchema.safeParse(payload || {});
@@ -475,20 +258,22 @@ function setupBattleSocket(io) {
             const { battleId, questionId, userAnswer, confidenceLevel, timeSpentMs } = parsed.data;
 
             try {
-                // Look up an EXISTING lobby — never getLobby-create here. Creating
-                // on an arbitrary 6-char id let a client flood empty lobbies into
-                // the cache and evict live battles under the cap.
-                const lobby = battleLobbies.get(battleId);
+                // Never create a lobby for an arbitrary id (a client could flood
+                // the cache and evict live battles): rebuild one only for a
+                // player of that battle — an answer can arrive before the
+                // rejoin after a restart.
+                const lobby = battleLobbies.get(battleId) || await lifecycle.hydrateIfParticipant(battleId, socket.userId);
                 if (!lobby) return;
                 lobby.lastActivity = Date.now();
                 const participant = lobby.participants.get(socket.userId);
-                if (!participant || participant.finished) return;
+                // Not once they have finished, or while finishing.
+                if (!participant || participant.finished || participant.finishPromise) return;
+                // Not before the start, and not after the deadline.
+                if (!lobby.startedAt) return;
+                if (lifecycle.lobbyTiming(lobby)?.closed) return;
 
-                const answerKey = await ensureAnswerKey(lobby, battleId);
+                const answerKey = await lifecycle.ensureAnswerKey(lobby, battleId);
                 if (!answerKey) return;
-                // After a restart the lobby is rebuilt from the database; the
-                // deadline has to be re-armed from the stored start time.
-                armDeadline(battleNs, battleId, lobby);
 
                 // Upsert-by-questionId, graded server-side (utils/battleLogic).
                 const applied = applyAnswer(
@@ -497,6 +282,7 @@ function setupBattleSocket(io) {
                     answerKey,
                 );
                 if (!applied) return;
+                lifecycle.persistAnswers(battleId, participant);
 
                 socket.to(battleId).emit('opponent-progress', {
                     id: socket.userId,
@@ -509,10 +295,10 @@ function setupBattleSocket(io) {
             }
         });
 
+        // A player's final submit. Always answered with `battle-graded` (or an
+        // error): the client keeps resending an unacknowledged submit, and a
+        // silent return left it on "Reconnecting…" for good.
         socket.on('battle-submit', async (payload) => {
-            // This is the most expensive handler in the process (findUnique,
-            // recordAttempts' transaction, findMany, and a transaction over N
-            // participants) and it was the only one with no limiter.
             if (rateLimited(socket)) return;
 
             const parsed = battleSubmitSchema.safeParse(payload || {});
@@ -520,28 +306,42 @@ function setupBattleSocket(io) {
             const { battleId, attempts: clientAttempts } = parsed.data;
 
             try {
-                // Look up an EXISTING lobby — never getLobby-create here. This is
-                // the same hardening battle-answer already had: getLobby creates
-                // on miss and evicts at MAX_LOBBIES, whose LRU fallback drops a
-                // LIVE battle. So a client emitting battle-submit with random
-                // valid-format 6-char ids could flood the cache and wipe
-                // in-progress battles' scores and startedAt. battleSubmitSchema
-                // validates the id's FORMAT, not its existence.
-                const lobby = battleLobbies.get(battleId);
-                if (!lobby) return socket.emit('error', { message: 'Battle session expired' });
-                lobby.lastActivity = Date.now();
-
-                const participant = lobby.participants.get(socket.userId);
-                if (!participant || participant.finished) return; // double-submit guard
-
+                const battle = await prisma.battle.findUnique({
+                    where: { id: battleId },
+                    select: { id: true, status: true, startedAt: true, timeLimitSecs: true, createdAt: true },
+                });
+                if (!battle) return socket.emit('error', { message: 'Battle not found' });
                 // A participant who joined while the battle was WAITING could
                 // submit before start-battle was ever emitted.
-                const state = await prisma.battle.findUnique({ where: { id: battleId }, select: { status: true } });
-                if (state?.status !== 'IN_PROGRESS') {
+                if (battle.status === 'WAITING') {
                     return socket.emit('error', { message: 'Battle is not in progress' });
                 }
+                if (battle.status === 'COMPLETED') {
+                    if (!(await replayCompletion(socket, battleId))) socket.emit('error', { message: 'Battle not found' });
+                    return;
+                }
 
-                const done = await finishParticipant(battleId, lobby, socket.userId, clientAttempts);
+                const lobby = battleLobbies.get(battleId) || await lifecycle.hydrateIfParticipant(battleId, socket.userId);
+                const participant = lobby?.participants.get(socket.userId);
+                if (!participant) return socket.emit('error', { message: 'You are not in this battle.' });
+                lobby.lastActivity = Date.now();
+
+                // After the deadline the server's record is final: finish the
+                // battle, then send this player the result.
+                if (lifecycle.lobbyTiming(lobby)?.closed || battleTiming(battle)?.closed) {
+                    await lifecycle.settleBattle(battleId, { ns: battleNs });
+                    if (!(await replayCompletion(socket, battleId))) {
+                        socket.emit('error', { message: 'Results are still being worked out. Try again in a moment.' });
+                    }
+                    return;
+                }
+
+                // A second submit (a resend after a reconnect) gets the same
+                // ack and is not announced again.
+                const wasDone = participant.finished || !!participant.finishPromise;
+                const done = participant.finished
+                    ? lifecycle.resultOf(lobby, participant)
+                    : await lifecycle.finishParticipant(battleId, lobby, socket.userId, clientAttempts);
                 if (!done) return socket.emit('error', { message: 'Battle not found' });
                 const { score, total, timeTakenSecs, finalAttempts } = done;
 
@@ -554,20 +354,23 @@ function setupBattleSocket(io) {
                     perQuestion: finalAttempts.map((a) => ({ questionId: a.questionId, isCorrect: a.isCorrect })),
                 });
 
-                battleNs.to(battleId).emit('participant-finished', {
-                    id: socket.userId,
-                    displayName: participant.displayName,
-                    score,
-                    total,
-                    timeTakenSecs
-                });
+                if (!wasDone) {
+                    battleNs.to(battleId).emit('participant-finished', {
+                        id: socket.userId,
+                        displayName: participant.displayName,
+                        score,
+                        total,
+                        timeTakenSecs
+                    });
+                }
 
-                const allFinished = Array.from(lobby.participants.values()).every(p => p.finished);
+                const allFinished = Array.from(lobby.participants.values()).every((p) => p.finished);
                 if (allFinished && lobby.participants.size > 0) {
-                    await completeBattle(battleNs, battleId, lobby);
+                    await lifecycle.completeBattle(battleNs, battleId, lobby);
                 }
             } catch (err) {
                 logger.error('Battle submit error', { error: err.message, battleId });
+                socket.emit('error', { message: "Couldn't submit. It will be sent again when you reconnect." });
             }
         });
 
@@ -588,8 +391,9 @@ function setupBattleSocket(io) {
                     // GC an abandoned lobby: if every participant is now
                     // disconnected or finished, schedule deletion after a grace
                     // period. A reconnect within the window bumps lastActivity
-                    // (via getLobby) and cancels the delete. Without this,
-                    // never-started/abandoned lobbies leaked until FIFO pressure.
+                    // and cancels the delete. Dropping it loses nothing: answers
+                    // are saved, the deadline timer stays armed, and the lobby
+                    // is rebuilt from the database when anyone needs it.
                     const anyLive = Array.from(lobby.participants.values()).some((p) => p.connected && !p.finished);
                     if (!anyLive) {
                         const scheduledAt = Date.now();
@@ -601,7 +405,7 @@ function setupBattleSocket(io) {
                                 battleLobbies.delete(battleId);
                                 logger.info('lobby GC (abandoned)', { battleId });
                             }
-                        }, LOBBY_GC_GRACE_MS);
+                        }, LOBBY_GC_GRACE_MS).unref?.();
                     }
                 }
             }
@@ -614,5 +418,5 @@ function setupBattleSocket(io) {
 module.exports = {
     setupBattleSocket,
     // Test seams for the deadline path (tests/battleDeadline.test.js).
-    __test: { battleLobbies, finishAtDeadline, armDeadline },
+    __test: { battleLobbies, finishAtDeadline: lifecycle.finishAtDeadline, armDeadline: lifecycle.armDeadline },
 };

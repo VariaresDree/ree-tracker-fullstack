@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
 vi.mock('../services/localReminders', () => ({ scheduleDailyReminder: vi.fn() }));
+vi.mock('../services/reminderPrefs', () => ({ applyDailyReminder: vi.fn(async () => ({ ok: true, from: 'device' })) }));
 let slice;
 vi.mock('../store/slices', () => ({ useNotificationSlice: () => slice }));
 

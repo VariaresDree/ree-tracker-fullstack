@@ -60,16 +60,17 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
 /**
  * @param {object} input
  * @param {{due:number, overdue?:number}} [input.srs]
+ * @param {{due:number}} [input.cards]   formula cards due for spaced review
  * @param {object|null} [input.planTask]  from pickPlanTask
  * @param {{recommendedActions?:Array}} [input.forecast]
  * @param {{done:number, target:number}} [input.daily]
  * @param {number|null} [input.examInDays]
  *
- * Order: due reviews, today's plan task, the forecast's top fix, today's
+ * Order: due reviews (questions, then formula cards), today's plan task, the forecast's top fix, today's
  * target, a mock. A plan task replaces the action it duplicates: a drill on
  * the same topic as the fix, a review for the target, a mock for the mock.
  */
-export function buildTodayActions({ srs, planTask, forecast, daily, examInDays } = {}) {
+export function buildTodayActions({ srs, cards, planTask, forecast, daily, examInDays } = {}) {
   const actions = [];
 
   if (srs?.due > 0) {
@@ -82,6 +83,17 @@ export function buildTodayActions({ srs, planTask, forecast, daily, examInDays }
         : "Spaced review of what you missed or weren't sure of.",
       cta: 'Review',
       preset: dueReviewPreset(Math.min(n, DUE_SESSION_MAX)),
+    });
+  }
+
+  if (cards?.due > 0) {
+    const n = cards.due;
+    actions.push({
+      key: 'cards',
+      title: `Review ${n} formula card${n === 1 ? '' : 's'}`,
+      detail: 'The formulas and constants you rated, back just before you’d forget them.',
+      cta: 'Review cards',
+      to: '/library?tab=formulas',
     });
   }
 

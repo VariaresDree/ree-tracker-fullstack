@@ -33,6 +33,10 @@ function applyAnswer(participant, payload, answerKey) {
     if (!participant || participant.finished) return false;
     const { questionId, userAnswer, confidenceLevel, timeSpentMs } = payload || {};
     if (!answerKey || !(questionId in answerKey)) return false;
+    // The same answer again (a client re-sending what it restored after a
+    // rejoin) changes nothing: keep the time first recorded and skip the write.
+    const prev = participant.answers.get(questionId);
+    if (prev && prev.userAnswer === userAnswer && prev.confidenceLevel === confidenceLevel) return false;
 
     participant.answers.set(questionId, {
         questionId,
@@ -41,11 +45,20 @@ function applyAnswer(participant, payload, answerKey) {
         confidenceLevel,
         timeSpentMs,
     });
-    participant.itemsAnswered = participant.answers.size;
-    let liveScore = 0;
-    for (const a of participant.answers.values()) if (a.isCorrect) liveScore++;
-    participant.score = liveScore;
+    recount(participant);
     return true;
+}
+
+/** itemsAnswered (answers actually given, not blanks) and the live score. */
+function recount(participant) {
+    let answered = 0;
+    let score = 0;
+    for (const a of participant.answers.values()) {
+        if (a.userAnswer != null) answered += 1;
+        if (a.isCorrect) score += 1;
+    }
+    participant.itemsAnswered = answered;
+    participant.score = score;
 }
 
 /**
@@ -115,7 +128,98 @@ function absentAtStart(participants) {
     return Array.from(participants.values()).filter((p) => !p.connected).map((p) => p.id);
 }
 
+const toMs = (t) => (t == null ? null : t instanceof Date ? t.getTime() : Number(t));
+
+/**
+ * When a battle ends, from the battle row and the server clock:
+ *   endsAt   — start + time limit (what the exam room's timer counts to);
+ *   closesAt — endsAt + the grace, when the server finishes it itself;
+ *   remainingMs — time left on the exam room's timer (never negative);
+ *   closed   — the grace has passed: nobody can answer, and it must finish.
+ * A battle row from before startedAt was stored falls back to createdAt, so
+ * a stuck old battle still gets a deadline. Null when it hasn't started (and
+ * has no fallback) or has no time limit.
+ */
+function battleTiming({ startedAt, timeLimitSecs, createdAt } = {}, now = Date.now(), graceMs = DEADLINE_GRACE_MS) {
+    const start = toMs(startedAt) ?? toMs(createdAt);
+    if (!start || !Number.isFinite(timeLimitSecs) || timeLimitSecs <= 0) return null;
+    const endsAt = start + timeLimitSecs * 1000;
+    const closesAt = endsAt + graceMs;
+    return { startedAt: start, endsAt, closesAt, remainingMs: Math.max(0, endsAt - now), closed: now >= closesAt };
+}
+
+/**
+ * The answers Map as stored on the BattleParticipant row. Correctness is
+ * left out on purpose: it is regraded against the battle's key on the way
+ * back (answersFromJson), so a stored row can never vouch for itself.
+ */
+function answersToJson(answers) {
+    const out = {};
+    for (const [questionId, a] of answers || []) {
+        out[questionId] = {
+            userAnswer: a.userAnswer ?? null,
+            confidenceLevel: a.confidenceLevel ?? 'MED',
+            timeSpentMs: Number.isFinite(a.timeSpentMs) ? a.timeSpentMs : 0,
+        };
+    }
+    return out;
+}
+
+/**
+ * A stored answers object back into the lobby's Map, each one graded against
+ * the server's key. Question ids not in this battle are dropped.
+ */
+function answersFromJson(json, answerKey) {
+    const answers = new Map();
+    if (!json || typeof json !== 'object' || !answerKey) return answers;
+    for (const [questionId, a] of Object.entries(json)) {
+        if (!(questionId in answerKey) || !a || typeof a !== 'object') continue;
+        const userAnswer = typeof a.userAnswer === 'string' ? a.userAnswer : null;
+        answers.set(questionId, {
+            questionId,
+            userAnswer,
+            isCorrect: gradeAnswer(answerKey, questionId, userAnswer),
+            confidenceLevel: ['LOW', 'MED', 'HIGH'].includes(a.confidenceLevel) ? a.confidenceLevel : 'MED',
+            timeSpentMs: Number.isFinite(a.timeSpentMs) ? a.timeSpentMs : 0,
+        });
+    }
+    return answers;
+}
+
+/**
+ * A player's own answers for the client restoring them after a rejoin: the
+ * option picked and the confidence, never whether it was right (the key stays
+ * on the server until the battle completes). Blanks are left out.
+ */
+function publicAnswers(answers) {
+    const entries = answers instanceof Map ? Array.from(answers.entries()) : Object.entries(answers || {});
+    const out = {};
+    for (const [questionId, a] of entries) {
+        if (!a || a.userAnswer == null) continue;
+        out[questionId] = { userAnswer: a.userAnswer, confidenceLevel: a.confidenceLevel ?? 'MED' };
+    }
+    return out;
+}
+
+/**
+ * Record every unanswered item as blank (wrong, like the board exam) for a
+ * player finished at the deadline. Returns how many were filled.
+ */
+function fillBlanks(participant, answerKey) {
+    let filled = 0;
+    for (const questionId of Object.keys(answerKey || {})) {
+        if (participant.answers.has(questionId)) continue;
+        participant.answers.set(questionId, {
+            questionId, userAnswer: null, isCorrect: false, confidenceLevel: 'MED', timeSpentMs: 0,
+        });
+        filled += 1;
+    }
+    if (filled) recount(participant);
+    return filled;
+}
+
 module.exports = {
-    gradeAnswer, applyAnswer, mergeSubmitAttempts, computeElapsedSecs, rankParticipants,
+    gradeAnswer, applyAnswer, recount, mergeSubmitAttempts, computeElapsedSecs, rankParticipants,
     DEADLINE_GRACE_MS, deadlineDelayMs, absentAtStart,
+    battleTiming, answersToJson, answersFromJson, publicAnswers, fillBlanks,
 };

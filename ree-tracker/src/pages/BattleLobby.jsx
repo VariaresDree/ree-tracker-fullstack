@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { Button, Badge, StatusPill, Card, EmptyState } from '../components/ui';
-import { ChevronLeft, Swords, Users, Copy, Trophy } from '../components/ui/icons';
+import { ChevronLeft, Swords, Users, Copy, Trophy, ClipboardList, Clock } from '../components/ui/icons';
+import { formatTimeOfDay } from '../utils/time';
 import toast from 'react-hot-toast';
 
 export default function BattleLobby() {
@@ -21,8 +22,17 @@ export default function BattleLobby() {
         battleConfig,
         results,
         error,
+        timing,
         startBattle
     } = useBattleSocket(battleId);
+
+    // While it runs: minutes left, ticking on.
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        if (battleStatus !== 'IN_PROGRESS') return undefined;
+        const t = setInterval(() => setNow(Date.now()), 30 * 1000);
+        return () => clearInterval(t);
+    }, [battleStatus]);
 
     // Only players connected now can take part: the server drops anyone
     // disconnected when the battle starts.
@@ -52,6 +62,13 @@ export default function BattleLobby() {
     const handleEnterChamber = () => {
         navigate(`/simulator?battleId=${battleId}`);
     };
+
+    // This player's own row: once they've submitted there is no exam room to
+    // go back to, only the time the results are due.
+    const me = participants.find(p => p.id === currentUser?.uid);
+    const iFinished = !!me?.finished;
+    const minsLeft = timing ? Math.ceil((timing.endsAt - now) / 60000) : null;
+    const myResult = results?.find(r => r.id === currentUser?.uid);
 
     // Can't reach the battle server (offline, or no connect within the timeout):
     // show a clear, actionable state instead of an endless "Connecting…" spinner.
@@ -294,9 +311,27 @@ export default function BattleLobby() {
                 {/* Only enter the exam room once the battle has actually STARTED.
                     Entering during WAITING dropped a non-host into the simulator
                     before `battle-started` fired (host still assembling the lobby). */}
-                {battleStatus === 'IN_PROGRESS' && (
+                {battleStatus === 'IN_PROGRESS' && !iFinished && (minsLeft == null || minsLeft > 0) && (
                     <Button tone="danger" className="flex-1" onClick={handleEnterChamber}>
-                        Enter exam room
+                        Enter exam room{minsLeft != null && ` · ${minsLeft} min left`}
+                    </Button>
+                )}
+
+                {battleStatus === 'IN_PROGRESS' && (iFinished || (minsLeft != null && minsLeft <= 0)) && (
+                    <span aria-live="polite" className="flex-1 flex flex-col items-center justify-center gap-1 text-center">
+                        <StatusPill tone="success" dot>{iFinished ? 'Your answers are in' : 'Time is up'}</StatusPill>
+                        {timing && (
+                            <span className="text-xs text-muted2 inline-flex items-center gap-1">
+                                <Clock size={12} strokeWidth={1.75} aria-hidden="true" />
+                                Results by {formatTimeOfDay(timing.closesAt)}, even if someone has left
+                            </span>
+                        )}
+                    </span>
+                )}
+
+                {results && myResult && (
+                    <Button as={Link} to={`/exams/sittings/${encodeURIComponent(`${battleId}:${currentUser.uid}`)}`} className="flex-1">
+                        <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review your answers
                     </Button>
                 )}
 
