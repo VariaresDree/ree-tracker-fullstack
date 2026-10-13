@@ -95,7 +95,7 @@ class FocusBlockError extends Error {
  * Minutes can't exceed the time the block spanned (the rule a new block
  * follows). Only the learner's own block is found.
  */
-async function updateFocusBlock(userId, id, { subject, minutes }) {
+async function updateFocusBlock({ userId, id }, { subject, minutes }) {
     const found = await prisma.focusBlock.findFirst({
         where: { id, userId },
         select: { id: true, startedAt: true, endedAt: true },
@@ -112,7 +112,7 @@ async function updateFocusBlock(userId, id, { subject, minutes }) {
 }
 
 /** Delete one of the learner's blocks. A second delete is a no-op. */
-async function deleteFocusBlock(userId, id) {
+async function deleteFocusBlock({ userId, id }) {
     const { count } = await prisma.focusBlock.deleteMany({ where: { id, userId } });
     return { deleted: count > 0 };
 }

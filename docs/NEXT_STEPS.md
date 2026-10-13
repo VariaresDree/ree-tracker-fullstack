@@ -54,23 +54,22 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 - **Battles that were live when #144 deployed** have no `BattleParticipant` rows. They close with no outcomes, and their players can't rejoin. This is one-off.
 - **Spectating:** `GET /api/battles/:id/spectate` exists, but no screen uses it.
 
-**Answer-key exposure (pre-existing)**
-- `POST /api/exams/grade` and the bookmarks list return the answer for any question id. The sitting review and the mistakes list keep running battles closed, but these two routes don't.
-- Consider gating answers by "has this user answered it in a closed sitting".
+**Answer-key exposure** (fixed in the release after #144)
+- `POST /api/exams/grade`, the bookmarks list, the mistakes list and today's loop now keep a question's key from a player while it is in a battle they're still in (`services/answerGate.js`). A non-player can still grade any question id; that only matters if one player hands the ids to someone else.
 
 **List caps (no pagination yet)**
 - Mistakes: the newest 300 questions, from the last 5,000 wrong attempts.
 - Notes: the newest 1,000.
 - Card reviews: every rated card.
 - Add cursors if real accounts get near these.
-- If `GET /api/user/mistakes` gets slow, add an index: `QuestionAttempt (userId, isCorrect, createdAt)`.
+- `QuestionAttempt (userId, isCorrect, createdAt)` is indexed now (migration `20261016000000_mistakes_index`).
 
 **Formula-card reviews**
 - No suspend/bury, no daily cap on new cards, no review history (only the latest schedule is kept).
 - Rating happens only in study mode.
 
 **Focus time**
-- Logged blocks can't be edited or deleted.
+- Logged blocks can be fixed or deleted from Habits › Recent blocks (the newest ten).
 - The subject is fixed per block (switch mid-block and the whole block goes to the new subject).
 - It's display only, by design: it never feeds θ or readiness.
 
@@ -83,17 +82,17 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 - **Lint ratchet:** 31 errors at baseline, mostly `react-hooks/set-state-in-effect`, `react-hooks/purity` and `react-refresh/only-export-components`. Pay down a few per change.
 - **Boot bundle:** 649 kB of the 700 kB budget (92.7%). Before adding anything to the shell, look at what `@ree/shared` and the shell pull in eagerly.
 
-**Tests**
-- Only the login screen has a Playwright test. Authed flows need the Firebase Auth emulator, or a test-token path in CI.
-- The two-client battle end-to-end check ran outside the repo, because `socket.io-client` isn't a backend dependency. Adding it as a backend devDependency would let that test live in `tests/` (the in-memory DB it uses is `tests/helpers/fakeBattleDb.js`).
-- There is no test against a real Postgres. Prisma query shapes are verified by mocks only; a CI job with a Postgres service and `prisma migrate deploy` would catch schema/query drift.
+**Tests** (done in the release after #144)
+- Signed-in Playwright specs run on the Firebase Auth emulator with the real backend (`ree-tracker/e2e-authed/`, CI "E2E (signed in)"). Add a spec there for each new signed-in flow.
+- The two-client battle test lives in `tests/battleTwoClients.test.js`.
+- CI applies the migrations to a real Postgres, checks them against `schema.prisma`, and runs `tests/integration/*.dbtest.js` (`npm run test:db`).
 
-**Phase 2 gate:** authed-screen axe and Lighthouse runs are still manual.
+**Phase 2 gate:** axe now runs on Today and Progress › Habits in CI. Lighthouse on signed-in screens is still manual.
 
 ## 4. Ideas that would help learners (candidates for the next plan)
 
 **Using the new data**
-- **One "Today" study loop:** due questions, due formula cards, and open mistakes in one mixed session, ordered by board weight.
+- ~~**One "Today" study loop**~~ shipped: due questions and open mistakes in one session by board weight, then the formula cards due. Mixing formula cards into the same session (not after it) is still open.
 - **Study plan generator** (Progress › Study plan): include due cards and open mistakes per topic, and use focus-time share against PRC weight to rebalance the week.
 - **Mistake patterns over time:** causes per week, and "you're misreading less". A mistakes-only mock: a timed set of open mistakes at board pace.
 - **Formula ↔ question links:** a missed question surfaces the formula cards for its topic, and rating a card can queue two questions on it.

@@ -26,7 +26,7 @@ router.post('/focus-blocks', authMiddleware, validate(focusBlockSchema), async (
 // No idempotency(): setting the same values again is harmless.
 router.patch('/focus-blocks/:id', authMiddleware, validate(focusBlockEditSchema), async (req, res) => {
     try {
-        const block = await updateFocusBlock(req.user.id, req.params.id, req.body);
+        const block = await updateFocusBlock({ userId: req.user.id, id: req.params.id }, req.body);
         res.status(200).json({ success: true, block });
     } catch (error) {
         if (error instanceof FocusBlockError) return res.status(error.status).json({ error: error.message });
@@ -37,7 +37,7 @@ router.patch('/focus-blocks/:id', authMiddleware, validate(focusBlockEditSchema)
 
 router.delete('/focus-blocks/:id', authMiddleware, async (req, res) => {
     try {
-        const { deleted } = await deleteFocusBlock(req.user.id, req.params.id);
+        const { deleted } = await deleteFocusBlock({ userId: req.user.id, id: req.params.id });
         res.status(200).json({ success: true, deleted });
     } catch (error) {
         logger.error('Focus block delete failed', { error: error.message });
