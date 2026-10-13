@@ -101,7 +101,7 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 - **Focus goals:** a weekly target per subject from the PRC weights, with the Habits chart showing progress against it.
 
 **Battles**
-- Rematch, a battle history page with the per-question replay (`/replay` exists), and spectate.
+- ~~Rematch, and a battle history with the per-question replay~~ shipped: Exams › Battles › Past battles, everyone's picks in a battle's review, and Rematch from the results, the review and the history. Spectate is still open (`/spectate` still serves any battle to anyone signed in).
 - Ranked matchmaking by Elo (a queue rather than invite codes).
 
 **Reach and polish**

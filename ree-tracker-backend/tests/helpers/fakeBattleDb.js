@@ -58,6 +58,15 @@ function installFakeBattleDb(vi, prisma) {
             state.participants.set(key(battleId, userId), row);
             return row;
         },
+        addOutcome(battleId, userId, over = {}) {
+            const row = {
+                id: `bo-${++seq}`, battleId, userId, score: 0, total: 0, timeTakenSecs: 0, placement: 1,
+                eloBefore: 1200, eloAfter: 1200, eloDelta: 0, tierBefore: 'BRONZE', tierAfter: 'BRONZE',
+                perQuestion: [], createdAt: new Date(), ...over,
+            };
+            state.outcomes.set(key(battleId, userId), row);
+            return row;
+        },
         participant: (battleId, userId) => state.participants.get(key(battleId, userId)) || null,
         outcomesFor: (battleId) => Array.from(state.outcomes.values())
             .filter((o) => o.battleId === battleId)
@@ -65,7 +74,23 @@ function installFakeBattleDb(vi, prisma) {
     };
 
     // --- Battle
-    vi.spyOn(prisma.battle, 'findUnique').mockImplementation(async ({ where }) => clone(state.battles.get(where.id) || null));
+    // The `rematch` relation is filled in on every read (select is ignored).
+    const rematchOf = (id) => {
+        const r = Array.from(state.battles.values()).find((b) => b.rematchOfId === id);
+        return r ? { id: r.id, status: r.status, hostId: r.hostId } : null;
+    };
+    const withRematch = (b) => (b ? { ...b, rematch: rematchOf(b.id) } : null);
+    vi.spyOn(prisma.battle, 'findUnique').mockImplementation(async ({ where }) => {
+        const b = where.id !== undefined
+            ? state.battles.get(where.id)
+            : Array.from(state.battles.values()).find((x) => x.rematchOfId === where.rematchOfId);
+        return clone(withRematch(b || null));
+    });
+    vi.spyOn(prisma.battle, 'create').mockImplementation(async ({ data }) => {
+        if (state.battles.has(data.id)) throw p2002();
+        if (data.rematchOfId && Array.from(state.battles.values()).some((b) => b.rematchOfId === data.rematchOfId)) throw p2002();
+        return clone(db.addBattle(clone(data)));
+    });
     vi.spyOn(prisma.battle, 'findMany').mockImplementation(async ({ where = {}, take } = {}) => {
         const rows = Array.from(state.battles.values())
             .filter((b) => matchesIn(b.status, where.status))
@@ -84,7 +109,7 @@ function installFakeBattleDb(vi, prisma) {
         if (where.battleId !== undefined && !matchesIn(row.battleId, where.battleId)) return false;
         if (where.userId !== undefined && !matchesIn(row.userId, where.userId)) return false;
         if ('finishedAt' in where && where.finishedAt === null && row.finishedAt != null) return false;
-        if (where.battle?.status && state.battles.get(row.battleId)?.status !== where.battle.status) return false;
+        if (where.battle?.status && !matchesIn(state.battles.get(row.battleId)?.status, where.battle.status)) return false;
         return true;
     };
     vi.spyOn(prisma.battleParticipant, 'findMany').mockImplementation(async ({ where = {}, take } = {}) => {
@@ -133,8 +158,34 @@ function installFakeBattleDb(vi, prisma) {
         if (!state.outcomes.has(k)) state.outcomes.set(k, { id: `bo-${++seq}`, ...clone(create), createdAt: new Date() });
         return clone(state.outcomes.get(k));
     });
-    vi.spyOn(prisma.battleOutcome, 'findMany').mockImplementation(async ({ where }) =>
-        clone(db.outcomesFor(where.battleId).map((o) => ({ ...o, user: state.users.get(o.userId) || null }))));
+    // Filters on battleId, userId and createdAt < lt; newest first when asked,
+    // else by placement. Each row comes with its user and its battle (with the
+    // battle's rematch, outcomes and participants).
+    const withUser = (o) => ({ ...o, user: state.users.get(o.userId) || null });
+    vi.spyOn(prisma.battleOutcome, 'findMany').mockImplementation(async ({ where = {}, orderBy, take } = {}) => {
+        let rows = Array.from(state.outcomes.values()).filter((o) => matchesIn(o.battleId, where.battleId)
+            && matchesIn(o.userId, where.userId)
+            && (!where.createdAt?.lt || o.createdAt < where.createdAt.lt));
+        rows = orderBy?.createdAt === 'desc'
+            ? rows.sort((a, b) => b.createdAt - a.createdAt)
+            : rows.sort((a, b) => a.placement - b.placement);
+        if (take) rows = rows.slice(0, take);
+        return clone(rows.map((o) => {
+            const b = state.battles.get(o.battleId);
+            return {
+                ...withUser(o),
+                battle: b ? {
+                    ...withRematch(b),
+                    outcomes: db.outcomesFor(o.battleId).map(withUser),
+                    participants: Array.from(state.participants.values()).filter((p) => p.battleId === o.battleId),
+                } : null,
+            };
+        }));
+    });
+    vi.spyOn(prisma.battleOutcome, 'findUnique').mockImplementation(async ({ where }) => {
+        const { battleId, userId } = where.battleId_userId;
+        return clone(state.outcomes.get(key(battleId, userId)) || null);
+    });
 
     // --- User
     vi.spyOn(prisma.user, 'findMany').mockImplementation(async ({ where }) =>

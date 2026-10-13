@@ -3,13 +3,22 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { requestRematch } from '../services/dbQueries';
 import { Button, Badge, StatusPill, Card, EmptyState } from '../components/ui';
-import { ChevronLeft, Swords, Users, Copy, Trophy, ClipboardList, Clock } from '../components/ui/icons';
+import { ChevronLeft, Swords, Users, Copy, Trophy, ClipboardList, Clock, RotateCcw } from '../components/ui/icons';
 import { formatTimeOfDay } from '../utils/time';
 import toast from 'react-hot-toast';
 
+const REMATCH_NEEDS_CONNECTION = 'Rematch needs a connection. Reconnect and try again.';
+
 export default function BattleLobby() {
     const { battleId } = useParams();
+    // One room per battle: a rematch opens the new battle on this same route,
+    // and nothing of the old one (its results, its players) may carry over.
+    return <BattleRoom key={battleId} battleId={battleId} />;
+}
+
+function BattleRoom({ battleId }) {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const isOnline = useNetworkStatus();
@@ -23,6 +32,7 @@ export default function BattleLobby() {
         results,
         error,
         timing,
+        rematch,
         startBattle
     } = useBattleSocket(battleId);
 
@@ -69,6 +79,26 @@ export default function BattleLobby() {
     const iFinished = !!me?.finished;
     const minsLeft = timing ? Math.ceil((timing.endsAt - now) / 60000) : null;
     const myResult = results?.find(r => r.id === currentUser?.uid);
+
+    // Rematch: the same settings in a new lobby. A battle has one; when
+    // someone else started it, the room offers to join theirs instead. One
+    // that has already started (or finished) is no longer offered.
+    const rematchOpen = !rematch || rematch.status === 'WAITING';
+    const rematchByOther = !!(rematch?.status === 'WAITING' && rematch.by?.userId && rematch.by.userId !== currentUser?.uid);
+    const canRematch = !!(results && myResult) && rematchOpen && !rematchByOther;
+    const [rematching, setRematching] = useState(false);
+    const handleRematch = async () => {
+        if (!isOnline) return toast.error(REMATCH_NEEDS_CONNECTION);
+        if (rematch?.battleId) return navigate(`/battle/${rematch.battleId}`);
+        setRematching(true);
+        try {
+            const res = await requestRematch(battleId);
+            navigate(`/battle/${res.battleId}`);
+        } catch (err) {
+            toast.error(err?.message === '[OFFLINE]' ? REMATCH_NEEDS_CONNECTION : (err?.message || "Couldn't start a rematch."));
+            setRematching(false);
+        }
+    };
 
     // Can't reach the battle server (offline, or no connect within the timeout):
     // show a clear, actionable state instead of an endless "Connecting…" spinner.
@@ -281,6 +311,25 @@ export default function BattleLobby() {
                             </div>
                         ))}
                     </div>
+                    {/* Always there, so a rematch started while you look is announced. */}
+                    <div aria-live="polite">
+                        {rematchByOther && (
+                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[var(--radius-lg)] border"
+                                style={{
+                                    background: 'color-mix(in srgb, var(--accent-danger) 8%, transparent)',
+                                    borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)',
+                                }}
+                            >
+                                <p className="text-sm text-textMain flex items-center gap-2 min-w-0">
+                                    <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0" style={{ color: 'var(--accent-danger)' }} />
+                                    <span><span className="font-semibold">{rematch.by.displayName}</span> started a rematch</span>
+                                </p>
+                                <Button tone="danger" size="sm" className="shrink-0" aria-label="Join the rematch" onClick={() => navigate(`/battle/${rematch.battleId}`)}>
+                                    Join
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                 </Card>
             )}
 
@@ -332,6 +381,12 @@ export default function BattleLobby() {
                 {results && myResult && (
                     <Button as={Link} to={`/exams/sittings/${encodeURIComponent(`${battleId}:${currentUser.uid}`)}`} className="flex-1">
                         <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review your answers
+                    </Button>
+                )}
+
+                {canRematch && (
+                    <Button tone="danger" variant="outline" className="flex-1" onClick={handleRematch} loading={rematching} disabled={rematching}>
+                        <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" /> Rematch
                     </Button>
                 )}
 

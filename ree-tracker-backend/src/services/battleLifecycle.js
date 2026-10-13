@@ -52,6 +52,14 @@ let battleNamespace = null;
 function setBattleNamespace(ns) { battleNamespace = ns; }
 const emitterFor = (ns) => ns || battleNamespace || NOOP_NS;
 
+/**
+ * Tell everyone in a battle's room (an HTTP handler has no socket of its own:
+ * a rematch is started over REST and announced to the old battle's room).
+ */
+function notifyRoom(battleId, event, payload) {
+    emitterFor(null).to(battleId).emit(event, payload);
+}
+
 const sleep = (ms) => new Promise((resolve) => { const t = setTimeout(resolve, ms); t.unref?.(); });
 const toMs = (t) => (t == null ? null : t instanceof Date ? t.getTime() : Number(t));
 
@@ -703,10 +711,15 @@ function armDeadline(ns, battleId, lobby, now = Date.now()) {
 /**
  * A completed battle's `battle-complete` payload, rebuilt from its outcomes
  * (for a player who comes back after it ended), and the given player's own
- * `battle-graded` ack. Null when it isn't completed.
+ * `battle-graded` ack. Null when it isn't completed. The payload carries the
+ * battle's rematch, if one was started ({ battleId, status, by }), so a
+ * results screen opened later can offer to join it.
  */
 async function completionFor(battleId, userId = null) {
-    const battle = await prisma.battle.findUnique({ where: { id: battleId }, select: { status: true, questions: true } });
+    const battle = await prisma.battle.findUnique({
+        where: { id: battleId },
+        select: { status: true, questions: true, rematch: { select: { id: true, status: true, hostId: true } } },
+    });
     if (!battle || battle.status !== 'COMPLETED') return null;
     const [outcomes, rows] = await Promise.all([
         prisma.battleOutcome.findMany({
@@ -729,11 +742,20 @@ async function completionFor(battleId, userId = null) {
         tier: tierOf(o),
     }));
     const mine = userId ? (outcomes || []).find((o) => o.userId === userId) : null;
+    // Whoever started the rematch hosts it.
+    const rematch = battle.rematch
+        ? {
+            battleId: battle.rematch.id,
+            status: battle.rematch.status,
+            by: { userId: battle.rematch.hostId, displayName: nameOf.get(battle.rematch.hostId) || fallbackDisplayName(battle.rematch.hostId) },
+        }
+        : null;
     return {
         payload: {
             results,
             answerKey: buildAnswerKey(battle.questions),
             explanationKey: buildExplanationKey(battle.questions),
+            rematch,
         },
         graded: mine ? {
             score: mine.score,
@@ -824,6 +846,7 @@ function stopBattleSweeper() {
 module.exports = {
     battleLobbies,
     setBattleNamespace,
+    notifyRoom,
     getLobby,
     hydrateLobby,
     hydrateIfParticipant,

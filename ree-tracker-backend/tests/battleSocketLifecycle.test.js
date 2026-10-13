@@ -172,6 +172,33 @@ describe('joining', () => {
         expect(ns.broadcasts).toHaveLength(0);
     });
 
+    it('keeps a player who comes back after the end in the room, so they hear of a rematch', async () => {
+        running('SOCK16', PAST_DEADLINE, { host: { answers: saved({ q1: 'A' }) }, a: { answers: saved({ q1: 'B' }) } });
+        await lifecycle.settleBattle('SOCK16');
+        const a = connect('a');
+        await a.handlers['join-battle']({ battleId: 'SOCK16' });
+        expect(a.rooms.has('SOCK16')).toBe(true);
+        expect(got(a, 'battle-complete')[0].rematch).toBeNull();
+
+        const stranger = connect('stranger');
+        await stranger.handlers['join-battle']({ battleId: 'SOCK16' });
+        expect(stranger.rooms.has('SOCK16')).toBe(false);
+
+        lifecycle.notifyRoom('SOCK16', 'rematch-ready', { battleId: 'NEW016', by: { userId: 'host', displayName: 'host' } });
+        expect(got(a, 'rematch-ready')).toEqual([{ battleId: 'NEW016', by: { userId: 'host', displayName: 'host' } }]);
+        expect(got(stranger, 'rematch-ready')).toEqual([]);
+    });
+
+    it("carries the battle's rematch in the results replayed to a player who comes back", async () => {
+        running('SOCK17', PAST_DEADLINE, { host: { answers: saved({ q1: 'A' }) }, a: { answers: saved({ q1: 'B' }) } });
+        await lifecycle.settleBattle('SOCK17');
+        battle('NEW017', { hostId: 'a', rematchOfId: 'SOCK17' });
+        const host = connect('host');
+        await host.handlers['join-battle']({ battleId: 'SOCK17' });
+        expect(got(host, 'battle-complete')[0].rematch).toEqual({ battleId: 'NEW017', status: 'WAITING', by: { userId: 'a', displayName: 'a' } });
+        expect((await lifecycle.completionFor('SOCK17')).payload.rematch).toMatchObject({ battleId: 'NEW017' });
+    });
+
     it('finishes a battle whose time is up when a player comes back, then shows the results', async () => {
         running('SOCK05', PAST_DEADLINE, { host: { answers: saved({ q1: 'A' }) }, a: { answers: saved({ q2: 'B' }) } });
         const a = connect('a');

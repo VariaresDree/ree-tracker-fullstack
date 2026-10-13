@@ -60,4 +60,17 @@ describe('useBattleSocket', () => {
     act(() => handlers.error({ message: 'This battle is full.' }));
     expect(result.current.error).toBe('This battle is full.');
   });
+
+  it('hears a rematch started from the results, or carried in the results replayed later', async () => {
+    const { result } = renderHook(() => useBattleSocket('ABC127'));
+    await waitFor(() => expect(handlers['rematch-ready']).toBeDefined());
+    expect(result.current.rematch).toBeNull();
+    act(() => handlers['rematch-ready']({ battleId: 'NEW127', by: { userId: 'ana', displayName: 'Ana' } }));
+    expect(result.current.rematch).toEqual({ battleId: 'NEW127', status: 'WAITING', by: { userId: 'ana', displayName: 'Ana' } });
+
+    const later = renderHook(() => useBattleSocket('ABC128'));
+    await waitFor(() => expect(handlers['battle-complete']).toBeDefined());
+    act(() => handlers['battle-complete']({ results: [], answerKey: {}, rematch: { battleId: 'NEW128', status: 'IN_PROGRESS', by: null } }));
+    expect(later.result.current.rematch).toEqual({ battleId: 'NEW128', status: 'IN_PROGRESS', by: null });
+  });
 });

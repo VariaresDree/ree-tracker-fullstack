@@ -19,6 +19,8 @@ vi.mock('../../services/dbQueries', () => ({
   fetchPaginatedLeaderboard: vi.fn(),
   fetchLeaderboardMe: vi.fn(),
 }));
+// Past battles has its own tests (BattleHistory.test.jsx).
+vi.mock('./BattleHistory', () => ({ default: () => <section aria-label="Past battles" /> }));
 
 const { fetchPaginatedLeaderboard, fetchLeaderboardMe } = await import('../../services/dbQueries');
 const { default: BattlesTab } = await import('./BattlesTab');
@@ -53,6 +55,7 @@ describe('BattlesTab', () => {
     expect(join).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Battle code'), { target: { value: 'abc123' } });
     expect(join).toBeEnabled();
+    expect(screen.getByRole('region', { name: 'Past battles' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
     const formats = within(screen.getByRole('radiogroup', { name: 'Battle format' })).getAllByRole('radio');

@@ -34,6 +34,11 @@ export function useBattleSocket(battleId) {
     // its own clock with each update, so a phone whose clock is off still
     // counts down to the server's deadline. { endsAt, closesAt } (epoch ms).
     const [timing, setTiming] = useState(null);
+    // The finished battle's rematch: { battleId, status, by: { userId,
+    // displayName } }. Announced to the room when someone starts it
+    // (`rematch-ready`), and carried in the results replayed to a player who
+    // comes back later.
+    const [rematch, setRematch] = useState(null);
 
     useEffect(() => {
         if (!battleId) return;
@@ -127,6 +132,11 @@ export function useBattleSocket(battleId) {
                 // everyone finished — feeds the post-battle review screen.
                 if (data.answerKey) setAnswerKey(data.answerKey);
                 if (data.explanationKey) setExplanationKey(data.explanationKey);
+                if (data.rematch) setRematch(data.rematch);
+            });
+
+            socket.on('rematch-ready', (data) => {
+                if (data?.battleId) setRematch({ battleId: data.battleId, status: 'WAITING', by: data.by || null });
             });
 
             socket.on('error', (data) => {
@@ -191,6 +201,7 @@ export function useBattleSocket(battleId) {
         error,
         submitPending,
         timing,
+        rematch,
         rejoin,
         startBattle,
         sendAnswer,

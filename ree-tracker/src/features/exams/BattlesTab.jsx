@@ -1,7 +1,8 @@
 // src/features/exams/BattlesTab.jsx
 //
-// Exams › Battles: join a friend's battle by code, or host one, and get back
-// into one you left part-way. Moved out of the Arena page.
+// Exams › Battles: join a friend's battle by code, or host one, get back
+// into one you left part-way, and look back at (or rematch) the ones you've
+// finished. Moved out of the Arena page.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -11,6 +12,7 @@ import { Button, FormField, Input, cn } from '../../components/ui';
 import { Check, Swords } from '../../components/ui/icons';
 import HostBattleModal from './HostBattleModal';
 import ActiveBattles from './ActiveBattles';
+import BattleHistory from './BattleHistory';
 import { BATTLE_MODES } from './battleModes';
 
 export default function BattlesTab() {
@@ -111,6 +113,9 @@ export default function BattlesTab() {
           Host a battle
         </Button>
       </div>
+
+      {/* Finished battles: review, and Rematch. */}
+      <BattleHistory onHost={() => setShowHostModal(true)} />
 
       <HostBattleModal open={showHostModal} onClose={() => setShowHostModal(false)} isOnline={isOnline} />
     </div>

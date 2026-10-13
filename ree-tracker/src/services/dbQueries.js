@@ -460,6 +460,21 @@ export const createMultiplayerBattle = async (config, timeLimitSecs) => {
 export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battles/${battleId}`);
 // The running battles you're in, for "Return to battle": { items, serverNow }.
 export const fetchActiveBattles = async () => apiRequest('/api/battles/me/active');
+// Your finished battles, newest first: { items, nextBefore }. Pass the last
+// page's `nextBefore` as `before` for the next one (null: nothing older).
+export const fetchBattleHistory = async ({ before = null, limit = 20 } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.set('before', before);
+    return apiRequest(`/api/battles/me/history?${params}`);
+};
+// A finished battle as its players saw it: { battle (with its rematch, if
+// any), players, picks }, where picks[questionId] is each player's
+// { userId, answer, isCorrect, timeMs }.
+// For the battle's own players only (404 otherwise).
+export const fetchBattleReplay = async (battleId) => apiRequest(`/api/battles/${encodeURIComponent(battleId)}/replay`);
+// The same settings again, hosted by you: { battleId, created }. A battle has
+// one rematch, so asking again (or after someone else) gives the same lobby.
+export const requestRematch = async (battleId) => apiRequest(`/api/battles/${encodeURIComponent(battleId)}/rematch`, 'POST');
 
 // ----------------------------------------------------------------------
 // 6. System Configuration & Bookmarks
