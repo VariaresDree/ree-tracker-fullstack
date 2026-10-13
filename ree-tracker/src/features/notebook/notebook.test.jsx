@@ -2,7 +2,7 @@
 //   - a note saved in one place shows everywhere at once (one shared copy),
 //     queued offline, put back when the server refuses it;
 //   - mistakes come from the server; a cause tag shows at once and is sent as
-//     the full tag state; Mark fixed / Reopen; filters; Practise these;
+//     the full tag state; Mark fixed / Reopen; filters; Practise N mistakes;
 //   - the top line says what most tagged misses come down to.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
@@ -178,7 +178,7 @@ describe('mistakes', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: /^Math/ }));
     expect(screen.queryByText('Question q1')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Practise these/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Practise \d+ mistakes?/ }));
     expect(await screen.findByText('practice-page')).toBeInTheDocument();
     expect(practiceState.preset.items.map((q) => q.id)).toEqual(['q2']);
   });

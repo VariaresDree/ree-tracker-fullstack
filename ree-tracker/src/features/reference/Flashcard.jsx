@@ -36,9 +36,11 @@ import { withMathDelimiters } from '../../utils/mathDelimiters';
 const KIND_TONE = { constant: 'signal', formula: 'velocity', concept: 'neutral' };
 
 // `onFlip(flipped)`: study mode offers the review ratings once the back has
-// been seen.
-export default function Flashcard({ card, onFlip }) {
-  const [flipped, setFlipped] = useState(false);
+// been seen. `initialFlipped`: the subject-wide sheet's "Backs" view starts
+// every card on its back (it remounts the cards to switch, so this is only
+// read once).
+export default function Flashcard({ card, onFlip, initialFlipped = false }) {
+  const [flipped, setFlipped] = useState(initialFlipped);
   // The button's label names the card; the face on show describes it. The
   // label alone hid everything on the card from a screen reader.
   const faceId = useId();

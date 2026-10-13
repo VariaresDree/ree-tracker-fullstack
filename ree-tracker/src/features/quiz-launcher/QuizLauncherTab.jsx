@@ -54,8 +54,8 @@ export default function QuizLauncherTab() {
       <div>
         <h2 className="text-display text-2xl text-textMain tracking-tight">Imported quizzes</h2>
         <p className="text-sm text-muted2 mt-1">
-          Import your own quiz files and run them as a practice exam — entirely offline, entirely on
-          this device.
+          Load your own quiz files and take them as a timed practice exam. They stay on this device
+          and work offline.
         </p>
       </div>
 

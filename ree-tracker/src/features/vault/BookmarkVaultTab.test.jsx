@@ -81,3 +81,22 @@ describe('Bookmarks states', () => {
     expect(await screen.findByText('Find the current.')).toBeInTheDocument();
   });
 });
+
+describe('Bookmarks filters', () => {
+  it('narrows by subject and search, and says how many are on screen', async () => {
+    fetchBookmarks.mockResolvedValue([
+      item,
+      { id: 'q2', question: 'Solve for x.', options: [], answer: '3', subject: 'Mathematics', bookmarkedAt: '2026-10-02' },
+    ]);
+    render(<MemoryRouter><BookmarkVaultTab currentUser={{ uid: 'u1' }} isOnline /></MemoryRouter>);
+    expect(await screen.findByText('Solve for x.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'EE' }));
+    expect(screen.queryByText('Solve for x.')).not.toBeInTheDocument();
+    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Practise these 1/ })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'All subjects' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search bookmarks' }), { target: { value: 'nothing like this' } });
+    expect(screen.getByText('No bookmarks match')).toBeInTheDocument();
+  });
+});
