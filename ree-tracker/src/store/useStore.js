@@ -183,11 +183,21 @@ export const useStore = create(
         // dropped here, so a date once set could never be removed.
         if (examDate !== undefined) payload.examDate = examDate || null;
         if (dailyTarget !== undefined && dailyTarget !== null) payload.dailyTarget = Number(dailyTarget);
-        if (Object.keys(payload).length === 0) return;
+        if (Object.keys(payload).length === 0) return { queued: false };
 
-        await updateCommandParameters(currentUser.uid, payload);
+        // Offline, it's queued (the latest plan replaces an older queued one)
+        // and shown at once, so first-run setup works on a weak connection.
+        let queued = false;
+        try {
+          await updateCommandParameters(currentUser.uid, payload);
+        } catch (err) {
+          if (err?.message !== '[OFFLINE]') throw err;
+          getStore().queuePendingWrite('/api/user/settings', 'PUT', payload, { supersede: true });
+          queued = true;
+        }
 
         set((state) => ({ stats: { ...(state.stats || {}), ...payload } }));
+        return { queued };
       },
 
       stageAttemptTelemetry: (attemptData) => {

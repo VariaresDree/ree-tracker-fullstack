@@ -10,7 +10,7 @@ const examHistory = require('../services/examHistory');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { gradeAttempts, buildDiagnostics } = require('../services/examService');
-const { lockedQuestionIds } = require('../services/answerGate');
+const { lockedQuestionIds, openBattleQuestionIds } = require('../services/answerGate');
 const { updateTheta, itemParams, fisherInfo, PRIOR_SE } = require('../engine/irt');
 const { pickCatItem, topicKey } = require('../engine/cat');
 const catCandidatesModule = require('../services/catCandidates');
@@ -275,11 +275,12 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
 //   subject?: string,
 //   recentIds?: string[],
 //   sessionAttempts?: [{ questionId, isCorrect }],
-//   poolSize?: number    // optional candidate-pool size (default 80)
+//   poolSize?: number,   // optional candidate-pool size (default 80)
+//   withKey?: boolean    // include answer + fixedExplanation (Practice grades on the device)
 // }
 router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, res) => {
     try {
-        const { subject, recentIds, sessionAttempts, poolSize } = req.body;
+        const { subject, recentIds, sessionAttempts, poolSize, withKey } = req.body;
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
             select: { thetaRating: true, standardError: true },
@@ -328,13 +329,23 @@ router.post('/next-item', authMiddleware, validate(nextItemSchema), async (req, 
         // ordering — the same first rows on every call — matched the subject
         // by raw equality instead of the shared spellings, and dropped
         // recently-seen ids only afterwards, in memory.
-        const exclude = [...new Set([...(recentIds || []), ...(sessionAttempts || []).map((a) => a.questionId)])];
+        // A battle the learner is still in keeps its questions out: the item
+        // can come back with its key (withKey), and the battle is still running.
+        const openBattle = await openBattleQuestionIds(req.user.id);
+        const exclude = [...new Set([...(recentIds || []), ...(sessionAttempts || []).map((a) => a.questionId), ...openBattle])];
         const candidates = await catCandidatesModule.catCandidates({ subject, theta: prior.theta, excludeIds: exclude, take: poolSize });
 
         // Information at θ, discounted for topics already covered, then a random
         // pick among the best three (engine/cat) — not always THE single best.
         const pickId = pickCatItem({ theta: prior.theta, pool: candidates, coveredTopics });
-        const chosen = candidates.find((q) => q.id === pickId) || null;
+        let chosen = candidates.find((q) => q.id === pickId) || null;
+        if (chosen && withKey) {
+            const key = await prisma.question.findUnique({
+                where: { id: chosen.id },
+                select: { answer: true, fixedExplanation: true },
+            });
+            chosen = { ...chosen, answer: key?.answer ?? null, fixedExplanation: key?.fixedExplanation ?? null };
+        }
         const pick = {
             info: chosen ? fisherInfo(prior.theta, itemParams(chosen)) : 0,
             fallback: !chosen || chosen.irtB == null,

@@ -129,7 +129,10 @@ export default function Practice() {
 
   const isBookmarked = bookmarks.has(currentQ.id);
 
-  const isLastQuestion = session.currentIndex + 1 >= session.questions.length;
+  // The adaptive set's questions arrive one at a time, so its length is the
+  // target, not what has loaded so far.
+  const total = session.target || session.questions.length;
+  const isLastQuestion = session.currentIndex + 1 >= total;
 
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 max-w-4xl mx-auto w-full relative z-0">
@@ -147,7 +150,7 @@ export default function Practice() {
         }
       >
         <p className="text-sm text-textMain">
-          You’ve answered {session.totalAnswered} of {session.questions.length}. Your answers are saved; the rest of the questions are skipped.
+          You’ve answered {session.totalAnswered} of {total}. Your answers are saved; the rest of the questions are skipped.
         </p>
       </Modal>
 
@@ -234,7 +237,7 @@ export default function Practice() {
                           Correct: <span className="text-sm" style={{ color: 'var(--accent-success)' }}>{session.correctHits}</span> / {session.totalAnswered}
                       </div>
 
-                      <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion}>
+                      <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion} loading={session.fetchingNext}>
                           {isLastQuestion ? 'Finish session' : 'Next question'}
                       </Button>
                   </div>

@@ -19,9 +19,10 @@ const authState = { currentUser: { uid: 'user-A' } };
 vi.mock('../config/firebaseDb', () => ({ auth: authState }));
 
 const apiRequestMock = vi.fn();
+const updateCommandParametersMock = vi.fn();
 vi.mock('../services/dbQueries', () => ({
   apiRequest: (...args) => apiRequestMock(...args),
-  updateCommandParameters: vi.fn(),
+  updateCommandParameters: (...args) => updateCommandParametersMock(...args),
 }));
 
 const idbMem = new Map();
@@ -270,5 +271,25 @@ describe('concurrent flushes', () => {
     expect(apiRequestMock).toHaveBeenCalledTimes(1);
     expect(useStore.getState().syncQueue.map((a) => a.id)).toEqual(['a00000', 'a00001']);
     expect(useStore.getState().deadLetters).toEqual([]);
+  });
+});
+
+describe('saveExamConfig offline', () => {
+  it('queues the exam plan (the newest replaces an older one) and shows it at once', async () => {
+    seed([]);
+    updateCommandParametersMock.mockRejectedValue(new Error('[OFFLINE]'));
+    await expect(useStore.getState().saveExamConfig({ examDate: '2027-04-10', dailyTarget: 60 })).resolves.toEqual({ queued: true });
+    await useStore.getState().saveExamConfig({ examDate: '2027-04-11', dailyTarget: 70 });
+    const queued = useStore.getState().pendingWrites.filter((w) => w.endpoint === '/api/user/settings');
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({ method: 'PUT', body: { examDate: '2027-04-11', dailyTarget: 70 }, ownerUid: 'user-A' });
+    expect(useStore.getState().stats).toMatchObject({ examDate: '2027-04-11', dailyTarget: 70 });
+  });
+
+  it('a refusal is still an error', async () => {
+    seed([]);
+    updateCommandParametersMock.mockRejectedValue(new Error('Validation failed.'));
+    await expect(useStore.getState().saveExamConfig({ dailyTarget: 60 })).rejects.toThrow('Validation failed.');
+    expect(useStore.getState().pendingWrites).toEqual([]);
   });
 });

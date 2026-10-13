@@ -7,7 +7,8 @@
 // and, for a new account, seeds the abilities practice starts from.
 import { useEffect, useRef, useState } from 'react';
 import ModeGuide from '../features/exams/ModeGuide';
-import { startingMode } from '../features/exams/modes';
+import { startingPlan } from '../features/exams/startingPlan';
+import ExamPlanForm from '../features/account/ExamPlanForm';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import MainLayout from '../layouts/MainLayout';
@@ -17,7 +18,7 @@ import { Button, Card, Badge, Page, PageHeader, ProgressIndicator, Skeleton, Emp
 import { Compass, ArrowRight } from '../components/ui/icons';
 import { fetchDiagnosticStatus, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
-import { drillPreset } from '../features/active-recall/presets';
+import { adaptivePreset, drillPreset } from '../features/active-recall/presets';
 
 const BAND_LABEL = { 'board-ready': 'Board-ready', developing: 'Developing', foundation: 'Foundation' };
 const BAND_TONE = { 'board-ready': 'success', developing: 'amber', foundation: 'danger' };
@@ -195,9 +196,23 @@ export default function Diagnostic() {
   );
 }
 
+// The result's main button: the start the plan names (startingPlan).
+function startButton(plan) {
+  if (plan.mode === 'mock') return { label: 'Take a mock board', to: '/exams?tab=mock' };
+  if (plan.mode === 'gauntlet') return { label: 'Open the Gauntlet', to: '/exams?tab=gauntlet' };
+  const name = plan.subject ? toDisplaySubject(plan.subject) : null;
+  return {
+    label: name ? `Practise ${name} now` : 'Start an adaptive set',
+    to: '/practice',
+    state: { preset: adaptivePreset({ subject: plan.subject || 'All', count: 20 }) },
+  };
+}
+
 function PlacementResult({ result, sessionId }) {
   const gwa = result.projectedGWA;
   const subjects = result.subjects || {};
+  const plan = startingPlan(result);
+  const start = startButton(plan);
   return (
     <div className="flex flex-col gap-5">
       <Card elevated glow className="p-6 sm:p-8 flex flex-col gap-2">
@@ -225,10 +240,19 @@ function PlacementResult({ result, sessionId }) {
         })}
       </div>
 
-      <ModeGuide start={startingMode(gwa)} />
+      <ModeGuide start={plan.mode} note={plan.note} />
+
+      {/* The exam date and daily target, asked here once instead of a silent
+          default, with the study plan the placement prompt promised. */}
+      <Card elevated className="p-5 sm:p-6 flex flex-col gap-3">
+        <h2 className="text-base font-semibold text-textMain">Your exam plan</h2>
+        <p className="text-sm text-muted2">Your exam date sets the countdown and the study plan. You can change both in Account any time.</p>
+        <ExamPlanForm offerPlan />
+      </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button size="lg" as={Link} to="/">Go to Today</Button>
+        <Button size="lg" as={Link} to={start.to} state={start.state}>{start.label}</Button>
+        <Button variant="secondary" as={Link} to="/">Go to Today</Button>
         {/* The answers, as the intro promised: each question with yours and
             the key (Exams › Past sittings › Review reads the same record). */}
         {sessionId && (

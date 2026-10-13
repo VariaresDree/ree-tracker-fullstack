@@ -33,6 +33,8 @@ beforeEach(() => {
     vi.spyOn(prisma.user, 'upsert').mockResolvedValue({ id: UID });
     vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ thetaRating: 0.2, standardError: 0.6 });
     vi.spyOn(prisma.userAbility, 'findUnique').mockResolvedValue(null);
+    // Not in any battle unless a test says so (services/answerGate.js).
+    vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
     vi.spyOn(prisma.question, 'findMany').mockResolvedValue([
         { id: 'seen-1', subtopic: 'Machines', topicId: 't-m', irtA: 1, irtB: 0, irtC: 0.2, difficulty: null },
     ]);
@@ -68,10 +70,28 @@ describe('POST /api/exams/next-item', () => {
         expect([...picks].every((id) => ['m2', 'p1'].includes(id))).toBe(true);
     });
 
-    it('never ships the answer key', async () => {
+    it('ships no answer key unless asked', async () => {
         const res = await request(makeApp()).post('/api/exams/next-item').set(as(UID)).send({ subject: 'EE' });
         expect(res.status).toBe(200);
         expect(res.body.item).not.toHaveProperty('answer');
         expect(res.body.selection).toHaveProperty('info');
+    });
+
+    it('withKey adds the key and the solution for Practice, which grades on the device', async () => {
+        const findUnique = vi.spyOn(prisma.question, 'findUnique').mockImplementation(async ({ where }) => ({ answer: `key-${where.id}`, fixedExplanation: 'Because.' }));
+        const res = await request(makeApp()).post('/api/exams/next-item').set(as(UID)).send({ subject: 'EE', withKey: true });
+        expect(res.status).toBe(200);
+        expect(res.body.item.answer).toBe(`key-${res.body.item.id}`);
+        expect(res.body.item.fixedExplanation).toBe('Because.');
+        expect(findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves out the questions of a battle the learner is still in", async () => {
+        const now = Date.now();
+        prisma.battleParticipant.findMany.mockResolvedValue([
+            { battle: { id: 'B1', questions: [{ id: 'live-1' }, 'live-2'], startedAt: new Date(now - 60_000), timeLimitSecs: 1800, createdAt: new Date(now - 120_000) } },
+        ]);
+        await request(makeApp()).post('/api/exams/next-item').set(as(UID)).send({ subject: 'EE', withKey: true });
+        expect(catCandidates.mock.calls[0][0].excludeIds).toEqual(expect.arrayContaining(['live-1', 'live-2']));
     });
 });

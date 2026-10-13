@@ -1,13 +1,14 @@
 // src/features/active-recall/ReviewSetup.jsx
 //
-// Practice's setup screen: due reviews, four one-tap presets, and a custom
+// Practice's setup screen: due reviews, five one-tap presets, and a custom
 // session behind a disclosure.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, Button, FormField, IconChip, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
-import { Shuffle, Crosshair, Layers, Bookmark, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
+import { Shuffle, Crosshair, Gauge, Layers, Bookmark, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
-import { bookmarksPreset, drillPreset, dueReviewPreset, quickReviewPreset } from './presets';
+import { adaptivePreset, bookmarksPreset, drillPreset, dueReviewPreset, quickReviewPreset } from './presets';
 import { customView, SCOPES } from './customView';
 
 // A due session is capped so a backlog after a break doesn't become a
@@ -34,6 +35,16 @@ const PRESETS = [
     meta: '20 mixed questions across all three subjects',
     needsConnection: false,
     overrides: quickReviewPreset(20),
+  },
+  {
+    // Picked one at a time to match your level (POST /api/exams/next-item);
+    // offline, the device picks from the offline pack (adaptiveFallback.js).
+    id: 'adaptive',
+    icon: Gauge,
+    name: 'Adaptive set',
+    meta: '20 questions picked one at a time to match your level',
+    needsConnection: false,
+    overrides: adaptivePreset({ count: 20 }),
   },
   {
     id: 'weak',
@@ -99,6 +110,10 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
     <Page>
       <PageHeader title="Practice" subtitle="Pick a preset or build your own session." />
       <ModeGuide folded here="practice" />
+      <p className="text-sm text-muted2 -mt-2">
+        Not sure where to start?{' '}
+        <Link to="/diagnostic" className="text-[var(--accent-text)] underline underline-offset-2 inline-flex items-center pointer-coarse:min-h-11">Take the placement test</Link>
+      </p>
 
       {/* Spaced review — what the schedule says is due today. Shown only once
           there is a queue: every miss and every low-confidence answer starts a
@@ -125,7 +140,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
       )}
 
       {/* One-click presets */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-fade-in">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-fade-in">
         {PRESETS.map((preset) => {
           const offline = preset.needsConnection && !isOnline;
           const Icon = preset.icon;

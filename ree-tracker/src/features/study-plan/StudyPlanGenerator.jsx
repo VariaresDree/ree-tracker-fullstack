@@ -13,6 +13,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { normalizeSubject, toDisplaySubject } from '@ree/shared';
 import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
+import { planTopics } from './planTopics';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
 import { Badge, Button, Card, Modal } from '../../components/ui';
 import { CalendarDays, Check, TriangleAlert } from '../../components/ui/icons';
@@ -39,16 +40,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }, [examDate]);
 
-  const topicsToGenerate = useMemo(() => {
-    const topics = [];
-    selectedSubjects.forEach((subject) => {
-      const subtopics = safeTOS[subject] || [];
-      const weight = TOS_WEIGHTS[normalizeSubject(subject)] || 0.33;
-      subtopics.forEach((subtopic) => topics.push({ subject, subtopic, weight }));
-    });
-    // Heaviest PRC weight first (EE is 45%).
-    return topics.sort((a, b) => b.weight - a.weight);
-  }, [selectedSubjects, safeTOS]);
+  const topicsToGenerate = useMemo(() => planTopics(safeTOS, selectedSubjects), [selectedSubjects, safeTOS]);
 
   const handleGenerate = async () => {
     if (!examDate) return toast.error('Set your exam date in Account first.');

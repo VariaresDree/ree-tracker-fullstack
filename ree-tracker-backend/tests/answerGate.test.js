@@ -10,7 +10,7 @@ const firebaseAuth = require('firebase-admin/auth');
 firebaseAuth.getAuth = () => ({ verifyIdToken });
 
 const prisma = require('../src/config/db');
-const { lockedQuestionIds } = require('../src/services/answerGate');
+const { lockedQuestionIds, openBattleQuestionIds } = require('../src/services/answerGate');
 const bookmarkRoutes = require('../src/routes/bookmarkRoutes');
 
 const UID = 'uid-gate';
@@ -45,6 +45,22 @@ describe('lockedQuestionIds', () => {
     it('skips the lookup when nothing is asked', async () => {
         const findMany = vi.spyOn(prisma.battleParticipant, 'findMany');
         expect((await lockedQuestionIds(UID, [], NOW)).size).toBe(0);
+        expect(findMany).not.toHaveBeenCalled();
+    });
+});
+
+describe('openBattleQuestionIds', () => {
+    it("lists every question of the learner's open battles, ids or objects", async () => {
+        vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([
+            battle('LIVE', [{ id: 'q1' }, 'q2'], -2),
+            battle('OVER', [{ id: 'q3' }], -60, 60),
+        ]);
+        expect([...await openBattleQuestionIds(UID, NOW)].sort()).toEqual(['q1', 'q2']);
+    });
+
+    it('is empty without a user, and asks nothing', async () => {
+        const findMany = vi.spyOn(prisma.battleParticipant, 'findMany');
+        expect((await openBattleQuestionIds(null, NOW)).size).toBe(0);
         expect(findMany).not.toHaveBeenCalled();
     });
 });

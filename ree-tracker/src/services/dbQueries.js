@@ -552,8 +552,22 @@ export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/
 export const fetchForecast = async () => safeApiRequest('/api/forecast', 'GET', null, null);
 export const recomputeForecast = async () => apiRequest('/api/forecast/recompute', 'POST', {});
 
-// CAT — server-side next-item selection. `body` lets the caller include the
-// in-session attempts so the picker can refine theta before choosing.
+// CAT — server-side next-item selection (Practice's adaptive set). `body`
+// carries the in-session attempts so the picker refines the ability estimate
+// before choosing. It asks for the key (`withKey`): Practice grades on the
+// device. The session fetches the next one while the learner reads the
+// solution, and falls back to the on-device picker on any failure. Returns
+// { item|null, ability }.
+export const fetchNextItem = async ({ subject, sessionAttempts = [], recentIds = [] } = {}) => {
+    const data = await apiRequest('/api/exams/next-item', 'POST', {
+        subject: subject && subject !== 'All' ? subject : undefined,
+        sessionAttempts,
+        recentIds,
+        withKey: true,
+    });
+    const [item] = data?.item ? normalizeQuestions([data.item]) : [];
+    return { item: item || null, ability: data?.ability || null };
+};
 
 export const fetchAnalyticsDeep = async (type) => safeApiRequest(`/api/analytics/deep/${type}`, 'GET', null, null);
 

@@ -4,6 +4,10 @@
 // editors — Profile's edit form, the Daily targets "Config" panel and the
 // planner — that wrote the same fields. Account keys this form on the saved
 // values, so a change from another device re-seeds it (no prop→state effect).
+//
+// The placement result and Today's first-run card reuse it (`onSaved`,
+// `submitLabel`), and there it can also make the study plan the placement
+// prompt promises (`offerPlan`). Offline, the plan is queued on the device.
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useShallow } from 'zustand/react/shallow';
@@ -11,14 +15,17 @@ import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
 import { useStore } from '../../store/useStore';
 import { Button, FormField, Input } from '../../components/ui';
 import { daysToExam } from '../today/todayActions';
+import { generateStudyPlan } from '../../services/dbQueries';
+import { planTopics } from '../study-plan/planTopics';
 
 const MIN_TARGET = 10;
 const MAX_TARGET = 500;
 
-export default function ExamPlanForm({ onDirtyChange }) {
-  const { stats, saveExamConfig } = useStore(useShallow((s) => ({ stats: s.stats, saveExamConfig: s.saveExamConfig })));
+export default function ExamPlanForm({ onDirtyChange, onSaved, submitLabel = 'Save exam plan', offerPlan = false }) {
+  const { stats, saveExamConfig, dynamicTOS } = useStore(useShallow((s) => ({ stats: s.stats, saveExamConfig: s.saveExamConfig, dynamicTOS: s.dynamicTOS })));
   const [examDate, setExamDate] = useState(stats?.examDate || '');
   const [dailyTarget, setDailyTarget] = useState(String(stats?.dailyTarget || 50));
+  const [makePlan, setMakePlan] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -36,11 +43,19 @@ export default function ExamPlanForm({ onDirtyChange }) {
     setError('');
     setSaving(true);
     try {
-      await saveExamConfig({ examDate: examDate || null, dailyTarget: target });
+      const saved = await saveExamConfig({ examDate: examDate || null, dailyTarget: target });
       onDirtyChange?.(false);
-      toast.success('Exam plan saved.');
-    } catch (err) {
-      toast.error(err?.message === '[OFFLINE]' ? 'Reconnect to save your exam plan.' : 'Couldn’t save — try again.');
+      let planned = null;
+      // The plan needs the date and a connection; the exam plan itself doesn't.
+      if (offerPlan && makePlan && examDate && days > 0 && !saved?.queued) {
+        planned = await generateStudyPlan(examDate, planTopics(dynamicTOS)).catch(() => null);
+      }
+      if (saved?.queued) toast.success('Saved on this device. It syncs when you reconnect.');
+      else if (planned) toast.success(`Exam plan saved, and ${planned.tasksCreated} study tasks added to Progress › Study plan.`);
+      else toast.success('Exam plan saved.');
+      onSaved?.({ examDate: examDate || null, dailyTarget: target, planned: !!planned });
+    } catch {
+      toast.error('Couldn’t save — try again.');
     } finally {
       setSaving(false);
     }
@@ -60,7 +75,16 @@ export default function ExamPlanForm({ onDirtyChange }) {
           <Input type="number" inputMode="numeric" min={MIN_TARGET} max={MAX_TARGET} value={dailyTarget} onChange={(e) => { setDailyTarget(e.target.value); onDirtyChange?.(true); }} />
         </FormField>
       </div>
-      <Button type="submit" loading={saving} disabled={saving} className="self-start">Save exam plan</Button>
+      {offerPlan && (
+        <label className="flex items-start gap-2 text-sm text-textMain cursor-pointer pointer-coarse:min-h-11">
+          <input type="checkbox" className="mt-1 h-4 w-4 accent-[var(--accent)]" checked={makePlan} onChange={(e) => setMakePlan(e.target.checked)} />
+          <span>
+            Plan my weeks to the exam
+            <span className="block text-xs text-muted2">Daily drills by topic, weighted the way the board is. Needs the date and a connection.</span>
+          </span>
+        </label>
+      )}
+      <Button type="submit" loading={saving} disabled={saving} className="self-start">{submitLabel}</Button>
     </form>
   );
 }

@@ -11,13 +11,14 @@ const prisma = require('../config/db');
 const { battleTiming } = require('../utils/battleLogic');
 
 /**
- * The ids, out of `questionIds`, whose key `userId` may not see now.
+ * Every question id in a battle `userId` is still in (one not yet closed).
+ * Pickers that hand out items with their key (Practice's adaptive set) leave
+ * these out, so a player can't draw a live battle's question mid-battle.
  * @returns {Promise<Set<string>>}
  */
-async function lockedQuestionIds(userId, questionIds, now = Date.now()) {
-    const wanted = new Set((questionIds || []).filter(Boolean));
-    const locked = new Set();
-    if (!userId || wanted.size === 0) return locked;
+async function openBattleQuestionIds(userId, now = Date.now()) {
+    const open = new Set();
+    if (!userId) return open;
     const rows = await prisma.battleParticipant.findMany({
         where: { userId, battle: { status: { not: 'COMPLETED' } } },
         select: { battle: { select: { id: true, questions: true, startedAt: true, timeLimitSecs: true, createdAt: true } } },
@@ -27,10 +28,21 @@ async function lockedQuestionIds(userId, questionIds, now = Date.now()) {
         const qs = Array.isArray(battle.questions) ? battle.questions : [];
         for (const q of qs) {
             const id = q && typeof q === 'object' ? q.id : q;
-            if (wanted.has(id)) locked.add(id);
+            if (id) open.add(id);
         }
     }
-    return locked;
+    return open;
 }
 
-module.exports = { lockedQuestionIds };
+/**
+ * The ids, out of `questionIds`, whose key `userId` may not see now.
+ * @returns {Promise<Set<string>>}
+ */
+async function lockedQuestionIds(userId, questionIds, now = Date.now()) {
+    const wanted = new Set((questionIds || []).filter(Boolean));
+    if (!userId || wanted.size === 0) return new Set();
+    const open = await openBattleQuestionIds(userId, now);
+    return new Set([...wanted].filter((id) => open.has(id)));
+}
+
+module.exports = { lockedQuestionIds, openBattleQuestionIds };

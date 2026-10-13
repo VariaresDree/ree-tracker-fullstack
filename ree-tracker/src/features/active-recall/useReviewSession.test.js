@@ -15,6 +15,7 @@ vi.mock('../../services/dbQueries', () => ({
   fetchSmartDrillQuestions: vi.fn(),
   fetchSrsDue: vi.fn(),
   fetchTodayLoop: vi.fn(),
+  fetchNextItem: vi.fn(),
   getAnalyticsProfile: vi.fn(() => Promise.resolve(null)),
   apiRequest: vi.fn(() => Promise.resolve({})),
   updateQuestionCache: vi.fn(),
@@ -35,10 +36,10 @@ vi.mock('../../store/slices', () => ({ useEngineActionsSlice: () => engine }));
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => ({ stats: {}, dynamicTOS: {}, }) } }));
 
 const toast = (await import('react-hot-toast')).default;
-const { fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, updateQuestionInBank, updateQuestionCache } = await import('../../services/dbQueries');
+const { fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions, updateQuestionInBank, updateQuestionCache } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
-const { bookmarksPreset, drillPreset, itemsPreset, todayLoopPreset } = await import('./presets');
+const { adaptivePreset, bookmarksPreset, drillPreset, itemsPreset, todayLoopPreset } = await import('./presets');
 
 const q = (id, subject, subtopic) => ({ id, subject, subtopic, text: `Q ${id}`, options: ['A', 'B', 'C', 'D'], answer: 'A' });
 const saved = [q('b1', 'EE', 'Protection'), q('b2', 'Mathematics', 'Calculus'), q('b3', 'EE', 'Machines'), q('b4', 'Math', 'Algebra')];
@@ -275,5 +276,71 @@ describe("today's loop source", () => {
     const offline = setup(false);
     await act(() => offline.result.current.startSession(todayLoopPreset()));
     expect(toast.error).toHaveBeenLastCalledWith("Today's loop needs a connection.");
+  });
+});
+
+describe('adaptive set', () => {
+  const pickAnswer = (result, option = 'A') => {
+    act(() => result.current.setSession((st) => ({ ...st, confidence: 'MED' })));
+    act(() => result.current.handleAnswerSelection(option));
+  };
+
+  it('asks the server one question at a time, ahead of Next, and stops at the target', async () => {
+    let n = 0;
+    fetchNextItem.mockImplementation(async () => ({ item: q(`a${++n}`, 'EE', 'Machines'), ability: { theta: 0.3, se: 0.5 } }));
+    const { result } = setup();
+    await act(() => result.current.startSession(adaptivePreset({ subject: 'EE', count: 2 })));
+    expect(result.current.session.questions.map((x) => x.id)).toEqual(['a1']);
+    expect(result.current.session.target).toBe(2);
+    expect(fetchNextItem).toHaveBeenLastCalledWith({ subject: 'EE', sessionAttempts: [], recentIds: [] });
+
+    pickAnswer(result, 'A');
+    // fetched while the solution shows, with this session's answer
+    expect(fetchNextItem).toHaveBeenLastCalledWith({ subject: 'EE', sessionAttempts: [{ questionId: 'a1', isCorrect: true }], recentIds: ['a1'] });
+    await act(async () => { result.current.loadNextQuestion(); });
+    expect(result.current.session.questions.map((x) => x.id)).toEqual(['a1', 'a2']);
+    expect(result.current.session.currentIndex).toBe(1);
+
+    // the target reached: no third fetch, Next finishes
+    pickAnswer(result, 'B');
+    expect(fetchNextItem).toHaveBeenCalledTimes(2);
+    await act(async () => { result.current.loadNextQuestion(); });
+    expect(result.current.session.isActive).toBe(false);
+    expect(result.current.lastSummary).toMatchObject({ total: 2, correct: 1 });
+  });
+
+  it('carries on with the device picker when the server is out of reach', async () => {
+    fetchNextItem.mockRejectedValue(new Error('[OFFLINE]'));
+    fetchVaultQuestions.mockResolvedValue([
+      { ...q('easy', 'EE', 'Machines'), irtB: -2 },
+      { ...q('mid', 'EE', 'Machines'), irtB: 0 },
+      { ...q('hard', 'EE', 'Machines'), irtB: 2 },
+    ]);
+    const { result } = setup(false);
+    await act(() => result.current.startSession(adaptivePreset({ subject: 'EE', count: 3 })));
+    expect(result.current.session.isActive).toBe(true);
+    expect(fetchVaultQuestions).toHaveBeenCalledWith('EE', 'All', 1000);
+    expect(toast).toHaveBeenCalledWith(expect.stringMatching(/picked on this device/));
+    const first = result.current.session.questions[0].id;
+
+    pickAnswer(result, 'A');
+    await act(async () => { result.current.loadNextQuestion(); });
+    const ids = result.current.session.questions.map((x) => x.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2); // no repeats
+    expect(ids[0]).toBe(first);
+    // it stopped asking the server after the first failure
+    expect(fetchNextItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends the set early, saying so, when nothing unseen is left', async () => {
+    fetchNextItem.mockResolvedValueOnce({ item: q('only', 'EE', 'Machines'), ability: null }).mockResolvedValue({ item: null, ability: null });
+    fetchVaultQuestions.mockResolvedValue([q('only', 'EE', 'Machines')]);
+    const { result } = setup();
+    await act(() => result.current.startSession(adaptivePreset({ subject: 'EE', count: 5 })));
+    pickAnswer(result, 'A');
+    await act(async () => { result.current.loadNextQuestion(); });
+    expect(toast).toHaveBeenCalledWith("That's every question for this set right now.");
+    expect(result.current.session.isActive).toBe(false);
   });
 });

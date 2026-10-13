@@ -4,11 +4,14 @@
 // than JSX order. Each action carries either a review `preset` or a route `to`.
 
 import { PRC_FORMAT_SUMMARY } from '../../config/examStandards';
-import { drillPreset, dueReviewPreset, quickReviewPreset, todayLoopPreset } from '../active-recall/presets';
+import { toDisplaySubject, SUBJECT_FLOOR } from '@ree/shared';
+import { adaptivePreset, drillPreset, dueReviewPreset, quickReviewPreset, todayLoopPreset } from '../active-recall/presets';
 import { isTaskDone, taskLaunch } from '../profile/plannerTasks';
 import { dailyCountsToday } from '../../services/analyticsSync';
 
 const MAX_ACTIONS = 4;
+// Under this many answers a learner is new: Today follows the placement plan.
+const NEW_LEARNER_MAX = 30;
 const DEFAULT_TARGET = 50;
 const DUE_SESSION_MAX = 30;
 
@@ -67,13 +70,22 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
  * @param {{recommendedActions?:Array}} [input.forecast]
  * @param {{done:number, target:number}} [input.daily]
  * @param {number|null} [input.examInDays]
+ * @param {{mode:string, subject:string|null, reason:string}|null} [input.start]
+ *   where the placement result says to start (features/exams/startingPlan)
+ * @param {number} [input.answered]  questions answered so far
  *
  * Order: today's loop (due reviews and open mistakes in one session; it
  * replaces the due-review action), due reviews (questions, then formula cards), today's plan task, the forecast's top fix, today's
  * target, a mock. A plan task replaces the action it duplicates: a drill on
  * the same topic as the fix, a review for the target, a mock for the mock.
+ *
+ * A new learner (under NEW_LEARNER_MAX answers) gets the placement plan's
+ * start right after the loop: an adaptive set on the subject under the floor
+ * (or across the board), the mock moved up, or the Gauntlet. With no
+ * placement yet there's no mock: the placement prompt comes first, and a
+ * timed board on day one contradicted the mode guide.
  */
-export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays } = {}) {
+export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays, start = null, answered = Infinity } = {}) {
   const actions = [];
 
   const inLoop = loop?.items?.length || 0;
@@ -169,5 +181,38 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
     });
   }
 
+  if (answered < NEW_LEARNER_MAX) followPlacement(actions, start);
   return actions.slice(0, MAX_ACTIONS);
+}
+
+function followPlacement(actions, start) {
+  const mockAt = actions.findIndex((a) => a.key === 'mock');
+  const mock = mockAt >= 0 ? actions.splice(mockAt, 1)[0] : null;
+  const at = actions[0]?.key === 'loop' ? 1 : 0;
+  if (start?.mode === 'practice') {
+    const name = start.subject ? toDisplaySubject(start.subject) : null;
+    actions.splice(at, 0, {
+      key: 'start',
+      title: name ? `Practise ${name} first` : 'Build your base in Practice',
+      detail: start.reason === 'floor'
+        ? `${name} is under the ${SUBJECT_FLOOR}% subject floor. An adaptive set, picked to match your level.`
+        : 'Your placement says learn the topics first. An adaptive set, picked to match your level.',
+      cta: 'Start',
+      preset: adaptivePreset({ subject: start.subject || 'All', count: 20 }),
+    });
+  } else if (start?.mode === 'mock' && mock) {
+    actions.splice(at, 0, mock);
+  } else if (start?.mode === 'gauntlet') {
+    actions.splice(at, 0, {
+      key: 'start',
+      title: 'Climb the Gauntlet',
+      detail: 'Your placement clears the pass mark. Push your level on its timed tiers.',
+      cta: 'Open Gauntlet',
+      to: '/exams?tab=gauntlet',
+    });
+    if (mock) actions.push(mock);
+  } else if (actions.length === 0 && mock) {
+    // Nothing else to do: still something on the list.
+    actions.push(mock);
+  }
 }

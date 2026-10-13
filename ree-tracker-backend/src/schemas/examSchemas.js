@@ -82,7 +82,10 @@ const nextItemSchema = z.object({
         questionId: z.string().min(1),
         isCorrect: z.boolean()
     })).max(200).default([]),
-    poolSize: z.number().int().min(10).max(200).default(80)
+    poolSize: z.number().int().min(10).max(200).default(80),
+    // Practice grades on the device, so its adaptive set asks for the key
+    // with the item (as GET /api/questions already returns it).
+    withKey: z.boolean().default(false)
 });
 
 // POST /exams/sessions/:id/finalize — the client may only DESCRIBE the sitting;

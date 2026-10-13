@@ -32,7 +32,8 @@ vi.mock('../../services/analyticsSync', () => ({ forgetDashboardStats: () => for
 const purgeApiCache = vi.fn(() => Promise.resolve(true));
 vi.mock('../../services/apiCache', () => ({ purgeApiCache: () => purgeApiCache() }));
 const deleteAccount = vi.fn(() => Promise.resolve());
-vi.mock('../../services/dbQueries', () => ({ deleteAccount: () => deleteAccount() }));
+const generateStudyPlan = vi.fn(() => Promise.resolve({ tasksCreated: 42 }));
+vi.mock('../../services/dbQueries', () => ({ deleteAccount: () => deleteAccount(), generateStudyPlan: (...a) => generateStudyPlan(...a) }));
 vi.mock('../../services/simulationLedger', () => ({ purgeSimulationLedger: vi.fn(() => Promise.resolve()) }));
 const deleteUser = vi.fn(() => Promise.resolve());
 vi.mock('firebase/auth', () => ({ deleteUser: (u) => deleteUser(u) }));
@@ -76,11 +77,31 @@ describe('ExamPlanForm — the one editor for the exam date and daily target', (
         expect(state.saveExamConfig).not.toHaveBeenCalled();
     });
 
-    it('says plainly when it can’t save offline', async () => {
-        state.saveExamConfig.mockRejectedValueOnce(new Error('[OFFLINE]'));
+    it('offline, keeps the plan on the device and says it syncs later', async () => {
+        state.saveExamConfig.mockResolvedValueOnce({ queued: true });
         render(<ExamPlanForm />);
         fireEvent.click(screen.getByRole('button', { name: 'Save exam plan' }));
-        await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/reconnect/i)));
+        await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Saved on this device. It syncs when you reconnect.'));
+    });
+
+    it('as a first-run step, can also make the study plan, and reports back', async () => {
+        const future = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+        state.stats = { examDate: future, dailyTarget: 50 };
+        state.dynamicTOS = { EE: ['Machines'], Mathematics: ['Algebra'] };
+        state.saveExamConfig.mockResolvedValueOnce({ queued: false });
+        const onSaved = vi.fn();
+        render(<ExamPlanForm offerPlan submitLabel="Save and continue" onSaved={onSaved} />);
+        expect(screen.getByRole('checkbox', { name: /Plan my weeks to the exam/ })).toBeChecked();
+        fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
+        await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ examDate: future, dailyTarget: 50, planned: true }));
+        // heaviest subject first
+        expect(generateStudyPlan).toHaveBeenCalledWith(future, [
+            { subject: 'EE', subtopic: 'Machines', weight: expect.any(Number) },
+            { subject: 'Mathematics', subtopic: 'Algebra', weight: expect.any(Number) },
+        ]);
+        expect(toast.success).toHaveBeenCalledWith('Exam plan saved, and 42 study tasks added to Progress › Study plan.');
+        state.stats = { examDate: '2026-11-20', dailyTarget: 50 };
+        delete state.dynamicTOS;
     });
 });
 

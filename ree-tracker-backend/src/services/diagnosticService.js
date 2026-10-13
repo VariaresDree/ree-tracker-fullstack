@@ -246,7 +246,19 @@ async function status(userId) {
     if (latest.verdict === 'COMPLETED') {
         return { status: 'completed', sessionId: latest.id, result: latest.config?.result || null };
     }
-    return { status: 'in_progress', sessionId: latest.id, progress: progressOf(latest.config || { responses: [] }) };
+    // A retake in progress still has the last finished placement behind it,
+    // and Today keeps recommending from that until the retake ends.
+    const previous = await prisma.examSession.findFirst({
+        where: { userId, mode: MODE, verdict: 'COMPLETED' },
+        orderBy: { createdAt: 'desc' },
+        select: { config: true },
+    });
+    return {
+        status: 'in_progress',
+        sessionId: latest.id,
+        progress: progressOf(latest.config || { responses: [] }),
+        lastResult: previous?.config?.result || null,
+    };
 }
 
 module.exports = { start, answer, finish, status, buildResult, DiagnosticError, MODE, SEED_MAX_PRIOR_ATTEMPTS };

@@ -36,13 +36,6 @@ export const MODES = [
   },
 ];
 
-/**
- * Where a learner should start, from a projected general weighted average:
- * below 60, learn the topics (Practice); up to the 70% pass mark, find out
- * under time (Mock board); at or above it, push the level (Gauntlet).
- */
-export function startingMode(projectedAverage) {
-  const gwa = Number(projectedAverage);
-  if (!Number.isFinite(gwa) || gwa < 60) return 'practice';
-  return gwa < 70 ? 'mock' : 'gauntlet';
-}
+// Where to start lives in startingPlan.js (no icon imports, so Today's logic
+// can use it); re-exported here beside the modes it names.
+export { startingMode, startingPlan } from './startingPlan';

@@ -17,6 +17,9 @@ let loopData = null;
 vi.mock('../../hooks/useTodayLoop', () => ({ useTodayLoop: () => loopData }));
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../diagnostic/PlacementPrompt', () => ({ default: () => <div>placement-prompt</div> }));
+let placement;
+vi.mock('../diagnostic/usePlacement', () => ({ usePlacement: () => placement, NEW_LEARNER_MAX: 30 }));
+vi.mock('../onboarding/FirstRunCard', () => ({ default: ({ show }) => (show ? <div>first-run-card</div> : null) }));
 let historyItems = [];
 let plannerItems = [];
 vi.mock('../../services/dbQueries', () => ({
@@ -36,7 +39,7 @@ function ReviewProbe() {
 const renderPanel = (props) => render(
   <MemoryRouter>
     <Routes>
-      <Route path="/" element={<TodayPanel uid="u1" {...props} />} />
+      <Route path="/" element={<TodayPanel uid="u1" answered={500} {...props} />} />
       <Route path="/practice" element={<ReviewProbe />} />
     </Routes>
   </MemoryRouter>,
@@ -44,6 +47,7 @@ const renderPanel = (props) => render(
 
 beforeEach(() => {
   lastState = null;
+  placement = { status: { status: 'completed' }, result: null, plan: null, dismissed: false, dismiss: vi.fn(), isNew: false };
   plannerItems = [];
   srs = { due: 6, overdue: 0 };
   forecast = {
@@ -173,5 +177,30 @@ describe('TodayPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
     expect(lastState.preset).toMatchObject({ source: 'smart-drill', drillTopic: 'Protection', count: 15 });
+  });
+
+  it('a new learner: the placement plan leads the actions, the numbers say they are early, and the exam plan is asked for', () => {
+    placement = { ...placement, plan: { mode: 'practice', subject: 'ESAS', reason: 'floor' }, isNew: true };
+    renderPanel({ readiness: { score: 41, breakdown: {} }, stats: { dailyTarget: 50 }, answered: 6 });
+    const rows = screen.getAllByRole('listitem').map((li) => li.textContent);
+    // the plan's start leads (only today's loop would go before it)
+    expect(rows[0]).toMatch(/Practise ESAS first/);
+    expect(rows[1]).toMatch(/Review 6 due questions/);
+    expect(rows.some((t) => /mock board/i.test(t))).toBe(false);
+    expect(screen.getAllByText('Early estimate')).toHaveLength(2);
+    expect(screen.getByText('first-run-card')).toBeInTheDocument();
+  });
+
+  it('shows the first-run card only once the placement prompt is out of the way, and never with an exam date', () => {
+    placement = { ...placement, status: { status: 'none' }, isNew: true };
+    const first = renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 0 });
+    expect(screen.queryByText('first-run-card')).not.toBeInTheDocument();
+    first.unmount();
+    placement = { ...placement, dismissed: true };
+    const second = renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 0 });
+    expect(screen.getByText('first-run-card')).toBeInTheDocument();
+    second.unmount();
+    renderPanel({ readiness: null, stats: { dailyTarget: 50, examDate: '2027-04-10' }, answered: 0 });
+    expect(screen.queryByText('first-run-card')).not.toBeInTheDocument();
   });
 });
