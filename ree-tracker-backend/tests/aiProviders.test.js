@@ -25,6 +25,18 @@ describe('OpenAI-compatible providers', () => {
         expect(body.max_tokens).toBe(900);
     });
 
+    it('sends Groq Qwen3 no effort level, hides its reasoning, and strips any <think> left in', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(okResponse('<think>V = IR, so…</think>\n{"items":[]}'));
+        const out = await callModel({
+            provider: 'groq', model: 'qwen/qwen3-32b', contents: 'Write one.', json: true, reasoningEffort: 'high',
+            env: { GROQ_API_KEY: 'k' }, fetchImpl,
+        });
+        expect(out.text).toBe('{"items":[]}');
+        const body = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        expect(body.reasoning_effort).toBeUndefined();
+        expect(body.reasoning_format).toBe('hidden');
+    });
+
     it('turns Gemini-shaped image parts into image_url data URIs', async () => {
         const fetchImpl = vi.fn().mockResolvedValue(okResponse('{}'));
         await callModel({

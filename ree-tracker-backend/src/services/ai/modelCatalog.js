@@ -9,12 +9,21 @@
 //
 // A provider whose catalog can't be read (network, an outage) is left alone:
 // its models stay in play and the router's own failure handling applies.
-const { PROVIDERS, TASK_IDS, chainFor, isProviderConfigured } = require('../../config/aiModels');
+//
+// The same lists resolve `provider:@pick:kw1|kw2` chain entries
+// (resolveChain), so a backup slot follows whatever the provider offers now.
+const {
+    PROVIDERS, TASKS, TASK_IDS, VISION_MODELS, PICK_EXCLUDE, PICK_MAX, chainFor, isProviderConfigured,
+} = require('../../config/aiModels');
+
+// Names of open models that read images, for providers whose list doesn't
+// say (Groq). OpenRouter's list states input modalities and that wins.
+const VISION_NAME = /(llama-4|vision|scout|maverick|-vl\b|-vl-|gemma-3)/i;
 
 const REFRESH_MS = 6 * 60 * 60 * 1000;
 const TIMEOUT_MS = 15_000;
 
-// provider -> { checkedAt, ok, error?, count?, ids?: Set }
+// provider -> { checkedAt, ok, error?, count?, ids?: Set, meta?: Map<id, { free, image }> }
 let catalogs = {};
 let timer = null;
 
@@ -34,23 +43,34 @@ async function fetchJson(url, headers, fetchImpl) {
     }
 }
 
+const isZero = (v) => v != null && v !== '' && Number(v) === 0;
+
+/** Map of model id -> { free, image } (image null when the list doesn't say). */
 async function listProvider(provider, env, fetchImpl) {
     const p = PROVIDERS[provider];
     const key = env[p.envKey];
+    const meta = new Map();
     if (p.kind === 'gemini') {
-        const ids = new Set();
         let pageToken = '';
         for (let page = 0; page < 10; page += 1) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ''}`;
             const data = await fetchJson(url, { 'x-goog-api-key': key }, fetchImpl);
-            for (const m of data.models || []) ids.add(String(m.name || '').replace(/^models\//, ''));
+            for (const m of data.models || []) {
+                meta.set(String(m.name || '').replace(/^models\//, ''), { free: true, image: true });
+            }
             if (!data.nextPageToken) break;
             pageToken = encodeURIComponent(data.nextPageToken);
         }
-        return ids;
+        return meta;
     }
     const data = await fetchJson(`${p.baseUrl}/models`, { Authorization: `Bearer ${key}` }, fetchImpl);
-    return new Set((data.data || []).map((m) => m.id));
+    for (const m of data.data || []) {
+        if (!m?.id) continue;
+        const free = /:free$/.test(m.id) || (isZero(m.pricing?.prompt) && isZero(m.pricing?.completion));
+        const modalities = m.architecture?.input_modalities;
+        meta.set(m.id, { free, image: Array.isArray(modalities) ? modalities.includes('image') : null });
+    }
+    return meta;
 }
 
 /** Fetch every configured provider's catalog. Never throws. */
@@ -59,8 +79,8 @@ async function refreshCatalog({ env = process.env, fetchImpl = fetch, logger = n
     const next = {};
     await Promise.all(providers.map(async (provider) => {
         try {
-            const ids = await listProvider(provider, env, fetchImpl);
-            next[provider] = { checkedAt: new Date().toISOString(), ok: true, count: ids.size, ids };
+            const meta = await listProvider(provider, env, fetchImpl);
+            next[provider] = { checkedAt: new Date().toISOString(), ok: true, count: meta.size, ids: new Set(meta.keys()), meta };
         } catch (err) {
             const auth = err.status === 401 || err.status === 403;
             next[provider] = {
@@ -92,23 +112,95 @@ function isListed(provider, model) {
 
 const isUnavailable = (provider, model) => isListed(provider, model) === false;
 
-/** Every chain entry whose provider says it doesn't exist. */
+function readsImages(provider, id, info) {
+    if (PROVIDERS[provider].vision || VISION_MODELS.has(`${provider}:${id}`)) return true;
+    if (info?.image != null) return info.image;
+    return VISION_NAME.test(id);
+}
+
+/**
+ * The ids a `@pick` entry stands for right now: for each keyword in order, the
+ * shortest listed id containing it (free ones only where the provider is
+ * freeOnly), at most PICK_MAX. Empty until the provider's list has been read.
+ */
+function expandPick(provider, keywords, { vision = false } = {}) {
+    const c = catalogs[provider];
+    if (!c?.ok) return [];
+    const freeOnly = !!PROVIDERS[provider].freeOnly;
+    const out = [];
+    for (const kw of keywords) {
+        if (out.length >= PICK_MAX) break;
+        const needle = kw.toLowerCase();
+        const candidates = [...c.meta.entries()]
+            .filter(([id, info]) => id.toLowerCase().includes(needle)
+                && !PICK_EXCLUDE.test(id)
+                && (!freeOnly || info.free)
+                && (!vision || readsImages(provider, id, info))
+                && !out.includes(id))
+            .map(([id]) => id)
+            // Shortest is the plain model rather than a variant of it; ties by name.
+            .sort((a, b) => a.length - b.length || a.localeCompare(b));
+        if (candidates.length) out.push(candidates[0]);
+    }
+    return out;
+}
+
+/**
+ * A task's chain with every `@pick` replaced by the models it resolves to.
+ * Resolved entries carry `via` (the pick's id) so the panel can say so.
+ */
+function resolveChain(taskId, env = process.env) {
+    const task = TASKS[taskId] || TASKS.general;
+    const seen = new Set();
+    const out = [];
+    for (const e of chainFor(taskId, env)) {
+        const expanded = e.pick
+            ? expandPick(e.provider, e.pick, { vision: !!task.vision })
+                .map((model) => ({ id: `${e.provider}:${model}`, provider: e.provider, model, via: e.id }))
+            : [e];
+        for (const x of expanded) {
+            if (seen.has(x.id)) continue;
+            seen.add(x.id);
+            out.push(x);
+        }
+    }
+    return out;
+}
+
+/** Every exact chain entry whose provider says it doesn't exist. */
 function missingModels(env = process.env) {
     const out = new Set();
     for (const task of TASK_IDS) {
         for (const e of chainFor(task, env)) {
-            if (isProviderConfigured(e.provider, env) && isUnavailable(e.provider, e.model)) out.add(e.id);
+            if (!e.pick && isProviderConfigured(e.provider, env) && isUnavailable(e.provider, e.model)) out.add(e.id);
         }
     }
     return [...out];
 }
 
+/** For /healthz: what each configured pick resolved to. */
+function picked(env = process.env) {
+    const out = {};
+    for (const taskId of TASK_IDS) {
+        const task = TASKS[taskId];
+        for (const e of chainFor(taskId, env)) {
+            if (!e.pick || !isProviderConfigured(e.provider, env)) continue;
+            const key = task.vision ? `${e.id} (vision)` : e.id;
+            if (!(key in out)) out[key] = expandPick(e.provider, e.pick, { vision: !!task.vision });
+        }
+    }
+    return out;
+}
+
 /** For /healthz and the status route: per-provider result, no id lists. */
 function summary() {
     return {
-        providers: Object.fromEntries(Object.entries(catalogs).map(([p, c]) => [
-            p, c.ok ? { ok: true, models: c.count, checkedAt: c.checkedAt } : { ok: false, error: c.error, checkedAt: c.checkedAt },
-        ])),
+        providers: Object.fromEntries(Object.entries(catalogs).map(([p, c]) => {
+            if (!c.ok) return [p, { ok: false, error: c.error, checkedAt: c.checkedAt }];
+            const row = { ok: true, models: c.count, checkedAt: c.checkedAt };
+            if (PROVIDERS[p].freeOnly) row.free = [...c.meta.values()].filter((m) => m.free).length;
+            return [p, row];
+        })),
     };
 }
 
@@ -125,4 +217,7 @@ function resetCatalog() {
     timer = null;
 }
 
-module.exports = { refreshCatalog, startCatalogRefresh, isListed, isUnavailable, missingModels, summary, resetCatalog };
+module.exports = {
+    refreshCatalog, startCatalogRefresh, isListed, isUnavailable, missingModels, summary, resetCatalog,
+    expandPick, resolveChain, picked,
+};

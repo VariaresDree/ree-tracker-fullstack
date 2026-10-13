@@ -100,7 +100,7 @@ export default function AiStatusPanel() {
                 <div className="text-xs text-muted2 font-mono [overflow-wrap:anywhere]">{p.envKey}</div>
                 <div className="text-xs text-muted2 mt-0.5">
                   {!p.configured ? 'No key on the server'
-                    : p.catalog?.ok ? `Key works · ${p.catalog.models} models offered`
+                    : p.catalog?.ok ? `Key works · ${p.catalog.models} models offered${p.catalog.free != null ? `, ${p.catalog.free} free` : ''}`
                       : p.catalog ? `Key set · model list: ${p.catalog.error}`
                         : 'Key set'}
                 </div>
@@ -135,7 +135,10 @@ export default function AiStatusPanel() {
                 {t.chain.map((m, i) => (
                   <li key={m.id} className="px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs min-w-0">
                     <span className="text-muted tabular-nums w-4 shrink-0">{i + 1}</span>
-                    <span className="font-mono text-textMain [overflow-wrap:anywhere] min-w-0 flex-1">{m.model}</span>
+                    <span className="font-mono text-textMain [overflow-wrap:anywhere] min-w-0 flex-1">
+                      {m.model}
+                      {m.picked && <span className="font-sans text-muted2"> · picked from the provider's current list</span>}
+                    </span>
                     <span className="text-muted2 shrink-0">{m.providerLabel}</span>
                     <span className="text-muted2 tabular-nums shrink-0 sm:w-28">
                       {m.calls ? `${secs(m.medianMs)} median · ${Math.round((m.successRate ?? 0) * 100)}%` : ''}
@@ -152,7 +155,7 @@ export default function AiStatusPanel() {
             </li>
           ))}
         </ul>
-        <p className="text-xs text-muted2">"Not offered" means the provider's own model list doesn't include that model (checked at startup and every 6 hours), so it is skipped. Speeds are from this server's recent requests and reset when it restarts. Checked {new Date(status.checkedAt).toLocaleTimeString()}.</p>
+        <p className="text-xs text-muted2">Backups marked "picked" follow each provider's current model list, so a renamed or retired model is replaced on its own; OpenRouter backups are always free models. "Not offered" means the provider's own model list doesn't include that model (checked at startup and every 6 hours), so it is skipped. Speeds are from this server's recent requests and reset when it restarts. Checked {new Date(status.checkedAt).toLocaleTimeString()}.</p>
       </section>
     </div>
   );

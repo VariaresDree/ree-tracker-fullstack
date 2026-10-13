@@ -19,6 +19,17 @@
 // (services/ai/modelCatalog), and an id it doesn't offer is skipped, so a
 // retired model or a free route that went away costs nothing.
 //
+// Providers rename and retire models often (on 2026-10-13 nine of the ids
+// first written here were already gone), so the backups past each chain's
+// first choices are written as picks rather than exact ids:
+//
+//   provider:@pick:kw1|kw2|kw3
+//
+// takes, for each keyword in order, the shortest id in that provider's current
+// model list containing it, up to PICK_MAX models. On OpenRouter only free
+// models qualify (PROVIDERS.openrouter.freeOnly). Embedding, speech, guard and
+// image-generation models never qualify (PICK_EXCLUDE).
+//
 // Override any chain without a redeploy: AI_CHAIN_<TASK> (e.g. AI_CHAIN_REPORT)
 // as a comma-separated list of `provider:model`. MODEL_TIERS (legacy) still
 // replaces the Gemini entries of the `general` chain.
@@ -44,6 +55,8 @@ const PROVIDERS = {
         baseUrl: 'https://openrouter.ai/api/v1',
         envKey: 'OPENROUTER_API_KEY',
         vision: false,
+        // Paid routes would bill the account; the app only uses free ones.
+        freeOnly: true,
     },
     gemini: {
         label: 'Google Gemini',
@@ -58,9 +71,21 @@ const VISION_MODELS = new Set([
     'groq:meta-llama/llama-4-scout-17b-16e-instruct',
 ]);
 
-// Gemini IDs, lightest first and strongest first.
+// Models that aren't chat models, never chosen by a pick.
+const PICK_EXCLUDE = /(embed|tts|audio|whisper|transcribe|guard|imagen|-image|veo|live|computer-use|robotics|aqa|learnlm|compound|playai|orpheus)/i;
+const PICK_MAX = 2;
+
+// Gemini IDs, lightest first and strongest first. The pro model only has a
+// small free quota, so it sits behind the newest flash.
 const GEMINI_FAST = ['gemini:gemini-3.1-flash-lite', 'gemini:gemini-2.5-flash-lite', 'gemini:gemini-2.5-flash'];
-const GEMINI_STRONG = ['gemini:gemini-3.1-pro', 'gemini:gemini-3.5-flash', 'gemini:gemini-2.5-flash'];
+const GEMINI_STRONG = ['gemini:gemini-3.5-flash', 'gemini:@pick:gemini-3.1-pro|gemini-3-pro|gemini-2.5-pro', 'gemini:gemini-2.5-flash'];
+
+// Backups picked from each provider's live list (see the note at the top).
+const GROQ_FAST_ALT = 'groq:@pick:llama-3.3-70b|llama-4-scout|llama-4-maverick|qwen3-32b';
+const GROQ_ALT = 'groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick';
+const OR_FAST = 'openrouter:@pick:gpt-oss-20b|gpt-oss-120b|llama-3.3-70b|gemma-3-27b|mistral-small';
+const OR_GENERAL = 'openrouter:@pick:gpt-oss-120b|deepseek-chat|deepseek-v3|qwen3-235b|llama-3.3-70b';
+const OR_REASONING = 'openrouter:@pick:gpt-oss-120b|deepseek-r1|qwen3-235b|deepseek-chat|kimi-k2';
 
 const TASKS = {
     // Progress › AI board report: three sentences. Speed is the whole point.
@@ -75,10 +100,9 @@ const TASKS = {
         reasoningEffort: 'low',
         chain: [
             'groq:openai/gpt-oss-20b',
-            'groq:llama-3.3-70b-versatile',
+            GROQ_FAST_ALT,
             'cerebras:gpt-oss-120b',
-            'openrouter:openai/gpt-oss-20b:free',
-            'openrouter:meta-llama/llama-3.3-70b-instruct:free',
+            OR_FAST,
             ...GEMINI_FAST,
         ],
     },
@@ -96,9 +120,8 @@ const TASKS = {
         chain: [
             'groq:openai/gpt-oss-120b',
             'cerebras:gpt-oss-120b',
-            'groq:llama-3.3-70b-versatile',
-            'openrouter:openai/gpt-oss-120b:free',
-            'openrouter:deepseek/deepseek-chat-v3.1:free',
+            GROQ_ALT,
+            OR_GENERAL,
             'gemini:gemini-2.5-flash',
             'gemini:gemini-2.5-flash-lite',
         ],
@@ -117,8 +140,8 @@ const TASKS = {
         chain: [
             'groq:openai/gpt-oss-120b',
             'cerebras:gpt-oss-120b',
-            'groq:llama-3.3-70b-versatile',
-            'openrouter:openai/gpt-oss-120b:free',
+            GROQ_ALT,
+            OR_GENERAL,
             'gemini:gemini-2.5-flash',
             'gemini:gemini-2.5-flash-lite',
         ],
@@ -138,9 +161,7 @@ const TASKS = {
         chain: [
             'groq:openai/gpt-oss-120b',
             'cerebras:gpt-oss-120b',
-            'openrouter:openai/gpt-oss-120b:free',
-            'openrouter:deepseek/deepseek-r1-0528:free',
-            'openrouter:qwen/qwen3-235b-a22b:free',
+            OR_REASONING,
             ...GEMINI_STRONG,
         ],
     },
@@ -161,8 +182,7 @@ const TASKS = {
             'gemini:gemini-2.5-flash',
             'cerebras:gpt-oss-120b',
             'groq:openai/gpt-oss-120b',
-            'openrouter:deepseek/deepseek-r1-0528:free',
-            'openrouter:openai/gpt-oss-120b:free',
+            'openrouter:@pick:deepseek-r1|qwen3-235b|gpt-oss-120b',
         ],
     },
     // Admin: questions read out of a photo or scanned page.
@@ -179,7 +199,8 @@ const TASKS = {
         chain: [
             'gemini:gemini-3.5-flash',
             'gemini:gemini-2.5-flash',
-            'groq:meta-llama/llama-4-scout-17b-16e-instruct',
+            'groq:@pick:llama-4-scout|llama-4-maverick',
+            'openrouter:@pick:gemma-3-27b|qwen2.5-vl|llama-4|mistral-small',
         ],
     },
     // Old clients that send no task.
@@ -203,7 +224,11 @@ const TASKS = {
 
 const TASK_IDS = Object.keys(TASKS);
 
-/** "groq:openai/gpt-oss-20b" → { id, provider, model }. The model may contain ':'. */
+/**
+ * "groq:openai/gpt-oss-20b" → { id, provider, model }. The model may contain ':'.
+ * "groq:@pick:a|b" → { id, provider, model, pick: ['a', 'b'] }, resolved
+ * against the provider's model list by modelCatalog.resolveChain.
+ */
 function parseEntry(entry) {
     const raw = String(entry || '').trim();
     const i = raw.indexOf(':');
@@ -211,6 +236,11 @@ function parseEntry(entry) {
     const provider = raw.slice(0, i).trim();
     const model = raw.slice(i + 1).trim();
     if (!PROVIDERS[provider] || !model) return null;
+    if (model.startsWith('@pick:')) {
+        const pick = model.slice('@pick:'.length).split('|').map((k) => k.trim()).filter(Boolean);
+        if (!pick.length) return null;
+        return { id: `${provider}:${model}`, provider, model, pick };
+    }
     return { id: `${provider}:${model}`, provider, model };
 }
 
@@ -226,7 +256,8 @@ function chainFor(taskId, env = process.env) {
     const seen = new Set();
     return entries.map(parseEntry).filter((e) => {
         if (!e || seen.has(e.id)) return false;
-        if (task.vision && !(PROVIDERS[e.provider].vision || VISION_MODELS.has(e.id))) return false;
+        // A pick is checked for image input when it resolves.
+        if (task.vision && !e.pick && !(PROVIDERS[e.provider].vision || VISION_MODELS.has(e.id))) return false;
         seen.add(e.id);
         return true;
     });
@@ -236,13 +267,15 @@ const isProviderConfigured = (provider, env = process.env) => !!env[PROVIDERS[pr
 
 // Kept for the startup log and older callers: the Gemini IDs in use anywhere.
 const MODEL_TIERS = [...new Set(TASK_IDS.flatMap((t) => chainFor(t))
-    .filter((e) => e.provider === 'gemini').map((e) => e.model))];
+    .filter((e) => e.provider === 'gemini' && !e.pick).map((e) => e.model))];
 
 module.exports = {
     PROVIDERS,
     TASKS,
     TASK_IDS,
     VISION_MODELS,
+    PICK_EXCLUDE,
+    PICK_MAX,
     parseEntry,
     chainFor,
     isProviderConfigured,

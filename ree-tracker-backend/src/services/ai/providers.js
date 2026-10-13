@@ -50,6 +50,16 @@ function splitContents(contents) {
 }
 
 const isReasoningModel = (model) => /gpt-oss|qwen3|deepseek-r1|reasoning/i.test(model);
+// Only gpt-oss takes low/medium/high on Groq and Cerebras; Groq's Qwen3 accepts
+// just none/default and rejects anything else with a 400.
+const takesEffortLevels = (model) => /gpt-oss/i.test(model);
+// Models that write their reasoning into the answer as <think>…</think>.
+const thinksInline = (model) => /qwen3|deepseek-r1/i.test(model);
+
+/** The answer without any <think> block a reasoning model left in it. */
+function stripThinking(text) {
+    return String(text).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
 
 async function callOpenAICompatible({ provider, model, system, contents, json, maxTokens, temperature, reasoningEffort, signal, env = process.env, fetchImpl = fetch }) {
     const p = PROVIDERS[provider];
@@ -72,8 +82,10 @@ async function callOpenAICompatible({ provider, model, system, contents, json, m
     if (json && provider !== 'openrouter') body.response_format = { type: 'json_object' };
     if (reasoningEffort && isReasoningModel(model)) {
         if (provider === 'openrouter') body.reasoning = { effort: reasoningEffort };
-        else body.reasoning_effort = reasoningEffort;
+        else if (takesEffortLevels(model)) body.reasoning_effort = reasoningEffort;
     }
+    // Groq keeps a Qwen3 or R1 model's reasoning out of the answer when asked.
+    if (provider === 'groq' && thinksInline(model)) body.reasoning_format = 'hidden';
 
     const headers = {
         'Content-Type': 'application/json',
@@ -97,7 +109,8 @@ async function callOpenAICompatible({ provider, model, system, contents, json, m
         throw new AiCallError(`${p.label} ${res.status}: ${String(message).slice(0, 300)}`, kindForStatus(res.status, message), res.status);
     }
     const data = await res.json();
-    const out = data?.choices?.[0]?.message?.content;
+    const raw = data?.choices?.[0]?.message?.content;
+    const out = typeof raw === 'string' ? stripThinking(raw) : raw;
     if (typeof out !== 'string' || !out.trim()) {
         const reason = data?.choices?.[0]?.finish_reason;
         throw new AiCallError(`${p.label} returned no text${reason ? ` (${reason})` : ''}`, 'bad_output');
