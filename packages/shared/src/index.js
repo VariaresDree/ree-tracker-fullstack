@@ -38,4 +38,5 @@ module.exports = {
     ...require('./gauntlet'),
     ...require('./notebook'),
     ...require('./srs'),
+    ...require('./focus'),
 };

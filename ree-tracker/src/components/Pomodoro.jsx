@@ -4,6 +4,7 @@
 // closing the sidebar or navigating away no longer resets anything. The
 // floating widget (FloatingPomodoro) renders the same state.
 import { useState } from 'react';
+import { FOCUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { useSessionSlice } from '../store/slices';
 import { usePomodoroClock, formatClock } from '../hooks/usePomodoroClock';
 import { Button } from './ui';
@@ -14,7 +15,7 @@ import { MIN_MINUTES, MAX_MINUTES, clampMinutes } from '../utils/pomodoroLogic';
 // clearing a field set a 0-minute block, and Save reset a running timer even
 // when nothing changed.
 export default function Pomodoro() {
-  const { updatePomodoro, startPomodoro, pausePomodoro, resetPomodoro } = useSessionSlice();
+  const { updatePomodoro, startPomodoro, pausePomodoro, resetPomodoro, setPomodoroSubject } = useSessionSlice();
   const { pomodoro, remaining } = usePomodoroClock();
   const [draft, setDraft] = useState(null); // { work, rest } while editing
 
@@ -24,6 +25,8 @@ export default function Pomodoro() {
       const breakDuration = clampMinutes(draft.rest, pomodoro.breakDuration);
       setDraft(null);
       if (workDuration === pomodoro.workDuration && breakDuration === pomodoro.breakDuration) return;
+      // A new length ends the block in progress (what ran of a focus block is
+      // logged on the old length, in updatePomodoro).
       updatePomodoro({ workDuration, breakDuration });
       resetPomodoro();
     };
@@ -90,6 +93,18 @@ export default function Pomodoro() {
       >
         {formatClock(remaining)}
       </div>
+
+      {/* What the focus time is for (Progress › Habits › Focus time). */}
+      <label className="flex items-center gap-2 text-xs text-muted2">
+        <span>Focus on</span>
+        <select
+          value={pomodoro.subject || 'General'}
+          onChange={(e) => setPomodoroSubject(e.target.value)}
+          className="bg-bg border border-border2 rounded-[var(--radius-sm)] px-2 py-1 text-xs text-textMain focus:border-[var(--accent)]"
+        >
+          {FOCUS_SUBJECTS.map((s) => <option key={s} value={s}>{s === 'General' ? 'General' : toDisplaySubject(s)}</option>)}
+        </select>
+      </label>
 
       {/* Controls */}
       <div className="flex justify-center items-center gap-2 w-full border-t border-border2/30 pt-2">

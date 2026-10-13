@@ -19,6 +19,7 @@ const DISPLAY_ONLY = {
     syllabusProgress: ['routes/syllabusRoutes.js'],
     mistakeTag: ['routes/mistakeRoutes.js'],
     userNote: ['routes/noteRoutes.js'],
+    focusBlock: ['services/focusTime.js'],
 };
 
 function sourceFiles(dir) {

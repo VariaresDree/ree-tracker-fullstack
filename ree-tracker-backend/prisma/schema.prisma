@@ -81,6 +81,7 @@ model User {
   mistakeTags        MistakeTag[]
   notes              UserNote[]
   cardReviews        CardReview[]
+  focusBlocks        FocusBlock[]
 
   @@index([thetaRating])
   @@index([lastActive])
@@ -669,6 +670,27 @@ model CardReview {
   @@unique([userId, cardId])
   @@index([userId, nextReviewDate])
   @@index([cardId])
+}
+
+// Focus time: one Pomodoro focus block, logged by the app when it finishes
+// (or stops early after at least 5 minutes), with what it was for. clientId is
+// the device's id for the block, so a replay (a retry, the offline queue)
+// lands once. Self-reported time: DISPLAY ONLY, never θ, the forecast,
+// readiness or the rankings (tests/displayOnlyTables.test.js).
+model FocusBlock {
+  id        String   @id @default(uuid())
+  userId    String
+  clientId  String
+  subject   String   // 'General' | 'Mathematics' | 'ESAS' | 'EE' (@ree/shared FOCUS_SUBJECTS)
+  minutes   Int
+  startedAt DateTime
+  endedAt   DateTime
+  completed Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientId])
+  @@index([userId, endedAt])
 }
 
 // The mistake notebook (Library › Notebook). The mistakes themselves are

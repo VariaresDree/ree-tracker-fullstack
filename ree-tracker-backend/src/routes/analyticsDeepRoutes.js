@@ -5,6 +5,7 @@ const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { mockHistory } = require('../services/examHistory');
 const { buildSittingReview, SittingReviewError } = require('../services/sittingReview');
+const { loadFocusTime } = require('../services/focusTime');
 const { loadWeakSignals } = require('../services/topicSignals');
 const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
@@ -150,6 +151,18 @@ router.get('/study-time', authMiddleware, async (req, res) => {
         res.status(200).json({ daily });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch study time data.' });
+    }
+});
+
+// GET /api/analytics/deep/focus-time — the Pomodoro's focus blocks: minutes
+// per Manila day for two weeks, and per subject over 30 days beside the PRC
+// weights (services/focusTime.js). Under /analytics so the service worker's
+// per-account cache paints Habits offline.
+router.get('/focus-time', authMiddleware, async (req, res) => {
+    try {
+        res.status(200).json(await loadFocusTime(req.user.id));
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch focus time.' });
     }
 });
 
