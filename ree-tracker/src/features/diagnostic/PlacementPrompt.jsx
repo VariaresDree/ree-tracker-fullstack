@@ -1,43 +1,32 @@
 // src/features/diagnostic/PlacementPrompt.jsx
 //
 // Invites a new learner to the placement test — prompted, never forced. Shown
-// while the account has little history (under PROMPT_MAX_ANSWERED answers) and
-// no completed placement, or to finish one that was started. "Not now" is
-// remembered per account on this device; the test stays reachable at
-// /diagnostic either way.
-import { useEffect, useState } from 'react';
+// while the account has little history (under NEW_LEARNER_MAX answers) and no
+// completed placement, or to finish one that was started. "Not now" folds it
+// to one line rather than hiding it, so the test stays one tap from Today
+// (it used to be reachable only from Account after that). The status comes
+// from usePlacement, which Today's actions read too.
 import { Link } from 'react-router-dom';
 import { Card, Button, IconChip } from '../../components/ui';
 import { Compass } from '../../components/ui/icons';
-import { fetchDiagnosticStatus } from '../../services/dbQueries';
+import { NEW_LEARNER_MAX } from './usePlacement';
 
-export const PROMPT_MAX_ANSWERED = 30;
-const dismissKey = (uid) => `ree_placement_dismissed:${uid}`;
-
-const readDismissed = (uid) => {
-  try { return localStorage.getItem(dismissKey(uid)) === '1'; } catch { return false; }
-};
-
-export default function PlacementPrompt({ uid, answered = 0 }) {
-  const [status, setStatus] = useState(null);
-  const [dismissed, setDismissed] = useState(() => (uid ? readDismissed(uid) : true));
-
-  const eligible = !!uid && !dismissed;
-  useEffect(() => {
-    if (!eligible) return undefined;
-    let live = true;
-    fetchDiagnosticStatus().then((s) => { if (live) setStatus(s); }).catch(() => {});
-    return () => { live = false; };
-  }, [eligible]);
-
-  if (!eligible || !status || status.status === 'completed') return null;
+export default function PlacementPrompt({ status, answered = 0, dismissed = false, onDismiss }) {
+  if (!status || status.status === 'completed') return null;
   const inProgress = status.status === 'in_progress';
-  if (!inProgress && answered >= PROMPT_MAX_ANSWERED) return null;
+  if (!inProgress && answered >= NEW_LEARNER_MAX) return null;
 
-  const dismiss = () => {
-    try { localStorage.setItem(dismissKey(uid), '1'); } catch { /* private mode: dismiss for this view only */ }
-    setDismissed(true);
-  };
+  if (dismissed) {
+    return (
+      <p className="text-sm text-muted2 flex flex-wrap items-center gap-x-2">
+        <Compass size={14} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" />
+        {inProgress ? 'Your placement test is half done.' : 'Not sure where to start?'}
+        <Link to="/diagnostic" className="text-[var(--accent-text)] underline underline-offset-2 inline-flex items-center pointer-coarse:min-h-11">
+          {inProgress ? 'Finish it' : 'Take the placement test'}
+        </Link>
+      </p>
+    );
+  }
 
   return (
     <Card elevated glow className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -49,12 +38,12 @@ export default function PlacementPrompt({ uid, answered = 0 }) {
         <p className="text-sm text-muted2 mt-0.5">
           {inProgress
             ? `${status.progress?.answered || 0} of about ${status.progress?.total || 19} questions done — pick up where you left off.`
-            : 'About 19 adaptive questions across Math, ESAS and EE. Your plan, drills and forecast start from the result.'}
+            : 'About 19 adaptive questions across Math, ESAS and EE. You get a level for each subject, where to start, and the option of a study plan to your exam date.'}
         </p>
       </div>
       <div className="flex gap-2 shrink-0">
         <Button as={Link} to="/diagnostic">{inProgress ? 'Resume' : 'Take the test'}</Button>
-        <Button variant="ghost" onClick={dismiss}>Not now</Button>
+        <Button variant="ghost" onClick={onDismiss}>Not now</Button>
       </div>
     </Card>
   );

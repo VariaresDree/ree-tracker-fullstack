@@ -20,7 +20,7 @@ const { gradeBoardExam, deriveVerdict } = require('@ree/shared');
 const { subjectScoresBySession } = require('./deepAnalyticsHelpers');
 
 const HISTORY_MODES = ['BOARD_SIM', 'BATTLE'];
-const KINDS = new Set(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake']);
+const KINDS = new Set(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake', 'mistakes']);
 const MAX_MARKED = 300;
 
 class ExamHistoryError extends Error {

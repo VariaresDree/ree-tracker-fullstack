@@ -60,7 +60,7 @@ export default function FullscreenPdfViewer({ url, title = 'Document', onClose }
           onClick={() => setZoomed((z) => !z)}
           aria-label={zoomed ? 'Zoom out' : 'Zoom in'}
           aria-pressed={zoomed}
-          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-[var(--radius-default)] bg-surface/90 backdrop-blur-md border border-border2 text-textMain text-sm font-medium shadow-lg hover:bg-surface2 btn-press cursor-pointer"
+          className="inline-flex items-center gap-1.5 h-10 pointer-coarse:h-11 px-3 rounded-[var(--radius-default)] bg-surface/90 backdrop-blur-md border border-border2 text-textMain text-sm font-medium shadow-lg hover:bg-surface2 btn-press cursor-pointer"
         >
           {zoomed
             ? <><Minimize2 size={16} strokeWidth={1.75} aria-hidden="true" /> Zoom out</>
@@ -71,7 +71,7 @@ export default function FullscreenPdfViewer({ url, title = 'Document', onClose }
           ref={closeBtnRef}
           onClick={() => onClose?.()}
           aria-label="Close fullscreen viewer"
-          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-[var(--radius-default)] bg-surface/90 backdrop-blur-md border border-border2 text-textMain text-sm font-medium shadow-lg hover:bg-surface2 btn-press cursor-pointer"
+          className="inline-flex items-center gap-1.5 h-10 pointer-coarse:h-11 px-3 rounded-[var(--radius-default)] bg-surface/90 backdrop-blur-md border border-border2 text-textMain text-sm font-medium shadow-lg hover:bg-surface2 btn-press cursor-pointer"
         >
           <X size={16} strokeWidth={1.75} aria-hidden="true" /> Close
         </button>

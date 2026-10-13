@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, fetchNextItem, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
 import { generateQuestionsAI } from '../../services/geminiApi';
 import { TOS as fallbackTOS } from '../../config/constants';
 import { useAiExplanation } from '../quiz/useAiExplanation';
@@ -10,7 +10,12 @@ import { useEngineActionsSlice } from '../../store/slices';
 import { stratifiedSample } from '../../utils/shuffle';
 import { normalizeSubject } from '@ree/shared';
 import { buildSessionSummary } from './buildSessionSummary';
+import { pickNextLocal } from './adaptiveFallback';
 import toast from 'react-hot-toast';
+
+// Restart the per-question clock. Called from Next (an event handler, never
+// during render), so the wall-clock read lives out here.
+const restartClock = (ref) => { ref.current = Date.now(); };
 
 export const useReviewSession = (currentUser, isOnline) => {
     // Narrow, stable-reference slice on the per-answer hot path (avoids the
@@ -33,9 +38,15 @@ export const useReviewSession = (currentUser, isOnline) => {
         isAnswered: false, isFlipped: false,
         confidence: null, selectedOption: null, wrongSelection: null,
         totalAnswered: 0, correctHits: 0,
+        // How many questions the session runs to. The adaptive set grows
+        // `questions` one at a time, so its length isn't the total.
+        target: 0, fetchingNext: false,
     });
 
-    const [elapsedTime, setElapsedTime] = useState(0);
+    // When the question on screen was shown (epoch ms). The ticking display is
+    // <QuestionTimer>, which re-renders only itself: a per-second setState
+    // here re-rendered the whole Practice page, question and KaTeX included.
+    const [questionStartedAt, setQuestionStartedAt] = useState(0);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
     // AI explanations, keyed by question (features/quiz/useAiExplanation).
@@ -57,22 +68,64 @@ export const useReviewSession = (currentUser, isOnline) => {
     // roughly 40 seconds, and every StudySession row in the database (and the
     // readiness consistency term built on them) was wrong by an order of
     // magnitude.
-    const startTimeRef = useRef(Date.now());
-    const sessionStartRef = useRef(Date.now());
+    // Both are set when a session starts (and the first on every question).
+    const startTimeRef = useRef(0);
+    const sessionStartRef = useRef(0);
     const telemetryBatchRef = useRef([]);
     // Set while endSession runs, so leaving mid-save doesn't record it twice.
     const endingRef = useRef(false);
+    // The adaptive set's state while one runs (null otherwise): its target,
+    // subject, the next pick fetched ahead, and the on-device pool once the
+    // server can't be reached.
+    const adaptiveRef = useRef(null);
+    // Formula cards rated in this session (Today's loop): counted for the
+    // summary, never recorded as answers.
+    const cardsRatedRef = useRef(0);
 
-    // 🚀 High-Performance Absolute Timer
-    useEffect(() => {
-        let interval;
-        if (session.isActive && !session.isAnswered && !session.isFlipped && !session.isFinished) {
-            interval = setInterval(() => {
-                setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
-            }, 1000);
+    // The adaptive set's next question: the server's pick (by ability
+    // estimate, POST /api/exams/next-item), or the device's once a request
+    // fails (adaptiveFallback.js, drawn from the bank or the offline pack).
+    // Null when nothing unseen is left.
+    const pickAdaptive = async (a, seenIds, history) => {
+        if (!a.local) {
+            try {
+                const { item, ability } = await fetchNextItem({
+                    subject: a.subject,
+                    sessionAttempts: history.map((h) => ({ questionId: h.questionId, isCorrect: !!h.isCorrect })),
+                    recentIds: seenIds,
+                });
+                if (Number.isFinite(ability?.theta)) a.start = ability.theta;
+                // Only a question that carries its key: Practice grades here,
+                // and one without (an older server) would be ungradable.
+                if (item && item.text && item.answer && !seenIds.includes(item.id)) return item;
+            } catch {
+                if (!a.notedOffline) {
+                    a.notedOffline = true;
+                    toast("Couldn't reach the server: the rest of this set is picked on this device.");
+                }
+            }
+            try {
+                a.local = await fetchVaultQuestions(a.subject || 'All', 'All', 1000);
+            } catch {
+                a.local = [];
+            }
         }
-        return () => clearInterval(interval);
-    }, [session.isActive, session.isAnswered, session.isFlipped, session.currentIndex, session.isFinished]);
+        return pickNextLocal(a.local, { seenIds, history, start: a.start });
+    };
+
+    // Fetch the adaptive set's next question while the learner reads this
+    // one's solution, so Next doesn't wait on the network.
+    const prefetchAdaptive = (questions) => {
+        const a = adaptiveRef.current;
+        if (!a || a.prefetch || telemetryBatchRef.current.length >= a.target) return;
+        a.prefetch = pickAdaptive(a, questions.map((q) => q.id), [...telemetryBatchRef.current]).catch(() => null);
+    };
+
+    // A new question: restart its clock (an event handler's job, never render's).
+    const restartQuestionClock = () => {
+        restartClock(startTimeRef);
+        setQuestionStartedAt(startTimeRef.current);
+    };
 
     // `overrides` lets preset cards start a session in one click without a
     // setConfig round-trip; the form state is synced so the custom panel
@@ -89,8 +142,10 @@ export const useReviewSession = (currentUser, isOnline) => {
         const target = overrides || {};
         if (overrides) setConfig(cfg);
         setSession(prev => ({ ...prev, loading: true }));
+        adaptiveRef.current = null;
         try {
             let freshData = [];
+            let adaptive = null;
             let loopCardsDue = target.cardsDue ?? cfg.cardsDue ?? 0;
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
@@ -102,15 +157,25 @@ export const useReviewSession = (currentUser, isOnline) => {
             } else if (cfg.source === 'today-loop') {
                 // Due reviews and open mistakes, already in the server's
                 // board-weight order (kept as is below, not resampled).
+                // A formula card (kind 'card') has no question text: it is
+                // rated in place (LoopCardStep).
+                const isStep = (q) => q?.id && (q.text || (q.kind === 'card' && q.card));
                 if (Array.isArray(target.items) && target.items.length > 0) {
-                    freshData = target.items.filter((q) => q?.id && q.text);
+                    freshData = target.items.filter(isStep);
                 } else {
                     if (!isOnline) throw new Error("Today's loop needs a connection.");
                     const loop = await fetchTodayLoop();
-                    freshData = loop?.items || [];
+                    freshData = (loop?.items || []).filter(isStep);
                     loopCardsDue = loop?.cardsDue || 0;
                 }
                 if (freshData.length === 0) throw new Error("Nothing is due and no mistakes are open. You're caught up.");
+            } else if (cfg.source === 'adaptive') {
+                // One question at a time, matched to the learner's level; the
+                // rest arrive as they answer (prefetchAdaptive/loadNextQuestion).
+                adaptive = { target: Math.max(1, cfg.count || 20), subject: cfg.subject, local: null, start: 0, prefetch: null };
+                const first = await pickAdaptive(adaptive, [], []);
+                if (!first) throw new Error("No questions match these settings yet.");
+                freshData = [first];
             } else if (cfg.source === 'srs-due') {
                 if (!isOnline) throw new Error("The review queue needs a connection.");
                 freshData = await fetchSrsDue(cfg.count || 20, cfg.subject);
@@ -194,21 +259,27 @@ export const useReviewSession = (currentUser, isOnline) => {
             // For a pinned subtopic this is just a uniform Fisher-Yates pick.
             const finalSessionQuestions = cfg.source === 'today-loop'
                 ? filteredData.slice(0, cfg.count || filteredData.length)
-                : stratifiedSample(filteredData, cfg.count || 20);
+                : cfg.source === 'adaptive'
+                    ? filteredData
+                    : stratifiedSample(filteredData, cfg.count || 20);
+            adaptiveRef.current = adaptive;
 
             telemetryBatchRef.current = [];
+            cardsRatedRef.current = 0;
             endingRef.current = false;
-            startTimeRef.current = Date.now();
-            sessionStartRef.current = Date.now();
-            setElapsedTime(0);
+            restartQuestionClock();
+            restartClock(sessionStartRef);
             sessionConfigRef.current = cfg.source === 'smart-drill'
                 ? { ...cfg, drillTopicId: target.drillTopicId ?? null, drillTopic: target.drillTopic ?? null, drillSubject: target.drillSubject ?? null, drillMode: target.drillMode ?? null }
                 : cfg.source === 'items'
                     // "Practise again" repeats the same set.
                     ? { ...cfg, items: freshData }
                     : cfg.source === 'today-loop'
-                        // Again repeats the same set; the summary links the cards due.
-                        ? { ...cfg, items: freshData, cardsDue: loopCardsDue }
+                        // Again repeats the same questions, without the formula
+                        // cards: each was rated here already, and rating it again
+                        // would schedule it twice in a day. (A loop of cards only
+                        // asks the server again.) The summary links the cards due.
+                        ? { ...cfg, items: freshData.filter((q) => q.kind !== 'card'), cardsDue: loopCardsDue }
                         : cfg;
             setLastSummary(null);
 
@@ -223,6 +294,8 @@ export const useReviewSession = (currentUser, isOnline) => {
                 isAnswered: false, isFlipped: false,
                 confidence: null, selectedOption: null, wrongSelection: null,
                 totalAnswered: 0, correctHits: 0,
+                target: adaptive ? adaptive.target : finalSessionQuestions.length,
+                fetchingNext: false,
             });
         } catch (error) {
             toast.error(error.message);
@@ -236,9 +309,9 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
         const isCorrect = option === currentQ.answer;
-        // Millisecond-accurate: read the wall clock directly instead of the
-        // 1s-throttled `elapsedTime` state, which recorded 0 ms for any answer
-        // locked in under a second and deflated the per-question time averages.
+        // Millisecond-accurate: read the wall clock directly (a 1s-throttled
+        // counter recorded 0 ms for any answer locked in under a second and
+        // deflated the per-question time averages).
         const timeSpentMs = Math.max(0, Date.now() - startTimeRef.current);
 
         setSession(prev => ({
@@ -267,6 +340,16 @@ export const useReviewSession = (currentUser, isOnline) => {
             questionId: currentQ.id, subject: currentQ.subject, subtopic: currentQ.subtopic,
             isCorrect, confidenceLevel: session.confidence, timeSpentMs,
         });
+        prefetchAdaptive(session.questions);
+    };
+
+    // A formula card in Today's loop was rated (LoopCardStep sends the
+    // rating). It is not an answer: no attempt, no score, nothing toward
+    // ability or today's target.
+    const markCardRated = () => {
+        if (session.isAnswered) return;
+        cardsRatedRef.current += 1;
+        setSession((prev) => ({ ...prev, isAnswered: true }));
     };
 
     const handleFlashcardReveal = () => setSession(prev => ({ ...prev, isFlipped: true }));
@@ -283,9 +366,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
 
-        // Millisecond-accurate: read the wall clock directly instead of the
-        // 1s-throttled `elapsedTime` state, which recorded 0 ms for any answer
-        // locked in under a second and deflated the per-question time averages.
+        // Millisecond-accurate: read the wall clock directly.
         const timeSpentMs = Math.max(0, Date.now() - startTimeRef.current);
 
         setSession(prev => ({
@@ -311,12 +392,40 @@ export const useReviewSession = (currentUser, isOnline) => {
         });
     };
 
+    // The adaptive set's Next: append the question fetched ahead (or fetch
+    // it now) and move to it. Not awaited by callers, so Next stays sync.
+    const advanceAdaptive = async (a) => {
+        if (a.loading) return;
+        a.loading = true;
+        setSession((prev) => ({ ...prev, fetchingNext: true }));
+        const next = await (a.prefetch || pickAdaptive(a, session.questions.map((q) => q.id), [...telemetryBatchRef.current]));
+        a.prefetch = null;
+        a.loading = false;
+        // Ended, or another session started, while this was in flight.
+        if (adaptiveRef.current !== a) return;
+        if (!next) {
+            toast("That's every question for this set right now.");
+            endSession();
+            return;
+        }
+        restartQuestionClock();
+        setSession((prev) => ({
+            ...prev, questions: [...prev.questions, next], currentIndex: prev.currentIndex + 1, fetchingNext: false,
+            isAnswered: false, isFlipped: false,
+            confidence: null, selectedOption: null, wrongSelection: null,
+        }));
+    };
+
     const loadNextQuestion = () => {
+        const a = adaptiveRef.current;
+        if (a && session.currentIndex + 1 >= session.questions.length && telemetryBatchRef.current.length < a.target) {
+            advanceAdaptive(a);
+            return;
+        }
         if (session.currentIndex + 1 >= session.questions.length) {
             endSession();
         } else {
-            startTimeRef.current = Date.now();
-            setElapsedTime(0);
+            restartQuestionClock();
             setSession(prev => ({
                 ...prev, currentIndex: prev.currentIndex + 1,
                 isAnswered: false, isFlipped: false,
@@ -328,16 +437,24 @@ export const useReviewSession = (currentUser, isOnline) => {
     const endSession = async () => {
         if (isSubmitting) return;
         endingRef.current = true;
+        adaptiveRef.current = null;
         setIsSubmitting(true);
 
         const hasBatch = telemetryBatchRef.current.length > 0;
+        const cardsRated = cardsRatedRef.current;
 
         if (!hasBatch) {
             // Nothing answered — just tear down. Still call endStoreSession to
             // clear the session pointer so the next start gets a fresh id.
             await endStoreSession();
             setIsSubmitting(false);
-            setLastSummary(null);
+            // Only formula cards rated (a loop of cards): the summary says so.
+            setLastSummary(cardsRated > 0 ? {
+                total: 0, correct: 0, accuracy: 0, avgSecs: null,
+                durationSecs: Math.round((Date.now() - sessionStartRef.current) / 1000),
+                byTopic: [], weakest: null, confidentMisses: 0, luckyGuesses: 0, missed: [], missedCount: 0,
+                cardsRated, config: sessionConfigRef.current,
+            } : null);
             setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
             return;
         }
@@ -348,7 +465,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             session.questions,
             (Date.now() - sessionStartRef.current) / 1000,
         );
-        setLastSummary(recap ? { ...recap, config: sessionConfigRef.current } : null);
+        setLastSummary(recap ? { ...recap, cardsRated, config: sessionConfigRef.current } : null);
 
         const toastId = toast.loading("Saving your session…");
 
@@ -497,9 +614,9 @@ export const useReviewSession = (currentUser, isOnline) => {
     return {
         aiText: activeQ ? ai.textFor(activeQ) : null,
         aiLoading: activeQ ? ai.isLoading(activeQ) : false,
-        config, setConfig, session, setSession, elapsedTime, bookmarks,
+        config, setConfig, session, setSession, questionStartedAt, bookmarks,
         startSession, endSession, loadNextQuestion, 
-        handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
+        handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
         toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
         lastSummary, clearSummary: () => setLastSummary(null),
     };

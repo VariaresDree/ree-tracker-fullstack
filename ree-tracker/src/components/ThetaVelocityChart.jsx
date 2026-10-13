@@ -33,8 +33,12 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-export default function ThetaVelocityChart({ history = [], range = 'day' }) {
-  const safeHistory = Array.isArray(history) ? history : [];
+// One empty list for every render: a fresh `[]` each time changed the chart's
+// memo key, so it rebuilt the series on every render.
+const NO_HISTORY = [];
+
+export default function ThetaVelocityChart({ history = NO_HISTORY, range = 'day' }) {
+  const safeHistory = Array.isArray(history) ? history : NO_HISTORY;
 
   const chartData = useMemo(() => {
     // Drop rows with a non-finite theta or an unparseable date BEFORE bucketing.

@@ -5,7 +5,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { todayManila } from '../../utils/manilaDate';
+import { expectNoSkippedLevels } from '../../test/headings';
 
+vi.mock('../analytics/useDeepAnalytics', () => ({ useDeepAnalytics: () => ({ data: null, status: 'ready' }) }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 const api = { apiRequest: vi.fn(), generateStudyPlan: vi.fn(), clearStudyPlan: vi.fn() };
 vi.mock('../../services/dbQueries', () => ({
@@ -33,6 +35,13 @@ describe('StrategicPlannerTab', () => {
     expect(screen.queryByText('No tasks yet')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Redo transformers')).toBeInTheDocument();
+  });
+
+  it('its headings step down from the Progress h1 without skipping a level', async () => {
+    api.apiRequest.mockResolvedValueOnce({ items: [{ id: 't1', text: 'Redo transformers', completed: false, dueDate: today }] });
+    const { container } = renderTab();
+    await screen.findByText('Redo transformers');
+    expectNoSkippedLevels(container);
   });
 
   it('a day on the calendar filters the list to it', async () => {

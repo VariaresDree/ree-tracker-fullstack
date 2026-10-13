@@ -13,7 +13,8 @@
 //      boot screen either.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import { AuthProvider, useAuth } from './AuthContext';
+import { AuthProvider } from './AuthProvider';
+import { useAuth } from './AuthContext';
 import { getAnalyticsProfile, updateUserProfile } from '../services/dbQueries';
 
 let authStateCallback = null;

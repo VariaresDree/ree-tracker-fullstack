@@ -7,6 +7,12 @@ import toast from 'react-hot-toast';
 
 const PAGE_SIZE = 30;
 
+const loadFirstPage = (subject, subtopic, sortOrder) => Promise.all([
+  fetchServerStats(),
+  fetchVaultMetadata(),
+  fetchPaginatedQuestions(null, subject, subtopic, PAGE_SIZE, sortOrder),
+]);
+
 export const useVaultGrid = (filterSubject, filterSubtopic) => {
   const [questions, setQuestions] = useState([]);
   const [serverStats, setServerStats] = useState({ total: 0, math: 0, esas: 0, ee: 0 });
@@ -19,6 +25,19 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
   // Admin review defaults to newest-ingested first. 'oldest' and 'random' are
   // also available via the grid's sort toggle.
   const [sortOrder, setSortOrder] = useState('recent');
+  // The filters the grid's rows were loaded for. A change of filters shows
+  // the loader until its rows arrive, without a reset in the effect.
+  const queryKey = `${filterSubject}|${filterSubtopic}|${sortOrder}`;
+  const [loadedKey, setLoadedKey] = useState(null);
+
+  const applyFirstPage = ([stats, meta, qData], key) => {
+    setServerStats(stats);
+    setVaultMetadata(meta || {});
+    setQuestions(qData.items);
+    setLastDoc(qData.nextOffset);
+    setHasMore(qData.items.length === PAGE_SIZE);
+    setLoadedKey(key);
+  };
 
   const initializeVault = async (reset = false) => {
     try {
@@ -28,16 +47,7 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
         setLastDoc(null);
         setHasMore(true);
       }
-      const [stats, meta, qData] = await Promise.all([
-          fetchServerStats(),
-          fetchVaultMetadata(),
-          fetchPaginatedQuestions(null, filterSubject, filterSubtopic, PAGE_SIZE, sortOrder)
-      ]);
-      setServerStats(stats);
-      setVaultMetadata(meta || {});
-      setQuestions(qData.items);
-      setLastDoc(qData.nextOffset);
-      setHasMore(qData.items.length === PAGE_SIZE);
+      applyFirstPage(await loadFirstPage(filterSubject, filterSubtopic, sortOrder), queryKey);
     } catch (error) {
       toast.error(`Couldn't load questions: ${error.message}`);
     } finally {
@@ -59,8 +69,25 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
     setIsLoadingMore(false);
   };
 
+  // New filters: load their first page. State is set only in the request's
+  // callbacks; until they land the grid shows its loader (loadedKey).
   useEffect(() => {
-    initializeVault(true);
+    let live = true;
+    const key = `${filterSubject}|${filterSubtopic}|${sortOrder}`;
+    loadFirstPage(filterSubject, filterSubtopic, sortOrder).then(
+      (page) => { if (live) { applyFirstPage(page, key); setIsFetchingVault(false); } },
+      (error) => {
+        if (!live) return;
+        toast.error(`Couldn't load questions: ${error.message}`);
+        // The previous filters' rows would read as these filters' results.
+        setQuestions([]);
+        setLastDoc(null);
+        setHasMore(false);
+        setLoadedKey(key);
+        setIsFetchingVault(false);
+      },
+    );
+    return () => { live = false; };
   }, [filterSubject, filterSubtopic, sortOrder]);
 
   // Confirmation lives in VaultDataGrid's Modal — this just executes.
@@ -85,7 +112,7 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
 
   return {
     questions, serverStats, vaultMetadata, resyncVaultMetadata,
-    isFetchingVault, hasMore, isLoadingMore, loadMoreQuestions,
+    isFetchingVault: isFetchingVault || loadedKey !== queryKey, hasMore, isLoadingMore, loadMoreQuestions,
     editingQ, setEditingQ, handleDelete, handleUpdateSubmit,
     initializeVault, sortOrder, setSortOrder
   };

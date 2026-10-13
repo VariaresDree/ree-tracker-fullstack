@@ -27,6 +27,11 @@ import { classifySyncError, SYNC_OUTCOME } from '../services/syncPolicy';
 // name -> { uid, value, at }
 const memory = new Map();
 
+// The default response mapping, at module level: a default written in the
+// parameter list is a new function on every render, which re-created `load`
+// and re-ran the load effect each render (a request loop).
+const IDENTITY = (res) => res;
+
 /** Test seam: forget a list's module-level copy (all lists when no name). */
 export function resetSyncedMemory(name) {
   if (name) memory.delete(name);
@@ -47,9 +52,10 @@ export function resetSyncedMemory(name) {
  *   the value with this account's queued writes applied, and how many apply
  * @param {any} [options.emptyValue]  what a failed first load shows (default: nothing, so the screen can explain)
  * @param {number} [options.fetchIfOlderThanMs]  0 always asks the server
+ * @param {boolean} [options.enabled]  false skips loading (a screen that only needs it sometimes)
  */
 export function useSyncedUserData({
-  endpoint, cacheName, fromResponse = (res) => res, overlay, emptyValue, fetchIfOlderThanMs = 0,
+  endpoint, cacheName, fromResponse = IDENTITY, overlay, emptyValue, fetchIfOlderThanMs = 0, enabled = true,
 }) {
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;
@@ -122,7 +128,7 @@ export function useSyncedUserData({
   useEffect(() => { loadRef.current = load; }, [load]);
 
   useEffect(() => {
-    if (!uid) return undefined;
+    if (!uid || !enabled) return undefined;
     let live = true;
     const m = memory.get(cacheName);
     const known = m && m.uid === uid ? Promise.resolve({ value: m.value, savedAt: m.at }) : readUserCacheEntry(uid, cacheName);
@@ -138,7 +144,7 @@ export function useSyncedUserData({
       else setStatus('ready');
     });
     return () => { live = false; };
-  }, [uid, cacheName, load, fetchIfOlderThanMs, setStatus]);
+  }, [uid, cacheName, load, fetchIfOlderThanMs, setStatus, enabled]);
 
   // The queue drained: read back the server's copy.
   const queuedCount = overlaid.count;
@@ -146,8 +152,8 @@ export function useSyncedUserData({
   useEffect(() => {
     const drained = prevQueued.current > 0 && queuedCount === 0;
     prevQueued.current = queuedCount;
-    if (drained && navigator.onLine) load();
-  }, [queuedCount, load]);
+    if (drained && navigator.onLine && enabled) load();
+  }, [queuedCount, load, enabled]);
 
   /**
    * Run one change's network write. While any is in flight, a list that

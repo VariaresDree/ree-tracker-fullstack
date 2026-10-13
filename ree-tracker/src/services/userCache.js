@@ -14,7 +14,7 @@ import { get, set, del } from 'idb-keyval';
 const PREFIX = 'ree-user-cache-v1:';
 
 // Every cache name, so a sign-out can clear them without listing the store.
-export const USER_CACHE_NAMES = ['outsideScores', 'syllabus', 'mistakes', 'notes', 'cardReviews'];
+export const USER_CACHE_NAMES = ['outsideScores', 'syllabus', 'mistakes', 'notes', 'cardReviews', 'placement', 'battleHistory'];
 
 /**
  * The cached entry for this account, { value, savedAt }, or null (none,

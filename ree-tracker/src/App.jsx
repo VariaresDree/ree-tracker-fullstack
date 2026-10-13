@@ -1,7 +1,8 @@
 // src/App.jsx
 import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthProvider';
+import { useAuth } from './contexts/AuthContext';
 import { useSyncLifecycle } from './hooks/useSyncLifecycle';
 import { Toaster } from 'react-hot-toast';
 

@@ -20,7 +20,7 @@ router.get('/', authMiddleware, async (req, res) => {
         return res.status(200).json({ success: true, folders, materials, driver: storage.driverName });
     } catch (error) {
         logger.error('Material fetch error', { error: error.message, stack: error.stack });
-        return res.status(500).json({ error: 'Failed to fetch vault contents.' });
+        return res.status(500).json({ error: "Couldn't load the shared files." });
     }
 });
 

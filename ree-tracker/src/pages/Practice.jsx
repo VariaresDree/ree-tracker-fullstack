@@ -16,22 +16,23 @@ import SessionSummary from '../features/active-recall/SessionSummary';
 import { drillPreset } from '../features/active-recall/presets';
 import MCQMode from '../features/active-recall/MCQMode';
 import FlashcardMode from '../features/active-recall/FlashcardMode';
+import LoopCardStep from '../features/active-recall/LoopCardStep';
+import QuestionTimer from '../features/active-recall/QuestionTimer';
 import { useReviewSession } from '../features/active-recall/useReviewSession';
 import SolutionPanel from '../features/quiz/SolutionPanel';
 import { explanationKey } from '../services/aiExplanations';
 import NoteButton, { NoteView } from '../features/notebook/NoteButton';
 import { questionTarget } from '../features/notebook/targets';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
-import { formatClock } from '../utils/time';
 
 export default function Practice() {
   const isOnline = useNetworkStatus();
   const { currentUser } = useAuth();
   
   const {
-    config, setConfig, session, setSession, elapsedTime, bookmarks,
+    config, setConfig, session, setSession, questionStartedAt, bookmarks,
     startSession, endSession, loadNextQuestion, 
-    handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
+    handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
     toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
     lastSummary, clearSummary, aiText, aiLoading,
   } = useReviewSession(currentUser, isOnline);
@@ -129,10 +130,16 @@ export default function Practice() {
 
   const isBookmarked = bookmarks.has(currentQ.id);
 
-  const isLastQuestion = session.currentIndex + 1 >= session.questions.length;
+  // The adaptive set's questions arrive one at a time, so its length is the
+  // target, not what has loaded so far.
+  const total = session.target || session.questions.length;
+  const isLastQuestion = session.currentIndex + 1 >= total;
 
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 max-w-4xl mx-auto w-full relative z-0">
+      {/* The setup and summary screens have their own h1; the running session
+          had none, and its solution panel's heading sat under nothing. */}
+      <h1 className="sr-only">Practice</h1>
       <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
       <Modal
         open={confirmEnd}
@@ -147,7 +154,7 @@ export default function Practice() {
         }
       >
         <p className="text-sm text-textMain">
-          You’ve answered {session.totalAnswered} of {session.questions.length}. Your answers are saved; the rest of the questions are skipped.
+          You’ve answered {session.totalAnswered} of {total}. Your answers are saved; the rest of the questions are skipped.
         </p>
       </Modal>
 
@@ -165,12 +172,11 @@ export default function Practice() {
                 pace). */}
             <div className="flex flex-col items-end leading-tight">
                 <span className="text-[11px] text-muted2">This question</span>
-                <span
-                  className={`text-sm font-bold font-mono tabular-nums ${elapsedTime > 180 ? 'text-[var(--accent-danger)]' : 'text-textMain'}`}
-                  title={elapsedTime > 180 ? 'Over three minutes on this question' : undefined}
-                >
-                  {formatClock(elapsedTime, { pad: true })}
-                </span>
+                <QuestionTimer
+                  key={questionStartedAt}
+                  startedAt={questionStartedAt}
+                  running={!session.isAnswered && !session.isFlipped && !session.isFinished}
+                />
             </div>
         </div>
       </div>
@@ -184,7 +190,10 @@ export default function Practice() {
               through QuestionCard's `headerSlot` so they sit next to the
               eyebrow with no overlap. */}
 
-          {config.sessionMode === 'mcq' ? (
+          {currentQ.kind === 'card' ? (
+              // A formula card due for review, in Today's loop: rated, not answered.
+              <LoopCardStep key={currentQ.id} card={currentQ.card} rated={session.isAnswered} onRated={markCardRated} />
+          ) : config.sessionMode === 'mcq' ? (
               <MCQMode
                   session={session}
                   setSession={setSession}
@@ -216,7 +225,15 @@ export default function Practice() {
               </>
           )}
 
-          {session.isAnswered && (
+          {session.isAnswered && currentQ.kind === 'card' && (
+              <div className="mt-8 flex justify-end">
+                  <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion}>
+                      {isLastQuestion ? 'Finish session' : 'Next'}
+                  </Button>
+              </div>
+          )}
+
+          {session.isAnswered && currentQ.kind !== 'card' && (
               <div className="mt-10 pt-8 border-t border-border2/40 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 relative z-10">
                   
                   <SolutionPanel
@@ -226,6 +243,7 @@ export default function Practice() {
                       aiText={aiText}
                       aiLoading={aiLoading}
                       onExplain={(force) => explainQuestion(currentQ, { force })}
+                      headingLevel={2}
                   />
                   <NoteView type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
 
@@ -234,7 +252,7 @@ export default function Practice() {
                           Correct: <span className="text-sm" style={{ color: 'var(--accent-success)' }}>{session.correctHits}</span> / {session.totalAnswered}
                       </div>
 
-                      <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion}>
+                      <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion} loading={session.fetchingNext}>
                           {isLastQuestion ? 'Finish session' : 'Next question'}
                       </Button>
                   </div>

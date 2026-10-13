@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Stat, Skeleton } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
+import { isEarlyEstimate } from './earlyEstimate';
 
 // Motion presets — spring tuned to settle in ~700ms with a 6% overshoot.
 const cardEnter = {
@@ -78,7 +79,7 @@ export function TrajectoryCard() {
   const binding = projection?.bindingSubject;
   // Cold start: no topic-level signal yet means the projection is mostly the
   // prior. Say so rather than implying these are hardened numbers.
-  const isEarlyEstimate = !snapshot.weakTopics || snapshot.weakTopics.length === 0;
+  const early = isEarlyEstimate({ snapshot });
 
   return (
     <motion.div {...cardEnter}>
@@ -88,7 +89,7 @@ export function TrajectoryCard() {
             <CardEyebrow>Board forecast</CardEyebrow>
             <CardTitle>Projected board outcome</CardTitle>
           </div>
-          {isEarlyEstimate ? <Badge tone="signal">Early estimate</Badge> : null}
+          {early ? <Badge tone="signal">Early estimate</Badge> : null}
         </CardHeader>
         <CardBody className="flex flex-col gap-5">
           <p className="text-xs text-muted2">{ABOUT_TRAJECTORY}</p>

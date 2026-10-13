@@ -74,11 +74,25 @@ export default function LibraryIngestion({
             </div>
 
             {!selectedPdf ? (
+              // A button-role drop zone, as in QuizFilePicker: the file input
+              // behind it is hidden, and the bare clickable div had no
+              // keyboard access at all.
               <div
+                  role="button"
+                  tabIndex={parsingPdf ? -1 : 0}
+                  aria-disabled={parsingPdf || undefined}
+                  aria-label="Choose a PDF or image, or drag one here"
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  onClick={() => !parsingPdf && fileInputRef.current?.click()}
+                  // The input's own click bubbles back up here: ignore it, or
+                  // the picker is asked to open twice.
+                  onClick={(e) => { if (!parsingPdf && e.target !== fileInputRef.current) fileInputRef.current?.click(); }}
+                  onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                      e.preventDefault();
+                      if (!parsingPdf) fileInputRef.current?.click();
+                  }}
                   className={`border-2 border-dashed rounded-[var(--radius-lg)] p-6 flex flex-col items-center justify-center transition-all relative cursor-pointer min-h-[140px] flex-1 group
                       ${isDragging ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[var(--accent)] scale-[1.02]' : 'bg-bg border-border2 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] hover:bg-surface'}
                   `}

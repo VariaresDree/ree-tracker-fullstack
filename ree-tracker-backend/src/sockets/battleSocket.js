@@ -113,6 +113,11 @@ function setupBattleSocket(io) {
                 }
 
                 if (battle.status === 'COMPLETED') {
+                    // In the room all the same, so a results screen opened
+                    // (or reloaded) after the end still hears a rematch being
+                    // started. No lobby and no socket.battleId: there is no
+                    // one to tell when it leaves.
+                    socket.join(battleId);
                     // To this socket only: the others already have it.
                     if (!(await replayCompletion(socket, battleId, battle))) {
                         socket.emit('error', { message: 'Battle not found' });

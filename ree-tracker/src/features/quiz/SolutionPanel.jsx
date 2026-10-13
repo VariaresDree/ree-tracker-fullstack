@@ -24,8 +24,13 @@ const BODY = 'text-sm sm:text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [
  * @param aiLoading    true while one is being generated
  * @param onExplain    (force) => Promise<string|null>
  * @param showAnswer   when there is no written solution, show the answer line
+ * @param headingLevel the panels' heading level: 3 under a page's h2 sections
+ *                     (a sitting's Items, Bookmarks, the Notebook, the mock
+ *                     review); 2 in a running Practice session, which has
+ *                     only its h1
  */
-export default function SolutionPanel({ question, isOnline, aiText, aiLoading, onExplain, showAnswer = false }) {
+export default function SolutionPanel({ question, isOnline, aiText, aiLoading, onExplain, showAnswer = false, headingLevel = 3 }) {
+  const Heading = `h${headingLevel}`;
   const [view, setView] = useState(null); // 'solution' | 'ai' | null
   const solution = question?.fixedExplanation || null;
   const aiUnavailable = !isOnline && !aiText;
@@ -75,7 +80,7 @@ export default function SolutionPanel({ question, isOnline, aiText, aiLoading, o
 
       {view === 'solution' && (
         <div className={PANEL} style={{ borderColor: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)' }}>
-          <h3 className="text-eyebrow mb-3" style={{ color: 'var(--accent-signal)' }}>Solution</h3>
+          <Heading className="text-eyebrow mb-3" style={{ color: 'var(--accent-signal)' }}>Solution</Heading>
           <div className={BODY}>
             {solution
               ? <LatexRenderer content={solution} />
@@ -91,10 +96,10 @@ export default function SolutionPanel({ question, isOnline, aiText, aiLoading, o
       {view === 'ai' && aiText && (
         <div className={PANEL} style={{ borderColor: 'color-mix(in srgb, var(--accent-velocity) 30%, transparent)' }}>
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h3 className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-text)' }}>
+            <Heading className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-text)' }}>
               <Sparkles size={12} strokeWidth={2} aria-hidden="true" /> AI explanation
               {!isOnline && <span className="normal-case tracking-normal text-muted2">· saved on this device</span>}
-            </h3>
+            </Heading>
             <Button
               size="sm"
               variant="ghost"

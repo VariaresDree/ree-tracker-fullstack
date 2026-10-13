@@ -11,18 +11,11 @@
 // exam.
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { CARD_RATINGS, CARD_RATING_LABELS, NEW_CARD, rateCard } from '@ree/shared';
+import { CARD_RATINGS } from '@ree/shared';
 import { Button, EmptyState, StatusPill } from '../../components/ui';
 import { CheckCircle2, ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
 import NotedFlashcard from './NotedFlashcard';
-
-/** When a card comes back, as a rating button says it: "tomorrow", "6 days", "2 mo". */
-function intervalLabel(days) {
-  if (days <= 1) return 'tomorrow';
-  if (days < 30) return `${days} days`;
-  if (days < 365) return `${Math.round(days / 30)} mo`;
-  return `${(days / 365).toFixed(1)} yr`;
-}
+import CardRatingButtons from './CardRatingButtons';
 
 export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse' }) {
   const [index, setIndex] = useState(0);
@@ -81,7 +74,7 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
       aria-label={reviews
         ? 'Study mode: arrow keys move between cards, 1 to 4 rate a flipped card, Escape exits'
         : 'Study mode: arrow keys move between cards, Escape exits'}
-      className="flex flex-col items-center gap-5 animate-in fade-in outline-none"
+      className="flex flex-col items-center gap-5 animate-in fade-in outline-hidden"
       onKeyDown={handleKeyDown}
     >
       <div className="w-full flex items-center justify-between gap-3">
@@ -101,22 +94,7 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
       </div>
 
       {reviews && (canRate ? (
-        <div role="group" aria-label="How well did you know it?" className="w-full max-w-md flex flex-col items-center gap-2">
-          <span className="text-eyebrow">How well did you know it?</span>
-          <div className="grid grid-cols-4 gap-2 w-full">
-            {CARD_RATINGS.map((r, i) => {
-              const next = rateCard(reviews.rowFor(card.id) || NEW_CARD, r);
-              return (
-                <Button key={r} size="sm" variant="secondary" tone={r === 'again' ? 'danger' : undefined} onClick={() => rateCurrent(r)} aria-keyshortcuts={String(i + 1)} className="h-auto py-2">
-                  <span className="flex flex-col items-center leading-tight">
-                    <span>{CARD_RATING_LABELS[r]}</span>
-                    <span className="text-[11px] text-muted2 font-normal">{intervalLabel(next.interval)}</span>
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-        </div>
+        <CardRatingButtons row={reviews.rowFor(card.id)} onRate={rateCurrent} />
       ) : (
         <p className="text-xs text-muted2 text-center max-w-md">Flip the card, then rate how well you knew it, and it comes back for review when it's due.</p>
       ))}

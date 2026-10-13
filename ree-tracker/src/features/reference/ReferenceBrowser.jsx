@@ -76,7 +76,7 @@ function BrowseTile({ label, count, onClick, eyebrow, detail }) {
       type="button"
       onClick={onClick}
       disabled={count === 0}
-      className="text-left bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 shadow-sm transition-all hover:border-[var(--accent)]/50 hover:shadow-md focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border2 disabled:hover:shadow-sm"
+      className="text-left bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 shadow-sm transition-all hover:border-[var(--accent)]/50 hover:shadow-md focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border2 disabled:hover:shadow-sm"
     >
       <div className="flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0">
@@ -112,7 +112,7 @@ function Breadcrumb({ items, onNavigate }) {
             {isLast ? (
               <span className="font-semibold text-textMain min-w-0 [overflow-wrap:anywhere]">{it.label}</span>
             ) : (
-              <button type="button" onClick={() => onNavigate(i)} className="text-muted2 hover:text-textMain transition-colors cursor-pointer min-w-0 [overflow-wrap:anywhere]">
+              <button type="button" onClick={() => onNavigate(i)} className="inline-flex items-center pointer-coarse:min-h-11 text-left text-muted2 hover:text-textMain transition-colors cursor-pointer min-w-0 [overflow-wrap:anywhere]">
                 {it.label}
               </button>
             )}
@@ -480,7 +480,8 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
         <EmptyState
           icon={BookOpen}
           title="No cards here yet"
-          description="Try a different kind filter, or check back once more content passes review."
+          description={kind === 'all' ? 'Check back once more content passes review.' : 'None of this kind under this topic. Show every kind, or check back once more content passes review.'}
+          action={kind === 'all' ? undefined : <Button size="sm" variant="secondary" onClick={() => setKind('all')}>Show every kind</Button>}
         />
       ) : (
         <>

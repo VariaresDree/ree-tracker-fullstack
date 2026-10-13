@@ -6,7 +6,7 @@
 // by hand as before.
 import { drillPreset, quickReviewPreset } from '../active-recall/presets';
 
-const KIND_LABEL = { drill: 'Drill', review: 'Review', mock: 'Timed sitting' };
+const KIND_LABEL = { drill: 'Drill', review: 'Review', mock: 'Timed sitting', cards: 'Formula cards' };
 
 export const kindLabel = (task) => KIND_LABEL[task?.kind] || null;
 
@@ -20,5 +20,7 @@ export function taskLaunch(task) {
   }
   if (task?.kind === 'review') return { preset: quickReviewPreset(Math.min(task.targetCount || 20, 50)) };
   if (task?.kind === 'mock') return { to: '/simulator' };
+  // The cards due are rated in Library › Formula cards (or in today's loop).
+  if (task?.kind === 'cards') return { to: '/library?tab=formulas' };
   return null;
 }

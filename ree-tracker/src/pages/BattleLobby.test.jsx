@@ -1,14 +1,26 @@
-// Battle room: scores out of the battle's length, a refused join explained, and
-// Start counting only the players who are actually here.
+// Battle room: scores out of the battle's length, a refused join explained,
+// Start counting only the players who are actually here, and Rematch (or
+// joining the one someone else started) once it's over.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'me' } }) }));
-vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
-vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
+let online = true;
+vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online }));
+const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() });
+vi.mock('react-hot-toast', () => ({ default: toast }));
 let socketState;
-vi.mock('../hooks/useBattleSocket', () => ({ useBattleSocket: () => socketState }));
+// Like the real hook, the state is held by the component: the state taken
+// when the room mounts, so a room left mounted for the next battle would keep
+// the last battle's results.
+const socketCalls = [];
+vi.mock('../hooks/useBattleSocket', async () => {
+  const { useState } = await import('react');
+  return { useBattleSocket: (id) => { socketCalls.push(id); return useState(() => socketState)[0]; } };
+});
+const requestRematch = vi.fn();
+vi.mock('../services/dbQueries', () => ({ requestRematch: (...a) => requestRematch(...a) }));
 
 const { default: BattleLobby } = await import('./BattleLobby');
 
@@ -23,7 +35,20 @@ const renderAt = () => render(
   </MemoryRouter>,
 );
 
-beforeEach(() => { socketState = base(); });
+beforeEach(() => {
+  socketState = base();
+  online = true;
+  socketCalls.length = 0;
+  requestRematch.mockReset();
+  toast.error.mockClear();
+});
+const finished = () => {
+  socketState.battleStatus = 'COMPLETED';
+  socketState.results = [
+    { id: 'ana', displayName: 'Ana', score: 6, total: 20, timeTakenSecs: 500 },
+    { id: 'me', displayName: 'Rey', score: 5, total: 20, timeTakenSecs: 600 },
+  ];
+};
 
 describe('BattleLobby', () => {
   it('shows each final score out of the battle’s length, not the items answered', () => {
@@ -78,5 +103,51 @@ describe('BattleLobby', () => {
     socketState.results = [{ id: 'me', displayName: 'Rey', score: 5, total: 20, timeTakenSecs: 600 }];
     renderAt();
     expect(screen.getByRole('link', { name: /Review your answers/ })).toHaveAttribute('href', `/exams/sittings/${encodeURIComponent('ABC123:me')}`);
+  });
+
+  it('starts a rematch and opens its lobby', async () => {
+    finished();
+    requestRematch.mockImplementation(async () => {
+      // The new battle's room starts empty, not with this one's results.
+      socketState = base();
+      return { battleId: 'NEW123', created: true };
+    });
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: 'Rematch' }));
+    expect(await screen.findByText('NEW123')).toBeInTheDocument();
+    expect(requestRematch).toHaveBeenCalledWith('ABC123');
+    expect(socketCalls.at(-1)).toBe('NEW123');
+    expect(screen.queryByText('Final scores')).not.toBeInTheDocument();
+  });
+
+  it('says when someone else started a rematch, and joins theirs', async () => {
+    finished();
+    socketState.rematch = { battleId: 'REM456', status: 'WAITING', by: { userId: 'ana', displayName: 'Ana' } };
+    renderAt();
+    expect(screen.getByText(/started a rematch/)).toHaveTextContent('Ana started a rematch');
+    expect(screen.queryByRole('button', { name: 'Rematch' })).not.toBeInTheDocument();
+    socketState = base();
+    // Asked of the server, which hands back theirs (or says it has started).
+    requestRematch.mockResolvedValue({ battleId: 'REM456', created: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Join the rematch' }));
+    expect(await screen.findByText('REM456')).toBeInTheDocument();
+    expect(requestRematch).toHaveBeenCalledWith('ABC123');
+  });
+
+  it('says Rematch needs a connection when offline', () => {
+    finished();
+    online = false;
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: 'Rematch' }));
+    expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/needs a connection/));
+    expect(requestRematch).not.toHaveBeenCalled();
+  });
+
+  it('hides Rematch and Join when the rematch has already started', () => {
+    finished();
+    socketState.rematch = { battleId: 'REM456', status: 'IN_PROGRESS', by: { userId: 'ana', displayName: 'Ana' } };
+    renderAt();
+    expect(screen.queryByRole('button', { name: 'Rematch' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/started a rematch/)).not.toBeInTheDocument();
   });
 });

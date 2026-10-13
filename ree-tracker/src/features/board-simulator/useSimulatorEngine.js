@@ -382,7 +382,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     } catch {
       localStorage.removeItem('ree_sim_cache');
       setHasSavedSession(false);
-      toast.error('Saved simulation was corrupt; starting fresh.');
+      toast.error("Your saved mock board couldn't be read, so it starts fresh.");
     }
   };
 
@@ -599,7 +599,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 ? Array.from(new Set([...(loadFullBoard()?.sections || []).flatMap((sec) => sec?.markedQuestionIds || []), ...sectionMarkedIds]))
                 : sectionMarkedIds;
             const examMeta = {
-                kind: isFullBoard ? 'full-board' : isRetake ? 'retake' : config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
+                kind: isFullBoard ? 'full-board' : isRetake ? (config.retake?.kind === 'mistakes' ? 'mistakes' : 'retake') : config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
                 isPrcStandard: !!config.isPrcStandard,
                 targetSubject: isFullBoard ? 'Full board' : String(config.subject || '').slice(0, 32),
                 ...(markedIds.length > 0 ? { markedQuestionIds: markedIds.slice(0, 300) } : {}),

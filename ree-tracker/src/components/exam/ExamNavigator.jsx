@@ -68,7 +68,8 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
           let btnClass = 'bg-surface2/30 border-border2/40 text-muted hover:border-textMain/40 hover:text-textMain';
           if (!reviewState) {
             if (answered) btnClass = 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_40%,transparent)] text-[var(--accent-text)] font-bold shadow-sm';
-            if (isCurrent) btnClass = 'bg-[var(--accent)] border-[var(--accent)] text-white font-bold elevate-1 scale-110';
+            // The accent button's fill and ink: white on the raw accent read 4.35:1.
+            if (isCurrent) btnClass = 'bg-[color-mix(in_srgb,var(--accent)_88%,black)] border-[var(--accent)] text-[var(--on-accent)] font-bold elevate-1 scale-110';
           } else if (reviewState === 'skipped') {
             btnClass = 'bg-surface/40 border-border2/30 text-muted opacity-50';
           } else if (reviewState === 'correct') {

@@ -36,13 +36,14 @@ const AS_TEXT = [
 const RAW_COLOUR = new RegExp(`['"]var\\(--(accent|accent-velocity|color-ree${HUES})\\)['"]`);
 const FILL_CONTEXT = /background|border|[Ff]ill|stroke|color-mix|shadow/;
 const GRAPHIC_ONLY = [
-  ['components/ui/Button.jsx', 'button fills behind white text'],
+  ['components/ui/Button.jsx', 'button fills behind their ink'],
   ['components/ui/ProgressIndicator.jsx', 'progress bar fills'],
   ['components/ui/Sparkline.jsx', 'a decorative line (aria-hidden)'],
   ['features/analytics/sections/shared.jsx', 'BarList bar fills'],
   ['features/analytics/sections/TimePerTopic.jsx', 'BarList bar fills'],
   ['features/analytics/TrajectoryCard.jsx', 'forecast range bar fills'],
   ['features/today/TodayPanel.jsx', "today's target bar fills"],
+  ['features/notebook/CauseTrend.jsx', 'cause-per-week bar fills and legend swatches'],
   ['features/board-simulator/SimulatorDiagnostics.jsx', 'subject score bar fills', /subjectScores/],
 ];
 

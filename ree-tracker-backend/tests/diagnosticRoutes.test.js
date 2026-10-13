@@ -187,6 +187,22 @@ describe('placement test', () => {
         expect(st.status).toBe('completed');
         expect(st.result.subjects).toHaveProperty('EE');
     });
+
+    it('a retake in progress still reports the last finished result', async () => {
+        const app = makeApp();
+        await sitWholeTest(app);
+        await request(app).post('/api/diagnostic/start').set(as(UID)).send({ restart: true });
+        const st = (await request(app).get('/api/diagnostic/status').set(as(UID))).body;
+        expect(st.status).toBe('in_progress');
+        expect(st.lastResult.subjects).toHaveProperty('EE');
+    });
+
+    it('a first sitting in progress has no last result', async () => {
+        const app = makeApp();
+        await request(app).post('/api/diagnostic/start').set(as(UID)).send({});
+        const st = (await request(app).get('/api/diagnostic/status').set(as(UID))).body;
+        expect(st).toMatchObject({ status: 'in_progress', lastResult: null });
+    });
 });
 
 describe('buildResult', () => {

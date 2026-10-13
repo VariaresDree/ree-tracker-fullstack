@@ -15,7 +15,6 @@
 // the fetched table can pass it; the shared default is the fallback, not the
 // authority.
 import { DEFAULT_SYLLABUS_WEIGHTS, weightedAverage, normalizeSubject, normalizeWeights } from '@ree/shared';
-import { useStore } from '../store/useStore';
 
 /**
  * PRC TOS weights, canonically keyed ('Mathematics' | 'ESAS' | 'EE').
@@ -47,27 +46,3 @@ export const getWeightedContribution = (rawScore, subjectKey, weights = TOS_WEIG
     return rawScore * weight;
 };
 
-/**
- * Dynamic per-topic weights for the simulator's question distribution, so newly
- * added TOS topics are included automatically. Unrelated to the subject blend
- * above — this spreads selection evenly across a subject's active topics.
- */
-export const getDynamicWeights = (subject) => {
-    const { dynamicTOS } = useStore.getState();
-
-    if (!dynamicTOS || !dynamicTOS[subject]) {
-        return {};
-    }
-
-    const topics = dynamicTOS[subject];
-    if (topics.length === 0) return {};
-
-    const weightPerTopic = 1.0 / topics.length;
-
-    const weights = {};
-    topics.forEach((topic) => {
-        weights[topic] = weightPerTopic;
-    });
-
-    return weights;
-};

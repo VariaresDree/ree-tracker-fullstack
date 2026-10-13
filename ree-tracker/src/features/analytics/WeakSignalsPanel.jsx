@@ -31,6 +31,7 @@ export default function WeakSignalsPanel({ data }) {
           icon={Crosshair}
           title="No blind spots or time sinks yet"
           description="Pick a confidence level on every answer — a topic you get wrong while sure is the signal this page tracks."
+          action={<Button onClick={() => navigate('/practice')}>Start a practice set</Button>}
         />
       </Card>
     );

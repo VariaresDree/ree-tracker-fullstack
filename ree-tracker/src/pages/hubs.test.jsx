@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
+import { expectNoSkippedLevels } from '../test/headings';
 
 vi.mock('../features/exams/GauntletTab', () => ({ default: () => <p>exams:gauntlet</p> }));
 vi.mock('../features/exams/BattlesTab', () => ({ default: () => <p>exams:battles</p> }));
@@ -24,6 +25,7 @@ vi.mock('../features/materials/CloudVaultTab', () => ({
 }));
 vi.mock('../features/materials/MaterialViewer', () => ({ default: ({ material, onClose }) => <div><p>viewing {material.name}</p><button type="button" onClick={onClose}>close viewer</button></div> }));
 vi.mock('../features/vault/BookmarkVaultTab', () => ({ default: () => <p>bookmarks</p> }));
+vi.mock('../features/notebook/NotebookTab', () => ({ default: () => <section><h2>Notebook</h2><p>notebook</p></section> }));
 vi.mock('../features/quiz-launcher/QuizLauncherTab', () => ({ default: () => <p>quizzes</p> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
 vi.mock('../features/analytics/ExplanationReview', () => ({ default: () => <p>explanation-review</p> }));
@@ -53,6 +55,12 @@ describe('Exams', () => {
         expect(await screen.findByText(`exams:${tab}`)).toBeInTheDocument();
     });
 
+    it.each(['mock', 'gauntlet', 'battles', 'rankings', 'history'])('?tab=%s: headings step down from the h1', async (tab) => {
+        const { container } = at(`/exams?tab=${tab}`, Exams);
+        if (tab !== 'mock') await screen.findByText(tab === 'history' ? 'past-sittings' : `exams:${tab}`);
+        expectNoSkippedLevels(container);
+    });
+
     it('past sittings (the mock-board ledger, from the old dashboard) is its own tab', async () => {
         at('/exams?tab=history', Exams);
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
@@ -73,6 +81,16 @@ describe('Library (learner)', () => {
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
         expect(tabs).toEqual(['Formula cards', 'Handouts', 'Bookmarks', 'Notebook', 'Imported quizzes']);
+    });
+});
+
+describe('Library headings', () => {
+    // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
+    // formula-card panels check their outlines in their own tests.
+    it.each(['formulas', 'handouts', 'bookmarks', 'notebook', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
+        const { container } = at(`/library?tab=${tab}`, Library);
+        if (tab === 'quizzes') await screen.findByText('quizzes');
+        expectNoSkippedLevels(container);
     });
 });
 

@@ -82,13 +82,16 @@ const nextItemSchema = z.object({
         questionId: z.string().min(1),
         isCorrect: z.boolean()
     })).max(200).default([]),
-    poolSize: z.number().int().min(10).max(200).default(80)
+    poolSize: z.number().int().min(10).max(200).default(80),
+    // Practice grades on the device, so its adaptive set asks for the key
+    // with the item (as GET /api/questions already returns it).
+    withKey: z.boolean().default(false)
 });
 
 // POST /exams/sessions/:id/finalize — the client may only DESCRIBE the sitting;
 // grading comes from the session's recorded attempts (services/examHistory).
 const finalizeSchema = z.object({
-    kind: z.enum(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake']).optional(),
+    kind: z.enum(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake', 'mistakes']).optional(),
     isPrcStandard: z.boolean().optional(),
     targetSubject: z.string().max(32).optional(),
     // Items the learner marked for review during the sitting, kept for the

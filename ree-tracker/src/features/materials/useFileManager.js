@@ -1,7 +1,7 @@
 // src/features/materials/useFileManager.js
 import { useState, useEffect, useCallback } from 'react';
-import { storage } from '../../config/firebaseDb';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { app } from '../../config/firebaseDb';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import toast from 'react-hot-toast';
 import {
@@ -42,30 +42,49 @@ export const useFileManager = (currentUser, isAdmin) => {
   const [isUploading, setIsUploading] = useState(false);
   const [dragOverFolderId, setDragOverFolderId] = useState(null);
 
-  const fetchContents = useCallback(async () => {
-    if (!currentUser) return;
-    setIsLoading(true);
-    try {
-        const data = await apiRequest('/api/materials');
-        if (data && data.success) {
-            setFolders(data.folders || []);
-            setMaterials(data.materials || []);
-        }
-        setLoadError(null);
-    } catch (error) {
-      if (isOfflineErr(error)) {
-        setLoadError('offline');
-      } else {
-        console.error("Handouts load failure:", error);
-        setLoadError('failed');
-      }
+  // Depends on the account, not the user object (Firebase hands out a new one
+  // on token refresh, which refetched everything).
+  const uid = currentUser?.uid;
+
+  const applyContents = (data) => {
+    if (data && data.success) {
+      setFolders(data.folders || []);
+      setMaterials(data.materials || []);
+    }
+    setLoadError(null);
+    setIsLoading(false);
+  };
+  const applyLoadError = (error) => {
+    if (isOfflineErr(error)) {
+      setLoadError('offline');
+    } else {
+      console.error("Handouts load failure:", error);
+      setLoadError('failed');
     }
     setIsLoading(false);
-  }, [currentUser]);
+  };
 
+  // Try again, and the refresh after a change.
+  const fetchContents = useCallback(async () => {
+    if (!uid) return;
+    setIsLoading(true);
+    try {
+      applyContents(await apiRequest('/api/materials'));
+    } catch (error) {
+      applyLoadError(error);
+    }
+  }, [uid]);
+
+  // The first load sets state only in the request's callbacks.
   useEffect(() => {
-    fetchContents();
-  }, [fetchContents]);
+    if (!uid) return undefined;
+    let live = true;
+    apiRequest('/api/materials').then(
+      (data) => { if (live) applyContents(data); },
+      (error) => { if (live) applyLoadError(error); },
+    );
+    return () => { live = false; };
+  }, [uid]);
 
   // --- NAVIGATION ROUTING ---
   const navigateToFolder = (folderId, folderName) => {
@@ -214,7 +233,8 @@ export const useFileManager = (currentUser, isAdmin) => {
     }
 
     const cleanTitle = customTitle || fileToUpload.name.split('.')[0];
-    const storageRef = ref(storage, `board_materials/${currentUser.uid}/${Date.now()}_${fileToUpload.name}`);
+    // Storage starts here, on the first upload: it used to load with the app shell.
+    const storageRef = ref(getStorage(app), `board_materials/${currentUser.uid}/${Date.now()}_${fileToUpload.name}`);
     const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
 
     uploadTask.on('state_changed', 

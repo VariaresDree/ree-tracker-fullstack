@@ -8,8 +8,8 @@
 //    the words around it. The previous fix rendered every math and text
 //    segment as its own inline-block box with its own scroll container, which
 //    lifted formulas above the line and left gaps and scrollbars mid-sentence.
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import SmartText from './SmartText';
 
 describe('SmartText', () => {
@@ -61,5 +61,77 @@ describe('SmartText', () => {
   it('returns null for empty text', () => {
     const { container } = render(<SmartText text="" />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+// The definition opened on hover or focus only (nothing on an iPhone, which
+// doesn't focus a tapped button), had no Escape, and was a fixed 12rem box
+// that ran off the screen's edge.
+describe('SmartText glossary definition', () => {
+  const tip = () => screen.getByRole('tooltip', { hidden: true });
+  const shown = () => !tip().className.split(' ').includes('hidden');
+
+  it('a click or tap toggles it, and the term says whether it is open', () => {
+    render(<SmartText text="Per the PEC, size it." />);
+    const term = screen.getByRole('button', { name: 'PEC' });
+    expect(term).toHaveAttribute('aria-expanded', 'false');
+    expect(shown()).toBe(false);
+    fireEvent.pointerDown(term);
+    fireEvent.click(term);
+    expect(term).toHaveAttribute('aria-expanded', 'true');
+    expect(shown()).toBe(true);
+    expect(term).toHaveAccessibleDescription(/Philippine Electrical Code/);
+    fireEvent.click(term);
+    expect(shown()).toBe(false);
+  });
+
+  it('Escape closes it, and stops there', () => {
+    const outer = vi.fn();
+    document.addEventListener('keydown', outer);
+    render(<SmartText text="Per the PEC, size it." />);
+    const term = screen.getByRole('button', { name: 'PEC' });
+    fireEvent.click(term);
+    fireEvent.keyDown(term, { key: 'Escape' });
+    expect(shown()).toBe(false);
+    expect(outer).not.toHaveBeenCalled();
+    document.removeEventListener('keydown', outer);
+  });
+
+  it('a press outside closes it', () => {
+    render(<div><SmartText text="Per the PEC, size it." /><p>elsewhere</p></div>);
+    fireEvent.click(screen.getByRole('button', { name: 'PEC' }));
+    expect(shown()).toBe(true);
+    fireEvent.pointerDown(screen.getByText('elsewhere'));
+    expect(shown()).toBe(false);
+  });
+
+  it('opens on keyboard focus and on mouse hover, not on the focus a tap gives', () => {
+    render(<SmartText text="Per the PEC, size it." />);
+    const term = screen.getByRole('button', { name: 'PEC' });
+    fireEvent.focus(term);
+    expect(shown()).toBe(true);
+    fireEvent.blur(term);
+    expect(shown()).toBe(false);
+    fireEvent.pointerDown(term);
+    fireEvent.focus(term);
+    expect(shown()).toBe(false);
+    fireEvent.pointerEnter(term, { pointerType: 'mouse' });
+    expect(shown()).toBe(true);
+    fireEvent.pointerLeave(term, { pointerType: 'mouse' });
+    expect(shown()).toBe(false);
+  });
+
+  it('fits a phone screen, sliding in from the edge', () => {
+    render(<SmartText text="See the EPIRA for details." />);
+    const term = screen.getByRole('button', { name: 'EPIRA' });
+    expect(tip().className).toMatch(/max-w-\[min\(18rem,calc\(100vw-2rem\)\)\]/);
+    // A term 4px from the left edge, under a 200px-wide definition.
+    vi.spyOn(term.parentElement, 'getBoundingClientRect').mockReturnValue({ left: 4, top: 300, width: 40, height: 20, right: 44, bottom: 320 });
+    vi.spyOn(tip(), 'offsetWidth', 'get').mockReturnValue(200);
+    vi.spyOn(tip(), 'offsetHeight', 'get').mockReturnValue(60);
+    fireEvent.click(term);
+    // Centred it would start at 4 + 20 - 100 = -76; it moves 84px right to sit 8px in.
+    expect(tip().style.translate).toBe('calc(-50% + 84px) 0');
+    expect(tip().style.top).toBe('');
   });
 });

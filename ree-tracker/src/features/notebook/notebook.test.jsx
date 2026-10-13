@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { expectNoSkippedLevels } from '../../test/headings';
 
 vi.mock('../../config/firebaseDb', () => ({ auth: { currentUser: { uid: 'user-A' } } }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'user-A' } }) }));
@@ -32,7 +33,13 @@ const { causeSummary } = await import('./causeSummary');
 const { default: NoteButton, NoteView } = await import('./NoteButton');
 const { default: MistakesPanel } = await import('./MistakesPanel');
 const { default: NotesPanel } = await import('./NotesPanel');
+const { default: NotebookTab } = await import('./NotebookTab');
 
+let simulatorState;
+function SimulatorProbe() {
+  simulatorState = useLocation().state;
+  return <p>simulator-page</p>;
+}
 let practiceState;
 function PracticeProbe() {
   practiceState = useLocation().state;
@@ -43,6 +50,7 @@ const renderAt = (ui) => render(
     <Routes>
       <Route path="/" element={ui} />
       <Route path="/practice" element={<PracticeProbe />} />
+      <Route path="/simulator" element={<SimulatorProbe />} />
     </Routes>
   </MemoryRouter>,
 );
@@ -183,6 +191,34 @@ describe('mistakes', () => {
     expect(practiceState.preset.items.map((q) => q.id)).toEqual(['q2']);
   });
 
+  it('a Mistakes mock runs the open ones on screen as a timed sitting, for this account only', async () => {
+    apiRequest.mockResolvedValue({ items: [mistake('q1'), mistake('q2', { subject: 'Mathematics' }), mistake('q3', { fixed: true })], truncated: false });
+    renderAt(<MistakesPanel currentUser={{ uid: 'user-A' }} isOnline />);
+    await screen.findByText('Question q1');
+    fireEvent.click(screen.getByRole('radio', { name: /^All \d/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Mistakes mock/ }));
+    expect(await screen.findByText('simulator-page')).toBeInTheDocument();
+    expect(simulatorState.retake).toMatchObject({ ownerUid: 'user-A', sourceSessionId: null, kind: 'mistakes' });
+    expect(simulatorState.retake.questions.map((q) => q.id)).toEqual(['q1', 'q2']);
+    expect(simulatorState.retake.questions[0]).toMatchObject({ answer: 'A', subject: 'EE' });
+  });
+
+  it('shows why you miss by week once something is tagged, with the numbers in a table', async () => {
+    const recent = new Date(Date.now() - 86400000).toISOString();
+    apiRequest.mockResolvedValue({ items: [mistake('q1', { cause: 'misread', lastWrongAt: recent }), mistake('q2', { lastWrongAt: recent })], truncated: false });
+    renderAt(<MistakesPanel currentUser={{ uid: 'user-A' }} isOnline />);
+    expect(await screen.findByRole('heading', { name: 'Why you miss, by week' })).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Tagged misses per week, by cause' });
+    expect(within(table).getAllByRole('row')).toHaveLength(9);
+  });
+
+  it('has no Mistakes mock when nothing on screen is open', async () => {
+    apiRequest.mockResolvedValue({ items: [mistake('q3', { fixed: true })], truncated: false });
+    renderAt(<MistakesPanel currentUser={{ uid: 'user-A' }} isOnline />);
+    fireEvent.click(await screen.findByRole('radio', { name: /^Fixed/ }));
+    expect(screen.getByRole('button', { name: /Mistakes mock/ })).toBeDisabled();
+  });
+
   it('marks a mistake fixed, and it moves to Fixed', async () => {
     apiRequest.mockImplementation(async (endpoint, method, body) => (method ? { item: { questionId: 'q1', ...body } } : { items: [mistake('q1')], truncated: false }));
     renderAt(<MistakesPanel currentUser={{ uid: 'user-A' }} isOnline />);
@@ -193,9 +229,18 @@ describe('mistakes', () => {
     expect(screen.getByRole('button', { name: /Reopen/ })).toBeInTheDocument();
   });
 
+  it('the Notebook tab’s headings step down from the Library h1', async () => {
+    apiRequest.mockResolvedValue({ items: [mistake('q1')], truncated: false });
+    const { container } = renderAt(<NotebookTab currentUser={{ uid: 'user-A' }} isOnline />);
+    expect(await screen.findByText('Question q1')).toBeInTheDocument();
+    expectNoSkippedLevels(container);
+  });
+
   it('explains an empty notebook', async () => {
     apiRequest.mockResolvedValue({ items: [], truncated: false });
     renderAt(<MistakesPanel currentUser={{ uid: 'user-A' }} isOnline />);
     expect(await screen.findByText('No mistakes yet')).toBeInTheDocument();
+    // An empty state says what to do next, not just what's missing.
+    expect(screen.getByRole('button', { name: 'Start a practice set' })).toBeInTheDocument();
   });
 });

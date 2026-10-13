@@ -45,6 +45,28 @@ const barFill = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber
 const toneText = (verdict) => TONE_TEXT[toneOf(verdict)];
 const kindLabel = (r) => sittingKindLabel(r.kind) || (r.isPrcStandard ? 'One subject (PRC clock)' : 'Mock board');
 
+// The chart's hover card. Module level: defined inside the component it was a
+// new component type every render, so recharts remounted it on each one.
+function ScoreTooltip({ active, payload }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-surface/95 backdrop-blur-md border border-border2 p-3.5 rounded-lg shadow-xl text-xs z-50">
+        <p className="font-semibold text-textMain mb-2 border-b border-border2 pb-2">
+          {data.date} <span className="text-muted font-normal ml-2">{data.kind}</span>
+        </p>
+        <p className="font-semibold mb-1" style={{ color: toneText(data.verdict) }}>
+          Overall: {data.overall}% · {verdictLabel(data.verdict)}
+        </p>
+        {data.math != null && <p className="text-reeCyan-text">Math: {data.math}%</p>}
+        {data.esas != null && <p className="text-reePurple-text">ESAS: {data.esas}%</p>}
+        {data.ee != null && <p className="text-reeAmber-text">EE: {data.ee}%</p>}
+      </div>
+    );
+  }
+  return null;
+}
+
 function MiniStat({ label, value, tone }) {
   return (
     <div className="rounded-xl border border-border bg-surface2/30 p-3.5">
@@ -68,29 +90,45 @@ export default function MockBoardAnalytics() {
   // Always asks the server. The cached rows only paint the screen while it
   // does: this used to return the cache on every visit, so a sitting finished
   // a minute ago — the results screen sends you here — wasn't listed.
+  const uid = currentUser?.uid;
+  // The server's list arrived: keep it, and retire this device's old ledger
+  // (the server holds every sitting now).
+  const applyHistory = (forUid, data) => {
+    rememberMockHistory(forUid, data);
+    setHistory(data);
+    setLoadError(false);
+    setLoading(false);
+    purgeSimulationLedger(forUid).catch(() => {});
+    dropLegacyLedger().catch(() => {});
+  };
+
+  // Refresh and Try again.
   const loadHistory = async (forceSync = false) => {
-    if (!currentUser?.uid) return;
-    const cached = cachedFor(currentUser.uid);
+    if (!uid) return;
+    const cached = cachedFor(uid);
     if (cached) setHistory(cached);
     setLoading(!cached);
     try {
-      const data = await fetchMockHistory(20);
-      rememberMockHistory(currentUser.uid, data);
-      setHistory(data);
-      setLoadError(false);
-      // The server holds every sitting now; retire this device's old ledger.
-      purgeSimulationLedger(currentUser.uid).catch(() => {});
-      dropLegacyLedger().catch(() => {});
+      applyHistory(uid, await fetchMockHistory(20));
       if (forceSync) toast.success('History refreshed.');
     } catch {
       if (!cached) setLoadError(true);
       else if (forceSync) toast.error('Couldn’t refresh — showing the last list on this device.');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadHistory(); }, [currentUser?.uid]);
+  // Every visit asks the server; the cached rows paint meanwhile (the
+  // initial state). State is set only in the request's callbacks.
+  useEffect(() => {
+    if (!uid) return undefined;
+    let live = true;
+    fetchMockHistory(20).then(
+      (data) => { if (live) applyHistory(uid, data); },
+      () => { if (live) { if (!cachedFor(uid)) setLoadError(true); setLoading(false); } },
+    );
+    return () => { live = false; };
+  }, [uid]);
 
   const requestDelete = (id, name) => setDeleteModal({ isOpen: true, id, name });
 
@@ -99,7 +137,7 @@ export default function MockBoardAnalytics() {
     try {
       await hideExamSession(id);
       const updated = history.filter((h) => h.id !== id);
-      rememberMockHistory(currentUser.uid, updated);
+      rememberMockHistory(uid, updated);
       setHistory(updated);
       toast.success(`Removed the ${name} sitting from history.`);
     } catch {
@@ -121,26 +159,6 @@ export default function MockBoardAnalytics() {
     ee: run.subjectScores?.EE ?? null,
     verdict: run.verdict,
   }));
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-surface/95 backdrop-blur-md border border-border2 p-3.5 rounded-lg shadow-xl text-xs z-50">
-          <p className="font-semibold text-textMain mb-2 border-b border-border2 pb-2">
-            {data.date} <span className="text-muted font-normal ml-2">{data.kind}</span>
-          </p>
-          <p className="font-semibold mb-1" style={{ color: toneText(data.verdict) }}>
-            Overall: {data.overall}% · {verdictLabel(data.verdict)}
-          </p>
-          {data.math != null && <p className="text-reeCyan-text">Math: {data.math}%</p>}
-          {data.esas != null && <p className="text-reePurple-text">ESAS: {data.esas}%</p>}
-          {data.ee != null && <p className="text-reeAmber-text">EE: {data.ee}%</p>}
-        </div>
-      );
-    }
-    return null;
-  };
 
   const totalRuns = history.length;
   const avgScore = totalRuns > 0 ? Math.round((history.reduce((a, c) => a + headline(c), 0) / totalRuns) * 10) / 10 : 0;
@@ -236,9 +254,13 @@ export default function MockBoardAnalytics() {
             action={<Button size="sm" onClick={() => loadHistory()}>Try again</Button>}
           />
         ) : chartData.length === 0 ? (
-          <div className="h-[320px] flex items-center justify-center text-muted2 text-sm border-2 border-dashed border-border rounded-xl text-center px-6">
-            No mock boards yet. Finish one to plot your scores.
-          </div>
+          <EmptyState
+            compact
+            icon={BarChart3}
+            title="No mock boards yet"
+            description="Finish one to plot your scores against the 70% pass line."
+            action={<Button as={Link} to="/exams?tab=mock" size="sm">Take a mock board</Button>}
+          />
         ) : (
           <div className="h-[320px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -246,7 +268,7 @@ export default function MockBoardAnalytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" vertical={false} />
                 <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} dy={8} interval="preserveStartEnd" minTickGap={12} />
                 <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'color-mix(in srgb, var(--text-main) 5%, transparent)' }} />
+                <Tooltip content={<ScoreTooltip />} cursor={{ fill: 'color-mix(in srgb, var(--text-main) 5%, transparent)' }} />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '16px' }} iconType="circle" />
                 <ReferenceLine
                   y={70}

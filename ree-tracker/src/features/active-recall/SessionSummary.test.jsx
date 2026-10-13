@@ -67,6 +67,21 @@ describe("SessionSummary after today's loop", () => {
     expect(screen.getByRole('link', { name: 'Review cards' })).toHaveAttribute('href', '/library?tab=formulas');
   });
 
+  it('counts the cards rated in the loop, and points on only to the rest', () => {
+    renderSummary({ summary: { ...summary, cardsRated: 2, config: { source: 'today-loop', cardsDue: 3 } } });
+    expect(screen.getByText('2 formula cards rated. Each comes back when it’s due.')).toBeInTheDocument();
+    expect(screen.getByText('1 more formula card due for review.')).toBeInTheDocument();
+  });
+
+  it('a loop of only cards shows no score', () => {
+    const cardsOnly = { total: 0, correct: 0, accuracy: 0, durationSecs: 90, avgSecs: null, byTopic: [], weakest: null, confidentMisses: 0, luckyGuesses: 0, missed: [], missedCount: 0, cardsRated: 3, config: { source: 'today-loop', cardsDue: 3 } };
+    renderSummary({ summary: cardsOnly });
+    expect(screen.queryByText('Score')).toBeNull();
+    expect(screen.queryByText(/pass mark/)).toBeNull();
+    expect(screen.getByText(/^3 formula cards in/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Review cards' })).toBeNull();
+  });
+
   it('says nothing about cards after any other session', () => {
     renderSummary({ summary: { ...summary, config: { source: 'library', cardsDue: 3 } } });
     expect(screen.queryByRole('link', { name: 'Review cards' })).toBeNull();

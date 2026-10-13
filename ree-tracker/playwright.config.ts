@@ -5,6 +5,10 @@ import { defineConfig, devices } from '@playwright/test';
 // a phone (Pixel 7: 412px, touch, coarse pointer) — most learners study on a
 // phone, and touch-target / drawer behaviour only exists there. Both run on
 // Chromium, so no extra browser download. `npm run e2e -- --project=mobile`.
+const localChromium = process.env.PW_CHROMIUM_PATH
+  ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } }
+  : {};
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
@@ -25,8 +29,10 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         timeout: 60_000,
       },
+  // PW_CHROMIUM_PATH: a machine with its own Chromium (not the one Playwright
+  // downloads), as in playwright.authed.config.ts.
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], ...localChromium } },
+    { name: 'mobile', use: { ...devices['Pixel 7'], ...localChromium } },
   ],
 });

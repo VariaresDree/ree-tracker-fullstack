@@ -4,10 +4,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import toast from 'react-hot-toast';
 
-vi.mock('./contexts/AuthContext', () => ({
-  AuthProvider: ({ children }) => children,
-  useAuth: () => ({ currentUser: null }),
-}));
+vi.mock('./contexts/AuthProvider', () => ({ AuthProvider: ({ children }) => children }));
+vi.mock('./contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: null }) }));
 vi.mock('./hooks/useSyncLifecycle', () => ({ useSyncLifecycle: () => {} }));
 vi.mock('./pages/Login', () => ({ default: () => <h1>Sign in</h1> }));
 

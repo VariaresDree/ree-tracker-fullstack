@@ -116,29 +116,42 @@ export default function RankingsTab() {
   // guard stayed true and the effect looped forever (the reported hang).
   const rankingsLoadedRef = useRef(false);
 
-  useEffect(() => {
-    if (rankingsLoadedRef.current) return;          // load once — never re-fire on `leaderboard` change
-    // Offline: don't fetch. Clear the spinner so the offline EmptyState + Retry
-    // render. When connectivity returns, isOnline flips and this effect re-runs
-    // to load for real.
-    if (!isOnline) { setIsLoadingRankings(false); return; }
-
-    rankingsLoadedRef.current = true;
-    (async () => {
+  // Back online after a failed load: the effect below asks again, so show
+  // that instead of the old error until it answers (adjusted while
+  // rendering, the way React suggests for a change in an input).
+  const [wasOnline, setWasOnline] = useState(isOnline);
+  if (wasOnline !== isOnline) {
+    setWasOnline(isOnline);
+    if (isOnline && loadError) {
+      setLoadError(false);
       setIsLoadingRankings(true);
-      try {
-        const { agents, lastDoc: newLastDoc } = await fetchPaginatedLeaderboard(PAGE, null);
+    }
+  }
+
+  // State is set only in the request's callbacks. Offline, nothing is
+  // fetched and the spinner gives way to the offline state (showLoading);
+  // when connectivity returns, isOnline flips and this loads for real.
+  useEffect(() => {
+    if (rankingsLoadedRef.current || !isOnline) return;    // load once — never re-fire on `leaderboard` change
+    rankingsLoadedRef.current = true;
+    fetchPaginatedLeaderboard(PAGE, null).then(
+      ({ agents, lastDoc: newLastDoc }) => {
+        // No mounted check: StrictMode's mount-unmount-mount would drop this
+        // first load, and a setState after unmount is a no-op anyway.
         setLeaderboard(agents || []);
         setLastDoc(newLastDoc);
         setHasMore((agents || []).length === PAGE);
         setLoadError(false);
-      } catch {
+        setIsLoadingRankings(false);
+      },
+      () => {
         rankingsLoadedRef.current = false;          // transient failure — allow a retry
         setLoadError(true);
-      }
-      setIsLoadingRankings(false);
-    })();
+        setIsLoadingRankings(false);
+      },
+    );
   }, [isOnline]);
+  const showLoading = isOnline && isLoadingRankings;
 
   const observer = useRef(null);
   // Tracks whether this component is still mounted, so an in-flight page fetch
@@ -153,7 +166,7 @@ export default function RankingsTab() {
   }, []);
 
   const lastElementRef = useCallback((node) => {
-    if (isLoadingRankings || isFetchingMore) return;
+    if (showLoading || isFetchingMore) return;
 
     // Always release the previous observer...
     observer.current?.disconnect();
@@ -179,7 +192,7 @@ export default function RankingsTab() {
     });
 
     observer.current.observe(node);
-  }, [isLoadingRankings, isFetchingMore, hasMore, lastDoc]);
+  }, [showLoading, isFetchingMore, hasMore, lastDoc]);
 
   // Retry after an offline or failed load (the load effect fires once).
   const retryRankings = async () => {
@@ -222,7 +235,7 @@ export default function RankingsTab() {
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 stagger-fade-in">
-          {isLoadingRankings ? (
+          {showLoading ? (
             <div role="status" className="flex flex-col items-center justify-center h-full gap-4 py-20 text-[var(--color-reeAmber)]">
               <span className="telemetry-spinner !w-8 !h-8 border-t-transparent"></span>
               <span className="text-xs font-bold text-muted2 uppercase tracking-widest animate-pulse">Loading rankings…</span>

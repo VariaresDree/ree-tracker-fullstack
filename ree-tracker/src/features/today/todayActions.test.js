@@ -42,6 +42,59 @@ describe('buildTodayActions', () => {
   });
 });
 
+describe("formula cards and today's loop", () => {
+  it("the loop names its cards, and the cards action covers only the ones it doesn't hold", () => {
+    const loop = { items: [{ id: 'q1' }, { id: 'card:c1', kind: 'card' }], counts: { due: 1, mistakes: 0, cards: 1 } };
+    const actions = buildTodayActions({ loop, cards: { due: 3 } });
+    expect(actions[0].detail).toBe('1 due review and 1 formula card, mixed by board weight.');
+    expect(actions.find((a) => a.key === 'cards').title).toBe('Review 2 formula cards');
+    const all = buildTodayActions({ loop, cards: { due: 1 } });
+    expect(all.some((a) => a.key === 'cards')).toBe(false);
+  });
+
+  it('three kinds read as a list', () => {
+    const [first] = buildTodayActions({ loop: { items: [{ id: 'q1' }], counts: { due: 2, mistakes: 1, cards: 3 } } });
+    expect(first.detail).toBe('2 due reviews, 1 open mistake and 3 formula cards, mixed by board weight.');
+  });
+});
+
+describe('a new learner follows the placement plan', () => {
+  const base = { daily: { done: 0, target: 50 }, examInDays: 90, answered: 4 };
+  const loop = { items: [{ id: 'q1' }], counts: { due: 1, mistakes: 0 } };
+
+  it('a subject under the floor: an adaptive set on it, right after the loop, and no mock', () => {
+    const actions = buildTodayActions({ ...base, loop, start: { mode: 'practice', subject: 'ESAS', reason: 'floor' } });
+    expect(actions.map((a) => a.key)).toEqual(['loop', 'start', 'target']);
+    expect(actions[1]).toMatchObject({
+      title: 'Practise ESAS first',
+      detail: 'ESAS is under the 50% subject floor. An adaptive set, picked to match your level.',
+      preset: expect.objectContaining({ source: 'adaptive', subject: 'ESAS', count: 20 }),
+    });
+  });
+
+  it('a low average: an adaptive set across the board, first when there is no loop', () => {
+    const [first] = buildTodayActions({ ...base, start: { mode: 'practice', subject: null, reason: 'average' } });
+    expect(first).toMatchObject({ key: 'start', title: 'Build your base in Practice', preset: expect.objectContaining({ source: 'adaptive', subject: 'All' }) });
+  });
+
+  it('mock board: the mock moves up; Gauntlet: it leads, the mock stays last', () => {
+    expect(buildTodayActions({ ...base, start: { mode: 'mock' } }).map((a) => a.key)).toEqual(['mock', 'target']);
+    const g = buildTodayActions({ ...base, start: { mode: 'gauntlet' } });
+    expect(g.map((a) => a.key)).toEqual(['start', 'target', 'mock']);
+    expect(g[0]).toMatchObject({ title: 'Climb the Gauntlet', to: '/exams?tab=gauntlet' });
+  });
+
+  it('no placement yet: no timed board on day one, unless nothing else is left', () => {
+    expect(buildTodayActions({ ...base, start: null }).map((a) => a.key)).toEqual(['target']);
+    expect(buildTodayActions({ answered: 0, examInDays: 90 }).map((a) => a.key)).toEqual(['mock']);
+  });
+
+  it('an established learner is unaffected by the plan', () => {
+    const actions = buildTodayActions({ ...base, answered: 200, start: { mode: 'practice', subject: 'ESAS', reason: 'floor' } });
+    expect(actions.map((a) => a.key)).toEqual(['target', 'mock']);
+  });
+});
+
 describe('today’s study-plan task', () => {
   const drillTask = { id: 'd', kind: 'drill', topic: 'Protection', subject: 'EE', topicId: 't', targetCount: 15, dueDate: '2026-10-08', text: 'Drill Protection — 15 questions' };
   const blindSpot = forecast([{ type: 'BLIND_SPOT', payload: { topic: 'protection ', subject: 'EE', topicId: 't' } }]);

@@ -38,23 +38,36 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
 
   const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, missed, missedCount } = summary;
   const tone = accuracy >= 70 ? 'success' : accuracy >= 50 ? 'amber' : 'danger';
-  // Today's loop goes on to the formula cards due (Library › Formula cards).
-  const cardsNext = summary.config?.source === 'today-loop' ? summary.config.cardsDue || 0 : 0;
+  // Formula cards rated inside Today's loop; the rest of the cards due are
+  // next, in Library › Formula cards.
+  const cardsRated = summary.cardsRated || 0;
+  const cardsNext = summary.config?.source === 'today-loop' ? Math.max(0, (summary.config.cardsDue || 0) - cardsRated) : 0;
+  const parts = [
+    total > 0 && `${total} question${total === 1 ? '' : 's'}`,
+    cardsRated > 0 && `${cardsRated} formula card${cardsRated === 1 ? '' : 's'}`,
+  ].filter(Boolean);
 
   return (
     <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
       <PageHeader
         title="Session complete"
-        subtitle={`${total} question${total === 1 ? '' : 's'} in ${formatDuration(durationSecs)}.`}
-        meta={<StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill>}
+        subtitle={`${parts.join(' and ') || '0 questions'} in ${formatDuration(durationSecs)}.`}
+        meta={total > 0 ? <StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill> : null}
       />
 
       <Card elevated glow className="p-5 sm:p-6 flex flex-col gap-6">
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-4">
-          <Figure label="Score" value={`${correct}/${total}`} sub={`${accuracy}% correct`} />
-          <Figure label="Time" value={formatDuration(durationSecs)} />
-          <Figure label="Per question" value={avgSecs != null ? `${avgSecs}s` : '—'} sub="average" />
-        </div>
+        {total > 0 && (
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-4">
+            <Figure label="Score" value={`${correct}/${total}`} sub={`${accuracy}% correct`} />
+            <Figure label="Time" value={formatDuration(durationSecs)} />
+            <Figure label="Per question" value={avgSecs != null ? `${avgSecs}s` : '—'} sub="average" />
+          </div>
+        )}
+        {cardsRated > 0 && (
+          <p className="text-sm text-textMain">
+            {cardsRated} formula card{cardsRated === 1 ? '' : 's'} rated. Each comes back when it’s due.
+          </p>
+        )}
 
         {(confidentMisses > 0 || luckyGuesses > 0 || missedCount > 0) && (
           <ul className="flex flex-col gap-1.5 text-sm text-muted2">
@@ -74,7 +87,7 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
         {cardsNext > 0 && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
             <p className="text-sm text-textMain flex-1">
-              Next in today’s loop: {cardsNext} formula card{cardsNext === 1 ? '' : 's'} due for review.
+              {cardsRated > 0 ? `${cardsNext} more formula card${cardsNext === 1 ? '' : 's'}` : `Next in today’s loop: ${cardsNext} formula card${cardsNext === 1 ? '' : 's'}`} due for review.
             </p>
             <Button as={Link} to="/library?tab=formulas" className="w-full sm:w-auto">Review cards</Button>
           </div>

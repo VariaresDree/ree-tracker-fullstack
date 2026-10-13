@@ -2,7 +2,7 @@
 // and a timed retake or a practice set of the misses. Plus the states that
 // aren't a review: still in progress, still syncing, offline.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 vi.mock('../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
@@ -11,8 +11,15 @@ vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid
 vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 const fetchSittingReview = vi.fn();
+const fetchBattleReplay = vi.fn();
+const requestRematch = vi.fn();
 const apiRequest = vi.fn(async () => ({ items: [], truncated: false }));
-vi.mock('../services/dbQueries', () => ({ fetchSittingReview: (...a) => fetchSittingReview(...a), apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('../services/dbQueries', () => ({
+  fetchSittingReview: (...a) => fetchSittingReview(...a),
+  fetchBattleReplay: (...a) => fetchBattleReplay(...a),
+  requestRematch: (...a) => requestRematch(...a),
+  apiRequest: (...a) => apiRequest(...a),
+}));
 vi.mock('../config/firebaseDb', () => ({ auth: { currentUser: { uid: 'u1' } } }));
 vi.mock('idb-keyval', () => ({ get: async () => undefined, set: async () => {}, del: async () => {} }));
 vi.mock('../services/geminiApi', () => ({ generateMasterExplanation: vi.fn() }));
@@ -38,17 +45,26 @@ function Probe({ label }) {
   return <p>{label}: {JSON.stringify(loc.state)?.slice(0, 200)}</p>;
 }
 
-const renderAt = () => render(
-  <MemoryRouter initialEntries={['/exams/sittings/sess-1']}>
+function PathProbe() {
+  return <p>at: {useLocation().pathname}</p>;
+}
+
+const renderAt = (path = '/exams/sittings/sess-1') => render(
+  <MemoryRouter initialEntries={[path]}>
     <Routes>
       <Route path="/exams/sittings/:sessionId" element={<SittingReview />} />
       <Route path="/simulator" element={<Probe label="simulator" />} />
       <Route path="/practice" element={<Probe label="practice" />} />
+      <Route path="/battle/:battleId" element={<PathProbe />} />
     </Routes>
   </MemoryRouter>,
 );
 
-beforeEach(() => fetchSittingReview.mockReset());
+beforeEach(() => {
+  fetchSittingReview.mockReset();
+  fetchBattleReplay.mockReset();
+  requestRematch.mockReset();
+});
 
 describe('SittingReview', () => {
   it('shows the sitting with its verdict, and each item with your answer', async () => {
@@ -146,5 +162,76 @@ describe('SittingReview', () => {
     renderAt();
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Question 1')).toBeInTheDocument();
+  });
+});
+
+describe('SittingReview — a battle', () => {
+  const BATTLE_REVIEW = { ...REVIEW, session: { ...REVIEW.session, id: 'ABC123:u1', kind: 'battle', verdict: null, hasMarks: false } };
+  const REPLAY = {
+    battle: { id: 'ABC123', config: { mode: 'subject', subject: 'EE' }, timeLimitSecs: 1800, createdAt: '2026-10-05T03:00:00Z', questionOrder: ['q1', 'q2', 'q3'] },
+    players: [
+      { userId: 'ana', displayName: 'Ana', placement: 1, score: 3, total: 3, timeTakenSecs: 600, eloDelta: 8 },
+      { userId: 'u1', displayName: 'Rey', placement: 2, score: 1, total: 3, timeTakenSecs: 700, eloDelta: -8 },
+    ],
+    picks: {
+      q1: [{ userId: 'ana', answer: '20 A', isCorrect: true, timeMs: 42_000 }, { userId: 'u1', answer: '20 A', isCorrect: true, timeMs: 90_000 }],
+      q2: [{ userId: 'ana', answer: '20 A', isCorrect: true, timeMs: 5000 }, { userId: 'u1', answer: '10 A', isCorrect: false, timeMs: 8000 }],
+    },
+  };
+  const BATTLE_PATH = `/exams/sittings/${encodeURIComponent('ABC123:u1')}`;
+  const picksShown = () => within(screen.getByRole('region', { name: 'How everyone answered' })).getAllByRole('listitem').map((li) => li.textContent);
+
+  it('shows the final places and, under each question, how everyone answered', async () => {
+    fetchSittingReview.mockResolvedValue(BATTLE_REVIEW);
+    fetchBattleReplay.mockResolvedValue(REPLAY);
+    renderAt(BATTLE_PATH);
+    const places = await screen.findByRole('list', { name: 'Final places' });
+    expect(fetchBattleReplay).toHaveBeenCalledWith('ABC123');
+    expect(within(places).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1stAna3/3', '2ndRey (you)1/3']);
+    expect(picksShown()).toEqual(['Ana: B, right, 42s', 'You: B, right, 1m 30s']);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(picksShown()).toEqual(['Ana: B, right, 5s', 'You: A, wrong, 8s']);
+    // No picks for a question the replay leaves out.
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.queryByRole('region', { name: 'How everyone answered' })).not.toBeInTheDocument();
+  });
+
+  it('starts a rematch from the header and goes to its lobby', async () => {
+    fetchSittingReview.mockResolvedValue(BATTLE_REVIEW);
+    fetchBattleReplay.mockResolvedValue(REPLAY);
+    requestRematch.mockResolvedValue({ battleId: 'NEW123', created: true });
+    renderAt(BATTLE_PATH);
+    fireEvent.click(await screen.findByRole('button', { name: /Rematch/ }));
+    expect(await screen.findByText('at: /battle/NEW123')).toBeInTheDocument();
+    expect(requestRematch).toHaveBeenCalledWith('ABC123');
+  });
+
+  it('joins a rematch someone already started (the server hands back theirs, not another)', async () => {
+    fetchSittingReview.mockResolvedValue(BATTLE_REVIEW);
+    fetchBattleReplay.mockResolvedValue({ ...REPLAY, battle: { ...REPLAY.battle, rematch: { battleId: 'REM456', status: 'WAITING' } } });
+    requestRematch.mockResolvedValue({ battleId: 'REM456', created: false });
+    renderAt(BATTLE_PATH);
+    fireEvent.click(await screen.findByRole('button', { name: /Join rematch/ }));
+    expect(await screen.findByText('at: /battle/REM456')).toBeInTheDocument();
+    expect(requestRematch).toHaveBeenCalledWith('ABC123');
+  });
+
+  it('reviews the battle like any sitting when the replay fails to load', async () => {
+    fetchSittingReview.mockResolvedValue(BATTLE_REVIEW);
+    fetchBattleReplay.mockRejectedValue(new Error('500'));
+    renderAt(BATTLE_PATH);
+    expect(await screen.findByText('Question 1')).toBeInTheDocument();
+    await vi.waitFor(() => expect(fetchBattleReplay).toHaveBeenCalled());
+    expect(screen.queryByRole('list', { name: 'Final places' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'How everyone answered' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Rematch/ })).not.toBeInTheDocument();
+  });
+
+  it('asks for no replay, and shows no picks, for a sitting that is not a battle', async () => {
+    fetchSittingReview.mockResolvedValue(REVIEW);
+    renderAt();
+    expect(await screen.findByText('Question 1')).toBeInTheDocument();
+    expect(fetchBattleReplay).not.toHaveBeenCalled();
+    expect(screen.queryByRole('region', { name: 'How everyone answered' })).not.toBeInTheDocument();
   });
 });

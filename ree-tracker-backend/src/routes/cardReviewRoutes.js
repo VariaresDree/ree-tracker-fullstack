@@ -13,6 +13,7 @@ const { validate } = require('../middlewares/validate');
 const { cardRatingSchema } = require('../schemas/cardReviewSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const { manilaDateOf, manilaMidnight } = require('../utils/manilaDate');
 
 // A rating queued offline is scheduled from when it was made, but never from
 // the future or from more than a week back (a wrong device clock).
@@ -72,6 +73,32 @@ router.get('/card-reviews/summary', authMiddleware, async (req, res) => {
     }
 });
 
+/**
+ * Tick off the study plan's "Formula cards" task for the day of a rating once
+ * that day's ratings reach its target. Its progress is counted from each
+ * card's latest rating (one row per card), so a card rated again on a later
+ * day would leave that day short after the fact; ticked here, the task keeps
+ * its credit. Best effort: the rating stands whatever happens here.
+ */
+async function creditCardsTask(userId, at) {
+    try {
+        const day = manilaDateOf(at);
+        const task = await prisma.plannerTask.findFirst({
+            where: { userId, kind: 'cards', dueDate: day, completed: false },
+            select: { id: true, targetCount: true },
+        });
+        if (!task) return;
+        const rated = await prisma.cardReview.count({
+            where: { userId, lastReviewed: { gte: manilaMidnight(day, 0), lt: manilaMidnight(day, 1) } },
+        });
+        if (rated >= (task.targetCount || 1)) {
+            await prisma.plannerTask.updateMany({ where: { id: task.id, userId, completed: false }, data: { completed: true } });
+        }
+    } catch (error) {
+        logger.warn('Cards task credit failed', { error: error.message });
+    }
+}
+
 router.post('/card-reviews/:cardId', authMiddleware, validate(cardRatingSchema), async (req, res) => {
     const userId = req.user.id;
     const { cardId } = req.params;
@@ -98,6 +125,7 @@ router.post('/card-reviews/:cardId', authMiddleware, validate(cardRatingSchema),
             row = await apply();
         }
         const { lastReviewId: _id, ...item } = row;
+        if (row.lastReviewed) await creditCardsTask(userId, row.lastReviewed);
         res.status(200).json({ item });
     } catch (error) {
         if (error.code === 'P2003') return res.status(404).json({ error: 'Card not found.' });
@@ -108,3 +136,4 @@ router.post('/card-reviews/:cardId', authMiddleware, validate(cardRatingSchema),
 
 module.exports = router;
 module.exports.reviewTime = reviewTime;
+module.exports.creditCardsTask = creditCardsTask;

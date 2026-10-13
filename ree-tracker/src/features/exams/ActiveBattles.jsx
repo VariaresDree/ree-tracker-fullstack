@@ -13,14 +13,9 @@ import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Button, Card, StatusPill } from '../../components/ui';
 import { ArrowRight, Clock, Swords } from '../../components/ui/icons';
 import { formatTimeOfDay } from '../../utils/time';
+import { battleLabel } from './battleModes';
 
 const minutesLeft = (ms) => Math.max(1, Math.ceil(ms / 60000));
-
-function describe(config) {
-  if (!config) return 'Battle';
-  if (config.mode === 'blended') return 'Full mock';
-  return config.subject || 'Battle';
-}
 
 export default function ActiveBattles() {
   const isOnline = useNetworkStatus();
@@ -69,7 +64,7 @@ export default function ActiveBattles() {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-textMain">
                     Battle <span className="font-mono tracking-wider">{b.battleId}</span>
-                    <span className="text-muted2 font-normal"> · {describe(b.config)}</span>
+                    <span className="text-muted2 font-normal"> · {battleLabel(b.config)}</span>
                   </p>
                   <p className="text-xs text-muted2 flex items-center gap-1 mt-0.5 tabular-nums">
                     <Clock size={12} strokeWidth={1.75} aria-hidden="true" />

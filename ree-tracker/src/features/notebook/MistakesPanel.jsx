@@ -6,28 +6,33 @@
 // explanation, how many times you've missed it, and why: tag the cause, and
 // the top line says what most of your misses come down to. A mistake reads
 // Fixed once you answer it right again, or you mark it fixed; missing it again
-// reopens it. "Practise these" runs the ones on screen as a Practice session.
+// reopens it. "Practise N mistakes" runs the ones on screen as a Practice
+// session; "Mistakes mock" runs the open ones as a timed sitting at board pace
+// (the sitting review's retake path), and any answered right turn Fixed.
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { MISTAKE_CAUSES, MISTAKE_CAUSE_LABELS, isMarkedFixed, toDisplaySubject } from '@ree/shared';
 import { Badge, Button, Card, EmptyState, FormField, SegmentedControl, Select, Skeleton } from '../../components/ui';
-import { CheckCircle2, CloudOff, Play, RotateCcw, TriangleAlert, NotebookPen } from '../../components/ui/icons';
+import { CheckCircle2, CloudOff, Play, RotateCcw, Timer, TriangleAlert, NotebookPen } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import SmartText from '../../components/SmartText';
 import SolutionPanel from '../quiz/SolutionPanel';
 import { useAiExplanation } from '../quiz/useAiExplanation';
 import { explanationKey } from '../../services/aiExplanations';
 import { itemsPreset, launchPractice } from '../active-recall/presets';
-import { reviewItemToQuestion } from '../exams/review/retake';
+import { retakeState, reviewItemToQuestion } from '../exams/review/retake';
 import { useMistakes } from './useMistakes';
 import CauseChips from './CauseChips';
 import NoteButton, { NoteView } from './NoteButton';
 import { questionTarget } from './targets';
 import { causeSummary } from './causeSummary';
+import CauseTrend from './CauseTrend';
 
 const PAGE = 10;
 const PRACTICE_MAX = 20;
+// A Mistakes mock's length: about an hour at board pace.
+const MOCK_MAX = 50;
 const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 const UNTAGGED = 'untagged';
 
@@ -136,6 +141,7 @@ export default function MistakesPanel({ currentUser, isOnline }) {
   const summary = useMemo(() => causeSummary(all.filter((i) => !i.fixed)), [all]);
   const reset = (fn) => (v) => { fn(v); setLimit(PAGE); };
   const practiseCount = Math.min(shown.length, PRACTICE_MAX);
+  const openShown = useMemo(() => shown.filter((i) => !i.fixed), [shown]);
 
   if (items == null) {
     if (status === 'loading') {
@@ -163,6 +169,7 @@ export default function MistakesPanel({ currentUser, isOnline }) {
         icon={NotebookPen}
         title="No mistakes yet"
         description="Questions you answer wrong in Practice, a mock board, a battle or the Gauntlet collect here, with the solution and a place to note why."
+        action={<Button onClick={() => navigate('/practice')}>Start a practice set</Button>}
       />
     );
   }
@@ -176,6 +183,7 @@ export default function MistakesPanel({ currentUser, isOnline }) {
         </p>
         {summary && <p className="text-sm text-textMain">{summary}</p>}
       </div>
+      <CauseTrend items={all} />
 
       {/* Each control keeps its natural width and the row wraps between them.
           In one squeezed row the counts and "All subjects" broke onto two
@@ -213,6 +221,17 @@ export default function MistakesPanel({ currentUser, isOnline }) {
           title={shown.length > PRACTICE_MAX ? `The first ${PRACTICE_MAX} of the ${shown.length} on screen` : undefined}
         >
           <Play size={14} strokeWidth={2} aria-hidden="true" /> Practise {practiseCount} {practiseCount === 1 ? 'mistake' : 'mistakes'}
+        </Button>
+        <Button
+          variant="secondary"
+          className="w-full sm:w-auto whitespace-nowrap"
+          onClick={() => navigate('/simulator', {
+            state: retakeState({ ownerUid: currentUser?.uid, sourceSessionId: null, items: openShown.slice(0, MOCK_MAX), kind: 'mistakes' }),
+          })}
+          disabled={openShown.length === 0 || !currentUser?.uid}
+          title={openShown.length > MOCK_MAX ? `The first ${MOCK_MAX} of the ${openShown.length} open on screen` : 'Open mistakes on screen, timed at board pace'}
+        >
+          <Timer size={14} strokeWidth={2} aria-hidden="true" /> Mistakes mock (timed)
         </Button>
       </div>
 

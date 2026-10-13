@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
+import { CALENDAR_LEVELS } from '../features/profile/calendarLevels';
 
 // Read as a file: vitest runs with css:false, which stubs CSS imports (even ?raw).
 // Comments are stripped first: a `}` or a `--token: value;` inside one would
@@ -17,7 +18,9 @@ const css = fs.readFileSync(new URL('./index.css', import.meta.url), 'utf8').rep
 //   body text  (--text-main, --text-muted, --text-muted2) ≥ 4.5:1 on every surface;
 //   status     (--accent-success, --accent-danger), which the app also uses as
 //              small text, ≥ 4.5:1 on page/card/panel and on its own 12% tint
-//              (QuestionCard's answered-option row), ≥ 3:1 on the chip layer.
+//              (QuestionCard's answered-option row), ≥ 3:1 on the chip layer;
+//   inks       (--on-accent/-danger/-success/-amber/-signal) ≥ 4.5:1 on their
+//              tone's button fill, the tone mixed 88% toward black.
 
 function themes() {
     const out = {};
@@ -44,18 +47,41 @@ const mix = (a, b, share) => '#' + rgb(a).map((v, i) => Math.round(v * share + r
 // QuestionCard's answered row: the status colour at 12% over --bg-surface.
 const tint = (c, surface) => mix(c, surface, 0.12);
 
+// Tailwind's @theme tokens (--color-reeAmber…), which every theme shares.
+const THEME_TOKENS = Object.fromEntries(
+    [...(css.match(/@theme\s*\{([^}]*)\}/)?.[1] ?? '').matchAll(/(--[a-zA-Z0-9-]+)\s*:\s*([^;]+);/g)].map((d) => [d[1], d[2].trim()]),
+);
+
 // A token's colour as the browser computes it: follows var() (with its
 // fallback) and color-mix(in srgb, A n%, B), so --accent-text and
 // --focus-ring-color are checked as rendered, not skipped as non-hex.
 function resolve(t, value) {
     const v = String(value ?? '').trim();
-    const ref = v.match(/^var\((--[a-z0-9-]+)(?:,\s*(.+))?\)$/);
-    if (ref) return resolve(t, t[ref[1]] ?? ref[2]);
+    const ref = v.match(/^var\((--[a-zA-Z0-9-]+)(?:,\s*(.+))?\)$/);
+    if (ref) return resolve(t, t[ref[1]] ?? THEME_TOKENS[ref[1]] ?? ref[2]);
     const m = v.match(/^color-mix\(in srgb,\s*(.+?)\s+(\d+)%,\s*(.+)\)$/);
     if (m) return mix(resolve(t, m[1]), resolve(t, m[3]), Number(m[2]) / 100);
+    if (v === 'black') return '#000000';
     if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase();
     throw new Error(`unresolvable colour: ${value}`);
 }
+
+// A filled control: the tone mixed 88% toward black, as Button's `primary`
+// renders it (bg-[color-mix(in_srgb,var(--btn-accent)_88%,black)]). The
+// exam banner, the current exam-navigator cell, the planner's selected day
+// and the Scratchpad's Close use the same fill.
+const fill = (t, tone) => resolve(t, `color-mix(in srgb, ${tone} 88%, black)`);
+
+// Button's tone → colour and tone → ink maps, read from its source, so a tone
+// added there is measured here too.
+const buttonSrc = fs.readFileSync(new URL('../components/ui/Button.jsx', import.meta.url), 'utf8');
+function toneMap(name) {
+    const body = buttonSrc.match(new RegExp(`const ${name} = \\{([\\s\\S]*?)\\};`))?.[1] ?? '';
+    return Object.fromEntries([...body.matchAll(/(\w+):\s*'(var\([^']+\))'/g)].map((m) => [m[1], m[2]]));
+}
+const TONE_VAR = toneMap('TONE_VAR');
+const TONE_INK = toneMap('TONE_INK');
+const TONE_TEXT = toneMap('TONE_TEXT');
 
 const SURFACES = ['--bg-primary', '--bg-surface', '--bg-surface2', '--bg-surface3'];
 const RULES = [
@@ -91,18 +117,45 @@ describe('theme contrast (WCAG AA)', () => {
             expect(failures).toEqual([]);
         });
 
+        // The signal cyan as text: the signal badge (subjects in the Notebook
+        // and Bookmarks) and the question's subject chip, on a 10–15% signal
+        // tint over the page or a card. The stock cyan read 3.8–4.4:1 on the
+        // forest, ocean and math cards (axe).
+        it(`${name}: the signal colour reads as a badge on its own tint`, () => {
+            const fg = resolve(t, t['--accent-signal']);
+            const failures = ['--bg-primary', '--bg-surface'].flatMap((bg) => {
+                const under = resolve(t, t[bg]);
+                return [[bg, under], [`15% tint on ${bg}`, mix(fg, under, 0.15)]];
+            })
+                .map(([on, bg]) => ({ on, ratio: +contrast(fg, bg).toFixed(2) }))
+                .filter((r) => r.ratio < 4.5);
+            expect(failures).toEqual([]);
+        });
+
+        // A status pill or badge is the same 12% tint, over the page as often
+        // as a card. On light and paper, whose page is darker than their cards,
+        // "Hotkeys on" read 4.46:1 (axe, a running Practice session).
+        it(`${name}: a status pill's label reads on its own tint over the page`, () => {
+            const failures = ['--accent-success', '--accent-danger']
+                .map((token) => ({ token, ratio: +contrast(t[token], tint(t[token], t['--bg-primary'])).toFixed(2) }))
+                .filter((r) => r.ratio < 4.5);
+            expect(failures).toEqual([]);
+        });
+
         // --accent-text is every foreground use of the accent: active tab and
         // segment labels (on an 8–14% accent tint over the page), the
         // answered exam-navigator cell and the velocity badge (10–15% over a
-        // card), the wordmark and accent icons. Plain --accent fails as text
-        // in every theme on those tints.
-        it(`${name}: accent text reads on the page, cards and accent tints`, () => {
+        // card), the wordmark and accent icons, and accent labels on the
+        // --bg-surface2 panels (the solution and AI explanation panels sit
+        // between a card and that). Plain --accent fails as text in every
+        // theme on those tints.
+        it(`${name}: accent text reads on the page, cards, panels and accent tints`, () => {
             const fg = resolve(t, t['--accent-text']);
             const accent = resolve(t, t['--accent']);
             const page = resolve(t, t['--bg-primary']);
             const card = resolve(t, t['--bg-surface']);
             const failures = [
-                ['page', page], ['card', card],
+                ['page', page], ['card', card], ['panel', resolve(t, t['--bg-surface2'])],
                 ['15% accent tint on the page', mix(accent, page, 0.15)],
                 ['15% accent tint on a card', mix(accent, card, 0.15)],
             ]
@@ -120,7 +173,49 @@ describe('theme contrast (WCAG AA)', () => {
                 .filter((r) => r.ratio < 3);
             expect(failures).toEqual([]);
         });
+
+        // Labels on filled buttons are body-size text: 4.5:1. White on the
+        // dark themes' green, amber, cyan and pink fills read at 1.9–4.07:1
+        // (about 35 call sites), so each tone has an ink token.
+        it(`${name}: every button tone's ink reads on its fill`, () => {
+            const failures = Object.entries(TONE_VAR)
+                .map(([tone, colour]) => ({ tone, ratio: +contrast(resolve(t, TONE_INK[tone]), fill(t, colour)).toFixed(2) }))
+                .filter((r) => r.ratio < 4.5);
+            expect(failures).toEqual([]);
+        });
+
+        // Outline and toned ghost buttons put the tone on the page or a card
+        // as their label. The raw accent read 4.07:1 there.
+        it(`${name}: every button tone's label reads on the page and cards`, () => {
+            const failures = Object.entries(TONE_TEXT).flatMap(([tone, colour]) => ['--bg-primary', '--bg-surface']
+                .map((bg) => ({ tone, bg, ratio: +contrast(resolve(t, colour), resolve(t, t[bg])).toFixed(2) })))
+                .filter((r) => r.ratio < 4.5);
+            expect(failures).toEqual([]);
+        });
+
+        // The same fills outside Button, which take the accent from --accent
+        // rather than --accent-velocity: the current exam-navigator cell and
+        // the planner's selected day.
+        it(`${name}: the accent ink reads on a raw --accent fill`, () => {
+            expect(+contrast(resolve(t, t['--on-accent']), fill(t, 'var(--accent)')).toFixed(2)).toBeGreaterThanOrEqual(4.5);
+        });
+
+        // The study calendar: each level is the success fill mixed into the
+        // card, with the day number and count in that level's ink.
+        it(`${name}: the study calendar's day numbers read on every level`, () => {
+            const card = resolve(t, t['--bg-surface']);
+            const failures = CALENDAR_LEVELS
+                .map(({ share, ink }) => ({ share, ratio: +contrast(resolve(t, ink), mix(fill(t, 'var(--accent-success)'), card, share / 100)).toFixed(2) }))
+                .filter((r) => r.ratio < 4.5);
+            expect(failures).toEqual([]);
+        });
     }
+
+    it('measures every Button tone, each with an ink and a label colour', () => {
+        expect(Object.keys(TONE_VAR).sort()).toEqual(['accent', 'amber', 'danger', 'signal', 'success']);
+        expect(Object.keys(TONE_INK).sort()).toEqual(Object.keys(TONE_VAR).sort());
+        expect(Object.keys(TONE_TEXT).sort()).toEqual(Object.keys(TONE_VAR).sort());
+    });
 
     // The brand hues are used as text in ~80 places (text-reeCyan, text-signal,
     // text-reeAmber…). The stock values read at 1.5–3.8:1 on the near-white

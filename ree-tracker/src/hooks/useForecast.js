@@ -63,9 +63,17 @@ export function useForecast({ autoload = true } = {}) {
     }
   }, []);
 
+  // The first load sets state only in the request's callbacks (`loading`
+  // already starts true), never synchronously in the effect.
   useEffect(() => {
-    if (autoload) refresh();
-  }, [autoload, refresh]);
+    if (!autoload) return undefined;
+    let live = true;
+    loadForecastOnce().then(
+      (data) => { if (live) { setSnapshot(data?.snapshot ?? null); setLoading(false); } },
+      (err) => { if (live) { setError(err?.message || String(err)); setLoading(false); } },
+    );
+    return () => { live = false; };
+  }, [autoload]);
 
   return { snapshot, loading, error, refresh, recompute };
 }

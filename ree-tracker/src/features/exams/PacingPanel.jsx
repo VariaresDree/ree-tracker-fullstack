@@ -17,6 +17,7 @@ import { formatClock as formatSecs } from '../../utils/time';
  */
 export default function PacingPanel({ items, onJump, headingLevel = 2 }) {
   const Heading = `h${headingLevel}`;
+  const Subheading = `h${headingLevel + 1}`;
   const { bySubject, slowest, timedCount } = pacingSummary(items);
 
   return (
@@ -61,7 +62,7 @@ export default function PacingPanel({ items, onJump, headingLevel = 2 }) {
 
           {slowest.length > 0 && (
             <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <h3 className="text-eyebrow">Slowest items</h3>
+              <Subheading className="text-eyebrow">Slowest items</Subheading>
               <ol className="flex flex-col gap-2">
                 {slowest.map((item) => (
                   <li key={item.order} className="flex items-start justify-between gap-3 text-sm">

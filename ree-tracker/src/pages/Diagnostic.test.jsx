@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
+vi.mock('../components/PomodoroOwner', () => ({ default: () => null }));
 vi.mock('../layouts/MainLayout', () => ({ default: ({ children }) => <div data-testid="main">{children}</div> }));
 vi.mock('../layouts/ExamLayout', () => ({ default: ({ children }) => <div data-testid="exam">{children}</div> }));
 vi.mock('../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
@@ -74,6 +75,14 @@ describe('Diagnostic page', () => {
     expect(screen.getByText('Board-ready')).toBeInTheDocument();
     // The intro promises the answers at the end: the result links to them.
     expect(screen.getByRole('link', { name: 'Review your answers' })).toHaveAttribute('href', '/exams/sittings/s1');
+    // Math is under the 50% floor: the main button starts Practice on it,
+    // whatever the average says, and the guide says why.
+    expect(screen.getByRole('link', { name: /^Practise Math/ })).toHaveAttribute('href', '/practice');
+    expect(screen.getByText(/under the 50% subject floor/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Today' })).toBeInTheDocument();
+    // The exam plan is asked for here, with the study plan on offer.
+    expect(screen.getByRole('heading', { name: 'Your exam plan' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Plan my weeks to the exam/ })).toBeInTheDocument();
   });
 
   it('offers to resume an unfinished sitting', async () => {

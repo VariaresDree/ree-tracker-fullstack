@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const actions = { updatePomodoro: vi.fn(), startPomodoro: vi.fn(), pausePomodoro: vi.fn(), resetPomodoro: vi.fn() };
-vi.mock('../store/slices', () => ({ useSessionSlice: () => actions }));
+vi.mock('../store/useStore', () => ({ useStore: (sel) => sel(actions) }));
 vi.mock('../hooks/usePomodoroClock', () => ({
   usePomodoroClock: () => ({ pomodoro: { workDuration: 25, breakDuration: 5, isWork: true, isRunning: true }, remaining: 600 }),
   formatClock: () => '10:00',
@@ -33,6 +33,11 @@ describe('Pomodoro settings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Timer settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(actions.resetPomodoro).not.toHaveBeenCalled();
+  });
+
+  it('the Focus on picker is touch-sized (it measured 26px)', () => {
+    render(<Pomodoro />);
+    expect(screen.getByLabelText('Focus on').className).toMatch(/pointer-coarse:min-h-11/);
   });
 
   it('Save applies new minutes, clamped, and restarts', () => {

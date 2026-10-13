@@ -7,13 +7,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchReadinessHistory } from '../../services/dbQueries';
-import { Card, Button, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
+import { Badge, Card, Button, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useCardReviewSummary } from '../../hooks/useCardReviewSummary';
 import { useTodayLoop } from '../../hooks/useTodayLoop';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
+import { usePlacement } from '../diagnostic/usePlacement';
+import FirstRunCard from '../onboarding/FirstRunCard';
+import { isEarlyEstimate } from '../analytics/earlyEstimate';
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
 import { usePlanToday } from './usePlanToday';
 import { launchPractice } from '../active-recall/presets';
@@ -29,10 +32,16 @@ const BREAKDOWN = [
   ['consistency', 'Consistency'],
 ];
 
-function ReadinessBlock({ readiness, trend, settled, isOnline }) {
+// Beside a number that is still mostly the starting guess (earlyEstimate.js).
+const EarlyBadge = () => <Badge tone="signal">Early estimate</Badge>;
+
+function ReadinessBlock({ readiness, trend, settled, isOnline, early }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-eyebrow">Board readiness index</span>
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="text-eyebrow">Board readiness index</span>
+        {readiness && early && <EarlyBadge />}
+      </span>
       {readiness ? (
         <>
           <span className="text-display text-4xl text-textMain tabular-nums">
@@ -69,11 +78,14 @@ function ReadinessBlock({ readiness, trend, settled, isOnline }) {
   );
 }
 
-function PassBlock({ snapshot, loading, isOnline }) {
+function PassBlock({ snapshot, loading, isOnline, early }) {
   const projection = snapshot?.subjectForecasts;
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-eyebrow">Pass probability</span>
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="text-eyebrow">Pass probability</span>
+        {snapshot && early && <EarlyBadge />}
+      </span>
       {snapshot ? (
         <>
           <span className="text-display text-4xl text-textMain tabular-nums">
@@ -161,6 +173,11 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     return () => { live = false; };
   }, [isOnline]);
   const trend = readinessTrend(history);
+  const placement = usePlacement({ uid, answered });
+  const early = isEarlyEstimate({ snapshot, answered });
+  // One onboarding card at a time: the placement prompt, then the exam plan.
+  const placementCard = !!placement.status && placement.status.status !== 'completed' && !placement.dismissed
+    && (placement.status.status === 'in_progress' || placement.isNew);
 
   const actions = buildTodayActions({
     loop,
@@ -170,18 +187,21 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     forecast: snapshot,
     daily,
     examInDays: daysToExam(stats?.examDate),
+    start: placement.plan,
+    answered,
   });
 
   return (
     <section aria-labelledby="today-heading" className="flex flex-col gap-4">
-      <PlacementPrompt uid={uid} answered={answered} />
+      <PlacementPrompt status={placement.status} answered={answered} dismissed={placement.dismissed} onDismiss={placement.dismiss} />
+      <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
 
       <Card elevated glow grain className="p-5 sm:p-6 flex flex-col gap-6">
         <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain">Where you stand, and what to do next</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} />
-          <PassBlock snapshot={snapshot} loading={loading} isOnline={isOnline} />
+          <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />
+          <PassBlock snapshot={snapshot} loading={loading} isOnline={isOnline} early={early} />
           <TargetBlock daily={daily} />
         </div>
 
@@ -211,7 +231,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
           </ol>
         </div>
 
-        <Link to="/progress" className="self-start inline-flex items-center gap-1.5 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
+        <Link to="/progress" className="self-start inline-flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
           Charts, topics and your study plan are in Progress <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
         </Link>
       </Card>

@@ -25,6 +25,7 @@ import ExamLayout from '../layouts/ExamLayout';
 import MainLayout from '../layouts/MainLayout';
 import ExamNavigator from '../components/exam/ExamNavigator';
 import ExamClock from '../components/exam/ExamClock';
+import PomodoroOwner from '../components/PomodoroOwner';
 import PaceIndicator from '../components/exam/PaceIndicator';
 import { getGauntletTier } from '../config/examStandards';
 import { Button, Modal, EmptyState, Badge, StatusPill } from '../components/ui';
@@ -199,6 +200,7 @@ export default function Gauntlet() {
       message="Gauntlet run — the clock is running, and not passing locks the Gauntlet for 12 hours"
     >
       <h1 className="sr-only">Gauntlet level {level}</h1>
+      <PomodoroOwner />
 
       <SubmitDialog
         open={showSubmit}

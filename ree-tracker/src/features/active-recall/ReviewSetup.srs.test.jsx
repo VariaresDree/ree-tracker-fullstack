@@ -60,18 +60,25 @@ describe('ReviewSetup — presets and the custom form', () => {
     fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 0, bySubject: {}, nextDueAt: null });
   });
 
-  it('four presets: Quick 20, Weak spots (the adaptive drill), Flashcards, Bookmarks', () => {
+  it('five presets: Quick 20, Adaptive set, Weak spots (the drill), Flashcards, Bookmarks', () => {
     const props = baseProps();
     render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1, name: 'Practice' })).toBeInTheDocument();
-    const names = ['Quick 20', 'Weak spots', 'Flashcards', 'Bookmarks'];
+    const names = ['Quick 20', 'Adaptive set', 'Weak spots', 'Flashcards', 'Bookmarks'];
     names.forEach((n) => expect(screen.getByText(n)).toBeInTheDocument());
 
     const starts = screen.getAllByRole('button', { name: 'Start' });
     fireEvent.click(starts[1]);
+    expect(props.startSession).toHaveBeenLastCalledWith(expect.objectContaining({ source: 'adaptive', subject: 'All', count: 20 }));
+    fireEvent.click(starts[2]);
     expect(props.startSession).toHaveBeenLastCalledWith(expect.objectContaining({ source: 'smart-drill', drillTopic: null, count: 20 }));
-    fireEvent.click(starts[3]);
+    fireEvent.click(starts[4]);
     expect(props.startSession).toHaveBeenLastCalledWith(expect.objectContaining({ source: 'bookmarks', count: 20 }));
+  });
+
+  it('points a learner who is unsure where to start at the placement test', () => {
+    render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Take the placement test' })).toHaveAttribute('href', '/diagnostic');
   });
 
   it('offline, the drill and bookmarks presets say they need a connection', () => {

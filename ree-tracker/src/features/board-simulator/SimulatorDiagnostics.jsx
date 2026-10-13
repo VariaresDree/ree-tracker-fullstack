@@ -43,9 +43,12 @@ function useIsPast(at) {
   return !!at && passed === at;
 }
 
-// `headingLevel`: 1 on its own; 2 under the full-board result, which has the h1.
+// `headingLevel`: 1 on its own; 2 under the full-board result, which has the
+// h1. The sections (By subject, Pacing, Weak topics, Blind spots) sit one
+// level below the title: they were fixed h2s, level with "Last section".
 export default function SimulatorDiagnostics({ session, engine, isBattle = false, onExit, headingLevel = 1, submitPending = false, onCheckResults }) {
   const Heading = `h${headingLevel}`;
+  const Section = `h${headingLevel + 1}`;
   const navigate = useNavigate();
   const { diagnostics } = session;
   const resultsBy = diagnostics?.pending ? diagnostics.resultsBy : null;
@@ -132,7 +135,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
       {!pending && (
         <>
           <Card className="p-5 sm:p-6">
-            <h2 className="text-base font-semibold text-textMain mb-4">By subject</h2>
+            <Section className="text-base font-semibold text-textMain mb-4">By subject</Section>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {SUBJECTS.map(({ key, label }) => {
                 const pct = diagnostics.subjectScores?.[key];
@@ -151,13 +154,13 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
             </div>
           </Card>
 
-          {diagnostics.pacingItems?.length > 0 && <PacingPanel items={diagnostics.pacingItems} />}
+          {diagnostics.pacingItems?.length > 0 && <PacingPanel items={diagnostics.pacingItems} headingLevel={headingLevel + 1} />}
 
           <Card className="p-5 sm:p-6 flex flex-col gap-4">
             <div className="flex items-start gap-3">
               <TriangleAlert size={18} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent-danger)' }} />
               <div>
-                <h2 className="text-base font-semibold text-textMain">Weak topics</h2>
+                <Section className="text-base font-semibold text-textMain">Weak topics</Section>
                 <p className="text-sm text-muted2">Topics under 60% in this sitting. Drill one to work on it.</p>
               </div>
             </div>
@@ -179,9 +182,9 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
 
           <Card className="p-5 sm:p-6 flex flex-col gap-4" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 35%, transparent)' }}>
             <div>
-              <h2 className="text-base font-semibold text-textMain flex items-center gap-2">
+              <Section className="text-base font-semibold text-textMain flex items-center gap-2">
                 Blind spots <Badge tone="danger">{diagnostics.blindSpots?.length || 0}</Badge>
-              </h2>
+              </Section>
               <p className="text-sm text-muted2">Answers you were sure of that were wrong. Review these first.</p>
             </div>
             {diagnostics.blindSpots?.length > 0 ? (

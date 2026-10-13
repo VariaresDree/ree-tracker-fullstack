@@ -37,8 +37,9 @@ vi.mock('../../services/dbQueries', () => ({
   commitMaterialLink: (...args) => commitMaterialLinkMock(...args),
 }));
 
-vi.mock('../../config/firebaseDb', () => ({ storage: {} }));
+vi.mock('../../config/firebaseDb', () => ({ app: {} }));
 vi.mock('firebase/storage', () => ({
+  getStorage: vi.fn(() => ({})),
   ref: vi.fn(),
   uploadBytesResumable: vi.fn(),
   getDownloadURL: vi.fn(),

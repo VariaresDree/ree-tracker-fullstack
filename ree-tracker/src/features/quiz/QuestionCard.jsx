@@ -13,7 +13,7 @@
 //   - One place to enforce the confidence + correctness color semantics
 //   - Removes ~300 lines of duplicated JSX from MCQMode/SimulatorActive/Gauntlet
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
 import { answerAnnouncement } from './answerAnnouncement';
@@ -97,23 +97,27 @@ export default function QuestionCard({
   // Hotkeys — opt-in so parents that manage their own keyboard (Simulator's
   // arrow-key navigation) don't double-bind. Q/W/E pick confidence, 1-4 / A-D
   // pick options. Skips modifier chords, form fields and open dialogs.
+  // An effect event: it reads the latest options and handlers, so the
+  // listener is bound once per question state instead of re-bound on every
+  // render (parents pass a new onSelect each time).
+  const onHotkey = useEffectEvent((e) => {
+    // Ctrl/Cmd+C used to pick option C; a key pressed behind a confirm
+    // dialog changed the answer underneath it.
+    if (shouldIgnoreHotkey(e)) return;
+    const key = e.key.toLowerCase();
+    if (HOTKEY_TO_CONFIDENCE[key] && onConfidenceChange) {
+      onConfidenceChange(HOTKEY_TO_CONFIDENCE[key]);
+      return;
+    }
+    const idx = HOTKEY_TO_OPTION_INDEX[key];
+    if (idx != null && options[idx] != null) handleSelect(options[idx]);
+  });
   useEffect(() => {
     if (!hotkeys || isReviewing) return undefined;
-    const onKey = (e) => {
-      // Ctrl/Cmd+C used to pick option C; a key pressed behind a confirm
-      // dialog changed the answer underneath it.
-      if (shouldIgnoreHotkey(e)) return;
-      const key = e.key.toLowerCase();
-      if (HOTKEY_TO_CONFIDENCE[key] && onConfidenceChange) {
-        onConfidenceChange(HOTKEY_TO_CONFIDENCE[key]);
-        return;
-      }
-      const idx = HOTKEY_TO_OPTION_INDEX[key];
-      if (idx != null && options[idx] != null) handleSelect(options[idx]);
-    };
+    const onKey = (e) => onHotkey(e);
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [hotkeys, isReviewing, options, onConfidenceChange, handleSelect]);
+  }, [hotkeys, isReviewing]);
 
   const announcement = answerAnnouncement({ isReviewing, selectedOption, correctAnswer, options });
 
@@ -129,8 +133,11 @@ export default function QuestionCard({
   // option COMMITS the answer, so auto-selecting on navigation would lock it in
   // by accident.
   const optionRefs = useRef([]);
-  const [activeOption, setActiveOption] = useState(0);
-  useEffect(() => { setActiveOption(0); }, [prompt]);
+  // Held with its question: a new prompt starts on the first option without
+  // a reset effect.
+  const [roving, setRoving] = useState({ prompt, index: 0 });
+  const activeOption = roving.prompt === prompt ? roving.index : 0;
+  const setActiveOption = (index) => setRoving({ prompt, index });
 
   const onOptionsKeyDown = (e) => {
     // Arrow-key roving stays live in review mode — it only MOVES FOCUS, never
@@ -198,7 +205,8 @@ export default function QuestionCard({
           <legend className="text-eyebrow mb-3 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-reeAmber)' }}></span>
             Confidence
-            {requireConfidence && <span className="normal-case font-bold ml-1" style={{ color: 'color-mix(in srgb, var(--color-reeAmber) 70%, transparent)' }}>(required)</span>}
+            {/* The amber text form, opaque: a 70%-alpha amber read under 4.5:1. */}
+            {requireConfidence && <span className="normal-case font-bold ml-1" style={{ color: 'var(--color-reeAmber-text)' }}>(required)</span>}
           </legend>
           <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Confidence level">
             {CONFIDENCE_LEVELS.map((level, i) => {
@@ -210,14 +218,15 @@ export default function QuestionCard({
                   role="radio"
                   aria-checked={isSelected}
                   onClick={() => onConfidenceChange?.(level)}
-                  className={`py-3.5 rounded-[var(--radius-default)] border-2 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
+                  className={`py-3.5 rounded-[var(--radius-default)] border-2 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-all duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
                     isSelected
                       ? 'bg-surface3 border-textMain text-textMain shadow-md'
                       : 'bg-surface2/30 border-border2/50 text-muted hover:border-textMain/40 hover:text-textMain hover:bg-surface2'
                   } ${!reduceMotion && isSelected ? 'scale-[1.02]' : ''} ${!reduceMotion && !isSelected ? 'hover:-translate-y-0.5' : ''}`}
                 >
                   {level}
-                  <span className="opacity-30 text-[11px] font-mono hidden sm:inline">
+                  {/* The button's own colour, not 30% of it (1.3:1). */}
+                  <span className="text-[11px] font-mono font-normal hidden sm:inline">
                     [{['Q', 'W', 'E'][i]}]
                   </span>
                 </button>
@@ -258,7 +267,10 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
   //   reviewing + neither       → dimmed
   let stateClass =
     'bg-surface2/40 border-border2/50 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] hover:bg-surface3/50 text-textMain cursor-pointer';
-  let letterColor = 'text-muted/60 group-hover:text-[var(--accent-text)]';
+  // The letter is part of the option's name: full --text-muted, not the
+  // 60% tint it was (2:1 on the option row), and the body text on hover
+  // (the accent text read 4.4:1 on sakura's hover tint).
+  let letterColor = 'text-muted group-hover:text-textMain';
   let innerClass = '';
   let icon = null;
   // Colour + icon convey this visually, but aria-checked only reports what the
@@ -308,7 +320,7 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       onClick={onClick}
       ref={innerRef}
       tabIndex={tabIndex}
-      className={`group p-5 sm:p-6 rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
+      className={`group p-5 sm:p-6 rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-all duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
     >
       <span className={`w-8 shrink-0 font-black font-mono text-base sm:text-lg tracking-wider transition-colors duration-200 ${letterColor}`}>
         {letter}.

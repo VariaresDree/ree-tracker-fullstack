@@ -22,11 +22,10 @@ const relTime = (ts) => {
 export default function OfflineStatusBadge({ collapsed = false }) {
     const isOnline = useNetworkStatus();
     const { meta, isRefreshing, refresh } = useOfflinePack();
-    const syncQueue = useStore((s) => s.syncQueue);
-    const pendingWrites = useStore((s) => s.pendingWrites);
+    // Counts, not the queues: a queue whose contents change at the same
+    // length (a write replaced by a newer one) no longer re-renders the badge.
+    const pending = useStore((s) => (s.syncQueue?.length || 0) + (s.pendingWrites?.length || 0));
     const issues = useStore((s) => s.deadLetters?.length || 0);
-
-    const pending = (syncQueue?.length || 0) + (pendingWrites?.length || 0);
     const total = meta?.total || 0;
     const ready = total > 0;
 
@@ -87,7 +86,9 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                     className={`shrink-0 px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:min-h-11 rounded-lg border text-xs font-semibold transition-all ${
                         !isOnline || isRefreshing
                             ? 'opacity-40 cursor-not-allowed border-border2 text-muted'
-                            : 'cursor-pointer border-reeBlue/40 text-reeBlue-text hover:bg-reeBlue/10'
+                            // On the card colour, where blue text is held to 4.5:1: on
+                            // this tinted strip it read 4.2-4.3:1 (organs, math).
+                            : 'cursor-pointer bg-surface border-reeBlue/40 text-reeBlue-text hover:border-reeBlue'
                     }`}
                 >
                     {isRefreshing ? 'Syncing…' : ready ? 'Refresh' : 'Download'}

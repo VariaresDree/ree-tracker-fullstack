@@ -56,11 +56,13 @@ export default function Today() {
     );
   }
 
+  // "Welcome back" on someone's very first visit read oddly.
+  const greeting = kpi.answered > 0 ? 'Welcome back' : 'Welcome';
   return (
     <Page>
       <PageHeader
         title="Today"
-        subtitle={`Welcome back, ${currentUser?.displayName || 'Reviewer'}.`}
+        subtitle={`${greeting}, ${currentUser?.displayName || 'Reviewer'}.`}
         meta={
           <>
             <ExamCountdown examDate={activeStats.examDate} />

@@ -3,6 +3,7 @@
 // study a topic or the lot, and the position survives leaving the tab.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
+import { expectNoSkippedLevels } from '../../test/headings';
 
 const CARDS = [
   { id: 'a', name: 'Ohm’s law', kind: 'formula', subject: 'EE', topic: { name: 'DC Circuits' }, subtopicTag: 'Resistance' },
@@ -57,6 +58,20 @@ describe('ReferenceBrowser — all cards in a subject', () => {
     // A topic folds away.
     fireEvent.click(screen.getByRole('button', { name: 'DC Circuits', expanded: true }));
     expect(screen.queryByText(/card Kirchhoff/)).not.toBeInTheDocument();
+  });
+
+  it('its headings step down from the Library tab’s h2 without skipping a level', async () => {
+    // As Library › Formula cards renders it: the section h2, then the browser.
+    const { container } = render(<><h2>Formula cards</h2><ReferenceBrowser /></>);
+    expectNoSkippedLevels(container);
+    fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
+    fireEvent.click(screen.getByRole('radio', { name: 'All cards' }));
+    await screen.findByRole('heading', { name: 'AC Circuits' });
+    expectNoSkippedLevels(container);
+    // The location trail's links back up are touch-sized too.
+    const trail = within(screen.getByRole('navigation', { name: 'Formula cards location' })).getAllByRole('button');
+    expect(trail.length).toBeGreaterThan(0);
+    trail.forEach((b) => expect(b.className).toMatch(/pointer-coarse:min-h-11/));
   });
 
   it('studies one topic from the sheet', async () => {

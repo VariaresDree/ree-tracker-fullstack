@@ -9,15 +9,17 @@
 // placement test) render it themselves; the rest get it from App's AppShell.
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useStore } from '../store/useStore';
 import FloatingPomodoro from '../components/FloatingPomodoro';
-import { useUISlice } from '../store/slices';
 import useMediaQuery from '../hooks/useMediaQuery';
 import Sidebar from './Sidebar';
 import PhoneHeader from './PhoneHeader';
 import BottomBar from './BottomBar';
 
 export default function MainLayout({ children }) {
-  const { theme } = useUISlice();
+  // The theme alone: the UI slice also holds the sidebar's collapse, and the
+  // whole shell re-rendered when it toggled.
+  const theme = useStore((s) => s.theme);
   const location = useLocation();
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
@@ -99,14 +101,15 @@ export default function MainLayout({ children }) {
         key={location.pathname}
         id="main-content"
         tabIndex={-1}
-        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem)] md:pb-8 overflow-x-clip relative page-fade-in outline-none"
+        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem)] md:pb-8 overflow-x-clip relative page-fade-in outline-hidden"
       >
         {children}
       </main>
 
       {/* Floating Pomodoro pill — always mounted (owns the completion tick),
           renders only while running or pinned. Absent from ExamLayout routes
-          by construction, keeping the exam screens distraction-free. */}
+          by construction, keeping the exam screens distraction-free; there
+          PomodoroOwner keeps the block ending on time. */}
       <FloatingPomodoro />
 
       {!isDesktop && <BottomBar />}

@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
+vi.mock('../components/PomodoroOwner', () => ({ default: () => null }));
 vi.mock('../layouts/MainLayout', () => ({ default: ({ children }) => <div data-testid="main">{children}</div> }));
 vi.mock('../layouts/ExamLayout', () => ({ default: ({ children }) => <div data-testid="exam">{children}</div> }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1' } }) }));
@@ -149,7 +150,7 @@ describe('Board Simulator — retake of a past sitting', () => {
     engine = baseEngine();
     renderPage([{ pathname: '/simulator', state: { retake: { ownerUid: 'u1', sourceSessionId: 's1', questions } } }]);
     expect(engine.startSimulation).toHaveBeenCalledWith(expect.objectContaining({
-      source: 'retake', subject: 'EE', count: 2, retakeQuestions: questions, retake: { sourceSessionId: 's1' },
+      source: 'retake', subject: 'EE', count: 2, retakeQuestions: questions, retake: { sourceSessionId: 's1', kind: 'retake' },
     }));
   });
 

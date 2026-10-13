@@ -18,7 +18,7 @@ router.post('/generate', authMiddleware, validate(aiGenerateSchema), async (req,
 
     // Admin tasks spend the strongest models; only the Admin area sends them.
     if (TASKS[task]?.audience === 'admin' && !(await isAdminUser(req.user?.id).catch(() => false))) {
-        return res.status(403).json({ error: 'Admin clearance required for this AI feature.' });
+        return res.status(403).json({ error: 'Only admins can use this AI feature.' });
     }
 
     try {

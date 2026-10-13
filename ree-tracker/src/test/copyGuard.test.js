@@ -40,6 +40,14 @@ const BANNED = [
   /Simulation Failed/i,
   /real-time penalties/i,
   /(^|[\s'"`>])[Vv]ault\b(?!\/)/, // a word in text; paths (features/vault/) and identifiers (CloudVaultTab) are fine
+  // The 2026-10 jargon sweep. Case-sensitive words, so identifiers
+  // (ConfidenceMatrix, syncTelemetryBatch) and the /telemetry-bulk path pass.
+  // The backend's error strings have their own guard
+  // (ree-tracker-backend/tests/copyGuard.test.js).
+  /\bMatrix\b/,
+  /\bTelemetry\b/,
+  /clearance/i,
+  /\bUplink/i,
 ];
 
 function sourceFiles(dir) {

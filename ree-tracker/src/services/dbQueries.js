@@ -50,7 +50,7 @@ export const getAuthToken = async (user) => {
     try {
         return await user.getIdToken();
     } catch (err) {
-        if (isNetworkAuthError(err)) throw new Error('[OFFLINE]');
+        if (isNetworkAuthError(err)) throw new Error('[OFFLINE]', { cause: err });
         throw err;
     }
 };
@@ -214,9 +214,13 @@ export const fetchSrsSummary = async () => apiRequest('/api/srs/summary');
 export const fetchCardReviewSummary = async () => apiRequest('/api/user/card-reviews/summary');
 // Today's loop: due reviews and open mistakes as one session, ordered by board
 // weight, with the formula cards due: { items, counts, more, cardsDue }.
+// `cards=1`: the due formula cards come in the loop too, as `kind: 'card'`
+// items (rated in Practice, never graded), so they skip the question shaping.
 export const fetchTodayLoop = async () => {
-    const data = await apiRequest('/api/user/today-loop');
-    return data ? { ...data, items: normalizeQuestions(data.items) } : null;
+    const data = await apiRequest('/api/user/today-loop?cards=1');
+    if (!data) return null;
+    const items = (data.items || []).map((i) => (i?.kind === 'card' ? i : normalizeQuestions([i])[0]));
+    return { ...data, items };
 };
 // mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
 // — server uses it to break down dashboard analytics per surface.
@@ -396,10 +400,6 @@ export const updateQuestionInBank = async (id, questionObject) => {
     return await apiRequest(`/api/questions/${id}`, 'PUT', questionObject);
 };
 
-export const updateQuestionCache = async (id, explanation) => {
-    return await apiRequest(`/api/questions/${id}/cache`, 'PUT', { cachedExplanation: explanation });
-};
-
 // ----------------------------------------------------------------------
 // 3. Metadata Handlers
 // ----------------------------------------------------------------------
@@ -460,6 +460,21 @@ export const createMultiplayerBattle = async (config, timeLimitSecs) => {
 export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battles/${battleId}`);
 // The running battles you're in, for "Return to battle": { items, serverNow }.
 export const fetchActiveBattles = async () => apiRequest('/api/battles/me/active');
+// Your finished battles, newest first: { items, nextBefore }. Pass the last
+// page's `nextBefore` as `before` for the next one (null: nothing older).
+export const fetchBattleHistory = async ({ before = null, limit = 20 } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before) params.set('before', before);
+    return apiRequest(`/api/battles/me/history?${params}`);
+};
+// A finished battle as its players saw it: { battle (with its rematch, if
+// any), players, picks }, where picks[questionId] is each player's
+// { userId, answer, isCorrect, timeMs }.
+// For the battle's own players only (404 otherwise).
+export const fetchBattleReplay = async (battleId) => apiRequest(`/api/battles/${encodeURIComponent(battleId)}/replay`);
+// The same settings again, hosted by you: { battleId, created }. A battle has
+// one rematch, so asking again (or after someone else) gives the same lobby.
+export const requestRematch = async (battleId) => apiRequest(`/api/battles/${encodeURIComponent(battleId)}/rematch`, 'POST');
 
 // ----------------------------------------------------------------------
 // 6. System Configuration & Bookmarks
@@ -488,7 +503,8 @@ export const fetchBookmarks = async ({ limit = 100 } = {}) => {
     return normalizeQuestions(data);
 };
 // (updateBookmarkCache removed — it targeted a /api/bookmarks/:id/cache route
-// that never existed; vault explanations persist via updateQuestionCache.)
+// that never existed. AI explanations stay on the device, keyed by question,
+// and never overwrite the shared solution; updateQuestionCache is gone too.)
 
 // ----------------------------------------------------------------------
 // 7. Study Materials & Files
@@ -552,8 +568,22 @@ export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/
 export const fetchForecast = async () => safeApiRequest('/api/forecast', 'GET', null, null);
 export const recomputeForecast = async () => apiRequest('/api/forecast/recompute', 'POST', {});
 
-// CAT — server-side next-item selection. `body` lets the caller include the
-// in-session attempts so the picker can refine theta before choosing.
+// CAT — server-side next-item selection (Practice's adaptive set). `body`
+// carries the in-session attempts so the picker refines the ability estimate
+// before choosing. It asks for the key (`withKey`): Practice grades on the
+// device. The session fetches the next one while the learner reads the
+// solution, and falls back to the on-device picker on any failure. Returns
+// { item|null, ability }.
+export const fetchNextItem = async ({ subject, sessionAttempts = [], recentIds = [] } = {}) => {
+    const data = await apiRequest('/api/exams/next-item', 'POST', {
+        subject: subject && subject !== 'All' ? subject : undefined,
+        sessionAttempts,
+        recentIds,
+        withKey: true,
+    });
+    const [item] = data?.item ? normalizeQuestions([data.item]) : [];
+    return { item: item || null, ability: data?.ability || null };
+};
 
 export const fetchAnalyticsDeep = async (type) => safeApiRequest(`/api/analytics/deep/${type}`, 'GET', null, null);
 

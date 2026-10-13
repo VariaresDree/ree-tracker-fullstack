@@ -27,10 +27,8 @@ export default function ExplanationReview() {
     const [showBulkConfirm, setShowBulkConfirm] = useState(false);
     const [isBulkApproving, setIsBulkApproving] = useState(false);
 
-    useEffect(() => {
-        loadPending();
-    }, []);
-
+    // Reload (after a batch approve). The first load is the effect below,
+    // which sets state only in the request's callbacks.
     const loadPending = async () => {
         setLoading(true);
         try {
@@ -41,6 +39,15 @@ export default function ExplanationReview() {
         }
         setLoading(false);
     };
+
+    useEffect(() => {
+        let live = true;
+        fetchPendingExplanations().then(
+            (data) => { if (live) { setQuestions(data.items || []); setLoading(false); } },
+            () => { if (live) { toast.error('Failed to load pending explanations'); setLoading(false); } },
+        );
+        return () => { live = false; };
+    }, []);
 
     // ONE batched request; the SERVER response is the source of truth — only
     // ids it actually approved leave the list, failures stay visible + toast.
@@ -145,9 +152,20 @@ export default function ExplanationReview() {
 
             {questions.map(q => (
                 <div key={q.id} className="bg-surface border border-border2 rounded-xl overflow-hidden">
+                    {/* A button-role row, not a <button>: it holds the question's
+                        rendered LaTeX, block content a <button> can't contain.
+                        It was a bare clickable div, out of reach of the keyboard. */}
                     <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expandedId === q.id}
                         className="p-4 cursor-pointer hover:bg-surface2 transition-colors"
                         onClick={() => setExpandedId(expandedId === q.id ? null : q.id)}
+                        onKeyDown={(e) => {
+                            if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                            e.preventDefault();
+                            setExpandedId(expandedId === q.id ? null : q.id);
+                        }}
                     >
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">

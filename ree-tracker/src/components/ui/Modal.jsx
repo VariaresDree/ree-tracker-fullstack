@@ -30,6 +30,13 @@ import { cn } from './cn';
 // ORIGINAL pre-lock value (captured once, at that transition) is restored on
 // the 1->0 transition, regardless of how many modals stack or in what order
 // they close.
+//
+// `keyboardSafe`, for a dialog you type into on a phone (the note editor):
+// the on-screen keyboard covers the lower part of the screen without
+// shrinking the page, so a dialog centred in it had its footer, Save
+// included, under the keyboard. This one sits at the top of the screen below
+// `sm`, is at most 85dvh tall, and scrolls its body with the footer stuck to
+// the bottom of what's visible.
 let openModalCount = 0;
 let preLockOverflow = '';
 
@@ -56,6 +63,7 @@ export function Modal({
   tone = 'default',
   size = 'md',
   closeOnBackdrop = true,
+  keyboardSafe = false,
   footer,
   children,
   className,
@@ -96,7 +104,10 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg/80 backdrop-blur-sm animate-in fade-in"
+      className={cn(
+        'fixed inset-0 z-[100] flex justify-center p-4 bg-bg/80 backdrop-blur-sm animate-in fade-in',
+        keyboardSafe ? 'items-start pt-[max(1rem,env(safe-area-inset-top))] sm:items-center' : 'items-center'
+      )}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div className={cn('w-full', SIZES[size])} onClick={(e) => e.stopPropagation()}>
@@ -106,7 +117,7 @@ export function Modal({
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? titleId : undefined}
-            className={cn('modal-entrance w-full max-h-[90dvh] flex flex-col', className)}
+            className={cn('modal-entrance w-full flex flex-col', keyboardSafe ? 'max-h-[85dvh]' : 'max-h-[90dvh]', className)}
             style={{ '--modal-accent': accent }}
           >
             <div className="px-5 pt-5 pb-3 flex items-start gap-3 shrink-0">
@@ -136,9 +147,17 @@ export function Modal({
               )}
             </div>
 
-            <div className="px-5 pb-5 overflow-y-auto min-h-0 flex-1">{children}</div>
-
-            {footer && <CardFooter className="shrink-0">{footer}</CardFooter>}
+            {keyboardSafe ? (
+              <div className="overflow-y-auto min-h-0 flex-1 flex flex-col">
+                <div className="px-5 pb-5">{children}</div>
+                {footer && <CardFooter className="sticky bottom-0 mt-auto bg-surface">{footer}</CardFooter>}
+              </div>
+            ) : (
+              <>
+                <div className="px-5 pb-5 overflow-y-auto min-h-0 flex-1">{children}</div>
+                {footer && <CardFooter className="shrink-0">{footer}</CardFooter>}
+              </>
+            )}
           </Card>
         </FocusTrap>
       </div>

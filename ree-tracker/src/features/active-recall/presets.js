@@ -41,6 +41,13 @@ export const drillPreset = ({ topicId, topic, subject, mode, count = 10 } = {}) 
 });
 
 /**
+ * The adaptive set: questions picked one at a time to match the learner's
+ * level (POST /api/exams/next-item), and on the device when offline
+ * (adaptiveFallback.js). `subject` scopes it; 'All' spans the board.
+ */
+export const adaptivePreset = ({ subject = 'All', count = 20 } = {}) => ({ ...BASE, subject, count, source: 'adaptive' });
+
+/**
  * Today's loop (GET /api/user/today-loop): due reviews and open mistakes in
  * the server's order, by board weight. Started from Today with the loop it
  * already loaded; without one it asks for it. The summary then points to the

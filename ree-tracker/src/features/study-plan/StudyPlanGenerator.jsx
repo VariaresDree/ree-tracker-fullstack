@@ -6,6 +6,10 @@
 // "Clear plan" asks first (it deletes every generated task, ticked or not, in
 // one tap), the subject chips say whether they're on, and it is built from the
 // shared primitives (it was hand-rolled, with an emoji on its button).
+//
+// The server also weighs open mistakes and the formula cards due, and says
+// what it used; focus time is shown beside it, never fed in (it's display
+// only by design: self-reported minutes don't steer the engine).
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -13,17 +17,22 @@ import { useShallow } from 'zustand/react/shallow';
 import { normalizeSubject, toDisplaySubject } from '@ree/shared';
 import { useStore } from '../../store/useStore';
 import { generateStudyPlan, clearStudyPlan } from '../../services/dbQueries';
+import { planTopics } from './planTopics';
+import { useDeepAnalytics } from '../analytics/useDeepAnalytics';
+import { focusGapLine } from '../analytics/sections/focusGap';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
 import { Badge, Button, Card, Modal } from '../../components/ui';
 import { CalendarDays, Check, TriangleAlert } from '../../components/ui/icons';
 
 const PLAN_DAYS = 42;
+// One empty syllabus for every render (a fresh `{}` re-ran the topic memo).
+const NO_TOS = {};
 
 export default function StudyPlanGenerator({ onPlanGenerated }) {
   const { dynamicTOS, stats } = useStore(
     useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats })),
   );
-  const safeTOS = dynamicTOS || {};
+  const safeTOS = dynamicTOS || NO_TOS;
 
   // The exam date is set in one place, Account → Exam plan; the planner reads
   // it (it used to keep its own editable copy, a third editor for one field).
@@ -32,6 +41,10 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  // What the last plan was built from (the generate response).
+  const [builtFrom, setBuiltFrom] = useState(null);
+  const { data: focus } = useDeepAnalytics('focus-time');
+  const focusLine = focus?.boardMinutes > 0 ? focusGapLine(focus.shares) : null;
 
   const daysUntilExam = useMemo(() => {
     if (!examDate) return null;
@@ -39,16 +52,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   }, [examDate]);
 
-  const topicsToGenerate = useMemo(() => {
-    const topics = [];
-    selectedSubjects.forEach((subject) => {
-      const subtopics = safeTOS[subject] || [];
-      const weight = TOS_WEIGHTS[normalizeSubject(subject)] || 0.33;
-      subtopics.forEach((subtopic) => topics.push({ subject, subtopic, weight }));
-    });
-    // Heaviest PRC weight first (EE is 45%).
-    return topics.sort((a, b) => b.weight - a.weight);
-  }, [selectedSubjects, safeTOS]);
+  const topicsToGenerate = useMemo(() => planTopics(safeTOS, selectedSubjects), [selectedSubjects, safeTOS]);
 
   const handleGenerate = async () => {
     if (!examDate) return toast.error('Set your exam date in Account first.');
@@ -58,6 +62,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
     setIsGenerating(true);
     try {
       const result = await generateStudyPlan(examDate, topicsToGenerate);
+      setBuiltFrom({ openMistakes: result.openMistakes || 0, cardsDue: result.cardsDue || 0 });
       toast.success(`Added ${result.tasksCreated} study tasks.`);
       onPlanGenerated?.();
     } catch (error) {
@@ -91,8 +96,9 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-textMain">Study plan</h2>
           <p className="text-sm text-muted2 mt-1 max-w-prose">
-            Plans the next six weeks from your mastery and the PRC weights: a targeted drill most days, a timed
-            sitting each week, light review before the exam. Tasks tick themselves off from your answers.
+            Plans the next six weeks from your mastery and the PRC weights: a targeted drill most days (topics with
+            open mistakes come up more), a timed sitting each week, light review before the exam, and a formula-card
+            review on days five or more cards are due. Tasks tick themselves off from your answers.
           </p>
         </div>
         <Button size="sm" variant="ghost" tone="danger" onClick={() => setConfirmClear(true)} loading={isClearing}>
@@ -149,6 +155,17 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
           <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{daysUntilExam ? Math.min(daysUntilExam, PLAN_DAYS) : '—'}</dd>
         </div>
       </dl>
+
+      {(builtFrom || focusLine) && (
+        <div className="flex flex-col gap-1 text-sm">
+          {builtFrom && (
+            <p className="text-textMain">
+              Built from your mastery, {builtFrom.openMistakes} open mistake{builtFrom.openMistakes === 1 ? '' : 's'} and {builtFrom.cardsDue} formula card{builtFrom.cardsDue === 1 ? '' : 's'} due in the next two weeks.
+            </p>
+          )}
+          {focusLine && <p className="text-muted2">From your focus time: {focusLine}</p>}
+        </div>
+      )}
 
       <Button
         fullWidth

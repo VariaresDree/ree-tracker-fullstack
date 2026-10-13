@@ -114,8 +114,6 @@ export function migratePomodoro(raw) {
     return p;
 }
 
-export const _internals = { durationSecs };
-
 // Minutes a focus or break block can be set to (Pomodoro settings).
 export const MIN_MINUTES = 1;
 export const MAX_MINUTES = 120;

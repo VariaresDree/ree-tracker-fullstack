@@ -61,7 +61,7 @@ export default function OverviewTab({ stats, kpi }) {
 
       <Link
         to="/exams?tab=history"
-        className="self-start inline-flex items-center gap-1.5 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2"
+        className="self-start inline-flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2"
       >
         Your past mock sittings are in Exams <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
       </Link>

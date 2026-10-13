@@ -45,6 +45,3 @@ export function useAiStatus() {
   return { status: data, refresh };
 }
 
-export function resetAiStatusCache() {
-  cache = { data: null, at: 0, promise: null };
-}

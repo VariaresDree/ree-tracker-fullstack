@@ -113,7 +113,7 @@ export function mathToText(input) {
 
     // 7. Normalise remaining non-ASCII to WinAnsi-safe text: map known glyphs,
     // keep Latin-1 (<=0xFF) as-is, DROP anything else so nothing renders as tofu.
-    s = s.replace(/[^\x00-\x7F]/g, (ch) => {
+    s = s.replace(/[\u0080-\uFFFF]/g, (ch) => {
         if (UNI[ch] != null) return UNI[ch];
         return ch.charCodeAt(0) <= 0xFF ? ch : '';
     });

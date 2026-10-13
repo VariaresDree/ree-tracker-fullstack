@@ -14,7 +14,7 @@ export default function MediaViewer({ item }) {
   if (!item) return null;
 
   switch (item.type) {
-    case 'video':
+    case 'video': {
       let embedUrl = item.url;
       if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
         const videoId = extractYouTubeId(item.url);
@@ -29,7 +29,8 @@ export default function MediaViewer({ item }) {
           ></iframe>
         </div>
       );
-      
+    }
+
     case 'audio':
       return (
         <div className="w-full p-6 bg-surface border border-border2 rounded-xl shadow-sm flex flex-col items-center gap-4 mt-8">
@@ -51,7 +52,7 @@ export default function MediaViewer({ item }) {
         </div>
       );
       
-    case 'pdf':
+    case 'pdf': {
       const finalPdfUrl = normalizePdfUrl(item.url);
 
       return (
@@ -67,11 +68,12 @@ export default function MediaViewer({ item }) {
           ></iframe>
         </div>
       );
+    }
 
     default:
       return (
         <div className="p-8 text-center border-2 border-dashed border-border2 rounded-xl text-muted2 text-xs uppercase tracking-widest font-mono mt-8">
-          Unsupported media format detected.
+          This file type can't be shown here.
         </div>
       );
   }

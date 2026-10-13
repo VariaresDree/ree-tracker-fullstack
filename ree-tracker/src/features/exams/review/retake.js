@@ -26,7 +26,11 @@ export function reviewItemToQuestion(item) {
   };
 }
 
-/** Router state that starts a timed retake in the simulator. */
-export function retakeState({ ownerUid, sourceSessionId, items }) {
-  return { retake: { ownerUid, sourceSessionId, questions: items.map(reviewItemToQuestion) } };
+/**
+ * Router state that starts a timed retake in the simulator. `kind` names what
+ * it is in the history: 'retake' (a sitting's misses) or 'mistakes' (the
+ * Notebook's Mistakes mock).
+ */
+export function retakeState({ ownerUid, sourceSessionId, items, kind = 'retake' }) {
+  return { retake: { ownerUid, sourceSessionId, kind, questions: items.map(reviewItemToQuestion) } };
 }

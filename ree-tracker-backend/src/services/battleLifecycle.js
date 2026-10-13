@@ -32,6 +32,7 @@ const telemetryService = require('./telemetryService');
 const examHistory = require('./examHistory');
 const { recomputeRatings } = require('../engine/elo');
 const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitizer');
+const { lockedQuestionIds } = require('./answerGate');
 const {
     mergeSubmitAttempts, computeElapsedSecs, rankParticipants, recount,
     battleTiming, answersToJson, answersFromJson, publicAnswers, fillBlanks,
@@ -51,6 +52,14 @@ const NOOP_NS = { to: () => ({ emit() {} }) };
 let battleNamespace = null;
 function setBattleNamespace(ns) { battleNamespace = ns; }
 const emitterFor = (ns) => ns || battleNamespace || NOOP_NS;
+
+/**
+ * Tell everyone in a battle's room (an HTTP handler has no socket of its own:
+ * a rematch is started over REST and announced to the old battle's room).
+ */
+function notifyRoom(battleId, event, payload) {
+    emitterFor(null).to(battleId).emit(event, payload);
+}
 
 const sleep = (ms) => new Promise((resolve) => { const t = setTimeout(resolve, ms); t.unref?.(); });
 const toMs = (t) => (t == null ? null : t instanceof Date ? t.getTime() : Number(t));
@@ -703,10 +712,16 @@ function armDeadline(ns, battleId, lobby, now = Date.now()) {
 /**
  * A completed battle's `battle-complete` payload, rebuilt from its outcomes
  * (for a player who comes back after it ended), and the given player's own
- * `battle-graded` ack. Null when it isn't completed.
+ * `battle-graded` ack. The key holds back what that player may not read yet
+ * (answerGate). Null when it isn't completed. The payload carries the
+ * battle's rematch, if one was started ({ battleId, status, by }), so a
+ * results screen opened later can offer to join it.
  */
 async function completionFor(battleId, userId = null) {
-    const battle = await prisma.battle.findUnique({ where: { id: battleId }, select: { status: true, questions: true } });
+    const battle = await prisma.battle.findUnique({
+        where: { id: battleId },
+        select: { status: true, questions: true, rematch: { select: { id: true, status: true, hostId: true } } },
+    });
     if (!battle || battle.status !== 'COMPLETED') return null;
     const [outcomes, rows] = await Promise.all([
         prisma.battleOutcome.findMany({
@@ -729,11 +744,26 @@ async function completionFor(battleId, userId = null) {
         tier: tierOf(o),
     }));
     const mine = userId ? (outcomes || []).find((o) => o.userId === userId) : null;
+    // Whoever started the rematch hosts it.
+    const rematch = battle.rematch
+        ? {
+            battleId: battle.rematch.id,
+            status: battle.rematch.status,
+            by: { userId: battle.rematch.hostId, displayName: nameOf.get(battle.rematch.hostId) || fallbackDisplayName(battle.rematch.hostId) },
+        }
+        : null;
+    // The key leaves out any question the caller is still answering in
+    // another battle (a rematch that had to repeat some of these, say), as
+    // the sitting review and the replay do.
+    const questions = Array.isArray(battle.questions) ? battle.questions : [];
+    const locked = userId ? await lockedQuestionIds(userId, questions.map((q) => q?.id)) : new Set();
+    const open = locked.size ? questions.filter((q) => !locked.has(q?.id)) : questions;
     return {
         payload: {
             results,
-            answerKey: buildAnswerKey(battle.questions),
-            explanationKey: buildExplanationKey(battle.questions),
+            answerKey: buildAnswerKey(open),
+            explanationKey: buildExplanationKey(open),
+            rematch,
         },
         graded: mine ? {
             score: mine.score,
@@ -824,6 +854,7 @@ function stopBattleSweeper() {
 module.exports = {
     battleLobbies,
     setBattleNamespace,
+    notifyRoom,
     getLobby,
     hydrateLobby,
     hydrateIfParticipant,

@@ -42,6 +42,19 @@ export function DataTable({
     );
 
   const keyOf = (r, i) => (rowKey ? rowKey(r) : r.id ?? i);
+  // A clickable row opens from the keyboard too (Enter or Space on the row
+  // itself, not on a control inside it). It used to be mouse-only.
+  const rowProps = (r) => (onRowClick
+    ? {
+        tabIndex: 0,
+        onClick: () => onRowClick(r),
+        onKeyDown: (e) => {
+          if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+          e.preventDefault();
+          onRowClick(r);
+        },
+      }
+    : {});
   const alignCls = (a) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left');
 
   if (!rows.length) {
@@ -90,7 +103,7 @@ export function DataTable({
           {sorted.map((r, i) => (
             <tr
               key={keyOf(r, i)}
-              onClick={onRowClick ? () => onRowClick(r) : undefined}
+              {...rowProps(r)}
               className={cn(
                 'border-b border-border/60 last:border-0 transition-colors',
                 onRowClick && 'cursor-pointer hover:bg-surface2/40'
@@ -114,7 +127,8 @@ export function DataTable({
         {sorted.map((r, i) => (
           <div
             key={keyOf(r, i)}
-            onClick={onRowClick ? () => onRowClick(r) : undefined}
+            {...rowProps(r)}
+            role={onRowClick ? 'button' : undefined}
             className={cn(
               'rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3 flex flex-col gap-1.5',
               onRowClick && 'cursor-pointer active:bg-surface2/60'

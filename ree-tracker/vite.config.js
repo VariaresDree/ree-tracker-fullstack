@@ -67,7 +67,9 @@ export default defineConfig(async ({ mode, command }) => {
         // Rolldown (Vite 8) requires the function form of manualChunks.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('react-router-dom') || /[\\/]react(-dom)?[\\/]/.test(id)) return 'react';
+          // react-router (v7's core, which react-router-dom re-exports) too:
+          // it used to fall outside the vendor chunk.
+          if (/[\\/]react-router(-dom)?[\\/]/.test(id) || /[\\/]react(-dom)?[\\/]/.test(id)) return 'react';
           // NO manual chunk for recharts, for the same reason as the PDF path
           // below: naming a chunk makes rolldown emit it as a STATIC import of
           // the entry, even when every consumer sits behind React.lazy().
@@ -82,7 +84,10 @@ export default defineConfig(async ({ mode, command }) => {
           // are themselves lazy, so the only thing making it eager was this
           // line. Verified by build: without it, recharts leaves the preload
           // list entirely and lands in async-only chunks.
-          if (id.includes('firebase')) return 'firebase';
+          // Storage is left out of the named chunk: a named chunk is a static
+          // import of the entry, and Storage is used only by the handouts
+          // uploader (features/materials/useFileManager), which is lazy.
+          if (id.includes('firebase') && !/[\\/]@?firebase[\\/]storage/.test(id)) return 'firebase';
           if (id.includes('pdfjs-dist')) return 'pdf';
           if (id.includes('socket.io-client')) return 'socket';
           // NO manual chunk for KaTeX + the markdown pipeline. Third time this

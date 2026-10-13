@@ -18,29 +18,53 @@ const TONE_VAR = {
   signal: 'var(--accent-signal)',
 };
 
+// The label colour on a `primary` fill, per tone: white or a near-black ink,
+// whichever the theme's fill carries at 4.5:1 (index.css). White read at
+// 1.9–4.07:1 on the success, amber, signal and danger fills of most themes.
+// themeContrast.test.js reads both maps and measures every pair.
+const TONE_INK = {
+  accent: 'var(--on-accent)',
+  danger: 'var(--on-danger)',
+  success: 'var(--on-success)',
+  amber: 'var(--on-amber)',
+  signal: 'var(--on-signal)',
+};
+
+// The tone as a label on the page (`outline`, and `ghost` with a tone): the
+// text forms. The raw accent read 4.07:1 as the outline label on a card.
+// Borders and hover tints keep --btn-accent.
+const TONE_TEXT = {
+  accent: 'var(--accent-text)',
+  danger: 'var(--accent-danger)',
+  success: 'var(--accent-success)',
+  amber: 'var(--color-reeAmber-text)',
+  signal: 'var(--accent-signal)',
+};
+
 const base =
   'inline-flex items-center justify-center gap-2 select-none font-medium ' +
   'rounded-[var(--radius-default)] btn-press transition-colors ' +
   'disabled:opacity-50 disabled:pointer-events-none';
 
 const variants = {
-  // Darken the accent 12% for the fill so white text clears WCAG AA (4.5:1):
-  // the raw --accent-velocity (#7c5cff) gave white text only 4.34:1. Scoped to
-  // the button fill so the brand accent stays as-is for rings/links/headings.
+  // Darken the tone 12% for the fill: the raw --accent-velocity (#7c5cff)
+  // gave white text only 4.34:1. Scoped to the button fill so the brand
+  // accent stays as-is for rings/links/headings. The label takes the tone's
+  // ink (TONE_INK), not a fixed white.
   primary:
-    'bg-[color-mix(in_srgb,var(--btn-accent)_88%,black)] text-white hover:brightness-110 elevate-1',
+    'bg-[color-mix(in_srgb,var(--btn-accent)_88%,black)] text-[var(--btn-ink)] hover:brightness-110 elevate-1',
   secondary:
     'bg-surface2 text-textMain hover:bg-surface3 border border-border',
   ghost:
     'bg-transparent text-textMain hover:bg-surface2',
   outline:
-    'bg-transparent border border-[var(--btn-accent)] text-[var(--btn-accent)] hover:bg-[color-mix(in_srgb,var(--btn-accent)_12%,transparent)]',
+    'bg-transparent border border-[var(--btn-accent)] text-[var(--btn-text)] hover:bg-[color-mix(in_srgb,var(--btn-accent)_12%,transparent)]',
 };
 
 // Tinted ghost — only applied when a non-default tone is requested, so
 // existing ghost buttons keep their neutral text color.
 const ghostToned =
-  'text-[var(--btn-accent)] hover:bg-[color-mix(in_srgb,var(--btn-accent)_10%,transparent)]';
+  'text-[var(--btn-text)] hover:bg-[color-mix(in_srgb,var(--btn-accent)_10%,transparent)]';
 
 const sizes = {
   // pointer-coarse:min-h-11 grows the tap target to the 44px touch minimum on
@@ -89,7 +113,12 @@ export const Button = forwardRef(function Button(
         fullWidth && 'w-full',
         className
       )}
-      style={{ '--btn-accent': TONE_VAR[t] || TONE_VAR.accent, ...style }}
+      style={{
+        '--btn-accent': TONE_VAR[t] || TONE_VAR.accent,
+        '--btn-ink': TONE_INK[t] || TONE_INK.accent,
+        '--btn-text': TONE_TEXT[t] || TONE_TEXT.accent,
+        ...style,
+      }}
       aria-busy={loading || undefined}
       {...(Comp === 'button' ? { disabled: isDisabled } : { 'aria-disabled': isDisabled || undefined })}
       {...rest}

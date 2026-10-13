@@ -458,6 +458,12 @@ model Battle {
   createdAt     DateTime @default(now())
   outcomes      BattleOutcome[]
   participants  BattleParticipant[]
+  // A rematch is a new battle with the same settings, started from the
+  // results of this one. Unique: a battle has at most one rematch, so two
+  // players pressing Rematch at once land in the same lobby.
+  rematchOfId   String?  @unique
+  rematchOf     Battle?  @relation("Rematch", fields: [rematchOfId], references: [id], onDelete: SetNull)
+  rematch       Battle?  @relation("Rematch")
 
   // The finalize guard filters on status; it was unindexed.
   @@index([status])

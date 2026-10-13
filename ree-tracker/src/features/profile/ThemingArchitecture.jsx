@@ -15,7 +15,7 @@ const THEMES = [
   { id: 'forest', label: 'Forest', desc: 'Deep Woods', swatch: ['#022c22', '#064e3b', '#ecfdf5'] },
   { id: 'ocean', label: 'Ocean', desc: 'Abyssal Depth', swatch: ['#082f49', '#164e63', '#e0f2fe'] },
   { id: 'sakura', label: 'Sakura', desc: 'Cherry Blossom', swatch: ['#fdf2f8', '#fce7f3', '#831843'] },
-  { id: 'terminal', label: 'Terminal', desc: 'Hacker Green', swatch: ['#000000', '#052e16', '#4ade80'] },
+  { id: 'terminal', label: 'Phosphor', desc: 'Green on black', swatch: ['#000000', '#052e16', '#4ade80'] },
   { id: 'organs', label: 'Organs', desc: 'Flesh & Crimson', swatch: ['#450a0a', '#7f1d1d', '#fef2f2'] },
   { id: 'math', label: 'Math', desc: 'Blueprint Grid', swatch: ['#1e3a8a', '#1e40af', '#eff6ff'] },
   { id: 'electrical', label: 'Electrical', desc: 'Copper & Amber', swatch: ['#24140b', '#451a03', '#fef3c7'] },

@@ -5,6 +5,10 @@
 // explanation — with filters for what to look at (wrong, blank, marked, slow,
 // sure-but-wrong), the pacing against the board, and two ways to go again:
 // a timed retake of the missed items, or an untimed Practice set of them.
+// A battle's review also has the final places and a Rematch in its header,
+// and under each question what every player picked (features/exams/
+// BattlePicks), from the players-only replay; if that doesn't load, it is
+// reviewed like any other sitting.
 //
 // A sitting could only be reviewed on its results screen, from that tab's
 // memory: nothing could reopen a past mock, the full board reviewed only its
@@ -17,10 +21,10 @@ import { isMarkedFixed, suggestMistakeCause, toDisplaySubject, VERDICT } from '@
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
-import { fetchSittingReview } from '../services/dbQueries';
+import { fetchBattleReplay, fetchSittingReview, requestRematch } from '../services/dbQueries';
 import { explanationKey } from '../services/aiExplanations';
 import { Badge, Button, Card, EmptyState, PageHeader, SegmentedControl, Skeleton, Tabs } from '../components/ui';
-import { ChevronLeft, ClipboardList, RotateCcw, Play } from '../components/ui/icons';
+import { ChevronLeft, ClipboardList, RotateCcw, Play, Swords } from '../components/ui/icons';
 import ExamNavigator from '../components/exam/ExamNavigator';
 import QuestionCard from '../features/quiz/QuestionCard';
 import SolutionPanel from '../features/quiz/SolutionPanel';
@@ -35,6 +39,8 @@ import NoteButton, { NoteView } from '../features/notebook/NoteButton';
 import CauseChips from '../features/notebook/CauseChips';
 import { useMistakes } from '../features/notebook/useMistakes';
 import { questionTarget } from '../features/notebook/targets';
+import BattlePicks from '../features/exams/BattlePicks';
+import { ordinal } from '../features/exams/battleModes';
 
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
@@ -108,6 +114,39 @@ export default function SittingReview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // A battle's sitting id is `${battleId}:${uid}`. Its replay (everyone's
+  // places and picks) loads beside the review; until it does, or if it
+  // can't, the review shows as for any sitting.
+  const battleId = state.data?.session?.kind === 'battle' ? String(state.data.session.id || sessionId).split(':')[0] : null;
+  const [replay, setReplay] = useState({ battleId: null, data: null });
+  useEffect(() => {
+    if (!battleId) return undefined;
+    let live = true;
+    fetchBattleReplay(battleId)
+      .then((data) => { if (live) setReplay({ battleId, data }); })
+      .catch(() => { if (live) setReplay({ battleId, data: null }); });
+    return () => { live = false; };
+  }, [battleId]);
+  const battle = battleId && replay.battleId === battleId && Array.isArray(replay.data?.players) ? replay.data : null;
+  // One someone already started is joined, not asked for again; one already
+  // under way is no longer offered.
+  const rematch = battle?.battle?.rematch || null;
+  const [rematching, setRematching] = useState(false);
+  const startRematch = async () => {
+    const needsConnection = 'Rematch needs a connection. Reconnect and try again.';
+    if (!isOnline) return toast.error(needsConnection);
+    // Joining one already made asks the server as well: it says when that
+    // rematch has started without you.
+    setRematching(true);
+    try {
+      const res = await requestRematch(battleId);
+      navigate(`/battle/${res.battleId}`);
+    } catch (err) {
+      toast.error(err?.message === '[OFFLINE]' ? needsConnection : (err?.message || "Couldn't start a rematch."));
+      setRematching(false);
+    }
+  };
+
   const items = useMemo(() => state.data?.items || [], [state.data]);
   const subjects = useMemo(() => subjectsIn(items), [items]);
   const counts = useMemo(() => filterCounts(items, subject), [items, subject]);
@@ -171,7 +210,33 @@ export default function SittingReview() {
         title={`${kind} review`}
         subtitle={[date, `${items.length} items`, session.timeTakenSecs ? `${formatDuration(session.timeTakenSecs)} used` : null].filter(Boolean).join(' · ')}
         meta={session.verdict ? <Badge tone={VERDICT_TONE[session.verdict] || 'neutral'}>{session.verdict}</Badge> : null}
+        actions={battle && (!rematch || rematch.status === 'WAITING') ? (
+          <Button tone="danger" onClick={startRematch} loading={rematching} disabled={rematching}>
+            <Swords size={16} strokeWidth={1.75} aria-hidden="true" /> {rematch ? 'Join rematch' : 'Rematch'}
+          </Button>
+        ) : null}
       />
+
+      {battle && (
+        <ol aria-label="Final places" className="flex flex-wrap gap-2 -mt-2">
+          {battle.players.map((p) => (
+            <li
+              key={p.userId}
+              className={`inline-flex items-center gap-2 min-h-8 px-3 rounded-full border text-sm ${
+                p.userId === currentUser?.uid
+                  ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
+                  : 'bg-surface2 border-border'
+              }`}
+            >
+              <span className="font-semibold tabular-nums text-textMain">{ordinal(p.placement)}</span>
+              <span className="text-textMain truncate max-w-[12rem]">
+                {p.displayName}{p.userId === currentUser?.uid && <span className="text-muted2"> (you)</span>}
+              </span>
+              <span className="tabular-nums text-muted2">{p.score}/{p.total}</span>
+            </li>
+          ))}
+        </ol>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="p-4">
@@ -279,6 +344,10 @@ export default function SittingReview() {
                     : current.isCorrect ? 'You answered this correctly.' : 'Your answer is marked wrong; the correct one is highlighted.'}
                 {' '}Choices are listed in their stored order, which can differ from the order you saw.
               </p>
+
+              {battle && (
+                <BattlePicks picks={battle.picks?.[current.questionId]} players={battle.players} options={current.options} uid={currentUser?.uid} />
+              )}
 
               <SolutionPanel
                 key={explanationKey(reviewItemToQuestion(current))}

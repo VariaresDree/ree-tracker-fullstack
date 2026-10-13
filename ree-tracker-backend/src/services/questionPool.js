@@ -13,49 +13,66 @@ const { getSubjectFilter } = require('../utils/subject');
 // round-robins one item per subtopic before any subtopic contributes a second,
 // guaranteeing breadth across the subject.
 //
+// `excludeIds` leaves those questions out (a rematch, avoiding the questions
+// whose key the last battle revealed). It is always bound, as an empty array
+// when there are none: `id = ANY('{}')` is false, so nothing is excluded.
+//
 // SQL-injection safety: every query below is a FULLY STATIC string literal —
 // there is no `${}` interpolation of any kind (not even the numeric LIMIT).
 // Every value, including `cap`, is bound as a positional parameter. This is
 // what lets scripts/audit-sql-interpolation.js be strict (fail on any `${` in a
 // raw query) with no allowlist. Do not reintroduce template interpolation here.
-async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50 }) {
+function capOf(limit) {
     // Coerce numerically: honor 0 (a subject whose blended share rounds to 0),
     // default on null/undefined/NaN/negative (a negative would be `LIMIT -5`).
     const n = Number(limit);
-    const cap = limit == null || !Number.isFinite(n) || n < 0 ? 50 : Math.min(Math.floor(n), 2000);
+    return limit == null || !Number.isFinite(n) || n < 0 ? 50 : Math.min(Math.floor(n), 2000);
+}
+
+async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50, excludeIds = [] }) {
+    const cap = capOf(limit);
+    const exclude = (excludeIds || []).filter((id) => typeof id === 'string' && id);
 
     let rows;
     if (subtopic && subjectValues) {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND "subtopic" = $2 ORDER BY random() LIMIT $3',
-            subjectValues, subtopic, cap,
+            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND "subtopic" = $2 AND NOT ("id" = ANY($4::text[])) ORDER BY random() LIMIT $3',
+            subjectValues, subtopic, cap, exclude,
         );
     } else if (subtopic) {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subtopic" = $1 ORDER BY random() LIMIT $2',
-            subtopic, cap,
+            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subtopic" = $1 AND NOT ("id" = ANY($3::text[])) ORDER BY random() LIMIT $2',
+            subtopic, cap, exclude,
         );
     } else if (subjectValues) {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[])) t ORDER BY t.rn, random() LIMIT $2',
-            subjectValues, cap,
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND NOT ("id" = ANY($3::text[]))) t ORDER BY t.rn, random() LIMIT $2',
+            subjectValues, cap, exclude,
         );
     } else {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false) t ORDER BY t.rn, random() LIMIT $1',
-            cap,
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND NOT ("id" = ANY($2::text[]))) t ORDER BY t.rn, random() LIMIT $1',
+            cap, exclude,
         );
     }
     return rows.map((r) => r.id);
 }
 
-// Full question rows in the sampled random order.
-async function samplePool({ subject = null, subtopic = null, limit = 50 } = {}) {
+// Full question rows in the sampled random order. `avoidIds` are drawn last:
+// only when the rest of the pool can't fill `limit` do any of them return
+// (a small subtopic's rematch repeats as few as it must).
+async function samplePool({ subject = null, subtopic = null, limit = 50, avoidIds = null } = {}) {
     const subjFilter = getSubjectFilter(subject);
     const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
     const specificSubtopic = subtopic && subtopic !== 'All' ? String(subtopic).trim() : null;
 
-    const idList = await sampleQuestionIds({ subjectValues, subtopic: specificSubtopic, limit });
+    const spec = { subjectValues, subtopic: specificSubtopic };
+    let idList = await sampleQuestionIds({ ...spec, limit, excludeIds: avoidIds || [] });
+    const short = capOf(limit) - idList.length;
+    if (avoidIds?.length && short > 0) {
+        // Everything else is already in: the top-up can only be avoided ones.
+        idList = [...idList, ...await sampleQuestionIds({ ...spec, limit: short, excludeIds: idList })];
+    }
     if (idList.length === 0) return [];
 
     const questions = await prisma.question.findMany({ where: { id: { in: idList } } });
@@ -92,14 +109,14 @@ async function getSyllabusWeights() {
 }
 
 // PRC board TOS blend, driven by the SyllabusWeight config table (Math/ESAS/EE).
-async function sampleBlendedPool(totalCount = 100) {
+async function sampleBlendedPool(totalCount = 100, { avoidIds = null } = {}) {
     // Largest-remainder split, shared with the client's blended pool so both
     // sides compose a blend identically and the counts always sum to total.
     const n = apportionItems(totalCount, await getSyllabusWeights());
     const [math, esas, ee] = await Promise.all([
-        samplePool({ subject: 'Mathematics', limit: n.Mathematics || 0 }),
-        samplePool({ subject: 'ESAS', limit: n.ESAS || 0 }),
-        samplePool({ subject: 'EE', limit: n.EE || 0 }),
+        samplePool({ subject: 'Mathematics', limit: n.Mathematics || 0, avoidIds }),
+        samplePool({ subject: 'ESAS', limit: n.ESAS || 0, avoidIds }),
+        samplePool({ subject: 'EE', limit: n.EE || 0, avoidIds }),
     ]);
     return [...math, ...esas, ...ee];
 }

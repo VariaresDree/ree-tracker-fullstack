@@ -18,7 +18,8 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const next = FULL_BOARD_SECTIONS[board.sectionIndex];
   const done = board.sectionIndex;
-  const expires = new Date((board.startedAt || Date.now()) + FULL_BOARD_TTL_MS);
+  // A board saved before startedAt was recorded has no expiry to show.
+  const expires = board.startedAt ? new Date(board.startedAt + FULL_BOARD_TTL_MS) : null;
 
   return (
     <div className="max-w-3xl mx-auto w-full flex flex-col gap-6 page-fade-in">
@@ -58,8 +59,8 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
         </ol>
 
         <p className="text-sm text-muted2">
-          Results are revealed after the final section, as on the board. Take your break; this sitting keeps until{' '}
-          {expires.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.
+          Results are revealed after the final section, as on the board. Take your break
+          {expires ? <>; this sitting keeps until {expires.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.</> : '.'}
         </p>
 
         <div className="flex flex-wrap gap-3">

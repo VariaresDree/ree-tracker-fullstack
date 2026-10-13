@@ -54,6 +54,11 @@ describe('phone shell', () => {
         expect(current.map((l) => l.textContent)).toEqual([label]);
     });
 
+    it('the wordmark link home is touch-sized', () => {
+        at('/');
+        expect(screen.getByRole('link', { name: 'REE.ai' }).className).toMatch(/pointer-coarse:min-h-11/);
+    });
+
     it('the account menu opens with focus inside and closes on Escape', () => {
         at('/');
         const avatar = screen.getByRole('button', { name: 'Account menu' });

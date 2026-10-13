@@ -45,6 +45,20 @@ describe('useSyncedUserData', () => {
     expect(result.current.status).toBe('ready');
   });
 
+  it('loads once with the default response mapping too (no fromResponse given)', async () => {
+    // The placement status passes no fromResponse. The default used to be a
+    // new function each render, so every render re-ran the load: a request
+    // loop that spent the rate limit on Today.
+    const bare = { endpoint: '/api/diagnostic/status', cacheName: 'placement', overlay };
+    apiRequest.mockResolvedValue({ status: 'not_started' });
+    const { result, rerender } = renderHook(() => useSyncedUserData(bare));
+    await waitFor(() => expect(result.current.value).toEqual({ status: 'not_started' }));
+    rerender();
+    rerender();
+    await act(async () => {});
+    expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+
   it('a list that arrives while a change is being sent is dropped and fetched again after it', async () => {
     let releaseGet;
     apiRequest.mockImplementationOnce(() => new Promise((resolve) => { releaseGet = () => resolve({ items: ['stale'] }); }));

@@ -50,11 +50,12 @@ function ModeList({ start, here, headingLevel = 3 }) {
 }
 
 /**
- * @param {{ start?: string, folded?: boolean, headingLevel?: number }} props
- *   start: the mode to mark "Start here"; folded: a disclosure that opens on
- *   tap (Exams and Practice), instead of the open card (placement result).
+ * @param {{ start?: string, note?: string, folded?: boolean, headingLevel?: number }} props
+ *   start: the mode to mark "Start here"; note: why (shown open only);
+ *   folded: a disclosure that opens on tap (Exams and Practice), instead of
+ *   the open card (placement result).
  */
-export default function ModeGuide({ start, here, folded = false, headingLevel = folded ? 2 : 3 }) {
+export default function ModeGuide({ start, here, note, folded = false, headingLevel = folded ? 2 : 3 }) {
   if (folded) {
     return (
       <details className="group rounded-[var(--radius-lg)] border border-border bg-surface/60">
@@ -71,6 +72,9 @@ export default function ModeGuide({ start, here, folded = false, headingLevel = 
   return (
     <section aria-labelledby="mode-guide-heading" className="flex flex-col gap-3">
       <h2 id="mode-guide-heading" className="text-base font-semibold text-textMain">Which mode do I use?</h2>
+      {/* Why "Start here" sits where it does, when it isn't the average
+          (startingPlan: a subject under the floor comes first). */}
+      {note && <p className="text-sm text-textMain">{note}</p>}
       <ModeList start={start} here={here} headingLevel={headingLevel} />
     </section>
   );

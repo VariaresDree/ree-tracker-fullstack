@@ -159,7 +159,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             }),
         ]);
 
-        if (!user) return res.status(404).json({ error: 'User telemetry not found.' });
+        if (!user) return res.status(404).json({ error: 'No progress found for this account.' });
 
         // One pass over the merged rollup. `kind` discriminates the four
         // aggregates that used to be four separate queries; the per-bucket logic
@@ -277,7 +277,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         res.status(200).json(payload);
     } catch (error) {
         logger.error('Analytics dashboard error', { error: error.message, stack: error.stack });
-        res.status(500).json({ error: 'Failed to aggregate telemetry matrices.' });
+        res.status(500).json({ error: "Couldn't load your progress." });
     }
 });
 
@@ -302,7 +302,7 @@ router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), id
         });
     } catch (error) {
         logger.error('Telemetry bulk sync error', { error: error.message, stack: error.stack });
-        res.status(500).json({ error: 'Matrix sync transaction rejected.' });
+        res.status(500).json({ error: "Couldn't save your progress. Try again." });
     }
 });
 
