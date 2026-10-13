@@ -247,7 +247,7 @@ describe('model picks', () => {
         expect(author).toContain('gemini:gemini-3.1-pro-preview');
         expect(catalog.missingModels(env)).toEqual([]);
         expect(catalog.summary().providers.openrouter.free).toBe(5);
-        expect(catalog.picked(env)['groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick']).toEqual(['qwen/qwen3-32b', 'meta-llama/llama-4-maverick-17b-128e-instruct']);
+        expect(catalog.picked(env)['groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick|*']).toEqual(['qwen/qwen3-32b', 'meta-llama/llama-4-maverick-17b-128e-instruct']);
     });
 
     it('a pick stands for nothing until its provider list has been read', () => {
@@ -256,3 +256,50 @@ describe('model picks', () => {
         expect(plan('report', { env })[0].id).toBe('groq:openai/gpt-oss-20b');
     });
 });
+
+describe('model picks: wildcard', () => {
+    const catalog = require('../src/services/ai/modelCatalog');
+    const env = { GROQ_API_KEY: 'g', OPENROUTER_API_KEY: 'o' };
+    const lists = {
+        groq: ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'openai/gpt-oss-safeguard-20b', 'groq/compound', 'allam-2-7b', 'newco/omni-72b-instruct'],
+        openrouter: [
+            { id: 'acme/tiny-8b:free' }, { id: 'acme/big-405b:free' }, { id: 'acme/mid-32b-a3b:free' },
+            { id: 'acme/paid-1000b', pricing: { prompt: '0.001', completion: '0.002' } }, { id: 'acme/unnamed:free' },
+        ],
+    };
+    const fetchImpl = async (url) => {
+        const v = url.includes('groq') ? lists.groq.map((id) => ({ id })) : lists.openrouter;
+        return { ok: true, json: async () => ({ data: v }) };
+    };
+    beforeEach(async () => {
+        catalog.resetCatalog();
+        await catalog.refreshCatalog({ env, fetchImpl });
+    });
+
+    it('reads the parameter count from a model name', () => {
+        expect(catalog.sizeInName('qwen/qwen3-235b-a22b')).toBe(235);
+        expect(catalog.sizeInName('openai/gpt-oss-120b')).toBe(120);
+        expect(catalog.sizeInName('deepseek/deepseek-chat-v3.1')).toBe(0);
+    });
+
+    it('takes the largest free model of at least 24B when no named family is offered', () => {
+        expect(catalog.expandPick('openrouter', ['llama-3.3-70b', '*'])).toEqual(['acme/big-405b:free']);
+        expect(catalog.expandPick('openrouter', ['*', '*'])).toEqual(['acme/big-405b:free', 'acme/mid-32b-a3b:free']);
+    });
+
+    it('adds a model not already earlier in the chain', () => {
+        const explain = catalog.resolveChain('explain', env).map((e) => e.id);
+        expect(explain[0]).toBe('groq:openai/gpt-oss-120b');
+        expect(explain).toContain('groq:newco/omni-72b-instruct');
+        expect(explain.filter((id) => id === 'groq:openai/gpt-oss-120b')).toHaveLength(1);
+        expect(explain).toContain('openrouter:acme/big-405b:free');
+    });
+
+    it('lists what each open-model provider offers, free only on OpenRouter', () => {
+        expect(catalog.offered(env)).toEqual({
+            groq: ['allam-2-7b', 'newco/omni-72b-instruct', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'],
+            openrouter: ['acme/big-405b:free', 'acme/mid-32b-a3b:free', 'acme/tiny-8b:free', 'acme/unnamed:free'],
+        });
+    });
+});
+

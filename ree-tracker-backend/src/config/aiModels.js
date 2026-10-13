@@ -26,7 +26,10 @@
 //   provider:@pick:kw1|kw2|kw3
 //
 // takes, for each keyword in order, the shortest id in that provider's current
-// model list containing it, up to PICK_MAX models. On OpenRouter only free
+// model list containing it, up to PICK_MAX models. The keyword `*` takes the
+// largest remaining model by the size in its name (at least PICK_MIN_B
+// billion parameters), for when none of the named families is offered.
+// On OpenRouter only free
 // models qualify (PROVIDERS.openrouter.freeOnly). Embedding, speech, guard and
 // image-generation models never qualify (PICK_EXCLUDE).
 //
@@ -74,6 +77,7 @@ const VISION_MODELS = new Set([
 // Models that aren't chat models, never chosen by a pick.
 const PICK_EXCLUDE = /(embed|tts|audio|whisper|transcribe|guard|imagen|-image|veo|live|computer-use|robotics|aqa|learnlm|compound|playai|orpheus)/i;
 const PICK_MAX = 2;
+const PICK_MIN_B = 24;
 
 // Gemini IDs, lightest first and strongest first. The pro model only has a
 // small free quota, so it sits behind the newest flash.
@@ -81,11 +85,11 @@ const GEMINI_FAST = ['gemini:gemini-3.1-flash-lite', 'gemini:gemini-2.5-flash-li
 const GEMINI_STRONG = ['gemini:gemini-3.5-flash', 'gemini:@pick:gemini-3.1-pro|gemini-3-pro|gemini-2.5-pro', 'gemini:gemini-2.5-flash'];
 
 // Backups picked from each provider's live list (see the note at the top).
-const GROQ_FAST_ALT = 'groq:@pick:llama-3.3-70b|llama-4-scout|llama-4-maverick|qwen3-32b';
-const GROQ_ALT = 'groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick';
-const OR_FAST = 'openrouter:@pick:gpt-oss-20b|gpt-oss-120b|llama-3.3-70b|gemma-3-27b|mistral-small';
-const OR_GENERAL = 'openrouter:@pick:gpt-oss-120b|deepseek-chat|deepseek-v3|qwen3-235b|llama-3.3-70b';
-const OR_REASONING = 'openrouter:@pick:gpt-oss-120b|deepseek-r1|qwen3-235b|deepseek-chat|kimi-k2';
+const GROQ_FAST_ALT = 'groq:@pick:llama-3.3-70b|llama-4-scout|llama-4-maverick|qwen3-32b|*';
+const GROQ_ALT = 'groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick|*';
+const OR_FAST = 'openrouter:@pick:gpt-oss-20b|gpt-oss-120b|llama-3.3-70b|gemma-3-27b|mistral-small|*';
+const OR_GENERAL = 'openrouter:@pick:gpt-oss-120b|deepseek-chat|deepseek-v3|qwen3-235b|llama-3.3-70b|*';
+const OR_REASONING = 'openrouter:@pick:gpt-oss-120b|deepseek-r1|qwen3-235b|deepseek-chat|kimi-k2|*';
 
 const TASKS = {
     // Progress › AI board report: three sentences. Speed is the whole point.
@@ -182,7 +186,7 @@ const TASKS = {
             'gemini:gemini-2.5-flash',
             'cerebras:gpt-oss-120b',
             'groq:openai/gpt-oss-120b',
-            'openrouter:@pick:deepseek-r1|qwen3-235b|gpt-oss-120b',
+            'openrouter:@pick:deepseek-r1|qwen3-235b|gpt-oss-120b|*',
         ],
     },
     // Admin: questions read out of a photo or scanned page.
@@ -199,8 +203,8 @@ const TASKS = {
         chain: [
             'gemini:gemini-3.5-flash',
             'gemini:gemini-2.5-flash',
-            'groq:@pick:llama-4-scout|llama-4-maverick',
-            'openrouter:@pick:gemma-3-27b|qwen2.5-vl|llama-4|mistral-small',
+            'groq:@pick:llama-4-scout|llama-4-maverick|*',
+            'openrouter:@pick:gemma-3-27b|qwen2.5-vl|llama-4|mistral-small|*',
         ],
     },
     // Old clients that send no task.
@@ -276,6 +280,7 @@ module.exports = {
     VISION_MODELS,
     PICK_EXCLUDE,
     PICK_MAX,
+    PICK_MIN_B,
     parseEntry,
     chainFor,
     isProviderConfigured,
