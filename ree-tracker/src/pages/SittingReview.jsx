@@ -13,7 +13,8 @@
 // a sitting only once it is closed.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { toDisplaySubject, VERDICT } from '@ree/shared';
+import { suggestMistakeCause, toDisplaySubject, VERDICT } from '@ree/shared';
+import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { fetchSittingReview } from '../services/dbQueries';
@@ -30,6 +31,11 @@ import { REVIEW_FILTERS, filterCounts, filterItems, subjectsIn } from '../featur
 import { missedItems, retakeState, reviewItemToQuestion } from '../features/exams/review/retake';
 import { itemsPreset, launchPractice } from '../features/active-recall/presets';
 import { sittingKindLabel } from '../features/board-simulator/profiles';
+import NoteButton, { NoteView } from '../features/notebook/NoteButton';
+import CauseChips from '../features/notebook/CauseChips';
+import { useMistakes } from '../features/notebook/useMistakes';
+import { questionTarget } from '../features/notebook/targets';
+
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 const CONFIDENCE_LABEL = { HIGH: 'Sure', MED: 'Fairly sure', LOW: 'Unsure' };
@@ -77,6 +83,11 @@ export default function SittingReview() {
   const [subject, setSubject] = useState('all');
   const [filter, setFilter] = useState('all');
   const [pos, setPos] = useState(0);
+  // Each wrong answer can be tagged with why it was missed (it's in your
+  // Notebook › Mistakes too). The tags come from the mistakes list; a tag set
+  // here shows at once, even for an item that list doesn't hold.
+  const { items: mistakes, setTag } = useMistakes({ fetchIfOlderThanMs: 60 * 1000 });
+  const [causeOverride, setCauseOverride] = useState({});
 
   const fetchReview = () => fetchSittingReview(sessionId)
     .then((data) => setState({ status: 'ready', data, error: null }))
@@ -246,6 +257,9 @@ export default function SittingReview() {
                 {current.timeSpentMs > 0 && <span className="tabular-nums">· {formatSecs(current.timeSpentMs / 1000)}</span>}
                 {current.confidence && current.answered !== false && <Badge tone="neutral">{CONFIDENCE_LABEL[current.confidence] || current.confidence}</Badge>}
                 {current.marked && <Badge tone="amber">Marked</Badge>}
+                <span className="ml-auto">
+                  <NoteButton type="question" targetId={current.questionId} target={questionTarget(reviewItemToQuestion(current))} />
+                </span>
               </div>
 
               <QuestionCard
@@ -275,6 +289,26 @@ export default function SittingReview() {
                 onExplain={(force) => ai.explain(reviewItemToQuestion(current), { force })}
                 showAnswer
               />
+
+              <NoteView type="question" targetId={current.questionId} target={questionTarget(reviewItemToQuestion(current))} />
+
+              {!current.isCorrect && current.answered !== false && (() => {
+                const mistake = mistakes?.find((m) => m.questionId === current.questionId);
+                const value = current.questionId in causeOverride ? causeOverride[current.questionId] : mistake?.cause ?? null;
+                return (
+                  <CauseChips
+                    value={value}
+                    suggested={mistake?.suggestedCause ?? suggestMistakeCause({ timeSpentMs: current.timeSpentMs, confidenceLevel: current.confidence }, current.subject)}
+                    onChange={(cause) => {
+                      setCauseOverride((prev) => ({ ...prev, [current.questionId]: cause }));
+                      setTag(current.questionId, { cause, resolved: !!mistake?.resolvedAt }).catch(() => {
+                        setCauseOverride((prev) => ({ ...prev, [current.questionId]: value }));
+                        toast.error("Couldn't save that. Try again.");
+                      });
+                    }}
+                  />
+                );
+              })()}
 
               <div className="flex justify-between gap-3 border-t border-border pt-5">
                 <Button variant="secondary" onClick={() => setPos((p) => Math.max(0, p - 1))} disabled={pos <= 0}>Previous</Button>

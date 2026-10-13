@@ -283,6 +283,8 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/plannerRoutes'));
     app.use('/api/user', require('./src/routes/outsideScoreRoutes'));
     app.use('/api/user', require('./src/routes/syllabusRoutes'));
+    app.use('/api/user', require('./src/routes/mistakeRoutes'));
+    app.use('/api/user', require('./src/routes/noteRoutes'));
     app.use('/api/smart-drill', require('./src/routes/smartDrillRoutes'));
     app.use('/api/diagnostic', require('./src/routes/diagnosticRoutes'));
     app.use('/api/readiness', require('./src/routes/readinessRoutes'));

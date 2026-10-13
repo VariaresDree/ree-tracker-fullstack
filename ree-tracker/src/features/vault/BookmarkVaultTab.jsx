@@ -18,6 +18,8 @@ import LatexRenderer from '../../components/LatexRenderer';
 import SolutionPanel from '../quiz/SolutionPanel';
 import { useAiExplanation } from '../quiz/useAiExplanation';
 import { explanationKey } from '../../services/aiExplanations';
+import NoteButton, { NoteView } from '../notebook/NoteButton';
+import { questionTarget } from '../notebook/targets';
 
 // A bookmarks session draws up to this many of the saved questions.
 const PRACTICE_COUNT = 20;
@@ -40,6 +42,7 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <NoteButton type="question" targetId={item.id} target={questionTarget(item)} />
           <Button variant="secondary" size="sm" className="flex-1 md:flex-none" aria-expanded={expanded} onClick={() => onToggle(item.id)}>
             {expanded ? 'Hide question' : 'Show question'}
           </Button>
@@ -90,6 +93,7 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
             onExplain={(force) => ai.explain(item, { force })}
             showAnswer
           />
+          <NoteView type="question" targetId={item.id} target={questionTarget(item)} />
         </div>
       )}
     </Card>

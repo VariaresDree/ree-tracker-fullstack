@@ -17,6 +17,8 @@ const SRC = resolve(__dirname, '..', 'src');
 const DISPLAY_ONLY = {
     outsideScore: ['routes/outsideScoreRoutes.js'],
     syllabusProgress: ['routes/syllabusRoutes.js'],
+    mistakeTag: ['routes/mistakeRoutes.js'],
+    userNote: ['routes/noteRoutes.js'],
 };
 
 function sourceFiles(dir) {

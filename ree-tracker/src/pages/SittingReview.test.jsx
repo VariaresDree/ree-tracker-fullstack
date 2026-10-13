@@ -11,7 +11,10 @@ vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid
 vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 const fetchSittingReview = vi.fn();
-vi.mock('../services/dbQueries', () => ({ fetchSittingReview: (...a) => fetchSittingReview(...a) }));
+const apiRequest = vi.fn(async () => ({ items: [], truncated: false }));
+vi.mock('../services/dbQueries', () => ({ fetchSittingReview: (...a) => fetchSittingReview(...a), apiRequest: (...a) => apiRequest(...a) }));
+vi.mock('../config/firebaseDb', () => ({ auth: { currentUser: { uid: 'u1' } } }));
+vi.mock('idb-keyval', () => ({ get: async () => undefined, set: async () => {}, del: async () => {} }));
 vi.mock('../services/geminiApi', () => ({ generateMasterExplanation: vi.fn() }));
 
 const { default: SittingReview } = await import('./SittingReview');
@@ -95,6 +98,21 @@ describe('SittingReview', () => {
     renderAt();
     fireEvent.click(await screen.findByRole('button', { name: /Practise missed/ }));
     expect(screen.getByText(/^practice:/).textContent).toContain('"source":"items"');
+  });
+
+  it('tags why a wrong answer was missed, suggesting a cause from the data', async () => {
+    fetchSittingReview.mockResolvedValue(REVIEW);
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    // Item 2: answered wrong, and sure of it.
+    const concept = await screen.findByRole('button', { name: /Concept/ });
+    expect(concept).toHaveTextContent('suggested');
+    fireEvent.click(screen.getByRole('button', { name: /Misread/ }));
+    expect(screen.getByRole('button', { name: /Misread/ })).toHaveAttribute('aria-pressed', 'true');
+    await vi.waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/user/mistakes/q2', 'PUT', { cause: 'misread', resolved: false }));
+    // A blank is not a mistake to tag.
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.queryByRole('group', { name: 'Why did you miss it?' })).not.toBeInTheDocument();
   });
 
   it('explains a sitting that is still in progress', async () => {

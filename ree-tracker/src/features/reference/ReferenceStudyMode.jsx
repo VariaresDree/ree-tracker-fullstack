@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, StatusPill } from '../../components/ui';
 import { ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
-import Flashcard from './Flashcard';
+import NotedFlashcard from './NotedFlashcard';
 
 export default function ReferenceStudyMode({ cards, onExit }) {
   const [index, setIndex] = useState(0);
@@ -48,7 +48,7 @@ export default function ReferenceStudyMode({ cards, onExit }) {
       </div>
 
       <div className="w-full max-w-md">
-        <Flashcard key={card.id} card={card} />
+        <NotedFlashcard key={card.id} card={card} showNote />
       </div>
 
       <div className="flex items-center gap-3">

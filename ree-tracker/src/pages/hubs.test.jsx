@@ -72,7 +72,7 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Formula cards', 'Handouts', 'Bookmarks', 'Imported quizzes']);
+        expect(tabs).toEqual(['Formula cards', 'Handouts', 'Bookmarks', 'Notebook', 'Imported quizzes']);
     });
 });
 

@@ -78,6 +78,8 @@ model User {
   deviceTokens       DeviceToken[]
   outsideScores      OutsideScore[]
   syllabusProgress   SyllabusProgress[]
+  mistakeTags        MistakeTag[]
+  notes              UserNote[]
 
   @@index([thetaRating])
   @@index([lastActive])
@@ -177,6 +179,7 @@ model Question {
   bookmarks        Bookmark[]
   srsCards         SRSCard[]
   flags            QuestionFlag[]
+  mistakeTags      MistakeTag[]
 
   @@index([subject, irtB])
   // Readiness groupBy(['subtopic'], where:{isFlagged:false}) and pool sampling
@@ -640,6 +643,43 @@ model SyllabusProgress {
 
   @@unique([userId, topicId])
   @@index([topicId])
+}
+
+// The mistake notebook (Library › Notebook). The mistakes themselves are
+// derived from QuestionAttempt on read; this row holds only what the learner
+// adds: why they missed it, and when they marked it fixed. DISPLAY ONLY:
+// nothing that reads θ, the forecast, readiness or the rankings may use it
+// (tests/displayOnlyTables.test.js).
+model MistakeTag {
+  id         String    @id @default(uuid())
+  userId     String
+  questionId String
+  cause      String?   // 'concept' | 'computation' | 'misread' | 'time' (@ree/shared MISTAKE_CAUSES)
+  resolvedAt DateTime? // marked fixed; a later miss reopens it
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([questionId])
+}
+
+// The learner's own note on a question or a formula card. One per target.
+// Polymorphic (no foreign key to the target): the route checks the target
+// exists when the note is written. DISPLAY ONLY, like MistakeTag.
+model UserNote {
+  id         String   @id @default(uuid())
+  userId     String
+  targetType String   // 'question' | 'card'
+  targetId   String
+  body       String   // at most NOTE_MAX (@ree/shared); an empty note is deleted
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId, updatedAt])
 }
 
 model PlannerTask {

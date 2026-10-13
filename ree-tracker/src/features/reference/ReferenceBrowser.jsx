@@ -18,7 +18,7 @@ import { useStore } from '../../store/useStore';
 import { Input, FormField, SegmentedControl, EmptyState, Button, Skeleton, StatusPill } from '../../components/ui';
 import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
-import Flashcard from './Flashcard';
+import NotedFlashcard from './NotedFlashcard';
 import ReferenceStudyMode from './ReferenceStudyMode';
 
 const KIND_OPTIONS = [
@@ -269,7 +269,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           <>
             <p className="text-eyebrow">{countLabel(searchResults.length)} matching "{deferredSearch.trim()}"</p>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-              {searchResults.map((card) => <Flashcard key={card.id} card={card} />)}
+              {searchResults.map((card) => <NotedFlashcard key={card.id} card={card} />)}
             </div>
           </>
         )
@@ -336,7 +336,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
             </Button>
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
-            {leafCards.map((card) => <Flashcard key={card.id} card={card} />)}
+            {leafCards.map((card) => <NotedFlashcard key={card.id} card={card} />)}
           </div>
         </>
       )}
