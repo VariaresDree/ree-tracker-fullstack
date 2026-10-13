@@ -43,7 +43,12 @@ services:
     # node_modules — which is what makes `require('@ree/shared')` resolve at
     # runtime. It also pulls the frontend's dependencies, so the build is slower
     # than it needs to be; scope it with --workspace if that becomes a problem.
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
+    #
+    # `npm run migrate:deploy` is `prisma migrate deploy` retried when the
+    # database refuses a connection (scripts/migrateDeploy.js): the running
+    # instance still holds its pool during a build, and Supabase's session
+    # pooler caps the whole project at 15 clients.
+    buildCommand: npm install && npx prisma generate && npm run migrate:deploy
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:

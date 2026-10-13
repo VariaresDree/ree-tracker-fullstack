@@ -56,7 +56,7 @@ describe('warmPool opens connections up front', () => {
         // The dashboard route issues its queries as one concurrent batch; a
         // warm-up smaller than that leaves the first page load opening the rest.
         expect(db.WARM_CONNECTIONS).toBeGreaterThanOrEqual(5);
-        expect(db.WARM_CONNECTIONS).toBeLessThanOrEqual(15);   // and never exceeds POOL_MAX
+        expect(db.WARM_CONNECTIONS).toBeLessThanOrEqual(8);   // and never exceeds POOL_MAX
     });
 
     it('resolves instead of throwing when the database is unreachable', async () => {

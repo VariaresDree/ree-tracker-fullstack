@@ -50,7 +50,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         //
         // Concurrency is safe HERE specifically because none of these run inside
         // a transaction: each connection is held only for its own query, and if
-        // the pool (PG_POOL_MAX, default 15) saturates these queue rather than
+        // the pool (PG_POOL_MAX, default 8) saturates these queue rather than
         // deadlock. That is NOT true of the telemetry write path, which does
         // hold an interactive transaction - see config/db.js on why pool sizing
         // is a correctness concern there, not just a perf knob.

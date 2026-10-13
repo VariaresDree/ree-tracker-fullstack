@@ -38,7 +38,7 @@
     "audit:secrets": "node scripts/audit-secrets.js",
     "audit:all": "npm run audit:sql && npm run audit:auth && npm run audit:secrets",
     "migrate:dev": "prisma migrate dev",
-    "migrate:deploy": "prisma migrate deploy",
+    "migrate:deploy": "node scripts/migrateDeploy.js",
     "migrate:status": "prisma migrate status",
     "migrate:baseline": "prisma migrate resolve --applied 0_init",
     "migrate:cutover": "node scripts/migrateCutover.js",

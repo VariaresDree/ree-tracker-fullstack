@@ -65,6 +65,10 @@ in the right order, and it should be run by someone watching.
 
 ## Afterwards
 
+The build command is now `npm install && npx prisma generate && npm run migrate:deploy`,
+which wraps `prisma migrate deploy` in a retry for a refused connection
+(`scripts/migrateDeploy.js`); a real migration error still fails the build.
+
 Create schema changes with `npx prisma migrate dev --name <what-changed>`, which
 writes a reviewable `.sql` file alongside the schema edit. `db push` remains fine
 for throwaway local databases; it should not touch production again.
