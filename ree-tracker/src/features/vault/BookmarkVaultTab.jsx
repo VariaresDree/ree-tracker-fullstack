@@ -6,12 +6,17 @@
 // A failed load shows an error with Try again, and offline says so; both used
 // to read "No bookmarks yet". Removing one offers Undo. Built on the shared
 // primitives, with no glyphs standing in for icons.
-import { useState, useEffect } from 'react';
+//
+// A subject filter and a search narrow the list; Practise then runs exactly
+// what's on screen (from the saved copies, so it works offline too). With no
+// filter it draws from all of them on the server, as before.
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Badge, Button, Card, EmptyState, Skeleton } from '../../components/ui';
-import { Bookmark, Check, CloudOff, Play, TriangleAlert, X } from '../../components/ui/icons';
-import { bookmarksPreset, launchPractice } from '../active-recall/presets';
+import { toDisplaySubject } from '@ree/shared';
+import { Badge, Button, Card, EmptyState, Input, SegmentedControl, Skeleton } from '../../components/ui';
+import { Bookmark, Check, CloudOff, Play, Search, TriangleAlert, X } from '../../components/ui/icons';
+import { bookmarksPreset, itemsPreset, launchPractice } from '../active-recall/presets';
 import { fetchBookmarks, removeBookmark, saveBookmark } from '../../services/dbQueries';
 import SmartText from '../../components/SmartText';
 import LatexRenderer from '../../components/LatexRenderer';
@@ -31,7 +36,7 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
       <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
         <div className="flex flex-col gap-2 flex-1 min-w-0">
           <div className="flex flex-wrap gap-2 items-center text-xs text-muted2">
-            <Badge tone="signal">{item.subject || 'General'}</Badge>
+            <Badge tone="signal">{toDisplaySubject(item.subject) || 'General'}</Badge>
             {item.subtopic && <span className="truncate">{item.subtopic}</span>}
             {savedOn && <span className="tabular-nums">Saved {savedOn}</span>}
           </div>
@@ -132,6 +137,22 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
   }, [currentUser, attempt]);
   const loadBookmarks = () => { setIsLoading(true); setAttempt((n) => n + 1); };
 
+  const [subject, setSubject] = useState('all');
+  const [query, setQuery] = useState('');
+  const subjects = useMemo(() => [...new Set(bookmarks.map((b) => b.subject).filter(Boolean))].sort(), [bookmarks]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return bookmarks.filter((b) => (subject === 'all' || b.subject === subject)
+      && (!q || [b.question, b.content, b.subtopic, b.topic].some((f) => typeof f === 'string' && f.toLowerCase().includes(q))));
+  }, [bookmarks, subject, query]);
+  const isFiltered = subject !== 'all' || query.trim() !== '';
+  const practiseCount = Math.min(PRACTICE_COUNT, isFiltered ? filtered.length : bookmarks.length);
+  const practise = () => {
+    if (!isFiltered) { launchPractice(navigate, bookmarksPreset(practiseCount)); return; }
+    const items = filtered.slice(0, PRACTICE_COUNT).map((b) => ({ ...b, text: b.text || b.question || b.content }));
+    launchPractice(navigate, itemsPreset(items));
+  };
+
   const restore = async (item, index) => {
     try {
       await saveBookmark(currentUser.uid, { questionId: item.id });
@@ -194,19 +215,47 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     );
   } else {
     body = (
-      <ul className="flex flex-col gap-3">
-        {bookmarks.map((item) => (
-          <BookmarkCard
-            key={item.id}
-            item={item}
-            expanded={expandedId === item.id}
-            onToggle={(id) => setExpandedId((prev) => (prev === id ? null : id))}
-            onRemove={handleRemove}
-            isOnline={isOnline}
-            ai={ai}
+      <>
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          {subjects.length > 1 && (
+            <SegmentedControl
+              label="Subject"
+              size="sm"
+              className="shrink-0 max-w-full [&_button]:whitespace-nowrap"
+              value={subject}
+              onChange={setSubject}
+              options={[{ value: 'all', label: 'All subjects' }, ...subjects.map((s) => ({ value: s, label: toDisplaySubject(s) || s }))]}
+            />
+          )}
+          <div className="relative w-full sm:w-72">
+            <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search your bookmarks…" className="!pl-9" aria-label="Search bookmarks" />
+          </div>
+        </div>
+        {filtered.length === 0 ? (
+          <EmptyState
+            compact
+            icon={Search}
+            title="No bookmarks match"
+            description="Try another subject or search term."
+            action={<Button size="sm" variant="ghost" onClick={() => { setSubject('all'); setQuery(''); }}>Clear filters</Button>}
           />
-        ))}
-      </ul>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {filtered.map((item) => (
+              <BookmarkCard
+                key={item.id}
+                item={item}
+                expanded={expandedId === item.id}
+                onToggle={(id) => setExpandedId((prev) => (prev === id ? null : id))}
+                onRemove={handleRemove}
+                isOnline={isOnline}
+                ai={ai}
+              />
+            ))}
+          </ul>
+        )}
+      </>
     );
   }
 
@@ -214,20 +263,23 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     <div className="flex flex-col gap-6">
       <div className="border-b border-border pb-5 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-textMain">Bookmarks</h2>
+          <h2 className="text-display text-2xl text-textMain tracking-tight">Bookmarks</h2>
           <p className="text-muted2 mt-1 text-sm">
             Questions you saved while practising. Open one to see its answer, or practise them as a session.
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-muted2 tabular-nums">{bookmarks.length} saved</span>
+          <span className="text-xs text-muted2 tabular-nums">
+            {isFiltered ? `${filtered.length} of ${bookmarks.length}` : `${bookmarks.length} saved`}
+          </span>
           <Button
             size="sm"
-            onClick={() => launchPractice(navigate, bookmarksPreset(Math.min(PRACTICE_COUNT, bookmarks.length)))}
-            disabled={bookmarks.length === 0 || !isOnline}
-            title={isOnline ? undefined : 'Needs a connection'}
+            className="whitespace-nowrap"
+            onClick={practise}
+            disabled={practiseCount === 0 || (!isFiltered && !isOnline)}
+            title={!isFiltered && !isOnline ? 'Needs a connection' : undefined}
           >
-            <Play size={14} strokeWidth={2} aria-hidden="true" /> Practise bookmarks
+            <Play size={14} strokeWidth={2} aria-hidden="true" /> {isFiltered ? `Practise these ${practiseCount}` : 'Practise bookmarks'}
           </Button>
         </div>
       </div>

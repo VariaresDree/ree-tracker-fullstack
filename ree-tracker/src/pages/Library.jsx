@@ -69,14 +69,20 @@ export default function Library() {
 
   return (
     <Page>
-      <PageHeader title="Library" subtitle="Formula cards, handouts, the questions you bookmarked, your mistakes and notes, and quizzes you imported." />
+      <PageHeader title="Library" subtitle="Your study material in one place: formula cards, handouts, bookmarked questions, your mistakes and notes, and imported quizzes." />
 
       <Tabs id="library" label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
 
       <TabPanel id="library" active={tab}>
       {tab === 'formulas' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2">
-          <p className="text-sm text-muted2 mb-6">Constants, formulas and concepts as flip cards. Browse by subject, topic and subtopic, or search directly.</p>
+        <div className="animate-in fade-in slide-in-from-bottom-2 flex flex-col gap-6">
+          <div className="border-b border-border pb-5">
+            <h2 className="text-display text-2xl text-textMain tracking-tight">Formula cards</h2>
+            <p className="text-muted2 mt-1 text-sm max-w-prose">
+              Every constant, formula and concept as a flip card. Open a subject to see all of its cards on one page,
+              or narrow it down by topic and subtopic. Search finds any card directly.
+            </p>
+          </div>
           <ReferenceBrowser initialSearch={deepLink.search || ''} initialKind={deepLink.kind || 'all'} />
         </div>
       )}

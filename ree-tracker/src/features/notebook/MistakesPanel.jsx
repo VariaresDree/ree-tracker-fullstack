@@ -135,6 +135,7 @@ export default function MistakesPanel({ currentUser, isOnline }) {
     .filter((i) => (cause === 'all' ? true : cause === UNTAGGED ? !i.cause : i.cause === cause)), [bySubject, show, cause]);
   const summary = useMemo(() => causeSummary(all.filter((i) => !i.fixed)), [all]);
   const reset = (fn) => (v) => { fn(v); setLimit(PAGE); };
+  const practiseCount = Math.min(shown.length, PRACTICE_MAX);
 
   if (items == null) {
     if (status === 'loading') {
@@ -170,13 +171,18 @@ export default function MistakesPanel({ currentUser, isOnline }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <p className="text-sm text-muted2">
-          {counts.open} open · {counts.fixed} fixed{truncated ? ' (your newest 300)' : ''}. A mistake reads Fixed once you answer it right again.
+          {counts.open} open · {counts.fixed} fixed{truncated ? ' (your newest 300)' : ''}.
+          {' '}A mistake turns Fixed when you answer it right again, or when you mark it fixed yourself.
         </p>
         {summary && <p className="text-sm text-textMain">{summary}</p>}
       </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+      {/* Each control keeps its natural width and the row wraps between them.
+          In one squeezed row the counts and "All subjects" broke onto two
+          lines inside their buttons. */}
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
         <SegmentedControl
+          className="shrink-0 max-w-full [&_button]:whitespace-nowrap"
           label="Show"
           value={show}
           onChange={reset(setShow)}
@@ -187,12 +193,13 @@ export default function MistakesPanel({ currentUser, isOnline }) {
           ]}
         />
         <SegmentedControl
+          className="shrink-0 max-w-full [&_button]:whitespace-nowrap"
           label="Subject"
           value={subject}
           onChange={reset(setSubject)}
           options={[{ value: 'all', label: 'All subjects' }, ...SUBJECTS.map((s) => ({ value: s, label: toDisplaySubject(s) }))]}
         />
-        <FormField label="Cause" className="lg:w-48">
+        <FormField label="Cause" className="w-full sm:w-48">
           <Select value={cause} onChange={(e) => reset(setCause)(e.target.value)}>
             <option value="all">Any cause</option>
             {MISTAKE_CAUSES.map((c) => <option key={c} value={c}>{MISTAKE_CAUSE_LABELS[c]}</option>)}
@@ -200,11 +207,12 @@ export default function MistakesPanel({ currentUser, isOnline }) {
           </Select>
         </FormField>
         <Button
-          className="lg:ml-auto"
+          className="w-full sm:w-auto sm:ml-auto whitespace-nowrap"
           onClick={() => launchPractice(navigate, itemsPreset(shown.slice(0, PRACTICE_MAX).map(reviewItemToQuestion)))}
           disabled={shown.length === 0}
+          title={shown.length > PRACTICE_MAX ? `The first ${PRACTICE_MAX} of the ${shown.length} on screen` : undefined}
         >
-          <Play size={14} strokeWidth={2} aria-hidden="true" /> Practise these{shown.length > PRACTICE_MAX ? ` (first ${PRACTICE_MAX})` : ''}
+          <Play size={14} strokeWidth={2} aria-hidden="true" /> Practise {practiseCount} {practiseCount === 1 ? 'mistake' : 'mistakes'}
         </Button>
       </div>
 

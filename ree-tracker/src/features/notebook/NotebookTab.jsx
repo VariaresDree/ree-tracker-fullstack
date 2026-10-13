@@ -13,10 +13,10 @@ export default function NotebookTab({ currentUser, isOnline }) {
     <div className="flex flex-col gap-6">
       <div className="border-b border-border pb-5 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-textMain">Notebook</h2>
+          <h2 className="text-display text-2xl text-textMain tracking-tight">Notebook</h2>
           <p className="text-muted2 mt-1 text-sm max-w-prose">
             {view === 'mistakes'
-              ? 'Every question you got wrong, newest first, with the solution. Tag why you missed it, and practise the ones still open.'
+              ? 'Every question you got wrong, newest first, with its solution. Tag why you missed it, then practise the ones still open.'
               : 'Your own notes on questions and formula cards, newest first.'}
           </p>
         </div>

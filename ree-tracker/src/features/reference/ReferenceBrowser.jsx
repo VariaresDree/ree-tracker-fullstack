@@ -13,15 +13,24 @@
 // Subject/Topic come from the shared taxonomy (dynamicTOS) — the same source
 // the Library syllabus manager and heatmap use — not a parallel one. The
 // Subtopic level groups on ReferenceCard.subtopicTag, a free-text label.
-import { useMemo, useState, useDeferredValue } from 'react';
+//
+// A subject (or a topic) can also be shown as ONE page: "All cards" lays out
+// every card in it under topic/subtopic headings (SubjectCardSheet), so a
+// learner can review a whole subject's formulas without opening each
+// subtopic in turn. Where you are (subject, topic, subtopic, which view) is
+// kept for the browser session, so leaving the tab and coming back doesn't
+// drop you at the top again.
+import { lazy, Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
 import { Input, FormField, SegmentedControl, EmptyState, Button, Card, Skeleton, StatusPill } from '../../components/ui';
-import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History } from '../../components/ui/icons';
+import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import NotedFlashcard from './NotedFlashcard';
 import ReferenceStudyMode from './ReferenceStudyMode';
 import { dueCardIds, useCardReviews } from './useCardReviews';
+
+const SubjectCardSheet = lazy(() => import('./SubjectCardSheet'));
 
 const KIND_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -33,10 +42,35 @@ const UNTAGGED = '__untagged__'; // bucket key for cards with a topic but no sub
 
 const countLabel = (n) => `${n} card${n === 1 ? '' : 's'}`;
 
+// "12 formulas · 4 constants · 3 concepts" — what a subject/topic tile holds.
+const KIND_NOUNS = [['formula', 'formula', 'formulas'], ['constant', 'constant', 'constants'], ['concept', 'concept', 'concepts']];
+function kindBreakdown(counts) {
+  if (!counts) return '';
+  return KIND_NOUNS
+    .filter(([k]) => counts[k] > 0)
+    .map(([k, one, many]) => `${counts[k]} ${counts[k] === 1 ? one : many}`)
+    .join(' · ');
+}
+
+// Position in the hierarchy, kept for this browser session (best effort:
+// storage can be blocked, and then you simply start at the subjects).
+const POSITION_KEY = 'ree.formulaCards.position';
+function readPosition() {
+  try { return JSON.parse(sessionStorage.getItem(POSITION_KEY)) || {}; } catch { return {}; }
+}
+function writePosition(pos) {
+  try { sessionStorage.setItem(POSITION_KEY, JSON.stringify(pos)); } catch { /* storage unavailable */ }
+}
+
+const VIEW_OPTIONS = (groupNoun) => [
+  { value: 'browse', label: `By ${groupNoun}`, icon: LayoutGrid },
+  { value: 'all', label: 'All cards', icon: Layers },
+];
+
 // One clickable browse tile — a Subject, Topic, or Subtopic — showing its name
 // and how many cards it holds. Reused at every hierarchy level so the visual
 // language stays consistent as you drill down.
-function BrowseTile({ label, count, onClick, eyebrow }) {
+function BrowseTile({ label, count, onClick, eyebrow, detail }) {
   return (
     <button
       type="button"
@@ -51,8 +85,19 @@ function BrowseTile({ label, count, onClick, eyebrow }) {
         </div>
         <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
       </div>
-      <StatusPill tone="neutral" dot={false} className="self-start">{countLabel(count)}</StatusPill>
+      <div className="flex items-center gap-2 flex-wrap">
+        <StatusPill tone="neutral" dot={false}>{countLabel(count)}</StatusPill>
+        {detail && <span className="text-xs text-muted2">{detail}</span>}
+      </div>
     </button>
+  );
+}
+
+function SheetFallback() {
+  return (
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+      {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-40" />)}
+    </div>
   );
 }
 
@@ -91,9 +136,18 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const deferredSearch = useDeferredValue(search);
 
   // Hierarchy position: null selectedSubject = at the subject grid; etc.
-  const [selectedSubject, setSelectedSubject] = useState(null);
-  const [selectedTopic, setSelectedTopic] = useState(null);
-  const [selectedSubtopic, setSelectedSubtopic] = useState(null); // may be UNTAGGED
+  // Restored from this browser session unless another screen deep-linked a
+  // search here.
+  const [saved] = useState(() => (initialSearch ? {} : readPosition()));
+  const [selectedSubject, setSelectedSubject] = useState(saved.subject ?? null);
+  const [selectedTopic, setSelectedTopic] = useState(saved.subject ? saved.topic ?? null : null);
+  const [selectedSubtopic, setSelectedSubtopic] = useState(saved.topic ? saved.subtopic ?? null : null); // may be UNTAGGED
+  // 'browse' = tiles for the next level down; 'all' = every card in the
+  // subject (or topic) on one page.
+  const [view, setView] = useState(saved.view === 'all' ? 'all' : 'browse');
+  useEffect(() => {
+    writePosition({ subject: selectedSubject, topic: selectedTopic, subtopic: selectedSubtopic, view });
+  }, [selectedSubject, selectedTopic, selectedSubtopic, view]);
   const [studying, setStudying] = useState(false);
   // Which cards a study session covers. Was hardcoded to `leafCards`, so
   // studying was only ever reachable after drilling all the way to a single
@@ -149,6 +203,23 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     return counts;
   }, [kindFiltered, safeTOS]);
 
+  // Per-kind counts for each subject and topic, for the tiles' breakdown line.
+  const kindsBy = useMemo(() => {
+    const subject = {};
+    const topic = {};
+    for (const c of kindFiltered) {
+      (subject[c.subject] ||= {})[c.kind] = (subject[c.subject]?.[c.kind] || 0) + 1;
+      const t = c.topic?.name;
+      if (t) {
+        const key = `${c.subject}::${t}`;
+        (topic[key] ||= {})[c.kind] = (topic[key]?.[c.kind] || 0) + 1;
+      }
+    }
+    return { subject, topic };
+  }, [kindFiltered]);
+  // The breakdown only says something new when more than one kind is on show.
+  const showBreakdown = kind === 'all';
+
   const cardsInSubject = useMemo(
     () => (selectedSubject ? kindFiltered.filter((c) => c.subject === selectedSubject) : []),
     [kindFiltered, selectedSubject],
@@ -199,6 +270,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     setSelectedTopic(null);
     setSelectedSubtopic(null);
     setStudying(false);
+    setView('browse');
   };
 
   const handleSelectSubject = (s) => {
@@ -210,6 +282,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const handleSelectTopic = (t) => {
     setSelectedTopic(t);
     setSelectedSubtopic(null);
+    setView('browse');
   };
 
   const breadcrumbItems = [{ label: 'Formula cards' }];
@@ -220,7 +293,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const navigateBreadcrumb = (index) => {
     setStudying(false);
     if (index === 0) resetHierarchy();
-    else if (index === 1) { setSelectedTopic(null); setSelectedSubtopic(null); }
+    else if (index === 1) { setSelectedTopic(null); setSelectedSubtopic(null); setView('browse'); }
     else if (index === 2) setSelectedSubtopic(null);
   };
 
@@ -315,7 +388,13 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
       ) : !selectedSubject ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Object.keys(safeTOS).map((s) => (
-            <BrowseTile key={s} label={s} count={subjectCounts[s] || 0} onClick={() => handleSelectSubject(s)} />
+            <BrowseTile
+              key={s}
+              label={s}
+              count={subjectCounts[s] || 0}
+              detail={showBreakdown ? kindBreakdown(kindsBy.subject[s]) : ''}
+              onClick={() => handleSelectSubject(s)}
+            />
           ))}
         </div>
       ) : !selectedTopic ? (
@@ -326,23 +405,58 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
             {/* Study the WHOLE subject in one session — previously the only
                 entry point into study mode was after drilling to a single
                 subtopic, so studying everything under e.g. EE meant either
-                repeating a session per subtopic or never doing it at all. */}
+                repeating a session per subtopic or never doing it at all.
+                "All cards" shows the whole subject on one page. */}
             {cardsInSubject.length > 0 && (
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <p className="text-eyebrow">{countLabel(cardsInSubject.length)} in {selectedSubject}</p>
-                <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInSubject)}>
-                  <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study this set
-                </Button>
+                <SegmentedControl label={`How to show ${selectedSubject}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('topic')} />
+                {view === 'browse' && (
+                  <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInSubject)}>
+                    <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study all {cardsInSubject.length}
+                  </Button>
+                )}
               </div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {(safeTOS[selectedSubject] || []).map((t) => (
-                <BrowseTile key={t} label={t} count={topicCounts[t] || 0} onClick={() => handleSelectTopic(t)} />
-              ))}
-            </div>
+            {view === 'all' && cardsInSubject.length > 0 ? (
+              <Suspense fallback={<SheetFallback />}>
+                <SubjectCardSheet
+                  cards={cardsInSubject}
+                  scopeLabel={selectedSubject}
+                  by="topic"
+                  topicOrder={safeTOS[selectedSubject] || []}
+                  onStudy={(set) => startStudying(set)}
+                />
+              </Suspense>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(safeTOS[selectedSubject] || []).map((t) => (
+                  <BrowseTile
+                    key={t}
+                    label={t}
+                    count={topicCounts[t] || 0}
+                    detail={showBreakdown ? kindBreakdown(kindsBy.topic[`${selectedSubject}::${t}`]) : ''}
+                    onClick={() => handleSelectTopic(t)}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )
       ) : !atLeaf ? (
+        <>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <SegmentedControl label={`How to show ${selectedTopic}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('subtopic')} />
+            {view === 'browse' && (
+              <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInTopic)}>
+                <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study all {cardsInTopic.length}
+              </Button>
+            )}
+          </div>
+          {view === 'all' ? (
+            <Suspense fallback={<SheetFallback />}>
+              <SubjectCardSheet cards={cardsInTopic} scopeLabel={selectedTopic} by="subtopic" onStudy={(set) => startStudying(set)} />
+            </Suspense>
+          ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Object.entries(subtopicCounts)
             .filter(([key]) => key !== UNTAGGED)
@@ -360,6 +474,8 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
             />
           )}
         </div>
+          )}
+        </>
       ) : leafCards.length === 0 ? (
         <EmptyState
           icon={BookOpen}
@@ -371,7 +487,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <p className="text-eyebrow">{countLabel(leafCards.length)}</p>
             <Button size="sm" variant="secondary" onClick={() => startStudying(leafCards)}>
-              <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study this set
+              <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study these {leafCards.length}
             </Button>
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
