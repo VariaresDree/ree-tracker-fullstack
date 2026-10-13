@@ -13,6 +13,8 @@ vi.mock('../../hooks/useForecast', () => ({ useForecast: () => forecast }));
 vi.mock('../../hooks/useSrsSummary', () => ({ useSrsSummary: () => ({ summary: srs }) }));
 let cardSummary = null;
 vi.mock('../../hooks/useCardReviewSummary', () => ({ useCardReviewSummary: () => cardSummary }));
+let loopData = null;
+vi.mock('../../hooks/useTodayLoop', () => ({ useTodayLoop: () => loopData }));
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../diagnostic/PlacementPrompt', () => ({ default: () => <div>placement-prompt</div> }));
 let historyItems = [];
@@ -137,6 +139,23 @@ describe('TodayPanel', () => {
       expect(screen.getByRole('link', { name: 'Review cards' })).toHaveAttribute('href', '/library?tab=formulas');
     } finally {
       cardSummary = null;
+    }
+  });
+
+  it("leads with today's loop in place of the due-review action, starting it with the loaded set", () => {
+    const items = [{ id: 'e1', subject: 'EE', text: 'e1', answer: 'A', loop: { reason: 'due' } }, { id: 'm1', subject: 'Mathematics', text: 'm1', answer: 'A', loop: { reason: 'mistake' } }];
+    loopData = { items, counts: { due: 1, mistakes: 1 }, more: 0, cardsDue: 2 };
+    try {
+      renderPanel({ readiness: null, stats: { dailyTarget: 50 } });
+      const rows = screen.getAllByRole('listitem').map((li) => li.textContent);
+      expect(rows[0]).toMatch(/Start today's loop/);
+      expect(rows[0]).toMatch(/1 due review and 1 open mistake, mixed by board weight/);
+      expect(rows.some((t) => /Review 6 due questions/.test(t))).toBe(false);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Start' })[0]);
+      expect(lastState.preset).toMatchObject({ source: 'today-loop', count: 2, cardsDue: 2 });
+      expect(lastState.preset.items.map((q) => q.id)).toEqual(['e1', 'm1']);
+    } finally {
+      loopData = null;
     }
   });
 

@@ -34,6 +34,8 @@ const wrongAt = (questionId, min, over = {}) => ({ questionId, subject: 'EE', su
 beforeEach(() => {
     verifyIdToken.mockImplementation(async (token) => ({ uid: token, email: `${token}@example.com` }));
     vi.spyOn(prisma.user, 'upsert').mockResolvedValue({ id: UID });
+    // Not in any battle unless a test says so (services/answerGate.js).
+    vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -104,6 +106,19 @@ describe('GET /api/user/mistakes', () => {
         const res = await request(makeApp()).get('/api/user/mistakes').set(as());
         expect(battles.mock.calls[0][0].where).toEqual({ id: { in: ['LIVE01', 'DONE01'] }, status: { not: 'COMPLETED' } });
         expect(res.body.items.map((i) => i.questionId)).toEqual(['q-done', 'q-mock']);
+    });
+
+    it("leaves out a miss from any mode on a question in the learner's open battle", async () => {
+        vi.spyOn(prisma.questionAttempt, 'findMany').mockImplementation(async ({ where }) => (where.isCorrect
+            ? []
+            : [wrongAt('q-in-battle', 15, { mode: 'GAUNTLET', sessionId: 'run-1' }), wrongAt('q-other', 14, { mode: 'GAUNTLET', sessionId: 'run-1' })]));
+        prisma.battleParticipant.findMany.mockResolvedValue([
+            { battle: { id: 'LIVE02', questions: [{ id: 'q-in-battle' }], startedAt: new Date(Date.now() - 60_000), timeLimitSecs: 600, createdAt: new Date() } },
+        ]);
+        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => q(id)));
+        vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
+        const res = await request(makeApp()).get('/api/user/mistakes').set(as());
+        expect(res.body.items.map((i) => i.questionId)).toEqual(['q-other']);
     });
 
     it('answers an empty notebook without further reads', async () => {

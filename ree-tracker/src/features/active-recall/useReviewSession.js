@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
 import { generateQuestionsAI } from '../../services/geminiApi';
 import { TOS as fallbackTOS } from '../../config/constants';
 import { useAiExplanation } from '../quiz/useAiExplanation';
@@ -91,6 +91,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         setSession(prev => ({ ...prev, loading: true }));
         try {
             let freshData = [];
+            let loopCardsDue = target.cardsDue ?? cfg.cardsDue ?? 0;
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
             if (cfg.source === 'items') {
@@ -98,6 +99,18 @@ export const useReviewSession = (currentUser, isOnline) => {
                 // misses). It needs no request, so it runs offline too.
                 freshData = Array.isArray(target.items) ? target.items.filter((q) => q?.id && q.text) : [];
                 if (freshData.length === 0) throw new Error("There's nothing to practise from that sitting.");
+            } else if (cfg.source === 'today-loop') {
+                // Due reviews and open mistakes, already in the server's
+                // board-weight order (kept as is below, not resampled).
+                if (Array.isArray(target.items) && target.items.length > 0) {
+                    freshData = target.items.filter((q) => q?.id && q.text);
+                } else {
+                    if (!isOnline) throw new Error("Today's loop needs a connection.");
+                    const loop = await fetchTodayLoop();
+                    freshData = loop?.items || [];
+                    loopCardsDue = loop?.cardsDue || 0;
+                }
+                if (freshData.length === 0) throw new Error("Nothing is due and no mistakes are open. You're caught up.");
             } else if (cfg.source === 'srs-due') {
                 if (!isOnline) throw new Error("The review queue needs a connection.");
                 freshData = await fetchSrsDue(cfg.count || 20, cfg.subject);
@@ -179,7 +192,9 @@ export const useReviewSession = (currentUser, isOnline) => {
             // subject-wide ("All") session spans the whole subject instead of
             // collapsing onto the dominant subtopic (Math→Algebra, ESAS→Chemistry).
             // For a pinned subtopic this is just a uniform Fisher-Yates pick.
-            const finalSessionQuestions = stratifiedSample(filteredData, cfg.count || 20);
+            const finalSessionQuestions = cfg.source === 'today-loop'
+                ? filteredData.slice(0, cfg.count || filteredData.length)
+                : stratifiedSample(filteredData, cfg.count || 20);
 
             telemetryBatchRef.current = [];
             endingRef.current = false;
@@ -191,7 +206,10 @@ export const useReviewSession = (currentUser, isOnline) => {
                 : cfg.source === 'items'
                     // "Practise again" repeats the same set.
                     ? { ...cfg, items: freshData }
-                    : cfg;
+                    : cfg.source === 'today-loop'
+                        // Again repeats the same set; the summary links the cards due.
+                        ? { ...cfg, items: freshData, cardsDue: loopCardsDue }
+                        : cfg;
             setLastSummary(null);
 
             // Bracket the session in the store so the per-answer events know

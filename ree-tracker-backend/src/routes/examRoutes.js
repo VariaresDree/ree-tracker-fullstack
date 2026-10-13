@@ -10,6 +10,7 @@ const examHistory = require('../services/examHistory');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
 const { gradeAttempts, buildDiagnostics } = require('../services/examService');
+const { lockedQuestionIds } = require('../services/answerGate');
 const { updateTheta, itemParams, fisherInfo, PRIOR_SE } = require('../engine/irt');
 const { pickCatItem, topicKey } = require('../engine/cat');
 const catCandidatesModule = require('../services/catCandidates');
@@ -74,8 +75,16 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
         });
         const qMap = {};
         masterQuestions.forEach(q => { qMap[q.id] = q; });
+        // A question in a battle this learner is still in is not graded here:
+        // the result would hand them (or whoever they pass the id to) the key
+        // while the battle is open. It is not recorded either, so the mistakes
+        // list can't show it. The learner's answer in the battle itself stands.
+        const locked = await lockedQuestionIds(req.user.id, questionIds);
 
         const results = answers.map(a => {
+            if (locked.has(a.questionId)) {
+                return { questionId: a.questionId, withheld: true, isCorrect: null, correctAnswer: null, explanation: null };
+            }
             const masterQ = qMap[a.questionId];
             if (!masterQ) return { questionId: a.questionId, isCorrect: false, correctAnswer: null, explanation: null };
             return {
@@ -99,13 +108,14 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
         // A Gauntlet run records under its own session (its run id), so the
         // ladder can be graded from the recorded answers and the run reviewed.
         const run = req.body.gauntlet || null;
+        const recordable = answers.filter((a) => !locked.has(a.questionId));
         let telemetry = null;
         try {
-            telemetry = await recordAttempts({
+            if (recordable.length > 0) telemetry = await recordAttempts({
                 userId: req.user.id,
                 mode: req.body.mode || 'GAUNTLET',
                 ...(run ? { sessionId: run.runId } : {}),
-                attempts: answers.map((a) => ({
+                attempts: recordable.map((a) => ({
                     questionId: a.questionId,
                     userAnswer: a.userAnswer,
                     confidenceLevel: a.confidenceLevel || 'LOW',

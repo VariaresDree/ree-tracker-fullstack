@@ -107,3 +107,49 @@ describe('GET /api/analytics/deep/focus-time', () => {
         expect(res.body.days).toHaveLength(14);
     });
 });
+
+describe('fixing a logged focus block', () => {
+    const START = new Date(Date.now() - 3 * 3600_000);
+    const END = new Date(START.getTime() + 30 * 60_000); // a 30-minute span
+    const patch = (id, body) => request(makeApp()).patch(`/api/user/focus-blocks/${id}`).set(as()).send(body);
+
+    it('lists the newest blocks, each with the most minutes it can be set to', async () => {
+        vi.spyOn(prisma.focusBlock, 'findMany').mockResolvedValue([
+            { id: 'b1', subject: 'EE', minutes: 25, startedAt: START, endedAt: END },
+            { id: 'b2', subject: 'ESAS', minutes: 10, startedAt: END, endedAt: new Date(END.getTime() + 12 * 60_000) },
+        ]);
+        vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
+        const res = await request(makeApp()).get('/api/analytics/deep/focus-time').set(as());
+        expect(res.body.recent.map((b) => [b.id, b.maxMinutes])).toEqual([['b2', 13], ['b1', 31]]);
+    });
+
+    it("changes the subject and minutes of the caller's own block", async () => {
+        const findFirst = vi.spyOn(prisma.focusBlock, 'findFirst').mockResolvedValue({ id: 'b1', startedAt: START, endedAt: END });
+        const updateMany = vi.spyOn(prisma.focusBlock, 'updateMany').mockResolvedValue({ count: 1 });
+        const res = await patch('b1', { subject: 'Mathematics', minutes: 20 });
+        expect(res.status).toBe(200);
+        expect(findFirst.mock.calls[0][0].where).toEqual({ id: 'b1', userId: UID });
+        expect(updateMany.mock.calls[0][0]).toEqual({ where: { id: 'b1', userId: UID }, data: { subject: 'Mathematics', minutes: 20 } });
+    });
+
+    it('refuses more minutes than the block lasted, an unknown subject, or an empty change', async () => {
+        vi.spyOn(prisma.focusBlock, 'findFirst').mockResolvedValue({ id: 'b1', startedAt: START, endedAt: END });
+        const updateMany = vi.spyOn(prisma.focusBlock, 'updateMany').mockResolvedValue({ count: 1 });
+        expect((await patch('b1', { minutes: 45 })).status).toBe(400);
+        expect((await patch('b1', { subject: 'Chemistry' })).status).toBe(400);
+        expect((await patch('b1', {})).status).toBe(400);
+        expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it("answers 404 for a block that isn't the caller's", async () => {
+        vi.spyOn(prisma.focusBlock, 'findFirst').mockResolvedValue(null);
+        expect((await patch('someone-elses', { minutes: 5 })).status).toBe(404);
+    });
+
+    it("deletes only the caller's block", async () => {
+        const deleteMany = vi.spyOn(prisma.focusBlock, 'deleteMany').mockResolvedValue({ count: 1 });
+        const res = await request(makeApp()).delete('/api/user/focus-blocks/b1').set(as());
+        expect(res.body).toEqual({ success: true, deleted: true });
+        expect(deleteMany.mock.calls[0][0].where).toEqual({ id: 'b1', userId: UID });
+    });
+});

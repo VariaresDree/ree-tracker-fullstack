@@ -4,7 +4,7 @@
 // than JSX order. Each action carries either a review `preset` or a route `to`.
 
 import { PRC_FORMAT_SUMMARY } from '../../config/examStandards';
-import { drillPreset, dueReviewPreset, quickReviewPreset } from '../active-recall/presets';
+import { drillPreset, dueReviewPreset, quickReviewPreset, todayLoopPreset } from '../active-recall/presets';
 import { isTaskDone, taskLaunch } from '../profile/plannerTasks';
 import { dailyCountsToday } from '../../services/analyticsSync';
 
@@ -59,6 +59,8 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
 
 /**
  * @param {object} input
+ * @param {{items:Array, counts:{due:number, mistakes:number}, more?:number, cardsDue?:number}} [input.loop]
+ *   today's loop (GET /api/user/today-loop)
  * @param {{due:number, overdue?:number}} [input.srs]
  * @param {{due:number}} [input.cards]   formula cards due for spaced review
  * @param {object|null} [input.planTask]  from pickPlanTask
@@ -66,14 +68,31 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
  * @param {{done:number, target:number}} [input.daily]
  * @param {number|null} [input.examInDays]
  *
- * Order: due reviews (questions, then formula cards), today's plan task, the forecast's top fix, today's
+ * Order: today's loop (due reviews and open mistakes in one session; it
+ * replaces the due-review action), due reviews (questions, then formula cards), today's plan task, the forecast's top fix, today's
  * target, a mock. A plan task replaces the action it duplicates: a drill on
  * the same topic as the fix, a review for the target, a mock for the mock.
  */
-export function buildTodayActions({ srs, cards, planTask, forecast, daily, examInDays } = {}) {
+export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays } = {}) {
   const actions = [];
 
-  if (srs?.due > 0) {
+  const inLoop = loop?.items?.length || 0;
+  if (inLoop > 0) {
+    const { due = 0, mistakes = 0 } = loop.counts || {};
+    const parts = [
+      due > 0 && `${due} due review${due === 1 ? '' : 's'}`,
+      mistakes > 0 && `${mistakes} open mistake${mistakes === 1 ? '' : 's'}`,
+    ].filter(Boolean);
+    actions.push({
+      key: 'loop',
+      title: "Start today's loop",
+      detail: `${parts.join(' and ')}, mixed by board weight${loop.more > 0 ? ` (${loop.more} more wait for the next loop)` : ''}.`,
+      cta: 'Start',
+      preset: todayLoopPreset(loop),
+    });
+  }
+
+  if (srs?.due > 0 && inLoop === 0) {
     const n = srs.due;
     actions.push({
       key: 'srs',

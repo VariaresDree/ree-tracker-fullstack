@@ -14,6 +14,7 @@ vi.mock('../../services/dbQueries', () => ({
   fetchVaultQuestions: vi.fn(),
   fetchSmartDrillQuestions: vi.fn(),
   fetchSrsDue: vi.fn(),
+  fetchTodayLoop: vi.fn(),
   getAnalyticsProfile: vi.fn(() => Promise.resolve(null)),
   apiRequest: vi.fn(() => Promise.resolve({})),
   updateQuestionCache: vi.fn(),
@@ -34,10 +35,10 @@ vi.mock('../../store/slices', () => ({ useEngineActionsSlice: () => engine }));
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => ({ stats: {}, dynamicTOS: {}, }) } }));
 
 const toast = (await import('react-hot-toast')).default;
-const { fetchBookmarks, fetchSmartDrillQuestions, updateQuestionInBank, updateQuestionCache } = await import('../../services/dbQueries');
+const { fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, updateQuestionInBank, updateQuestionCache } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
-const { bookmarksPreset, drillPreset, itemsPreset } = await import('./presets');
+const { bookmarksPreset, drillPreset, itemsPreset, todayLoopPreset } = await import('./presets');
 
 const q = (id, subject, subtopic) => ({ id, subject, subtopic, text: `Q ${id}`, options: ['A', 'B', 'C', 'D'], answer: 'A' });
 const saved = [q('b1', 'EE', 'Protection'), q('b2', 'Mathematics', 'Calculus'), q('b3', 'EE', 'Machines'), q('b4', 'Math', 'Algebra')];
@@ -238,5 +239,41 @@ describe('AI source', () => {
   it('with no live syllabus, the subject lists fall back to the built-in one', () => {
     const { result } = setup();
     expect(Object.keys(result.current.safeTOS)).toEqual(expect.arrayContaining(['Mathematics', 'ESAS', 'EE']));
+  });
+});
+
+describe("today's loop source", () => {
+  const ordered = [q('e1', 'EE', 'Machines'), q('s1', 'ESAS', 'Chemistry'), q('e2', 'EE', 'Protection'), q('m1', 'Mathematics', 'Calculus')];
+
+  it('keeps the server’s board-weight order, and the summary carries the cards due', async () => {
+    const { result } = setup();
+    await act(() => result.current.startSession(todayLoopPreset({ items: ordered, cardsDue: 4 })));
+    expect(fetchTodayLoop).not.toHaveBeenCalled();
+    expect(result.current.session.questions.map((x) => x.id)).toEqual(['e1', 's1', 'e2', 'm1']);
+    act(() => result.current.setSession((st) => ({ ...st, confidence: 'HIGH' })));
+    act(() => result.current.handleAnswerSelection('A'));
+    await act(() => result.current.endSession());
+    expect(result.current.lastSummary.config).toMatchObject({ source: 'today-loop', cardsDue: 4 });
+    expect(result.current.lastSummary.config.items.map((x) => x.id)).toEqual(['e1', 's1', 'e2', 'm1']);
+  });
+
+  it('loads the loop itself when started without one', async () => {
+    fetchTodayLoop.mockResolvedValue({ items: ordered, cardsDue: 0 });
+    const { result } = setup();
+    await act(() => result.current.startSession(todayLoopPreset()));
+    expect(fetchTodayLoop).toHaveBeenCalledTimes(1);
+    expect(result.current.session.questions.map((x) => x.id)).toEqual(['e1', 's1', 'e2', 'm1']);
+  });
+
+  it('says you are caught up when the loop is empty, and needs a connection to load one', async () => {
+    fetchTodayLoop.mockResolvedValue({ items: [], cardsDue: 0 });
+    const { result } = setup();
+    await act(() => result.current.startSession(todayLoopPreset()));
+    expect(result.current.session.isActive).toBe(false);
+    expect(toast.error).toHaveBeenLastCalledWith(expect.stringMatching(/caught up/));
+
+    const offline = setup(false);
+    await act(() => offline.result.current.startSession(todayLoopPreset()));
+    expect(toast.error).toHaveBeenLastCalledWith("Today's loop needs a connection.");
   });
 });

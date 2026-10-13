@@ -26,4 +26,11 @@ const focusBlockSchema = z.object({
     }
 });
 
-module.exports = { focusBlockSchema };
+// PATCH /api/user/focus-blocks/:id — fix what a logged block was for, or its
+// minutes (no longer than the block lasted; checked against the stored row).
+const focusBlockEditSchema = z.object({
+    subject: z.enum(FOCUS_SUBJECTS).optional(),
+    minutes: z.number().int().min(1).max(FOCUS_MAX_MINUTES).optional(),
+}).strip().refine((b) => b.subject !== undefined || b.minutes !== undefined, { message: 'Nothing to change.' });
+
+module.exports = { focusBlockSchema, focusBlockEditSchema };

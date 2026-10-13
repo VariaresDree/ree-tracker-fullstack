@@ -11,6 +11,7 @@ import { Card, Button, Skeleton, ProgressIndicator, Sparkline } from '../../comp
 import { useForecast } from '../../hooks/useForecast';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useCardReviewSummary } from '../../hooks/useCardReviewSummary';
+import { useTodayLoop } from '../../hooks/useTodayLoop';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
@@ -147,6 +148,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   const { snapshot, loading } = useForecast();
   const { summary: srs } = useSrsSummary({ enabled: isOnline });
   const cards = useCardReviewSummary({ enabled: isOnline });
+  const loop = useTodayLoop({ enabled: isOnline });
   const planTask = usePlanToday({ enabled: isOnline });
   const daily = dailyProgress(stats, today);
   // One readiness snapshot per Manila day is recorded server-side; the last
@@ -161,6 +163,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   const trend = readinessTrend(history);
 
   const actions = buildTodayActions({
+    loop,
     srs,
     cards,
     planTask,

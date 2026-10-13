@@ -38,6 +38,8 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
 
   const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, missed, missedCount } = summary;
   const tone = accuracy >= 70 ? 'success' : accuracy >= 50 ? 'amber' : 'danger';
+  // Today's loop goes on to the formula cards due (Library › Formula cards).
+  const cardsNext = summary.config?.source === 'today-loop' ? summary.config.cardsDue || 0 : 0;
 
   return (
     <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
@@ -67,6 +69,15 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
             {luckyGuesses > 0 && <li>{luckyGuesses} right while unsure. Worth another look.</li>}
             {missedCount > 0 && <li>Missed and unsure answers come back in your review queue.</li>}
           </ul>
+        )}
+
+        {cardsNext > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
+            <p className="text-sm text-textMain flex-1">
+              Next in today’s loop: {cardsNext} formula card{cardsNext === 1 ? '' : 's'} due for review.
+            </p>
+            <Button as={Link} to="/library?tab=formulas" className="w-full sm:w-auto">Review cards</Button>
+          </div>
         )}
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">

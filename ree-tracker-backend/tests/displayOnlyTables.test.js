@@ -17,7 +17,9 @@ const SRC = resolve(__dirname, '..', 'src');
 const DISPLAY_ONLY = {
     outsideScore: ['routes/outsideScoreRoutes.js'],
     syllabusProgress: ['routes/syllabusRoutes.js'],
-    mistakeTag: ['routes/mistakeRoutes.js'],
+    // The notebook's reads live in services/mistakeList.js (shared with the
+    // Today loop, which only picks which questions to practise).
+    mistakeTag: ['routes/mistakeRoutes.js', 'services/mistakeList.js'],
     userNote: ['routes/noteRoutes.js'],
     focusBlock: ['services/focusTime.js'],
 };

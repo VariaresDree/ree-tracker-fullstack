@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const { validate } = require('../middlewares/validate');
 const { bookmarkCreateSchema } = require('../schemas/bookmarkSchemas');
 const prisma = require('../config/db');
+const { lockedQuestionIds } = require('../services/answerGate');
 
 router.get('/', authMiddleware, async (req, res) => {
     try {
@@ -11,7 +12,6 @@ router.get('/', authMiddleware, async (req, res) => {
         const cursor = req.query.cursor;
 
         const bookmarks = await prisma.bookmark.findMany({
-            take: 1000,
             where: { userId: req.user.id },
             include: {
                 question: {
@@ -33,8 +33,15 @@ router.get('/', authMiddleware, async (req, res) => {
         const hasMore = bookmarks.length > limit;
         if (hasMore) bookmarks.pop();
 
+        // A saved question that is in a battle this learner is still in shows
+        // without its key until the battle closes (services/answerGate.js).
+        const locked = await lockedQuestionIds(req.user.id, bookmarks.map(b => b.question?.id));
+        const withKey = (q) => (q && locked.has(q.id)
+            ? { ...q, answer: null, fixedExplanation: null, answerWithheld: true }
+            : q);
+
         res.status(200).json({
-            items: bookmarks.map(b => ({ ...b.question, bookmarkId: b.id, bookmarkedAt: b.createdAt })),
+            items: bookmarks.map(b => ({ ...withKey(b.question), bookmarkId: b.id, bookmarkedAt: b.createdAt })),
             nextCursor: hasMore ? bookmarks[bookmarks.length - 1].id : null
         });
     } catch (error) {

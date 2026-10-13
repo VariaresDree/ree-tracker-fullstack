@@ -86,7 +86,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
 
                 return (
                     <div key={d} className={`aspect-square border-r border-b border-border2/50 relative transition-all group ${colorClass} ${isToday ? 'ring-2 ring-inset ring-[var(--accent)]' : ''}`}>
-                        <span className="absolute top-1 left-1.5 text-[11px] md:text-sm font-bold opacity-80">{d}</span>
+                        <span className="absolute top-1 left-1.5 text-[11px] md:text-sm font-bold">{d}</span>
                         {count > 0 && (
                             <span className="absolute bottom-1 right-1.5 text-[11px] md:text-xs font-mono opacity-90">{count}</span>
                         )}

@@ -9,7 +9,7 @@
 'use strict';
 
 const prisma = require('../config/db');
-const { FOCUS_SUBJECTS, manilaDateOf } = require('@ree/shared');
+const { FOCUS_SUBJECTS, FOCUS_MAX_MINUTES, manilaDateOf } = require('@ree/shared');
 const { getSyllabusWeights } = require('./questionPool');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -61,16 +61,60 @@ function summarizeFocus(blocks, { now = Date.now(), weights = null } = {}) {
     return { days, last30, shares, boardMinutes };
 }
 
+// How many of the newest blocks Habits lists to fix or delete.
+const RECENT_SHOWN = 10;
+
 async function loadFocusTime(userId, now = Date.now()) {
     const [blocks, weights] = await Promise.all([
         prisma.focusBlock.findMany({
             where: { userId, endedAt: { gte: new Date(now - SHARE_WINDOW_DAYS * DAY_MS) } },
-            select: { subject: true, minutes: true, endedAt: true },
+            select: { id: true, subject: true, minutes: true, startedAt: true, endedAt: true },
             orderBy: { endedAt: 'asc' },
         }),
         getSyllabusWeights(),
     ]);
-    return summarizeFocus(blocks, { now, weights });
+    const recent = blocks.slice(-RECENT_SHOWN).reverse().map((b) => ({
+        id: b.id, subject: b.subject, minutes: b.minutes, startedAt: b.startedAt, endedAt: b.endedAt,
+        // The most minutes this block can be set to: the time it spanned.
+        maxMinutes: spanMinutes(b),
+    }));
+    return { ...summarizeFocus(blocks, { now, weights }), recent };
+}
+
+function spanMinutes(b) {
+    const span = Math.ceil((new Date(b.endedAt).getTime() - new Date(b.startedAt).getTime()) / 60000) + 1;
+    return Math.max(1, Math.min(FOCUS_MAX_MINUTES, Number.isFinite(span) ? span : 1));
+}
+
+class FocusBlockError extends Error {
+    constructor(status, message) { super(message); this.status = status; }
+}
+
+/**
+ * Fix a logged block: what it was for, or how many minutes of it were focus.
+ * Minutes can't exceed the time the block spanned (the rule a new block
+ * follows). Only the learner's own block is found.
+ */
+async function updateFocusBlock({ userId, id }, { subject, minutes }) {
+    const found = await prisma.focusBlock.findFirst({
+        where: { id, userId },
+        select: { id: true, startedAt: true, endedAt: true },
+    });
+    if (!found) throw new FocusBlockError(404, 'Focus block not found.');
+    if (minutes != null && minutes > spanMinutes(found)) {
+        throw new FocusBlockError(400, 'More minutes than the block lasted.');
+    }
+    const data = {};
+    if (subject != null) data.subject = subject;
+    if (minutes != null) data.minutes = minutes;
+    await prisma.focusBlock.updateMany({ where: { id, userId }, data });
+    return { id, ...data };
+}
+
+/** Delete one of the learner's blocks. A second delete is a no-op. */
+async function deleteFocusBlock({ userId, id }) {
+    const { count } = await prisma.focusBlock.deleteMany({ where: { id, userId } });
+    return { deleted: count > 0 };
 }
 
 /** Record one block; a replay of the same clientId lands once. */
@@ -93,4 +137,4 @@ async function recordFocusBlock(userId, block) {
     }
 }
 
-module.exports = { summarizeFocus, loadFocusTime, recordFocusBlock };
+module.exports = { summarizeFocus, loadFocusTime, recordFocusBlock, updateFocusBlock, deleteFocusBlock, FocusBlockError };

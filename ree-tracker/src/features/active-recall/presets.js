@@ -41,6 +41,20 @@ export const drillPreset = ({ topicId, topic, subject, mode, count = 10 } = {}) 
 });
 
 /**
+ * Today's loop (GET /api/user/today-loop): due reviews and open mistakes in
+ * the server's order, by board weight. Started from Today with the loop it
+ * already loaded; without one it asks for it. The summary then points to the
+ * formula cards due.
+ */
+export const todayLoopPreset = (loop = null) => ({
+  ...BASE,
+  count: loop?.items?.length || 25,
+  source: 'today-loop',
+  items: loop?.items || null,
+  cardsDue: loop?.cardsDue || 0,
+});
+
+/**
  * A fixed set of questions, e.g. the items missed in a past sitting (Exams ›
  * Past sittings › Review › Practise missed). The questions travel with the
  * preset, so it works offline once they are on screen.
