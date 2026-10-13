@@ -57,6 +57,24 @@ describe('SimulatorDiagnostics', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
+  it('a battle waiting on someone who left says when the results are due, then offers to check', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const resultsBy = Date.now() + 120_000;
+      const onCheckResults = vi.fn();
+      renderIt({ pending: true, score: null, correctItems: null, resultsBy }, { isBattle: true, onCheckResults });
+      const time = new Date(resultsBy).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      expect(screen.getByText(`Results by ${time} at the latest, even if someone has left.`)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Check for results' })).not.toBeInTheDocument();
+
+      await vi.advanceTimersByTimeAsync(121_000);
+      fireEvent.click(await screen.findByRole('button', { name: 'Check for results' }));
+      expect(onCheckResults).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('a battle waiting on the others says so, with no score yet', () => {
     renderIt({ pending: true, score: null, verdict: null, correctItems: null }, { isBattle: true, submitPending: true });
     expect(screen.getByText('Waiting for the other players')).toBeInTheDocument();

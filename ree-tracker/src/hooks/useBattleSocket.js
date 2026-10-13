@@ -30,6 +30,10 @@ export function useBattleSocket(battleId) {
     // the lobby, and the UI can say it is waiting to send.
     const pendingSubmitRef = useRef(null);
     const [submitPending, setSubmitPending] = useState(false);
+    // When the running battle ends, on THIS device's clock: the server sends
+    // its own clock with each update, so a phone whose clock is off still
+    // counts down to the server's deadline. { endsAt, closesAt } (epoch ms).
+    const [timing, setTiming] = useState(null);
 
     useEffect(() => {
         if (!battleId) return;
@@ -71,10 +75,17 @@ export function useBattleSocket(battleId) {
                 setConnected(false);
             });
 
+            const takeTiming = (t) => {
+                if (!t || !Number.isFinite(t.serverNow)) return;
+                const skew = Date.now() - t.serverNow;
+                setTiming({ endsAt: t.endsAt + skew, closesAt: t.closesAt + skew });
+            };
+
             socket.on('lobby-update', (data) => {
                 if (data.participants) setParticipants(data.participants);
                 if (data.status) setBattleStatus(data.status);
                 if (data.config) setBattleConfig(data);
+                if (data.timing) takeTiming(data.timing);
                 setError(null);
                 // Back in the lobby after a reconnect: send a submit that
                 // hasn't been acknowledged (the server ignores a duplicate).
@@ -84,6 +95,7 @@ export function useBattleSocket(battleId) {
             socket.on('battle-started', (data) => {
                 setBattleStarted(data);
                 setBattleStatus('IN_PROGRESS');
+                takeTiming(data);
             });
 
             socket.on('opponent-progress', (data) => {
@@ -145,6 +157,15 @@ export function useBattleSocket(battleId) {
         socketRef.current?.emit('battle-answer', { battleId, questionId, userAnswer, confidenceLevel, timeSpentMs });
     }, [battleId]);
 
+    // Ask again: the server answers a battle whose time is up by finishing it
+    // and sending the results (used once the deadline has passed, in case the
+    // server restarted and its own timer was lost).
+    const rejoin = useCallback(() => {
+        const socket = socketRef.current;
+        if (socket?.connected) socket.emit('join-battle', { battleId });
+        else socket?.connect?.();
+    }, [battleId]);
+
     // Final submission carries only the attempts (for disconnect-gap
     // recovery); the server computes score/total/timing itself.
     const submitResult = useCallback((attempts = []) => {
@@ -169,6 +190,8 @@ export function useBattleSocket(battleId) {
         opponentProgress: Array.from(opponentProgress.values()),
         error,
         submitPending,
+        timing,
+        rejoin,
         startBattle,
         sendAnswer,
         submitResult

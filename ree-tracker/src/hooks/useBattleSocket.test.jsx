@@ -35,6 +35,25 @@ describe('useBattleSocket', () => {
     expect(fakeSocket.emit).not.toHaveBeenCalledWith('battle-submit', expect.anything());
   });
 
+  it("keeps the battle's end on this device's clock, from the server's", async () => {
+    const { result } = renderHook(() => useBattleSocket('ABC125'));
+    await waitFor(() => expect(handlers['lobby-update']).toBeDefined());
+    // The server's clock is 5 minutes ahead of this device's.
+    const serverNow = Date.now() + 5 * 60000;
+    act(() => handlers['lobby-update']({ participants: [], status: 'IN_PROGRESS', timing: { serverNow, endsAt: serverNow + 60000, closesAt: serverNow + 90000 } }));
+    expect(Math.abs(result.current.timing.endsAt - (Date.now() + 60000))).toBeLessThan(1000);
+    expect(result.current.timing.closesAt - result.current.timing.endsAt).toBe(30000);
+  });
+
+  it('asks the server again on rejoin (it finishes a battle whose time is up)', async () => {
+    const { result } = renderHook(() => useBattleSocket('ABC126'));
+    await waitFor(() => expect(handlers['lobby-update']).toBeDefined());
+    fakeSocket.connected = true;
+    fakeSocket.emit.mockClear();
+    act(() => result.current.rejoin());
+    expect(fakeSocket.emit).toHaveBeenCalledWith('join-battle', { battleId: 'ABC126' });
+  });
+
   it('surfaces the server’s refusal', async () => {
     const { result } = renderHook(() => useBattleSocket('ABC124'));
     await waitFor(() => expect(handlers.error).toBeDefined());

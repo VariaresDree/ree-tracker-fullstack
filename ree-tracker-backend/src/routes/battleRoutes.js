@@ -6,8 +6,13 @@ const { validate } = require('../middlewares/validate');
 const { battleCreateSchema } = require('../schemas/battleSchemas');
 const { samplePool, sampleBlendedPool } = require('../services/questionPool');
 const { sanitizeBattleQuestions } = require('../utils/battleSanitizer');
+const { battleTiming } = require('../utils/battleLogic');
+const battleLifecycle = require('../services/battleLifecycle');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+
+// How long a read waits for a due battle to finish before answering anyway.
+const SETTLE_WAIT_MS = 8000;
 
 // Create a battle from a pool SPEC. The server samples the questions itself —
 // clients never supply the pool (they'd need answer keys to build one, which
@@ -45,22 +50,86 @@ router.post('/', authMiddleware, validate(battleCreateSchema), idempotency(), as
     }
 });
 
+// GET /api/battles/me/active — the running battles the caller is in, for
+// "Return to battle". Owner-scoped. A player who closed the app mid-battle had
+// no way back: nothing remembered the battle, on this device or any other.
+// Battles whose time is up are finished in the background and left out (they
+// show under results once completed). Declared before /:battleId, which would
+// otherwise take "me" as an id.
+router.get('/me/active', authMiddleware, async (req, res) => {
+    try {
+        const rows = await prisma.battleParticipant.findMany({
+            where: { userId: req.user.id, battle: { status: 'IN_PROGRESS' } },
+            select: {
+                battleId: true,
+                finishedAt: true,
+                battle: { select: { id: true, status: true, config: true, timeLimitSecs: true, startedAt: true, createdAt: true } },
+            },
+            orderBy: { joinedAt: 'desc' },
+            take: 10,
+        });
+        const now = Date.now();
+        const items = [];
+        for (const row of rows) {
+            const timing = battleTiming(row.battle, now);
+            if (!timing) continue;
+            if (timing.closed) {
+                battleLifecycle.settleBattle(row.battleId).catch((err) => {
+                    logger.error('battle settle (active list) failed', { battleId: row.battleId, error: err.message });
+                });
+                continue;
+            }
+            const live = battleLifecycle.battleLobbies.get(row.battleId)?.participants.get(req.user.id);
+            items.push({
+                battleId: row.battleId,
+                config: row.battle.config,
+                timeLimitSecs: row.battle.timeLimitSecs,
+                endsAt: timing.endsAt,
+                closesAt: timing.closesAt,
+                remainingMs: timing.remainingMs,
+                finished: !!(row.finishedAt || live?.finished || live?.finishPromise),
+            });
+        }
+        return res.status(200).json({ items, serverNow: now });
+    } catch (error) {
+        logger.error('active battles failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load your battles.' });
+    }
+});
+
 // Battle payloads are sanitized: no answer keys, explanations, or IRT params
 // leave the server while a battle is live. The key is revealed via the
 // socket's battle-complete broadcast for the post-battle review screen.
+//
+// While it runs, it also carries the server's clock (`timing`) and, for a
+// player, their own saved answers (`me`: the options picked, never whether
+// they were right), so a player who comes back resumes where they were with
+// the time actually left. A battle whose time is up is finished first.
 router.get('/:battleId', authMiddleware, async (req, res) => {
     try {
-        const battle = await prisma.battle.findUnique({
-            where: { id: req.params.battleId }
-        });
+        const where = { id: req.params.battleId };
+        let battle = await prisma.battle.findUnique({ where });
 
         if (!battle) return res.status(404).json({ error: 'Battle not found.' });
 
-        res.status(200).json({
-            success: true,
-            battle: { ...battle, questions: sanitizeBattleQuestions(battle.questions) },
-        });
+        if (battle.status === 'IN_PROGRESS' && battleTiming(battle)?.closed) {
+            await battleLifecycle.settleWithin(battle.id, SETTLE_WAIT_MS);
+            battle = (await prisma.battle.findUnique({ where })) || battle;
+        }
+
+        const out = { ...battle, questions: sanitizeBattleQuestions(battle.questions) };
+        if (battle.status === 'IN_PROGRESS') {
+            const now = Date.now();
+            const timing = battleTiming(battle, now);
+            out.timing = timing
+                ? { serverNow: now, startedAt: timing.startedAt, endsAt: timing.endsAt, closesAt: timing.closesAt, remainingMs: timing.remainingMs }
+                : null;
+            out.me = await battleLifecycle.participantSnapshot(battle.id, req.user.id);
+        }
+
+        res.status(200).json({ success: true, battle: out });
     } catch (error) {
+        logger.error('battle fetch failed', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch battle.' });
     }
 });

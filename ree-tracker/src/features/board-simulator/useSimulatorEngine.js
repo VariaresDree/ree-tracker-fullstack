@@ -88,6 +88,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const totalExamTime = useRef(0);
   const currentAnswersRef = useRef({});
   const currentConfidencesRef = useRef({});
+  // A battle's close (its time limit plus the server's grace) on this device's
+  // clock: when the results are due at the latest.
+  const battleClosesAtRef = useRef(null);
 
   // Refs mirror the mutable pieces of exam state so the autosave draft never
   // closes over a stale snapshot. The timer effect below only re-subscribes on
@@ -512,6 +515,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                     // The battle server records this player's sitting under
                     // battleId:uid; it opens for review once everyone is done.
                     sessionId: currentUser?.uid ? `${config.battleId}:${currentUser.uid}` : null,
+                    // The server finishes the battle by then whoever is left.
+                    resultsBy: battleClosesAtRef.current,
                 },
             }));
             setCurrentIndex(0);
@@ -753,6 +758,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     } catch { toast.error("Flag failed."); }
   };
 
+  // Opens the exam room for a running battle the player is in, and resolves
+  // to what happened: 'started', or why not — 'waiting' (not started yet),
+  // 'completed', 'finished' (this player already submitted) or 'not-a-player'
+  // — so the page can send them to the battle room instead.
+  //
+  // A player coming back (closed the app, lost signal, another device) gets
+  // their saved answers back and the time actually left on the server's clock.
+  // It used to restart with blank answers and the full time limit.
   const startMultiplayerBattle = async (battleId) => {
     setSession(prev => ({ ...prev, loading: true, error: '' }));
     try {
@@ -760,6 +773,17 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       if (!data?.battle) throw new Error('Battle not found');
 
       const battle = data.battle;
+      // `me` is null for someone who isn't a player (absent from an older
+      // server, which never sent it: then open the room as before).
+      const status = battle.status === 'COMPLETED' ? 'completed'
+        : battle.status && battle.status !== 'IN_PROGRESS' ? 'waiting'
+          : battle.me === null ? 'not-a-player'
+            : battle.me?.finished ? 'finished' : 'started';
+      if (status !== 'started') {
+        setSession(prev => ({ ...prev, loading: false }));
+        return status;
+      }
+
       const pool = shuffleArray(battle.questions || []).map(q =>
         q.options?.length > 0 ? { ...q, options: shuffleArray(q.options) } : q
       );
@@ -767,6 +791,24 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       if (pool.length === 0) throw new Error('No questions in battle');
 
       const timeLimitSecs = battle.timeLimitSecs || 1800;
+      // The server's clock, moved onto this device's: the room counts down to
+      // the battle's real end, however long ago it started.
+      const timing = battle.timing;
+      const remainingMs = timing ? Math.max(0, timing.remainingMs) : timeLimitSecs * 1000;
+      const now = Date.now();
+      battleClosesAtRef.current = timing ? now + (timing.closesAt - timing.serverNow) : null;
+
+      // Saved picks, by question id (the pool is reshuffled on every open).
+      const saved = battle.me?.answers || {};
+      const answers = {};
+      const confidences = {};
+      pool.forEach((q, idx) => {
+        const a = saved[q.id];
+        if (a?.userAnswer == null) return;
+        answers[idx] = a.userAnswer;
+        confidences[idx] = a.confidenceLevel || 'MED';
+      });
+      const restored = Object.keys(answers).length;
 
       setConfig({
         mode: battle.config?.mode || 'custom',
@@ -780,16 +822,17 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       });
 
       timeSpentPerQuestion.current = {};
-      currentAnswersRef.current = {};
-      currentConfidencesRef.current = {};
+      currentAnswersRef.current = answers;
+      currentConfidencesRef.current = confidences;
       questionsRef.current = pool;
-      lastActiveTime.current = Date.now();
+      lastActiveTime.current = now;
       totalExamTime.current = timeLimitSecs;
-      endTimeRef.current = Date.now() + timeLimitSecs * 1000;
+      // With no time left the timer's first tick submits what was saved.
+      endTimeRef.current = now + remainingMs;
 
       setSession({
-        isActive: true, isFinished: false, questions: pool, answers: {},
-        confidences: {}, loading: false, error: '', diagnostics: null
+        isActive: true, isFinished: false, questions: pool, answers,
+        confidences, loading: false, error: '', diagnostics: null
       });
       setCurrentIndex(0);
       setExamEndTime(endTimeRef.current);
@@ -800,10 +843,17 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setIsSubmitting(false);
       gradesAppliedRef.current = false;
 
-      toast.success(`Battle loaded: ${pool.length} items, ${Math.round(timeLimitSecs / 60)} min`);
+      const minsLeft = Math.ceil(remainingMs / 60000);
+      if (restored > 0 || (timing && remainingMs < timeLimitSecs * 1000 - 60000)) {
+        toast.success(`Back in the battle: ${restored} answer${restored === 1 ? '' : 's'} kept, ${minsLeft} min left.`);
+      } else {
+        toast.success(`Battle loaded: ${pool.length} items, ${minsLeft} min`);
+      }
+      return 'started';
     } catch (err) {
       setSession(prev => ({ ...prev, loading: false, error: err.message }));
       toast.error(err.message);
+      return 'error';
     }
   };
 
@@ -867,6 +917,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     setCurrentIndex(0);
     currentIndexRef.current = 0;
     gradesAppliedRef.current = false;
+    battleClosesAtRef.current = null;
   };
 
   // What the saved draft is, without loading it: so the full board's break

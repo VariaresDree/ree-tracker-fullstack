@@ -13,18 +13,29 @@
 //
 // Answers are revealed only once a sitting is CLOSED, so the endpoint can't be
 // used to fish for the key mid-exam: a full board stays closed until its last
-// section is finalised, a battle until every player is done.
+// section is finalised, a battle until it completes or its time (plus the
+// grace) is up — after that no answer is accepted, so nothing can be fished.
+// A battle used to open only on COMPLETED, and one that never completed (a
+// player left, the server restarted) kept everyone's review shut for good.
 
 'use strict';
 
 const prisma = require('../config/db');
 const { normalizeSubject } = require('@ree/shared');
+const { battleTiming } = require('../utils/battleLogic');
+const battleLifecycle = require('./battleLifecycle');
+
+// How long a review waits for a due battle to finish before answering from
+// the clock.
+const BATTLE_SETTLE_WAIT_MS = 6000;
 
 class SittingReviewError extends Error {
-    constructor(status, message, code) {
+    constructor(status, message, code, extra = null) {
         super(message);
         this.status = status;
         this.code = code;
+        // Sent with the error (e.g. { opensAt } for a battle still running).
+        this.extra = extra;
     }
 }
 
@@ -37,14 +48,14 @@ const REVIEWABLE_MODES = new Set(['BOARD_SIM', 'BATTLE', 'DIAGNOSTIC', 'GAUNTLET
 const configOf = (session) => (session?.config && typeof session.config === 'object' ? session.config : {});
 
 /** Pure: may this sitting's answers be shown? */
-function isSittingClosed(session, { battleStatus = null, now = Date.now() } = {}) {
+function isSittingClosed(session, { battleStatus = null, battleClosesAt = null, now = Date.now() } = {}) {
     const cfg = configOf(session);
     switch (session.mode) {
         case 'BOARD_SIM':
             return !!cfg.finalizedAt || !!cfg.hiddenFromHistory
                 || new Date(session.createdAt).getTime() < now - ABANDONED_AFTER_MS;
         case 'BATTLE':
-            return battleStatus === 'COMPLETED';
+            return battleStatus === 'COMPLETED' || (battleClosesAt != null && now >= battleClosesAt);
         case 'DIAGNOSTIC':
             return session.verdict === 'COMPLETED';
         case 'GAUNTLET':
@@ -117,12 +128,22 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
     if (!REVIEWABLE_MODES.has(session.mode)) throw new SittingReviewError(422, 'This kind of session has no review.');
 
     let battle = null;
+    let battleClosesAt = null;
     if (session.mode === 'BATTLE') {
         const battleId = String(session.id).split(':')[0];
-        battle = await prisma.battle.findUnique({ where: { id: battleId }, select: { status: true, questions: true } });
+        const select = { id: true, status: true, questions: true, startedAt: true, timeLimitSecs: true, createdAt: true };
+        battle = await prisma.battle.findUnique({ where: { id: battleId }, select });
+        // Its time is up but nothing finished it: finish it now, so the review
+        // has every player's result behind it.
+        if (battle?.status === 'IN_PROGRESS' && battleTiming(battle, now)?.closed) {
+            await battleLifecycle.settleWithin(battleId, BATTLE_SETTLE_WAIT_MS);
+            battle = (await prisma.battle.findUnique({ where: { id: battleId }, select })) || battle;
+        }
+        if (battle?.status === 'IN_PROGRESS') battleClosesAt = battleTiming(battle, now)?.closesAt ?? null;
     }
-    if (!isSittingClosed(session, { battleStatus: battle?.status, now })) {
-        throw new SittingReviewError(409, 'This sitting is still in progress.', 'IN_PROGRESS');
+    if (!isSittingClosed(session, { battleStatus: battle?.status, battleClosesAt, now })) {
+        throw new SittingReviewError(409, 'This sitting is still in progress.', 'IN_PROGRESS',
+            battleClosesAt != null ? { opensAt: new Date(battleClosesAt).toISOString() } : null);
     }
 
     const cfg = configOf(session);

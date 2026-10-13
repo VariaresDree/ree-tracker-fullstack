@@ -64,3 +64,6 @@ module.exports = async (req, res, next) => {
 };
 
 module.exports.ensuredUsers = ensuredUsers;
+// The battle socket's auth uses it too: a socket join can be someone's first
+// request, and the battle's rows reference User.
+module.exports.ensureUserExists = ensureUserExists;

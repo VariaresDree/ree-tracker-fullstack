@@ -9,6 +9,7 @@
 // against the board's pace per subject, and "Review every item" opens the
 // sitting from the server (Exams › Past sittings), all three sections of a
 // full board included.
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { VERDICT, GENERAL_AVERAGE, SUBJECT_FLOOR } from '@ree/shared';
 import LatexRenderer from '../../components/LatexRenderer';
@@ -16,7 +17,7 @@ import NotificationOptIn from '../../components/NotificationOptIn';
 import { Badge, Button, Card, EmptyState, ProgressIndicator, StatusPill } from '../../components/ui';
 import { Shield, TriangleAlert, ClipboardList, Clock, Play } from '../../components/ui/icons';
 import PacingPanel from '../exams/PacingPanel';
-import { formatDuration } from '../../utils/time';
+import { formatDuration, formatTimeOfDay } from '../../utils/time';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
@@ -28,11 +29,27 @@ const SUBJECTS = [
 ];
 const subjectTone = (pct) => (pct < SUBJECT_FLOOR ? 'danger' : pct >= GENERAL_AVERAGE ? 'success' : 'amber');
 
+// A battle's results are due by `resultsBy` at the latest: the server
+// finishes it then, scoring anyone who left on the answers it received. Past
+// that, "Check for results" asks again. True once that time has come.
+function useIsPast(at) {
+  // The `at` that has passed (so a new deadline starts out not past).
+  const [passed, setPassed] = useState(null);
+  useEffect(() => {
+    if (!at) return undefined;
+    const t = setTimeout(() => setPassed(at), Math.max(0, at - Date.now()));
+    return () => clearTimeout(t);
+  }, [at]);
+  return !!at && passed === at;
+}
+
 // `headingLevel`: 1 on its own; 2 under the full-board result, which has the h1.
-export default function SimulatorDiagnostics({ session, engine, isBattle = false, onExit, headingLevel = 1, submitPending = false }) {
+export default function SimulatorDiagnostics({ session, engine, isBattle = false, onExit, headingLevel = 1, submitPending = false, onCheckResults }) {
   const Heading = `h${headingLevel}`;
   const navigate = useNavigate();
   const { diagnostics } = session;
+  const resultsBy = diagnostics?.pending ? diagnostics.resultsBy : null;
+  const resultsDue = useIsPast(resultsBy);
   if (!diagnostics) return null;
 
   const pending = !!diagnostics.pending;
@@ -56,6 +73,12 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
               <div className="mt-2 flex flex-col gap-2" role="status">
                 <p className="text-display text-3xl text-textMain">Waiting for the other players</p>
                 <p className="text-sm text-muted2">Your answers are locked in. Scores, the answer key and the review open when everyone has finished or the time runs out.</p>
+                {resultsBy && !resultsDue && (
+                  <p className="text-sm text-textMain">Results by {formatTimeOfDay(resultsBy)} at the latest, even if someone has left.</p>
+                )}
+                {resultsDue && onCheckResults && (
+                  <Button size="sm" variant="secondary" className="self-start" onClick={onCheckResults}>Check for results</Button>
+                )}
                 {submitPending && <StatusPill tone="amber">Reconnecting to send your answers…</StatusPill>}
               </div>
             ) : (

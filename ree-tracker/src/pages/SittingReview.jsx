@@ -11,7 +11,7 @@
 // last section, and the placement test showed no answers. This reads the
 // server's record (GET /api/analytics/deep/sittings/:id/review), which serves
 // a sitting only once it is closed.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toDisplaySubject, VERDICT } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,7 +25,7 @@ import QuestionCard from '../features/quiz/QuestionCard';
 import SolutionPanel from '../features/quiz/SolutionPanel';
 import { useAiExplanation } from '../features/quiz/useAiExplanation';
 import PacingPanel from '../features/exams/PacingPanel';
-import { formatClock as formatSecs, formatDuration } from '../utils/time';
+import { formatClock as formatSecs, formatDuration, formatTimeOfDay } from '../utils/time';
 import { REVIEW_FILTERS, filterCounts, filterItems, subjectsIn } from '../features/exams/review/reviewFilters';
 import { missedItems, retakeState, reviewItemToQuestion } from '../features/exams/review/retake';
 import { itemsPreset, launchPractice } from '../features/active-recall/presets';
@@ -45,8 +45,18 @@ const BACK = '/exams?tab=history';
 const reviewStateOf = (item) => (item.answered === false ? 'skipped' : item.isCorrect ? 'correct' : 'incorrect');
 
 function errorView(error, retry) {
+  // A running battle opens at its deadline whoever is still playing: the
+  // server finishes it then, scoring anyone who left on what they answered.
+  // It used to say "isn't finished yet" for good once a player had left.
+  if (error?.code === 'IN_PROGRESS' && error.opensAt) {
+    return {
+      title: `This battle’s review opens at ${formatTimeOfDay(error.opensAt)}`,
+      description: 'The battle ends then even if someone has left. This page opens it by itself, or try again then.',
+      retry,
+    };
+  }
   if (error?.code === 'IN_PROGRESS') {
-    return { title: 'This sitting isn’t finished yet', description: 'Answers open for review once the sitting ends — for a full board, after its last section; for a battle, once everyone is done.', retry: null };
+    return { title: 'This sitting isn’t finished yet', description: 'Answers open for review once the sitting ends — for a full board, after its last section; for a battle, once everyone is done or the time is up.', retry: null };
   }
   if (error?.code === 'SYNCING') {
     return { title: 'Your answers are still syncing', description: 'They’ll be ready to review as soon as they reach the server.', retry };
@@ -74,6 +84,18 @@ export default function SittingReview() {
   const retry = () => { setState({ status: 'loading', data: null, error: null }); fetchReview(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchReview(); }, [sessionId]);
+
+  // A battle that opens at a known time: load it again just after, a few
+  // times at most if this device's clock runs ahead of the server's.
+  const autoRetries = useRef(0);
+  useEffect(() => {
+    const opensAt = state.status === 'error' ? state.error?.opensAt : null;
+    if (!opensAt || autoRetries.current >= 5) return undefined;
+    const wait = Math.max(0, new Date(opensAt).getTime() - Date.now()) + 3000;
+    const t = setTimeout(() => { autoRetries.current += 1; retry(); }, wait);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const items = useMemo(() => state.data?.items || [], [state.data]);
   const subjects = useMemo(() => subjectsIn(items), [items]);

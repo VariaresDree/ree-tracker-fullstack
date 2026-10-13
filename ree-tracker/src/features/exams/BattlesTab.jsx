@@ -1,7 +1,7 @@
 // src/features/exams/BattlesTab.jsx
 //
-// Exams › Battles: join a friend's battle by code, or host one. Moved out of
-// the Arena page.
+// Exams › Battles: join a friend's battle by code, or host one, and get back
+// into one you left part-way. Moved out of the Arena page.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Button, FormField, Input, cn } from '../../components/ui';
 import { Check, Swords } from '../../components/ui/icons';
 import HostBattleModal from './HostBattleModal';
+import ActiveBattles from './ActiveBattles';
 import { BATTLE_MODES } from './battleModes';
 
 export default function BattlesTab() {
@@ -44,6 +45,8 @@ export default function BattlesTab() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2">
+      {/* A battle you left part-way, with a way back in. */}
+      <ActiveBattles />
       <div className="p-6 md:p-8 bg-surface border border-reeRed/30 rounded-2xl shadow-xl relative overflow-hidden flex flex-col justify-between">
         <div className="absolute top-0 right-0 w-48 h-48 bg-reeRed/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
         <div>

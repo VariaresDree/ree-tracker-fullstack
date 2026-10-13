@@ -80,6 +80,7 @@ async function bootstrap() {
     const { createServer } = require('http');
     const { Server } = require('socket.io');
     const { setupBattleSocket } = require('./src/sockets/battleSocket');
+    const battleLifecycle = require('./src/services/battleLifecycle');
     const logger = require('./src/utils/logger');
 
     // Probe the DB but never abort boot on failure — degraded mode lets the
@@ -327,6 +328,12 @@ async function bootstrap() {
     } else {
         console.warn('[BOOT] Battle socket NOT initialized — firebase or db unavailable.');
     }
+    // Battles whose time is up are finished by the sweep (5 s after boot, then
+    // every minute) even if nobody reconnects: a restart used to leave them
+    // IN_PROGRESS for good, with every player's review shut.
+    if (readiness.db === 'ok') {
+        battleLifecycle.startBattleSweeper();
+    }
 
     // Phase 4.1: materialized leaderboard — immediate snapshot build + steady
     // interval refresh (default 45s; env LEADERBOARD_REFRESH_MS). Routes fall
@@ -356,6 +363,9 @@ async function bootstrap() {
     const shutdown = async (signal) => {
         console.log(`[SHUTDOWN] received ${signal}, draining...`);
         httpServer.close(() => {});
+        // Answers still being saved land before the connection closes.
+        battleLifecycle.stopBattleSweeper();
+        try { await battleLifecycle.flushBattleWrites(null, { timeoutMs: 3000 }); } catch {}
         try { await prisma.$disconnect(); } catch {}
         process.exit(0);
     };

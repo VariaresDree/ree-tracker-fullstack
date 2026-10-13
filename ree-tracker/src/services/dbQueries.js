@@ -127,6 +127,8 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         // A machine-readable reason some routes add (e.g. the sitting review's
         // IN_PROGRESS / SYNCING), so callers needn't match on wording.
         if (typeof errorData.code === 'string') err.code = errorData.code;
+        // When a sitting still in progress opens (a running battle's review).
+        if (typeof errorData.opensAt === 'string') err.opensAt = errorData.opensAt;
         throw err;
     }
 
@@ -445,7 +447,11 @@ export const createMultiplayerBattle = async (config, timeLimitSecs) => {
     await apiRequest('/api/battles', 'POST', { battleId, config, timeLimitSecs });
     return battleId;
 };
+// While it runs, the battle carries the server's clock (`timing`) and, for a
+// player, their saved picks (`me`), so a player who left can pick up again.
 export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battles/${battleId}`);
+// The running battles you're in, for "Return to battle": { items, serverNow }.
+export const fetchActiveBattles = async () => apiRequest('/api/battles/me/active');
 
 // ----------------------------------------------------------------------
 // 6. System Configuration & Bookmarks

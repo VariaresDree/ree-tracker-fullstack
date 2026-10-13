@@ -104,6 +104,23 @@ describe('SittingReview', () => {
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
   });
 
+  it("says when a running battle's review opens, and opens it then by itself", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const opensAt = new Date(Date.now() + 60_000);
+      fetchSittingReview.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('x'), { status: 409, code: 'IN_PROGRESS', opensAt: opensAt.toISOString() })));
+      fetchSittingReview.mockResolvedValueOnce(REVIEW);
+      renderAt();
+      const time = opensAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      expect(await screen.findByRole('heading', { level: 1, name: `This battle’s review opens at ${time}` })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+      await vi.advanceTimersByTimeAsync(64_000);
+      expect(await screen.findByText('Question 1')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('offers Try again while the answers are still syncing', async () => {
     fetchSittingReview.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('x'), { status: 409, code: 'SYNCING' })));
     fetchSittingReview.mockResolvedValueOnce(REVIEW);

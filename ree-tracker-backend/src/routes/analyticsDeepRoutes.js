@@ -227,7 +227,9 @@ router.get('/sittings/:id/review', authMiddleware, async (req, res) => {
     try {
         res.status(200).json(await buildSittingReview({ userId: req.user.id, sessionId }));
     } catch (error) {
-        if (error instanceof SittingReviewError) return res.status(error.status).json({ error: error.message, code: error.code });
+        if (error instanceof SittingReviewError) {
+            return res.status(error.status).json({ error: error.message, code: error.code, ...(error.extra || {}) });
+        }
         res.status(500).json({ error: 'Failed to load the sitting.' });
     }
 });

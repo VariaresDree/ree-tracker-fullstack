@@ -72,6 +72,7 @@ model User {
   gauntletBoardClears String[]  @default([])
   gauntletUpdatedAt   DateTime?
   battleOutcomes     BattleOutcome[]
+  battleParticipations BattleParticipant[]
 
   // --- V7: Phase 4.2 — FCM push (Capacitor native app) ---
   deviceTokens       DeviceToken[]
@@ -444,9 +445,37 @@ model Battle {
   startedAt     DateTime?
   createdAt     DateTime @default(now())
   outcomes      BattleOutcome[]
+  participants  BattleParticipant[]
 
   // The finalize guard filters on status; it was unindexed.
   @@index([status])
+}
+
+// Who is in a battle and the answers the server has received from them, kept
+// as they arrive. Players and answers used to live only in the socket server's
+// memory, so a restart, the idle-lobby clean-up or one player closing the app
+// left the battle unable to finish (the deadline had nothing to score) and the
+// player who left unable to come back. A battle now finishes from these rows
+// whatever happened to the process, and a rejoin restores the answers.
+model BattleParticipant {
+  id            String    @id @default(uuid())
+  battleId      String
+  userId        String
+  displayName   String
+  isHost        Boolean   @default(false)
+  // { [questionId]: { userAnswer, confidenceLevel, timeSpentMs } } — no
+  // correctness: it is regraded against the battle's key when read.
+  answers       Json      @default("{}")
+  finishedAt    DateTime?
+  score         Int?
+  timeTakenSecs Int?
+  joinedAt      DateTime  @default(now())
+
+  battle        Battle    @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+  @@index([userId])
 }
 
 // Phase 6: per-participant battle outcomes. Persists ELO deltas so the

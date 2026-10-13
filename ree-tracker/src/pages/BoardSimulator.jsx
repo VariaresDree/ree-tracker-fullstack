@@ -132,7 +132,7 @@ export default function BoardSimulator() {
   }, [location.state]);
 
   const activeBattleId = engine.config.battleId || searchParams.get('battleId');
-  const { connected: battleConnected, opponentProgress, graded, answerKey, explanationKey, sendAnswer, submitResult, submitPending: battleSubmitPending } = useBattleSocket(activeBattleId);
+  const { connected: battleConnected, opponentProgress, graded, answerKey, explanationKey, sendAnswer, submitResult, submitPending: battleSubmitPending, rejoin: rejoinBattle } = useBattleSocket(activeBattleId);
 
   // Leaving the review for setup: a clean config (no battle id, board section
   // or retake), and the battle id out of the URL, which otherwise kept the
@@ -143,17 +143,26 @@ export default function BoardSimulator() {
     if (searchParams.get('battleId')) setSearchParams({}, { replace: true });
   };
 
+  // A battle that isn't running for this player (not started, already
+  // submitted, over, or not theirs) opens its battle room instead, which shows
+  // where it stands: the exam room would have restarted it from scratch.
   useEffect(() => {
     const bId = searchParams.get('battleId');
     if (bId && !engine.session.isActive && !engine.session.loading) {
-        engine.startMultiplayerBattle(bId);
+        engine.startMultiplayerBattle(bId).then((status) => {
+          if (status && status !== 'started' && status !== 'error') navigate(`/battle/${bId}`, { replace: true });
+        });
     }
   }, [searchParams]);
 
   // Stream each answered/changed question to the server, which grades it
   // against its own key and broadcasts opponent progress. Battle questions
   // are sanitized (no `answer` field), so grading can't happen client-side.
+  // On every (re)connect everything is sent again: an answer given while the
+  // connection was down reaches the server, and one it already has (the
+  // answers restored on a rejoin) is ignored there, keeping its first time.
   const lastSentAnswersRef = useRef({});
+  useEffect(() => { lastSentAnswersRef.current = {}; }, [activeBattleId, battleConnected]);
   useEffect(() => {
     if (!activeBattleId || !battleConnected || !engine.session.isActive || engine.session.isFinished) return;
 
@@ -182,6 +191,16 @@ export default function BoardSimulator() {
       submitResult(engine.session.diagnostics.pendingAttempts || []);
     }
   }, [engine.session.isFinished, activeBattleId]);
+
+  // The server finishes the battle by `resultsBy` whoever is left; its timer
+  // tells everyone connected. Ask once just after, in case the server
+  // restarted and lost the timer (the ask makes it finish the battle).
+  const resultsBy = engine.session.diagnostics?.pending ? engine.session.diagnostics.resultsBy : null;
+  useEffect(() => {
+    if (!activeBattleId || !resultsBy) return undefined;
+    const t = setTimeout(() => rejoinBattle(), Math.max(0, resultsBy - Date.now()) + 5000);
+    return () => clearTimeout(t);
+  }, [activeBattleId, resultsBy, rejoinBattle]);
 
   // Server ack for our own submission — authoritative score while opponents
   // are still playing.
@@ -297,6 +316,7 @@ export default function BoardSimulator() {
             engine={engine}
             isBattle={!!activeBattleId}
             submitPending={!!activeBattleId && battleSubmitPending}
+            onCheckResults={activeBattleId ? rejoinBattle : undefined}
         />
       )}
 
