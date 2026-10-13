@@ -6,8 +6,13 @@ import WeakSignalsPanel from './WeakSignalsPanel';
 
 vi.mock('../../components/SmartText', () => ({ default: ({ text }) => <span data-testid="smart">{text}</span> }));
 
-let lastLocation;
-function Probe() { lastLocation = useLocation(); return <div>landed</div>; }
+// Where the panel navigated, as rendered by the landing route (a component
+// assigning to a module variable trips react-hooks/globals).
+function Probe() {
+  const l = useLocation();
+  return <div>landed<pre data-testid="loc">{JSON.stringify({ pathname: l.pathname, search: l.search, state: l.state })}</pre></div>;
+}
+const lastLocation = () => JSON.parse(screen.getByTestId('loc').textContent);
 
 const renderPanel = (data) => render(
   <MemoryRouter>
@@ -36,22 +41,22 @@ describe('WeakSignalsPanel', () => {
   it('"Fix this" starts a blind-spot drill on that topic', () => {
     renderPanel(DATA);
     fireEvent.click(screen.getByRole('button', { name: 'Fix this' }));
-    expect(lastLocation.pathname).toBe('/practice');
-    expect(lastLocation.state.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopicId: 't-p' });
+    expect(lastLocation().pathname).toBe('/practice');
+    expect(lastLocation().state.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopicId: 't-p' });
   });
 
   it('a time sink opens that topic\u2019s formula cards', () => {
     renderPanel(DATA);
     fireEvent.click(screen.getByRole('button', { name: 'Formula cards' }));
-    expect(lastLocation.pathname + lastLocation.search).toBe('/library?tab=formulas');
-    expect(lastLocation.state).toMatchObject({ search: 'Power Systems', kind: 'formula' });
+    expect(lastLocation().pathname + lastLocation().search).toBe('/library?tab=formulas');
+    expect(lastLocation().state).toMatchObject({ search: 'Power Systems', kind: 'formula' });
   });
 
   it('a recent confident miss renders through SmartText and drills its topic', () => {
     renderPanel(DATA);
     expect(screen.getByTestId('smart')).toHaveTextContent('Relay coordination…');
     fireEvent.click(screen.getByRole('button', { name: 'Drill Protection' }));
-    expect(lastLocation.state.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopic: 'Protection', drillSubject: 'EE' });
+    expect(lastLocation().state.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopic: 'Protection', drillSubject: 'EE' });
   });
 
   it('explains what it tracks when there is nothing yet', () => {

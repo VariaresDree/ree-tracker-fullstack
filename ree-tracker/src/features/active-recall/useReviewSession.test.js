@@ -18,7 +18,6 @@ vi.mock('../../services/dbQueries', () => ({
   fetchNextItem: vi.fn(),
   getAnalyticsProfile: vi.fn(() => Promise.resolve(null)),
   apiRequest: vi.fn(() => Promise.resolve({})),
-  updateQuestionCache: vi.fn(),
   updateQuestionInBank: vi.fn(),
   saveQuestionToBank: vi.fn(),
   saveBookmark: vi.fn(),
@@ -36,7 +35,7 @@ vi.mock('../../store/slices', () => ({ useEngineActionsSlice: () => engine }));
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => ({ stats: {}, dynamicTOS: {}, }) } }));
 
 const toast = (await import('react-hot-toast')).default;
-const { fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions, updateQuestionInBank, updateQuestionCache } = await import('../../services/dbQueries');
+const { apiRequest, fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions, updateQuestionInBank } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
 const { adaptivePreset, bookmarksPreset, drillPreset, itemsPreset, todayLoopPreset } = await import('./presets');
@@ -166,7 +165,8 @@ describe('flag, AI explanation and leaving mid-session', () => {
     act(() => result.current.setSession((s) => ({ ...s, currentIndex: 0 })));
     expect(result.current.aiText).toBe('Worked solution for the first');
     expect(second.id).not.toBe(first.id);
-    expect(updateQuestionCache).not.toHaveBeenCalled();
+    // Never written to the shared question.
+    expect(apiRequest).not.toHaveBeenCalledWith(expect.stringMatching(/\/cache$/), expect.anything(), expect.anything());
   });
 
   it('a failed explanation resolves to null instead of saving an apology', async () => {

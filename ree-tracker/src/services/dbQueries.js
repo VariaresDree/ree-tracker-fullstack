@@ -50,7 +50,7 @@ export const getAuthToken = async (user) => {
     try {
         return await user.getIdToken();
     } catch (err) {
-        if (isNetworkAuthError(err)) throw new Error('[OFFLINE]');
+        if (isNetworkAuthError(err)) throw new Error('[OFFLINE]', { cause: err });
         throw err;
     }
 };
@@ -400,10 +400,6 @@ export const updateQuestionInBank = async (id, questionObject) => {
     return await apiRequest(`/api/questions/${id}`, 'PUT', questionObject);
 };
 
-export const updateQuestionCache = async (id, explanation) => {
-    return await apiRequest(`/api/questions/${id}/cache`, 'PUT', { cachedExplanation: explanation });
-};
-
 // ----------------------------------------------------------------------
 // 3. Metadata Handlers
 // ----------------------------------------------------------------------
@@ -507,7 +503,8 @@ export const fetchBookmarks = async ({ limit = 100 } = {}) => {
     return normalizeQuestions(data);
 };
 // (updateBookmarkCache removed — it targeted a /api/bookmarks/:id/cache route
-// that never existed; vault explanations persist via updateQuestionCache.)
+// that never existed. AI explanations stay on the device, keyed by question,
+// and never overwrite the shared solution; updateQuestionCache is gone too.)
 
 // ----------------------------------------------------------------------
 // 7. Study Materials & Files

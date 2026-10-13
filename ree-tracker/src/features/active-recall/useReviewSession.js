@@ -43,7 +43,10 @@ export const useReviewSession = (currentUser, isOnline) => {
         target: 0, fetchingNext: false,
     });
 
-    const [elapsedTime, setElapsedTime] = useState(0);
+    // When the question on screen was shown (epoch ms). The ticking display is
+    // <QuestionTimer>, which re-renders only itself: a per-second setState
+    // here re-rendered the whole Practice page, question and KaTeX included.
+    const [questionStartedAt, setQuestionStartedAt] = useState(0);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [isSubmitting, setIsSubmitting] = useState(false);
     // AI explanations, keyed by question (features/quiz/useAiExplanation).
@@ -65,8 +68,9 @@ export const useReviewSession = (currentUser, isOnline) => {
     // roughly 40 seconds, and every StudySession row in the database (and the
     // readiness consistency term built on them) was wrong by an order of
     // magnitude.
-    const startTimeRef = useRef(Date.now());
-    const sessionStartRef = useRef(Date.now());
+    // Both are set when a session starts (and the first on every question).
+    const startTimeRef = useRef(0);
+    const sessionStartRef = useRef(0);
     const telemetryBatchRef = useRef([]);
     // Set while endSession runs, so leaving mid-save doesn't record it twice.
     const endingRef = useRef(false);
@@ -115,16 +119,11 @@ export const useReviewSession = (currentUser, isOnline) => {
         a.prefetch = pickAdaptive(a, questions.map((q) => q.id), [...telemetryBatchRef.current]).catch(() => null);
     };
 
-    // 🚀 High-Performance Absolute Timer
-    useEffect(() => {
-        let interval;
-        if (session.isActive && !session.isAnswered && !session.isFlipped && !session.isFinished) {
-            interval = setInterval(() => {
-                setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
-            }, 1000);
-        }
-        return () => clearInterval(interval);
-    }, [session.isActive, session.isAnswered, session.isFlipped, session.currentIndex, session.isFinished]);
+    // A new question: restart its clock (an event handler's job, never render's).
+    const restartQuestionClock = () => {
+        restartClock(startTimeRef);
+        setQuestionStartedAt(startTimeRef.current);
+    };
 
     // `overrides` lets preset cards start a session in one click without a
     // setConfig round-trip; the form state is synced so the custom panel
@@ -266,9 +265,8 @@ export const useReviewSession = (currentUser, isOnline) => {
             telemetryBatchRef.current = [];
             cardsRatedRef.current = 0;
             endingRef.current = false;
-            startTimeRef.current = Date.now();
-            sessionStartRef.current = Date.now();
-            setElapsedTime(0);
+            restartQuestionClock();
+            restartClock(sessionStartRef);
             sessionConfigRef.current = cfg.source === 'smart-drill'
                 ? { ...cfg, drillTopicId: target.drillTopicId ?? null, drillTopic: target.drillTopic ?? null, drillSubject: target.drillSubject ?? null, drillMode: target.drillMode ?? null }
                 : cfg.source === 'items'
@@ -306,9 +304,9 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
         const isCorrect = option === currentQ.answer;
-        // Millisecond-accurate: read the wall clock directly instead of the
-        // 1s-throttled `elapsedTime` state, which recorded 0 ms for any answer
-        // locked in under a second and deflated the per-question time averages.
+        // Millisecond-accurate: read the wall clock directly (a 1s-throttled
+        // counter recorded 0 ms for any answer locked in under a second and
+        // deflated the per-question time averages).
         const timeSpentMs = Math.max(0, Date.now() - startTimeRef.current);
 
         setSession(prev => ({
@@ -363,9 +361,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
         const currentQ = session.questions[session.currentIndex];
 
-        // Millisecond-accurate: read the wall clock directly instead of the
-        // 1s-throttled `elapsedTime` state, which recorded 0 ms for any answer
-        // locked in under a second and deflated the per-question time averages.
+        // Millisecond-accurate: read the wall clock directly.
         const timeSpentMs = Math.max(0, Date.now() - startTimeRef.current);
 
         setSession(prev => ({
@@ -407,8 +403,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             endSession();
             return;
         }
-        restartClock(startTimeRef);
-        setElapsedTime(0);
+        restartQuestionClock();
         setSession((prev) => ({
             ...prev, questions: [...prev.questions, next], currentIndex: prev.currentIndex + 1, fetchingNext: false,
             isAnswered: false, isFlipped: false,
@@ -425,8 +420,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         if (session.currentIndex + 1 >= session.questions.length) {
             endSession();
         } else {
-            restartClock(startTimeRef);
-            setElapsedTime(0);
+            restartQuestionClock();
             setSession(prev => ({
                 ...prev, currentIndex: prev.currentIndex + 1,
                 isAnswered: false, isFlipped: false,
@@ -615,7 +609,7 @@ export const useReviewSession = (currentUser, isOnline) => {
     return {
         aiText: activeQ ? ai.textFor(activeQ) : null,
         aiLoading: activeQ ? ai.isLoading(activeQ) : false,
-        config, setConfig, session, setSession, elapsedTime, bookmarks,
+        config, setConfig, session, setSession, questionStartedAt, bookmarks,
         startSession, endSession, loadNextQuestion, 
         handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
         toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,

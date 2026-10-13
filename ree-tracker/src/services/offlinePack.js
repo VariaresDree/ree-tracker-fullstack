@@ -38,10 +38,6 @@ export const writeOfflinePack = async (pack) => {
     return pack;
 };
 
-export const clearOfflinePack = async () => {
-    try { await del(PACK_KEY); } catch { /* noop */ }
-};
-
 // Pure, storage-free selector — extracted so it can be unit-tested without
 // IndexedDB. Filters a pack by subject (+ optional subtopic) and caps the count.
 export const selectFromPack = (pack, subject, subtopic = 'All', limit = 1000) => {
@@ -81,8 +77,6 @@ export const getOfflinePackMeta = async () => {
     const stale = !pack.fetchedAt || (Date.now() - pack.fetchedAt) > PACK_TTL_MS;
     return { exists: total > 0, fetchedAt: pack.fetchedAt || null, counts, total, stale };
 };
-
-export const isOfflinePackStale = async () => (await getOfflinePackMeta()).stale;
 
 // ---- REFERENCE CARDS CACHE ------------------------------------------------
 // LIVE reference flashcards mirrored to IndexedDB so the vault still renders

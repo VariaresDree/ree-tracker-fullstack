@@ -35,7 +35,8 @@ export default function Diagnostic() {
   const [confidence, setConfidence] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
-  const shownAt = useRef(Date.now());
+  // Set when each item is shown (showItem), for its time on screen.
+  const shownAt = useRef(0);
 
   // Try again asks again; it used to reload the whole app.
   const [attempt, setAttempt] = useState(0);

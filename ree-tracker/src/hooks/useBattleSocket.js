@@ -10,7 +10,10 @@ export function useBattleSocket(battleId) {
     // True once we've given up reaching the battle server (offline, no auth, or
     // no successful connect within the timeout). Lets the lobby show a clear
     // "can't reach the server" state instead of an infinite "Connecting…" spinner.
-    const [connectionFailed, setConnectionFailed] = useState(false);
+    // The battle this socket failed to reach, if any. Held with its id, so a
+    // different battle starts clear without a reset in the effect.
+    const [failedFor, setFailedFor] = useState(null);
+    const connectionFailed = !!battleId && failedFor === battleId;
     const [participants, setParticipants] = useState([]);
     const [battleStatus, setBattleStatus] = useState(null);
     const [battleConfig, setBattleConfig] = useState(null);
@@ -43,7 +46,6 @@ export function useBattleSocket(battleId) {
     useEffect(() => {
         if (!battleId) return;
 
-        setConnectionFailed(false);
         // Guards the async gap below: if the effect is torn down (unmount /
         // battleId change) during `getIdToken()`, we must NOT open a socket —
         // otherwise cleanup (which already ran) can't disconnect it, leaking a
@@ -51,11 +53,11 @@ export function useBattleSocket(battleId) {
         let cancelled = false;
         // If we haven't connected within 10s (offline / server unreachable),
         // surface a failure state so the UI can offer a retry.
-        let failTimer = setTimeout(() => { if (!cancelled) setConnectionFailed(true); }, 10000);
+        let failTimer = setTimeout(() => { if (!cancelled) setFailedFor(battleId); }, 10000);
 
         const connect = async () => {
             const user = auth.currentUser;
-            if (!user) { clearTimeout(failTimer); if (!cancelled) setConnectionFailed(true); return; }
+            if (!user) { clearTimeout(failTimer); if (!cancelled) setFailedFor(battleId); return; }
 
             const token = await user.getIdToken();
             if (cancelled) return; // torn down during the await — don't open a socket
@@ -69,7 +71,7 @@ export function useBattleSocket(battleId) {
 
             socket.on('connect', () => {
                 clearTimeout(failTimer);
-                setConnectionFailed(false);
+                setFailedFor(null);
                 setConnected(true);
                 socket.emit('join-battle', { battleId });
             });

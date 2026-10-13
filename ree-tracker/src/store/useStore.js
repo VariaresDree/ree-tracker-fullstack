@@ -474,7 +474,7 @@ export const useStore = create(
         };
 
         inFlightFlush = run();
-        let succeeded = false;
+        let succeeded;
         try {
           succeeded = await inFlightFlush;
         } finally {

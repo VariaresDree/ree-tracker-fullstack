@@ -27,10 +27,8 @@ export default function ExplanationReview() {
     const [showBulkConfirm, setShowBulkConfirm] = useState(false);
     const [isBulkApproving, setIsBulkApproving] = useState(false);
 
-    useEffect(() => {
-        loadPending();
-    }, []);
-
+    // Reload (after a batch approve). The first load is the effect below,
+    // which sets state only in the request's callbacks.
     const loadPending = async () => {
         setLoading(true);
         try {
@@ -41,6 +39,15 @@ export default function ExplanationReview() {
         }
         setLoading(false);
     };
+
+    useEffect(() => {
+        let live = true;
+        fetchPendingExplanations().then(
+            (data) => { if (live) { setQuestions(data.items || []); setLoading(false); } },
+            () => { if (live) { toast.error('Failed to load pending explanations'); setLoading(false); } },
+        );
+        return () => { live = false; };
+    }, []);
 
     // ONE batched request; the SERVER response is the source of truth — only
     // ids it actually approved leave the list, failures stay visible + toast.

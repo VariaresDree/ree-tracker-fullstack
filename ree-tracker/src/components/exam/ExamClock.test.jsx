@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
-import ExamClock, { remainingSecs, CRITICAL_SECS } from './ExamClock';
+import ExamClock from './ExamClock';
+import { remainingSecs, CRITICAL_SECS } from './clockMath';
 
 // The point of this component is CONTAINMENT: the clock ticks every second for
 // up to six hours, and nothing outside it may re-render as a result. The engines

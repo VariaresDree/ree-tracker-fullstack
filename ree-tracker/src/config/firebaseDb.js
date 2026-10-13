@@ -1,6 +1,5 @@
 // src/config/firebaseDb.js
 import { initializeApp } from "firebase/app";
-import { getStorage } from "firebase/storage"; 
 import { getAuth, connectAuthEmulator } from "firebase/auth";
 
 const firebaseConfig = {
@@ -12,9 +11,10 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
 };
 
-const app = initializeApp(firebaseConfig);
+// Exported for the services that start their SDK on demand: Storage loads
+// with the handouts uploader (features/materials/useFileManager), not on boot.
+export const app = initializeApp(firebaseConfig);
 
-export const storage = getStorage(app);
 export const auth = getAuth(app);
 
 // The authed Playwright run signs in against the Firebase Auth emulator

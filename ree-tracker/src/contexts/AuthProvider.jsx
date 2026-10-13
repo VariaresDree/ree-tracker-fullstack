@@ -1,5 +1,9 @@
-// src/contexts/AuthContext.jsx
-import { createContext, useContext, useState, useEffect } from 'react';
+// src/contexts/AuthProvider.jsx
+//
+// The signed-in session for the whole app. The context and `useAuth` live in
+// AuthContext.js, so this file exports only the component (fast refresh keeps
+// state on edit) and every `useAuth` import stays where it was.
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clampDisplayName } from '@ree/shared';
 import { auth } from '../config/firebaseDb';
 import {
@@ -20,9 +24,10 @@ import { seedDashboardRequest } from '../services/dashboardSeed';
 import { claimApiCacheFor, purgeApiCache } from '../services/apiCache';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
-import { Button } from '../components/ui';
+import { Button } from '../components/ui/Button';
 import { WifiOff } from '../components/ui/icons';
 import BootSequence from '../components/BootSequence';
+import { AuthContext } from './AuthContext';
 
 // The hardcoded MASTER_ADMIN_EMAILS allowlist that used to live here is gone.
 // It created two problems: a maintainer's personal email address was compiled
@@ -33,8 +38,6 @@ import BootSequence from '../components/BootSequence';
 // server was always the real gate (mutations 403 regardless), so this only
 // removes misleading UI, never real access.
 
-const AuthContext = createContext(null);
-export const useAuth = () => useContext(AuthContext);
 
 // Last-resort safety net ONLY — onAuthStateChanged resolves from Firebase's
 // local persistence and reliably fires near-instantly for a returning user,
@@ -50,7 +53,7 @@ export const AuthProvider = ({ children }) => {
   // Firebase updates the user object in place, so a rename re-rendered
   // nothing: the sidebar and menu kept the old name until a reload. Bumping
   // this after updateProfile re-renders every consumer with the new name.
-  const [, bumpProfile] = useState(0);
+  const [profileVersion, bumpProfile] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   // False until this session's role is known. isAdmin arrives with the profile
   // request — seconds after sign-in on a cold backend — and the Admin route
@@ -210,35 +213,38 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const login = (email, password) => signInWithEmailAndPassword(auth, email, password);
+  // The actions only use setters and Firebase, so they keep their identity
+  // for the session; with the memoised value below, a screen re-renders when
+  // the session changes, not every time this provider renders.
+  const login = useCallback((email, password) => signInWithEmailAndPassword(auth, email, password), []);
 
-  const register = async (email, password, displayName) => {
+  const register = useCallback(async (email, password, displayName) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     if (displayName) await updateProfile(userCredential.user, { displayName });
     return userCredential;
-  };
+  }, []);
 
   // "Forgot password?" on Login and "Send a reset email" in Account.
-  const resetPassword = (email) => sendPasswordResetEmail(auth, email);
+  const resetPassword = useCallback((email) => sendPasswordResetEmail(auth, email), []);
 
   // Firebase refuses a password change on an old session, so prove the
   // current password first (re-authentication), then set the new one.
   // Confirms the signed-in learner's password. Firebase demands a recent
   // sign-in before a password change or an account deletion; doing it first
   // means a wrong password fails before anything is changed.
-  const reauthenticate = async (currentPassword) => {
+  const reauthenticate = useCallback(async (currentPassword) => {
     const user = auth.currentUser;
     if (!user?.email) throw new Error('Sign in again first.');
     await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
     return user;
-  };
+  }, []);
 
-  const changePassword = async (currentPassword, newPassword) => {
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
     const user = await reauthenticate(currentPassword);
     await updatePassword(user, newPassword);
-  };
+  }, [reauthenticate]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setLoading(true);
     // Release this device's FCM token BEFORE the auth session dies (the
     // unregister call needs a valid ID token). No-op on the web.
@@ -255,16 +261,23 @@ export const AuthProvider = ({ children }) => {
     setIsAdmin(false);
     if (useStore.getState) useStore.getState().setIsAdmin(false);
     setLoading(false);
-  };
+  }, []);
 
-  const updateDisplayName = async (displayName) => {
+  const updateDisplayName = useCallback(async (displayName) => {
     if (!auth.currentUser) throw new Error('Not signed in');
     await updateProfile(auth.currentUser, { displayName });
     bumpProfile((n) => n + 1);
-  };
+  }, []);
+
+  // A new value when the session changes. A rename changes the user object
+  // in place, so profileVersion is what tells consumers to re-render.
+  const value = useMemo(
+    () => ({ currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, reauthenticate, updateDisplayName, loading, profileVersion }),
+    [currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, reauthenticate, updateDisplayName, loading, profileVersion],
+  );
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, roleResolved, login, register, logout, resetPassword, changePassword, reauthenticate, updateDisplayName, loading }}>
+    <AuthContext.Provider value={value}>
       {!loading ? children : authStalled ? (
         // AUTH_STALL_MS elapsed with no onAuthStateChanged callback at all —
         // NOT the same as "logged out". A weak connection must never eject an

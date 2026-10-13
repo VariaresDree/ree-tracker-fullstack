@@ -5,7 +5,7 @@
 // 28-topic EE list the Library's AI ingestion then offered and labelled with.
 import { describe, it, expect, vi } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
-import { AuthProvider } from './AuthContext';
+import { AuthProvider } from './AuthProvider';
 
 let authStateCallback = null;
 

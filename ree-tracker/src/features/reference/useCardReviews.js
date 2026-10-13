@@ -11,7 +11,7 @@
 //     (@ree/shared rateCard). The server's answer replaces the row once sent.
 import { useCallback, useMemo } from 'react';
 import { NEW_CARD, rateCard } from '@ree/shared';
-import { useSyncedUserData, resetSyncedMemory } from '../../hooks/useSyncedUserData';
+import { useSyncedUserData } from '../../hooks/useSyncedUserData';
 import { writeOrQueue } from '../../services/writeOrQueue';
 
 export const CARD_REVIEWS_ENDPOINT = '/api/user/card-reviews';
@@ -85,7 +85,3 @@ export function useCardReviews({ fetchIfOlderThanMs = 0 } = {}) {
   };
 }
 
-/** Test seam: forget the module-level copy between cases. */
-export function __resetCardReviewsMemory() {
-  resetSyncedMemory(CACHE);
-}

@@ -17,20 +17,20 @@ import { drillPreset } from '../features/active-recall/presets';
 import MCQMode from '../features/active-recall/MCQMode';
 import FlashcardMode from '../features/active-recall/FlashcardMode';
 import LoopCardStep from '../features/active-recall/LoopCardStep';
+import QuestionTimer from '../features/active-recall/QuestionTimer';
 import { useReviewSession } from '../features/active-recall/useReviewSession';
 import SolutionPanel from '../features/quiz/SolutionPanel';
 import { explanationKey } from '../services/aiExplanations';
 import NoteButton, { NoteView } from '../features/notebook/NoteButton';
 import { questionTarget } from '../features/notebook/targets';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
-import { formatClock } from '../utils/time';
 
 export default function Practice() {
   const isOnline = useNetworkStatus();
   const { currentUser } = useAuth();
   
   const {
-    config, setConfig, session, setSession, elapsedTime, bookmarks,
+    config, setConfig, session, setSession, questionStartedAt, bookmarks,
     startSession, endSession, loadNextQuestion, 
     handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
     toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
@@ -169,12 +169,11 @@ export default function Practice() {
                 pace). */}
             <div className="flex flex-col items-end leading-tight">
                 <span className="text-[11px] text-muted2">This question</span>
-                <span
-                  className={`text-sm font-bold font-mono tabular-nums ${elapsedTime > 180 ? 'text-[var(--accent-danger)]' : 'text-textMain'}`}
-                  title={elapsedTime > 180 ? 'Over three minutes on this question' : undefined}
-                >
-                  {formatClock(elapsedTime, { pad: true })}
-                </span>
+                <QuestionTimer
+                  key={questionStartedAt}
+                  startedAt={questionStartedAt}
+                  running={!session.isAnswered && !session.isFlipped && !session.isFinished}
+                />
             </div>
         </div>
       </div>

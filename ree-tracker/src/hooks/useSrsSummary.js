@@ -37,11 +37,18 @@ export function useSrsSummary({ enabled = true } = {}) {
     }
   }, []);
 
+  // The first load sets state only in the request's callbacks (`loading`
+  // starts as `enabled`), never synchronously in the effect.
   useEffect(() => {
     mounted.current = true;
-    if (enabled) refresh();
+    if (enabled) {
+      loadSrsSummaryOnce().then(
+        (data) => { if (mounted.current) { setSummary(data || null); setLoading(false); } },
+        () => { if (mounted.current) { setSummary(null); setLoading(false); } },
+      );
+    }
     return () => { mounted.current = false; };
-  }, [enabled, refresh]);
+  }, [enabled]);
 
   return { summary, loading, refresh };
 }

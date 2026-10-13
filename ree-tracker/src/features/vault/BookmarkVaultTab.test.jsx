@@ -15,11 +15,10 @@ vi.mock('../../services/dbQueries', () => ({
   fetchBookmarks: vi.fn(),
   removeBookmark: vi.fn(),
   saveBookmark: vi.fn(),
-  updateQuestionCache: vi.fn(),
 }));
 vi.mock('../../services/geminiApi', () => ({ generateMasterExplanation: vi.fn() }));
 
-const { fetchBookmarks, removeBookmark, saveBookmark, updateQuestionCache } = await import('../../services/dbQueries');
+const { fetchBookmarks, removeBookmark, saveBookmark } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { default: BookmarkVaultTab } = await import('./BookmarkVaultTab');
 
@@ -42,7 +41,7 @@ describe('Bookmarks explanations', () => {
     expect(await screen.findByText('AI: step by step.')).toBeInTheDocument();
     expect(generateMasterExplanation).toHaveBeenCalledWith(expect.objectContaining({ id: 'q1' }));
     expect(screen.queryByText('Official: Ohm’s law.')).not.toBeInTheDocument();
-    expect(updateQuestionCache).not.toHaveBeenCalled();
+    // Nothing is written back: the mocked API has no way to save an explanation.
 
     fireEvent.click(screen.getByRole('button', { name: 'Show solution' }));
     await waitFor(() => expect(screen.getByText('Official: Ohm’s law.')).toBeInTheDocument());

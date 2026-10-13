@@ -5,16 +5,6 @@ export function SkeletonCard({ className = '' }) {
   return <div aria-hidden="true" className={`skeleton-shimmer h-32 rounded-xl ${className}`} />;
 }
 
-export function SkeletonText({ lines = 3, className = '' }) {
-  return (
-    <div aria-hidden="true" className={`space-y-2 ${className}`}>
-      {Array.from({ length: lines }).map((_, i) => (
-        <div key={i} className="skeleton-shimmer h-3 rounded" style={{ width: i === lines - 1 ? '60%' : '100%' }} />
-      ))}
-    </div>
-  );
-}
-
 export function SkeletonChart({ className = '' }) {
   return <div aria-hidden="true" className={`skeleton-shimmer h-[350px] rounded-xl ${className}`} />;
 }

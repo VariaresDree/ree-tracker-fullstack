@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
@@ -38,6 +38,22 @@ const ladderStats = ({ level, lockUntilMs, boardClears }) => ({
 // entered is simply treated as stale and discarded.
 const CACHE_KEY = 'ree_gauntlet_cache';
 
+/** Where a level's screen starts: no such tier, a saved run to resume, or a fresh fetch. */
+const bootStatus = (level) => (!getGauntletTier(level) ? 'error' : savedRunFor(level) ? 'resume' : 'loading');
+
+/** The saved run for this level on this device, or null. */
+function savedRunFor(level) {
+    try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        const cached = raw ? JSON.parse(raw) : null;
+        return cached && String(cached.level) === String(level) && Array.isArray(cached.questions) && cached.questions.length > 0
+            ? cached
+            : null;
+    } catch {
+        return null;
+    }
+}
+
 export const useGauntletEngine = (level) => {
     // Actions come from the stable-reference engine slice. No subscription to
     // `stats`: boot and submit read it with useStore.getState() at the moment
@@ -56,7 +72,9 @@ export const useGauntletEngine = (level) => {
     //                     kept so the run can be sent again.
     //   'forfeited'    — left mid-run; counts as not passing (forfeitRun).
     //   'error'        — the questions could not be loaded.
-    const [status, setStatus] = useState('loading');
+    // A saved run for this level starts on 'resume' (decided here, not in the
+    // boot effect, so the first render already shows it).
+    const [status, setStatus] = useState(() => bootStatus(level));
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
     const [confidences, setConfidences] = useState({});
@@ -70,6 +88,13 @@ export const useGauntletEngine = (level) => {
     // setTimeLeft lived in the hook the PAGE consumes, so every tick reconciled
     // the whole Gauntlet screen including the question and its KaTeX subtree.
     const [gauntletEndTime, setGauntletEndTime] = useState(null);
+
+    // Absolute end-time anchor. The countdown reads the wall clock against this
+    // instead of blindly decrementing, so background-tab setInterval throttling
+    // can't pause a timed exam and per-tick drift can't accumulate (matches the
+    // Board Simulator / Active Review engines). Declared before the helpers
+    // that read it.
+    const endTimeRef = useRef(null);
 
     // Seconds left right now, read imperatively (submit-time arithmetic, expiry).
     const remainingSecsNow = () => (endTimeRef.current
@@ -87,7 +112,15 @@ export const useGauntletEngine = (level) => {
     const [diagnostics, setDiagnostics] = useState(null);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [flags, setFlags] = useState(new Set());
-    const [hasSavedSession, setHasSavedSession] = useState(false);
+    const [hasSavedSession, setHasSavedSession] = useState(() => !!savedRunFor(level));
+    // Another level while mounted (the route param changed): its saved run,
+    // if any, decides the starting state, adjusted while rendering.
+    const [bootLevel, setBootLevel] = useState(level);
+    if (bootLevel !== level) {
+        setBootLevel(level);
+        setHasSavedSession(!!savedRunFor(level));
+        setStatus(bootStatus(level));
+    }
     // The run's identity: its id is the server session the answers record
     // under (and the sitting review's id); its start time decides whether it
     // was taken during a lock. Both are kept in the draft.
@@ -98,14 +131,9 @@ export const useGauntletEngine = (level) => {
     // Per-question time tracking. We bucket time on the question that was
     // visible when it was answered (best signal available without page-level
     // visibility tracking); zero defaults are safe — the analytics ignores 0ms.
-    const lastAnswerTimestampRef = useRef(Date.now());
+    // Set when a run starts or resumes.
+    const lastAnswerTimestampRef = useRef(0);
     const timeSpentPerQuestionRef = useRef({});
-    // Absolute end-time anchor. The countdown reads the wall clock against this
-    // instead of blindly decrementing, so background-tab setInterval throttling
-    // can't pause a timed exam and per-tick drift can't accumulate (matches the
-    // Board Simulator / Active Review engines).
-    const endTimeRef = useRef(null);
-
     // Refs mirror the mutable pieces of exam state so the autosave draft never
     // closes over a stale snapshot, regardless of which handler or effect
     // calls persistDraft — same pattern useSimulatorEngine.js uses.
@@ -156,10 +184,8 @@ export const useGauntletEngine = (level) => {
     // fresh boot (no matching cache) and when the user declines to resume.
     const fetchFreshGauntlet = async () => {
         const tier = getGauntletTier(level);
-        if (!tier) {
-            setStatus('error');
-            return;
-        }
+        // A level with no tier starts on 'error' (bootStatus).
+        if (!tier) return;
         const subjectTier = isSubjectTier(tier);
 
         // Read the gate values from the store at boot time (getState), NOT
@@ -252,25 +278,20 @@ export const useGauntletEngine = (level) => {
     // Boot: a matching-level saved draft offers Resume instead of
     // auto-fetching a fresh set; anything else (no cache, a different level's
     // stale cache, a corrupt cache) falls straight through to a fresh fetch.
+    // An effect event: the fetch reads the latest store and handlers without
+    // making them effect dependencies.
+    const boot = useEffectEvent(() => {
+        // A saved run waits on 'resume', and a bad level on 'error' (both the
+        // initial state); otherwise fetch.
+        if (bootStatus(level) === 'loading') fetchFreshGauntlet();
+    });
+    // Boot ONCE per level — not on every stats change (see getState above).
+    // On the next tick, cancelled by cleanup: StrictMode's mount-unmount-mount
+    // used to fetch a whole question set twice.
     useEffect(() => {
-        let cached = null;
-        try {
-            const raw = localStorage.getItem(CACHE_KEY);
-            if (raw) cached = JSON.parse(raw);
-        } catch {
-            cached = null;
-        }
-
-        if (cached && String(cached.level) === String(level) && Array.isArray(cached.questions) && cached.questions.length > 0) {
-            setHasSavedSession(true);
-            setStatus('resume');
-            return;
-        }
-
-        fetchFreshGauntlet();
-        // Boot ONCE per level — not on every stats change (see getState above).
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [level, navigate]);
+        const t = setTimeout(boot, 0);
+        return () => clearTimeout(t);
+    }, [level]);
 
     // Restores a saved draft WITHOUT deleting the cache (unlike the Board
     // Simulator's resumeSimulation, which deletes on resume) — submitExam is
@@ -332,42 +353,6 @@ export const useGauntletEngine = (level) => {
         }
     };
 
-    useEffect(() => {
-        if (status !== 'active') return undefined;
-
-        // Resuming a run whose deadline already passed: submit immediately
-        // rather than arming a timer that would fire on its first tick.
-        if (remainingSecsNow() <= 0) {
-            submitExam(true);
-            return undefined;
-        }
-
-        // Remaining time is derived from the absolute deadline each tick, so a
-        // throttled/backgrounded tab jumps straight to the correct value (and to
-        // auto-submit) instead of resuming a stale count.
-        //
-        // Sets NO state on a normal tick — one comparison, zero re-renders. The
-        // dependency list is [status, gauntletEndTime], NOT [status, timeLeft]:
-        // the old array changed on every tick, so the interval was torn down and
-        // recreated once a second, resetting its phase each time.
-        const timer = setInterval(() => {
-            const left = remainingSecsNow();
-            if (left <= 0) {
-                clearInterval(timer);
-                submitExam(true);
-                return;
-            }
-            // Elapsed-time check rather than `left % 5 === 0`: a hidden tab is
-            // throttled to ~1 tick/minute, so `left` drops ~60 at a time and the
-            // modulo mostly missed — precisely when a crash is most likely.
-            const nowMs = Date.now();
-            if (nowMs - lastAutosaveRef.current >= AUTOSAVE_EVERY_MS) {
-                lastAutosaveRef.current = nowMs;
-                persistDraft();
-            }
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [status, gauntletEndTime]);
 
     // These three compute `next` synchronously OFF THE REF (not off React's
     // updater-callback `prev`, and not via a setState functional updater) and
@@ -731,6 +716,47 @@ export const useGauntletEngine = (level) => {
             useStore.getState().queuePendingWrite('/api/exams/gauntlet/forfeit', 'POST', body);
         }
     };
+
+    // The clock. Effect events, so the interval calls the latest submit and
+    // autosave without re-arming whenever they change.
+    const timeUp = useEffectEvent(() => submitExam(true));
+    const autosave = useEffectEvent(() => persistDraft());
+    useEffect(() => {
+        if (status !== 'active') return undefined;
+
+        // Resuming a run whose deadline already passed: submit immediately
+        // rather than arming a timer that would fire on its first tick.
+        if (remainingSecsNow() <= 0) {
+            const t = setTimeout(timeUp, 0);
+            return () => clearTimeout(t);
+        }
+
+        // Remaining time is derived from the absolute deadline each tick, so a
+        // throttled/backgrounded tab jumps straight to the correct value (and to
+        // auto-submit) instead of resuming a stale count.
+        //
+        // Sets NO state on a normal tick — one comparison, zero re-renders. The
+        // dependency list is [status, gauntletEndTime], NOT [status, timeLeft]:
+        // the old array changed on every tick, so the interval was torn down and
+        // recreated once a second, resetting its phase each time.
+        const timer = setInterval(() => {
+            const left = remainingSecsNow();
+            if (left <= 0) {
+                clearInterval(timer);
+                timeUp();
+                return;
+            }
+            // Elapsed-time check rather than `left % 5 === 0`: a hidden tab is
+            // throttled to ~1 tick/minute, so `left` drops ~60 at a time and the
+            // modulo mostly missed — precisely when a crash is most likely.
+            const nowMs = Date.now();
+            if (nowMs - lastAutosaveRef.current >= AUTOSAVE_EVERY_MS) {
+                lastAutosaveRef.current = nowMs;
+                autosave();
+            }
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [status, gauntletEndTime]);
 
     return {
         status, questions, answers, confidences, gauntletEndTime, diagnostics,

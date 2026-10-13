@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { causeTrend, manilaWeekStart } from './causeTrend';
+import { causeTrend, manilaWeekStart } from './causeWeeks';
 
 // Wednesday 2026-10-14, 10:00 Manila
 const NOW = Date.parse('2026-10-14T02:00:00Z');

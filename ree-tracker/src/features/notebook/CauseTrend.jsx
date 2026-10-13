@@ -1,11 +1,11 @@
 // src/features/notebook/CauseTrend.jsx
 //
 // Tagged causes per week for the last eight weeks, as plain stacked bars, and
-// the headline change (causeTrend.js). Plain markup, not a chart library: the
+// the headline change (causeWeeks.js). Plain markup, not a chart library: the
 // Notebook stays light, and a screen reader gets the same numbers as a table.
 import { useMemo } from 'react';
 import { MISTAKE_CAUSES, MISTAKE_CAUSE_LABELS } from '@ree/shared';
-import { causeTrend } from './causeTrend';
+import { causeTrend } from './causeWeeks';
 
 const COLOR = {
   concept: 'var(--accent)',

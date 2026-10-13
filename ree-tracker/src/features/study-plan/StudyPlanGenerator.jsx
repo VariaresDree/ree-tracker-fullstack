@@ -25,12 +25,14 @@ import { Badge, Button, Card, Modal } from '../../components/ui';
 import { CalendarDays, Check, TriangleAlert } from '../../components/ui/icons';
 
 const PLAN_DAYS = 42;
+// One empty syllabus for every render (a fresh `{}` re-ran the topic memo).
+const NO_TOS = {};
 
 export default function StudyPlanGenerator({ onPlanGenerated }) {
   const { dynamicTOS, stats } = useStore(
     useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats })),
   );
-  const safeTOS = dynamicTOS || {};
+  const safeTOS = dynamicTOS || NO_TOS;
 
   // The exam date is set in one place, Account → Exam plan; the planner reads
   // it (it used to keep its own editable copy, a third editor for one field).

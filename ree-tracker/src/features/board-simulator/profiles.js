@@ -33,7 +33,6 @@ export const SIM_PROFILES = [
   },
 ];
 
-export const isSimProfile = (id) => SIM_PROFILES.some((p) => p.id === id);
 
 // A recorded sitting's `kind` (services/examHistory on the server) → the name
 // the learner chose it by. Past sittings used its own labels ("Full blended",

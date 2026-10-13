@@ -36,29 +36,31 @@ export default function BoardSimulator() {
   // Full PRC board (features/board-simulator/fullBoard): three sections on one
   // server session, results withheld until the last. `board` is the between-
   // section state; the engine runs one section at a time.
-  const [board, setBoard] = useState(() => loadFullBoard());
+  const lastSection = FULL_BOARD_SECTIONS.length - 1;
+  const boardSection = engine.config.fullBoard?.sectionIndex;
+  const sectionJustFinished = !!(engine.session.isFinished && engine.config.fullBoard);
+  // A finished board left in storage (the tab closed on the result screen) is
+  // done — its result is in mock history; don't leave it masquerading as pending.
+  const [board, setBoard] = useState(() => {
+    const stored = loadFullBoard();
+    if (stored && stored.sectionIndex > lastSection && !sectionJustFinished) {
+      clearFullBoard();
+      return null;
+    }
+    return stored;
+  });
   // An unfinished board no longer takes over the setup screen: setup shows a
   // banner, and its break screen opens only when asked (or right after a
   // section). It used to replace setup for up to seven days, so a format
   // picked on the Exams hub was ignored.
   const [boardOpen, setBoardOpen] = useState(false);
-  const lastSection = FULL_BOARD_SECTIONS.length - 1;
-  const boardSection = engine.config.fullBoard?.sectionIndex;
-  const sectionJustFinished = engine.session.isFinished && engine.config.fullBoard;
-  // Reload the board state whenever a section lands (the engine banks it).
-  useEffect(() => {
+  // Reload the board state whenever a section lands (the engine banks it):
+  // adjusted while rendering, when the flag turns on, not in an effect.
+  const [sawFinish, setSawFinish] = useState(sectionJustFinished);
+  if (sawFinish !== sectionJustFinished) {
+    setSawFinish(sectionJustFinished);
     if (sectionJustFinished) setBoard(loadFullBoard());
-  }, [sectionJustFinished]);
-
-  // A finished board left in storage (the tab closed on the result screen) is
-  // done — its result is in mock history; don't leave it masquerading as pending.
-  useEffect(() => {
-    if (board && board.sectionIndex > lastSection && !sectionJustFinished) {
-      clearFullBoard();
-      setBoard(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
 
   const beginFullBoard = () => {
     const fresh = startFullBoard(crypto.randomUUID());

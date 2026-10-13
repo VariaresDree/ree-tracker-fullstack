@@ -13,7 +13,7 @@
 //   - One place to enforce the confidence + correctness color semantics
 //   - Removes ~300 lines of duplicated JSX from MCQMode/SimulatorActive/Gauntlet
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
 import { answerAnnouncement } from './answerAnnouncement';
@@ -97,23 +97,27 @@ export default function QuestionCard({
   // Hotkeys — opt-in so parents that manage their own keyboard (Simulator's
   // arrow-key navigation) don't double-bind. Q/W/E pick confidence, 1-4 / A-D
   // pick options. Skips modifier chords, form fields and open dialogs.
+  // An effect event: it reads the latest options and handlers, so the
+  // listener is bound once per question state instead of re-bound on every
+  // render (parents pass a new onSelect each time).
+  const onHotkey = useEffectEvent((e) => {
+    // Ctrl/Cmd+C used to pick option C; a key pressed behind a confirm
+    // dialog changed the answer underneath it.
+    if (shouldIgnoreHotkey(e)) return;
+    const key = e.key.toLowerCase();
+    if (HOTKEY_TO_CONFIDENCE[key] && onConfidenceChange) {
+      onConfidenceChange(HOTKEY_TO_CONFIDENCE[key]);
+      return;
+    }
+    const idx = HOTKEY_TO_OPTION_INDEX[key];
+    if (idx != null && options[idx] != null) handleSelect(options[idx]);
+  });
   useEffect(() => {
     if (!hotkeys || isReviewing) return undefined;
-    const onKey = (e) => {
-      // Ctrl/Cmd+C used to pick option C; a key pressed behind a confirm
-      // dialog changed the answer underneath it.
-      if (shouldIgnoreHotkey(e)) return;
-      const key = e.key.toLowerCase();
-      if (HOTKEY_TO_CONFIDENCE[key] && onConfidenceChange) {
-        onConfidenceChange(HOTKEY_TO_CONFIDENCE[key]);
-        return;
-      }
-      const idx = HOTKEY_TO_OPTION_INDEX[key];
-      if (idx != null && options[idx] != null) handleSelect(options[idx]);
-    };
+    const onKey = (e) => onHotkey(e);
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [hotkeys, isReviewing, options, onConfidenceChange, handleSelect]);
+  }, [hotkeys, isReviewing]);
 
   const announcement = answerAnnouncement({ isReviewing, selectedOption, correctAnswer, options });
 
@@ -129,8 +133,11 @@ export default function QuestionCard({
   // option COMMITS the answer, so auto-selecting on navigation would lock it in
   // by accident.
   const optionRefs = useRef([]);
-  const [activeOption, setActiveOption] = useState(0);
-  useEffect(() => { setActiveOption(0); }, [prompt]);
+  // Held with its question: a new prompt starts on the first option without
+  // a reset effect.
+  const [roving, setRoving] = useState({ prompt, index: 0 });
+  const activeOption = roving.prompt === prompt ? roving.index : 0;
+  const setActiveOption = (index) => setRoving({ prompt, index });
 
   const onOptionsKeyDown = (e) => {
     // Arrow-key roving stays live in review mode — it only MOVES FOCUS, never
