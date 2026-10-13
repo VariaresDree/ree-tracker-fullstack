@@ -162,6 +162,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://ree:ree@localhost:5432/ree_ci
+      DATABASE_SSL: "false"
     defaults:
       run:
         working-directory: ree-tracker-backend
@@ -214,6 +215,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://ree:ree@localhost:5432/ree_ci
+      DATABASE_SSL: "false"
     steps:
       - uses: actions/checkout@v4
 

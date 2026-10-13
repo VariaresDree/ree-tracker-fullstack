@@ -39,6 +39,14 @@ const POOL_MAX = Number(process.env.PG_POOL_MAX) || 15;
 // provider certificate would take the API down on deploy. The warning below
 // makes the remaining gap visible instead of silent.
 function buildSslConfig() {
+    // DATABASE_SSL=false turns TLS off, for a local or CI Postgres that has no
+    // SSL (the CI postgres:16 service refuses a TLS handshake). It is ignored
+    // in production, where the database is always reached over TLS.
+    if (String(process.env.DATABASE_SSL).toLowerCase() === 'false') {
+        if (process.env.NODE_ENV !== 'production') return false;
+        console.error('[db] DATABASE_SSL=false is ignored in production; connecting over TLS.');
+    }
+
     const inlineCa = process.env.DATABASE_CA_CERT;
     if (inlineCa) return { rejectUnauthorized: true, ca: inlineCa };
 

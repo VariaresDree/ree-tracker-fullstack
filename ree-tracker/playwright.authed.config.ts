@@ -37,7 +37,7 @@ export default defineConfig({
       url: 'http://localhost:5000/health',
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
-      env: { DATABASE_URL, FIREBASE_AUTH_EMULATOR_HOST: EMULATOR, FIREBASE_PROJECT_ID: 'demo-ree', PORT: '5000', NODE_ENV: 'test' },
+      env: { DATABASE_URL, FIREBASE_AUTH_EMULATOR_HOST: EMULATOR, FIREBASE_PROJECT_ID: 'demo-ree', PORT: '5000', NODE_ENV: 'test', ...(process.env.DATABASE_SSL ? { DATABASE_SSL: process.env.DATABASE_SSL } : {}) },
     },
     {
       command: 'npx vite --port 5173 --strictPort',
