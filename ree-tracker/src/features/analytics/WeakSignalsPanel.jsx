@@ -99,7 +99,7 @@ export default function WeakSignalsPanel({ data }) {
               <li key={m.questionId} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-muted2">{toDisplaySubject(m.subject)}{m.subtopic ? ` · ${m.subtopic}` : ''} · {new Date(m.answeredAt).toLocaleDateString()}</p>
-                  <div className="text-sm text-textMain line-clamp-2 overflow-hidden math-scroll-mobile"><SmartText text={m.text} /></div>
+                  <div className="text-sm text-textMain line-clamp-3"><SmartText text={m.text} /></div>
                 </div>
                 {m.subtopic && (
                   <Button size="sm" variant="ghost" onClick={() => drill({ topic: m.subtopic, subject: m.subject }, 'blind-spot')} aria-label={`Drill ${m.subtopic}`}>

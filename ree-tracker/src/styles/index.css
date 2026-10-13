@@ -890,6 +890,36 @@
 }
 
 /* ==========================================================================
+   MATH TEXT (LatexRenderer)
+   One flowing paragraph: inline math sits on the text baseline and wraps with
+   the sentence. Nothing here sets overflow on the text wrapper itself — a
+   non-visible overflow turns an inline-block's baseline into its bottom edge,
+   which is what lifted inline formulas above the line and added scrollbars
+   mid-sentence. Only a display formula wider than its card scrolls, on its own.
+   ========================================================================== */
+.math-text {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+/* KaTeX's default 1.21em makes inline symbols tower over 14-16px body text. */
+.math-text .katex {
+  font-size: 1.08em;
+  line-height: 1.2;
+}
+.math-text .katex-display {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 0.5rem 0;
+  padding: 0.25rem 0;
+  scrollbar-width: thin;
+}
+.math-text .katex-display > .katex {
+  font-size: 1.12em;
+}
+/* ==========================================================================
    UNIVERSAL DEEP DARK SCROLLBARS (For Dashboards, Ledgers, Library)
    ========================================================================== */
 
