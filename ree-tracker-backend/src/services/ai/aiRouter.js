@@ -9,6 +9,7 @@
 const { TASKS, PROVIDERS, chainFor, isProviderConfigured } = require('../../config/aiModels');
 const { callModel, classifyError } = require('./providers');
 const health = require('./aiHealth');
+const catalog = require('./modelCatalog');
 
 class AiUnavailableError extends Error {
     constructor(message, tried, reason) {
@@ -34,7 +35,9 @@ function withTimeout(run, ms) {
 
 /** The models this task will try, in order, given what's configured and healthy. */
 function plan(taskId, { env = process.env, now = Date.now() } = {}) {
-    const configured = chainFor(taskId, env).filter((e) => isProviderConfigured(e.provider, env));
+    // A model its provider no longer lists (modelCatalog) is never tried.
+    const configured = chainFor(taskId, env)
+        .filter((e) => isProviderConfigured(e.provider, env) && !catalog.isUnavailable(e.provider, e.model));
     const healthy = configured.filter((e) => !health.isCooling(e.id, now));
     const cooling = configured.filter((e) => health.isCooling(e.id, now));
     return [...healthy, ...cooling];
@@ -107,20 +110,29 @@ async function runTask(
 /** The per-task view behind GET /api/ai/status. */
 function status({ env = process.env, now = Date.now(), detailed = false } = {}) {
     const providers = Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [
-        id, { label: p.label, configured: isProviderConfigured(id, env), envKey: p.envKey },
+        id, { label: p.label, configured: isProviderConfigured(id, env), envKey: p.envKey, catalog: catalog.summary().providers[id] || null },
     ]));
 
     const tasks = {};
     for (const [taskId, task] of Object.entries(TASKS)) {
-        const chain = chainFor(taskId, env).map((e) => ({
-            id: e.id,
-            provider: e.provider,
-            providerLabel: PROVIDERS[e.provider].label,
-            model: e.model,
-            configured: isProviderConfigured(e.provider, env),
-            ...(isProviderConfigured(e.provider, env) ? health.summary(e.id, task.tier, now) : { state: 'unconfigured', calls: 0 }),
-        }));
-        const usable = chain.filter((c) => c.configured);
+        const chain = chainFor(taskId, env).map((e) => {
+            const configured = isProviderConfigured(e.provider, env);
+            const listed = configured ? catalog.isListed(e.provider, e.model) : null;
+            let health_;
+            if (!configured) health_ = { state: 'unconfigured', calls: 0 };
+            else if (listed === false) health_ = { state: 'missing', calls: 0 };
+            else health_ = health.summary(e.id, task.tier, now);
+            return {
+                id: e.id,
+                provider: e.provider,
+                providerLabel: PROVIDERS[e.provider].label,
+                model: e.model,
+                configured,
+                listed,
+                ...health_,
+            };
+        });
+        const usable = chain.filter((c) => c.configured && c.state !== 'missing');
         // The task's state is that of the model it would use first; if that one
         // is down, the next healthy one decides, flagged as running on backup.
         const first = usable.find((c) => c.state !== 'down');

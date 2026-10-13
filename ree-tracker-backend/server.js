@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
+const aiCatalog = require('./src/services/ai/modelCatalog');
 
 const FIREBASE_JSON_PATH = path.join(__dirname, 'firebase-service-account.json');
 const FIREBASE_ENV_KEYS = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
@@ -335,6 +336,10 @@ async function bootstrap() {
             gemini: readiness.gemini,
             ai: readiness.ai,
             aiProviders: readiness.aiProviders,
+            // Each provider's model list as last fetched, and any chain model
+            // its provider doesn't offer (services/ai/modelCatalog).
+            aiCatalog: aiCatalog.summary().providers,
+            aiMissingModels: aiCatalog.missingModels(),
             uptimeSec: Math.floor((Date.now() - readiness.startedAt) / 1000),
         };
         // Live-probe the DB if it was previously down so it can self-heal.
@@ -378,6 +383,12 @@ async function bootstrap() {
         startLeaderboardRefresh();
     } else {
         console.warn('[BOOT] Leaderboard refresh NOT started — db unavailable (routes will live-query).');
+    }
+
+    // Check every AI chain model against its provider's model list now and
+    // every 6 hours; a model the provider no longer offers is skipped.
+    if (readiness.ai === 'ok' && process.env.NODE_ENV !== 'test') {
+        aiCatalog.startCatalogRefresh({ logger });
     }
 
     // Node closes idle keep-alive sockets after 5s by default. Render's proxy

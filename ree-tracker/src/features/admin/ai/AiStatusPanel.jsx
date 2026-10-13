@@ -18,6 +18,7 @@ const STATE = {
   backup: { tone: 'amber', label: 'On backup' },
   down: { tone: 'danger', label: 'Down' },
   unconfigured: { tone: 'neutral', label: 'No key' },
+  missing: { tone: 'danger', label: 'Not offered' },
 };
 
 const ERROR_KIND = {
@@ -97,7 +98,12 @@ export default function AiStatusPanel() {
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-textMain">{p.label}</div>
                 <div className="text-xs text-muted2 font-mono [overflow-wrap:anywhere]">{p.envKey}</div>
-                <div className="text-xs text-muted2 mt-0.5">{p.configured ? 'Key set' : 'No key on the server'}</div>
+                <div className="text-xs text-muted2 mt-0.5">
+                  {!p.configured ? 'No key on the server'
+                    : p.catalog?.ok ? `Key works · ${p.catalog.models} models offered`
+                      : p.catalog ? `Key set · model list: ${p.catalog.error}`
+                        : 'Key set'}
+                </div>
               </div>
             </li>
           ))}
@@ -146,7 +152,7 @@ export default function AiStatusPanel() {
             </li>
           ))}
         </ul>
-        <p className="text-xs text-muted2">Speeds are from this server's recent requests and reset when it restarts. Checked {new Date(status.checkedAt).toLocaleTimeString()}.</p>
+        <p className="text-xs text-muted2">"Not offered" means the provider's own model list doesn't include that model (checked at startup and every 6 hours), so it is skipped. Speeds are from this server's recent requests and reset when it restarts. Checked {new Date(status.checkedAt).toLocaleTimeString()}.</p>
       </section>
     </div>
   );
