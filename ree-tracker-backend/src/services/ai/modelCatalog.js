@@ -13,7 +13,7 @@
 // The same lists resolve `provider:@pick:kw1|kw2` chain entries
 // (resolveChain), so a backup slot follows whatever the provider offers now.
 const {
-    PROVIDERS, TASKS, TASK_IDS, VISION_MODELS, PICK_EXCLUDE, PICK_MAX, chainFor, isProviderConfigured,
+    PROVIDERS, TASKS, TASK_IDS, VISION_MODELS, PICK_EXCLUDE, PICK_MAX, PICK_MIN_B, chainFor, isProviderConfigured,
 } = require('../../config/aiModels');
 
 // Names of open models that read images, for providers whose list doesn't
@@ -118,29 +118,60 @@ function readsImages(provider, id, info) {
     return VISION_NAME.test(id);
 }
 
-/**
- * The ids a `@pick` entry stands for right now: for each keyword in order, the
- * shortest listed id containing it (free ones only where the provider is
- * freeOnly), at most PICK_MAX. Empty until the provider's list has been read.
- */
-function expandPick(provider, keywords, { vision = false } = {}) {
+/** Billions of parameters named in a model id ("qwen3-235b-a22b" → 235), or 0. */
+function sizeInName(id) {
+    let best = 0;
+    for (const m of String(id).matchAll(/(\d+(?:\.\d+)?)b(?![a-z])/gi)) best = Math.max(best, Number(m[1]));
+    return best;
+}
+
+/** Listed models a pick may choose from: chat models, free ones where it matters. */
+function usable(provider, { vision = false } = {}) {
     const c = catalogs[provider];
     if (!c?.ok) return [];
     const freeOnly = !!PROVIDERS[provider].freeOnly;
+    return [...c.meta.entries()]
+        .filter(([id, info]) => !PICK_EXCLUDE.test(id)
+            && (!freeOnly || info.free)
+            && (!vision || readsImages(provider, id, info)))
+        .map(([id]) => id);
+}
+
+/**
+ * The ids a `@pick` entry stands for right now: for each keyword in order, the
+ * shortest listed id containing it (free ones only where the provider is
+ * freeOnly), at most PICK_MAX. `*` takes the largest remaining model by the
+ * size in its name, if that is at least PICK_MIN_B billion. Empty until the
+ * provider's list has been read.
+ */
+function expandPick(provider, keywords, { vision = false, skip = new Set() } = {}) {
+    // `skip`: models already earlier in the chain, so a pick adds a different one.
+    const pool = usable(provider, { vision }).filter((id) => !skip.has(id));
     const out = [];
     for (const kw of keywords) {
         if (out.length >= PICK_MAX) break;
-        const needle = kw.toLowerCase();
-        const candidates = [...c.meta.entries()]
-            .filter(([id, info]) => id.toLowerCase().includes(needle)
-                && !PICK_EXCLUDE.test(id)
-                && (!freeOnly || info.free)
-                && (!vision || readsImages(provider, id, info))
-                && !out.includes(id))
-            .map(([id]) => id)
+        const rest = pool.filter((id) => !out.includes(id));
+        let candidates;
+        if (kw === '*') {
+            candidates = rest.filter((id) => sizeInName(id) >= PICK_MIN_B)
+                .sort((a, b) => sizeInName(b) - sizeInName(a) || a.length - b.length || a.localeCompare(b));
+        } else {
+            const needle = kw.toLowerCase();
             // Shortest is the plain model rather than a variant of it; ties by name.
-            .sort((a, b) => a.length - b.length || a.localeCompare(b));
+            candidates = rest.filter((id) => id.toLowerCase().includes(needle))
+                .sort((a, b) => a.length - b.length || a.localeCompare(b));
+        }
         if (candidates.length) out.push(candidates[0]);
+    }
+    return out;
+}
+
+/** For /healthz: the chat models each open-model provider offers (free ones on OpenRouter). */
+function offered(env = process.env) {
+    const out = {};
+    for (const provider of Object.keys(PROVIDERS)) {
+        if (PROVIDERS[provider].kind !== 'openai' || !isProviderConfigured(provider, env) || !catalogs[provider]?.ok) continue;
+        out[provider] = usable(provider).sort();
     }
     return out;
 }
@@ -154,8 +185,9 @@ function resolveChain(taskId, env = process.env) {
     const seen = new Set();
     const out = [];
     for (const e of chainFor(taskId, env)) {
+        const skip = new Set(out.filter((x) => x.provider === e.provider).map((x) => x.model));
         const expanded = e.pick
-            ? expandPick(e.provider, e.pick, { vision: !!task.vision })
+            ? expandPick(e.provider, e.pick, { vision: !!task.vision, skip })
                 .map((model) => ({ id: `${e.provider}:${model}`, provider: e.provider, model, via: e.id }))
             : [e];
         for (const x of expanded) {
@@ -219,5 +251,5 @@ function resetCatalog() {
 
 module.exports = {
     refreshCatalog, startCatalogRefresh, isListed, isUnavailable, missingModels, summary, resetCatalog,
-    expandPick, resolveChain, picked,
+    expandPick, resolveChain, picked, offered, sizeInName,
 };

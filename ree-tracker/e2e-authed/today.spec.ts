@@ -6,9 +6,14 @@ import { signIn } from './helpers';
 // Habits, a battle question's key kept out of Bookmarks, and axe on the
 // signed-in screens (Phase 2's authed-screen check, which was manual).
 
-const seriousOrWorse = async (page) => {
+// Fails naming each offending element and axe's reason, so a red run says
+// what to fix: the rule id alone (all a failure used to print) meant
+// reproducing it locally first.
+const expectNoSeriousViolations = async (page) => {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
-  return results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id);
+  const bad = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+  const detail = bad.flatMap((v) => v.nodes.map((n) => `${v.id} ${n.target.join(' ')}\n  ${n.html.slice(0, 160)}\n  ${n.failureSummary}`));
+  expect(bad.map((v) => v.id), detail.join('\n')).toEqual([]);
 };
 
 test.beforeEach(async ({ page }) => {
@@ -24,7 +29,9 @@ test("Today leads with today's loop and runs it, heaviest subject first", async 
 });
 
 test('Today has no serious accessibility violations', async ({ page }) => {
-  expect(await seriousOrWorse(page)).toEqual([]);
+  // Scan Today once its data is in, not the moment the heading paints.
+  await expect(page.getByRole('listitem').filter({ hasText: "Start today's loop" })).toBeVisible({ timeout: 20_000 });
+  await expectNoSeriousViolations(page);
 });
 
 test('a logged focus block can be fixed from Progress › Habits', async ({ page }) => {
@@ -37,7 +44,7 @@ test('a logged focus block can be fixed from Progress › Habits', async ({ page
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Focus block updated.')).toBeVisible();
   await expect(page.getByText(/· EE · 20 min/)).toBeVisible();
-  expect(await seriousOrWorse(page)).toEqual([]);
+  await expectNoSeriousViolations(page);
 });
 
 test("a bookmarked question in the learner's live battle shows no answer", async ({ page }) => {
