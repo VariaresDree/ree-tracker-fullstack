@@ -24,6 +24,8 @@ describe('AI model chains', () => {
         expect(parseEntry('openrouter:openai/gpt-oss-20b:free')).toEqual({
             id: 'openrouter:openai/gpt-oss-20b:free', provider: 'openrouter', model: 'openai/gpt-oss-20b:free',
         });
+        expect(parseEntry('groq:@pick:llama-4| qwen3')).toMatchObject({ provider: 'groq', pick: ['llama-4', 'qwen3'] });
+        expect(parseEntry('groq:@pick:')).toBeNull();
         expect(parseEntry('nope:model')).toBeNull();
         expect(parseEntry('groq')).toBeNull();
     });
@@ -175,6 +177,82 @@ describe('model catalog', () => {
         expect(plan('report', { env }).some((e) => e.provider === 'groq')).toBe(false);
         // OpenRouter answered 500: unknown, so its models stay in play.
         expect(catalog.isListed('openrouter', 'x')).toBeNull();
-        expect(plan('report', { env }).some((e) => e.provider === 'openrouter')).toBe(true);
+        // An exact id stays in play; a pick needs the list, so it stands for nothing.
+        const exact = { ...env, AI_CHAIN_REPORT: 'openrouter:openai/gpt-oss-20b:free,openrouter:@pick:gpt-oss' };
+        expect(plan('report', { env: exact }).map((e) => e.id)).toEqual(['openrouter:openai/gpt-oss-20b:free']);
+    });
+});
+
+describe('model picks', () => {
+    const catalog = require('../src/services/ai/modelCatalog');
+    const env = { GROQ_API_KEY: 'g', OPENROUTER_API_KEY: 'o', GEMINI_API_KEY: 'k' };
+
+    // OpenRouter-shaped list: pricing and input modalities per model.
+    const orModel = (id, { price = '0', image = false } = {}) => ({
+        id, pricing: { prompt: price, completion: price },
+        architecture: { input_modalities: image ? ['text', 'image'] : ['text'] },
+    });
+    const lists = {
+        groq: ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3-32b', 'meta-llama/llama-4-maverick-17b-128e-instruct',
+            'meta-llama/llama-guard-4-12b', 'whisper-large-v3'].map((id) => ({ id })),
+        openrouter: [
+            orModel('openai/gpt-oss-120b', { price: '0.0000001' }),
+            orModel('openai/gpt-oss-120b:free'),
+            orModel('deepseek/deepseek-r1-0528-qwen3-8b:free'),
+            orModel('deepseek/deepseek-r1:free'),
+            orModel('google/gemma-3-27b-it:free', { image: true }),
+            orModel('mistralai/mistral-small-3.2-24b-instruct:free'),
+        ],
+        googleapis: ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite',
+            'gemini-3.1-pro-preview', 'gemini-3.1-pro-preview-customtools', 'gemini-2.5-flash-image'],
+    };
+    const fetchImpl = async (url) => {
+        if (url.includes('googleapis')) return { ok: true, json: async () => ({ models: lists.googleapis.map((id) => ({ name: `models/${id}` })) }) };
+        const key = url.includes('groq') ? 'groq' : 'openrouter';
+        return { ok: true, json: async () => ({ data: lists[key] }) };
+    };
+
+    beforeEach(async () => {
+        catalog.resetCatalog();
+        await catalog.refreshCatalog({ env, fetchImpl });
+    });
+
+    it('takes the shortest listed id for each keyword, free ones only on OpenRouter', () => {
+        expect(catalog.expandPick('openrouter', ['gpt-oss-120b', 'deepseek-r1'])).toEqual(['openai/gpt-oss-120b:free', 'deepseek/deepseek-r1:free']);
+        expect(catalog.expandPick('gemini', ['gemini-3.1-pro'])).toEqual(['gemini-3.1-pro-preview']);
+        expect(catalog.expandPick('groq', ['llama-3.3-70b', 'qwen3-32b', 'llama-4-maverick', 'kimi-k2'])).toEqual(['qwen/qwen3-32b', 'meta-llama/llama-4-maverick-17b-128e-instruct']);
+    });
+
+    it('never picks guard, speech or image-generation models', () => {
+        expect(catalog.expandPick('groq', ['guard', 'whisper'])).toEqual([]);
+        expect(catalog.expandPick('gemini', ['flash-image'])).toEqual([]);
+    });
+
+    it('picks only image-reading models for vision', () => {
+        expect(catalog.expandPick('openrouter', ['gemma-3-27b', 'mistral-small'], { vision: true })).toEqual(['google/gemma-3-27b-it:free']);
+        const vision = catalog.resolveChain('vision', env).map((e) => e.id);
+        expect(vision).toContain('groq:meta-llama/llama-4-maverick-17b-128e-instruct');
+        expect(vision.every((id) => !id.includes('qwen3-32b'))).toBe(true);
+    });
+
+    it('resolves every chain against the live lists, with no model listed as missing', () => {
+        for (const id of TASK_IDS) {
+            const chain = catalog.resolveChain(id, env);
+            expect(chain.every((e) => !e.pick)).toBe(true);
+            expect(new Set(chain.map((e) => e.id)).size).toBe(chain.length);
+        }
+        const author = plan('author', { env }).map((e) => e.id);
+        expect(author[0]).toBe('groq:openai/gpt-oss-120b');
+        expect(author).toContain('openrouter:openai/gpt-oss-120b:free');
+        expect(author).toContain('gemini:gemini-3.1-pro-preview');
+        expect(catalog.missingModels(env)).toEqual([]);
+        expect(catalog.summary().providers.openrouter.free).toBe(5);
+        expect(catalog.picked(env)['groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick']).toEqual(['qwen/qwen3-32b', 'meta-llama/llama-4-maverick-17b-128e-instruct']);
+    });
+
+    it('a pick stands for nothing until its provider list has been read', () => {
+        catalog.resetCatalog();
+        expect(catalog.resolveChain('report', env).some((e) => e.via)).toBe(false);
+        expect(plan('report', { env })[0].id).toBe('groq:openai/gpt-oss-20b');
     });
 });

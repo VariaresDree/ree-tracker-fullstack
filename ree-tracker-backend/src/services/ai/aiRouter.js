@@ -6,7 +6,7 @@
 // total budget), and on any failure move straight to the next. Every outcome
 // is recorded, which is what the status panel and the "AI is slow" notices
 // read.
-const { TASKS, PROVIDERS, chainFor, isProviderConfigured } = require('../../config/aiModels');
+const { TASKS, PROVIDERS, isProviderConfigured } = require('../../config/aiModels');
 const { callModel, classifyError } = require('./providers');
 const health = require('./aiHealth');
 const catalog = require('./modelCatalog');
@@ -35,8 +35,9 @@ function withTimeout(run, ms) {
 
 /** The models this task will try, in order, given what's configured and healthy. */
 function plan(taskId, { env = process.env, now = Date.now() } = {}) {
-    // A model its provider no longer lists (modelCatalog) is never tried.
-    const configured = chainFor(taskId, env)
+    // A model its provider no longer lists (modelCatalog) is never tried, and
+    // `@pick` entries stand for whatever that list offers now.
+    const configured = catalog.resolveChain(taskId, env)
         .filter((e) => isProviderConfigured(e.provider, env) && !catalog.isUnavailable(e.provider, e.model));
     const healthy = configured.filter((e) => !health.isCooling(e.id, now));
     const cooling = configured.filter((e) => health.isCooling(e.id, now));
@@ -115,7 +116,7 @@ function status({ env = process.env, now = Date.now(), detailed = false } = {}) 
 
     const tasks = {};
     for (const [taskId, task] of Object.entries(TASKS)) {
-        const chain = chainFor(taskId, env).map((e) => {
+        const chain = catalog.resolveChain(taskId, env).map((e) => {
             const configured = isProviderConfigured(e.provider, env);
             const listed = configured ? catalog.isListed(e.provider, e.model) : null;
             let health_;
@@ -127,6 +128,7 @@ function status({ env = process.env, now = Date.now(), detailed = false } = {}) 
                 provider: e.provider,
                 providerLabel: PROVIDERS[e.provider].label,
                 model: e.model,
+                picked: !!e.via,
                 configured,
                 listed,
                 ...health_,

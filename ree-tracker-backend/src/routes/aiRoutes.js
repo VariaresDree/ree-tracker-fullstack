@@ -5,10 +5,11 @@ const { isAdminUser, requireAdmin } = require('../middlewares/roleMiddleware');
 const logger = require('../utils/logger');
 const { validate } = require('../middlewares/validate');
 const { aiGenerateSchema } = require('../schemas/aiSchemas');
-const { TASKS, MODEL_TIERS, chainFor, isProviderConfigured } = require('../config/aiModels');
+const { TASKS, MODEL_TIERS, isProviderConfigured } = require('../config/aiModels');
 const { runTask, status, AiUnavailableError } = require('../services/ai/aiRouter');
 const { callModel, classifyError } = require('../services/ai/providers');
 const health = require('../services/ai/aiHealth');
+const catalog = require('../services/ai/modelCatalog');
 
 // POST /api/ai/generate { task, contents, system?, json?, config? }
 // The task picks the model chain; see config/aiModels.
@@ -62,8 +63,8 @@ const PROBE_TIMEOUT_MS = 20_000;
 router.post('/status/probe', authMiddleware, requireAdmin, async (req, res) => {
     const ids = new Map();
     for (const task of Object.keys(TASKS)) {
-        for (const e of chainFor(task)) {
-            if (isProviderConfigured(e.provider) && !ids.has(e.id)) ids.set(e.id, e);
+        for (const e of catalog.resolveChain(task)) {
+            if (isProviderConfigured(e.provider) && !catalog.isUnavailable(e.provider, e.model) && !ids.has(e.id)) ids.set(e.id, e);
         }
     }
     const results = await Promise.all([...ids.values()].map(async (e) => {

@@ -336,10 +336,12 @@ async function bootstrap() {
             gemini: readiness.gemini,
             ai: readiness.ai,
             aiProviders: readiness.aiProviders,
-            // Each provider's model list as last fetched, and any chain model
-            // its provider doesn't offer (services/ai/modelCatalog).
+            // Each provider's model list as last fetched, any chain model its
+            // provider doesn't offer, and the models each `@pick` backup
+            // resolved to (services/ai/modelCatalog).
             aiCatalog: aiCatalog.summary().providers,
             aiMissingModels: aiCatalog.missingModels(),
+            aiPicked: aiCatalog.picked(),
             uptimeSec: Math.floor((Date.now() - readiness.startedAt) / 1000),
         };
         // Live-probe the DB if it was previously down so it can self-heal.
