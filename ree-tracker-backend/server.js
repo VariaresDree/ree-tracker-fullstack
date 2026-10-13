@@ -218,9 +218,13 @@ async function bootstrap() {
         },
     }));
 
+    // RATE_LIMIT_GLOBAL_MAX overrides the per-IP budget: the signed-in
+    // Playwright run sends every screen's requests from one address and spent
+    // the default 300 within ten specs (playwright.authed.config.ts).
+    const globalMax = Number(process.env.RATE_LIMIT_GLOBAL_MAX) > 0 ? Number(process.env.RATE_LIMIT_GLOBAL_MAX) : 300;
     const globalLimiter = rateLimit({
         windowMs: 15 * 60 * 1000,
-        max: 300,
+        max: globalMax,
         standardHeaders: true,
         legacyHeaders: false,
         message: { error: 'Too many requests. Try again later.' },

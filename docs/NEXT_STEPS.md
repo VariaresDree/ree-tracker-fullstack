@@ -2,11 +2,53 @@
 
 Handoff notes for the next planning session. Written 2026-10-13, after
 [#143](https://github.com/VariaresDree/ree-tracker-fullstack/pull/143) and
-[#144](https://github.com/VariaresDree/ree-tracker-fullstack/pull/144) were merged.
+[#144](https://github.com/VariaresDree/ree-tracker-fullstack/pull/144) were merged;
+updated for the polish-and-features release that followed (branch
+`claude/jolly-cerf-yz78he`, section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
 ## 1. What just shipped
+
+**The polish-and-features release (after #153).** One commit per part:
+- **Copy:**
+  - plain names ("Start mock board", "Take a mock board");
+  - plain server messages, with a backend copy guard;
+  - Sync issues names each item by what it was;
+  - honest web notification copy;
+  - a next step on every empty state.
+- **Onboarding and adaptive practice:**
+  - a floor-aware "where to start";
+  - the placement result leads with it and asks for the exam plan;
+  - a first-run card, "Welcome" on a first visit, and "Early estimate" badges;
+  - Today follows the plan for new learners;
+  - an **Adaptive set** in Practice (`POST /api/exams/next-item` with `withKey`, falling back to an on-device picker offline).
+- **Battles:**
+  - Past battles in Exams › Battles;
+  - a players-only replay with everyone's picks in a battle's review;
+  - **Rematch** (migration `20261017000000_battle_rematch`).
+- **Notebook and planner:**
+  - a timed **Mistakes mock**;
+  - "Why you miss, by week";
+  - formula cards rated inside Today's loop;
+  - a study plan weighted by open mistakes, with formula-card days.
+- **Code health:**
+  - lint ratchet 30 → **0**;
+  - Practice no longer re-renders every second;
+  - boot payload ~651 → **625 kB** (Firebase Storage is lazy, react-router chunked);
+  - narrow store reads;
+  - a focus block ends on time during exams;
+  - dead code removed;
+  - a module-name case guard.
+- **Accessibility:**
+  - ink tokens so every themed button and banner passes 4.5:1 in all 13 themes;
+  - an `h1` in a running Practice session, and no skipped heading levels;
+  - focus rings that survive forced colours;
+  - keyboard-reachable admin rows;
+  - 44px touch targets;
+  - a tap-to-open glossary;
+  - the Pomodoro gives way to the Scratchpad;
+  - signed-in axe scans at WCAG 2.2 AA on six screens, a dark theme and a phone.
 
 **#143: correctness, exam realism, a UI pass on every page.** Highlights:
 - the PRC weighted-average verdict;
@@ -43,7 +85,7 @@ Handoff notes for the next planning session. Written 2026-10-13, after
   4. Verify with `POST /api/admin/push-test`.
 
   Scheduled reminders and streak pushes reach phones only after this. Until then the on-device reminder stands in.
-- [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the five migrations `20261011000000` to `20261015000000`.
+- [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261017000000` (the last is the battle rematch link).
 - [ ] **Run the manual checks** listed in #144: the battle scenario on two devices, a card review cycle, a focus block, a mistake tag, a note, and a reminder (after the two items above).
 - [ ] **Close the Phase 3 gate:** run one AI-generated batch through the review loop (edit and reject at least one item, approve the rest). See `ROADMAP.md`.
 
@@ -54,7 +96,8 @@ Handoff notes for the next planning session. Written 2026-10-13, after
   - Completion is already safe across instances (a single DB transaction claims it).
   - Live broadcasts are not: running two backend instances needs `@socket.io/redis-adapter` and sticky sessions.
 - **Battles that were live when #144 deployed** have no `BattleParticipant` rows. They close with no outcomes, and their players can't rejoin. This is one-off.
-- **Spectating:** `GET /api/battles/:id/spectate` exists, but no screen uses it.
+- **Spectating:** `GET /api/battles/:id/spectate` exists, but no screen uses it. It also has **no participant check**: any signed-in user can read any battle's live state. Gate it (players, or an opt-in "spectators allowed" flag) before building a screen. `/replay` is players-only now.
+- **Rematch** creates a new lobby with the same settings and tells the old room. There's no invite to a specific person (codes are still shared by hand), and a player who has left the results screen only sees it in Past battles.
 
 **Answer-key exposure** (fixed in the release after #144)
 - `POST /api/exams/grade`, the bookmarks list, the mistakes list and today's loop now keep a question's key from a player while it is in a battle they're still in (`services/answerGate.js`). A non-player can still grade any question id; that only matters if one player hands the ids to someone else.
@@ -68,7 +111,15 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 
 **Formula-card reviews**
 - No suspend/bury, no daily cap on new cards, no review history (only the latest schedule is kept).
-- Rating happens only in study mode.
+- Rating happens in study mode, and for up to 8 due cards inside Today's loop.
+- **Study plan cards days:** a cards task completes from each card's *latest* rating, so re-rating a card on a later day moves its count off the earlier day.
+
+**Mistakes**
+- "Why you miss, by week" counts one cause per question, at its latest miss (`MistakeTag` keeps one cause). A true per-miss trend needs a history table of tags.
+
+**Adaptive set**
+- One request per question, fetched while the solution shows. If `next-item` is slow, Next waits on it (with a spinner); after any failure the rest of the set is picked on the device.
+- The cognitive-focus filter (Theory / Calculation) doesn't apply to it.
 
 **Focus time**
 - Logged blocks can be fixed or deleted from Habits › Recent blocks (the newest ten).
@@ -81,22 +132,25 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 - GitHub cron can run 10+ minutes late, and it pauses after 60 days of repo inactivity.
 
 **Code health**
-- **Lint ratchet:** 31 errors at baseline, mostly `react-hooks/set-state-in-effect`, `react-hooks/purity` and `react-refresh/only-export-components`. Pay down a few per change.
-- **Boot bundle:** 649 kB of the 700 kB budget (92.7%). Before adding anything to the shell, look at what `@ree/shared` and the shell pull in eagerly.
+- **Lint ratchet:** **0**. Keep it there; FEATURES.md (Quality gates) lists the patterns that replaced each rule's errors.
+- **Boot bundle:** 625 kB of the 700 kB budget (89%). Before adding anything to the shell, look at what `@ree/shared` and the shell pull in eagerly.
+- **Not done:** memoising `ExamNavigator`'s 100 buttons and `AnswerSheet`'s 400 bubbles. The exam clock no longer re-renders them every second, so they only re-render on an answer; worth it only if a profile on a low-end phone says so.
+- **Rate limit:** 300 requests per IP per 15 minutes (`RATE_LIMIT_GLOBAL_MAX` overrides it). A whole class behind one campus NAT shares that budget. Consider keying it on the signed-in user, as the AI limiter already is.
 
 **Tests** (done in the release after #144)
 - Signed-in Playwright specs run on the Firebase Auth emulator with the real backend (`ree-tracker/e2e-authed/`, CI "E2E (signed in)"). Add a spec there for each new signed-in flow.
 - The two-client battle test lives in `tests/battleTwoClients.test.js`.
 - CI applies the migrations to a real Postgres, checks them against `schema.prisma`, and runs `tests/integration/*.dbtest.js` (`npm run test:db`).
 
-**Phase 2 gate:** axe now runs on Today and Progress › Habits in CI. Lighthouse on signed-in screens is still manual.
+**Phase 2 gate:** axe runs in CI on Today, Habits, Exams, Library › Notebook, Progress › Overview and a running Practice session (WCAG 2.2 AA), plus Today in the ocean theme and on a phone. Lighthouse on signed-in screens is still manual.
 
 ## 4. Ideas that would help learners (candidates for the next plan)
 
 **Using the new data**
-- ~~**One "Today" study loop**~~ shipped: due questions and open mistakes in one session by board weight, then the formula cards due. Mixing formula cards into the same session (not after it) is still open.
-- **Study plan generator** (Progress › Study plan): include due cards and open mistakes per topic, and use focus-time share against PRC weight to rebalance the week.
-- **Mistake patterns over time:** causes per week, and "you're misreading less". A mistakes-only mock: a timed set of open mistakes at board pace.
+- ~~**One "Today" study loop**~~ shipped, and the due formula cards now come in the same session (up to 8).
+- ~~**Study plan generator** with cards and mistakes~~ shipped: open mistakes raise a topic's priority, and days with 5+ cards due get a cards task. Focus time is shown beside the plan, not fed in (display only by design).
+- ~~**Mistake patterns over time** and a **mistakes-only mock**~~ shipped (Notebook › Mistakes).
+- **Placement follow-up:** re-run the floor rule on the forecast's per-subject projections once a learner has history, so "where to start" keeps moving after the placement test.
 - **Formula ↔ question links:** a missed question surfaces the formula cards for its topic, and rating a card can queue two questions on it.
 - **Focus goals:** a weekly target per subject from the PRC weights, with the Habits chart showing progress against it.
 
@@ -104,7 +158,8 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 - ~~Rematch, and a battle history with the per-question replay~~ shipped: Exams › Battles › Past battles, everyone's picks in a battle's review, and Rematch from the results, the review and the history. Spectate is still open (`/spectate` still serves any battle to anyone signed in).
 - Ranked matchmaking by Elo (a queue rather than invite codes).
 
-**Reach and polish**
+**Reach and polish** (left out of the last release by choice; still the next obvious set)
+- An install prompt for the web app, data export (the notebook to PDF, answers to CSV), and an Admin switch for feature flags (`useFlag` already reads them).
 - Web Push for browser users; a reminder minute, not just the hour; quiet days; a weekly summary push.
 - iOS build (Capacitor), and Play Store signing.
 - Search across notes; notes on topics as well as questions and cards; export the notebook to PDF.
@@ -115,11 +170,23 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 **Battles**
 - Backend: `ree-tracker-backend/src/services/battleLifecycle.js`, `src/sockets/battleSocket.js`, `src/routes/battleRoutes.js`, `src/utils/battleLogic.js`.
 - Frontend: `ree-tracker/src/features/exams/ActiveBattles.jsx` and `src/hooks/useBattleSocket.js`.
+- History, replay and Rematch:
+  - backend: `src/services/battleCreate.js`, plus `GET /me/history`, `GET /:id/replay` and `POST /:id/rematch` in `battleRoutes.js`;
+  - frontend: `features/exams/{BattleHistory,BattlePicks}.jsx` and `pages/SittingReview.jsx`.
+
+**Onboarding and adaptive practice**
+- `features/exams/startingPlan.js` (where to start) and `features/diagnostic/usePlacement.js`.
+- `features/onboarding/FirstRunCard.jsx`, `features/analytics/earlyEstimate.js` and `features/today/todayActions.js` (`followPlacement`).
+- Adaptive set: `features/active-recall/{adaptiveFallback.js,useReviewSession.js}`, `dbQueries.fetchNextItem`, and `next-item` in `examRoutes.js`.
 
 **Notebook**
 - Backend: `src/routes/{mistakeRoutes,noteRoutes}.js`, `src/services/mistakeView.js`.
-- Frontend: `ree-tracker/src/features/notebook/*`.
+- Frontend: `ree-tracker/src/features/notebook/*`. The Mistakes mock goes through `features/exams/review/retake.js`; cause trends are `causeWeeks.js` and `CauseTrend.jsx`.
 - Shared: `packages/shared/src/notebook.js`.
+
+**Today's loop and the study plan**
+- Backend: `src/services/todayLoop.js` (cards with `?cards=1`) and `src/engine/plan.js` (`cardTasks`, the mistake boost).
+- Frontend: `features/active-recall/LoopCardStep.jsx` and `features/reference/CardRatingButtons.jsx`.
 
 **Card reviews**
 - Backend: `src/routes/cardReviewRoutes.js`.
@@ -149,6 +216,13 @@ npm run check:bundle --workspace=ree-tracker        # boot payload ≤ 700 kB
 npm run check:sw --workspace=ree-tracker            # per-user routes stay out of the shared cache
 npm run audit:all --workspace=ree-tracker-backend   # SQL interpolation, route auth/authz, secrets
 cd ree-tracker-backend && DATABASE_URL=postgresql://localhost:5432/dummy npx prisma validate
+```
+
+With a local Postgres (CI runs both):
+
+```
+cd ree-tracker-backend && DATABASE_URL=… npx prisma migrate deploy && DATABASE_URL=… npm run test:db
+cd ree-tracker && DATABASE_URL=… npm run e2e:authed   # Firebase Auth emulator + backend + Vite; PW_CHROMIUM_PATH for a local Chromium
 ```
 
 House rules:
