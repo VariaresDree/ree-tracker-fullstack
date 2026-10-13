@@ -75,7 +75,7 @@ const VISION_MODELS = new Set([
 ]);
 
 // Models that aren't chat models, never chosen by a pick.
-const PICK_EXCLUDE = /(embed|tts|audio|whisper|transcribe|guard|imagen|-image|veo|live|computer-use|robotics|aqa|learnlm|compound|playai|orpheus)/i;
+const PICK_EXCLUDE = /(embed|tts|audio|whisper|transcribe|guard|safety|imagen|-image|veo|lyria|live|computer-use|robotics|aqa|learnlm|compound|playai|orpheus)/i;
 const PICK_MAX = 2;
 const PICK_MIN_B = 24;
 
@@ -85,11 +85,13 @@ const GEMINI_FAST = ['gemini:gemini-3.1-flash-lite', 'gemini:gemini-2.5-flash-li
 const GEMINI_STRONG = ['gemini:gemini-3.5-flash', 'gemini:@pick:gemini-3.1-pro|gemini-3-pro|gemini-2.5-pro', 'gemini:gemini-2.5-flash'];
 
 // Backups picked from each provider's live list (see the note at the top).
-const GROQ_FAST_ALT = 'groq:@pick:llama-3.3-70b|llama-4-scout|llama-4-maverick|qwen3-32b|*';
-const GROQ_ALT = 'groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick|*';
-const OR_FAST = 'openrouter:@pick:gpt-oss-20b|gpt-oss-120b|llama-3.3-70b|gemma-3-27b|mistral-small|*';
-const OR_GENERAL = 'openrouter:@pick:gpt-oss-120b|deepseek-chat|deepseek-v3|qwen3-235b|llama-3.3-70b|*';
-const OR_REASONING = 'openrouter:@pick:gpt-oss-120b|deepseek-r1|qwen3-235b|deepseek-chat|kimi-k2|*';
+// Keywords follow what was offered on 2026-10-13 (Groq: gpt-oss and Qwen3.8;
+// OpenRouter free: Nemotron 3, Gemma 4), then older families, then `*`.
+const GROQ_FAST_ALT = 'groq:@pick:qwen3|llama-4-scout|llama-3.3-70b|*';
+const GROQ_ALT = 'groq:@pick:qwen3|kimi-k2|llama-3.3-70b|llama-4-maverick|*';
+const OR_FAST = 'openrouter:@pick:nemotron-3-super|gemma-4-31b|gpt-oss-20b|gemma-4|*';
+const OR_GENERAL = 'openrouter:@pick:nemotron-3-ultra|nemotron-3-super|gpt-oss-120b|deepseek-v3|qwen3-235b|*|*';
+const OR_REASONING = 'openrouter:@pick:nemotron-3-ultra|gpt-oss-120b|deepseek-r1|qwen3-235b|nemotron-3-super|*|*';
 
 const TASKS = {
     // Progress › AI board report: three sentences. Speed is the whole point.
@@ -186,7 +188,7 @@ const TASKS = {
             'gemini:gemini-2.5-flash',
             'cerebras:gpt-oss-120b',
             'groq:openai/gpt-oss-120b',
-            'openrouter:@pick:deepseek-r1|qwen3-235b|gpt-oss-120b|*',
+            'openrouter:@pick:nemotron-3-ultra|deepseek-r1|qwen3-235b|gpt-oss-120b|*',
         ],
     },
     // Admin: questions read out of a photo or scanned page.
@@ -204,7 +206,7 @@ const TASKS = {
             'gemini:gemini-3.5-flash',
             'gemini:gemini-2.5-flash',
             'groq:@pick:llama-4-scout|llama-4-maverick|*',
-            'openrouter:@pick:gemma-3-27b|qwen2.5-vl|llama-4|mistral-small|*',
+            'openrouter:@pick:gemma-4-31b|gemma-4|qwen2.5-vl|llama-4|*',
         ],
     },
     // Old clients that send no task.

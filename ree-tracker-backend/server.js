@@ -337,12 +337,12 @@ async function bootstrap() {
             ai: readiness.ai,
             aiProviders: readiness.aiProviders,
             // Each provider's model list as last fetched, any chain model its
-            // provider doesn't offer, and the models each `@pick` backup
-            // resolved to, and the chat models Groq and OpenRouter (free)
-            // offer to pick from (services/ai/modelCatalog).
+            // provider doesn't offer, each feature's models in the order it
+            // tries them (picks resolved), and the chat models Groq and
+            // OpenRouter (free) offer to pick from (services/ai/modelCatalog).
             aiCatalog: aiCatalog.summary().providers,
             aiMissingModels: aiCatalog.missingModels(),
-            aiPicked: aiCatalog.picked(),
+            aiChains: aiCatalog.chains(),
             aiOffered: aiCatalog.offered(),
             uptimeSec: Math.floor((Date.now() - readiness.startedAt) / 1000),
         };

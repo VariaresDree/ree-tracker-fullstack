@@ -247,7 +247,12 @@ describe('model picks', () => {
         expect(author).toContain('gemini:gemini-3.1-pro-preview');
         expect(catalog.missingModels(env)).toEqual([]);
         expect(catalog.summary().providers.openrouter.free).toBe(5);
-        expect(catalog.picked(env)['groq:@pick:llama-3.3-70b|qwen3-32b|kimi-k2|llama-4-maverick|*']).toEqual(['qwen/qwen3-32b', 'meta-llama/llama-4-maverick-17b-128e-instruct']);
+        expect(catalog.chains(env).explain).toEqual([
+            'groq:openai/gpt-oss-120b',
+            'groq:qwen/qwen3-32b', 'groq:meta-llama/llama-4-maverick-17b-128e-instruct',
+            'openrouter:openai/gpt-oss-120b:free', 'openrouter:google/gemma-3-27b-it:free',
+            'gemini:gemini-2.5-flash', 'gemini:gemini-2.5-flash-lite',
+        ]);
     });
 
     it('a pick stands for nothing until its provider list has been read', () => {
@@ -303,3 +308,45 @@ describe('model picks: wildcard', () => {
     });
 });
 
+
+describe('model picks against the lists offered on 2026-10-13', () => {
+    const catalog = require('../src/services/ai/modelCatalog');
+    const env = { GROQ_API_KEY: 'g', OPENROUTER_API_KEY: 'o', GEMINI_API_KEY: 'k' };
+    // From /healthz aiOffered after PR 152 (OpenRouter: the free ones).
+    const groq = ['allam-2-7b', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'whisper-large-v3', 'meta-llama/llama-guard-4-12b'];
+    const openrouter = ['apodex/apodex-1.1-mini:free', 'cohere/north-mini-code:free', 'dots-studio/dots-3-note-preview:free',
+        'google/gemma-4-26b-a4b-it:free', 'google/gemma-4-31b-it:free', 'liquid/lfm-2.5-2.6b:free',
+        'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', 'nvidia/nemotron-3-super-120b-a12b:free',
+        'nvidia/nemotron-3-ultra-550b-a55b:free', 'nvidia/nemotron-3.5-content-safety:free', 'nvidia/nemotron-3.5-lightning:free',
+        'openrouter/free', 'poolside/laguna-s-2.1:free', 'thinkingmachines/inkling:free'];
+    const gemini = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview', 'gemini-2.5-pro'];
+    const fetchImpl = async (url) => {
+        if (url.includes('googleapis')) return { ok: true, json: async () => ({ models: gemini.map((id) => ({ name: `models/${id}` })) }) };
+        const ids = url.includes('groq') ? groq : openrouter;
+        const image = (id) => /gemma-4/.test(id);
+        return { ok: true, json: async () => ({ data: ids.map((id) => ({ id, architecture: { input_modalities: image(id) ? ['text', 'image'] : ['text'] } })) }) };
+    };
+    beforeEach(async () => {
+        catalog.resetCatalog();
+        await catalog.refreshCatalog({ env, fetchImpl });
+    });
+
+    it('gives every feature open-model backups before Gemini', () => {
+        const c = catalog.chains(env);
+        expect(c.report.slice(0, 4)).toEqual([
+            'groq:openai/gpt-oss-20b', 'groq:qwen/qwen3.8-27b', 'groq:openai/gpt-oss-120b',
+            'openrouter:nvidia/nemotron-3-super-120b-a12b:free',
+        ]);
+        expect(c.explain.slice(0, 4)).toEqual([
+            'groq:openai/gpt-oss-120b', 'groq:qwen/qwen3.8-27b',
+            'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free', 'openrouter:nvidia/nemotron-3-super-120b-a12b:free',
+        ]);
+        expect(c.author.slice(0, 3)).toEqual([
+            'groq:openai/gpt-oss-120b', 'openrouter:nvidia/nemotron-3-ultra-550b-a55b:free',
+            'openrouter:nvidia/nemotron-3-super-120b-a12b:free',
+        ]);
+        expect(c.verify[0]).toBe('gemini:gemini-3.5-flash');
+        expect(c.vision).toContain('openrouter:google/gemma-4-31b-it:free');
+        expect(Object.values(c).flat().some((id) => /safety|guard|whisper|allam/.test(id))).toBe(false);
+    });
+});
