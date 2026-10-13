@@ -16,6 +16,7 @@ const { buildMistakes, mistakeQuestionIds, MISTAKE_LIST_MAX } = require('../serv
 const { isMarkedFixed } = require('@ree/shared');
 const { battleTiming } = require('../utils/battleLogic');
 const prisma = require('../config/db');
+const { lockedQuestionIds } = require('../services/answerGate');
 const logger = require('../utils/logger');
 
 // How many recent wrong attempts are read to find the newest mistakes.
@@ -61,7 +62,11 @@ router.get('/mistakes', authMiddleware, async (req, res) => {
             orderBy: { createdAt: 'desc' },
             take: WRONG_SCAN_MAX,
         });
-        const wrong = await withoutOpenBattles(recentWrong);
+        // Also drop any question in a battle the learner is still in, whatever
+        // mode the miss came from: its key would show beside it.
+        const openWrong = await withoutOpenBattles(recentWrong);
+        const locked = await lockedQuestionIds(userId, openWrong.map((a) => a.questionId));
+        const wrong = locked.size ? openWrong.filter((a) => !locked.has(a.questionId)) : openWrong;
         const { ids, truncated } = mistakeQuestionIds(wrong, MISTAKE_LIST_MAX);
         if (ids.length === 0) return res.status(200).json({ items: [], truncated: false });
 

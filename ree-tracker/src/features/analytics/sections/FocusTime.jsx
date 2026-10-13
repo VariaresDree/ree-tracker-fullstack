@@ -3,13 +3,15 @@
 // Progress › Habits › Focus time: the Pomodoro's focus blocks (deep/focus-time)
 // — minutes per day for two weeks, and how the last 30 days split across the
 // board's subjects beside their PRC weights, so "EE is 45% of the board but
-// 20% of my focus" is visible. Pick what a block is for on the timer.
+// 20% of my focus" is visible. Pick what a block is for on the timer; fix or
+// delete a logged block under Recent blocks.
 import { toDisplaySubject } from '@ree/shared';
 import { ProgressIndicator } from '../../../components/ui';
 import { useDeepAnalytics } from '../useDeepAnalytics';
 import { BarList, DeepStatus, SectionCard, StatTile } from './shared';
 import { formatDuration } from '../../../utils/time';
 import { focusGapLine, pct } from './focusGap';
+import RecentFocusBlocks from './RecentFocusBlocks';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const shortDay = (isoDate) => {
@@ -72,6 +74,8 @@ export default function FocusTime() {
                 )}
               </div>
             )}
+
+            <RecentFocusBlocks blocks={data?.recent} onChanged={retry} />
           </div>
         )}
       </DeepStatus>

@@ -327,6 +327,9 @@ model QuestionAttempt {
   // The activity calendar + totalAnswered both roll up on the answered date
   // (COALESCE(answeredAt, createdAt)) — see analyticsRoutes.
   @@index([userId, answeredAt])
+  // The mistake notebook reads a learner's newest wrong attempts
+  // (GET /api/user/mistakes: userId, isCorrect = false, newest first).
+  @@index([userId, isCorrect, createdAt])
   // Postgres does NOT auto-index foreign-key columns. Both of these are
   // ON DELETE CASCADE targets, so without them every `DELETE FROM "Question"`
   // and every `DELETE FROM "ExamSession"` triggers a full sequential scan of

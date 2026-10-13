@@ -84,15 +84,23 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
             </ul>
           )}
 
-          <SolutionPanel
-            key={explanationKey(item)}
-            question={item}
-            isOnline={isOnline}
-            aiText={ai.textFor(item)}
-            aiLoading={ai.isLoading(item)}
-            onExplain={(force) => ai.explain(item, { force })}
-            showAnswer
-          />
+          {item.answerWithheld ? (
+            // The server leaves the key out while this question is in a
+            // battle the learner is still playing (services/answerGate.js).
+            <p className="text-sm text-muted" role="note">
+              This question is in a battle you're still in. Its answer shows here once the battle ends.
+            </p>
+          ) : (
+            <SolutionPanel
+              key={explanationKey(item)}
+              question={item}
+              isOnline={isOnline}
+              aiText={ai.textFor(item)}
+              aiLoading={ai.isLoading(item)}
+              onExplain={(force) => ai.explain(item, { force })}
+              showAnswer
+            />
+          )}
           <NoteView type="question" targetId={item.id} target={questionTarget(item)} />
         </div>
       )}

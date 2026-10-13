@@ -43,6 +43,7 @@ beforeEach(() => {
     vi.spyOn(prisma.question, 'findMany').mockResolvedValue([
         { id: 'q1', answer: 'A', fixedExplanation: null, difficulty: 2 },
     ]);
+    vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
     recordAttempts.mockReset();
 });
 
@@ -114,5 +115,54 @@ describe('POST /api/exams/grade — Gauntlet ladder', () => {
         const res = await request(makeApp()).delete('/api/exams/history/sess-1').set(as(UID));
         expect(res.status).toBe(404);
         expect(del).not.toHaveBeenCalled();
+    });
+});
+
+describe('POST /api/exams/grade — questions in a battle the learner is still in', () => {
+    const openBattle = (questions, over = {}) => ({
+        battle: { id: 'LIVE01', questions, startedAt: new Date(), timeLimitSecs: 600, createdAt: new Date(), ...over },
+    });
+
+    it('withholds the key and does not record the attempt while the battle is open', async () => {
+        prisma.question.findMany.mockResolvedValue([
+            { id: 'q1', answer: 'A', fixedExplanation: 'why', difficulty: 2 },
+            { id: 'q2', answer: 'C', fixedExplanation: null, difficulty: 2 },
+        ]);
+        prisma.battleParticipant.findMany.mockResolvedValue([openBattle([{ id: 'q1' }])]);
+        recordAttempts.mockResolvedValue({ written: 1 });
+        const body = { mode: 'GAUNTLET', answers: [
+            { questionId: 'q1', userAnswer: 'A', confidenceLevel: 'HIGH', timeSpentMs: 4000, clientAttemptId: 'run-1:q1' },
+            { questionId: 'q2', userAnswer: 'C', confidenceLevel: 'HIGH', timeSpentMs: 4000, clientAttemptId: 'run-1:q2' },
+        ] };
+
+        const res = await request(makeApp()).post('/api/exams/grade').set(as(UID)).send(body);
+
+        expect(res.status).toBe(200);
+        const byQ = Object.fromEntries(res.body.results.map((r) => [r.questionId, r]));
+        expect(byQ.q1).toEqual({ questionId: 'q1', withheld: true, isCorrect: null, correctAnswer: null, explanation: null });
+        expect(byQ.q2).toMatchObject({ isCorrect: true, correctAnswer: 'C' });
+        expect(recordAttempts.mock.calls[0][0].attempts.map((a) => a.questionId)).toEqual(['q2']);
+        expect(prisma.battleParticipant.findMany.mock.calls[0][0].where).toEqual({ userId: UID, battle: { status: { not: 'COMPLETED' } } });
+    });
+
+    it('grades normally once the battle has closed', async () => {
+        const longAgo = new Date(Date.now() - 3600_000);
+        prisma.battleParticipant.findMany.mockResolvedValue([openBattle([{ id: 'q1' }], { startedAt: longAgo, createdAt: longAgo, timeLimitSecs: 60 })]);
+        recordAttempts.mockResolvedValue({ written: 1 });
+
+        const res = await request(makeApp()).post('/api/exams/grade').set(as(UID)).send(BODY);
+
+        expect(res.body.results[0]).toMatchObject({ questionId: 'q1', isCorrect: true, correctAnswer: 'A' });
+        expect(recordAttempts).toHaveBeenCalledTimes(1);
+    });
+
+    it('writes nothing when every answer is withheld', async () => {
+        prisma.battleParticipant.findMany.mockResolvedValue([openBattle([{ id: 'q1' }])]);
+
+        const res = await request(makeApp()).post('/api/exams/grade').set(as(UID)).send(BODY);
+
+        expect(res.status).toBe(200);
+        expect(res.body.results[0].withheld).toBe(true);
+        expect(recordAttempts).not.toHaveBeenCalled();
     });
 });

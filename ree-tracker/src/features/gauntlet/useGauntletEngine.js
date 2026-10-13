@@ -557,6 +557,9 @@ export const useGauntletEngine = (level) => {
                 const isCorrect = !!r?.isCorrect;
                 if (isCorrect) {
                     correctCount++;
+                } else if (r?.withheld) {
+                    // In a battle this learner is still in: the server keeps
+                    // its key back, so there is nothing to review yet.
                 } else {
                     const subtopic = q.subtopic || 'Unknown';
                     failedSubtopics[subtopic] = (failedSubtopics[subtopic] || 0) + 1;
