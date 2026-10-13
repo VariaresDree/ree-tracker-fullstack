@@ -17,7 +17,14 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 //
 // connectionTimeoutMillis makes exhaustion fail fast and loudly instead of
 // hanging a request until the client gives up.
-const POOL_MAX = Number(process.env.PG_POOL_MAX) || 15;
+//
+// 8, not 15: Supabase's session pooler allows 15 clients for the whole
+// project, and idle connections are kept for POOL_IDLE_MS. A pool of 15 could
+// take every slot, and then a deploy (whose `prisma migrate deploy` and whose
+// new instance's warm-up need connections while this instance still runs) is
+// refused with EMAXCONNSESSION, which failed the 2026-10-13 build. 8 still
+// covers the dashboard's batch of eight concurrent reads (analyticsRoutes).
+const POOL_MAX = Number(process.env.PG_POOL_MAX) || 8;
 
 // TLS to Postgres.
 //

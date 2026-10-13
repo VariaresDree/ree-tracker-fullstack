@@ -29,7 +29,8 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 
 ## 2. Owner actions (needed now)
 
-- [ ] **Set `GROQ_API_KEY` on Render** (free at console.groq.com, no card) so the AI features run on the fast open models. Optional backups: `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`. Without them every AI feature still runs on Gemini, routed per feature. Then open Admin › AI models and press **Test all models**: a model shown as "model not found" has been renamed or retired by its provider; replace it with `AI_CHAIN_<TASK>` on Render or in `src/config/aiModels.js`.
+- [x] **`GROQ_API_KEY` and `OPENROUTER_API_KEY` set on Render** (2026-10-13). Optional backup: `CEREBRAS_API_KEY`. Open Admin › AI models and press **Test all models**; a model shown as "Not offered" is skipped automatically, and can be replaced with `AI_CHAIN_<TASK>` on Render or in `src/config/aiModels.js`.
+- [ ] **Check Render's build command** (backend service → Settings → Build Command) reads `npm install && npx prisma generate && npm run migrate:deploy`, as in `render.yaml`. A Blueprint-synced service picks it up by itself; otherwise paste it in. The old command still works, it just doesn't retry when the database's connection pooler is momentarily full.
 - [ ] **Set `CRON_SECRET`.** Generate one long random string and set it in two places:
   - Render → the backend service → Environment;
   - GitHub → Settings → Secrets and variables → Actions.
