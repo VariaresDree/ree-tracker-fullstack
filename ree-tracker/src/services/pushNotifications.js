@@ -73,6 +73,15 @@ export async function initPushNotifications(uid, { flagEnabled } = {}) {
     return true;
 }
 
+/**
+ * Whether this device is registered for pushes now. The scheduled reminder is
+ * then sent by the server (saying what's due that day); without it, the
+ * on-device reminder stands in.
+ */
+export function hasPushToken() {
+    return !!lastToken;
+}
+
 /** Logout hook: release this device's token so a signed-out device gets no pushes. */
 export async function teardownPushNotifications() {
     if (!nativePushAvailable() || !lastToken) return;

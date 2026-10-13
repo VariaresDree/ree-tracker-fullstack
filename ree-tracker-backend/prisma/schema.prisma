@@ -38,6 +38,10 @@ model User {
   // Settings
   examDate         String?
   dailyTarget      Int?     @default(50)
+  // Scheduled reminder (phone app push): the Manila hour to send it (null =
+  // off) and the Manila day it last went out, so it goes once a day.
+  reminderHour       Int?
+  reminderLastSentOn String?
 
   // V1 Relations
   sessions         ExamSession[]

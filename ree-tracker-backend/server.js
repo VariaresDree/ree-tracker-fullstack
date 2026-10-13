@@ -287,6 +287,8 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/noteRoutes'));
     app.use('/api/user', require('./src/routes/cardReviewRoutes'));
     app.use('/api/user', require('./src/routes/focusRoutes'));
+    app.use('/api/user', require('./src/routes/reminderRoutes'));
+    app.use('/api/cron', require('./src/routes/cronRoutes'));
     app.use('/api/smart-drill', require('./src/routes/smartDrillRoutes'));
     app.use('/api/diagnostic', require('./src/routes/diagnosticRoutes'));
     app.use('/api/readiness', require('./src/routes/readinessRoutes'));

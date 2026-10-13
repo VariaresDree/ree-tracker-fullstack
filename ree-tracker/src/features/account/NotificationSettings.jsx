@@ -1,12 +1,20 @@
 // src/features/account/NotificationSettings.jsx
 //
 // Session alerts and the daily practice reminder (moved from Profile's
-// Settings tab, behaviour unchanged). Web notifications are requested only
-// from a real tap, never on load; the daily reminder needs the installed app.
+// Settings tab). Web notifications are requested only from a real tap, never
+// on load; the daily reminder needs the installed app.
+//
+// The reminder's hour is saved on the server too. When this device is
+// registered for pushes, the server sends it, with the day's most useful line
+// (a streak about to break, reviews due, today's plan task), and the
+// on-device reminder is cancelled so it never comes twice; otherwise the
+// on-device reminder stands in.
 import toast from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { useNotificationSlice } from '../../store/slices';
 import { scheduleDailyReminder, cancelDailyReminder } from '../../services/localReminders';
+import { hasPushToken } from '../../services/pushNotifications';
+import { saveReminderHour } from '../../services/reminderPrefs';
 import { FormField, Select, SegmentedControl } from '../../components/ui';
 import { BellOff } from '../../components/ui/icons';
 
@@ -30,23 +38,31 @@ export default function NotificationSettings() {
 
   const setDailyReminder = async (on) => {
     if (on) {
-      const ok = await scheduleDailyReminder({ hour: notifications.reminderHour, minute: notifications.reminderMinute });
-      if (!ok) {
-        toast(isNative ? 'Turn on notifications for REE.ai in your phone settings first.' : 'Daily reminders need the REE.ai phone app.');
-        return;
+      const fromServer = hasPushToken();
+      if (fromServer) {
+        await cancelDailyReminder();
+      } else {
+        const ok = await scheduleDailyReminder({ hour: notifications.reminderHour, minute: notifications.reminderMinute });
+        if (!ok) {
+          toast(isNative ? 'Turn on notifications for REE.ai in your phone settings first.' : 'Daily reminders need the REE.ai phone app.');
+          return;
+        }
       }
       setNotificationPrefs({ dailyReminderEnabled: true, enabled: true });
-      toast.success('Daily reminder set.');
+      saveReminderHour(notifications.reminderHour);
+      toast.success(fromServer ? 'Daily reminder set. It says what’s due that day.' : 'Daily reminder set.');
     } else {
       await cancelDailyReminder();
       setNotificationPrefs({ dailyReminderEnabled: false });
+      saveReminderHour(null);
     }
   };
 
   const changeReminderHour = async (hour) => {
     setNotificationPrefs({ reminderHour: hour });
     if (notifications.dailyReminderEnabled) {
-      await scheduleDailyReminder({ hour, minute: notifications.reminderMinute });
+      saveReminderHour(hour);
+      if (!hasPushToken()) await scheduleDailyReminder({ hour, minute: notifications.reminderMinute });
       toast.success('Reminder time updated.');
     }
   };
@@ -76,7 +92,7 @@ export default function NotificationSettings() {
           <p className="text-xs text-muted2">
             {/* Adding the web app to the Home Screen doesn't help: the reminder
                 is a phone-app local notification. The copy used to say it would. */}
-            {isNative ? 'A daily nudge to practise, even with the app closed.' : 'Only in the REE.ai phone app. A browser, or the web app added to your Home Screen, can’t schedule it.'}
+            {isNative ? 'A daily nudge at your time, even with the app closed: a streak about to break, the reviews due, or today’s plan.' : 'Only in the REE.ai phone app. A browser, or the web app added to your Home Screen, can’t schedule it.'}
           </p>
         </div>
         <SegmentedControl

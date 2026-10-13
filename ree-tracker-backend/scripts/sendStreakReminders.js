@@ -17,7 +17,9 @@ require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
 const { initializeApp, cert } = require('firebase-admin/app');
-const { effectiveStreak, dayBefore, todayManila } = require('@ree/shared');
+const { dayBefore, todayManila } = require('@ree/shared');
+// The same streak rule the scheduled reminders use (POST /api/cron/reminders).
+const { streakStatus } = require('../src/services/reminderService');
 
 // Standalone firebase-admin init — mirrors server.js (service-account file or
 // env triple). Must run before pushService's getMessaging() is used.
@@ -60,11 +62,7 @@ function parseArgs(argv) {
  */
 function selectReminderRecipients(users, today = todayManila()) {
     return (users || [])
-        .map((u) => {
-            const days = (u.activityLogs || []).map((a) => a.date);
-            const lastStudyDay = days.reduce((max, d) => (!max || d > max ? d : max), null);
-            return { u, streak: effectiveStreak(u.globalStreak, lastStudyDay, today), studiedToday: days.includes(today) };
-        })
+        .map((u) => ({ u, ...streakStatus({ globalStreak: u.globalStreak, activityDates: (u.activityLogs || []).map((a) => a.date) }, today) }))
         .filter(({ u, streak, studiedToday }) =>
             (u.deviceTokens?.length ?? 0) > 0 && streak >= 1 && !studiedToday)
         .map(({ u, streak }) => ({ id: u.id, displayName: u.displayName, streak }));
