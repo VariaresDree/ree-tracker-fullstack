@@ -28,6 +28,7 @@ function makeApp() {
     app.use('/api/user', require('../../src/routes/mistakeRoutes'));
     app.use('/api/user', require('../../src/routes/focusRoutes'));
     app.use('/api/analytics/deep', require('../../src/routes/analyticsDeepRoutes'));
+    app.use('/api/user', require('../../src/routes/todayLoopRoutes'));
     return app;
 }
 
@@ -84,6 +85,17 @@ describe('answer gate', () => {
         const mistakes = await request(makeApp()).get('/api/user/mistakes').set(as(A));
         expect(mistakes.status).toBe(200);
         expect(mistakes.body.items.map((i) => i.questionId)).toEqual([Q(2)]);
+    });
+});
+
+describe("today's loop", () => {
+    it('reads due reviews and open mistakes, leaving out the live battle question', async () => {
+        await prisma.sRSCard.create({ data: { userId: A, questionId: Q(3), nextReviewDate: new Date(Date.now() - 60_000) } });
+        const res = await request(makeApp()).get('/api/user/today-loop').set(as(A));
+        expect(res.status).toBe(200);
+        // q3 is due; q2 is an open mistake (missed in the grade above); q1 is in the live battle.
+        expect(res.body.items.map((i) => [i.id, i.loop.reason])).toEqual([[Q(3), 'due'], [Q(2), 'mistake']]);
+        expect(res.body.cardsDue).toBe(0);
     });
 });
 

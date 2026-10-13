@@ -59,3 +59,16 @@ describe('SessionSummary', () => {
     expect(screen.getByRole('button', { name: /Practise again/ })).toBeEnabled();
   });
 });
+
+describe("SessionSummary after today's loop", () => {
+  it('points on to the formula cards due', () => {
+    renderSummary({ summary: { ...summary, config: { source: 'today-loop', cardsDue: 3 } } });
+    expect(screen.getByText('Next in today’s loop: 3 formula cards due for review.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review cards' })).toHaveAttribute('href', '/library?tab=formulas');
+  });
+
+  it('says nothing about cards after any other session', () => {
+    renderSummary({ summary: { ...summary, config: { source: 'library', cardsDue: 3 } } });
+    expect(screen.queryByRole('link', { name: 'Review cards' })).toBeNull();
+  });
+});

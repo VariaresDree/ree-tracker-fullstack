@@ -212,6 +212,12 @@ export const fetchSrsDue = async (limit = 20, subject) => {
 export const fetchSrsSummary = async () => apiRequest('/api/srs/summary');
 // Formula cards due for spaced review: { due, total, nextDueAt }.
 export const fetchCardReviewSummary = async () => apiRequest('/api/user/card-reviews/summary');
+// Today's loop: due reviews and open mistakes as one session, ordered by board
+// weight, with the formula cards due: { items, counts, more, cardsDue }.
+export const fetchTodayLoop = async () => {
+    const data = await apiRequest('/api/user/today-loop');
+    return data ? { ...data, items: normalizeQuestions(data.items) } : null;
+};
 // mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
 // — server uses it to break down dashboard analytics per surface.
 const MODE_ALIAS = {
