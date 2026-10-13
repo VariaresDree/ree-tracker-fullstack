@@ -140,3 +140,41 @@ describe('status', () => {
         expect(status({ env: {} }).tasks.report.state).toBe('unconfigured');
     });
 });
+
+describe('model catalog', () => {
+    const catalog = require('../src/services/ai/modelCatalog');
+    const reportFirst = chainFor('report', {})[0];
+
+    const fakeFetch = (lists) => async (url) => {
+        const hit = Object.entries(lists).find(([host]) => url.includes(host));
+        if (!hit) return { ok: false, status: 500, json: async () => ({}) };
+        const [, v] = hit;
+        if (v === 401) return { ok: false, status: 401, json: async () => ({}) };
+        if (url.includes('googleapis')) return { ok: true, json: async () => ({ models: v.map((id) => ({ name: `models/${id}` })) }) };
+        return { ok: true, json: async () => ({ data: v.map((id) => ({ id })) }) };
+    };
+
+    beforeEach(() => catalog.resetCatalog());
+
+    it('skips a model its provider no longer lists and reports it', async () => {
+        const env = { GROQ_API_KEY: 'g', GEMINI_API_KEY: 'k' };
+        const groqIds = chainFor('report', {}).filter((e) => e.provider === 'groq').map((e) => e.model).filter((m) => m !== reportFirst.model);
+        await catalog.refreshCatalog({ env, fetchImpl: fakeFetch({ groq: groqIds, googleapis: ['gemini-2.5-flash-lite'] }) });
+        expect(catalog.isListed('groq', reportFirst.model)).toBe(false);
+        expect(plan('report', { env }).map((e) => e.id)).not.toContain(reportFirst.id);
+        expect(catalog.missingModels(env)).toContain(reportFirst.id);
+        const s = status({ env, detailed: true });
+        expect(s.tasks.report.chain.find((c) => c.id === reportFirst.id).state).toBe('missing');
+        expect(s.providers.groq.catalog.ok).toBe(true);
+    });
+
+    it('drops a provider whose key is rejected, and keeps models when the catalog is unreachable', async () => {
+        const env = { GROQ_API_KEY: 'bad', OPENROUTER_API_KEY: 'o' };
+        await catalog.refreshCatalog({ env, fetchImpl: fakeFetch({ groq: 401 }) });
+        expect(catalog.summary().providers.groq).toMatchObject({ ok: false, error: 'API key rejected' });
+        expect(plan('report', { env }).some((e) => e.provider === 'groq')).toBe(false);
+        // OpenRouter answered 500: unknown, so its models stay in play.
+        expect(catalog.isListed('openrouter', 'x')).toBeNull();
+        expect(plan('report', { env }).some((e) => e.provider === 'openrouter')).toBe(true);
+    });
+});

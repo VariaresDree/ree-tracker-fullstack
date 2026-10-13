@@ -15,6 +15,10 @@
 // first choice for images. A provider without its API key is skipped, so with
 // only GEMINI_API_KEY set the app behaves as before, just routed per feature.
 //
+// Each provider's own model list is checked at boot and every 6 hours
+// (services/ai/modelCatalog), and an id it doesn't offer is skipped, so a
+// retired model or a free route that went away costs nothing.
+//
 // Override any chain without a redeploy: AI_CHAIN_<TASK> (e.g. AI_CHAIN_REPORT)
 // as a comma-separated list of `provider:model`. MODEL_TIERS (legacy) still
 // replaces the Gemini entries of the `general` chain.
@@ -74,6 +78,7 @@ const TASKS = {
             'groq:llama-3.3-70b-versatile',
             'cerebras:gpt-oss-120b',
             'openrouter:openai/gpt-oss-20b:free',
+            'openrouter:meta-llama/llama-3.3-70b-instruct:free',
             ...GEMINI_FAST,
         ],
     },
@@ -93,6 +98,7 @@ const TASKS = {
             'cerebras:gpt-oss-120b',
             'groq:llama-3.3-70b-versatile',
             'openrouter:openai/gpt-oss-120b:free',
+            'openrouter:deepseek/deepseek-chat-v3.1:free',
             'gemini:gemini-2.5-flash',
             'gemini:gemini-2.5-flash-lite',
         ],
@@ -112,6 +118,7 @@ const TASKS = {
             'groq:openai/gpt-oss-120b',
             'cerebras:gpt-oss-120b',
             'groq:llama-3.3-70b-versatile',
+            'openrouter:openai/gpt-oss-120b:free',
             'gemini:gemini-2.5-flash',
             'gemini:gemini-2.5-flash-lite',
         ],
@@ -132,6 +139,8 @@ const TASKS = {
             'groq:openai/gpt-oss-120b',
             'cerebras:gpt-oss-120b',
             'openrouter:openai/gpt-oss-120b:free',
+            'openrouter:deepseek/deepseek-r1-0528:free',
+            'openrouter:qwen/qwen3-235b-a22b:free',
             ...GEMINI_STRONG,
         ],
     },
@@ -152,6 +161,7 @@ const TASKS = {
             'gemini:gemini-2.5-flash',
             'cerebras:gpt-oss-120b',
             'groq:openai/gpt-oss-120b',
+            'openrouter:deepseek/deepseek-r1-0528:free',
             'openrouter:openai/gpt-oss-120b:free',
         ],
     },
