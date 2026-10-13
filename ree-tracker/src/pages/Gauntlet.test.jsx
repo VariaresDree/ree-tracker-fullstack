@@ -18,6 +18,7 @@ const makeQuestions = (n) =>
   }));
 
 let engineState;
+vi.mock('../components/PomodoroOwner', () => ({ default: () => null }));
 vi.mock('../features/gauntlet/useGauntletEngine', () => ({
   useGauntletEngine: () => engineState,
 }));

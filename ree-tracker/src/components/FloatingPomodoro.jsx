@@ -6,7 +6,8 @@
 //
 // Always mounted in MainLayout and carries the OWNER clock (completion mode
 // switch fires here exactly once), rendering null while hidden. Deliberately
-// absent from ExamLayout routes (Board Sim / Gauntlet stay distraction-free).
+// absent from ExamLayout routes (Board Sim / Gauntlet stay distraction-free);
+// there PomodoroOwner carries the owner clock with nothing on screen.
 // Visibility: running → shown (unless dismissed for this run); paused → only
 // if pinned. Position persists across sessions.
 import { useRef, useState, useEffect } from 'react';

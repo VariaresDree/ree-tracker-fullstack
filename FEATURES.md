@@ -513,6 +513,14 @@ every feature add, change, or removal, not on a schedule.
     - `dbQueries.updateQuestionCache`;
     - four unused store slices;
     - `SkeletonText`, `isSimProfile`, `resetAiStatusCache`, `clearOfflinePack`, `isOfflinePackStale`, `pomodoroLogic._internals`, `getDynamicWeights` (and with it `tosWeights`' import of the store), and an unused test seam.
+  - **Narrow store reads.**
+    - The Pomodoro card selects its actions one by one; the session slice also carried the floating widget's state.
+    - The app shell reads only the theme; it used to re-render whenever the sidebar collapsed.
+    - The offline badge reads queue counts, not the queues.
+    - The heatmap's empty fallbacks are stable.
+  - **A focus block ends on time during an exam.** Mock boards, the Gauntlet and the placement test mount `components/PomodoroOwner.jsx`, the Pomodoro's owner clock, with nothing on screen.
+    - The floating Pomodoro, which carries the owner everywhere else, is absent from exam screens. So a block that ran out mid-exam never switched to its break or logged until the learner left.
+    - It's mounted by the pages, not `ExamLayout`, because imported quizzes share that layout and must never reach the store.
   - **Module-name guard** (`src/test/moduleNames.test.js`): two modules in one folder may not differ only by case. `causeTrend.js` beside `CauseTrend.jsx` would have loaded the wrong module on macOS and Windows; the helper is now `causeWeeks.js`.
   - **Plain copy:** the media viewer's fallback says "This file type can't be shown here."
 - [x] **Boot-payload budget guard** — a fifth standing CI check reads the BUILT `index.html` and fails if the entry chunk plus every preload and stylesheet exceeds 700,000 bytes. Review cannot catch the `manualChunks` trap, because the source keeps looking correct — every `React.lazy()` and `await import()` is still there — so only the built HTML reveals it; three such regressions shipped before this existed. The budget is derived, not picked: headroom (88,861 B) is deliberately smaller than the smallest offender it must catch (`charts`, ~117 kB). An unreadable index.html fails loudly rather than reporting zero bytes (`ree-tracker/scripts/check-eager-bundle.cjs`, `src/test/eagerBundleGuard.test.js`)

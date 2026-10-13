@@ -32,8 +32,9 @@ function HeatmapChart({ stats, onDrillTopic }) {
   // the root re-rendered this component on EVERY recordAttempt, syncStatus flip
   // and syncQueue push — and this one sits on Progress › Topics.
   const dynamicTOS = useStore((s) => s.dynamicTOS);
-  const safeTOS = dynamicTOS || {};
-  const microTopics = stats?.microTopics || {};
+  const safeTOS = dynamicTOS || NO_TOPICS;
+  // One empty map for every render: a fresh `{}` rebuilt the index below.
+  const microTopics = stats?.microTopics || NO_TOPICS;
 
   // Case/whitespace-insensitive index so a stored subtopic still matches its TOS
   // label instead of silently rendering an empty tile.
@@ -196,5 +197,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
     </Panel>
   );
 }
+
+const NO_TOPICS = {};
 
 export default React.memo(HeatmapChart);

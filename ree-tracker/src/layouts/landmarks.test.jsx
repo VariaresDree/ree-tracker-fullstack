@@ -20,6 +20,7 @@ import ExamLayout from './ExamLayout';
 
 vi.mock('../components/Pomodoro', () => ({ default: () => null }));
 vi.mock('../components/FloatingPomodoro', () => ({ default: () => null }));
+vi.mock('../components/PomodoroOwner', () => ({ default: () => null }));
 vi.mock('../components/OfflineStatusBadge', () => ({ default: () => null }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { displayName: 'Rey' }, isAdmin: false, roleResolved: true, logout: vi.fn() }) }));
 vi.mock('../store/useStore', () => ({ useStore: (sel) => sel({ syncQueue: [], pendingWrites: [], resetStore: vi.fn() }) }));

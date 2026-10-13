@@ -13,6 +13,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
+import PomodoroOwner from '../components/PomodoroOwner';
 import QuestionCard from '../features/quiz/QuestionCard';
 import { Button, Card, Badge, Page, PageHeader, ProgressIndicator, Skeleton, EmptyState } from '../components/ui';
 import { Compass, ArrowRight } from '../components/ui/icons';
@@ -102,6 +103,7 @@ export default function Diagnostic() {
   if (phase === 'question' && item) {
     return (
       <ExamLayout shortMessage="Placement test" message="Placement test — answers are revealed at the end">
+        <PomodoroOwner />
         <h1 className="sr-only">Placement test</h1>
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">

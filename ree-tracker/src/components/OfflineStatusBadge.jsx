@@ -22,11 +22,10 @@ const relTime = (ts) => {
 export default function OfflineStatusBadge({ collapsed = false }) {
     const isOnline = useNetworkStatus();
     const { meta, isRefreshing, refresh } = useOfflinePack();
-    const syncQueue = useStore((s) => s.syncQueue);
-    const pendingWrites = useStore((s) => s.pendingWrites);
+    // Counts, not the queues: a queue whose contents change at the same
+    // length (a write replaced by a newer one) no longer re-renders the badge.
+    const pending = useStore((s) => (s.syncQueue?.length || 0) + (s.pendingWrites?.length || 0));
     const issues = useStore((s) => s.deadLetters?.length || 0);
-
-    const pending = (syncQueue?.length || 0) + (pendingWrites?.length || 0);
     const total = meta?.total || 0;
     const ready = total > 0;
 

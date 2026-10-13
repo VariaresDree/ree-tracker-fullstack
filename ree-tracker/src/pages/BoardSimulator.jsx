@@ -15,6 +15,7 @@ import {
 import { hideExamSession } from '../services/dbQueries';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
+import PomodoroOwner from '../components/PomodoroOwner';
 import { Card, Button } from '../components/ui';
 import { Layers } from '../components/ui/icons';
 import { setupConfig } from '../features/board-simulator/profiles';
@@ -338,5 +339,7 @@ export default function BoardSimulator() {
     </div>
   );
 
-  return <Layout>{content}</Layout>;
+  // In an exam the floating Pomodoro (MainLayout) is gone; its owner clock
+  // still has to end a running focus block on time.
+  return <Layout>{inExamMode && <PomodoroOwner />}{content}</Layout>;
 }

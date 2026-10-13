@@ -5,7 +5,7 @@
 // floating widget (FloatingPomodoro) renders the same state.
 import { useState } from 'react';
 import { FOCUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
-import { useSessionSlice } from '../store/slices';
+import { useStore } from '../store/useStore';
 import { usePomodoroClock, formatClock } from '../hooks/usePomodoroClock';
 import { Button } from './ui';
 import { Settings2, Play, Pause, RotateCcw } from './ui/icons';
@@ -15,7 +15,14 @@ import { MIN_MINUTES, MAX_MINUTES, clampMinutes } from '../utils/pomodoroLogic';
 // clearing a field set a 0-minute block, and Save reset a running timer even
 // when nothing changed.
 export default function Pomodoro() {
-  const { updatePomodoro, startPomodoro, pausePomodoro, resetPomodoro, setPomodoroSubject } = useSessionSlice();
+  // Actions only: the timer state comes from usePomodoroClock, and the
+  // session slice also carries the floating widget's state, which re-rendered
+  // this card whenever the widget moved.
+  const updatePomodoro = useStore((s) => s.updatePomodoro);
+  const startPomodoro = useStore((s) => s.startPomodoro);
+  const pausePomodoro = useStore((s) => s.pausePomodoro);
+  const resetPomodoro = useStore((s) => s.resetPomodoro);
+  const setPomodoroSubject = useStore((s) => s.setPomodoroSubject);
   const { pomodoro, remaining } = usePomodoroClock();
   const [draft, setDraft] = useState(null); // { work, rest } while editing
 
