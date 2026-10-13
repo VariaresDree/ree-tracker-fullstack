@@ -11,6 +11,8 @@ let forecast;
 let srs;
 vi.mock('../../hooks/useForecast', () => ({ useForecast: () => forecast }));
 vi.mock('../../hooks/useSrsSummary', () => ({ useSrsSummary: () => ({ summary: srs }) }));
+let cardSummary = null;
+vi.mock('../../hooks/useCardReviewSummary', () => ({ useCardReviewSummary: () => cardSummary }));
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../diagnostic/PlacementPrompt', () => ({ default: () => <div>placement-prompt</div> }));
 let historyItems = [];
@@ -123,6 +125,19 @@ describe('TodayPanel', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Drill' })[0]);
     expect(screen.getByText('review-page')).toBeInTheDocument();
     expect(lastState.preset).toMatchObject({ source: 'smart-drill', drillMode: 'blind-spot', drillTopicId: 't' });
+  });
+
+  it('lists formula cards due for review after the due questions, opening the formula cards', () => {
+    cardSummary = { due: 3, total: 10, nextDueAt: null };
+    try {
+      renderPanel({ readiness: null, stats: { dailyTarget: 50 } });
+      const items = screen.getAllByRole('listitem').map((li) => li.textContent);
+      expect(items[0]).toMatch(/Review 6 due questions/);
+      expect(items[1]).toMatch(/Review 3 formula cards/);
+      expect(screen.getByRole('link', { name: 'Review cards' })).toHaveAttribute('href', '/library?tab=formulas');
+    } finally {
+      cardSummary = null;
+    }
   });
 
   it('puts today’s study-plan task after due reviews, in place of the same-topic fix', async () => {

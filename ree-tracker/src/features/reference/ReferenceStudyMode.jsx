@@ -1,16 +1,35 @@
 // src/features/reference/ReferenceStudyMode.jsx
 // One-at-a-time study stepper for a set of reference cards (a Subject → Topic
-// → Subtopic leaf, or a search result set). The grid view is for scanning;
-// this is for the "deep comprehension" case — flip, absorb, move on, without
-// the surrounding grid competing for attention. Reuses Flashcard as-is (same
-// flip mechanics, same content layout), just one on screen at a time.
+// → Subtopic leaf, a search result set, or the cards due for review). The
+// grid view is for scanning; this is for the "deep comprehension" case —
+// flip, absorb, move on, without the surrounding grid competing for attention.
+//
+// Spaced repetition: once a card's back has been seen, rate how well you knew
+// it — Again, Hard, Good, Easy (or 1–4) — and it comes back for review when
+// it's due (each button says when). Rating moves on to the next card. Cards
+// used to be flipped and forgotten: nothing brought a formula back before the
+// exam.
 import { useEffect, useRef, useState } from 'react';
-import { Button, StatusPill } from '../../components/ui';
-import { ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
+import toast from 'react-hot-toast';
+import { CARD_RATINGS, CARD_RATING_LABELS, NEW_CARD, rateCard } from '@ree/shared';
+import { Button, EmptyState, StatusPill } from '../../components/ui';
+import { CheckCircle2, ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
 import NotedFlashcard from './NotedFlashcard';
 
-export default function ReferenceStudyMode({ cards, onExit }) {
+/** When a card comes back, as a rating button says it: "tomorrow", "6 days", "2 mo". */
+function intervalLabel(days) {
+  if (days <= 1) return 'tomorrow';
+  if (days < 30) return `${days} days`;
+  if (days < 365) return `${Math.round(days / 30)} mo`;
+  return `${(days / 365).toFixed(1)} yr`;
+}
+
+export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse' }) {
   const [index, setIndex] = useState(0);
+  // Cards whose back has been seen in this session: the ones that can be rated.
+  const [seen, setSeen] = useState(() => new Set());
+  const [rated, setRated] = useState(0);
+  const [done, setDone] = useState(false);
   // The arrow keys and Escape are handled on the wrapper, so it takes focus
   // when study mode opens; they did nothing until something inside was
   // clicked or tabbed to.
@@ -19,15 +38,38 @@ export default function ReferenceStudyMode({ cards, onExit }) {
   const card = cards[index];
   const atStart = index === 0;
   const atEnd = index === cards.length - 1;
+  const canRate = !!reviews && !!card && seen.has(card.id);
 
   const goPrev = () => setIndex((i) => Math.max(0, i - 1));
   const goNext = () => setIndex((i) => Math.min(cards.length - 1, i + 1));
+
+  const rateCurrent = (rating) => {
+    if (!canRate) return;
+    const id = card.id;
+    setRated((n) => n + 1);
+    if (atEnd) setDone(true);
+    else goNext();
+    wrapperRef.current?.focus({ preventScroll: true });
+    reviews.rate(id, rating).catch(() => toast.error("Couldn't save that rating. Rate the card again."));
+  };
 
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowLeft') goPrev();
     else if (e.key === 'ArrowRight') goNext();
     else if (e.key === 'Escape') onExit();
+    else if (canRate && ['1', '2', '3', '4'].includes(e.key)) rateCurrent(CARD_RATINGS[Number(e.key) - 1]);
   };
+
+  if (done) {
+    return (
+      <EmptyState
+        icon={CheckCircle2}
+        title={`Done: ${rated} card${rated === 1 ? '' : 's'} rated`}
+        description="Each one comes back when it's due. Cards you knew well wait longer; the ones you missed come back tomorrow."
+        action={<Button onClick={onExit}>Back to formula cards</Button>}
+      />
+    );
+  }
 
   if (!card) return null;
 
@@ -36,20 +78,48 @@ export default function ReferenceStudyMode({ cards, onExit }) {
       ref={wrapperRef}
       tabIndex={-1}
       role="region"
-      aria-label="Study mode: arrow keys move between cards, Escape exits"
+      aria-label={reviews
+        ? 'Study mode: arrow keys move between cards, 1 to 4 rate a flipped card, Escape exits'
+        : 'Study mode: arrow keys move between cards, Escape exits'}
       className="flex flex-col items-center gap-5 animate-in fade-in outline-none"
       onKeyDown={handleKeyDown}
     >
       <div className="w-full flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" onClick={onExit}>
-          <X size={14} strokeWidth={1.75} aria-hidden="true" /> Exit study mode
+          <X size={14} strokeWidth={1.75} aria-hidden="true" /> Exit {mode === 'review' ? 'review' : 'study mode'}
         </Button>
-        <StatusPill tone="neutral" dot={false}>{index + 1} / {cards.length}</StatusPill>
+        <StatusPill tone="neutral" dot={false}>{mode === 'review' ? 'Review ' : ''}{index + 1} / {cards.length}</StatusPill>
       </div>
 
       <div className="w-full max-w-md">
-        <NotedFlashcard key={card.id} card={card} showNote />
+        <NotedFlashcard
+          key={card.id}
+          card={card}
+          showNote
+          onFlip={(flipped) => { if (flipped) setSeen((prev) => (prev.has(card.id) ? prev : new Set(prev).add(card.id))); }}
+        />
       </div>
+
+      {reviews && (canRate ? (
+        <div role="group" aria-label="How well did you know it?" className="w-full max-w-md flex flex-col items-center gap-2">
+          <span className="text-eyebrow">How well did you know it?</span>
+          <div className="grid grid-cols-4 gap-2 w-full">
+            {CARD_RATINGS.map((r, i) => {
+              const next = rateCard(reviews.rowFor(card.id) || NEW_CARD, r);
+              return (
+                <Button key={r} size="sm" variant="secondary" tone={r === 'again' ? 'danger' : undefined} onClick={() => rateCurrent(r)} aria-keyshortcuts={String(i + 1)} className="h-auto py-2">
+                  <span className="flex flex-col items-center leading-tight">
+                    <span>{CARD_RATING_LABELS[r]}</span>
+                    <span className="text-[11px] text-muted2 font-normal">{intervalLabel(next.interval)}</span>
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-muted2 text-center max-w-md">Flip the card, then rate how well you knew it, and it comes back for review when it's due.</p>
+      ))}
 
       <div className="flex items-center gap-3">
         <Button variant="secondary" onClick={goPrev} disabled={atStart} aria-label="Previous card">

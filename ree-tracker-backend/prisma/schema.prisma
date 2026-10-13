@@ -80,6 +80,7 @@ model User {
   syllabusProgress   SyllabusProgress[]
   mistakeTags        MistakeTag[]
   notes              UserNote[]
+  cardReviews        CardReview[]
 
   @@index([thetaRating])
   @@index([lastActive])
@@ -645,6 +646,31 @@ model SyllabusProgress {
   @@index([topicId])
 }
 
+// Spaced repetition for formula cards: the learner rates a card (Again / Hard
+// / Good / Easy) after flipping it in study mode, and SM-2 (@ree/shared srs)
+// schedules the next review at a Manila midnight. One row per learner and
+// card. `lastReviewId` makes a replayed rating (a retry, the offline queue) a
+// no-op. Separate from SRSCard, which schedules questions from telemetry.
+model CardReview {
+  id             String        @id @default(uuid())
+  userId         String
+  cardId         String
+  easeFactor     Float         @default(2.5)
+  interval       Int           @default(0)
+  repetitions    Int           @default(0)
+  nextReviewDate DateTime
+  lastReviewed   DateTime
+  lastReviewId   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card           ReferenceCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+  @@index([userId, nextReviewDate])
+  @@index([cardId])
+}
+
 // The mistake notebook (Library › Notebook). The mistakes themselves are
 // derived from QuestionAttempt on read; this row holds only what the learner
 // adds: why they missed it, and when they marked it fixed. DISPLAY ONLY:
@@ -822,6 +848,8 @@ model ReferenceCard {
   reviewNote     String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  reviews        CardReview[]
 
   @@unique([kind, subject, name])
   @@index([status, subject])

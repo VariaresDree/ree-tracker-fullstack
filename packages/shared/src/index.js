@@ -37,4 +37,5 @@ module.exports = {
     ...require('./syllabus'),
     ...require('./gauntlet'),
     ...require('./notebook'),
+    ...require('./srs'),
 };

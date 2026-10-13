@@ -210,6 +210,8 @@ export const fetchSrsDue = async (limit = 20, subject) => {
     return normalizeQuestions(data);
 };
 export const fetchSrsSummary = async () => apiRequest('/api/srs/summary');
+// Formula cards due for spaced review: { due, total, nextDueAt }.
+export const fetchCardReviewSummary = async () => apiRequest('/api/user/card-reviews/summary');
 // mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
 // — server uses it to break down dashboard analytics per surface.
 const MODE_ALIAS = {

@@ -35,7 +35,9 @@ import { withMathDelimiters } from '../../utils/mathDelimiters';
 
 const KIND_TONE = { constant: 'signal', formula: 'velocity', concept: 'neutral' };
 
-export default function Flashcard({ card }) {
+// `onFlip(flipped)`: study mode offers the review ratings once the back has
+// been seen.
+export default function Flashcard({ card, onFlip }) {
   const [flipped, setFlipped] = useState(false);
   // The button's label names the card; the face on show describes it. The
   // label alone hid everything on the card from a screen reader.
@@ -77,7 +79,7 @@ export default function Flashcard({ card }) {
         aria-pressed={flipped}
         aria-label={`${card.name} flashcard — ${flipped ? 'showing details, press to see the front' : 'press to reveal details'}`}
         aria-describedby={flipped ? `${faceId}-back` : `${faceId}-front`}
-        onClick={() => setFlipped((f) => !f)}
+        onClick={() => { const next = !flipped; setFlipped(next); onFlip?.(next); }}
         className={`flip-inner w-full cursor-pointer rounded-[var(--radius-lg)] transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] ${flipped ? 'is-flipped' : ''}`}
       >
         {/* FRONT */}

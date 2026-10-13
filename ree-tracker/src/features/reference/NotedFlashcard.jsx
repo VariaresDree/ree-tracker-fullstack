@@ -7,10 +7,10 @@ import Flashcard from './Flashcard';
 import NoteButton, { NoteView } from '../notebook/NoteButton';
 import { cardTarget } from '../notebook/targets';
 
-export default function NotedFlashcard({ card, showNote = false }) {
+export default function NotedFlashcard({ card, showNote = false, onFlip }) {
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
-      <Flashcard card={card} />
+      <Flashcard card={card} onFlip={onFlip} />
       <div className="flex justify-end">
         <NoteButton type="card" targetId={card.id} target={cardTarget(card)} withLabel />
       </div>
