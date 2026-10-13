@@ -1,6 +1,9 @@
 // src/features/library/useAIIngestion.js
+//
+// PDF and image extraction for the admin question bank. Generating new
+// questions from a topic is features/admin/ai/useQuestionGenerator.
 import { useState } from 'react';
-import { generateQuestionsAI, generateQuestionsFromText, generateQuestionsFromImages } from '../../services/geminiApi';
+import { generateQuestionsFromText, generateQuestionsFromImages } from '../../services/geminiApi';
 import { saveQuestionToBank } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import { labelForGenerated } from '../../utils/topicLabels';
@@ -15,16 +18,11 @@ export const useAIIngestion = (onIngestSuccess) => {
   // launched without opening the Topic dropdown silently targeted that one
   // topic. getStrictRules() treats 'All' as "categorize into any valid subtopic".
   const [genSubtopic, setGenSubtopic] = useState('All');
-  // Optional free-text steering finer than the TOS dropdown (a sub-subtopic,
-  // device, or question style). Blank = generation behaves exactly as before.
-  const [genFocus, setGenFocus] = useState('');
-  const [genLoading, setGenLoading] = useState(false);
   const [genStatus, setGenStatusText] = useState('');
   // 'success' | 'error' | null — colours the result strip. It used to be read
   // off a ✅ / ❌ at the start of the message.
   const [genTone, setGenTone] = useState(null);
   const setGenStatus = (text, tone = null) => { setGenStatusText(text); setGenTone(tone); };
-  const [recentGenerations, setRecentGenerations] = useState([]);
 
   // --- VISION & UPLOAD STATES ---
   const [parsingPdf, setParsingPdf] = useState(false);
@@ -42,47 +40,6 @@ export const useAIIngestion = (onIngestSuccess) => {
     target: genSubtopic,
     topics: useStore.getState().dynamicTOS?.[genSubject],
   });
-
-  // =========================================================================
-  // STANDARD AI GENERATION (LEFT PANEL)
-  // =========================================================================
-  const handleGenerate = async (useWeb) => {
-    setGenLoading(true);
-    setGenStatus(useWeb ? 'Generating from web sources…' : 'Generating…');
-    try {
-      const newQs = await generateQuestionsAI(genSubject, genSubtopic, useWeb, 5, recentGenerations, genFocus.trim() || null);
-
-      if (newQs && newQs.length > 0) {
-        for (const q of newQs) {
-          const payload = { 
-              ...q, 
-              subject: genSubject, 
-              subtopic: labelFor(q), 
-              source: useWeb ? 'web' : 'ai', 
-              type: q.type || 'calculation', 
-              status: 'quarantined', // <-- SECURITY PIPELINE: Force to Admin Queue
-              createdAt: new Date().toISOString() 
-          };
-          await saveQuestionToBank(payload);
-        }
-
-        setRecentGenerations(prev => {
-          const updated = [...prev, ...newQs.map(q => q.text)];
-          return updated.slice(-15);
-        });
-
-        setGenStatus(`Generated ${newQs.length} questions. They wait in the review queue until approved.`, 'success');
-        toast.success(`${newQs.length} questions sent to the review queue.`);
-        if(onIngestSuccess) onIngestSuccess(true);
-      } else {
-        setGenStatus("Couldn't save the generated questions. Check the connection and try again.", 'error');
-      }
-    } catch (err) {
-      setGenStatus('Generation failed. Try again.', 'error');
-      toast.error(`AI generation failed: ${err.message}`);
-    }
-    setGenLoading(false);
-  };
 
   // =========================================================================
   // DRAG & DROP HANDLERS (RIGHT PANEL)
@@ -128,12 +85,9 @@ export const useAIIngestion = (onIngestSuccess) => {
     try {
       if (selectedPdf.type.startsWith('image/')) {
          setGenStatus('Reading the image…');
-         if (typeof generateQuestionsFromImages === 'function') {
-             const newQs = await generateQuestionsFromImages(selectedPdf, genSubject, genSubtopic, 5);
-             handleExtractionSuccess(newQs);
-         } else {
-             throw new Error("Vision AI module missing or disconnected.");
-         }
+         // The File itself: generateQuestionsFromImages reads it to base64.
+         const newQs = await generateQuestionsFromImages(selectedPdf, genSubject, genSubtopic, 5);
+         handleExtractionSuccess(newQs);
       } else if (selectedPdf.type === 'application/pdf') {
          setGenStatus('Reading the PDF…');
          const arrayBuffer = await selectedPdf.arrayBuffer();
@@ -211,11 +165,10 @@ export const useAIIngestion = (onIngestSuccess) => {
 
   return {
     genSubject, setGenSubject, genSubtopic, setGenSubtopic,
-    genFocus, setGenFocus,
-    genLoading, genStatus, genTone, parsingPdf, selectedPdf,
+    genStatus, genTone, parsingPdf, selectedPdf,
     isDragging, handleDragOver, handleDragLeave, handleDrop,
     generatedQuestions, showQAModal, setShowQAModal, isCommitting,
-    handleGenerate, handlePdfSelect, executePdfExtraction,
+    handlePdfSelect, executePdfExtraction,
     removeQuestion, handleCommitToMatrix
   };
 };

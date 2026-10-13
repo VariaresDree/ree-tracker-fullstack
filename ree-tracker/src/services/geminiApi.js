@@ -1,6 +1,18 @@
+// src/services/geminiApi.js (name kept for its many importers)
+//
+// Every AI feature in the app goes through POST /api/ai/generate with a
+// `task` that picks its model chain on the server
+// (ree-tracker-backend/src/config/aiModels.js):
+//   report    Progress › AI board report            fast open model
+//   explain   "Explain with AI" on any question     fast open model
+//   practice  AI questions in Practice / mock board fast open model
+//   author    Admin question and flashcard writing  strongest open model
+//   verify    Admin answer double-check             a second model family
+//   vision    Admin image extraction                multimodal model
 import { apiRequest } from './dbQueries';
 import { useStore } from '../store/useStore';
 import { sanitizeGeneratedBatch } from '../utils/sanitizeOptions';
+import { BOARD_EXAM_SYSTEM, VERIFY_SYSTEM, buildQuestionPrompt, buildVerifyPrompt, applyVerification } from './aiPrompts';
 
 const cleanJsonPayload = (text) => {
     let clean = text.trim();
@@ -69,27 +81,77 @@ export const parseAiJson = (rawText) => {
     }
 };
 
-// Gemini generation regularly takes 15-40s server-side. The default 12s
-// apiRequest timeout aborted healthy AI calls with [OFFLINE] AND tripped the
-// 30s circuit breaker, blocking every other request. AI calls get a 90s
-// budget; the abort of a long-timeout call is scoped to NOT trip the breaker.
-const AI_TIMEOUT_MS = 90_000;
-
-async function callAI(prompt, isJson = false, config = {}) {
-    if (!navigator.onLine) {
-        throw new Error("Cannot connect to AI while offline.");
+// Unwraps the { "items": [...] } envelope the JSON-mode prompts ask for
+// (OpenAI-compatible JSON mode only returns objects). A bare array, the old
+// shape, passes through.
+export const asItems = (parsed) => {
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === 'object') {
+        for (const key of ['items', 'questions', 'cards', 'results']) {
+            if (Array.isArray(parsed[key])) return parsed[key];
+        }
+        const firstArray = Object.values(parsed).find(Array.isArray);
+        if (firstArray) return firstArray;
     }
+    return [];
+};
 
-    const response = await apiRequest('/api/ai/generate', 'POST', {
-        contents: prompt,
-        config: { temperature: isJson ? 0.1 : 0.7, ...config }
-    }, { timeoutMs: AI_TIMEOUT_MS });
+// How long the app waits on each AI feature before giving up. The server has
+// its own, shorter per-model limits and falls back between models inside this
+// window (ree-tracker-backend/src/config/aiModels.js). The abort of a
+// long-timeout call is scoped to NOT trip the API circuit breaker.
+const AI_TIMEOUT_MS = {
+    report: 35_000,
+    explain: 60_000,
+    practice: 70_000,
+    general: 70_000,
+    author: 125_000,
+    verify: 115_000,
+    vision: 125_000,
+};
 
-    if (isJson) {
-        return parseAiJson(response.text);
+const OFFLINE_MESSAGE = 'Cannot connect to AI while offline.';
+
+/**
+ * One AI request for a feature (`task`). Returns { text, model, provider,
+ * providerLabel, latencyMs, fallbacks }. Throws with a readable message.
+ */
+export async function callAITask(task, contents, { system, json = false, temperature, maxTokens } = {}) {
+    if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+    const config = {};
+    if (temperature !== undefined) config.temperature = temperature;
+    if (maxTokens !== undefined) config.maxOutputTokens = maxTokens;
+    try {
+        return await apiRequest('/api/ai/generate', 'POST', {
+            task,
+            contents,
+            ...(system ? { system } : {}),
+            ...(json ? { json: true } : {}),
+            ...(Object.keys(config).length ? { config } : {}),
+        }, { timeoutMs: AI_TIMEOUT_MS[task] || AI_TIMEOUT_MS.general });
+    } catch (err) {
+        if (err?.message === '[TIMEOUT]') throw new Error('The AI took too long to answer. Try again, or try fewer items.', { cause: err });
+        if (err?.message === '[OFFLINE]') throw new Error(OFFLINE_MESSAGE, { cause: err });
+        throw err;
     }
+}
+
+async function callAI(prompt, isJson = false, { task = 'general', system, temperature, maxTokens } = {}) {
+    const response = await callAITask(task, prompt, {
+        system,
+        json: isJson,
+        temperature: temperature ?? (isJson ? 0.2 : 0.7),
+        maxTokens,
+    });
+    if (isJson) return asItems(parseAiJson(response.text));
     return response.text;
 }
+
+/** GET /api/ai/status: per-feature state, plus the model chains for admins. */
+export const fetchAiStatus = () => apiRequest('/api/ai/status');
+
+/** Admin: ping every configured model once and return the fresh status. */
+export const probeAiModels = () => apiRequest('/api/ai/status/probe', 'POST', { at: Date.now() }, { timeoutMs: 45_000 });
 
 // The live taxonomy (GET /api/config/tos → store.dynamicTOS), NOT the static
 // offline snapshot in config/constants.js: labels the model picks are resolved
@@ -109,7 +171,7 @@ export const getStrictRules = (subject, targetSubtopic, topics = liveTopicsFor(s
 
     return `
     CRITICAL RULES:
-    1. Return ONLY a raw JSON array of objects. Do not use markdown blocks like \`\`\`json.
+    1. Return ONLY one JSON object of the form {"items": [ ... ]}. Do not use markdown blocks like \`\`\`json.
     2. Categorize "type" as either "calculation" or "conceptual".
     ${subtopicRule}
     4. The "answer" field MUST contain the EXACT full string value of the correct option.
@@ -120,7 +182,7 @@ export const getStrictRules = (subject, targetSubtopic, topics = liveTopicsFor(s
     9. OPTION FORMATTING: Each string in "options" — and the "answer" — MUST contain ONLY the choice's content. NEVER prefix a choice with an enumerator label such as "A.", "B)", "(C)", or "D:". The interface renders the A/B/C/D labels automatically; a baked-in label is a formatting error that renders as a duplicate ("A. A. ...").
 
     JSON SCHEMA:
-    [
+    {"items": [
       {
         "text": "Detailed question string containing LaTeX formatting.",
         "options": ["First choice text (no letter prefix)", "Second choice text", "Third choice text", "Fourth choice text"],
@@ -130,7 +192,7 @@ export const getStrictRules = (subject, targetSubtopic, topics = liveTopicsFor(s
         "subtopic": "${targetSubtopic && targetSubtopic !== 'All' && targetSubtopic !== 'General' ? targetSubtopic : 'Must exactly match target'}",
         "fixedExplanation": "A highly detailed, step-by-step mathematical derivation."
       }
-    ]`;
+    ]}`;
 };
 
 export const generateQuestionsAI = async (subject, subtopic, useWeb = false, count = 5, recentContext = [], specificFocus = null) => {
@@ -160,7 +222,7 @@ export const generateQuestionsAI = async (subject, subtopic, useWeb = false, cou
     ${useWeb ? 'Utilize current real-world engineering data where applicable.' : ''}`;
 
     try {
-        return sanitizeGeneratedBatch(await callAI(prompt, true));
+        return sanitizeGeneratedBatch(await callAI(prompt, true, { task: 'practice', temperature: 0.7 }));
     } catch (error) {
         console.error("AI Generation pipeline connection failed:", error);
         return [];
@@ -183,29 +245,25 @@ export const generateMasterExplanation = async (questionObj, isRetry = false) =>
 
     // Throws on failure. It used to return an apology as if it were the
     // explanation, which then got saved and shown as one.
-    return callAI(prompt, false);
+    return callAI(prompt, false, { task: 'explain', temperature: 0.3 });
 };
 
+// A fast open model writes this (task "report"): three sentences from the
+// numbers below. It used to wait on the biggest Gemini model first.
+export const REPORT_SYSTEM = 'You are a concise, encouraging coach for Filipino reviewees taking the Registered Electrical Engineer (REE) board exam. Plain English, no headings, no lists, no military or sci-fi wording. Exactly three short sentences.';
+
 export const generateBoardReadinessReport = async (stats, readinessScore, weakTopics) => {
-    const prompt = `
-        You are an elite AI Coach for the Philippine Registered Electrical Engineer (REE) Board Exam.
-        Analyze this student profile for the upcoming REE exam:
+    const prompt = `Reviewee profile:
+- Readiness index: ${readinessScore ?? 'not available yet'}${readinessScore != null ? ' of 100 (70 is the passing line)' : ''}
+- Ability estimate (IRT theta, about -3 to +3): ${stats?.irt?.theta ?? 0}
+- Study streak: ${stats?.globalStreak || 0} days
+- Weakest topics (under the accuracy line): ${weakTopics?.length ? weakTopics.slice(0, 8).join(', ') : 'none yet'}
+- Confidence check: ${stats?.matrix?.hc || 0} sure and right, ${stats?.matrix?.hw || 0} sure but wrong (blind spots), ${stats?.matrix?.lc || 0} unsure but right, ${stats?.matrix?.lw || 0} unsure and wrong
 
-        - Calculated Readiness: ${readinessScore}%
-        - IRT Theta Level: ${stats?.irt?.theta || 0}
-        - Study Streak: ${stats?.globalStreak || 0} days
-        - Critical Weak Areas: ${weakTopics?.join(', ') || 'None registered yet'}
-        - Confidence Matrix:
-           * Solid Mastery: ${stats?.matrix?.hc || 0}
-           * Dangerous Blind Spots: ${stats?.matrix?.hw || 0}
-           * Imposter Syndrome: ${stats?.matrix?.lc || 0}
-           * Weak Foundations: ${stats?.matrix?.lw || 0}
-
-        In 3 short sentences, say what to study next and why. Write in plain English to a Filipino board-exam reviewee: direct, specific and encouraging, with no military or sci-fi wording. Address blind spots if they exist. Do not use large markdown headers.
-    `;
+Say what to study next and why. Name specific topics from the list. If there are blind spots, say to review those first, since confident mistakes cost the most on the board.`;
 
     try {
-        return await callAI(prompt, false);
+        return await callAI(prompt, false, { task: 'report', system: REPORT_SYSTEM, temperature: 0.5, maxTokens: 500 });
     } catch {
         return "Couldn’t write the board report right now. Try again in a minute.";
     }
@@ -222,7 +280,7 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
     """`;
 
     try {
-        return sanitizeGeneratedBatch(await callAI(prompt, true));
+        return sanitizeGeneratedBatch(await callAI(prompt, true, { task: 'author', system: BOARD_EXAM_SYSTEM, temperature: 0.2 }));
     } catch (error) {
         console.error("AI Text Extraction pipeline failed:", error);
         throw error;
@@ -236,7 +294,9 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
 // (a wrong constant value is as damaging as a wrong answer key).
 //   kind: 'constant' | 'formula' | 'concept'
 //   topic: an EXACT topic name from the shared taxonomy (dynamicTOS[subject]).
-export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, existingNames = [], specificFocus = null) => {
+export const REFERENCE_SYSTEM = `You compile the formula, constant and concept flashcards for a Philippine Registered Electrical Engineer (REE) board exam reviewer. Every value, unit and formula must be exactly right: a wrong constant teaches the wrong number. Use SI units and the values in standard references (CODATA for physical constants, the PEC 2017 for code values, standard engineering handbooks). Never round a standard constant. If you are not sure of an entry, leave it out rather than guess. Write formulas in the form reviewees will meet on the board, and name the trap reviewees fall into with each one.`;
+
+const generateReferenceCardBatch = async (kind, subject, topic, count, existingNames, specificFocus) => {
     const seed = Math.floor(Math.random() * 10000);
     const names = (existingNames || []).filter(Boolean).slice(0, 200);
     const exclusionDirective = names.length > 0
@@ -253,8 +313,8 @@ export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, 
     Generate EXACTLY ${count} COMPLETE ${kindNoun} flashcards for Subject: ${subject}, Topic: ${topic}.
     ${focusDirective}
     CRITICAL RULES:
-    1. Return ONLY a raw JSON array of objects — no markdown fences, no prose.
-    2. Each object MUST include ALL of these fields, fully filled (a bare symbol or empty field is a hard failure):
+    1. Return ONLY one JSON object of the form {"items": [ ...cards ]} — no markdown fences, no prose.
+    2. Each card MUST include ALL of these fields, fully filled (a bare symbol or empty field is a hard failure):
       {
         "kind": "${kind}",
         "symbol": "short symbol wrapped in $ delimiters (e.g. '$X_c$'); null only if the entry truly has none",
@@ -279,34 +339,81 @@ export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, 
     ${exclusionDirective}
     VARIANCE [Seed: ${seed}]: cover distinct, non-duplicate entries.`;
 
-    const rows = await callAI(prompt, true);
+    const rows = await callAI(prompt, true, { task: 'author', system: REFERENCE_SYSTEM, temperature: 0.3 });
     return Array.isArray(rows) ? rows : [];
 };
 
-export const generateQuestionsFromImages = async (base64Images, subject, subtopic, count = 3) => {
-    const imageParts = base64Images.map(base64Data => ({
-        inlineData: {
-            data: base64Data.split(',')[1],
-            mimeType: "image/jpeg"
+// Up to 6 cards per request; a larger count runs as several requests in turn,
+// each told what the earlier ones wrote, so nothing repeats.
+const CARD_BATCH = 6;
+export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, existingNames = [], specificFocus = null, onProgress) => {
+    const out = [];
+    const seen = new Set((existingNames || []).map((n) => String(n).toLowerCase().trim()));
+    const batches = Math.ceil(count / CARD_BATCH);
+    for (let b = 0; b < batches && out.length < count; b += 1) {
+        const want = Math.min(CARD_BATCH, count - out.length);
+        onProgress?.(b + 1, batches);
+        const rows = await generateReferenceCardBatch(kind, subject, topic, want, [...(existingNames || []), ...out.map((r) => r.name)], specificFocus);
+        for (const row of rows) {
+            const key = String(row?.name || '').toLowerCase().trim();
+            if (key && seen.has(key)) continue;
+            seen.add(key);
+            out.push(row);
         }
-    }));
+    }
+    return out.slice(0, count);
+};
 
-    const prompt = `You are an elite examiner writing questions for the Philippine Registered Electrical Engineer (REE) Board Exam.
-    Read the text, math, and diagrams in these images. Extract key principles and generate EXACTLY ${count} multiple-choice questions based STRICTLY on the contents of these images.
+// `images`: data URLs ("data:image/png;base64,...") or File/Blob objects.
+// The extraction hook used to pass the File itself, which this function then
+// tried to .map() and crashed, so image extraction never worked.
+export const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Couldn't read the image."));
+    reader.readAsDataURL(file);
+});
+
+export const generateQuestionsFromImages = async (images, subject, subtopic, count = 3) => {
+    const list = Array.isArray(images) ? images : [images];
+    const dataUrls = await Promise.all(list.map((img) => (typeof img === 'string' ? img : fileToDataUrl(img))));
+    const imageParts = dataUrls.map((url) => {
+        const [head, data] = String(url).split(',');
+        const mimeType = /data:([^;]+)/.exec(head)?.[1] || 'image/jpeg';
+        return { inlineData: { data, mimeType } };
+    });
+
+    const prompt = `Read the text, math, and diagrams in these images. Extract the key principles and write EXACTLY ${count} multiple-choice REE board exam items based STRICTLY on the contents of these images. If the images already contain board-style questions, transcribe them faithfully (with a worked solution) instead of inventing new ones.
     Subject: ${subject}.
     ${getStrictRules(subject, subtopic)}`;
 
     try {
-        const response = await apiRequest('/api/ai/generate', 'POST', {
-            contents: [prompt, ...imageParts],
-            config: { temperature: 0.1 }
-        }, { timeoutMs: AI_TIMEOUT_MS });
-
-        const cleanJson = cleanJsonPayload(response.text);
-        return sanitizeGeneratedBatch(JSON.parse(cleanJson));
+        const response = await callAITask('vision', [prompt, ...imageParts], { system: BOARD_EXAM_SYSTEM, json: true, temperature: 0.1 });
+        return sanitizeGeneratedBatch(asItems(parseAiJson(response.text)));
     } catch (error) {
-        console.error("Gemini Vision API Error:", error);
-        throw new Error("Failed to process module images via AI Vision.");
+        console.error("AI Vision Error:", error);
+        throw new Error(error?.message ? `Couldn't read the image: ${error.message}` : "Couldn't read the image.", { cause: error });
     }
 };
 
+// ── Admin question generator ───────────────────────────────────────────────
+// One batch of planBatches() (services/aiPrompts), on the accurate "author"
+// chain. Returns { items, meta } where meta says which model answered.
+export const generateBoardQuestionBatch = async ({ subject, topic, focus, batch, avoid, notes, topics = liveTopicsFor(subject) }) => {
+    const prompt = buildQuestionPrompt({ subject, topic, topics, focus, batch, avoid, notes });
+    const response = await callAITask('author', prompt, { system: BOARD_EXAM_SYSTEM, json: true, temperature: 0.4 });
+    const items = sanitizeGeneratedBatch(asItems(parseAiJson(response.text)));
+    return {
+        items,
+        meta: { model: response.model, provider: response.provider, providerLabel: response.providerLabel, latencyMs: response.latencyMs },
+    };
+};
+
+// Second opinion on generated items: another model solves each without the
+// key. Returns the questions with a `check` field (see applyVerification).
+export const verifyQuestions = async (questions) => {
+    if (!questions.length) return questions;
+    const response = await callAITask('verify', buildVerifyPrompt(questions), { system: VERIFY_SYSTEM, json: true, temperature: 0 });
+    return applyVerification(questions, asItems(parseAiJson(response.text)))
+        .map((q) => ({ ...q, check: { ...q.check, model: response.model } }));
+};

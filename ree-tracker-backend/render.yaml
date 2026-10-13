@@ -55,6 +55,14 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # Open-model AI providers (config/aiModels). Any one is enough; Groq is
+      # the first choice for every text feature.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
       - key: FIREBASE_CLIENT_EMAIL

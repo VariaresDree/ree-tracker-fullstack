@@ -113,6 +113,11 @@ describe('createLiveQuestion — hard taxonomy gate', () => {
 // DB loop itself follows the untested-by-convention single-approve handler —
 // this predicate is where the decision logic lives.)
 describe('isBulkEligible — the Accept-All clean-item gate', () => {
+  it('leaves an item with a reviewer note (the AI answer check disagreed) for a person', () => {
+    expect(isBulkEligible({ ...reviewRow, reviewNote: 'AI answer check picked C; the key may be wrong.' })).toBe(false);
+    expect(isBulkEligible({ ...reviewRow, reviewNote: null })).toBe(true);
+  });
+
   it('accepts a clean row', () => {
     expect(isBulkEligible(reviewRow)).toBe(true);
   });

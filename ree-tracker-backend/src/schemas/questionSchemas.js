@@ -21,7 +21,10 @@ const baseQuestionSchema = z.object({
     status: z.enum(['live', 'quarantined']).optional(),
     bloomLevel: z.enum(BLOOM_LEVELS).optional().default('REMEMBER'),
     difficultyTier: z.number().int().min(1).max(3).optional().default(1),
-    competencyArea: z.string().nullable().optional()
+    competencyArea: z.string().nullable().optional(),
+    // A note for the reviewer, kept only on pending-review submissions: the
+    // admin generator records the AI answer check's disagreement here.
+    reviewNote: z.string().max(1000).optional(),
 });
 
 // Strip any baked-in answer-choice labels ("A.", "b)", "(C)") from options and

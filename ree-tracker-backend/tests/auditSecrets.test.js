@@ -34,6 +34,7 @@ const FAKE = {
     aws: cat('AKIA', 'IOSFODNN7', 'EXAMPLE'),
     github: cat('ghp', '_', 'a1b2c3d4e5'.repeat(3), 'abcdef'),
     slack: cat('xox', 'b-', '1234567890', '-abcdefghijklmnop'),
+    groq: cat('gsk', '_', 'Ab12Cd34Ef'.repeat(5)),
     pemBody: 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ'.repeat(4),
     dbPassword: cat('S3cr3t', 'P4ss'),
     keyId: cat('9f2c1a7be4', 'd3086512ab'),
@@ -63,6 +64,7 @@ describe('audit-secrets rules fire on real-shaped credentials', () => {
         expect(ids(FAKE.aws)).toContain('aws-access-key');
         expect(ids(FAKE.github)).toContain('github-token');
         expect(ids(FAKE.slack)).toContain('slack-token');
+        expect(ids(FAKE.groq)).toContain('ai-provider-key');
     });
 
     it('catches a Google service-account key id', () => {

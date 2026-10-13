@@ -22,6 +22,7 @@ import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search 
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
 import { generateReferenceCardsAI } from '../../services/geminiApi';
+import AiStatusNote from '../../components/AiStatusNote';
 import {
     fetchReferenceCards, fetchPendingReferenceCards, fetchReferenceCardDebt,
     createReferenceCard, updateReferenceCard, deleteReferenceCard,
@@ -334,7 +335,8 @@ export default function ReferenceAdminV2() {
             const existing = [...liveCards, ...pendingCards]
                 .filter((c) => c.kind === aiKind && c.subject === aiSubject)
                 .map((c) => c.name);
-            const rows = await generateReferenceCardsAI(aiKind, aiSubject, aiTopic, aiCount, existing, aiFocus.trim() || null);
+            const rows = await generateReferenceCardsAI(aiKind, aiSubject, aiTopic, aiCount, existing, aiFocus.trim() || null,
+                (n, of) => { if (of > 1) toast.loading(`Writing cards, part ${n} of ${of}…`, { id: toastId }); });
             if (!rows.length) throw new Error('No cards returned.');
             setAiRows(rows);
             setAiSelected(new Set(rows.map((_, i) => i).filter((i) => quickMissing(rows[i]).length === 0)));
@@ -506,10 +508,14 @@ export default function ReferenceAdminV2() {
                         <FormField label="Subject"><Select value={aiSubject} onChange={(e) => { setAiSubject(e.target.value); setAiTopic(''); }}>{SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}</Select></FormField>
                         <FormField label="Topic"><Select value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}><option value="">Select…</option>{aiTopics.map((t) => <option key={t} value={t}>{t}</option>)}</Select></FormField>
                         <FormField label="Specific focus (optional)"><Input value={aiFocus} onChange={(e) => setAiFocus(e.target.value)} placeholder="e.g. Capacitance" /></FormField>
-                        <FormField label="Count"><Select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>{[3, 6, 10].map((n) => <option key={n} value={n}>{n}</option>)}</Select></FormField>
+                        <FormField label="Count"><Select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>{[3, 6, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}</Select></FormField>
                     </div>
+                    <p className="text-xs text-muted2 max-w-2xl">
+                        Written by the most accurate model available (see Admin › AI models), told to use standard reference values and to leave out anything it isn't sure of. Every card still waits in the review queue.
+                    </p>
+                    <AiStatusNote task="author" />
                     <Button onClick={handleGenerate} loading={busy} disabled={busy || !aiTopic} className="self-start">
-                        <Sparkles size={14} strokeWidth={1.75} aria-hidden="true" /> Generate complete flashcards
+                        <Sparkles size={14} strokeWidth={1.75} aria-hidden="true" /> Generate {aiCount} {aiKind === 'constant' ? 'constant' : aiKind === 'formula' ? 'formula' : 'concept'} card{aiCount === 1 ? '' : 's'}
                     </Button>
 
                     {aiRows.length > 0 && (

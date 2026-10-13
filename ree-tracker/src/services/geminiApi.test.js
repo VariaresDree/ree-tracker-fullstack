@@ -77,3 +77,13 @@ describe('parseAiJson', () => {
     expect(() => parseAiJson('not json at all')).toThrow(/malformed JSON/);
   });
 });
+
+describe('asItems', () => {
+  it('unwraps the { items } envelope and passes arrays through', async () => {
+    const { asItems } = await import('./geminiApi');
+    expect(asItems({ items: [1] })).toEqual([1]);
+    expect(asItems({ cards: [2] })).toEqual([2]);
+    expect(asItems([3])).toEqual([3]);
+    expect(asItems({ nope: 1 })).toEqual([]);
+  });
+});

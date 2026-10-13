@@ -13,6 +13,7 @@ import { useAIIngestion } from '../../features/library/useAIIngestion';
 import { useManualIngestion } from '../../features/library/useManualIngestion';
 
 import LibraryIngestion from '../../features/library/LibraryIngestion';
+import QuestionGenerator from '../../features/admin/ai/QuestionGenerator';
 import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
@@ -37,13 +38,12 @@ export default function QuestionBank() {
   // 2. AI Generator Sub-Engine (Passes initializeVault to auto-refresh the grid on QA success)
   const {
     genSubject, setGenSubject, genSubtopic, setGenSubtopic,
-    genFocus, setGenFocus,
-    genLoading, genStatus, parsingPdf, selectedPdf,
+    genStatus, genTone, parsingPdf, selectedPdf,
     isDragging, handleDragOver, handleDragLeave, handleDrop,
     generatedQuestions, showQAModal, setShowQAModal, isCommitting,
-    handleGenerate, handlePdfSelect, executePdfExtraction,
+    handlePdfSelect, executePdfExtraction,
     removeQuestion, handleCommitToMatrix
-  } = useAIIngestion(initializeVault); 
+  } = useAIIngestion(initializeVault);
 
   // 3. Manual Form Sub-Engine
   const {
@@ -54,18 +54,19 @@ export default function QuestionBank() {
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-display text-2xl text-textMain tracking-tight">Question bank</h2>
-        <p className="text-sm text-muted2 mt-1">Generate, import, review and edit the shared questions.</p>
+        <p className="text-sm text-muted2 mt-1">Generate, import, review and edit the shared questions. Everything the AI writes waits in the review queue until an admin approves it.</p>
       </div>
 
-      <LibraryIngestion 
+      <QuestionGenerator isOnline={isOnline} onSaved={initializeVault} />
+
+      <LibraryIngestion
         genSubject={genSubject} setGenSubject={setGenSubject}
         genSubtopic={genSubtopic} setGenSubtopic={setGenSubtopic}
-        genFocus={genFocus} setGenFocus={setGenFocus}
-        genLoading={genLoading} genStatus={genStatus}
-        parsingPdf={parsingPdf} isOnline={isOnline} selectedPdf={selectedPdf} 
+        genStatus={genStatus} genTone={genTone}
+        parsingPdf={parsingPdf} isOnline={isOnline} selectedPdf={selectedPdf}
         isDragging={isDragging} handleDragOver={handleDragOver} handleDragLeave={handleDragLeave} handleDrop={handleDrop}
         generatedQuestions={generatedQuestions} showQAModal={showQAModal} setShowQAModal={setShowQAModal} isCommitting={isCommitting}
-        handleGenerate={handleGenerate} handlePdfSelect={handlePdfSelect} executePdfExtraction={executePdfExtraction}
+        handlePdfSelect={handlePdfSelect} executePdfExtraction={executePdfExtraction}
         removeQuestion={removeQuestion} handleCommitToMatrix={handleCommitToMatrix}
       />
 

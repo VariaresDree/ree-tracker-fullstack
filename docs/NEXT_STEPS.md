@@ -29,6 +29,7 @@ Handoff notes for the next planning session. Written 2026-10-13, after
 
 ## 2. Owner actions (needed now)
 
+- [ ] **Set `GROQ_API_KEY` on Render** (free at console.groq.com, no card) so the AI features run on the fast open models. Optional backups: `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`. Without them every AI feature still runs on Gemini, routed per feature. Then open Admin › AI models and press **Test all models**: a model shown as "model not found" has been renamed or retired by its provider; replace it with `AI_CHAIN_<TASK>` on Render or in `src/config/aiModels.js`.
 - [ ] **Set `CRON_SECRET`.** Generate one long random string and set it in two places:
   - Render → the backend service → Environment;
   - GitHub → Settings → Secrets and variables → Actions.

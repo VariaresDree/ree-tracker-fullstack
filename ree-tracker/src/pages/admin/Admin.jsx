@@ -2,7 +2,8 @@
 //
 // Content tools, in one place and out of the learners' way: the question bank
 // (AI/PDF ingestion, manual entry, review queue, syllabus), the explanation
-// review queue, formula-card management, and handout uploads. These used to sit
+// review queue, formula-card management, handout uploads, and the AI model
+// status (which model answers each AI feature, and whether it is healthy). These used to sit
 // inside learner pages — a Profile tab, a Materials tab, and the whole
 // "Module Library" — with the AI ingestion visible to every learner.
 // Reached through routes/AdminRoute; every tab body is lazy, so a learner's
@@ -11,7 +12,7 @@ import { lazy, Suspense, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import useTabParam from '../../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../../components/ui';
-import { Library, ClipboardList, BookOpen, Cloud } from '../../components/ui/icons';
+import { Library, ClipboardList, BookOpen, Cloud, Activity } from '../../components/ui/icons';
 import ErrorBoundary from '../../components/ErrorBoundary';
 
 const QuestionBank = lazy(() => import('./QuestionBank'));
@@ -19,12 +20,14 @@ const ExplanationReview = lazy(() => import('../../features/analytics/Explanatio
 const ReferenceAdminV2 = lazy(() => import('../../features/reference/ReferenceAdminV2'));
 const CloudVaultTab = lazy(() => import('../../features/materials/CloudVaultTab'));
 const MaterialViewer = lazy(() => import('../../features/materials/MaterialViewer'));
+const AiStatusPanel = lazy(() => import('../../features/admin/ai/AiStatusPanel'));
 
 const TABS = [
   { id: 'questions', label: 'Question bank', icon: Library },
   { id: 'explanations', label: 'Explanation review', icon: ClipboardList },
   { id: 'references', label: 'Formula cards', icon: BookOpen },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
+  { id: 'ai', label: 'AI models', icon: Activity },
 ];
 
 const TabFallback = () => (
@@ -61,6 +64,8 @@ export default function Admin() {
           {tab === 'handouts' && (viewingMaterial
             ? <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} headingLevel={2} />
             : <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />)}
+
+          {tab === 'ai' && <AiStatusPanel />}
         </Suspense>
       </ErrorBoundary>
       </TabPanel>
