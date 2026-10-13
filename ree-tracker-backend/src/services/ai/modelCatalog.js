@@ -210,18 +210,17 @@ function missingModels(env = process.env) {
     return [...out];
 }
 
-/** For /healthz: what each configured pick resolved to. */
-function picked(env = process.env) {
-    const out = {};
-    for (const taskId of TASK_IDS) {
-        const task = TASKS[taskId];
-        for (const e of chainFor(taskId, env)) {
-            if (!e.pick || !isProviderConfigured(e.provider, env)) continue;
-            const key = task.vision ? `${e.id} (vision)` : e.id;
-            if (!(key in out)) out[key] = expandPick(e.provider, e.pick, { vision: !!task.vision });
-        }
-    }
-    return out;
+/**
+ * For /healthz: per feature, the models it will try in order, picks resolved,
+ * leaving out providers without a key and models their provider doesn't list.
+ */
+function chains(env = process.env) {
+    return Object.fromEntries(TASK_IDS.map((taskId) => [
+        taskId,
+        resolveChain(taskId, env)
+            .filter((e) => isProviderConfigured(e.provider, env) && !isUnavailable(e.provider, e.model))
+            .map((e) => e.id),
+    ]));
 }
 
 /** For /healthz and the status route: per-provider result, no id lists. */
@@ -251,5 +250,5 @@ function resetCatalog() {
 
 module.exports = {
     refreshCatalog, startCatalogRefresh, isListed, isUnavailable, missingModels, summary, resetCatalog,
-    expandPick, resolveChain, picked, offered, sizeInName,
+    expandPick, resolveChain, chains, offered, sizeInName,
 };
