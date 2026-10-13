@@ -161,7 +161,7 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
                     <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}>
                       <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-danger)' }}>Your answer</span>
                       <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto">
-                        {item.userAnswer ? <span className="line-through"><LatexRenderer content={item.userAnswer} /></span> : <span className="text-muted2">Left blank</span>}
+                        {item.userAnswer ? <span className="line-through"><LatexRenderer inline content={item.userAnswer} /></span> : <span className="text-muted2">Left blank</span>}
                       </div>
                     </div>
                     <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}>

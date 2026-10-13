@@ -67,7 +67,7 @@ export default function PacingPanel({ items, onJump, headingLevel = 2 }) {
                   <li key={item.order} className="flex items-start justify-between gap-3 text-sm">
                     <div className="min-w-0 flex-1">
                       <span className="text-muted2 tabular-nums mr-2">#{item.order}</span>
-                      <span className="text-textMain line-clamp-2 inline [&_p]:inline"><SmartText text={item.text || ''} /></span>
+                      <span className="text-textMain"><SmartText text={item.text || ''} className="!inline [&_p]:!inline" /></span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="tabular-nums text-xs" style={{ color: 'var(--accent-danger)' }}>

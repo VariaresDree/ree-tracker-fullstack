@@ -3,6 +3,7 @@ import React, { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { normalizeMathDelimiters } from '../utils/mathDelimiters';
 import 'katex/dist/katex.min.css'; // CRITICAL: The stylesheet that makes the math render beautifully
 
 // Fallback boundary: if KaTeX/markdown throws while rendering a malformed
@@ -31,39 +32,48 @@ class LatexErrorBoundary extends React.Component {
     }
 }
 
-const LatexRenderer = ({ content, className = "", compact = false }) => {
-    if (!content) return null;
+const REMARK_PLUGINS = [remarkMath];
+// throwOnError:false → KaTeX renders an invalid expression in the danger color
+// instead of throwing; the boundary above catches anything that still escapes.
+const KATEX = [rehypeKatex, { throwOnError: false, errorColor: 'var(--accent-danger)' }];
 
-    // `compact`: skips math-scroll-mobile for short inline tokens (a variable
-    // symbol, a unit in parentheses) sitting next to plain text in a
-    // `flex items-baseline` row. That class sets `overflow: auto hidden` for
-    // wide-formula scrolling, but a non-`visible` overflow forces an
-    // inline-block's baseline to its BOTTOM MARGIN EDGE instead of its actual
-    // text baseline (CSS Inline Layout) — combined with the class's own
-    // 8px padding-bottom, short content rendered measurably 14px above the
-    // row's baseline instead of sitting on it. Block-level math (a formula,
-    // an explanation) has no adjacent baseline to misalign against and
-    // legitimately needs the scroll wrapper, so this stays opt-in.
+// `node` is taken out so it never reaches the DOM as an attribute.
+// eslint-disable-next-line no-unused-vars
+const BlockP = ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />;
+// Inline mode: paragraphs become spans so the text flows inside a sentence,
+// a <strong> or a struck-through answer without breaking the line.
+// eslint-disable-next-line no-unused-vars
+const InlineP = ({ node, ...props }) => <span {...props} />;
+
+/**
+ * Renders markdown + LaTeX as ONE flowing piece of text.
+ *
+ * - default: a block (`div.math-text`). Inline `$…$` sits on the text baseline
+ *   inside its paragraph; a display formula (`$$…$$`) that is wider than the
+ *   card scrolls on its own, so the surrounding text never gets a scrollbar.
+ * - `inline`: a `span`, for an answer or value that sits inside a sentence.
+ * - `compact`: kept for the formula-card variable rows; same as default.
+ * - `rehypePlugins` / `components`: extra hast passes run after KaTeX (used by
+ *   SmartText to add glossary tooltips to the plain text). Pass stable
+ *   references; they take part in the memo comparison.
+ */
+const LatexRenderer = ({ content, className = "", compact = false, inline = false, rehypePlugins, components }) => {
+    if (content === null || content === undefined || content === '') return null;
+
+    const Tag = inline ? 'span' : 'div';
+    const base = inline ? 'math-text math-text-inline' : 'math-text';
     return (
-        <div className={`${compact ? '' : 'math-scroll-mobile'} ${className}`.trim()}>
+        <Tag className={`${base}${compact ? ' math-text-compact' : ''} ${className}`.trim()}>
             <LatexErrorBoundary content={content}>
                 <ReactMarkdown
-                    remarkPlugins={[remarkMath]}
-                    // throwOnError:false → KaTeX renders an invalid expression in the
-                    // danger color instead of throwing; the boundary above catches
-                    // anything that still escapes.
-                    rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: 'var(--accent-danger)' }]]}
-                    components={{
-                        // Optional: Custom styling for standard paragraphs if needed
-                        // `node` is taken out so it never reaches the DOM as an attribute.
-                        // eslint-disable-next-line no-unused-vars
-                        p: ({ node, ...props }) => <p className="mb-2 leading-relaxed" {...props} />,
-                    }}
+                    remarkPlugins={REMARK_PLUGINS}
+                    rehypePlugins={rehypePlugins ? [KATEX, ...rehypePlugins] : [KATEX]}
+                    components={{ p: inline ? InlineP : BlockP, ...components }}
                 >
-                    {content}
+                    {normalizeMathDelimiters(content)}
                 </ReactMarkdown>
             </LatexErrorBoundary>
-        </div>
+        </Tag>
     );
 };
 
@@ -75,5 +85,8 @@ export default memo(
     (prevProps, nextProps) =>
         prevProps.content === nextProps.content
         && prevProps.className === nextProps.className
-        && prevProps.compact === nextProps.compact,
+        && prevProps.compact === nextProps.compact
+        && prevProps.inline === nextProps.inline
+        && prevProps.rehypePlugins === nextProps.rehypePlugins
+        && prevProps.components === nextProps.components,
 );

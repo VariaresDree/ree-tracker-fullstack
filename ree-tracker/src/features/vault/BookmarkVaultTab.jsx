@@ -36,7 +36,7 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
             {savedOn && <span className="tabular-nums">Saved {savedOn}</span>}
           </div>
           {!expanded && (
-            <div className="text-sm font-medium text-textMain leading-relaxed line-clamp-2 overflow-hidden math-scroll-mobile">
+            <div className="text-sm font-medium text-textMain leading-relaxed line-clamp-2">
               <SmartText text={item.question || item.content} />
             </div>
           )}

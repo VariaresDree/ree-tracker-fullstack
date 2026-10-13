@@ -81,7 +81,7 @@ export default function SolutionPanel({ question, isOnline, aiText, aiLoading, o
               ? <LatexRenderer content={solution} />
               : (
                 <p className="text-muted2">
-                  No written solution yet. The answer is <strong className="text-textMain"><LatexRenderer content={question?.answer || '—'} /></strong>.
+                  No written solution yet. The answer is <strong className="text-textMain"><LatexRenderer inline content={question?.answer || '—'} /></strong>.
                 </p>
               )}
           </div>

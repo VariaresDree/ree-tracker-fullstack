@@ -1,14 +1,17 @@
 // src/components/SmartText.jsx
-// Renders text with domain-jargon glossary tooltips (EPIRA, PEC, NEC…) layered
-// over normal LaTeX rendering.
+// Renders question text with domain-jargon glossary tooltips (EPIRA, PEC,
+// NEC…) layered over normal LaTeX rendering.
 //
-// Math safety: the glossary regex used to split the WHOLE string, including
-// across LaTeX delimiters — a dictionary word landing inside a `$…$` span (or
-// even just near one) could tear the pair apart into two independently-passed
-// fragments, each missing one `$`, so remark-math failed to parse either half
-// and printed a literal stray `$`. Fixed by extracting math spans FIRST as
-// atomic tokens, then only glossary-splitting the plain-text segments between
-// them — a math span can never be cut mid-expression.
+// The whole string goes through ONE markdown + KaTeX pass, so inline math
+// flows inside its sentence. The old version split the text into math and
+// plain segments and rendered each as its own inline-block box with its own
+// paragraph and scroll container: inline formulas were lifted above the line,
+// left gaps where they should have been, and showed a scrollbar mid-sentence.
+//
+// Math safety: the glossary is applied AFTER KaTeX, to the plain text nodes of
+// the rendered tree only, skipping anything inside a `.katex` element or code.
+// A `$…$` pair is parsed whole before the glossary ever sees the text, so a
+// dictionary word inside or beside a formula can never tear it apart.
 import { useId, useState } from 'react';
 import LatexRenderer from './LatexRenderer';
 
@@ -22,17 +25,15 @@ const DICTIONARY = {
 };
 
 const GLOSSARY_RE = new RegExp(`\\b(${Object.keys(DICTIONARY).join('|')})\\b`, 'gi');
-// Captures $$…$$ (block) or $…$ (inline) as one atomic token each. The capture
-// group keeps the delimited match in String.split()'s output, interleaved
-// with the surrounding plain text.
-const MATH_RE = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g;
+
+function lookup(term) {
+  const key = Object.keys(DICTIONARY).find((k) => k.toLowerCase() === term.toLowerCase());
+  return key ? DICTIONARY[key] : null;
+}
 
 // One glossary term: a real button (not just a hover target) so it's reachable
 // and operable by keyboard, not only a mouse. The tooltip is revealed on
-// hover OR focus, and is properly associated via aria-describedby — the
-// previous version was a `<span>` with no interactive semantics at all, and
-// its tooltip `<div>` (invalid nested inside the outer `<span>`) was
-// permanently invisible to anyone not hovering with a mouse.
+// hover OR focus, and is properly associated via aria-describedby.
 function GlossaryTerm({ term, definition }) {
   const tooltipId = useId();
   const [visible, setVisible] = useState(false);
@@ -62,44 +63,70 @@ function GlossaryTerm({ term, definition }) {
   );
 }
 
-// Glossary-split a segment KNOWN to contain no math delimiters.
-function renderPlainSegment(segment, keyPrefix) {
-  const parts = segment.split(GLOSSARY_RE);
-  return parts.map((part, i) => {
-    const foundKey = Object.keys(DICTIONARY).find((k) => k.toLowerCase() === part.toLowerCase());
-    if (foundKey) {
-      return <GlossaryTerm key={`${keyPrefix}-${i}`} term={part} definition={DICTIONARY[foundKey]} />;
-    }
-    // compact: this segment is KNOWN non-math plain text (see function
-    // comment) — math-scroll-mobile's overflow+padding has no wide-formula
-    // case to protect here, and was measurably misaligning it against
-    // adjacent GlossaryTerm/inline content's baseline (same defect as the
-    // Flashcard variable rows — see LatexRenderer's `compact` doc).
-    return part ? <LatexRenderer compact key={`${keyPrefix}-${i}`} content={part} className="!inline-block" /> : null;
-  });
+const SKIP_TAGS = new Set(['code', 'pre', 'a', 'button']);
+function isSkipped(node) {
+  if (SKIP_TAGS.has(node.tagName)) return true;
+  const cls = node.properties?.className;
+  return Array.isArray(cls) && cls.some((c) => String(c).startsWith('katex'));
 }
 
-export default function SmartText({ text }) {
-  if (!text) return null;
-
-  // Math spans first — these pass straight to LatexRenderer untouched, never
-  // glossary-split, so a $…$ pair can never be broken mid-expression.
-  const segments = text.split(MATH_RE);
-
-  // A <div> root, not <span>: LatexRenderer always renders a <div>, and this
-  // component is only ever used inside an existing <div> in both call sites —
-  // a <span> root put block content directly inside inline phrasing content,
-  // which is invalid HTML. The LaTeX fragments below stay `inline-block`
-  // styled so they still flow inline with the surrounding text visually.
-  return (
-    <div className="leading-relaxed selection:bg-reeCyan/30 selection:text-reeCyan-text">
-      {segments.map((segment, i) => {
-        if (!segment) return null;
-        if (/^\$\$[\s\S]+\$\$$/.test(segment) || /^\$[^$\n]+\$$/.test(segment)) {
-          return <LatexRenderer key={i} content={segment} className="!inline-block" />;
+// rehype plugin: wrap each dictionary word in plain text in an <abbr
+// data-glossary> element, which the `abbr` component below turns into a
+// GlossaryTerm. Runs after rehype-katex, so math is already a `.katex` subtree.
+function rehypeGlossary() {
+  const walk = (parent) => {
+    if (!parent.children) return;
+    const next = [];
+    for (const child of parent.children) {
+      if (child.type === 'element') {
+        if (!isSkipped(child)) walk(child);
+        next.push(child);
+        continue;
+      }
+      if (child.type !== 'text' || !GLOSSARY_RE.test(child.value)) {
+        GLOSSARY_RE.lastIndex = 0;
+        next.push(child);
+        continue;
+      }
+      GLOSSARY_RE.lastIndex = 0;
+      child.value.split(GLOSSARY_RE).forEach((part, i) => {
+        if (!part) return;
+        if (i % 2 === 1) {
+          next.push({
+            type: 'element',
+            tagName: 'abbr',
+            properties: { dataGlossary: part },
+            children: [{ type: 'text', value: part }],
+          });
+        } else {
+          next.push({ type: 'text', value: part });
         }
-        return renderPlainSegment(segment, i);
-      })}
-    </div>
+      });
+    }
+    parent.children = next;
+  };
+  return (tree) => walk(tree);
+}
+
+const REHYPE = [rehypeGlossary];
+const COMPONENTS = {
+  // eslint-disable-next-line no-unused-vars
+  abbr: ({ node, children, ...props }) => {
+    const term = props['data-glossary'];
+    const definition = term && lookup(term);
+    if (!definition) return <abbr {...props}>{children}</abbr>;
+    return <GlossaryTerm term={term} definition={definition} />;
+  },
+};
+
+export default function SmartText({ text, className = '' }) {
+  if (!text) return null;
+  return (
+    <LatexRenderer
+      content={text}
+      rehypePlugins={REHYPE}
+      components={COMPONENTS}
+      className={`leading-relaxed selection:bg-reeCyan/30 selection:text-reeCyan-text ${className}`.trim()}
+    />
   );
 }

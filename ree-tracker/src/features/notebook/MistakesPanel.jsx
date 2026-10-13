@@ -60,7 +60,7 @@ function MistakeCard({ item, expanded, onToggle, onTag, isOnline, ai }) {
         <NoteButton type="question" targetId={item.questionId} target={questionTarget(question)} className="shrink-0" />
       </div>
 
-      <div className={`text-sm text-textMain leading-relaxed overflow-x-auto math-scroll-mobile ${expanded ? '' : 'line-clamp-3'}`}>
+      <div className={`text-sm text-textMain leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}>
         <SmartText text={item.text} />
       </div>
 
@@ -71,7 +71,7 @@ function MistakeCard({ item, expanded, onToggle, onTag, isOnline, ai }) {
               <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-danger)' }}>Your last answer</span>
               <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto">
                 {item.lastAnswer
-                  ? <span className="line-through"><LatexRenderer content={item.lastAnswer} /></span>
+                  ? <span className="line-through"><LatexRenderer inline content={item.lastAnswer} /></span>
                   : <span className="text-muted2">Not recorded</span>}
               </div>
             </div>
