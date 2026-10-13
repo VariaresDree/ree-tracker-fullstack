@@ -333,6 +333,14 @@ describe('adaptive set', () => {
     expect(fetchNextItem).toHaveBeenCalledTimes(1);
   });
 
+  it('never serves a server pick without its key: the device picker takes over', async () => {
+    fetchNextItem.mockResolvedValue({ item: { ...q('keyless', 'EE', 'Machines'), answer: '' }, ability: null });
+    fetchVaultQuestions.mockResolvedValue([q('local', 'EE', 'Machines')]);
+    const { result } = setup();
+    await act(() => result.current.startSession(adaptivePreset({ subject: 'EE', count: 2 })));
+    expect(result.current.session.questions.map((x) => x.id)).toEqual(['local']);
+  });
+
   it('ends the set early, saying so, when nothing unseen is left', async () => {
     fetchNextItem.mockResolvedValueOnce({ item: q('only', 'EE', 'Machines'), ability: null }).mockResolvedValue({ item: null, ability: null });
     fetchVaultQuestions.mockResolvedValue([q('only', 'EE', 'Machines')]);
@@ -361,6 +369,8 @@ describe("formula cards in today's loop", () => {
     expect(engine.recordAttempt).not.toHaveBeenCalled();
     await act(() => result.current.endSession());
     expect(result.current.lastSummary).toMatchObject({ total: 1, correct: 1, cardsRated: 1 });
+    // Practise again repeats the questions, not the cards just rated
+    expect(result.current.lastSummary.config.items.map((x) => x.id)).toEqual(['e1']);
   });
 
   it('a loop of only cards still ends on a summary', async () => {

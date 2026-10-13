@@ -135,7 +135,8 @@ export default function SittingReview() {
   const startRematch = async () => {
     const needsConnection = 'Rematch needs a connection. Reconnect and try again.';
     if (!isOnline) return toast.error(needsConnection);
-    if (rematch) return navigate(`/battle/${rematch.battleId}`);
+    // Joining one already made asks the server as well: it says when that
+    // rematch has started without you.
     setRematching(true);
     try {
       const res = await requestRematch(battleId);

@@ -10,7 +10,8 @@ vi.mock('react-hot-toast', () => {
   return { default: toast };
 });
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'me' } }) }));
-vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
+let online = true;
+vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online }));
 let storeStats;
 vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats }) }));
 vi.mock('../../services/dbQueries', () => ({
@@ -35,14 +36,16 @@ function PathProbe() {
   path = useLocation().pathname;
   return null;
 }
-const renderTab = (ui) => render(
+const tabTree = (ui) => (
   <MemoryRouter initialEntries={['/exams']}>
     <Routes><Route path="*" element={<>{ui}<PathProbe /></>} /></Routes>
-  </MemoryRouter>,
+  </MemoryRouter>
 );
+const renderTab = (ui) => render(tabTree(ui));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  online = true;
   storeStats = { gauntletLevel: 2, totalAnswered: 600 };
 });
 
@@ -121,6 +124,23 @@ describe('RankingsTab', () => {
     expect(await screen.findByText("Couldn't load the rankings")).toBeInTheDocument();
     expect(screen.queryByText('No rankings yet')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('A')).toBeInTheDocument();
+  });
+
+  it('back online after a failed load, it asks again and shows that, not the old error', async () => {
+    let answer;
+    fetchPaginatedLeaderboard.mockRejectedValueOnce(new Error('[OFFLINE]'))
+      .mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    fetchLeaderboardMe.mockResolvedValue({ rank: 1, total: 1 });
+    const view = renderTab(<RankingsTab />);
+    expect(await screen.findByText("Couldn't load the rankings")).toBeInTheDocument();
+    online = false;
+    view.rerender(tabTree(<RankingsTab />));
+    online = true;
+    view.rerender(tabTree(<RankingsTab />));
+    expect(screen.getByText('Loading rankings…')).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load the rankings")).not.toBeInTheDocument();
+    answer({ agents: [agent('a', 0.9)], lastDoc: null });
     expect(await screen.findByText('A')).toBeInTheDocument();
   });
 

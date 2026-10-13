@@ -325,7 +325,8 @@ router.get('/:battleId/replay', authMiddleware, async (req, res) => {
 // hosted by the caller, with fresh questions, linked to this battle. Only a
 // player may ask (404 otherwise) and only once it is over (409). A battle has
 // one rematch: asking again, or a second player asking at the same moment,
-// gets the one already made (200, created: false). The players still on the
+// gets the one already made (200, created: false), unless it has started
+// without the caller (409: it takes no new players). The players still on the
 // results screen are told over the old battle's room, and the others by a
 // push when push is on.
 router.post('/:battleId/rematch', authMiddleware, async (req, res) => {
@@ -336,13 +337,20 @@ router.post('/:battleId/rematch', authMiddleware, async (req, res) => {
 
         const battle = await prisma.battle.findUnique({
             where: { id: battleId },
-            select: { id: true, status: true, config: true, timeLimitSecs: true, rematch: { select: { id: true, status: true } } },
+            select: { id: true, status: true, config: true, timeLimitSecs: true, questions: true, rematch: { select: { id: true, status: true } } },
         });
         if (!battle) return res.status(404).json({ error: 'No battle by that id.' });
         if (battle.status !== 'COMPLETED') {
             return res.status(409).json({ error: 'This battle isn’t over yet.' });
         }
-        if (battle.rematch) return res.status(200).json({ battleId: battle.rematch.id, created: false });
+        if (battle.rematch) {
+            // Started without the caller: it takes no new players, so going
+            // there would only end on "no longer accepting new players".
+            if (battle.rematch.status !== 'WAITING' && !(await playedIn({ battleId: battle.rematch.id, userId: req.user.id }))) {
+                return res.status(409).json({ error: 'That rematch has already started.', battleId: battle.rematch.id });
+            }
+            return res.status(200).json({ battleId: battle.rematch.id, created: false });
+        }
 
         const settings = rematchSettingsSchema.safeParse({ config: battle.config, timeLimitSecs: battle.timeLimitSecs });
         if (!settings.success) {
@@ -359,6 +367,7 @@ router.post('/:battleId/rematch', authMiddleware, async (req, res) => {
                     config: settings.data.config,
                     timeLimitSecs: settings.data.timeLimitSecs,
                     rematchOfId: battle.id,
+                    avoidIds: questionIdsOf(battle.questions),
                 });
                 if (!created) return res.status(422).json({ error: 'Question pool unavailable for that configuration.' });
             } catch (err) {

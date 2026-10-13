@@ -141,6 +141,8 @@ updated for the polish-and-features release that followed (branch
 - Signed-in Playwright specs run on the Firebase Auth emulator with the real backend (`ree-tracker/e2e-authed/`, CI "E2E (signed in)"). Add a spec there for each new signed-in flow.
 - The two-client battle test lives in `tests/battleTwoClients.test.js`.
 - CI applies the migrations to a real Postgres, checks them against `schema.prisma`, and runs `tests/integration/*.dbtest.js` (`npm run test:db`).
+- **Worth adding:** a signed-in spec that opens every screen and tab, Admin included, and fails on any page error or error-boundary screen. A hook that read state above its declaration took the Question bank down on this branch, and no test opened that screen (it turned up while fixing a review finding). The same sweep run by hand (26 screens, as an admin) came back clean. The lint rule `no-use-before-define` now stops that exact mistake. Admin needs its own e2e account, since making the shared learner an admin would change what the other specs see.
+- **Battle keys and the offline pack:** the question lists and next-item leave out a running battle's questions, but an offline pack downloaded before the battle already holds their keys. That's the cost of Practice grading offline; the battle's time limit is the real guard.
 
 **Phase 2 gate:** axe runs in CI on Today, Habits, Exams, Library › Notebook, Progress › Overview and a running Practice session (WCAG 2.2 AA), plus Today in the ocean theme and on a phone. Lighthouse on signed-in screens is still manual.
 

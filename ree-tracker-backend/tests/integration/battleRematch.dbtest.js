@@ -81,7 +81,7 @@ describe('replay', () => {
 });
 
 describe('rematch', () => {
-    it('makes one rematch when both players ask at once, with fresh questions from the same settings', async () => {
+    it('makes one rematch when both players ask at once, with fresh questions from the same settings, repeating as few as it must', async () => {
         const app = makeApp();
         const [ra, rb] = await Promise.all([
             request(app).post(`/api/battles/${OLD}/rematch`).set(as(A)),
@@ -95,6 +95,11 @@ describe('rematch', () => {
         expect(made[0]).toMatchObject({ id: ra.body.battleId, status: 'WAITING', timeLimitSecs: 600, config: CONFIG });
         expect(made[0].questions.map((q) => q.id).every((id) => id.startsWith(`${RUN}-q`))).toBe(true);
         expect(made[0].questions).toHaveLength(5);
+        // The last battle's questions (q1, q2: their key was revealed) come
+        // last: all four others are in, and only one repeat fills the fifth.
+        const ids = made[0].questions.map((q) => q.id);
+        expect(ids).toEqual(expect.arrayContaining([Q(3), Q(4), Q(5), Q(6)]));
+        expect(ids.filter((id) => id === Q(1) || id === Q(2))).toHaveLength(1);
 
         // The unique index itself: a second rematch of the same battle is refused.
         await expect(prisma.battle.create({

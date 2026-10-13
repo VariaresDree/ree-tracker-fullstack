@@ -87,9 +87,11 @@ function BattleRoom({ battleId }) {
     const rematchByOther = !!(rematch?.status === 'WAITING' && rematch.by?.userId && rematch.by.userId !== currentUser?.uid);
     const canRematch = !!(results && myResult) && rematchOpen && !rematchByOther;
     const [rematching, setRematching] = useState(false);
+    // Joining one someone else started asks the server too: it hands back
+    // that lobby, or says it has started without you (409) rather than
+    // sending you to a room that takes no one new.
     const handleRematch = async () => {
         if (!isOnline) return toast.error(REMATCH_NEEDS_CONNECTION);
-        if (rematch?.battleId) return navigate(`/battle/${rematch.battleId}`);
         setRematching(true);
         try {
             const res = await requestRematch(battleId);
@@ -324,7 +326,7 @@ function BattleRoom({ battleId }) {
                                     <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0" style={{ color: 'var(--accent-danger)' }} />
                                     <span><span className="font-semibold">{rematch.by.displayName}</span> started a rematch</span>
                                 </p>
-                                <Button tone="danger" size="sm" className="shrink-0" aria-label="Join the rematch" onClick={() => navigate(`/battle/${rematch.battleId}`)}>
+                                <Button tone="danger" size="sm" className="shrink-0" aria-label="Join the rematch" loading={rematching} disabled={rematching} onClick={handleRematch}>
                                     Join
                                 </Button>
                             </div>

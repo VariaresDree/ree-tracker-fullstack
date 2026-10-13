@@ -127,9 +127,11 @@ describe('BattleLobby', () => {
     expect(screen.getByText(/started a rematch/)).toHaveTextContent('Ana started a rematch');
     expect(screen.queryByRole('button', { name: 'Rematch' })).not.toBeInTheDocument();
     socketState = base();
+    // Asked of the server, which hands back theirs (or says it has started).
+    requestRematch.mockResolvedValue({ battleId: 'REM456', created: false });
     fireEvent.click(screen.getByRole('button', { name: 'Join the rematch' }));
     expect(await screen.findByText('REM456')).toBeInTheDocument();
-    expect(requestRematch).not.toHaveBeenCalled();
+    expect(requestRematch).toHaveBeenCalledWith('ABC123');
   });
 
   it('says Rematch needs a connection when offline', () => {

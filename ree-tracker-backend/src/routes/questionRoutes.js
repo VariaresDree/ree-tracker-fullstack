@@ -11,6 +11,7 @@ const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
+const { openBattleQuestionIds } = require('../services/answerGate');
 const { resolveTopic } = require('../services/topicResolver');
 const { buildVersionSnapshot, createLiveQuestion } = require('../services/reviewService');
 const questionBankCache = require('../services/questionBankCache');
@@ -85,6 +86,17 @@ router.get('/pack-manifest', authMiddleware, async (req, res) => {
     }
 });
 
+/**
+ * These lists carry each question's key (Practice grades on the device), so
+ * they leave out the questions of a battle the caller is still in, as
+ * next-item does (services/answerGate.js): otherwise asking for the battle's
+ * subtopic here would show its key mid-battle.
+ */
+async function withoutOpenBattles(userId, questions) {
+    const open = await openBattleQuestionIds(userId);
+    return open.size ? questions.filter((q) => !open.has(q.id)) : questions;
+}
+
 // 1. FETCH QUESTIONS
 // Stratified random sampling lives in services/questionPool (shared with
 // battle creation) — see that module for the randomization rationale.
@@ -113,13 +125,14 @@ router.get('/', authMiddleware, async (req, res) => {
             });
             return res.status(200).json({
                 success: true,
-                items: questions,
+                items: await withoutOpenBattles(req.user.id, questions),
+                // Paged over the bank, not what's shown, so nothing is skipped.
                 nextOffset: skip + questions.length,
             });
         }
 
         const questions = await samplePool({ subject, subtopic, limit });
-        return res.status(200).json({ success: true, items: questions });
+        return res.status(200).json({ success: true, items: await withoutOpenBattles(req.user.id, questions) });
     } catch (error) {
         logger.error('Question fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to fetch question bank.' });
@@ -358,7 +371,7 @@ router.post('/review', authMiddleware, async (req, res) => {
     try {
         const { subject, limit = 20 } = req.body;
         const questions = await samplePool({ subject, limit });
-        return res.status(200).json({ success: true, items: questions });
+        return res.status(200).json({ success: true, items: await withoutOpenBattles(req.user.id, questions) });
     } catch (error) {
         return res.status(500).json({ error: 'Failed to initialize active recall.' });
     }

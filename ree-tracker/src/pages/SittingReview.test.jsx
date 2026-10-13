@@ -206,13 +206,14 @@ describe('SittingReview — a battle', () => {
     expect(requestRematch).toHaveBeenCalledWith('ABC123');
   });
 
-  it('joins a rematch someone already started instead of asking for another', async () => {
+  it('joins a rematch someone already started (the server hands back theirs, not another)', async () => {
     fetchSittingReview.mockResolvedValue(BATTLE_REVIEW);
     fetchBattleReplay.mockResolvedValue({ ...REPLAY, battle: { ...REPLAY.battle, rematch: { battleId: 'REM456', status: 'WAITING' } } });
+    requestRematch.mockResolvedValue({ battleId: 'REM456', created: false });
     renderAt(BATTLE_PATH);
     fireEvent.click(await screen.findByRole('button', { name: /Join rematch/ }));
     expect(await screen.findByText('at: /battle/REM456')).toBeInTheDocument();
-    expect(requestRematch).not.toHaveBeenCalled();
+    expect(requestRematch).toHaveBeenCalledWith('ABC123');
   });
 
   it('reviews the battle like any sitting when the replay fails to load', async () => {

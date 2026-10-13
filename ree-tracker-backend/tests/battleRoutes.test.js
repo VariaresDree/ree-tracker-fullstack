@@ -284,7 +284,8 @@ describe('POST /api/battles/:id/rematch', () => {
         const made = db.state.battles.get(res.body.battleId);
         expect(made).toMatchObject({ hostId: 'me', status: 'WAITING', rematchOfId: 'OLD001', config: CONFIG, timeLimitSecs: 1800 });
         expect(made.questions).toEqual(POOL);
-        expect(samplePool).toHaveBeenCalledWith({ subject: 'EE', subtopic: undefined, limit: 20 });
+        // The last battle's questions (their key was revealed) are drawn last.
+        expect(samplePool).toHaveBeenCalledWith({ subject: 'EE', subtopic: undefined, limit: 20, avoidIds: QUESTIONS.map((q) => q.id) });
         expect(notifyRoom).toHaveBeenCalledWith('OLD001', 'rematch-ready', { battleId: res.body.battleId, by: { userId: 'me', displayName: 'Rey' } });
         await vi.waitFor(() => expect(sendToUser).toHaveBeenCalledTimes(1));
         expect(sendToUser).toHaveBeenCalledWith('ana', expect.objectContaining({ data: { route: `/battle/${res.body.battleId}` } }));
@@ -300,6 +301,20 @@ describe('POST /api/battles/:id/rematch', () => {
         expect(theirs.body).toEqual({ battleId: first.body.battleId, created: false });
         expect(rematchesOf('OLD001')).toHaveLength(1);
         expect(notifyRoom).toHaveBeenCalledTimes(1);
+    });
+
+    it('a rematch that started without the caller is refused (409), not sent to a lobby that takes no one new', async () => {
+        twoPlayers();
+        db.addUser('third');
+        db.addParticipant('OLD001', 'third', { finishedAt: new Date() });
+        db.addBattle({ id: 'GOING1', hostId: 'ana', rematchOfId: 'OLD001', status: 'IN_PROGRESS', startedAt: new Date() });
+        db.addParticipant('GOING1', 'ana');
+        db.addParticipant('GOING1', 'me');
+        const late = await post('/OLD001/rematch', 'third');
+        expect(late.status).toBe(409);
+        expect(late.body).toMatchObject({ error: 'That rematch has already started.', battleId: 'GOING1' });
+        // One of its players still gets it (a resume).
+        expect((await post('/OLD001/rematch', 'me')).body).toEqual({ battleId: 'GOING1', created: false });
     });
 
     it('when two ask at once, the one whose insert loses gets the winner', async () => {

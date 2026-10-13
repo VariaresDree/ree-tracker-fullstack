@@ -86,12 +86,13 @@ describe('ExamPlanForm — the one editor for the exam date and daily target', (
 
     it('as a first-run step, can also make the study plan, and reports back', async () => {
         const future = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
-        state.stats = { examDate: future, dailyTarget: 50 };
+        state.stats = { examDate: null, dailyTarget: 50 };
         state.dynamicTOS = { EE: ['Machines'], Mathematics: ['Algebra'] };
         state.saveExamConfig.mockResolvedValueOnce({ queued: false });
         const onSaved = vi.fn();
         render(<ExamPlanForm offerPlan submitLabel="Save and continue" onSaved={onSaved} />);
         expect(screen.getByRole('checkbox', { name: /Plan my weeks to the exam/ })).toBeChecked();
+        fireEvent.change(screen.getByLabelText('Exam date'), { target: { value: future } });
         fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
         await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ examDate: future, dailyTarget: 50, planned: true }));
         // heaviest subject first
@@ -102,6 +103,19 @@ describe('ExamPlanForm — the one editor for the exam date and daily target', (
         expect(toast.success).toHaveBeenCalledWith('Exam plan saved, and 42 study tasks added to Progress › Study plan.');
         state.stats = { examDate: '2026-11-20', dailyTarget: 50 };
         delete state.dynamicTOS;
+    });
+
+    it('with an exam date already set, leaves the plan box unticked so a working plan isn\u2019t replaced unasked', async () => {
+        const future = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+        state.stats = { examDate: future, dailyTarget: 50 };
+        state.saveExamConfig.mockResolvedValueOnce({ queued: false });
+        generateStudyPlan.mockClear();
+        render(<ExamPlanForm offerPlan submitLabel="Save and continue" />);
+        expect(screen.getByRole('checkbox', { name: /Plan my weeks to the exam/ })).not.toBeChecked();
+        fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
+        await waitFor(() => expect(state.saveExamConfig).toHaveBeenCalled());
+        expect(generateStudyPlan).not.toHaveBeenCalled();
+        state.stats = { examDate: '2026-11-20', dailyTarget: 50 };
     });
 });
 

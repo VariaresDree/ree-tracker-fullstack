@@ -194,7 +194,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   return (
     <section aria-labelledby="today-heading" className="flex flex-col gap-4">
       <PlacementPrompt status={placement.status} answered={answered} dismissed={placement.dismissed} onDismiss={placement.dismiss} />
-      <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && !placementCard} />
+      <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
 
       <Card elevated glow grain className="p-5 sm:p-6 flex flex-col gap-6">
         <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain">Where you stand, and what to do next</h2>

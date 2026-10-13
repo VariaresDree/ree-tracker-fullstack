@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { difficultyOf, nextLevel, pickNextLocal } from './adaptiveFallback';
 
-const q = (id, irtB, extra = {}) => ({ id, text: `Q ${id}`, irtB, ...extra });
+const q = (id, irtB, extra = {}) => ({ id, text: `Q ${id}`, answer: 'A', irtB, ...extra });
 const first = () => 0;
 
 describe('adaptive fallback picker', () => {
@@ -27,8 +27,8 @@ describe('adaptive fallback picker', () => {
     expect(easier.id).toBe('easy');
   });
 
-  it('never repeats, skips items without text, and says when the pool is spent', () => {
-    const pool = [q('a', 0), { id: 'blank', irtB: 0 }];
+  it('never repeats, skips items without text or a key, and says when the pool is spent', () => {
+    const pool = [q('a', 0), { id: 'blank', irtB: 0 }, q('keyless', 0, { answer: '' })];
     expect(pickNextLocal(pool, { seenIds: ['a'] })).toBeNull();
     expect(pickNextLocal([], {})).toBeNull();
   });

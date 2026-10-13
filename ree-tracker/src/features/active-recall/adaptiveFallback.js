@@ -30,11 +30,12 @@ export function nextLevel(history = [], start = 0) {
 /**
  * The next question: unseen, nearest the current level, a random one of the
  * closest three so a retake doesn't replay the same order. Null when nothing
- * unseen is left.
+ * unseen (and gradable) is left.
  */
 export function pickNextLocal(pool, { seenIds = [], history = [], start = 0, random = Math.random } = {}) {
   const seen = new Set(seenIds);
-  const unseen = (pool || []).filter((q) => q?.id && q.text && !seen.has(q.id));
+  // Only gradable questions: Practice marks the answer on the device.
+  const unseen = (pool || []).filter((q) => q?.id && q.text && q.answer && !seen.has(q.id));
   if (unseen.length === 0) return null;
   const level = nextLevel(history, start);
   const closest = unseen

@@ -25,7 +25,10 @@ export default function ExamPlanForm({ onDirtyChange, onSaved, submitLabel = 'Sa
   const { stats, saveExamConfig, dynamicTOS } = useStore(useShallow((s) => ({ stats: s.stats, saveExamConfig: s.saveExamConfig, dynamicTOS: s.dynamicTOS })));
   const [examDate, setExamDate] = useState(stats?.examDate || '');
   const [dailyTarget, setDailyTarget] = useState(String(stats?.dailyTarget || 50));
-  const [makePlan, setMakePlan] = useState(true);
+  // Ticked for a first exam plan only: someone who already has a date may
+  // have a plan they've been working through, and saving shouldn't replace it
+  // unasked.
+  const [makePlan, setMakePlan] = useState(() => !stats?.examDate);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 

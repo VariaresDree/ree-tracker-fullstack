@@ -63,6 +63,15 @@ describe('usePlacement', () => {
     expect(hook.current.plan.subject).toBe('ESAS');
   });
 
+  it('is settled once a copy shows or the read finishes, not while the first read is out', () => {
+    synced = { value: null, status: 'loading' };
+    expect(renderHook(() => usePlacement({ uid: 'u1', answered: 0 })).result.current.settled).toBe(false);
+    synced = { value: null, status: 'offline' };
+    expect(renderHook(() => usePlacement({ uid: 'u1', answered: 0 })).result.current.settled).toBe(true);
+    synced = { value: { status: 'none' }, status: 'loading' };
+    expect(renderHook(() => usePlacement({ uid: 'u1', answered: 0 })).result.current.settled).toBe(true);
+  });
+
   it('stops asking once an established learner has waved it away, and remembers that per account', () => {
     const { result: hook } = renderHook(() => usePlacement({ uid: 'u1', answered: 80 }));
     expect(useSyncedUserData).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));

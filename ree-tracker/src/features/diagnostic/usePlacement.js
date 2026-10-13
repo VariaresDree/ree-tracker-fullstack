@@ -26,7 +26,7 @@ export function usePlacement({ uid, answered = 0 }) {
   const dismissed = !!uid && (dismissedFor === uid || readDismissed(uid));
   const isNew = answered < NEW_LEARNER_MAX;
 
-  const { value: status } = useSyncedUserData({
+  const { value: status, status: syncStatus } = useSyncedUserData({
     endpoint: '/api/diagnostic/status',
     cacheName: 'placement',
     overlay: NO_WRITES,
@@ -42,5 +42,10 @@ export function usePlacement({ uid, answered = 0 }) {
     setDismissedFor(uid);
   }, [uid]);
 
-  return { status, result, plan: startingPlan(result), dismissed, dismiss, isNew };
+  // Known by now: a copy is on screen, or the read finished either way. Until
+  // then Today holds the cards that depend on it, so the exam-plan card
+  // doesn't flash before the placement prompt that outranks it.
+  const settled = status != null || syncStatus !== 'loading';
+
+  return { status, result, plan: startingPlan(result), dismissed, dismiss, isNew, settled };
 }

@@ -6,7 +6,7 @@ const { plannerTaskCreateSchema, plannerTaskUpdateSchema, plannerGenerateSchema 
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { Prisma } = require('@prisma/client');
-const { todayManila, manilaDateOf, manilaDaySql } = require('../utils/manilaDate');
+const { todayManila, manilaDateOf, manilaDaySql, manilaMidnight } = require('../utils/manilaDate');
 const { normalizeSubject } = require('@ree/shared');
 const { buildStudyPlan, cardTasks, taskProgress } = require('../engine/plan');
 const { loadMistakes } = require('../services/mistakeList');
@@ -19,12 +19,6 @@ const { resolveTopic } = require('../services/topicResolver');
 const PLANNED_TASKS = [{ kind: { not: null } }, { text: { startsWith: '[' } }];
 // A board sitting counts toward a planned mock once it has this many items.
 const MOCK_MIN_ITEMS = 20;
-
-/** UTC instant of Manila midnight `offsetDays` after a YYYY-MM-DD date. */
-const manilaMidnight = (ymd, offsetDays) => {
-    const [y, m, d] = ymd.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d + offsetDays) - 8 * 3600 * 1000);
-};
 
 // Get all planner tasks for user — planned tasks carry their progress, worked
 // out from what the learner actually answered on the task's day (Planner v2:
@@ -62,7 +56,10 @@ router.get('/tasks', authMiddleware, async (req, res) => {
                     select: { createdAt: true },
                 }),
                 // Formula cards rated per day. Only each card's latest rating
-                // is kept, so a day's count is the cards last rated that day.
+                // is kept, so a day's count is the cards last rated that day;
+                // a cards task is ticked off when its day's ratings reach the
+                // target (cardReviewRoutes), so a card rated again later
+                // doesn't take that day's credit back.
                 hasCards
                     ? prisma.cardReview.findMany({
                         where: { userId: req.user.id, lastReviewed: { gte: from, lt: to } },

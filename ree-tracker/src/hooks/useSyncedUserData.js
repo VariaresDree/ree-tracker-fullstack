@@ -27,6 +27,11 @@ import { classifySyncError, SYNC_OUTCOME } from '../services/syncPolicy';
 // name -> { uid, value, at }
 const memory = new Map();
 
+// The default response mapping, at module level: a default written in the
+// parameter list is a new function on every render, which re-created `load`
+// and re-ran the load effect each render (a request loop).
+const IDENTITY = (res) => res;
+
 /** Test seam: forget a list's module-level copy (all lists when no name). */
 export function resetSyncedMemory(name) {
   if (name) memory.delete(name);
@@ -50,7 +55,7 @@ export function resetSyncedMemory(name) {
  * @param {boolean} [options.enabled]  false skips loading (a screen that only needs it sometimes)
  */
 export function useSyncedUserData({
-  endpoint, cacheName, fromResponse = (res) => res, overlay, emptyValue, fetchIfOlderThanMs = 0, enabled = true,
+  endpoint, cacheName, fromResponse = IDENTITY, overlay, emptyValue, fetchIfOlderThanMs = 0, enabled = true,
 }) {
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;

@@ -199,6 +199,17 @@ describe('joining', () => {
         expect((await lifecycle.completionFor('SOCK17')).payload.rematch).toMatchObject({ battleId: 'NEW017' });
     });
 
+    it("holds back the key to a question the player is still answering in another battle", async () => {
+        running('SOCK18', PAST_DEADLINE, { host: { answers: saved({ q1: 'A' }) }, a: { answers: saved({ q1: 'B' }) } });
+        await lifecycle.settleBattle('SOCK18');
+        // The rematch had to repeat q1 (a small pool), and is under way.
+        running('NEW018', 10_000, { host: {}, a: {} });
+        db.state.battles.get('NEW018').questions = [QUESTIONS[0]];
+        const a = connect('a');
+        await a.handlers['join-battle']({ battleId: 'SOCK18' });
+        expect(got(a, 'battle-complete')[0].answerKey).toEqual({ q2: 'B', q3: 'C' });
+    });
+
     it('finishes a battle whose time is up when a player comes back, then shows the results', async () => {
         running('SOCK05', PAST_DEADLINE, { host: { answers: saved({ q1: 'A' }) }, a: { answers: saved({ q2: 'B' }) } });
         const a = connect('a');

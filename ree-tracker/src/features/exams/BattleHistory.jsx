@@ -36,15 +36,10 @@ const overlay = (value) => ({ value, count: 0 });
 const dateOf = (at) => (at ? new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null);
 const signed = (n) => `${n >= 0 ? '+' : '−'}${Math.abs(Math.round(n))}`;
 
-function BattleRow({ item, uid, isOnline, busy, onRematch }) {
-  const navigate = useNavigate();
+function BattleRow({ item, uid, busy, onRematch }) {
   const { battleId, rematch } = item;
   const date = dateOf(item.createdAt);
   const opponents = item.opponents || [];
-  const joinRematch = () => {
-    if (!isOnline) return toast.error('Joining a battle needs a connection. Reconnect and try again.');
-    navigate(`/battle/${rematch.battleId}`);
-  };
 
   return (
     <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[var(--radius-lg)] bg-surface2 border border-border">
@@ -85,7 +80,7 @@ function BattleRow({ item, uid, isOnline, busy, onRematch }) {
           </Button>
         )}
         {rematch?.status === 'WAITING' ? (
-          <Button size="sm" tone="danger" onClick={joinRematch} aria-label={`Join rematch of battle ${battleId}`}>
+          <Button size="sm" tone="danger" loading={busy} disabled={busy} onClick={() => onRematch(battleId)} aria-label={`Join rematch of battle ${battleId}`}>
             Join rematch
           </Button>
         ) : !rematch && (
@@ -144,6 +139,8 @@ export default function BattleHistory({ onHost }) {
     } catch (err) {
       toast.error(err?.message === '[OFFLINE]' ? NEEDS_CONNECTION : (err?.message || "Couldn't start a rematch."));
       setRematching(null);
+      // Its rematch started without you: the row's copy is out of date.
+      if (err?.status === 409) reload();
     }
   };
 
@@ -186,7 +183,6 @@ export default function BattleHistory({ onHost }) {
               key={item.battleId}
               item={item}
               uid={currentUser?.uid}
-              isOnline={isOnline}
               busy={rematching === item.battleId}
               onRematch={startRematch}
             />

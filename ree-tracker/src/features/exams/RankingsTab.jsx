@@ -116,6 +116,18 @@ export default function RankingsTab() {
   // guard stayed true and the effect looped forever (the reported hang).
   const rankingsLoadedRef = useRef(false);
 
+  // Back online after a failed load: the effect below asks again, so show
+  // that instead of the old error until it answers (adjusted while
+  // rendering, the way React suggests for a change in an input).
+  const [wasOnline, setWasOnline] = useState(isOnline);
+  if (wasOnline !== isOnline) {
+    setWasOnline(isOnline);
+    if (isOnline && loadError) {
+      setLoadError(false);
+      setIsLoadingRankings(true);
+    }
+  }
+
   // State is set only in the request's callbacks. Offline, nothing is
   // fetched and the spinner gives way to the offline state (showLoading);
   // when connectivity returns, isOnline flips and this loads for real.

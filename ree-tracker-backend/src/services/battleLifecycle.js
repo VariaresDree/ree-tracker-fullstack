@@ -32,6 +32,7 @@ const telemetryService = require('./telemetryService');
 const examHistory = require('./examHistory');
 const { recomputeRatings } = require('../engine/elo');
 const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitizer');
+const { lockedQuestionIds } = require('./answerGate');
 const {
     mergeSubmitAttempts, computeElapsedSecs, rankParticipants, recount,
     battleTiming, answersToJson, answersFromJson, publicAnswers, fillBlanks,
@@ -711,7 +712,8 @@ function armDeadline(ns, battleId, lobby, now = Date.now()) {
 /**
  * A completed battle's `battle-complete` payload, rebuilt from its outcomes
  * (for a player who comes back after it ended), and the given player's own
- * `battle-graded` ack. Null when it isn't completed. The payload carries the
+ * `battle-graded` ack. The key holds back what that player may not read yet
+ * (answerGate). Null when it isn't completed. The payload carries the
  * battle's rematch, if one was started ({ battleId, status, by }), so a
  * results screen opened later can offer to join it.
  */
@@ -750,11 +752,17 @@ async function completionFor(battleId, userId = null) {
             by: { userId: battle.rematch.hostId, displayName: nameOf.get(battle.rematch.hostId) || fallbackDisplayName(battle.rematch.hostId) },
         }
         : null;
+    // The key leaves out any question the caller is still answering in
+    // another battle (a rematch that had to repeat some of these, say), as
+    // the sitting review and the replay do.
+    const questions = Array.isArray(battle.questions) ? battle.questions : [];
+    const locked = userId ? await lockedQuestionIds(userId, questions.map((q) => q?.id)) : new Set();
+    const open = locked.size ? questions.filter((q) => !locked.has(q?.id)) : questions;
     return {
         payload: {
             results,
-            answerKey: buildAnswerKey(battle.questions),
-            explanationKey: buildExplanationKey(battle.questions),
+            answerKey: buildAnswerKey(open),
+            explanationKey: buildExplanationKey(open),
             rematch,
         },
         graded: mine ? {

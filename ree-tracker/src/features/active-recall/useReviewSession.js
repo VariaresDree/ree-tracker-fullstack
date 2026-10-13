@@ -95,7 +95,9 @@ export const useReviewSession = (currentUser, isOnline) => {
                     recentIds: seenIds,
                 });
                 if (Number.isFinite(ability?.theta)) a.start = ability.theta;
-                if (item && item.text && !seenIds.includes(item.id)) return item;
+                // Only a question that carries its key: Practice grades here,
+                // and one without (an older server) would be ungradable.
+                if (item && item.text && item.answer && !seenIds.includes(item.id)) return item;
             } catch {
                 if (!a.notedOffline) {
                     a.notedOffline = true;
@@ -273,8 +275,11 @@ export const useReviewSession = (currentUser, isOnline) => {
                     // "Practise again" repeats the same set.
                     ? { ...cfg, items: freshData }
                     : cfg.source === 'today-loop'
-                        // Again repeats the same set; the summary links the cards due.
-                        ? { ...cfg, items: freshData, cardsDue: loopCardsDue }
+                        // Again repeats the same questions, without the formula
+                        // cards: each was rated here already, and rating it again
+                        // would schedule it twice in a day. (A loop of cards only
+                        // asks the server again.) The summary links the cards due.
+                        ? { ...cfg, items: freshData.filter((q) => q.kind !== 'card'), cardsDue: loopCardsDue }
                         : cfg;
             setLastSummary(null);
 

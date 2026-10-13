@@ -6,8 +6,9 @@
 //
 // The server samples the questions itself from a pool SPEC: clients never
 // supply the pool (they'd need answer keys to build one, which is exactly the
-// cheating vector this closes). A rematch samples afresh, so it isn't the
-// same questions whose key the last battle revealed.
+// cheating vector this closes). A rematch avoids the last battle's questions,
+// whose key every player saw at the end: they come back only when the rest
+// of the pool can't fill it (a small subtopic), as few as it must.
 
 'use strict';
 
@@ -46,12 +47,14 @@ async function mintBattleId() {
  * Sample the questions for `config` and create the battle, hosted by
  * `hostId`. Null when the pool has nothing for that configuration. A taken
  * id (or, for a rematch, a battle that already has one) rejects with the
- * database's unique-constraint error (P2002), as before.
+ * database's unique-constraint error (P2002), as before. `avoidIds` (a
+ * rematch: the last battle's questions) are drawn only to fill a short pool.
  */
-async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOfId = null }) {
+async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOfId = null, avoidIds = null }) {
+    const avoid = avoidIds?.length ? { avoidIds } : {};
     const pool = config.mode === 'blended'
-        ? await questionPool.sampleBlendedPool(100)
-        : await questionPool.samplePool({ subject: config.subject, subtopic: config.subtopic, limit: config.count });
+        ? await questionPool.sampleBlendedPool(100, avoid)
+        : await questionPool.samplePool({ subject: config.subject, subtopic: config.subtopic, limit: config.count, ...avoid });
 
     if (pool.length === 0) return null;
 

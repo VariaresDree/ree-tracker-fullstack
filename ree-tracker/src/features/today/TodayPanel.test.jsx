@@ -47,7 +47,7 @@ const renderPanel = (props) => render(
 
 beforeEach(() => {
   lastState = null;
-  placement = { status: { status: 'completed' }, result: null, plan: null, dismissed: false, dismiss: vi.fn(), isNew: false };
+  placement = { status: { status: 'completed' }, result: null, plan: null, dismissed: false, dismiss: vi.fn(), isNew: false, settled: true };
   plannerItems = [];
   srs = { due: 6, overdue: 0 };
   forecast = {
@@ -202,6 +202,12 @@ describe('TodayPanel', () => {
     expect(screen.getByText('first-run-card')).toBeInTheDocument();
     second.unmount();
     renderPanel({ readiness: null, stats: { dailyTarget: 50, examDate: '2027-04-10' }, answered: 0 });
+    expect(screen.queryByText('first-run-card')).not.toBeInTheDocument();
+  });
+
+  it('holds the first-run card until the placement status is known, so it never flashes before the prompt', () => {
+    placement = { ...placement, status: null, isNew: true, settled: false };
+    renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 0 });
     expect(screen.queryByText('first-run-card')).not.toBeInTheDocument();
   });
 });

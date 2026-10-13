@@ -17,6 +17,13 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // A const read above its declaration in the same scope throws on the
+      // first render (a hook reading state it declares further down took
+      // the Question bank down). References from inner functions run later,
+      // so they stay allowed.
+      'no-use-before-define': ['error', { functions: false, classes: false, variables: false }],
+    },
   },
   {
     // Build config, scripts and tests run in Node (vitest), not the browser:

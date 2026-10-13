@@ -218,9 +218,9 @@ async function bootstrap() {
         },
     }));
 
-    // RATE_LIMIT_GLOBAL_MAX overrides the per-IP budget: the signed-in
-    // Playwright run sends every screen's requests from one address and spent
-    // the default 300 within ten specs (playwright.authed.config.ts).
+    // RATE_LIMIT_GLOBAL_MAX overrides the per-IP budget (default 300), for a
+    // deployment whose learners share one address (a campus network behind
+    // NAT) without a code change. See docs/NEXT_STEPS.md.
     const globalMax = Number(process.env.RATE_LIMIT_GLOBAL_MAX) > 0 ? Number(process.env.RATE_LIMIT_GLOBAL_MAX) : 300;
     const globalLimiter = rateLimit({
         windowMs: 15 * 60 * 1000,

@@ -20,15 +20,15 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
   const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [isFetchingVault, setIsFetchingVault] = useState(true);
-  // The filters the grid's rows were loaded for. A change of filters shows
-  // the loader until its rows arrive, without a reset in the effect.
-  const queryKey = `${filterSubject}|${filterSubtopic}|${sortOrder}`;
-  const [loadedKey, setLoadedKey] = useState(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [editingQ, setEditingQ] = useState(null);
   // Admin review defaults to newest-ingested first. 'oldest' and 'random' are
   // also available via the grid's sort toggle.
   const [sortOrder, setSortOrder] = useState('recent');
+  // The filters the grid's rows were loaded for. A change of filters shows
+  // the loader until its rows arrive, without a reset in the effect.
+  const queryKey = `${filterSubject}|${filterSubtopic}|${sortOrder}`;
+  const [loadedKey, setLoadedKey] = useState(null);
 
   const applyFirstPage = ([stats, meta, qData], key) => {
     setServerStats(stats);
@@ -76,7 +76,16 @@ export const useVaultGrid = (filterSubject, filterSubtopic) => {
     const key = `${filterSubject}|${filterSubtopic}|${sortOrder}`;
     loadFirstPage(filterSubject, filterSubtopic, sortOrder).then(
       (page) => { if (live) { applyFirstPage(page, key); setIsFetchingVault(false); } },
-      (error) => { if (live) { toast.error(`Couldn't load questions: ${error.message}`); setLoadedKey(key); setIsFetchingVault(false); } },
+      (error) => {
+        if (!live) return;
+        toast.error(`Couldn't load questions: ${error.message}`);
+        // The previous filters' rows would read as these filters' results.
+        setQuestions([]);
+        setLastDoc(null);
+        setHasMore(false);
+        setLoadedKey(key);
+        setIsFetchingVault(false);
+      },
     );
     return () => { live = false; };
   }, [filterSubject, filterSubtopic, sortOrder]);

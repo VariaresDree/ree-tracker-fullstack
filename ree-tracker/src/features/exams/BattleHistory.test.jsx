@@ -114,9 +114,23 @@ describe('BattleHistory', () => {
     await screen.findByText('HIS001');
     expect(within(rowFor('HIS002')).queryByRole('button')).not.toBeInTheDocument();
     expect(within(rowFor('HIS001')).queryByRole('button', { name: /^Rematch/ })).not.toBeInTheDocument();
+    // The server hands back that lobby (one battle, one rematch).
+    requestRematch.mockResolvedValue({ battleId: 'REM001', created: false });
     fireEvent.click(within(rowFor('HIS001')).getByRole('button', { name: 'Join rematch of battle HIS001' }));
     expect(await screen.findByText('at: /battle/REM001')).toBeInTheDocument();
-    expect(requestRematch).not.toHaveBeenCalled();
+    expect(requestRematch).toHaveBeenCalledWith('HIS001');
+  });
+
+  it('says so, and refreshes the list, when the rematch started without you since it was listed', async () => {
+    apiRequest.mockResolvedValue({ items: [item('HIS001', { rematch: { battleId: 'REM001', status: 'WAITING' } })], nextBefore: null });
+    requestRematch.mockRejectedValue(Object.assign(new Error('That rematch has already started.'), { status: 409 }));
+    renderIt();
+    await screen.findByText('HIS001');
+    const reads = apiRequest.mock.calls.length;
+    fireEvent.click(within(rowFor('HIS001')).getByRole('button', { name: 'Join rematch of battle HIS001' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('That rematch has already started.'));
+    await waitFor(() => expect(apiRequest.mock.calls.length).toBeGreaterThan(reads));
+    expect(screen.queryByText(/^at: \/battle/)).not.toBeInTheDocument();
   });
 
   it('shows more with the cursor the server returned, until there is nothing older', async () => {

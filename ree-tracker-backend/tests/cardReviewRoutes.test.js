@@ -41,6 +41,10 @@ beforeEach(() => {
         rows.set(where.userId_cardId.cardId, r);
         return r;
     });
+    // No study plan unless a test says so.
+    vi.spyOn(prisma.plannerTask, 'findFirst').mockResolvedValue(null);
+    vi.spyOn(prisma.plannerTask, 'updateMany').mockResolvedValue({ count: 1 });
+    vi.spyOn(prisma.cardReview, 'count').mockImplementation(async () => rows.size);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -98,6 +102,26 @@ describe('POST /api/user/card-reviews/:cardId', () => {
         expect((await rate('c1', { rating: 'meh', reviewId: 'r-00000001' })).status).toBe(400);
         prisma.cardReview.create.mockRejectedValue(Object.assign(new Error('fk'), { code: 'P2003' }));
         expect((await rate('gone', { rating: 'good', reviewId: 'r-00000003' })).status).toBe(404);
+    });
+});
+
+describe("the study plan's formula-cards task", () => {
+    const { todayManila } = require('../src/utils/manilaDate');
+
+    it("is ticked off once the day's ratings reach its target, so a later re-rating can't take it back", async () => {
+        prisma.plannerTask.findFirst.mockResolvedValue({ id: 'task-1', targetCount: 2 });
+        await rate('c1', { rating: 'good', reviewId: 'r-00000001' });
+        expect(prisma.plannerTask.findFirst.mock.calls[0][0].where).toEqual({ userId: UID, kind: 'cards', dueDate: todayManila(), completed: false });
+        expect(prisma.plannerTask.updateMany).not.toHaveBeenCalled(); // 1 of 2
+        await rate('c2', { rating: 'hard', reviewId: 'r-00000002' });
+        expect(prisma.plannerTask.updateMany).toHaveBeenCalledWith({ where: { id: 'task-1', userId: UID, completed: false }, data: { completed: true } });
+    });
+
+    it('never costs the rating itself', async () => {
+        prisma.plannerTask.findFirst.mockRejectedValue(new Error('db down'));
+        const res = await rate('c1', { rating: 'good', reviewId: 'r-00000001' });
+        expect(res.status).toBe(200);
+        expect(res.body.item).toMatchObject({ interval: 1 });
     });
 });
 
