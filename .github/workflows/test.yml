@@ -138,6 +138,58 @@ jobs:
       - name: Test
         run: npm run test --workspace=ree-tracker-backend
 
+  backend-db:
+    name: Backend (real Postgres)
+    runs-on: ubuntu-latest
+    # The backend suite above mocks Prisma, so a query shape Prisma rejects, a
+    # relation filter that names the wrong field, or a migration that doesn't
+    # match schema.prisma only showed up on Render. This job applies every
+    # migration to an empty Postgres the way the Render build does, checks the
+    # result matches schema.prisma, then runs tests/integration against it.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ree
+          POSTGRES_PASSWORD: ree
+          POSTGRES_DB: ree_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ree -d ree_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ree:ree@localhost:5432/ree_ci
+    defaults:
+      run:
+        working-directory: ree-tracker-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+        working-directory: .
+
+      - name: Apply migrations (prisma migrate deploy)
+        run: npx prisma migrate deploy
+
+      # Exit code 2 means the migrated database and schema.prisma differ: a
+      # schema change without its migration, or a hand-edited migration.
+      - name: Migrations match schema.prisma
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+
+      - name: Integration tests
+        run: npm run test:db
+
   lighthouse:
     name: Lighthouse CI (entry-path budgets)
     runs-on: ubuntu-latest

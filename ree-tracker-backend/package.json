@@ -9,6 +9,7 @@
     "dev": "nodemon server.js",
     "pretest": "prisma generate",
     "test": "vitest run",
+    "test:db": "vitest run --config vitest.integration.config.js",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "wipe:test-data": "node scripts/wipe-test-data.js --confirm=WIPE",
@@ -66,6 +67,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
+    "socket.io-client": "^4.8.3",
     "supertest": "^7.2.2",
     "vitest": "^4.1.9"
   }
