@@ -19,6 +19,7 @@ const readiness = {
     db: 'pending',
     firebase: 'pending',
     gemini: 'pending',
+    ai: 'pending',
     startedAt: Date.now(),
 };
 
@@ -28,11 +29,17 @@ function checkEnv() {
         warnings.push('DATABASE_URL is not set — DB-backed routes will return 503.');
         readiness.db = 'unconfigured';
     }
-    if (!process.env.GEMINI_API_KEY) {
-        warnings.push('GEMINI_API_KEY is not set — /api/ai/generate will return 503.');
-        readiness.gemini = 'unconfigured';
-    } else {
-        readiness.gemini = 'ok';
+    // AI providers (config/aiModels). Any one key is enough to serve every
+    // text feature; GEMINI_API_KEY is the one that reads images.
+    const { PROVIDERS, isProviderConfigured } = require('./src/config/aiModels');
+    const aiProviders = Object.keys(PROVIDERS).filter((p) => isProviderConfigured(p));
+    readiness.gemini = process.env.GEMINI_API_KEY ? 'ok' : 'unconfigured';
+    readiness.ai = aiProviders.length ? 'ok' : 'unconfigured';
+    readiness.aiProviders = aiProviders;
+    if (!aiProviders.length) {
+        warnings.push('No AI provider key is set (GROQ_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY or GEMINI_API_KEY) — /api/ai/generate will return 503.');
+    } else if (!process.env.GROQ_API_KEY && !process.env.CEREBRAS_API_KEY) {
+        warnings.push('Neither GROQ_API_KEY nor CEREBRAS_API_KEY is set — AI features run on Gemini only; set one for the fast open models.');
     }
     if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
         warnings.push('FRONTEND_URL is not set in production — CORS will accept ANY origin. Set it to your Vercel URL.');
@@ -220,16 +227,21 @@ async function bootstrap() {
     app.use(globalLimiter);
 
     // Keyed on the caller's identity, not their IP. /api/ai/generate is the only
-    // endpoint that spends money (a shared GEMINI_API_KEY, up to MODEL_TIERS
-    // sequential attempts at a 45s timeout each) and it had the weakest keying:
+    // endpoint that spends money (shared provider keys, several fallback
+    // attempts per request) and it had the weakest keying:
     // everyone behind one campus or mobile-carrier NAT shared a 10/min budget,
     // while a single user on a rotating IPv6 prefix bypassed it entirely.
+    const { isAdminUser } = require('./src/middlewares/roleMiddleware');
     const aiLimiter = rateLimit({
         windowMs: 60 * 1000,
-        max: 10,
         standardHeaders: true,
         legacyHeaders: false,
         keyGenerator: (req, res) => req.user?.id || req.headers.authorization || ipKeyGenerator(req, res),
+        // Admins generate in parallel batches (a 30-question run with the
+        // answer check is ~12 requests), so they get a larger budget. The
+        // status read is free and polled, so it doesn't count.
+        limit: async (req) => (await isAdminUser(req.user?.id).catch(() => false) ? 60 : 10),
+        skip: (req) => req.method === 'GET',
         message: { error: 'AI rate limit exceeded. Try again in a minute.' },
     });
 
@@ -321,6 +333,8 @@ async function bootstrap() {
             db: readiness.db,
             firebase: readiness.firebase,
             gemini: readiness.gemini,
+            ai: readiness.ai,
+            aiProviders: readiness.aiProviders,
             uptimeSec: Math.floor((Date.now() - readiness.startedAt) / 1000),
         };
         // Live-probe the DB if it was previously down so it can self-heal.
@@ -329,7 +343,7 @@ async function bootstrap() {
             catch { /* keep prior state */ }
         }
         const allGreen = report.db === 'ok' && report.firebase === 'ok'
-            && (report.gemini === 'ok' || report.gemini === 'unconfigured');
+            && (report.ai === 'ok' || report.ai === 'unconfigured');
         res.status(allGreen ? 200 : 503).json(report);
     });
 
@@ -378,7 +392,7 @@ async function bootstrap() {
     const PORT = process.env.PORT || 5000;
     httpServer.listen(PORT, () => {
         logger.info(`Assessment Engine initialized on port ${PORT}`);
-        console.log(`[BOOT] env=${readiness.db === 'ok' ? 'ok' : 'degraded'} db=${readiness.db} firebase=${readiness.firebase} gemini=${readiness.gemini} port=${PORT}`);
+        console.log(`[BOOT] env=${readiness.db === 'ok' ? 'ok' : 'degraded'} db=${readiness.db} firebase=${readiness.firebase} ai=${(readiness.aiProviders || []).join('+') || 'none'} port=${PORT}`);
     });
 
     const shutdown = async (signal) => {

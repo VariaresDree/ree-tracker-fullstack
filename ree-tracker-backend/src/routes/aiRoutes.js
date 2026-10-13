@@ -1,135 +1,95 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const { GoogleGenAI } = require('@google/genai');
+const { isAdminUser, requireAdmin } = require('../middlewares/roleMiddleware');
 const logger = require('../utils/logger');
 const { validate } = require('../middlewares/validate');
 const { aiGenerateSchema } = require('../schemas/aiSchemas');
-// Model tier list now lives in config/aiModels so the request schema can
-// allowlist against the same source without a circular import.
-const { MODEL_TIERS } = require('../config/aiModels');
+const { TASKS, MODEL_TIERS, chainFor, isProviderConfigured } = require('../config/aiModels');
+const { runTask, status, AiUnavailableError } = require('../services/ai/aiRouter');
+const { callModel, classifyError } = require('../services/ai/providers');
+const health = require('../services/ai/aiHealth');
 
-// Real question generation (5-10 items with LaTeX + validation rules) can
-// take 15-40s — the old 10s ceiling timed out healthy requests and marched
-// the fallback chain to exhaustion.
-const PER_MODEL_TIMEOUT_MS = Number(process.env.PER_MODEL_TIMEOUT_MS) || 45_000;
-
-// Tiers that returned 404 are skipped for DEAD_TIER_TTL_MS, then retried.
-// Previously this Set held forever — so a single transient 404 (rolling Google
-// availability) permanently blacklisted a model in-memory, and over time every
-// tier was marked dead, returning 502 for every AI request until backend
-// restart. TTL eviction lets the route recover without operator intervention.
-const DEAD_TIER_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const deadTiers = new Map(); // modelId -> deadAt timestamp
-
-const isDead = (modelId) => {
-    const ts = deadTiers.get(modelId);
-    if (!ts) return false;
-    if (Date.now() - ts > DEAD_TIER_TTL_MS) {
-        deadTiers.delete(modelId);
-        return false;
-    }
-    return true;
-};
-
-// Expose a Set-shaped view for the existing model-fallback test that asserts
-// `aiRoutes.deadTiers instanceof Set`. The Map is the internal storage; the
-// shimmed Set wraps `keys()` so consumers can still iterate.
-const deadTiersView = new Set();
-const refreshDeadTiersView = () => {
-    deadTiersView.clear();
-    for (const k of deadTiers.keys()) deadTiersView.add(k);
-    return deadTiersView;
-};
-
-let _ai = null;
-function getAI() {
-    if (!process.env.GEMINI_API_KEY) return null;
-    if (!_ai) _ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    return _ai;
-}
-
-function withTimeout(promise, ms) {
-    return new Promise((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error(`model timeout after ${ms}ms`)), ms);
-        promise.then(
-            (v) => { clearTimeout(t); resolve(v); },
-            (e) => { clearTimeout(t); reject(e); },
-        );
-    });
-}
-
-function classifyError(err) {
-    const msg = (err?.message || '').toLowerCase();
-    if (msg.includes('not found') || msg.includes('404')) return 'not_found';
-    if (msg.includes('429')) return 'rate_limited';
-    if (msg.includes('503') || msg.includes('unavailable')) return 'unavailable';
-    if (msg.includes('timeout')) return 'timeout';
-    return 'other';
-}
-
+// POST /api/ai/generate { task, contents, system?, json?, config? }
+// The task picks the model chain; see config/aiModels.
 router.post('/generate', authMiddleware, validate(aiGenerateSchema), async (req, res) => {
-    const ai = getAI();
-    if (!ai) {
-        logger.warn('AI generate called but GEMINI_API_KEY is missing');
-        return res.status(503).json({ error: 'AI temporarily unavailable.' });
+    const { task = 'general', contents, system, json, config = {} } = req.body;
+
+    // Admin tasks spend the strongest models; only the Admin area sends them.
+    if (TASKS[task]?.audience === 'admin' && !(await isAdminUser(req.user?.id).catch(() => false))) {
+        return res.status(403).json({ error: 'Admin clearance required for this AI feature.' });
     }
 
     try {
-        const { model, contents, config } = req.body;
-        const requested = model ? [model] : MODEL_TIERS;
-        const modelsToTry = requested.filter((m) => !isDead(m));
-        const tried = [];
-        let lastError = null;
-
-        for (const modelId of modelsToTry) {
-            const startedAt = Date.now();
-            try {
-                const response = await withTimeout(
-                    ai.models.generateContent({ model: modelId, contents, config }),
-                    PER_MODEL_TIMEOUT_MS,
-                );
-                const latencyMs = Date.now() - startedAt;
-                logger.info('AI model success', { model: modelId, latencyMs });
-                tried.push({ model: modelId, status: 'ok', latencyMs });
-                return res.status(200).json({ text: response.text, model: modelId, tried });
-            } catch (error) {
-                const latencyMs = Date.now() - startedAt;
-                const kind = classifyError(error);
-                lastError = error;
-                tried.push({ model: modelId, status: kind, latencyMs, error: error.message });
-                logger.warn('AI model fallback', { model: modelId, kind, latencyMs, error: error.message });
-
-                if (kind === 'not_found') {
-                    // Mark dead with a TTL — auto-recovers after 5 minutes so a
-                    // transient 404 doesn't permanently blacklist the model.
-                    deadTiers.set(modelId, Date.now());
-                }
-                // For all other classes, continue to the next tier immediately.
-            }
-        }
-
-        logger.error('AI generation exhausted all tiers', {
-            tried,
-            deadTiers: Array.from(deadTiers.keys()),
-            lastError: lastError?.message,
-        });
-        return res.status(502).json({
-            error: 'AI service is temporarily unavailable — try again in a minute.',
-            triedModels: tried,
-        });
+        const result = await runTask({
+            task,
+            contents,
+            system,
+            json,
+            maxTokens: config.maxOutputTokens,
+            temperature: config.temperature,
+        }, { logger });
+        return res.status(200).json(result);
     } catch (error) {
+        if (error instanceof AiUnavailableError) {
+            if (error.reason === 'unconfigured') {
+                logger.warn('AI generate called but no provider is configured', { task });
+                return res.status(503).json({ error: 'AI is not set up on the server yet.', code: 'AI_UNCONFIGURED' });
+            }
+            logger.error('AI generation exhausted its chain', { task, tried: error.tried });
+            return res.status(502).json({
+                error: 'AI is unavailable right now. Every model for this feature failed or timed out; try again in a minute.',
+                code: 'AI_EXHAUSTED',
+                triedModels: error.tried,
+            });
+        }
         logger.error('AI generation failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'AI generation failed on the server.' });
     }
 });
 
+// GET /api/ai/status: whether each AI feature is ok, slow, on backup or down.
+// Admins also get each model in the chain, its speed and its last error.
+router.get('/status', authMiddleware, async (req, res) => {
+    const detailed = await isAdminUser(req.user?.id).catch(() => false);
+    res.set('Cache-Control', 'private, max-age=15');
+    res.json(status({ detailed }));
+});
+
+// POST /api/ai/status/probe (admin): one tiny request to every configured
+// model, so the panel shows real speeds before anyone waits on a real request.
+const PROBE_TIMEOUT_MS = 20_000;
+router.post('/status/probe', authMiddleware, requireAdmin, async (req, res) => {
+    const ids = new Map();
+    for (const task of Object.keys(TASKS)) {
+        for (const e of chainFor(task)) {
+            if (isProviderConfigured(e.provider) && !ids.has(e.id)) ids.set(e.id, e);
+        }
+    }
+    const results = await Promise.all([...ids.values()].map(async (e) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+        const t0 = Date.now();
+        try {
+            await callModel({
+                provider: e.provider, model: e.model,
+                contents: 'Reply with the single word: ready',
+                maxTokens: 256, temperature: 0, reasoningEffort: 'low', signal: controller.signal,
+            });
+            const latencyMs = Date.now() - t0;
+            health.record(e.id, { ok: true, latencyMs });
+            return { id: e.id, ok: true, latencyMs };
+        } catch (error) {
+            const latencyMs = Date.now() - t0;
+            const kind = classifyError(error);
+            health.record(e.id, { ok: false, kind, latencyMs, error: error.message });
+            return { id: e.id, ok: false, kind, latencyMs, error: String(error.message).slice(0, 200) };
+        } finally {
+            clearTimeout(timer);
+        }
+    }));
+    res.json({ results, status: status({ detailed: true }) });
+});
+
 module.exports = router;
 module.exports.MODEL_TIERS = MODEL_TIERS;
-// Set-shaped view preserved for the existing modelFallback test which checks
-// `deadTiers instanceof Set`. Mutate via the internal Map; the view is a
-// snapshot refreshed on demand.
-module.exports.deadTiers = refreshDeadTiersView();
-Object.defineProperty(module.exports, 'deadTiers', {
-    get: refreshDeadTiersView,
-});

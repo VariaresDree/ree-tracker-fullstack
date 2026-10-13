@@ -84,6 +84,8 @@ const RULES = [
       why: 'AWS access key id.' },
     { id: 'github-token', re: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{22,}/g,
       verdict: () => true, why: 'GitHub personal access token.' },
+    { id: 'ai-provider-key', re: /\bgsk_[A-Za-z0-9]{40,}\b|\bcsk-[A-Za-z0-9]{40,}\b|\bsk-or-v1-[A-Za-z0-9]{40,}\b/g,
+      verdict: () => true, why: 'Groq, Cerebras or OpenRouter API key. Set it on the server instead.' },
     { id: 'slack-token', re: /\bxox[baprs]-[A-Za-z0-9-]{10,}/g, verdict: () => true,
       why: 'Slack token.' },
     {
