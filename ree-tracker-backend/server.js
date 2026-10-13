@@ -37,9 +37,19 @@ function checkEnv() {
     if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
         warnings.push('FRONTEND_URL is not set in production — CORS will accept ANY origin. Set it to your Vercel URL.');
     }
-    const hasFirebaseFile = fs.existsSync(FIREBASE_JSON_PATH);
-    const hasFirebaseEnv = FIREBASE_ENV_KEYS.every((k) => !!process.env[k]);
-    if (!hasFirebaseFile && !hasFirebaseEnv) {
+    // The Firebase Auth emulator (the authed Playwright run) accepts UNSIGNED
+    // tokens, and firebase-admin switches to it whenever this variable is set,
+    // whatever credential it was given. Production never honours it.
+    if (process.env.FIREBASE_AUTH_EMULATOR_HOST && process.env.NODE_ENV === 'production') {
+        console.error('[BOOT] FIREBASE_AUTH_EMULATOR_HOST is set in production; ignoring it.');
+        delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    }
+    const useAuthEmulator = !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    const hasFirebaseFile = !useAuthEmulator && fs.existsSync(FIREBASE_JSON_PATH);
+    const hasFirebaseEnv = !useAuthEmulator && FIREBASE_ENV_KEYS.every((k) => !!process.env[k]);
+    if (useAuthEmulator) {
+        warnings.push(`Using the Firebase Auth emulator at ${process.env.FIREBASE_AUTH_EMULATOR_HOST} (tests only).`);
+    } else if (!hasFirebaseFile && !hasFirebaseEnv) {
         warnings.push('Firebase credentials missing — authenticated routes will return 503.');
         readiness.firebase = 'unconfigured';
     }
@@ -48,12 +58,16 @@ function checkEnv() {
         warnings.forEach((w) => console.warn(`  - ${w}`));
         console.warn('Server will still start. Set the missing variables to enable the affected features.\n');
     }
-    return { hasFirebaseFile, hasFirebaseEnv };
+    return { hasFirebaseFile, hasFirebaseEnv, useAuthEmulator };
 }
 
-function initFirebase({ hasFirebaseFile, hasFirebaseEnv }) {
+function initFirebase({ hasFirebaseFile, hasFirebaseEnv, useAuthEmulator }) {
     try {
-        if (hasFirebaseFile) {
+        if (useAuthEmulator) {
+            // A demo-* project id needs no credential against the emulator.
+            initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'demo-ree' });
+            readiness.firebase = 'ok';
+        } else if (hasFirebaseFile) {
             initializeApp({ credential: cert(require(FIREBASE_JSON_PATH)) });
             readiness.firebase = 'ok';
         } else if (hasFirebaseEnv) {

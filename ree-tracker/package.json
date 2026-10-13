@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
+    "e2e:authed": "playwright test --config playwright.authed.config.ts",
     "cap:sync": "npm run build && cap sync android",
     "cap:open": "cap open android"
   },

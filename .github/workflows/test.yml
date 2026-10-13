@@ -190,6 +190,69 @@ jobs:
       - name: Integration tests
         run: npm run test:db
 
+  e2e-authed:
+    name: E2E (signed in)
+    runs-on: ubuntu-latest
+    # Signed-in flows in a real browser: the Firebase Auth emulator (a demo-*
+    # project, no credentials), the real backend on this job's Postgres, and the
+    # Vite dev server (ree-tracker/playwright.authed.config.ts starts all three).
+    # The specs also run axe on the signed-in screens, which CI could not reach
+    # before: only the login page was testable.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ree
+          POSTGRES_PASSWORD: ree
+          POSTGRES_DB: ree_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ree -d ree_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ree:ree@localhost:5432/ree_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # A pinned JDK for the Firebase emulator, rather than whatever the image ships.
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install workspace
+        run: npm ci --no-audit --no-fund
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+        working-directory: ree-tracker-backend
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: ree-tracker
+
+      - name: Signed-in specs
+        run: npm run e2e:authed --workspace=ree-tracker
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-authed
+          path: ree-tracker/playwright-report-authed
+          retention-days: 7
+
   lighthouse:
     name: Lighthouse CI (entry-path budgets)
     runs-on: ubuntu-latest

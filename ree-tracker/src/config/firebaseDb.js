@@ -1,7 +1,7 @@
 // src/config/firebaseDb.js
 import { initializeApp } from "firebase/app";
 import { getStorage } from "firebase/storage"; 
-import { getAuth } from "firebase/auth";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'missing',
@@ -16,3 +16,10 @@ const app = initializeApp(firebaseConfig);
 
 export const storage = getStorage(app);
 export const auth = getAuth(app);
+
+// The authed Playwright run signs in against the Firebase Auth emulator
+// (playwright.authed.config.ts). Dev server only: a production build never
+// reads this, so it can't be pointed at an emulator by an env var.
+if (import.meta.env.DEV && import.meta.env.VITE_FIREBASE_AUTH_EMULATOR) {
+    connectAuthEmulator(auth, import.meta.env.VITE_FIREBASE_AUTH_EMULATOR, { disableWarnings: true });
+}
