@@ -6,6 +6,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { todayManila } from '../../utils/manilaDate';
 
+vi.mock('../analytics/useDeepAnalytics', () => ({ useDeepAnalytics: () => ({ data: null, status: 'ready' }) }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 const api = { apiRequest: vi.fn(), generateStudyPlan: vi.fn(), clearStudyPlan: vi.fn() };
 vi.mock('../../services/dbQueries', () => ({

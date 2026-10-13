@@ -74,6 +74,9 @@ export const useReviewSession = (currentUser, isOnline) => {
     // subject, the next pick fetched ahead, and the on-device pool once the
     // server can't be reached.
     const adaptiveRef = useRef(null);
+    // Formula cards rated in this session (Today's loop): counted for the
+    // summary, never recorded as answers.
+    const cardsRatedRef = useRef(0);
 
     // The adaptive set's next question: the server's pick (by ability
     // estimate, POST /api/exams/next-item), or the device's once a request
@@ -153,12 +156,15 @@ export const useReviewSession = (currentUser, isOnline) => {
             } else if (cfg.source === 'today-loop') {
                 // Due reviews and open mistakes, already in the server's
                 // board-weight order (kept as is below, not resampled).
+                // A formula card (kind 'card') has no question text: it is
+                // rated in place (LoopCardStep).
+                const isStep = (q) => q?.id && (q.text || (q.kind === 'card' && q.card));
                 if (Array.isArray(target.items) && target.items.length > 0) {
-                    freshData = target.items.filter((q) => q?.id && q.text);
+                    freshData = target.items.filter(isStep);
                 } else {
                     if (!isOnline) throw new Error("Today's loop needs a connection.");
                     const loop = await fetchTodayLoop();
-                    freshData = loop?.items || [];
+                    freshData = (loop?.items || []).filter(isStep);
                     loopCardsDue = loop?.cardsDue || 0;
                 }
                 if (freshData.length === 0) throw new Error("Nothing is due and no mistakes are open. You're caught up.");
@@ -258,6 +264,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             adaptiveRef.current = adaptive;
 
             telemetryBatchRef.current = [];
+            cardsRatedRef.current = 0;
             endingRef.current = false;
             startTimeRef.current = Date.now();
             sessionStartRef.current = Date.now();
@@ -331,6 +338,15 @@ export const useReviewSession = (currentUser, isOnline) => {
             isCorrect, confidenceLevel: session.confidence, timeSpentMs,
         });
         prefetchAdaptive(session.questions);
+    };
+
+    // A formula card in Today's loop was rated (LoopCardStep sends the
+    // rating). It is not an answer: no attempt, no score, nothing toward
+    // ability or today's target.
+    const markCardRated = () => {
+        if (session.isAnswered) return;
+        cardsRatedRef.current += 1;
+        setSession((prev) => ({ ...prev, isAnswered: true }));
     };
 
     const handleFlashcardReveal = () => setSession(prev => ({ ...prev, isFlipped: true }));
@@ -426,13 +442,20 @@ export const useReviewSession = (currentUser, isOnline) => {
         setIsSubmitting(true);
 
         const hasBatch = telemetryBatchRef.current.length > 0;
+        const cardsRated = cardsRatedRef.current;
 
         if (!hasBatch) {
             // Nothing answered — just tear down. Still call endStoreSession to
             // clear the session pointer so the next start gets a fresh id.
             await endStoreSession();
             setIsSubmitting(false);
-            setLastSummary(null);
+            // Only formula cards rated (a loop of cards): the summary says so.
+            setLastSummary(cardsRated > 0 ? {
+                total: 0, correct: 0, accuracy: 0, avgSecs: null,
+                durationSecs: Math.round((Date.now() - sessionStartRef.current) / 1000),
+                byTopic: [], weakest: null, confidentMisses: 0, luckyGuesses: 0, missed: [], missedCount: 0,
+                cardsRated, config: sessionConfigRef.current,
+            } : null);
             setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
             return;
         }
@@ -443,7 +466,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             session.questions,
             (Date.now() - sessionStartRef.current) / 1000,
         );
-        setLastSummary(recap ? { ...recap, config: sessionConfigRef.current } : null);
+        setLastSummary(recap ? { ...recap, cardsRated, config: sessionConfigRef.current } : null);
 
         const toastId = toast.loading("Saving your session…");
 
@@ -594,7 +617,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         aiLoading: activeQ ? ai.isLoading(activeQ) : false,
         config, setConfig, session, setSession, elapsedTime, bookmarks,
         startSession, endSession, loadNextQuestion, 
-        handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
+        handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
         toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
         lastSummary, clearSummary: () => setLastSummary(null),
     };

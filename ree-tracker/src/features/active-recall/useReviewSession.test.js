@@ -344,3 +344,30 @@ describe('adaptive set', () => {
     expect(result.current.session.isActive).toBe(false);
   });
 });
+
+describe("formula cards in today's loop", () => {
+  const cardItem = (id) => ({ id: `card:${id}`, kind: 'card', subject: 'EE', card: { id, name: `Card ${id}` } });
+
+  it('keeps a card step, rates it without recording an answer, and the summary counts it', async () => {
+    const { result } = setup();
+    await act(() => result.current.startSession(todayLoopPreset({ items: [q('e1', 'EE', 'Machines'), cardItem('c1')], cardsDue: 3 })));
+    expect(result.current.session.questions.map((x) => x.id)).toEqual(['e1', 'card:c1']);
+    act(() => result.current.setSession((st) => ({ ...st, confidence: 'HIGH' })));
+    act(() => result.current.handleAnswerSelection('A'));
+    act(() => result.current.loadNextQuestion());
+    engine.recordAttempt.mockClear();
+    act(() => result.current.markCardRated());
+    expect(result.current.session.isAnswered).toBe(true);
+    expect(engine.recordAttempt).not.toHaveBeenCalled();
+    await act(() => result.current.endSession());
+    expect(result.current.lastSummary).toMatchObject({ total: 1, correct: 1, cardsRated: 1 });
+  });
+
+  it('a loop of only cards still ends on a summary', async () => {
+    const { result } = setup();
+    await act(() => result.current.startSession(todayLoopPreset({ items: [cardItem('c1')], cardsDue: 1 })));
+    act(() => result.current.markCardRated());
+    await act(() => result.current.endSession());
+    expect(result.current.lastSummary).toMatchObject({ total: 0, cardsRated: 1, config: expect.objectContaining({ source: 'today-loop' }) });
+  });
+});

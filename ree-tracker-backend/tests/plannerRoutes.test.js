@@ -97,6 +97,10 @@ function mockPlanInputs() {
     vi.spyOn(prisma.plannerTask, 'deleteMany').mockReturnValue({ op: 'delete' });
     vi.spyOn(prisma.plannerTask, 'createMany').mockImplementation(({ data }) => ({ op: 'create', count: data.length }));
     vi.spyOn(prisma, '$transaction').mockImplementation(async (ops) => [{ count: 0 }, { count: ops[1].count }]);
+    // No open mistakes (services/mistakeList) and no formula cards due unless a test says so.
+    vi.spyOn(prisma.questionAttempt, 'findMany').mockResolvedValue([]);
+    vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
+    vi.spyOn(prisma.cardReview, 'findMany').mockResolvedValue([]);
 }
 
 describe('Planner v2', () => {
@@ -155,5 +159,41 @@ describe('Planner v2', () => {
         const drill = res.body.items.find((t) => t.id === 'd1');
         expect(drill.progress).toMatchObject({ count: 22, target: 20, done: true });
         expect(res.body.items.find((t) => t.id === 'free').progress).toBeUndefined();
+    });
+
+    it('weights a topic with open mistakes up and says how many are open; plans formula-card days', async () => {
+        mockPlanInputs();
+        // Two open mistakes on Protection, one fixed (not counted).
+        prisma.questionAttempt.findMany.mockImplementation(async ({ where }) => (where.isCorrect === false
+            ? ['q1', 'q2', 'q3'].map((id) => ({ questionId: id, subject: 'EE', subtopic: 'Protection', selectedAnswer: 'B', createdAt: new Date('2026-10-01'), mode: 'DRILL' }))
+            : [{ questionId: 'q3', answeredAt: new Date('2026-10-02'), createdAt: new Date('2026-10-02'), mode: 'DRILL' }]));
+        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => ({ id, subject: 'EE', subtopic: 'Protection', text: id, options: ['A', 'B'], answer: 'A' })));
+        vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
+        const soon = new Date(Date.now() + 2 * 86400000);
+        prisma.cardReview.findMany.mockResolvedValue(Array.from({ length: 6 }, () => ({ nextReviewDate: soon })));
+
+        const res = await request(makeApp()).post('/api/user/tasks/generate-plan').set(as(UID))
+            .send({ examDate: '2099-01-01', topics: [{ subject: 'EE', subtopic: 'Protection' }] });
+
+        expect(res.status).toBe(201);
+        expect(res.body).toMatchObject({ totalDays: 42, openMistakes: 2, cardsDue: 6 });
+        const rows = prisma.plannerTask.createMany.mock.calls[0][0].data;
+        expect(rows.find((r) => r.kind === 'drill').text).toMatch(/\(2 open mistakes\)$/);
+        expect(rows.filter((r) => r.kind === 'cards')).toEqual([expect.objectContaining({ targetCount: 6, text: 'Review 6 formula cards' })]);
+        expect(prisma.cardReview.findMany.mock.calls[0][0].where).toMatchObject({ userId: UID, card: { status: 'LIVE' } });
+    });
+
+    it('GET /tasks counts the formula cards rated on a cards day', async () => {
+        vi.spyOn(prisma.plannerTask, 'findMany').mockResolvedValue([
+            { id: 'c1', kind: 'cards', dueDate: '2026-10-03', targetCount: 5, completed: false, text: 'Review 5 formula cards' },
+        ]);
+        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
+        vi.spyOn(prisma.examSession, 'findMany').mockResolvedValue([]);
+        const at = (h) => new Date(Date.UTC(2026, 9, 3, h)); // 2026-10-03, Manila daytime
+        const rated = vi.spyOn(prisma.cardReview, 'findMany').mockResolvedValue([at(1), at(2), at(3), at(4), at(5)].map((d) => ({ lastReviewed: d })));
+
+        const res = await request(makeApp()).get('/api/user/tasks').set(as(UID));
+        expect(res.body.items[0].progress).toMatchObject({ count: 5, target: 5, done: true });
+        expect(rated.mock.calls[0][0].where.userId).toBe(UID);
     });
 });

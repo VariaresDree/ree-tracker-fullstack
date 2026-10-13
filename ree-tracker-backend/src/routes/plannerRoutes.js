@@ -8,7 +8,8 @@ const logger = require('../utils/logger');
 const { Prisma } = require('@prisma/client');
 const { todayManila, manilaDateOf, manilaDaySql } = require('../utils/manilaDate');
 const { normalizeSubject } = require('@ree/shared');
-const { buildStudyPlan, taskProgress } = require('../engine/plan');
+const { buildStudyPlan, cardTasks, taskProgress } = require('../engine/plan');
+const { loadMistakes } = require('../services/mistakeList');
 const { loadTopicSignals } = require('../services/topicSignals');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { resolveTopic } = require('../services/topicResolver');
@@ -44,7 +45,8 @@ router.get('/tasks', authMiddleware, async (req, res) => {
             const from = manilaMidnight(days[0], 0);
             const to = manilaMidnight(days[days.length - 1], 1);
             const answeredAt = Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`;
-            const [answered, mocks] = await Promise.all([
+            const hasCards = planned.some((t) => t.kind === 'cards');
+            const [answered, mocks, rated] = await Promise.all([
                 prisma.$queryRaw`
                     SELECT ${manilaDaySql(answeredAt)} AS "day",
                            COALESCE(t."name", qa."subtopic") AS "topic",
@@ -59,8 +61,21 @@ router.get('/tasks', authMiddleware, async (req, res) => {
                     where: { userId: req.user.id, mode: 'BOARD_SIM', totalQuestions: { gte: MOCK_MIN_ITEMS }, createdAt: { gte: from, lt: to } },
                     select: { createdAt: true },
                 }),
+                // Formula cards rated per day. Only each card's latest rating
+                // is kept, so a day's count is the cards last rated that day.
+                hasCards
+                    ? prisma.cardReview.findMany({
+                        where: { userId: req.user.id, lastReviewed: { gte: from, lt: to } },
+                        select: { lastReviewed: true },
+                    })
+                    : Promise.resolve([]),
             ]);
-            progress = taskProgress(planned, answered, mocks.map((m) => manilaDateOf(m.createdAt)));
+            const cardDays = new Map();
+            for (const r of rated) {
+                const day = manilaDateOf(r.lastReviewed);
+                cardDays.set(day, (cardDays.get(day) || 0) + 1);
+            }
+            progress = taskProgress(planned, answered, mocks.map((m) => manilaDateOf(m.createdAt)), [...cardDays].map(([day, count]) => ({ day, count })));
         }
         const byId = new Map(progress.map((p) => [p.id, p]));
 
@@ -156,19 +171,34 @@ router.delete('/tasks/:id', authMiddleware, async (req, res) => {
 });
 
 // Auto-generate a study plan (engine/plan.js): drill days shared out by
-// (1 − decayed mastery) × syllabus weight and interleaved, a timed PRC sitting
-// every seventh day, light review in the final three days. Re-planning replaces
-// the previous plan's tasks, never the learner's own.
+// (1 − decayed mastery) × syllabus weight, raised by the topic's open
+// mistakes, and interleaved; a timed PRC sitting every seventh day; light
+// review in the final three days; and formula-card days where five or more
+// cards fall due. Re-planning replaces the previous plan's tasks, never the
+// learner's own.
 router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSchema), async (req, res) => {
     try {
         const { examDate, topics } = req.body;
         const exam = new Date(examDate).toISOString().slice(0, 10);
 
-        const [user, practised, weights] = await Promise.all([
+        const today = todayManila();
+        const [user, practised, weights, mistakes, cardsDue] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.user.id }, select: { dailyTarget: true } }),
             loadTopicSignals(req.user.id),
             getSyllabusWeights(),
+            loadMistakes(req.user.id).catch(() => ({ items: [] })),
+            prisma.cardReview.findMany({
+                where: { userId: req.user.id, card: { status: 'LIVE' }, nextReviewDate: { lt: manilaMidnight(today, 15) } },
+                select: { nextReviewDate: true },
+            }),
         ]);
+        // Open mistakes per topic, by name (the plan's topics are names).
+        const openByTopic = new Map();
+        for (const m of mistakes.items || []) {
+            if (m.fixed || !m.topic) continue;
+            const key = m.topic.trim().toLowerCase();
+            openByTopic.set(key, (openByTopic.get(key) || 0) + 1);
+        }
 
         // Practised topics carry their decayed mastery; syllabus topics never
         // touched join as unmastered, linked to their live Topic row (own
@@ -181,16 +211,18 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
                 const row = await resolveTopic(subject, t.subtopic, { crossSubject: false }).catch(() => null);
                 return { topic: t.subtopic, subject, topicId: row?.id ?? null, masteryEffective: null };
             }));
-        const planTopics = [...practised, ...untouched];
+        const planTopics = [...practised, ...untouched]
+            .map((t) => ({ ...t, openMistakes: openByTopic.get(String(t.topic || '').trim().toLowerCase()) || 0 }));
 
-        const plan = buildStudyPlan({
-            today: todayManila(),
+        const days = buildStudyPlan({
+            today,
             examDate: exam,
             dailyTarget: user?.dailyTarget || 50,
             topics: planTopics,
             weights,
         });
-        if (plan.length === 0) return res.status(400).json({ error: 'Set an exam date in the future.' });
+        if (days.length === 0) return res.status(400).json({ error: 'Set an exam date in the future.' });
+        const plan = [...days, ...cardTasks({ today, days: days.length, dueDates: cardsDue.map((c) => manilaDateOf(c.nextReviewDate)) })];
 
         const [, created] = await prisma.$transaction([
             prisma.plannerTask.deleteMany({ where: { userId: req.user.id, OR: PLANNED_TASKS } }),
@@ -202,8 +234,10 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         res.status(201).json({
             success: true,
             tasksCreated: created.count,
-            totalDays: plan.length,
-            message: `Planned ${created.count} days of review`,
+            totalDays: days.length,
+            openMistakes: [...openByTopic.values()].reduce((a, b) => a + b, 0),
+            cardsDue: cardsDue.length,
+            message: `Planned ${days.length} days of review`,
         });
     } catch (error) {
         logger.error('Study plan generation error', { error: error.message, stack: error.stack });

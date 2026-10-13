@@ -214,9 +214,13 @@ export const fetchSrsSummary = async () => apiRequest('/api/srs/summary');
 export const fetchCardReviewSummary = async () => apiRequest('/api/user/card-reviews/summary');
 // Today's loop: due reviews and open mistakes as one session, ordered by board
 // weight, with the formula cards due: { items, counts, more, cardsDue }.
+// `cards=1`: the due formula cards come in the loop too, as `kind: 'card'`
+// items (rated in Practice, never graded), so they skip the question shaping.
 export const fetchTodayLoop = async () => {
-    const data = await apiRequest('/api/user/today-loop');
-    return data ? { ...data, items: normalizeQuestions(data.items) } : null;
+    const data = await apiRequest('/api/user/today-loop?cards=1');
+    if (!data) return null;
+    const items = (data.items || []).map((i) => (i?.kind === 'card' ? i : normalizeQuestions([i])[0]));
+    return { ...data, items };
 };
 // mode must be one of ACTIVE_REVIEW | BOARD_SIM | GAUNTLET | COMBAT | BATTLE
 // — server uses it to break down dashboard analytics per surface.

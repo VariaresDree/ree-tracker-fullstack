@@ -43,6 +43,7 @@ const GRAPHIC_ONLY = [
   ['features/analytics/sections/TimePerTopic.jsx', 'BarList bar fills'],
   ['features/analytics/TrajectoryCard.jsx', 'forecast range bar fills'],
   ['features/today/TodayPanel.jsx', "today's target bar fills"],
+  ['features/notebook/CauseTrend.jsx', 'cause-per-week bar fills and legend swatches'],
   ['features/board-simulator/SimulatorDiagnostics.jsx', 'subject score bar fills', /subjectScores/],
 ];
 

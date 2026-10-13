@@ -11,7 +11,8 @@ const logger = require('../utils/logger');
 
 router.get('/today-loop', authMiddleware, async (req, res) => {
     try {
-        res.status(200).json(await loadTodayLoop(req.user.id));
+        // ?cards=1: the due formula cards come in the session too.
+        res.status(200).json(await loadTodayLoop(req.user.id, new Date(), { withCards: req.query.cards === '1' }));
     } catch (error) {
         logger.error('Today loop failed', { error: error.message });
         res.status(500).json({ error: "Failed to load today's loop." });

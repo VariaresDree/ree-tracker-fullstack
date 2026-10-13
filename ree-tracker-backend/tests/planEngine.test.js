@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-const { buildStudyPlan, taskProgress, PLAN_HORIZON_DAYS } = require('../src/engine/plan');
+const { buildStudyPlan, cardTasks, taskProgress, PLAN_HORIZON_DAYS } = require('../src/engine/plan');
 const { SMART_DRILL_MAX_ITEMS } = require('@ree/shared');
 
 // Planner v2. The old generator ranked subtopics by raw accuracy, ignored the
@@ -94,6 +94,44 @@ describe('buildStudyPlan', () => {
 
     it('an exam in the past or today plans nothing', () => {
         expect(buildStudyPlan({ ...base, examDate: '2026-10-01', topics: [topic('A', 'EE', 0.3)] })).toEqual([]);
+    });
+});
+
+describe('open mistakes and formula cards', () => {
+    const base = { today: '2026-10-01', dailyTarget: 50, examDate: '2026-12-31' };
+
+    it('a topic with open mistakes gets more drill days than an equal one without, and its drill says so', () => {
+        const plan = buildStudyPlan({ ...base, topics: [{ ...topic('Machines', 'EE', 0.4), openMistakes: 10 }, topic('Protection', 'EE', 0.4)] });
+        const days = (name) => plan.filter((t) => t.topic === name).length;
+        expect(days('Machines')).toBeGreaterThan(days('Protection'));
+        expect(plan.find((t) => t.topic === 'Machines').text).toMatch(/\(10 open mistakes\)$/);
+        expect(plan.find((t) => t.topic === 'Protection').text).not.toMatch(/open mistake/);
+    });
+
+    it('the boost stops at ten open mistakes', () => {
+        const ten = buildStudyPlan({ ...base, topics: [{ ...topic('A', 'EE', 0.4), openMistakes: 10 }, topic('B', 'EE', 0.4)] });
+        const forty = buildStudyPlan({ ...base, topics: [{ ...topic('A', 'EE', 0.4), openMistakes: 40 }, topic('B', 'EE', 0.4)] });
+        expect(forty.filter((t) => t.topic === 'A').length).toBe(ten.filter((t) => t.topic === 'A').length);
+    });
+
+    it('cardTasks: a task on each day with five or more cards due, overdue counted today, within two weeks', () => {
+        const due = [
+            ...Array(3).fill('2026-09-20'), ...Array(2).fill('2026-10-01'), // 5 today (3 overdue)
+            ...Array(4).fill('2026-10-03'),                                  // 4: not enough
+            ...Array(6).fill('2026-10-10'),
+            ...Array(9).fill('2026-10-20'),                                  // past the window
+        ];
+        expect(cardTasks({ today: '2026-10-01', days: 42, dueDates: due })).toEqual([
+            { dueDate: '2026-10-01', kind: 'cards', subject: null, topic: null, topicId: null, targetCount: 5, text: 'Review 5 formula cards' },
+            { dueDate: '2026-10-10', kind: 'cards', subject: null, topic: null, topicId: null, targetCount: 6, text: 'Review 6 formula cards' },
+        ]);
+        // a plan shorter than the window stops with the plan
+        expect(cardTasks({ today: '2026-10-01', days: 5, dueDates: due }).map((t) => t.dueDate)).toEqual(['2026-10-01']);
+    });
+
+    it('a cards task completes from the cards rated that day', () => {
+        const [p] = taskProgress([{ id: 'c', kind: 'cards', dueDate: '2026-10-01', targetCount: 5 }], [], [], [{ day: '2026-10-01', count: 6 }]);
+        expect(p).toEqual({ id: 'c', count: 6, target: 5, done: true });
     });
 });
 

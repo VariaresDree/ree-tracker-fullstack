@@ -34,6 +34,9 @@ describe('retaking the misses', () => {
     expect(missed.map((i) => i.questionId)).toEqual(['b', 'c', 'd']);
     const q = reviewItemToQuestion({ questionId: 'x', subject: 'EE', topic: 'Machines', text: 'T', options: ['1', '2'], correctAnswer: '2', explanation: 'E' });
     expect(q).toMatchObject({ id: 'x', subtopic: 'Machines', text: 'T', options: ['1', '2'], answer: '2', fixedExplanation: 'E' });
+    expect(retakeState({ ownerUid: 'u', sourceSessionId: 's', items: missed }).retake).toMatchObject({ kind: 'retake' });
     expect(retakeState({ ownerUid: 'u', sourceSessionId: 's', items: missed }).retake.questions).toHaveLength(3);
+    // The Notebook's Mistakes mock is the same path under its own name.
+    expect(retakeState({ ownerUid: 'u', sourceSessionId: null, items: missed, kind: 'mistakes' }).retake.kind).toBe('mistakes');
   });
 });

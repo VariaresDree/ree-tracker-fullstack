@@ -12,10 +12,14 @@
 //     repeat on consecutive days;
 //   • a drill or review is sized to one Smart Drill session
 //     (SMART_DRILL_MAX_ITEMS), so Start can always finish it;
+//   • a topic's open mistakes raise its priority (up to 1.5× at ten), and its
+//     drill says how many are open;
 //   • every seventh day is a timed PRC sitting, rotating the subject;
 //   • the last three days before the exam are light review;
 //   • tasks carry topic, subject and a question target, so they can be launched
 //     and can complete themselves (taskProgress).
+//   • days with CARD_DAY_MIN or more formula cards due get a "formula cards"
+//     task beside the day's main one (cardTasks).
 // Planned PLAN_HORIZON_DAYS ahead (or to the exam); regenerating re-plans from
 // the learner's current mastery.
 
@@ -31,6 +35,10 @@ const DRILL_SHARE = 0.6;
 const REVIEW_SHARE = 0.5;
 const MOCK_ROTATION = ['EE', 'ESAS', 'Mathematics'];
 const SUBJECT_LABEL = { Mathematics: 'Mathematics', ESAS: 'ESAS', EE: 'EE' };
+const MISTAKE_BOOST = 0.5;
+const MISTAKE_CAP = 10;
+const CARD_DAY_MIN = 5;
+const CARD_WINDOW_DAYS = 14;
 
 const DAY_MS = 86400000;
 const toUtc = (ymd) => {
@@ -146,7 +154,9 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         .filter((t) => t?.topic)
         .map((t) => {
             const p = Number.isFinite(t.masteryEffective) ? t.masteryEffective : DEFAULT_BKT.pInit;
-            return { ...t, priority: Math.max(0, 1 - p) * (w[t.subject] ?? 0.1) };
+            const open = Math.max(0, Number(t.openMistakes) || 0);
+            const boost = 1 + MISTAKE_BOOST * (Math.min(open, MISTAKE_CAP) / MISTAKE_CAP);
+            return { ...t, openMistakes: open, priority: Math.max(0, 1 - p) * (w[t.subject] ?? 0.1) * boost };
         })
         .filter((t) => t.priority > 0)
         .sort((a, b) => b.priority - a.priority);
@@ -163,7 +173,8 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         const kind = kinds[i];
         if (kind === 'drill' && drillOrder[drillIdx]) {
             const t = drillOrder[drillIdx++];
-            plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: drillTarget, text: `Drill ${t.topic} — ${drillTarget} questions` });
+            const open = t.openMistakes > 0 ? ` (${t.openMistakes} open mistake${t.openMistakes === 1 ? '' : 's'})` : '';
+            plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: drillTarget, text: `Drill ${t.topic} — ${drillTarget} questions${open}` });
         } else if (kind === 'mock') {
             const subject = MOCK_ROTATION[mockIdx++ % MOCK_ROTATION.length];
             plan.push({ dueDate, kind, subject, topic: null, topicId: null, targetCount: 1, text: `Timed ${SUBJECT_LABEL[subject]} sitting on the PRC clock` });
@@ -174,6 +185,32 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
     return plan;
 }
 
+/**
+ * "Formula cards" tasks: on each of the next CARD_WINDOW_DAYS (within the
+ * plan) where CARD_DAY_MIN or more cards fall due. Each card counts once, at
+ * its current due date (overdue counts today); a rating moves it, so later
+ * days are a forecast, and re-planning refreshes it.
+ *
+ * @param {{ today: string, days: number, dueDates: string[] }} input  YYYY-MM-DD (Manila)
+ * @returns {Array<{dueDate, kind: 'cards', subject: null, topic: null, topicId: null, targetCount, text}>}
+ */
+function cardTasks({ today, days, dueDates = [], min = CARD_DAY_MIN, windowDays = CARD_WINDOW_DAYS }) {
+    const span = Math.min(days, windowDays);
+    if (!(span > 0)) return [];
+    const last = toYmd(toUtc(today) + (span - 1) * DAY_MS);
+    const perDay = new Map();
+    for (const d of dueDates) {
+        if (!d) continue;
+        const day = d < today ? today : d;
+        if (day > last) continue;
+        perDay.set(day, (perDay.get(day) || 0) + 1);
+    }
+    return [...perDay.entries()]
+        .filter(([, n]) => n >= min)
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([dueDate, n]) => ({ dueDate, kind: 'cards', subject: null, topic: null, topicId: null, targetCount: n, text: `Review ${n} formula cards` }));
+}
+
 const norm = (s) => String(s || '').trim().toLowerCase();
 
 /**
@@ -182,9 +219,10 @@ const norm = (s) => String(s || '').trim().toLowerCase();
  * @param {Array<{id, kind, topic?, dueDate, targetCount?}>} tasks
  * @param {Array<{day, topic, count}>} answered  answers per Manila day per topic
  * @param {string[]} mockDays  Manila days with a timed sitting
+ * @param {Array<{day, count}>} [cardDays]  formula cards rated per Manila day
  * @returns {Array<{id, count, target, done}>} only for planned (kinded) tasks
  */
-function taskProgress(tasks, answered, mockDays) {
+function taskProgress(tasks, answered, mockDays, cardDays = []) {
     const byDay = new Map();
     for (const a of answered || []) {
         const entry = byDay.get(a.day) || { total: 0, byTopic: new Map() };
@@ -193,6 +231,7 @@ function taskProgress(tasks, answered, mockDays) {
         byDay.set(a.day, entry);
     }
     const mocks = new Set(mockDays || []);
+    const cardsOn = new Map((cardDays || []).map((c) => [c.day, Number(c.count) || 0]));
     return (tasks || [])
         .filter((t) => t.kind)
         .map((t) => {
@@ -202,8 +241,9 @@ function taskProgress(tasks, answered, mockDays) {
             if (t.kind === 'drill') count = day?.byTopic.get(norm(t.topic)) || 0;
             else if (t.kind === 'review') count = day?.total || 0;
             else if (t.kind === 'mock') count = mocks.has(t.dueDate) ? 1 : 0;
+            else if (t.kind === 'cards') count = cardsOn.get(t.dueDate) || 0;
             return { id: t.id, count, target, done: count >= target };
         });
 }
 
-module.exports = { buildStudyPlan, taskProgress, PLAN_HORIZON_DAYS, MOCK_EVERY, FINAL_REVIEW_DAYS };
+module.exports = { buildStudyPlan, cardTasks, taskProgress, PLAN_HORIZON_DAYS, MOCK_EVERY, FINAL_REVIEW_DAYS, CARD_DAY_MIN };

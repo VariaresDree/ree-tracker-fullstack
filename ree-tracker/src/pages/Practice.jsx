@@ -16,6 +16,7 @@ import SessionSummary from '../features/active-recall/SessionSummary';
 import { drillPreset } from '../features/active-recall/presets';
 import MCQMode from '../features/active-recall/MCQMode';
 import FlashcardMode from '../features/active-recall/FlashcardMode';
+import LoopCardStep from '../features/active-recall/LoopCardStep';
 import { useReviewSession } from '../features/active-recall/useReviewSession';
 import SolutionPanel from '../features/quiz/SolutionPanel';
 import { explanationKey } from '../services/aiExplanations';
@@ -31,7 +32,7 @@ export default function Practice() {
   const {
     config, setConfig, session, setSession, elapsedTime, bookmarks,
     startSession, endSession, loadNextQuestion, 
-    handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating,
+    handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
     toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
     lastSummary, clearSummary, aiText, aiLoading,
   } = useReviewSession(currentUser, isOnline);
@@ -187,7 +188,10 @@ export default function Practice() {
               through QuestionCard's `headerSlot` so they sit next to the
               eyebrow with no overlap. */}
 
-          {config.sessionMode === 'mcq' ? (
+          {currentQ.kind === 'card' ? (
+              // A formula card due for review, in Today's loop: rated, not answered.
+              <LoopCardStep key={currentQ.id} card={currentQ.card} rated={session.isAnswered} onRated={markCardRated} />
+          ) : config.sessionMode === 'mcq' ? (
               <MCQMode
                   session={session}
                   setSession={setSession}
@@ -219,7 +223,15 @@ export default function Practice() {
               </>
           )}
 
-          {session.isAnswered && (
+          {session.isAnswered && currentQ.kind === 'card' && (
+              <div className="mt-8 flex justify-end">
+                  <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion}>
+                      {isLastQuestion ? 'Finish session' : 'Next'}
+                  </Button>
+              </div>
+          )}
+
+          {session.isAnswered && currentQ.kind !== 'card' && (
               <div className="mt-10 pt-8 border-t border-border2/40 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 relative z-10">
                   
                   <SolutionPanel

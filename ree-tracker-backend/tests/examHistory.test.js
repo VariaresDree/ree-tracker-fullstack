@@ -57,6 +57,12 @@ describe('POST /api/exams/sessions/:id/finalize', () => {
         expect(update.data.config).toMatchObject({ count: 100, kind: 'blended', isPrcStandard: true, generalAverage: 70 });
     });
 
+    it("records a Mistakes mock under its own kind", async () => {
+        const res = await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as(UID)).send({ kind: 'mistakes' });
+        expect(res.status).toBe(200);
+        expect(prisma.examSession.updateMany.mock.calls[0][0].data.config).toMatchObject({ kind: 'mistakes' });
+    });
+
     it('is owner-scoped', async () => {
         const res = await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as('uid-other')).send({});
         expect(res.status).toBe(404);

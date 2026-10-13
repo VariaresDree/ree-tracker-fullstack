@@ -149,7 +149,7 @@ describe('Board Simulator — retake of a past sitting', () => {
     engine = baseEngine();
     renderPage([{ pathname: '/simulator', state: { retake: { ownerUid: 'u1', sourceSessionId: 's1', questions } } }]);
     expect(engine.startSimulation).toHaveBeenCalledWith(expect.objectContaining({
-      source: 'retake', subject: 'EE', count: 2, retakeQuestions: questions, retake: { sourceSessionId: 's1' },
+      source: 'retake', subject: 'EE', count: 2, retakeQuestions: questions, retake: { sourceSessionId: 's1', kind: 'retake' },
     }));
   });
 

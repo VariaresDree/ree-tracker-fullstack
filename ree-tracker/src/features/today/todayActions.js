@@ -55,7 +55,8 @@ export function daysToExam(examDate, now = new Date()) {
  * tasks have no session to launch, so they stay in the planner.
  */
 export function pickPlanTask(tasks, today) {
-  return (tasks || []).find((t) => t?.dueDate === today && !isTaskDone(t) && taskLaunch(t)) || null;
+  // A cards day is already Today's formula-cards action (and in the loop).
+  return (tasks || []).find((t) => t?.dueDate === today && t.kind !== 'cards' && !isTaskDone(t) && taskLaunch(t)) || null;
 }
 
 const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
@@ -90,15 +91,17 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
 
   const inLoop = loop?.items?.length || 0;
   if (inLoop > 0) {
-    const { due = 0, mistakes = 0 } = loop.counts || {};
+    const { due = 0, mistakes = 0, cards: loopCards = 0 } = loop.counts || {};
     const parts = [
       due > 0 && `${due} due review${due === 1 ? '' : 's'}`,
       mistakes > 0 && `${mistakes} open mistake${mistakes === 1 ? '' : 's'}`,
+      loopCards > 0 && `${loopCards} formula card${loopCards === 1 ? '' : 's'}`,
     ].filter(Boolean);
+    const joined = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
     actions.push({
       key: 'loop',
       title: "Start today's loop",
-      detail: `${parts.join(' and ')}, mixed by board weight${loop.more > 0 ? ` (${loop.more} more wait for the next loop)` : ''}.`,
+      detail: `${joined}, mixed by board weight${loop.more > 0 ? ` (${loop.more} more wait for the next loop)` : ''}.`,
       cta: 'Start',
       preset: todayLoopPreset(loop),
     });
@@ -117,8 +120,10 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
     });
   }
 
-  if (cards?.due > 0) {
-    const n = cards.due;
+  // Cards the loop doesn't already hold (it takes up to eight).
+  const cardsLeft = (cards?.due || 0) - (inLoop > 0 ? loop.counts?.cards || 0 : 0);
+  if (cardsLeft > 0) {
+    const n = cardsLeft;
     actions.push({
       key: 'cards',
       title: `Review ${n} formula card${n === 1 ? '' : 's'}`,

@@ -91,7 +91,7 @@ const nextItemSchema = z.object({
 // POST /exams/sessions/:id/finalize — the client may only DESCRIBE the sitting;
 // grading comes from the session's recorded attempts (services/examHistory).
 const finalizeSchema = z.object({
-    kind: z.enum(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake']).optional(),
+    kind: z.enum(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake', 'mistakes']).optional(),
     isPrcStandard: z.boolean().optional(),
     targetSubject: z.string().max(32).optional(),
     // Items the learner marked for review during the sitting, kept for the

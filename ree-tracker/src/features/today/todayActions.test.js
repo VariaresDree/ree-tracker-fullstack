@@ -42,6 +42,22 @@ describe('buildTodayActions', () => {
   });
 });
 
+describe("formula cards and today's loop", () => {
+  it("the loop names its cards, and the cards action covers only the ones it doesn't hold", () => {
+    const loop = { items: [{ id: 'q1' }, { id: 'card:c1', kind: 'card' }], counts: { due: 1, mistakes: 0, cards: 1 } };
+    const actions = buildTodayActions({ loop, cards: { due: 3 } });
+    expect(actions[0].detail).toBe('1 due review and 1 formula card, mixed by board weight.');
+    expect(actions.find((a) => a.key === 'cards').title).toBe('Review 2 formula cards');
+    const all = buildTodayActions({ loop, cards: { due: 1 } });
+    expect(all.some((a) => a.key === 'cards')).toBe(false);
+  });
+
+  it('three kinds read as a list', () => {
+    const [first] = buildTodayActions({ loop: { items: [{ id: 'q1' }], counts: { due: 2, mistakes: 1, cards: 3 } } });
+    expect(first.detail).toBe('2 due reviews, 1 open mistake and 3 formula cards, mixed by board weight.');
+  });
+});
+
 describe('a new learner follows the placement plan', () => {
   const base = { daily: { done: 0, target: 50 }, examInDays: 90, answered: 4 };
   const loop = { items: [{ id: 'q1' }], counts: { due: 1, mistakes: 0 } };

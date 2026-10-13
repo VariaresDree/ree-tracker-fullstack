@@ -29,14 +29,7 @@ const {
 
 router.use(authMiddleware);
 
-const CARD_SELECT = {
-    id: true, kind: true, symbol: true, name: true, formulaLatex: true,
-    valueUnit: true, description: true, variables: true, purposeExamTip: true,
-    subject: true, subtopicTag: true, dimensionless: true, status: true,
-    sourceId: true, createdAt: true, updatedAt: true,
-    topic: { select: { id: true, name: true } },
-    source: { select: { id: true, title: true, edition: true, section: true } },
-};
+const { CARD_SELECT } = require('../services/referenceCardView');
 
 // Content snapshot for the audit trail (excludes ids/timestamps/status).
 function cardSnapshot(card) {

@@ -125,7 +125,7 @@ export default function BoardSimulator() {
       count: retake.questions.length,
       source: 'retake',
       cognitiveFocus: 'mixed',
-      retake: { sourceSessionId: retake.sourceSessionId || null },
+      retake: { sourceSessionId: retake.sourceSessionId || null, kind: retake.kind === 'mistakes' ? 'mistakes' : 'retake' },
       retakeQuestions: retake.questions,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

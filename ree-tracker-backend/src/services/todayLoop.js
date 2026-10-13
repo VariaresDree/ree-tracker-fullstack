@@ -2,8 +2,10 @@
 //
 // Today's loop (GET /api/user/today-loop): one mixed Practice session of the
 // questions due for spaced review and the open mistakes, ordered by board
-// weight, plus how many formula cards are due (they are reviewed in Library ›
-// Formula cards, which the session's summary links to next).
+// weight, plus how many formula cards are due. With `?cards=1` (the app since
+// 2026-10; an older installed app never sends it, so its loop is unchanged)
+// up to CARD_MAX of those cards come in the session too, spread evenly
+// between the questions, each rated in place instead of answered.
 //
 // Order: a smooth weighted round-robin over the board subjects by their
 // syllabus weight (EE 45, ESAS 30, Math 25 by default), so the heaviest
@@ -18,8 +20,10 @@ const { normalizeSubject } = require('@ree/shared');
 const { getSyllabusWeights, DEFAULT_SYLLABUS_WEIGHTS } = require('./questionPool');
 const { loadMistakes } = require('./mistakeList');
 const { lockedQuestionIds } = require('./answerGate');
+const { CARD_SELECT } = require('./referenceCardView');
 
 const LOOP_MAX = 25;
+const CARD_MAX = 8;
 const DUE_SCAN_MAX = 100;
 const BOARD_SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 
@@ -29,12 +33,31 @@ const mistakeToQuestion = (m) => ({
     answer: m.correctAnswer, fixedExplanation: m.explanation, type: m.type,
 });
 
+/** A due formula card as a loop item: rated in Practice, never graded. */
+const cardToItem = (card) => ({ id: `card:${card.id}`, kind: 'card', subject: card.subject, card });
+
+/**
+ * Cards spread evenly through the questions: card i goes after about
+ * (i + 1) / (cards + 1) of them, so the loop never ends on a run of cards.
+ */
+function interleave(questions, cards) {
+    if (cards.length === 0) return questions;
+    const out = [];
+    let next = 0;
+    questions.forEach((q, i) => {
+        out.push(q);
+        while (next < cards.length && i + 1 >= Math.round(((next + 1) * questions.length) / (cards.length + 1))) out.push(cards[next++]);
+    });
+    while (next < cards.length) out.push(cards[next++]);
+    return out;
+}
+
 /**
  * Pure. `due` are questions (oldest due first); `mistakes` are open mistakes
- * as questions (newest first).
- * @returns {{ items: object[], counts: { due: number, mistakes: number }, more: number }}
+ * as questions (newest first); `cards` are due formula cards (soonest first).
+ * @returns {{ items: object[], counts: { due: number, mistakes: number, cards: number }, more: number }}
  */
-function buildTodayLoop({ due = [], mistakes = [], weights = DEFAULT_SYLLABUS_WEIGHTS, max = LOOP_MAX } = {}) {
+function buildTodayLoop({ due = [], mistakes = [], cards = [], weights = DEFAULT_SYLLABUS_WEIGHTS, max = LOOP_MAX } = {}) {
     const seen = new Set();
     const queues = new Map();
     const push = (q, reason) => {
@@ -67,13 +90,15 @@ function buildTodayLoop({ due = [], mistakes = [], weights = DEFAULT_SYLLABUS_WE
         credit.set(best, credit.get(best) - sum);
         items.push(queues.get(best).shift());
     }
-    const counts = { due: 0, mistakes: 0 };
+    const counts = { due: 0, mistakes: 0, cards: 0 };
     for (const q of items) counts[q.loop.reason === 'due' ? 'due' : 'mistakes'] += 1;
-    return { items, counts, more: total - items.length };
+    const cardItems = cards.slice(0, CARD_MAX).map((c) => ({ ...cardToItem(c), loop: { reason: 'card' } }));
+    counts.cards = cardItems.length;
+    return { items: interleave(items, cardItems), counts, more: total - items.length };
 }
 
-async function loadTodayLoop(userId, now = new Date()) {
-    const [dueCards, mistakes, weights, cardsDue] = await Promise.all([
+async function loadTodayLoop(userId, now = new Date(), { withCards = false } = {}) {
+    const [dueCards, mistakes, weights, cardsDue, cardRows] = await Promise.all([
         prisma.sRSCard.findMany({
             where: { userId, nextReviewDate: { lte: now }, question: { isFlagged: false } },
             include: { question: true },
@@ -83,6 +108,14 @@ async function loadTodayLoop(userId, now = new Date()) {
         loadMistakes(userId),
         getSyllabusWeights(),
         prisma.cardReview.count({ where: { userId, nextReviewDate: { lte: now }, card: { status: 'LIVE' } } }),
+        withCards
+            ? prisma.cardReview.findMany({
+                where: { userId, nextReviewDate: { lte: now }, card: { status: 'LIVE' } },
+                orderBy: { nextReviewDate: 'asc' },
+                take: CARD_MAX,
+                select: { card: { select: CARD_SELECT } },
+            })
+            : Promise.resolve([]),
     ]);
     const due = dueCards.map((c) => c.question).filter(Boolean);
     const open = mistakes.items.filter((m) => !m.fixed).map(mistakeToQuestion);
@@ -91,9 +124,10 @@ async function loadTodayLoop(userId, now = new Date()) {
     const loop = buildTodayLoop({
         due: due.filter((q) => !locked.has(q.id)),
         mistakes: open.filter((q) => !locked.has(q.id)),
+        cards: cardRows.map((r) => r.card).filter(Boolean),
         weights,
     });
     return { ...loop, cardsDue };
 }
 
-module.exports = { buildTodayLoop, loadTodayLoop, LOOP_MAX };
+module.exports = { buildTodayLoop, loadTodayLoop, interleave, LOOP_MAX, CARD_MAX };

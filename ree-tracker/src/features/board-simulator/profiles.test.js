@@ -15,7 +15,7 @@ describe('setup config', () => {
   });
 
   it('names a sitting kind the way the formats are named', () => {
-    expect(['blended', 'custom', 'full-board', 'subject', 'battle', 'retake', 'placement', 'nope'].map(sittingKindLabel))
-      .toEqual(['Mixed paper', 'Custom mock', 'Full PRC board', 'One subject (PRC clock)', 'Battle', 'Retake', 'Placement test', null]);
+    expect(['blended', 'custom', 'full-board', 'subject', 'battle', 'retake', 'mistakes', 'placement', 'nope'].map(sittingKindLabel))
+      .toEqual(['Mixed paper', 'Custom mock', 'Full PRC board', 'One subject (PRC clock)', 'Battle', 'Retake', 'Mistakes mock', 'Placement test', null]);
   });
 });
