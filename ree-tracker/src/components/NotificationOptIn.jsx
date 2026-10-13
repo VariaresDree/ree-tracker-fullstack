@@ -88,7 +88,7 @@ export default function NotificationOptIn({ inline = false }) {
         const perm = await Notification.requestPermission();
         if (perm === 'granted') {
           setNotificationPrefs({ enabled: true });
-          toast.success('Session notifications on. Daily reminders need the installed app.');
+          toast.success('Notifications on. Daily reminders need the REE.ai phone app.');
         } else {
           toast('Notifications blocked — you can enable them later in Account.');
         }
@@ -113,11 +113,17 @@ export default function NotificationOptIn({ inline = false }) {
             <p className="text-sm font-bold text-textMain">Keep your streak alive?</p>
             {iosNeedsInstall ? (
               <p className="text-xs text-muted2 mt-1">
-                Add REE.ai to your Home Screen (Share → Add to Home Screen) to unlock daily review reminders.
+                Add REE.ai to your Home Screen (Share → Add to Home Screen) to get a notification when a focus block ends. The daily reminder comes from the REE.ai phone app.
               </p>
-            ) : (
+            ) : isNative ? (
               <p className="text-xs text-muted2 mt-1">
                 Get a daily nudge to practise. You choose the time in Account.
+              </p>
+            ) : (
+              // A browser can't schedule the daily reminder (NotificationSettings
+              // says so too); what it can do is ping when a focus block ends.
+              <p className="text-xs text-muted2 mt-1">
+                Get a notification when a focus block or break ends. The daily reminder comes from the REE.ai phone app.
               </p>
             )}
             <div className="flex items-center gap-2 mt-3">
@@ -125,7 +131,7 @@ export default function NotificationOptIn({ inline = false }) {
                 <Button size="sm" variant="secondary" onClick={dismiss}>Got it</Button>
               ) : (
                 <>
-                  <Button size="sm" onClick={enable} disabled={busy}>Enable reminders</Button>
+                  <Button size="sm" onClick={enable} disabled={busy}>{isNative ? 'Enable reminders' : 'Turn on notifications'}</Button>
                   <Button size="sm" variant="ghost" onClick={dismiss} disabled={busy}>Not now</Button>
                 </>
               )}

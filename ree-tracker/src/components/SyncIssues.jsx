@@ -11,14 +11,21 @@ import { useStore } from '../store/useStore';
 import { auth } from '../config/firebaseDb';
 import { Button, Modal } from './ui';
 import { TriangleAlert } from './ui/icons';
+import { syncActionLabel, syncFailureReason } from './syncLabels';
 
+// What each letter was, in words; the endpoint and the server's own text stay
+// in a "Details" fold for when someone asks for help.
 const describe = (letter) => {
     const n = letter.attempts?.length ?? letter.ids?.length ?? 0;
-    if (letter.type === 'pendingWrite') return { title: 'Saved session', detail: letter.endpoint };
-    if (letter.type === 'pendingWrite-orphaned') return { title: 'Saved session from another account', detail: 'Recorded on this device before a different sign-in.' };
-    if (letter.type === 'telemetry-orphaned') return { title: `${n} answer${n === 1 ? '' : 's'} from another account`, detail: 'Recorded on this device before a different sign-in.' };
-    return { title: `${n} answer${n === 1 ? '' : 's'}`, detail: letter.error };
+    const answers = `${n} answer${n === 1 ? '' : 's'}`;
+    const method = letter.write?.method;
+    if (letter.type === 'pendingWrite') return { title: syncActionLabel(letter.endpoint, method), detail: syncFailureReason(letter) };
+    if (letter.type === 'pendingWrite-orphaned') return { title: `${syncActionLabel(letter.endpoint, method)} from another account`, detail: 'Recorded on this device before a different sign-in.' };
+    if (letter.type === 'telemetry-orphaned') return { title: `${answers} from another account`, detail: 'Recorded on this device before a different sign-in.' };
+    return { title: answers, detail: syncFailureReason(letter) };
 };
+
+const technical = (letter) => [letter.write?.method, letter.endpoint, letter.status, letter.error].filter(Boolean).join(' · ');
 
 const canRetry = (letter) => {
     if (letter.type.endsWith('-orphaned')) return letter.ownerUid === auth.currentUser?.uid;
@@ -82,8 +89,14 @@ export default function SyncIssues({ className = '' }) {
                             <li key={key} className="flex items-start justify-between gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
                                 <div className="min-w-0">
                                     <div className="text-sm font-medium text-textMain">{title}</div>
-                                    <div className="text-xs text-muted2 truncate">{detail}</div>
+                                    <div className="text-xs text-muted2">{detail}</div>
                                     <div className="text-xs text-muted2">{new Date(letter.at).toLocaleString()}</div>
+                                    {technical(letter) && (
+                                        <details className="mt-1 text-xs text-muted2">
+                                            <summary className="cursor-pointer pointer-coarse:min-h-11 inline-flex items-center">Details</summary>
+                                            <span className="block break-all">{technical(letter)}</span>
+                                        </details>
+                                    )}
                                 </div>
                                 {confirmKey === key ? (
                                     <div className="flex flex-col items-end gap-2 shrink-0" role="group" aria-label="Confirm discard">

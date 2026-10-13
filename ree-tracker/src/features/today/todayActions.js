@@ -164,7 +164,7 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
       detail: examInDays != null && examInDays >= 0
         ? `${examInDays === 1 ? '1 day' : `${examInDays} days`} to go — rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`
         : `Rehearse on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
-      cta: 'Open simulator',
+      cta: 'Take a mock board',
       to: '/simulator',
     });
   }

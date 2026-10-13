@@ -185,7 +185,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
             <div className="flex flex-col gap-1.5">
               <span className="text-eyebrow">Focus</span>
               <SegmentedControl
-                label="Cognitive focus"
+                label="Focus"
                 value={view.cognitiveFocus}
                 onChange={(v) => setConfig({ ...view, cognitiveFocus: v })}
                 options={[

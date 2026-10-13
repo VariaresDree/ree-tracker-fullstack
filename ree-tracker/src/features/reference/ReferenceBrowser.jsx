@@ -480,7 +480,8 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
         <EmptyState
           icon={BookOpen}
           title="No cards here yet"
-          description="Try a different kind filter, or check back once more content passes review."
+          description={kind === 'all' ? 'Check back once more content passes review.' : 'None of this kind under this topic. Show every kind, or check back once more content passes review.'}
+          action={kind === 'all' ? undefined : <Button size="sm" variant="secondary" onClick={() => setKind('all')}>Show every kind</Button>}
         />
       ) : (
         <>

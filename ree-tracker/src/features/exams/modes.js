@@ -15,7 +15,7 @@ export const MODES = [
     name: 'Mock board',
     icon: Landmark,
     when: 'Checking where you stand',
-    how: 'Timed on the PRC clock. Scores and the answer review come at the end.',
+    how: 'Timed on the PRC clock (a custom mock gives 2 minutes a question). Scores and the answer review come at the end.',
     to: '/exams?tab=mock',
   },
   {

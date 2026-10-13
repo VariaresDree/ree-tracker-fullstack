@@ -54,7 +54,7 @@ const requireAdmin = async (req, res, next) => {
     try {
         if (!req.user?.id) return res.status(401).json({ error: 'Unauthenticated.' });
         if (!(await isAdminUser(req.user.id))) {
-            return res.status(403).json({ error: 'Admin clearance required.' });
+            return res.status(403).json({ error: 'Only admins can do this.' });
         }
         next();
     } catch (error) {

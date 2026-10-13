@@ -163,6 +163,7 @@ export default function MistakesPanel({ currentUser, isOnline }) {
         icon={NotebookPen}
         title="No mistakes yet"
         description="Questions you answer wrong in Practice, a mock board, a battle or the Gauntlet collect here, with the solution and a place to note why."
+        action={<Button onClick={() => navigate('/practice')}>Start a practice set</Button>}
       />
     );
   }

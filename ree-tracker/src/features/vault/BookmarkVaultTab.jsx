@@ -211,7 +211,12 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     );
   } else if (bookmarks.length === 0) {
     body = (
-      <EmptyState icon={Bookmark} title="No bookmarks yet" description="Tap the bookmark on a question in Practice or a mock board to save it here." />
+      <EmptyState
+        icon={Bookmark}
+        title="No bookmarks yet"
+        description="Tap the bookmark on a question in Practice or a mock board to save it here."
+        action={<Button onClick={() => navigate('/practice')}>Start a practice set</Button>}
+      />
     );
   } else {
     body = (

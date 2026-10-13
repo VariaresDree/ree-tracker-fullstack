@@ -81,7 +81,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             <div className="flex flex-col gap-1.5">
               <StatusPill tone="amber">In progress</StatusPill>
               <p className="text-textMain font-semibold">Resume your last exam?</p>
-              <p className="text-sm text-muted2">You have an unfinished simulation saved on this device.</p>
+              <p className="text-sm text-muted2">You have an unfinished mock board saved on this device.</p>
             </div>
             <Button tone="amber" onClick={engine.resumeSimulation} className="w-full sm:w-auto">
               Resume exam
@@ -235,7 +235,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             disabled={session?.loading}
             onClick={handleStart}
           >
-            {fullBoardSelected ? 'Start the full board' : 'Start simulation'}
+            {fullBoardSelected ? 'Start the full board' : 'Start mock board'}
           </Button>
           <Button
             variant="ghost"

@@ -51,6 +51,20 @@ describe('SyncIssues', () => {
     expect(discardDeadLetter).toHaveBeenCalledWith(legacy);
   });
 
+  it('names a refused write by what it was, with the raw detail folded away', () => {
+    state.deadLetters = [{
+      id: 'd2', type: 'pendingWrite', endpoint: '/api/user/mistakes/q123', status: 400,
+      write: { id: 'w1', method: 'PUT', endpoint: '/api/user/mistakes/q123' }, error: 'Validation failed.', at: 3,
+    }];
+    render(<SyncIssues />);
+    fireEvent.click(screen.getByRole('button', { name: /1 sync issue/i }));
+    expect(screen.getByText('A mistake tag')).toBeInTheDocument();
+    expect(screen.getByText("The server couldn't accept it as sent.")).toBeInTheDocument();
+    // The endpoint and the server's text sit under Details, not in the row.
+    expect(screen.getByText('Details')).toBeInTheDocument();
+    expect(screen.getByText(/PUT · \/api\/user\/mistakes\/q123 · 400 · Validation failed\./)).toBeInTheDocument();
+  });
+
   it('keeps the batch when the discard is cancelled', () => {
     state.deadLetters = [{ id: 'd1', type: 'telemetry', ids: ['a'], attempts: [{ id: 'a' }], error: 'x', at: 1 }];
     render(<SyncIssues />);

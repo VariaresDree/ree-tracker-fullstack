@@ -197,5 +197,7 @@ describe('mistakes', () => {
     apiRequest.mockResolvedValue({ items: [], truncated: false });
     renderAt(<MistakesPanel currentUser={{ uid: 'user-A' }} isOnline />);
     expect(await screen.findByText('No mistakes yet')).toBeInTheDocument();
+    // An empty state says what to do next, not just what's missing.
+    expect(screen.getByRole('button', { name: 'Start a practice set' })).toBeInTheDocument();
   });
 });

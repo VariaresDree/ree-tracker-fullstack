@@ -180,7 +180,7 @@ export const AuthProvider = ({ children }) => {
           }
 
         } catch (err) {
-          console.warn("Clearance lookup failed; treating this session as non-admin.", err);
+          console.warn("Admin role lookup failed; treating this session as non-admin.", err);
           // Only when the profile itself failed: a later step throwing must not
           // rewrite a name the profile already showed is stored.
           if (!storedNameKnown) mirrorDisplayName(undefined);

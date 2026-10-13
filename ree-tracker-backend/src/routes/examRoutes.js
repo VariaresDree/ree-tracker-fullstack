@@ -263,7 +263,7 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
 
     } catch (error) {
         logger.error('Exam submit error', { error: error.message, stack: error.stack });
-        res.status(500).json({ error: 'Telemetry compilation failed.' });
+        res.status(500).json({ error: "Couldn't save this sitting. Try again." });
     }
 });
 

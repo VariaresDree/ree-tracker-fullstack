@@ -74,6 +74,7 @@ export default function NotesPanel({ isOnline }) {
         icon={StickyNote}
         title="No notes yet"
         description="Tap the note icon on a question (in Practice, a review, Bookmarks or Mistakes) or under a formula card to write down the trick or the trap in your own words."
+        action={<Button as={Link} to="/practice">Open Practice</Button>}
       />
     );
   }

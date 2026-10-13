@@ -382,7 +382,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     } catch {
       localStorage.removeItem('ree_sim_cache');
       setHasSavedSession(false);
-      toast.error('Saved simulation was corrupt; starting fresh.');
+      toast.error("Your saved mock board couldn't be read, so it starts fresh.");
     }
   };
 

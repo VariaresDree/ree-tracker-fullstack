@@ -236,9 +236,13 @@ export default function MockBoardAnalytics() {
             action={<Button size="sm" onClick={() => loadHistory()}>Try again</Button>}
           />
         ) : chartData.length === 0 ? (
-          <div className="h-[320px] flex items-center justify-center text-muted2 text-sm border-2 border-dashed border-border rounded-xl text-center px-6">
-            No mock boards yet. Finish one to plot your scores.
-          </div>
+          <EmptyState
+            compact
+            icon={BarChart3}
+            title="No mock boards yet"
+            description="Finish one to plot your scores against the 70% pass line."
+            action={<Button as={Link} to="/exams?tab=mock" size="sm">Take a mock board</Button>}
+          />
         ) : (
           <div className="h-[320px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">

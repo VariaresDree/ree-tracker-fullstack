@@ -92,6 +92,37 @@ every feature add, change, or removal, not on a schedule.
     - **Rankings** rows show how many questions each reviewer answered, not the first 8 characters of their account id.
     - The placement result's button says "Go to Today".
     - The copy guard now also reads `index.html` and `vite.config.js` (the title and the installed-app name), and rejects Tactical, "the matrix", "knowledge matrix", Critical System Error, Reload Engine, Simulation Failed, real-time penalties, and "vault" as a word.
+  - **Third pass (2026-10, jargon and dead ends):**
+    - **Old names:**
+      - "Start simulation" is now **Start mock board**, and "unfinished simulation" is now "unfinished mock board".
+      - Today's mock action says **Take a mock board** (was "Open simulator").
+      - A corrupt saved mock says "Your saved mock board couldn't be read, so it starts fresh."
+      - The "Terminal · Hacker Green" theme is **Phosphor · Green on black**. Its id is unchanged, so saved choices still work.
+      - Practice's focus control is labelled "Focus" for screen readers too (was "Cognitive focus").
+    - **Server messages the app shows** are plain. Examples:
+      - "Couldn't save your progress. Try again." (was "Matrix sync transaction rejected.");
+      - "Couldn't load your progress.";
+      - "Couldn't save this sitting. Try again." (was "Telemetry compilation failed.");
+      - "Only admins can do this." (was "Admin clearance required.");
+      - "Couldn't load the shared files.";
+      - "Question bank refreshed."
+
+      A backend copy guard (`ree-tracker-backend/tests/copyGuard.test.js`) scans every `error:` / `message:` string under `src/` for the retired words: matrix, telemetry, clearance, uplink, encrypted, vault, sector, protocol, tactical, compilation. The frontend guard also rejects a capitalised "Matrix" or "Telemetry" word, "clearance" and "Uplink".
+    - **Sync issues name each item by what it was:**
+      - Each item reads "A mistake tag", "A practice session", "A finished mock board", "Your reminder time"… (`components/syncLabels.js`).
+      - It says why it stopped, from the status: "It clashed with a newer change.", "The server had a problem. Retrying usually works.", and so on.
+      - The endpoint and the server's own text sit under a **Details** fold. They were the row's only description.
+    - **Notifications on the web are described as they work.**
+      - The after-session offer says a browser gets a notification when a focus block or break ends, and that the daily reminder comes from the REE.ai phone app. The button reads "Turn on notifications".
+      - On iOS in a browser it no longer says that adding to the Home Screen "unlocks daily review reminders".
+      - The phone app keeps "Enable reminders".
+    - **Mode guide:** Mock board reads "Timed on the PRC clock (a custom mock gives 2 minutes a question)". A custom mock was described as on the PRC clock.
+    - **Empty states say what to do next:**
+      - Mistakes and Bookmarks: **Start a practice set**.
+      - My notes: **Open Practice**.
+      - Blind spots: **Start a practice set**.
+      - Past sittings' chart: **Take a mock board**.
+      - A formula-card topic empty under a kind filter: **Show every kind**.
 
 ## Exam & Practice Modes
 
