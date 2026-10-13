@@ -114,6 +114,9 @@ async function createLiveQuestion(data) {
  */
 function isBulkEligible(row) {
     if (!row) return false;
+    // A submission carrying a note (the admin generator's answer check
+    // disagreed with the key) needs a person to look at it.
+    if (typeof row.reviewNote === 'string' && row.reviewNote.trim()) return false;
     if (!SUBJECT_VARIANTS[normalizeSubject(row.subject)]) return false;
     if (typeof row.text !== 'string' || row.text.trim().length === 0) return false;
     const options = sanitizeOptions(row.options);

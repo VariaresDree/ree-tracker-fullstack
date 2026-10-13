@@ -11,6 +11,7 @@ import { generateBoardReadinessReport } from '../../services/geminiApi';
 import { fetchReadinessScore } from '../../services/dbQueries';
 import { Button, Modal } from '../../components/ui';
 import { Sparkles } from '../../components/ui/icons';
+import AiStatusNote from '../../components/AiStatusNote';
 
 export default function AiBoardReport({ stats }) {
   const [confirming, setConfirming] = useState(false);
@@ -53,8 +54,9 @@ export default function AiBoardReport({ stats }) {
         }
       >
         <p className="text-sm text-muted2 leading-relaxed">
-          Writes a readiness review from your topic results, blind spots and trend. It uses one AI request.
+          Writes a short readiness review from your topic results, blind spots and trend. It uses one AI request and usually takes a few seconds.
         </p>
+        <AiStatusNote task="report" className="mt-3" />
       </Modal>
 
       <Modal

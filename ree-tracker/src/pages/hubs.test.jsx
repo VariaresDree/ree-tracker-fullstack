@@ -99,7 +99,7 @@ describe('Admin', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Admin' })).toBeInTheDocument();
         expect(await screen.findByText('question-bank')).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Question bank', 'Explanation review', 'Formula cards', 'Handouts']);
+        expect(tabs).toEqual(['Question bank', 'Explanation review', 'Formula cards', 'Handouts', 'AI models']);
     });
 
     it('?tab=handouts gives the editable handouts', async () => {

@@ -228,6 +228,7 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
                     type: data.type || 'conceptual',
                     bloomLevel: data.bloomLevel || 'REMEMBER',
                     difficultyTier: data.difficultyTier || 1,
+                    reviewNote: data.reviewNote || null,
                     submittedBy: req.user?.id || null,
                 },
             });

@@ -16,7 +16,7 @@ import {
 import { sanitizeOptions, stripChoicePrefix } from '../../utils/sanitizeOptions';
 import { isKnownTopic } from '../../utils/topicLabels';
 import { Button, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill, ProgressIndicator } from '../../components/ui';
-import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers } from '../../components/ui/icons';
+import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers, TriangleAlert } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
@@ -47,6 +47,9 @@ const BULK_CHUNK_SIZE = 25;
 const isOffSyllabus = (q, tos) => !isKnownTopic(q?.subtopic, tos?.[normalizeSubject(q?.subject)]);
 const isBulkEligibleClient = (q, tos) => {
   if (!q || q.legacy) return false;
+  // The AI answer check disagreed with the key: a person decides (the server
+  // applies the same rule).
+  if (typeof q.reviewNote === 'string' && q.reviewNote.trim()) return false;
   if (!BULK_OK_SUBJECTS.has(String(q.subject || '').trim().toLowerCase())) return false;
   if (isOffSyllabus(q, tos)) return false;
   const text = q.text || q.content || '';
@@ -590,6 +593,12 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                                     {!q.legacy && isOffSyllabus(q, dynamicTOS) && <Badge tone="danger">Not in syllabus</Badge>}
                                 </div>
                                 <div className="text-eyebrow mt-2">{q.subject} • {q.subtopic}</div>
+                                {!q.legacy && q.reviewNote && (
+                                    <p className="mt-2 text-xs flex items-start gap-1.5 max-w-prose" style={{ color: 'var(--color-reeAmber-text)' }}>
+                                        <TriangleAlert size={14} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-px" />
+                                        <span>{q.reviewNote}</span>
+                                    </p>
+                                )}
                             </div>
                             <div className="flex gap-2">
                                 {!q.legacy && (

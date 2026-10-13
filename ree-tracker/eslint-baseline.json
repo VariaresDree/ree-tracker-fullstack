@@ -2,7 +2,7 @@
   "no-case-declarations": 2,
   "no-control-regex": 1,
   "no-useless-assignment": 1,
-  "preserve-caught-error": 2,
+  "preserve-caught-error": 1,
   "react-hooks/globals": 1,
   "react-hooks/immutability": 4,
   "react-hooks/purity": 6,

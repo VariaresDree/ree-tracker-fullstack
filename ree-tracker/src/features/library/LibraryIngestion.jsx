@@ -1,26 +1,25 @@
 // src/features/library/LibraryIngestion.jsx
 import { useEffect, useRef, useState } from 'react';
-import { useStore } from '../../store/useStore'; // 🚀 FIXED: Dynamic Store Import
+import { useStore } from '../../store/useStore';
 import { refreshLiveTOS } from '../../services/liveTaxonomy';
 import { useAuth } from '../../contexts/AuthContext';
-import { Button, FormField, Input, Select, Modal, Badge } from '../../components/ui';
+import { Button, FormField, Select, Modal, Badge } from '../../components/ui';
 import { Sparkles, FileText, FileUp, X, TriangleAlert, Check } from '../../components/ui/icons';
+import AiStatusNote from '../../components/AiStatusNote';
 import LatexRenderer from '../../components/LatexRenderer';
 
 export default function LibraryIngestion({
   genSubject, setGenSubject, genSubtopic, setGenSubtopic,
-  genFocus, setGenFocus,
-  genLoading, genStatus, genTone, parsingPdf, isOnline, selectedPdf,
+  genStatus, genTone, parsingPdf, isOnline, selectedPdf,
   isDragging, handleDragOver, handleDragLeave, handleDrop,
   generatedQuestions, showQAModal, setShowQAModal, isCommitting,
-  handleGenerate, handlePdfSelect, executePdfExtraction,
+  handlePdfSelect, executePdfExtraction,
   removeQuestion, handleCommitToMatrix
 }) {
   const { currentUser } = useAuth();
   const fileInputRef = useRef(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  // 🚀 FIXED: Pull the live syllabus from global memory
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
 
@@ -38,62 +37,11 @@ export default function LibraryIngestion({
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in">
+      <div className="flex flex-col gap-4 animate-in fade-in">
 
-        {/* LEFT PANEL: AI generation */}
-        <div className="p-6 bg-surface border border-border rounded-[var(--radius-lg)] flex flex-col justify-between shadow-sm">
-          <div>
-            <h3 className="text-base font-semibold text-textMain flex items-center gap-2 mb-1">
-              <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> AI ingestion
-            </h3>
-            <p className="text-xs text-muted2 mb-5">Generate new questions targeted at a specific topic from the syllabus.</p>
-            <div className="flex flex-col gap-3">
-              {/* Subject + Topic share a row on ≥sm so the card stays compact on
-                  desktop (the paired extraction card no longer gets stretched). */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FormField label="Subject">
-                  <Select
-                      value={genSubject}
-                      onChange={e => {
-                          setGenSubject(e.target.value);
-                          // Reset to the neutral sentinel, not topic index 0.
-                          setGenSubtopic('All');
-                      }}
-                  >
-                    {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
-                  </Select>
-                </FormField>
-                <FormField label="Topic">
-                  <Select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)}>
-                    <option value="All">All topics</option>
-                    {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
-                  </Select>
-                </FormField>
-              </div>
-              <FormField
-                label="Specific focus (optional)"
-                hint="Steer the generator — a finer subtopic or a style of question. Blank = default behavior."
-              >
-                <Input
-                  value={genFocus}
-                  onChange={e => setGenFocus(e.target.value)}
-                  placeholder="e.g. Circle, transformer losses, PEC grounding…"
-                />
-              </FormField>
-            </div>
-          </div>
-          <div className="flex gap-3 mt-6">
-            <Button variant="secondary" className="flex-1" onClick={() => handleGenerate(false)} disabled={genLoading || !isOnline || parsingPdf}>
-              Generate from model
-            </Button>
-            <Button className="flex-1" onClick={() => handleGenerate(true)} disabled={genLoading || !isOnline || parsingPdf}>
-              Generate with web search
-            </Button>
-          </div>
-        </div>
-
-        {/* RIGHT PANEL: PDF & image extraction */}
-        <div className="p-6 bg-surface border border-border rounded-[var(--radius-lg)] flex flex-col shadow-sm">
+        {/* PDF & image extraction. AI generation is its own card above
+            (features/admin/ai/QuestionGenerator). */}
+        <div className="p-5 sm:p-6 bg-surface border border-border rounded-[var(--radius-lg)] flex flex-col shadow-sm">
           {/* flex-1 chain: the drop zone stretches to absorb whatever height the
               generation card sets, instead of leaving dead space below it — and a
               taller drop target is easier to hit. */}
@@ -101,7 +49,29 @@ export default function LibraryIngestion({
             <h3 className="text-base font-semibold text-textMain flex items-center gap-2 mb-1">
               <FileText size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-text)' }} /> PDF & image extraction
             </h3>
-            <p className="text-xs text-muted2 mb-5">Drop a PDF or schematic image — the AI extracts questions ready for review.</p>
+            <p className="text-xs text-muted2 mb-4">Drop a PDF or a photo of a page. The AI pulls out the questions (or writes some from the content) for you to check before they go to the review queue.</p>
+            <AiStatusNote task="vision" className="mb-3" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <FormField label="Subject">
+                <Select
+                    value={genSubject}
+                    onChange={e => {
+                        setGenSubject(e.target.value);
+                        // Reset to the neutral sentinel, not topic index 0.
+                        setGenSubtopic('All');
+                    }}
+                    disabled={parsingPdf}
+                >
+                  {Object.keys(safeTOS).map(s => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Topic">
+                <Select value={genSubtopic} onChange={e => setGenSubtopic(e.target.value)} disabled={parsingPdf}>
+                  <option value="All">All topics</option>
+                  {(safeTOS[genSubject] || []).map(t => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </FormField>
+            </div>
 
             {!selectedPdf ? (
               <div
@@ -149,7 +119,7 @@ export default function LibraryIngestion({
                   <Button variant="secondary" className="flex-1" onClick={() => handlePdfSelect({ target: { files: [] } })} disabled={parsingPdf}>
                     Cancel
                   </Button>
-                  <Button tone="signal" className="flex-1" onClick={executePdfExtraction} disabled={parsingPdf}>
+                  <Button tone="signal" className="flex-1" onClick={executePdfExtraction} disabled={parsingPdf || !isOnline}>
                     Extract questions
                   </Button>
                 </div>
@@ -165,7 +135,7 @@ export default function LibraryIngestion({
         {(genStatus && !parsingPdf && !showQAModal) && (
           <div
             role="status"
-            className="lg:col-span-2 p-3 rounded-[var(--radius-default)] text-xs font-medium border border-border bg-surface"
+            className="p-3 rounded-[var(--radius-default)] text-xs font-medium border border-border bg-surface"
             style={
               genTone === 'success'
                 ? { background: 'color-mix(in srgb, var(--accent-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)', color: 'var(--accent-success)' }
@@ -235,7 +205,7 @@ export default function LibraryIngestion({
                           (`\frac{...}`), which made malformed formulas impossible
                           to spot at exactly the moment they should be caught. */}
                       <div className="text-sm font-medium text-textMain mb-4 leading-relaxed bg-bg p-3 rounded-[var(--radius-default)] border border-border/50 math-scroll-mobile min-w-0 [&_p]:!m-0">
-                          <LatexRenderer content={q.question} />
+                          <LatexRenderer content={q.text || q.question} />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
