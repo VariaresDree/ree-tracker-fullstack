@@ -10,7 +10,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { MISTAKE_CAUSES, MISTAKE_CAUSE_LABELS, toDisplaySubject } from '@ree/shared';
+import { MISTAKE_CAUSES, MISTAKE_CAUSE_LABELS, isMarkedFixed, toDisplaySubject } from '@ree/shared';
 import { Badge, Button, Card, EmptyState, FormField, SegmentedControl, Select, Skeleton } from '../../components/ui';
 import { CheckCircle2, CloudOff, Play, RotateCcw, TriangleAlert, NotebookPen } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
@@ -45,7 +45,8 @@ function MistakeCard({ item, expanded, onToggle, onTag, isOnline, ai }) {
     }
     setBusy(false);
   };
-  const resolved = !!item.resolvedAt;
+  // Marked fixed, and no miss since (a later miss reopens it).
+  const resolved = isMarkedFixed(item);
 
   return (
     <Card as="li" className="p-4 sm:p-5 flex flex-col gap-4">
@@ -98,13 +99,13 @@ function MistakeCard({ item, expanded, onToggle, onTag, isOnline, ai }) {
         <Button size="sm" variant="secondary" aria-expanded={expanded} onClick={() => onToggle(item.questionId)}>
           {expanded ? 'Hide answer' : 'Show answer and solution'}
         </Button>
-        {resolved ? (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => tag({ cause: item.cause, resolved: false })}>
-            <RotateCcw size={14} strokeWidth={1.75} aria-hidden="true" /> Reopen
-          </Button>
-        ) : !item.fixed && (
+        {!item.fixed ? (
           <Button size="sm" variant="ghost" tone="success" disabled={busy} onClick={() => tag({ cause: item.cause, resolved: true })}>
             <CheckCircle2 size={14} strokeWidth={1.75} aria-hidden="true" /> Mark fixed
+          </Button>
+        ) : resolved && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => tag({ cause: item.cause, resolved: false })}>
+            <RotateCcw size={14} strokeWidth={1.75} aria-hidden="true" /> Reopen
           </Button>
         )}
       </div>

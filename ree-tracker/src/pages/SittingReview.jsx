@@ -13,7 +13,7 @@
 // a sitting only once it is closed.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { suggestMistakeCause, toDisplaySubject, VERDICT } from '@ree/shared';
+import { isMarkedFixed, suggestMistakeCause, toDisplaySubject, VERDICT } from '@ree/shared';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
@@ -301,7 +301,10 @@ export default function SittingReview() {
                     suggested={mistake?.suggestedCause ?? suggestMistakeCause({ timeSpentMs: current.timeSpentMs, confidenceLevel: current.confidence }, current.subject)}
                     onChange={(cause) => {
                       setCauseOverride((prev) => ({ ...prev, [current.questionId]: cause }));
-                      setTag(current.questionId, { cause, resolved: !!mistake?.resolvedAt }).catch(() => {
+                      // The fixed mark is left as it stands when this screen
+                      // doesn't know it (the list hasn't loaded, or the
+                      // question isn't in your newest 300).
+                      setTag(current.questionId, mistake ? { cause, resolved: isMarkedFixed(mistake) } : { cause }).catch(() => {
                         setCauseOverride((prev) => ({ ...prev, [current.questionId]: value }));
                         toast.error("Couldn't save that. Try again.");
                       });

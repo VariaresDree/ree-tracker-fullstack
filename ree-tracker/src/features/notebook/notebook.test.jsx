@@ -135,6 +135,21 @@ describe('mistakes', () => {
     expect(withTag(marked, { cause: 'time', resolved: false })).toMatchObject({ resolvedAt: null, fixed: false });
   });
 
+  it('marks it fixed again after a new miss, and a cause alone keeps the mark', () => {
+    const reopened = mistake('q1', { resolvedAt: '2026-10-01T00:00:00.000Z', lastWrongAt: '2026-10-05T03:00:00.000Z' });
+    expect(reopened.fixed).toBe(false);
+    expect(withTag(reopened, { cause: null, resolved: true }, new Date('2026-10-06T00:00:00Z'))).toMatchObject({ resolvedAt: '2026-10-06T00:00:00.000Z', fixed: true });
+    const marked = withTag(mistake('q2'), { cause: null, resolved: true }, new Date('2026-10-06T00:00:00Z'));
+    expect(withTag(marked, { cause: 'misread' })).toMatchObject({ cause: 'misread', resolvedAt: '2026-10-06T00:00:00.000Z', fixed: true });
+  });
+
+  it('offers Mark fixed, not Reopen, on a mistake missed again after it was marked', async () => {
+    apiRequest.mockResolvedValue({ items: [mistake('q1', { resolvedAt: '2026-10-01T00:00:00.000Z' })], truncated: false });
+    renderAt(<MistakesPanel currentUser={{ uid: 'user-A' }} isOnline />);
+    expect(await screen.findByRole('button', { name: /Mark fixed/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reopen/ })).not.toBeInTheDocument();
+  });
+
   it('says what most tagged misses come down to, once there are three', () => {
     expect(causeSummary([mistake('a', { cause: 'time' }), mistake('b', { cause: 'time' })])).toBeNull();
     expect(causeSummary(['time', 'time', 'concept'].map((cause, i) => mistake(`q${i}`, { cause })))).toBe('Most of your tagged misses are running out of time (2 of 3).');

@@ -39,4 +39,5 @@ module.exports = {
     ...require('./notebook'),
     ...require('./srs'),
     ...require('./focus'),
+    ...require('./reminders'),
 };

@@ -88,6 +88,24 @@ describe('GET /api/user/mistakes', () => {
         ]);
     });
 
+    it("leaves out a battle that is still running, so the key isn't read mid-battle", async () => {
+        vi.spyOn(prisma.questionAttempt, 'findMany').mockImplementation(async ({ where }) => (where.isCorrect
+            ? []
+            : [
+                wrongAt('q-live', 15, { mode: 'BATTLE', sessionId: 'LIVE01:uid-notebook' }),
+                wrongAt('q-done', 14, { mode: 'BATTLE', sessionId: 'DONE01:uid-notebook' }),
+                wrongAt('q-mock', 13, { mode: 'BOARD_SIM', sessionId: 's1' }),
+            ]));
+        const battles = vi.spyOn(prisma.battle, 'findMany').mockResolvedValue([
+            { id: 'LIVE01', startedAt: new Date(Date.now() - 60_000), timeLimitSecs: 600, createdAt: new Date() },
+        ]);
+        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => q(id)));
+        vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
+        const res = await request(makeApp()).get('/api/user/mistakes').set(as());
+        expect(battles.mock.calls[0][0].where).toEqual({ id: { in: ['LIVE01', 'DONE01'] }, status: { not: 'COMPLETED' } });
+        expect(res.body.items.map((i) => i.questionId)).toEqual(['q-done', 'q-mock']);
+    });
+
     it('answers an empty notebook without further reads', async () => {
         vi.spyOn(prisma.questionAttempt, 'findMany').mockResolvedValue([]);
         const questions = vi.spyOn(prisma.question, 'findMany');
@@ -99,6 +117,11 @@ describe('GET /api/user/mistakes', () => {
 
 describe('PUT /api/user/mistakes/:questionId', () => {
     const put = (body) => request(makeApp()).put('/api/user/mistakes/q1').set(as()).send(body);
+    let lastMiss;
+    beforeEach(() => {
+        lastMiss = { answeredAt: new Date('2026-09-30T00:00:00Z'), createdAt: new Date('2026-09-30T00:00:00Z') };
+        vi.spyOn(prisma.questionAttempt, 'findFirst').mockImplementation(async () => lastMiss);
+    });
 
     it('tags a cause and marks it fixed, keeping the first time it was marked', async () => {
         const first = new Date('2026-10-01T00:00:00Z');
@@ -111,7 +134,26 @@ describe('PUT /api/user/mistakes/:questionId', () => {
         expect(res.body.item).toEqual({ questionId: 'q1', cause: 'computation', resolvedAt: first.toISOString() });
     });
 
+    it('marks it fixed again with a new time after a new miss', async () => {
+        vi.spyOn(prisma.mistakeTag, 'findUnique').mockResolvedValue({ resolvedAt: new Date('2026-10-01T00:00:00Z') });
+        lastMiss = { answeredAt: new Date('2026-10-05T00:00:00Z'), createdAt: new Date('2026-10-05T00:00:00Z') };
+        const upsert = vi.spyOn(prisma.mistakeTag, 'upsert').mockImplementation(async ({ update }) => ({ ...update }));
+        const before = Date.now();
+        await put({ cause: null, resolved: true });
+        expect(upsert.mock.calls[0][0].update.resolvedAt.getTime()).toBeGreaterThanOrEqual(before);
+        expect(prisma.questionAttempt.findFirst.mock.calls[0][0].where).toEqual({ userId: UID, questionId: 'q1', isCorrect: false });
+    });
+
+    it('a cause sent without the fixed mark keeps the mark as it stands', async () => {
+        const marked = new Date('2026-10-01T00:00:00Z');
+        vi.spyOn(prisma.mistakeTag, 'findUnique').mockResolvedValue({ resolvedAt: marked });
+        const upsert = vi.spyOn(prisma.mistakeTag, 'upsert').mockImplementation(async ({ update }) => ({ ...update }));
+        await put({ cause: 'misread' });
+        expect(upsert.mock.calls[0][0].update).toEqual({ cause: 'misread', resolvedAt: marked });
+    });
+
     it('removes a tag with no cause that is not fixed', async () => {
+        vi.spyOn(prisma.mistakeTag, 'findUnique').mockResolvedValue({ resolvedAt: null });
         const del = vi.spyOn(prisma.mistakeTag, 'deleteMany').mockResolvedValue({ count: 1 });
         const res = await put({ cause: null, resolved: false });
         expect(res.status).toBe(200);
@@ -119,8 +161,8 @@ describe('PUT /api/user/mistakes/:questionId', () => {
     });
 
     it('refuses a cause it does not know, and a question that does not exist', async () => {
-        expect((await put({ cause: 'luck', resolved: false })).status).toBe(400);
         vi.spyOn(prisma.mistakeTag, 'findUnique').mockResolvedValue(null);
+        expect((await put({ cause: 'luck', resolved: false })).status).toBe(400);
         vi.spyOn(prisma.mistakeTag, 'upsert').mockRejectedValue(Object.assign(new Error('fk'), { code: 'P2003' }));
         expect((await put({ cause: 'concept', resolved: false })).status).toBe(404);
     });

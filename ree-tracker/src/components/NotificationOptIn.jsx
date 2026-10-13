@@ -25,7 +25,7 @@ import toast from 'react-hot-toast';
 import { Button } from './ui';
 import { Bell, X } from './ui/icons';
 import { useNotificationSlice } from '../store/slices';
-import { scheduleDailyReminder } from '../services/localReminders';
+import { applyDailyReminder } from '../services/reminderPrefs';
 
 // How many inline copies are mounted (a results screen hosting the offer).
 let inlineHosts = 0;
@@ -71,7 +71,10 @@ export default function NotificationOptIn({ inline = false }) {
     setBusy(true);
     try {
       if (isNative) {
-        const ok = await scheduleDailyReminder({
+        // From the server when this phone gets pushes, otherwise on the
+        // device; never both (services/reminderPrefs).
+        const { ok } = await applyDailyReminder({
+          on: true,
           hour: notifications.reminderHour,
           minute: notifications.reminderMinute,
         });

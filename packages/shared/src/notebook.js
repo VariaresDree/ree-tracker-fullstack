@@ -58,6 +58,18 @@ function isMistakeFixed({ lastWrongAt, lastCorrectAt = null, resolvedAt = null }
     return (correct != null && correct > wrong) || (resolved != null && resolved >= wrong);
 }
 
+/**
+ * Whether the learner's "fixed" mark still stands: set at or after the last
+ * miss. A miss after it reopens the mistake, and marking it fixed again then
+ * sets a new time.
+ */
+function isMarkedFixed({ lastWrongAt, resolvedAt }) {
+    const resolved = toTime(resolvedAt);
+    if (resolved == null) return false;
+    const wrong = toTime(lastWrongAt);
+    return wrong == null || resolved >= wrong;
+}
+
 /** A note body as stored: trimmed, and null when empty (an empty note is deleted). */
 function normalizeNoteBody(body) {
     if (typeof body !== 'string') return null;
@@ -73,5 +85,6 @@ module.exports = {
     NOTE_TARGETS,
     suggestMistakeCause,
     isMistakeFixed,
+    isMarkedFixed,
     normalizeNoteBody,
 };

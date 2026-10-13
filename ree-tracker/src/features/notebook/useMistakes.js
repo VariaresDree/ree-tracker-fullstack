@@ -9,16 +9,22 @@
 // at once and is sent as the mistake's full tag state, or queued offline (a
 // newer one for the same question replaces the older).
 import { useCallback, useLayoutEffect, useRef } from 'react';
-import { isMistakeFixed } from '@ree/shared';
+import { isMarkedFixed, isMistakeFixed } from '@ree/shared';
 import { useSyncedUserData, resetSyncedMemory } from '../../hooks/useSyncedUserData';
 import { writeOrQueue } from '../../services/writeOrQueue';
 
 export const MISTAKES_ENDPOINT = '/api/user/mistakes';
 const CACHE = 'mistakes';
 
-/** One mistake with a new tag state, its Fixed recomputed. */
+/**
+ * One mistake with a new tag state, its Fixed recomputed. Marking fixed keeps
+ * the time while that mark stands, and sets a new one after a new miss;
+ * `resolved` left out keeps the mark as it stands (as the server does).
+ */
 export function withTag(item, { cause, resolved }, now = new Date()) {
-  const resolvedAt = resolved ? (item.resolvedAt || now.toISOString()) : null;
+  const marked = isMarkedFixed(item);
+  const keep = resolved === undefined ? marked : resolved;
+  const resolvedAt = keep ? (marked ? item.resolvedAt : now.toISOString()) : null;
   return {
     ...item,
     cause: cause ?? null,
@@ -75,7 +81,9 @@ export function useMistakes({ fetchIfOlderThanMs = 0 } = {}) {
     const previous = latest.current?.items.find((i) => i.questionId === questionId) || null;
     if (latest.current) latest.current = mapItem(latest.current, questionId, (i) => withTag(i, next));
     setServer((prev) => mapItem(prev, questionId, (i) => withTag(i, next)));
-    const state = { cause: next.cause ?? null, resolved: !!next.resolved };
+    const state = next.resolved === undefined
+      ? { cause: next.cause ?? null }
+      : { cause: next.cause ?? null, resolved: !!next.resolved };
     return trackWrite(async () => {
       try {
         const result = await writeOrQueue(`${MISTAKES_ENDPOINT}/${encodeURIComponent(questionId)}`, 'PUT', state, { queueKey: MISTAKES_ENDPOINT, supersede: true });

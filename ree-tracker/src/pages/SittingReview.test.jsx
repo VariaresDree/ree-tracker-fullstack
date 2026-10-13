@@ -109,7 +109,8 @@ describe('SittingReview', () => {
     expect(concept).toHaveTextContent('suggested');
     fireEvent.click(screen.getByRole('button', { name: /Misread/ }));
     expect(screen.getByRole('button', { name: /Misread/ })).toHaveAttribute('aria-pressed', 'true');
-    await vi.waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/user/mistakes/q2', 'PUT', { cause: 'misread', resolved: false }));
+    // The mistakes list doesn't hold it, so the fixed mark is left as it stands.
+    await vi.waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/user/mistakes/q2', 'PUT', { cause: 'misread' }));
     // A blank is not a mistake to tag.
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.queryByRole('group', { name: 'Why did you miss it?' })).not.toBeInTheDocument();

@@ -544,7 +544,10 @@ async function completeBattle(ns, battleId, lobby) {
                     eloDelta: d.delta,
                     tierBefore: d.tierBefore,
                     tierAfter: d.tierAfter,
-                    perQuestion: lobby.participants.get(r.id)?.attempts ?? null,
+                    // [] rather than null: a nullable Json column takes
+                    // Prisma.DbNull, not null, and a throw here would roll the
+                    // whole completion back on every retry.
+                    perQuestion: lobby.participants.get(r.id)?.attempts ?? [],
                 },
             });
         }
