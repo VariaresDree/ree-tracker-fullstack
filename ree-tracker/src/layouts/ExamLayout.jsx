@@ -17,17 +17,16 @@ export default function ExamLayout({
           shortMessage/message default to plain mock-board copy. The old
           default promised "real-time penalties" that don't exist, and the
           Gauntlet (which shares this layout) passes its own pair.
-          Background is a darkened accent-danger, not the raw token: measured
-          white-on-raw-accent-danger at ~3.2:1, under the 4.5:1 AA floor for
-          text this size (12.8px semibold doesn't qualify as "large text").
-          Mixing in 25% black brings it to ~5.3:1 without touching the shared
-          --accent-danger variable, which reads fine elsewhere because those
-          usages put the accent color as TEXT on a low-opacity tint, not white
-          text on a full-strength fill — a different contrast pair entirely. */}
+          The banner is a danger button's fill and ink (--on-danger), not white
+          on the raw token: text this size (12.8px semibold) needs 4.5:1, and
+          white on a darkened danger read 2.65-4.13:1 on the math, ocean,
+          forest, organs, electrical and retrowave themes, whose danger is a
+          light pink. themeContrast.test.js measures the pair in every theme. */}
       <header
-        className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase text-white"
+        className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase"
         style={{
-          background: 'color-mix(in srgb, var(--accent-danger) 75%, black)',
+          background: 'color-mix(in srgb, var(--accent-danger) 88%, black)',
+          color: 'var(--on-danger)',
           boxShadow: '0 2px 10px color-mix(in srgb, var(--accent-danger) 30%, transparent)',
         }}
       >

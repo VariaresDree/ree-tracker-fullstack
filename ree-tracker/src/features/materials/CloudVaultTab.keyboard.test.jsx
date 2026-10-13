@@ -52,6 +52,11 @@ describe('Handouts folders', () => {
     fireEvent.keyDown(open, { key: 'a' });
     expect(navigateToFolder).toHaveBeenCalledTimes(2);
   });
+
+  it('the folder path’s buttons are touch-sized', () => {
+    render(<CloudVaultTab currentUser={{ uid: 'u1' }} isAdmin={false} onViewMaterial={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Handouts' }).className).toMatch(/pointer-coarse:min-h-11/);
+  });
 });
 
 describe('Handouts states', () => {

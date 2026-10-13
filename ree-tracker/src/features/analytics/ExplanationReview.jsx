@@ -152,9 +152,20 @@ export default function ExplanationReview() {
 
             {questions.map(q => (
                 <div key={q.id} className="bg-surface border border-border2 rounded-xl overflow-hidden">
+                    {/* A button-role row, not a <button>: it holds the question's
+                        rendered LaTeX, block content a <button> can't contain.
+                        It was a bare clickable div, out of reach of the keyboard. */}
                     <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expandedId === q.id}
                         className="p-4 cursor-pointer hover:bg-surface2 transition-colors"
                         onClick={() => setExpandedId(expandedId === q.id ? null : q.id)}
+                        onKeyDown={(e) => {
+                            if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                            e.preventDefault();
+                            setExpandedId(expandedId === q.id ? null : q.id);
+                        }}
                     >
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">

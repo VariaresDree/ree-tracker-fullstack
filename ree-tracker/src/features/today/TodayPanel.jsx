@@ -231,7 +231,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
           </ol>
         </div>
 
-        <Link to="/progress" className="self-start inline-flex items-center gap-1.5 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
+        <Link to="/progress" className="self-start inline-flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
           Charts, topics and your study plan are in Progress <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
         </Link>
       </Card>

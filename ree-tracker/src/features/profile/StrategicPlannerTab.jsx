@@ -71,10 +71,11 @@ function MonthCalendar({ month, onMonth, tasks, selectedDay, onSelectDay }) {
               aria-pressed={selected}
               aria-label={`${dayLabel(iso)}${isToday ? ', today' : ''}${open ? `, ${open} open ${open === 1 ? 'task' : 'tasks'}` : ''}`}
               className={`relative h-9 pointer-coarse:h-11 rounded-[var(--radius-sm)] text-xs tabular-nums cursor-pointer transition-colors ${
-                selected ? 'font-semibold text-white' : isToday ? 'font-semibold text-textMain' : 'text-textMain hover:bg-surface2'
+                selected ? 'font-semibold text-[var(--on-accent)]' : isToday ? 'font-semibold text-textMain' : 'text-textMain hover:bg-surface2'
               }`}
+              // Selected: the accent button's fill (white on the raw accent read 4.35:1).
               style={selected
-                ? { background: 'var(--accent)' }
+                ? { background: 'color-mix(in srgb, var(--accent) 88%, black)' }
                 : isToday ? { boxShadow: 'inset 0 0 0 1.5px var(--accent)' } : undefined}
             >
               {d}

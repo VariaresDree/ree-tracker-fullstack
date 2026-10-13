@@ -180,7 +180,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           <div className="flex items-center gap-2 mt-3 font-mono text-xs text-muted2 flex-wrap">
             {breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={crumb.id}>
-                <button onClick={() => navigateToBreadcrumb(idx)} onDragOver={(e) => handleDragOver(e, crumb.id)} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, crumb.id)} className={`px-2 py-1 rounded transition-colors cursor-pointer ${idx === breadcrumbs.length - 1 ? 'text-reeBlue-text font-bold bg-reeBlue/10' : 'hover:bg-surface2 hover:text-textMain'} ${dragOverFolderId === crumb.id ? 'bg-reeBlue/30 border border-reeBlue shadow-lg scale-105' : 'border border-transparent'}`}>
+                <button onClick={() => navigateToBreadcrumb(idx)} onDragOver={(e) => handleDragOver(e, crumb.id)} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, crumb.id)} className={`inline-flex items-center px-2 py-1 pointer-coarse:min-h-11 rounded transition-colors cursor-pointer ${idx === breadcrumbs.length - 1 ? 'text-reeBlue-text font-bold bg-reeBlue/10' : 'hover:bg-surface2 hover:text-textMain'} ${dragOverFolderId === crumb.id ? 'bg-reeBlue/30 border border-reeBlue shadow-lg scale-105' : 'border border-transparent'}`}>
                   {crumb.name}
                 </button>
                 {idx < breadcrumbs.length - 1 && <span className="select-none">/</span>}

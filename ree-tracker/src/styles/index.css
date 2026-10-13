@@ -171,11 +171,27 @@
      mid-tone surfaces (math, ocean, forest) can hold far less than the dark
      neutral ones. Every foreground use (labels, active tabs, the wordmark,
      icons) takes this token; backgrounds, borders and tints keep --accent.
-     themeContrast.test.js holds it to 4.5:1. */
+     themeContrast.test.js holds it to 4.5:1 on the page, cards, panels
+     (--bg-surface2, where seven themes read 3.2-4.3:1 until their shares
+     came down a step or more) and the 15% accent tints. */
   --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
   --accent-signal: #22d3ee;
   --accent-danger: #ff4d6d;
   --accent-success: #34d399;
+
+  /* Ink on a filled control: Button's `primary` (the tone mixed 88% toward
+     black) and the fills that copy it (the exam banner, the current exam
+     navigator cell, the planner's selected day, the Scratchpad's Close, the
+     study calendar's busiest days). White read at 1.9-4.07:1 on the green,
+     amber, cyan and pink fills of the dark themes, so each tone takes white
+     or this near-black, whichever clears 4.5:1 on its fill. The light
+     themes' deep fills keep white. themeContrast.test.js resolves each fill
+     and holds its ink to 4.5:1 in every theme. */
+  --on-accent: #ffffff;
+  --on-danger: #0b0f1a;
+  --on-success: #0b0f1a;
+  --on-amber: #0b0f1a;
+  --on-signal: #0b0f1a;
 
   /* Focus ring (high-contrast, never decorative). The colour is the accent
      text colour: plain --accent-velocity fell under the 3:1 non-text floor on
@@ -207,8 +223,8 @@
   --border-main: rgba(0, 0, 0, 0.05);
   --border-light: rgba(0, 0, 0, 0.1);
   --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
-  --accent-success: #1b7957;
-  --accent-danger: #d00025;
+  --accent-success: #1a7655;
+  --accent-danger: #cb0024;
   /* The stock brand hues read at 1.8-3.8:1 as text on near-white. Darker
      shades of the same hues serve both uses on a light theme: text clears
      4.5:1, and white-on-colour buttons gain contrast too. */
@@ -223,6 +239,11 @@
   /* The default theme lightens purple text (on :root); this theme's darker
      purple is already tuned for text. */
   --brand-purple-text: var(--brand-purple);
+  /* The darker hues make deep button fills: white reads on all of them. */
+  --on-danger: #ffffff;
+  --on-success: #ffffff;
+  --on-amber: #ffffff;
+  --on-signal: #ffffff;
 }
 
 /* 3. MIDNIGHT (OLED PURE BLACK) */
@@ -254,8 +275,8 @@
   --border-main: rgba(69, 26, 3, 0.1);
   --border-light: rgba(69, 26, 3, 0.2);
   --accent-text: color-mix(in srgb, var(--accent) 75%, var(--text-main));
-  --accent-success: #197755;
-  --accent-danger: #cc0025;
+  --accent-success: #187453;
+  --accent-danger: #c70024;
   /* Darker brand hues, as in the light theme. */
   --brand-blue: #1d4ed8;
   --brand-blue2: #1e40af;
@@ -268,6 +289,11 @@
   /* The default theme lightens purple text (on :root); this theme's darker
      purple is already tuned for text. */
   --brand-purple-text: var(--brand-purple);
+  /* Deep button fills, as in the light theme. */
+  --on-danger: #ffffff;
+  --on-success: #ffffff;
+  --on-amber: #ffffff;
+  --on-signal: #ffffff;
 }
 
 /* 5. CYBERPUNK (NEON GRIT) */
@@ -304,7 +330,7 @@
   --border-light: rgba(34, 211, 238, 0.3);
   --brand-blue: #06b6d4;
   --brand-amber: #fbbf24;
-  --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 60%, var(--text-main));
   --accent-danger: #ff7f96;
   /* Brand colours as text: lighter mixes of the same hues, the least that
      reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
@@ -324,8 +350,11 @@
   --border-main: rgba(110, 231, 183, 0.15);
   --border-light: rgba(110, 231, 183, 0.3);
   --brand-blue: #34d399;
-  --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
   --accent-success: #60ddb0;
+  /* The stock signal cyan read 4.0-4.4:1 as a badge or subject chip on its
+     own tint over these surfaces; lightened the least that passes. */
+  --accent-signal: #62e0f3;
   --accent-danger: #ffb2c0;
   /* Brand colours as text: lighter mixes of the same hues, the least that
      reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
@@ -349,8 +378,10 @@
   --text-muted2: #d5f0fe;
   --border-main: rgba(125, 211, 252, 0.15);
   --border-light: rgba(125, 211, 252, 0.3);
-  --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 25%, var(--text-main));
   --accent-success: #7ce3bd;
+  /* Signal lightened as in forest (it read 3.8:1 on its badge tint). */
+  --accent-signal: #81e6f5;
   --accent-danger: #ffc0cb;
   /* Brand colours as text: lighter mixes of the same hues, the least that
      reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
@@ -391,6 +422,11 @@
   /* The default theme lightens purple text (on :root); this theme's darker
      purple is already tuned for text. */
   --brand-purple-text: var(--brand-purple);
+  /* Deep button fills, as in the light theme. */
+  --on-danger: #ffffff;
+  --on-success: #ffffff;
+  --on-amber: #ffffff;
+  --on-signal: #ffffff;
 }
 
 /* 10. TERMINAL (HACKER MATRIX) */
@@ -407,7 +443,7 @@
   --brand-blue: #22c55e;
   --brand-purple: #4ade80;
   --brand-cyan: #16a34a;
-  --accent-text: color-mix(in srgb, var(--accent) 80%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 60%, var(--text-main));
 }
 
 /* 11. ORGANS (FLESH & CRIMSON) */
@@ -423,7 +459,7 @@
   --border-main: rgba(252, 165, 165, 0.2);
   --border-light: rgba(252, 165, 165, 0.4);
   --brand-blue: #f87171;
-  --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 40%, var(--text-main));
   --accent-success: #44d6a1;
   --accent-danger: #ffaab9;
   /* Brand colours as text: lighter mixes of the same hues, the least that
@@ -447,8 +483,10 @@
   --text-muted2: #cfe4fe;
   --border-main: rgba(255, 255, 255, 0.2);
   --border-light: rgba(255, 255, 255, 0.4);
-  --accent-text: color-mix(in srgb, var(--accent) 35%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 25%, var(--text-main));
   --accent-success: #8ae6c4;
+  /* Signal lightened as in forest (it read 3.8:1 on its badge tint). */
+  --accent-signal: #85e7f6;
   --accent-danger: #ffc5cf;
   /* Brand colours as text: lighter mixes of the same hues, the least that
      reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */
@@ -472,7 +510,7 @@
   --border-main: rgba(252, 211, 77, 0.15);
   --border-light: rgba(252, 211, 77, 0.3);
   --brand-blue: #f59e0b;
-  --accent-text: color-mix(in srgb, var(--accent) 70%, var(--text-main));
+  --accent-text: color-mix(in srgb, var(--accent) 45%, var(--text-main));
   --accent-danger: #ff9aac;
   /* Brand colours as text: lighter mixes of the same hues, the least that
      reads at 4.5:1 on page and card and 3:1 on panels (themeContrast.test.js). */

@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { expectNoSkippedLevels } from '../../test/headings';
 
 vi.mock('../../config/firebaseDb', () => ({ auth: { currentUser: { uid: 'user-A' } } }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'user-A' } }) }));
@@ -32,6 +33,7 @@ const { causeSummary } = await import('./causeSummary');
 const { default: NoteButton, NoteView } = await import('./NoteButton');
 const { default: MistakesPanel } = await import('./MistakesPanel');
 const { default: NotesPanel } = await import('./NotesPanel');
+const { default: NotebookTab } = await import('./NotebookTab');
 
 let simulatorState;
 function SimulatorProbe() {
@@ -225,6 +227,13 @@ describe('mistakes', () => {
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/user/mistakes/q1', 'PUT', { cause: null, resolved: true }));
     fireEvent.click(screen.getByRole('radio', { name: /Fixed 1/ }));
     expect(screen.getByRole('button', { name: /Reopen/ })).toBeInTheDocument();
+  });
+
+  it('the Notebook tab’s headings step down from the Library h1', async () => {
+    apiRequest.mockResolvedValue({ items: [mistake('q1')], truncated: false });
+    const { container } = renderAt(<NotebookTab currentUser={{ uid: 'user-A' }} isOnline />);
+    expect(await screen.findByText('Question q1')).toBeInTheDocument();
+    expectNoSkippedLevels(container);
   });
 
   it('explains an empty notebook', async () => {

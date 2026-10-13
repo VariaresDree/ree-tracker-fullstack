@@ -90,6 +90,7 @@ describe('TodayPanel', () => {
     expect(screen.getByRole('progressbar', { name: 'EE: 6 of 18' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Change your daily target' })).toHaveAttribute('href', '/account#exam-plan');
     expect(screen.getByRole('link', { name: /in Progress/ })).toHaveAttribute('href', '/progress');
+    expect(screen.getByRole('link', { name: /in Progress/ }).className).toMatch(/pointer-coarse:min-h-11/);
   });
 
   it('a new day’s target starts at 0, not at the last study day’s counts', () => {

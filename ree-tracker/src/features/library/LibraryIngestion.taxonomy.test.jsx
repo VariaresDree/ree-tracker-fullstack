@@ -3,7 +3,7 @@
 // held; opening the Library now re-pulls GET /api/config/tos so a stale list
 // (the 28-topic EE list that minted "Transient Response" labels) can't linger.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import LibraryIngestion from './LibraryIngestion';
 
 const refreshLiveTOS = vi.fn(() => Promise.resolve(null));
@@ -36,5 +36,17 @@ describe('LibraryIngestion — Topic dropdown', () => {
     const select = screen.getByLabelText('Topic');
     const options = within(select).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual(['All topics', 'Electric Circuits 1', 'Electrical Transient Analysis']);
+  });
+});
+
+describe('LibraryIngestion — file drop zone', () => {
+  it('opens the file picker from the keyboard', () => {
+    render(<LibraryIngestion {...props} />);
+    const zone = screen.getByRole('button', { name: 'Choose a PDF or image, or drag one here' });
+    expect(zone).toHaveAttribute('tabindex', '0');
+    const click = vi.spyOn(screen.getByLabelText('Upload a PDF or image'), 'click');
+    fireEvent.keyDown(zone, { key: 'Enter' });
+    fireEvent.keyDown(zone, { key: ' ' });
+    expect(click).toHaveBeenCalledTimes(2);
   });
 });

@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { expectNoSkippedLevels } from '../../test/headings';
 
 vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
 vi.mock('../../components/SmartText', () => ({ default: ({ text }) => <span>{text}</span> }));
@@ -45,6 +46,16 @@ describe('Bookmarks explanations', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show solution' }));
     await waitFor(() => expect(screen.getByText('Official: Ohm’s law.')).toBeInTheDocument());
+  });
+});
+
+describe('Bookmarks headings', () => {
+  it('step down from the Library h1, the open solution included', async () => {
+    const { container } = render(<MemoryRouter><BookmarkVaultTab currentUser={{ uid: 'u1' }} isOnline /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Show question' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show solution' }));
+    expect(await screen.findByRole('heading', { name: 'Solution' })).toBeInTheDocument();
+    expectNoSkippedLevels(container);
   });
 });
 

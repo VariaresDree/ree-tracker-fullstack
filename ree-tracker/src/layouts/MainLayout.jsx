@@ -99,7 +99,7 @@ export default function MainLayout({ children }) {
         key={location.pathname}
         id="main-content"
         tabIndex={-1}
-        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem)] md:pb-8 overflow-x-clip relative page-fade-in outline-none"
+        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem)] md:pb-8 overflow-x-clip relative page-fade-in outline-hidden"
       >
         {children}
       </main>

@@ -8,7 +8,7 @@
 // left document.body.style.overflow stuck on 'hidden' forever after both
 // modals closed — the reported "can't scroll after Accept All" freeze.
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { Modal } from './Modal';
 
 describe('Modal — body scroll lock', () => {
@@ -66,5 +66,21 @@ describe('Modal — body scroll lock', () => {
 
     unmount();
     expect(document.body.style.overflow).toBe('');
+  });
+});
+
+// The note editor's footer sat under the iOS keyboard: the dialog was centred
+// in a page the keyboard covers without shrinking.
+describe('Modal — keyboardSafe', () => {
+  it('sits at the top on a phone, caps at 85dvh, and sticks the footer to the bottom of a scrolling body', () => {
+    render(<Modal open onClose={() => {}} title="Add a note" keyboardSafe footer={<button type="button">Save note</button>}><textarea aria-label="Note" /></Modal>);
+    const dialog = screen.getByRole('dialog', { name: 'Add a note' });
+    expect(dialog.className).toMatch(/max-h-\[85dvh\]/);
+    expect(dialog.className).not.toMatch(/max-h-\[90dvh\]/);
+    expect(dialog.parentElement.closest('.fixed').className).toMatch(/items-start/);
+    const footer = screen.getByRole('button', { name: 'Save note' }).parentElement;
+    expect(footer.className).toMatch(/sticky bottom-0/);
+    expect(footer.parentElement.className).toMatch(/overflow-y-auto/);
+    expect(footer.parentElement).toContainElement(screen.getByLabelText('Note'));
   });
 });

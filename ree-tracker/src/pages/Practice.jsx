@@ -137,6 +137,9 @@ export default function Practice() {
 
   return (
     <div className="flex flex-col gap-6 page-fade-in pb-12 max-w-4xl mx-auto w-full relative z-0">
+      {/* The setup and summary screens have their own h1; the running session
+          had none, and its solution panel's heading sat under nothing. */}
+      <h1 className="sr-only">Practice</h1>
       <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
       <Modal
         open={confirmEnd}
@@ -240,6 +243,7 @@ export default function Practice() {
                       aiText={aiText}
                       aiLoading={aiLoading}
                       onExplain={(force) => explainQuestion(currentQ, { force })}
+                      headingLevel={2}
                   />
                   <NoteView type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
 

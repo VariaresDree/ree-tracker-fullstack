@@ -11,6 +11,7 @@
 // if pinned. Position persists across sessions.
 import { useRef, useState, useEffect } from 'react';
 import { useSessionSlice } from '../store/slices';
+import { useOverlays } from '../store/overlays';
 import { usePomodoroClock, formatClock } from '../hooks/usePomodoroClock';
 import { Play, Pause, Pin, PinOff, X } from './ui/icons';
 
@@ -23,6 +24,7 @@ const clampPos = (x, y) => ({
 
 export default function FloatingPomodoro() {
   const { startPomodoro, pausePomodoro, pomodoroWidget, setPomodoroWidget } = useSessionSlice();
+  const scratchpadOpen = useOverlays((s) => s.scratchpadOpen);
   const { pomodoro, remaining } = usePomodoroClock({ owner: true });
 
   // Live drag offset in local state (fast), persisted to the store on release.
@@ -41,7 +43,10 @@ export default function FloatingPomodoro() {
   }, [pomodoroWidget.x, pomodoroWidget.y, setPomodoroWidget]);
 
   const visible = (pomodoro.isRunning && !pomodoroWidget.dismissed) || (pomodoroWidget.pinned && !pomodoroWidget.dismissed);
-  if (!visible) return null;
+  // Out of the way while the Scratchpad is open: both were z-[70], and on a
+  // phone the pill sat on the sheet being written on. The clock above keeps
+  // running; the pill comes back when the Scratchpad closes.
+  if (!visible || scratchpadOpen) return null;
 
   const onPointerDown = (e) => {
     // Buttons handle their own clicks; drag only from the pill body.

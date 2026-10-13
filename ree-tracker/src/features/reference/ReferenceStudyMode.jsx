@@ -74,7 +74,7 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
       aria-label={reviews
         ? 'Study mode: arrow keys move between cards, 1 to 4 rate a flipped card, Escape exits'
         : 'Study mode: arrow keys move between cards, Escape exits'}
-      className="flex flex-col items-center gap-5 animate-in fade-in outline-none"
+      className="flex flex-col items-center gap-5 animate-in fade-in outline-hidden"
       onKeyDown={handleKeyDown}
     >
       <div className="w-full flex items-center justify-between gap-3">

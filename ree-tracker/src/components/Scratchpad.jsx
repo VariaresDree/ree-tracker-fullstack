@@ -12,6 +12,7 @@
 // touch path scaled coordinates a second time, so lines landed away from the
 // finger. Pointer events cover mouse, touch and stylus in one path.
 import { useEffect, useRef } from 'react';
+import { useOverlays } from '../store/overlays';
 
 const PEN_WIDTH = 3;
 
@@ -19,6 +20,16 @@ export default function Scratchpad({ isOpen, onClose }) {
   const panelRef = useRef(null);
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
+
+  // The floating Pomodoro pill hides while this is open (same z-[70] on a
+  // phone, and it covered the corner of the sheet).
+  const setScratchpadOpen = useOverlays((s) => s.setScratchpadOpen);
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    setScratchpadOpen(true);
+    return () => setScratchpadOpen(false);
+  }, [isOpen, setScratchpadOpen]);
+
   // The latest onClose for the Escape listener, without re-running the dialog
   // effect (and re-grabbing focus) every time the parent re-renders.
   const onCloseRef = useRef(onClose);
@@ -138,7 +149,7 @@ export default function Scratchpad({ isOpen, onClose }) {
           <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-colors shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Clear
           </button>
-          <button onClick={onClose} className="px-3 py-1 bg-[var(--accent-danger)] hover:brightness-110 text-white rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-all shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
+          <button onClick={onClose} className="px-3 py-1 bg-[color-mix(in_srgb,var(--accent-danger)_88%,black)] hover:brightness-110 text-[var(--on-danger)] rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-all shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Close
           </button>
         </div>

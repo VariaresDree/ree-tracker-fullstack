@@ -7,6 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { expectNoSkippedLevels } from '../../test/headings';
 
 vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
 vi.mock('../../components/NotificationOptIn', () => ({ default: () => null }));
@@ -55,6 +56,16 @@ describe('SimulatorDiagnostics', () => {
   it('has one heading at the page level', () => {
     renderIt({ score: 75, generalAverage: 76.25, verdict: 'PASSED' });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  });
+
+  // Under the full-board result the title is an h2 ("Last section"), and its
+  // sections were h2s beside it: a flat outline.
+  it.each([1, 2])('at heading level %i, its sections sit one level below the title', (headingLevel) => {
+    const pacingItems = [{ order: 1, subject: 'EE', timeSpentMs: 400_000, text: 'Slow one' }, { order: 2, subject: 'EE', timeSpentMs: 60_000, text: 'Quick one' }];
+    const { container } = renderIt({ score: 75, generalAverage: 76.25, verdict: 'PASSED', pacingItems }, { headingLevel });
+    const sections = screen.getAllByRole('heading', { level: headingLevel + 1 }).map((h) => h.textContent);
+    expect(sections).toEqual(expect.arrayContaining(['By subject', 'Pacing', 'Weak topics']));
+    expectNoSkippedLevels(container);
   });
 
   it('a battle waiting on someone who left says when the results are due, then offers to check', async () => {

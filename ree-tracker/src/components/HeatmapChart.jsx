@@ -2,11 +2,12 @@
 import React, { useState, useMemo } from 'react';
 import { toDisplaySubject, masteryBand, boardPaceSeconds } from '@ree/shared';
 import { useStore } from '../store/useStore';
-import { Panel } from './ui';
+import { Panel, SegmentedControl } from './ui';
 import { Flame, Timer, Target } from './ui/icons';
 
 const normKey = (s) => String(s || '').trim().toLowerCase();
 
+const SUBJECTS = ['Mathematics', 'ESAS', 'EE'].map((s) => ({ value: s, label: toDisplaySubject(s) }));
 const VIEW_MODES = ['mastery', 'accuracy', 'speed'];
 const VIEW_LABEL = { mastery: 'Mastery', accuracy: 'Accuracy', speed: 'Speed' };
 const VIEW_ICON = { mastery: Target, accuracy: Flame, speed: Timer };
@@ -93,26 +94,17 @@ function HeatmapChart({ stats, onDrillTopic }) {
         </div>
       }
     >
-      <div className="flex gap-2 shrink-0" role="tablist" aria-label="Subject">
-        {['Mathematics', 'ESAS', 'EE'].map((subj) => {
-          const on = activeTab === subj;
-          return (
-            <button
-              key={subj}
-              role="tab"
-              aria-selected={on}
-              onClick={() => setActiveTab(subj)}
-              className={`flex-1 py-2 rounded-lg text-[0.7rem] font-medium tracking-wide transition-colors border cursor-pointer ${
-                on
-                  ? 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent-text)]'
-                  : 'bg-surface2/40 border-border text-muted hover:text-textMain'
-              }`}
-            >
-              {toDisplaySubject(subj)}
-            </button>
-          );
-        })}
-      </div>
+      {/* The subject picker: arrow keys between subjects, 44px on touch. It
+          was a role=tab row with no arrow keys and no panel, 30px tall. */}
+      <SegmentedControl
+        size="sm"
+        fullWidth
+        label="Subject"
+        value={activeTab}
+        onChange={setActiveTab}
+        options={SUBJECTS}
+        className="shrink-0"
+      />
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-1.5 flex flex-col gap-2 min-h-0 stagger-fade-in">
         {displayedTopics.map((item) => {

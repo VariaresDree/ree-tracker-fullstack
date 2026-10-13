@@ -43,6 +43,20 @@ describe('HeatmapChart — drill from a tile', () => {
   });
 });
 
+describe('HeatmapChart — subject picker', () => {
+  // It was a role=tab row with no arrow keys and no panel for the tabs to name.
+  it('is a named radio group that the arrow keys move through', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    render(<HeatmapChart stats={{ microTopics: {} }} />);
+    const group = screen.getByRole('radiogroup', { name: 'Subject' });
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Math' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.keyDown(group, { key: 'ArrowRight' });
+    expect(screen.getByRole('radio', { name: 'ESAS' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'ESAS' }).className).toMatch(/pointer-coarse:min-h-11/);
+  });
+});
+
 describe('HeatmapChart — speed against the board pace', () => {
   it('holds Mathematics to its own 180 s pace, not ESAS’s 144 s', async () => {
     const { fireEvent } = await import('@testing-library/react');

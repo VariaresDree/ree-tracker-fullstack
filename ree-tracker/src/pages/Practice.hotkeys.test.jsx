@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { act } from 'react';
+import { expectNoSkippedLevels } from '../test/headings';
 
 vi.mock('../components/LatexRenderer', () => ({
   default: ({ content }) => <span>{content}</span>,
@@ -135,6 +136,17 @@ describe('Practice session controls', () => {
     expect(loadNextQuestion).not.toHaveBeenCalled();
     fireEvent.keyDown(document.body, { key: 'Enter' });
     expect(loadNextQuestion).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Practice session headings', () => {
+  it('a running session has an h1, and the solution steps down from it', () => {
+    sessionState = { ...sessionState, isAnswered: true, questions: [{ ...QUESTION, fixedExplanation: 'One henry is one weber per ampere.' }] };
+    const { container } = renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'Practice' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show solution' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Solution' })).toBeInTheDocument();
+    expectNoSkippedLevels(container);
   });
 });
 

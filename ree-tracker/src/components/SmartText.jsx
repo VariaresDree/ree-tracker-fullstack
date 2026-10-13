@@ -12,7 +12,7 @@
 // the rendered tree only, skipping anything inside a `.katex` element or code.
 // A `$…$` pair is parsed whole before the glossary ever sees the text, so a
 // dictionary word inside or beside a formula can never tear it apart.
-import { useId, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import LatexRenderer from './LatexRenderer';
 
 const DICTIONARY = {
@@ -31,30 +31,93 @@ function lookup(term) {
   return key ? DICTIONARY[key] : null;
 }
 
+// Kept clear of the screen's edge, in px.
+const EDGE = 8;
+
 // One glossary term: a real button (not just a hover target) so it's reachable
-// and operable by keyboard, not only a mouse. The tooltip is revealed on
-// hover OR focus, and is properly associated via aria-describedby.
+// and operable by keyboard, not only a mouse, with the definition tied to it
+// by aria-describedby. It shows while a mouse hovers it or keyboard focus is
+// on it, and a click or tap pins it open (hover and focus alone never opened
+// it on a phone: iOS doesn't focus a tapped button). Escape, a press outside
+// or leaving it closes it. The definition was a fixed w-48 box centred on the
+// term, so near a screen edge it was cut off; it is now measured as it opens,
+// slid sideways to stay on screen, and dropped under the term when there is
+// no room above.
 function GlossaryTerm({ term, definition }) {
   const tooltipId = useId();
-  const [visible, setVisible] = useState(false);
+  const wrapRef = useRef(null);
+  const tipRef = useRef(null);
+  // Focus that follows a press is a click or tap, not the keyboard.
+  const pressedRef = useRef(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const visible = hovered || focused || pinned;
+
+  const close = () => { setHovered(false); setFocused(false); setPinned(false); };
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      setHovered(false); setFocused(false); setPinned(false);
+    };
+    const onPointerDown = (e) => {
+      if (wrapRef.current?.contains(e.target)) return;
+      setHovered(false); setFocused(false); setPinned(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [visible]);
+
+  // Place it before it paints: centred over the term, moved sideways as far
+  // as it takes to stay EDGE px inside the viewport, under the term when the
+  // space above is too short. Written straight to the element's style.
+  useLayoutEffect(() => {
+    const tip = tipRef.current;
+    const anchor = wrapRef.current;
+    if (!visible || !tip || !anchor) return;
+    const box = anchor.getBoundingClientRect();
+    const viewport = document.documentElement.clientWidth || window.innerWidth;
+    const width = tip.offsetWidth;
+    const centred = box.left + box.width / 2 - width / 2;
+    const left = Math.min(Math.max(EDGE, centred), Math.max(EDGE, viewport - EDGE - width));
+    const below = box.top - tip.offsetHeight - EDGE < EDGE;
+    tip.style.translate = `calc(-50% + ${Math.round(left - centred)}px) 0`;
+    tip.style.top = below ? '100%' : '';
+    tip.style.bottom = below ? 'auto' : '';
+    tip.style.marginTop = below ? '0.5rem' : '';
+    tip.style.marginBottom = below ? '0' : '';
+  }, [visible]);
 
   return (
-    <span className="relative inline-block">
+    <span ref={wrapRef} className="relative inline-block">
       <button
         type="button"
-        className="text-reeCyan-text border-b border-dashed border-reeCyan font-bold cursor-help focus-visible:outline-none focus-visible:[box-shadow:var(--focus-ring)] rounded-[var(--radius-sm)]"
+        className="text-reeCyan-text border-b border-dashed border-reeCyan font-bold cursor-help focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] rounded-[var(--radius-sm)]"
         aria-describedby={tooltipId}
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        onFocus={() => setVisible(true)}
-        onBlur={() => setVisible(false)}
+        aria-expanded={visible}
+        onPointerEnter={(e) => { if (e.pointerType === 'mouse') setHovered(true); }}
+        onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHovered(false); }}
+        onPointerDown={() => { pressedRef.current = true; }}
+        onFocus={() => { if (!pressedRef.current) setFocused(true); pressedRef.current = false; }}
+        onBlur={() => { setFocused(false); setPinned(false); }}
+        onClick={() => { pressedRef.current = false; setPinned((p) => !p); }}
+        // Escape here closes the definition and stops there, so a dialog
+        // around the text stays open.
+        onKeyDown={(e) => { if (e.key === 'Escape' && visible) { e.stopPropagation(); close(); } }}
       >
         {term}
       </button>
       <span
+        ref={tipRef}
         id={tooltipId}
         role="tooltip"
-        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 ${visible ? 'block' : 'hidden'} w-48 p-2 bg-surface2 border border-border2 rounded-lg shadow-xl text-[11px] text-textMain z-50 text-center pointer-events-none`}
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 ${visible ? 'block' : 'hidden'} w-max max-w-[min(18rem,calc(100vw-2rem))] p-2 bg-surface2 border border-border2 rounded-lg shadow-xl text-xs text-textMain z-50 text-left pointer-events-none`}
       >
         <span className="block text-reePurple-text font-black uppercase mb-1">{term}</span>
         {definition}

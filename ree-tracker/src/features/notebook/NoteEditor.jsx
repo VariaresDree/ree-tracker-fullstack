@@ -34,6 +34,8 @@ export default function NoteEditor({ open, onClose, type, targetId, target, init
       title={initial ? 'Your note' : 'Add a note'}
       icon={NotebookPen}
       size="md"
+      // Typed into on a phone: Save stays above the on-screen keyboard.
+      keyboardSafe
       footer={(
         <>
           {initial && (

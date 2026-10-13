@@ -87,7 +87,9 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                     className={`shrink-0 px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:min-h-11 rounded-lg border text-xs font-semibold transition-all ${
                         !isOnline || isRefreshing
                             ? 'opacity-40 cursor-not-allowed border-border2 text-muted'
-                            : 'cursor-pointer border-reeBlue/40 text-reeBlue-text hover:bg-reeBlue/10'
+                            // On the card colour, where blue text is held to 4.5:1: on
+                            // this tinted strip it read 4.2-4.3:1 (organs, math).
+                            : 'cursor-pointer bg-surface border-reeBlue/40 text-reeBlue-text hover:border-reeBlue'
                     }`}
                 >
                     {isRefreshing ? 'Syncing…' : ready ? 'Refresh' : 'Download'}

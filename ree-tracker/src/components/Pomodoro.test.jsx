@@ -35,6 +35,11 @@ describe('Pomodoro settings', () => {
     expect(actions.resetPomodoro).not.toHaveBeenCalled();
   });
 
+  it('the Focus on picker is touch-sized (it measured 26px)', () => {
+    render(<Pomodoro />);
+    expect(screen.getByLabelText('Focus on').className).toMatch(/pointer-coarse:min-h-11/);
+  });
+
   it('Save applies new minutes, clamped, and restarts', () => {
     render(<Pomodoro />);
     fireEvent.click(screen.getByRole('button', { name: 'Timer settings' }));

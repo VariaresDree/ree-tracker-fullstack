@@ -1,9 +1,12 @@
 // Every real Progress tab renders with sample data, and its headings follow
 // the page's h1 without skipping a level (the deep-analytics cards used h3
-// and emoji straight under the h1). Network and charts are mocked.
+// and emoji straight under the h1). Network and charts are mocked. The other
+// two tabs, Syllabus and Study plan, are checked in their own test files
+// (SyllabusTab.test.jsx, StrategicPlannerTab.test.jsx), which mock their data.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { expectNoSkippedLevels } from '../../test/headings';
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1' } }) }));
 vi.mock('../../store/useStore', async () => {
@@ -44,17 +47,6 @@ const stats = {
 };
 const kpi = { answered: 120, accuracy: 58, avgSec: 50, streak: 4 };
 
-// Under the page h1, a tab's headings may start at h2 and step down one level
-// at a time.
-function expectNoSkippedLevels(container) {
-  let previous = 1;
-  container.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((h) => {
-    const level = Number(h.tagName[1]);
-    expect(level, `"${h.textContent}" follows an h${previous}`).toBeLessThanOrEqual(previous + 1);
-    previous = level;
-  });
-}
-
 const renderTab = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('Progress tabs', () => {
@@ -64,6 +56,7 @@ describe('Progress tabs', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Ability trend (θ)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /AI board report/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /past mock sittings/ })).toHaveAttribute('href', '/exams?tab=history');
+    expect(screen.getByRole('link', { name: /past mock sittings/ }).className).toMatch(/pointer-coarse:min-h-11/);
     expect(await screen.findByText('theta-chart')).toBeInTheDocument();
     expectNoSkippedLevels(container);
   });

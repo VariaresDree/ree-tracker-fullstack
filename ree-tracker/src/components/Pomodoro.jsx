@@ -100,7 +100,7 @@ export default function Pomodoro() {
         <select
           value={pomodoro.subject || 'General'}
           onChange={(e) => setPomodoroSubject(e.target.value)}
-          className="bg-bg border border-border2 rounded-[var(--radius-sm)] px-2 py-1 text-xs text-textMain focus:border-[var(--accent)]"
+          className="bg-bg border border-border2 rounded-[var(--radius-sm)] px-2 py-1 pointer-coarse:min-h-11 text-xs text-textMain focus:border-[var(--accent)]"
         >
           {FOCUS_SUBJECTS.map((s) => <option key={s} value={s}>{s === 'General' ? 'General' : toDisplaySubject(s)}</option>)}
         </select>

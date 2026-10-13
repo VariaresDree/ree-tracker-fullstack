@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, renderHook, act, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { todayManila } from '@ree/shared';
+import { expectNoSkippedLevels } from '../../test/headings';
 
 const authState = { currentUser: { uid: 'user-A' } };
 vi.mock('../../config/firebaseDb', () => ({ auth: authState }));
@@ -89,6 +90,13 @@ describe('SyllabusTab', () => {
     expect(screen.getByText(/covered · 1 of 3 topics/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Mathematics: 1 of 2 topics covered' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Calculus', 'Differential Equations']);
+  });
+
+  it('its headings step down from the Progress h1 without skipping a level', async () => {
+    const { container } = renderTab();
+    await screen.findByRole('heading', { level: 3, name: 'Calculus' });
+    fireEvent.click(within(screen.getByRole('heading', { level: 3, name: 'Calculus' }).closest('li')).getByRole('button', { name: /Dates and note/ }));
+    expectNoSkippedLevels(container);
   });
 
   it('ticks itself as Drilled from answers, and won’t be unticked', async () => {
