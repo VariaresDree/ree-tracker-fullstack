@@ -12,6 +12,7 @@ import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../conf
 import toast from 'react-hot-toast';
 import { classifySyncError, SYNC_OUTCOME } from '../../services/syncPolicy';
 import { decideGauntletOutcome, forfeitGauntlet, normalizeSubject } from '@ree/shared';
+import { presentOptions } from '../quiz/presentOptions';
 
 // What a graded run did to the ladder: 'advanced' / 'passed' / 'cleared' are
 // passes; 'failed' locks; 'locked' (started during a lock) changes nothing.
@@ -230,11 +231,16 @@ export const useGauntletEngine = (level) => {
                 return setStatus('error');
             }
 
-            const selectedQs = allQs.slice(0, tier.items).map(q => ({
+            // The run's id keys the order of each question's choices: random
+            // per run, kept through a resume (the draft holds the questions as
+            // shown), and rebuilt by the run's review. The comparator sort it
+            // replaces leaned the key toward where it was stored.
+            runIdRef.current = newRunId();
+            const selectedQs = allQs.slice(0, tier.items).map(q => presentOptions({
                 ...q,
                 question: q.text || q.question || '[Question Text Missing]',
-                options: q.options ? [...q.options].sort(() => 0.5 - Math.random()) : []
-            }));
+                options: q.options || [],
+            }, runIdRef.current));
 
             timeSpentPerQuestionRef.current = {};
             questionsRef.current = selectedQs;
@@ -256,7 +262,6 @@ export const useGauntletEngine = (level) => {
             endTimeRef.current = Date.now() + tier.timeLimitSecs * 1000;
             setGauntletEndTime(endTimeRef.current);
             lastAnswerTimestampRef.current = Date.now();
-            runIdRef.current = newRunId();
             startedAtRef.current = new Date().toISOString();
             remainingAtSubmitRef.current = null;
 

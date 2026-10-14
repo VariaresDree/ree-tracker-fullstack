@@ -131,6 +131,13 @@ every feature add, change, or removal, not on a schedule.
 
 ## Exam & Practice Modes
 
+- [x] **Shuffled answer choices** (`@ree/shared` `optionOrder`, `features/quiz/presentOptions.js`) — every screen a learner answers on shows a question's choices in an order drawn for that sitting, so the key's position, spatial memory and elimination by routine stop paying. Shown in their stored order, the key sat at A so often that pressing A every time scored close to half a session.
+  - **Random per sitting and per question, stable within the sitting.** The order is a seeded, unbiased (Fisher–Yates) shuffle keyed on the sitting and the question, not `Math.random` on each render: re-renders, Next and Back, the answer sheet, a resume after a reload and a battle rejoin keep the order, and a new sitting brings a new one.
+  - **Where, and what keys the order:** Practice and everything it runs (Today's loop, drills, Weak spots, bookmarks, a past sitting's misses, AI questions, the adaptive set), a fresh key per session, so "Practise again" reshuffles · Board Simulator, retakes and the mistakes mock, the sitting's id (a full-board section uses the full board's id), kept in the resume draft · battles, the battle and the player, so each player sees their own order of questions and choices and a rejoin keeps it · the Gauntlet, its run id · the placement test, its session id · Library › Bookmarks, a key per visit · the printed exam paper, a key per print, with the answer key's letters (and its key version) taken from the printed order. Imported quizzes already shuffled their choices without bias and are unchanged.
+  - **Kept in place:** a closing choice ("All of the above", "None of these", "Neither…") stays last; a question with a choice that names others by letter ("Both A and B") keeps its stored order, since moving them changes their meaning.
+  - **Grading is untouched:** the answer key is the choice's text everywhere, never its letter or position. Letters, the 1–4/A–D hotkeys and the screen-reader announcement follow the order shown.
+  - The Gauntlet's old shuffle (`sort(() => 0.5 - Math.random())`) was biased and left the key near the top; the simulator's reshuffled a battle on every open.
+
 - [x] **Practice** (`pages/Practice.jsx`, was Active Review) — per-question reveal MCQ and flashcard practice (`features/active-recall/{FlashcardMode,MCQMode,ReviewSetup,useReviewSession}.jsx`).
   - **Launched from elsewhere** (Today, Progress, a review), it says "Starting your session…" until the session opens; the setup form flashed up first, as if the tap had gone nowhere.
   - The **Flashcards** preset uses conceptual items only: a calculation as a flip card had a bare number on the back.

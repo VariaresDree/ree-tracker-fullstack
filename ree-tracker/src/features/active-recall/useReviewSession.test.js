@@ -204,6 +204,38 @@ describe('flag, AI explanation and leaving mid-session', () => {
   });
 });
 
+describe('shuffled choices', () => {
+  const four = (id) => ({ id, subject: 'EE', subtopic: 'Machines', text: `Q ${id}`, options: [`${id}-key`, `${id}-b`, `${id}-c`, `${id}-d`], answer: `${id}-key` });
+  const set = ['s1', 's2', 's3', 's4', 's5', 's6'].map(four);
+  const orders = (result) => result.current.session.questions.map((x) => `${x.id}:${x.options.join(',')}`).sort().join(' ');
+
+  it("shows each question's choices in this session's order, the same all session long, and grades by text", async () => {
+    const { result, rerender } = setup();
+    await act(() => result.current.startSession(itemsPreset(set)));
+    const shown = result.current.session.questions;
+    for (const x of shown) expect([...x.options].sort()).toEqual([...set.find((y) => y.id === x.id).options].sort());
+    // Not every key is still at A: the stored order isn't what's shown.
+    expect(shown.some((x) => x.options[0] !== x.answer)).toBe(true);
+    rerender();
+    expect(result.current.session.questions).toEqual(shown);
+    // Picking the key, wherever it now sits, is right.
+    act(() => result.current.setSession((st) => ({ ...st, confidence: 'MED' })));
+    act(() => result.current.handleAnswerSelection(shown[0].answer));
+    expect(result.current.session.wrongSelection).toBeNull();
+    expect(result.current.session.correctHits).toBe(1);
+  });
+
+  it('draws a new order for a new session (Practise again included)', async () => {
+    const seen = new Set();
+    for (let i = 0; i < 4; i += 1) {
+      const { result } = setup();
+      await act(() => result.current.startSession(itemsPreset(set)));
+      seen.add(orders(result));
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
 describe('items source (a past sitting’s misses)', () => {
   it('practises exactly the items handed over, offline too, without keeping them in the form', async () => {
     const items = [q('m1', 'EE', 'Machines'), q('m2', 'Mathematics', 'Calculus')];

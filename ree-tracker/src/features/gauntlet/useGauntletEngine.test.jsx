@@ -106,6 +106,21 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(saved.questions).toHaveLength(50); // tier 1's item count
   });
 
+  it("shows each question's choices in the run's order (keyed by its run id), not the stored one", async () => {
+    const { optionKey, orderOptions } = await import('@ree/shared');
+    const stored = makeQuestions(60).map((q, i) => ({ ...q, options: [`k${i}`, `b${i}`, `c${i}`, `d${i}`], answer: `k${i}` }));
+    apiRequestMock = vi.fn().mockResolvedValue({ items: stored });
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    const { runId, questions } = JSON.parse(localStorage.getItem(CACHE_KEY));
+    for (const q of questions) {
+      expect(q.options).toEqual(orderOptions(stored.find((x) => x.id === q.id).options, optionKey(runId, q.id)));
+    }
+    // Spread across the letters, not left at A.
+    const atA = questions.filter((q) => q.options[0] === q.answer).length;
+    expect(atA).toBeLessThan(questions.length / 2);
+  });
+
   it('offers resume (not a fresh fetch) when a matching-level cache exists on boot, and resumeGauntlet restores state without deleting the cache', async () => {
     const cachedQuestions = makeQuestions(50);
     localStorage.setItem(CACHE_KEY, JSON.stringify({

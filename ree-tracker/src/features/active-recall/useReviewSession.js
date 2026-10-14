@@ -8,7 +8,8 @@ import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { stratifiedSample } from '../../utils/shuffle';
-import { normalizeSubject } from '@ree/shared';
+import { newSittingKey, normalizeSubject } from '@ree/shared';
+import { presentOptions } from '../quiz/presentOptions';
 import { buildSessionSummary } from './buildSessionSummary';
 import { pickNextLocal } from './adaptiveFallback';
 import toast from 'react-hot-toast';
@@ -81,6 +82,10 @@ export const useReviewSession = (currentUser, isOnline) => {
     // Formula cards rated in this session (Today's loop): counted for the
     // summary, never recorded as answers.
     const cardsRatedRef = useRef(0);
+    // This session's key for the order of each question's choices: a fresh
+    // one per session (Practise again included), so the key isn't where it
+    // was last time, and the same all session long.
+    const sittingKeyRef = useRef(null);
 
     // The adaptive set's next question: the server's pick (by ability
     // estimate, POST /api/exams/next-item), or the device's once a request
@@ -263,6 +268,8 @@ export const useReviewSession = (currentUser, isOnline) => {
                     ? filteredData
                     : stratifiedSample(filteredData, cfg.count || 20);
             adaptiveRef.current = adaptive;
+            sittingKeyRef.current = newSittingKey();
+            const shownQuestions = finalSessionQuestions.map((q) => presentOptions(q, sittingKeyRef.current));
 
             telemetryBatchRef.current = [];
             cardsRatedRef.current = 0;
@@ -290,7 +297,7 @@ export const useReviewSession = (currentUser, isOnline) => {
 
             setSession({
                 isActive: true, loading: false, isFinished: false,
-                questions: finalSessionQuestions, currentIndex: 0,
+                questions: shownQuestions, currentIndex: 0,
                 isAnswered: false, isFlipped: false,
                 confidence: null, selectedOption: null, wrongSelection: null,
                 totalAnswered: 0, correctHits: 0,
@@ -410,7 +417,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         }
         restartQuestionClock();
         setSession((prev) => ({
-            ...prev, questions: [...prev.questions, next], currentIndex: prev.currentIndex + 1, fetchingNext: false,
+            ...prev, questions: [...prev.questions, presentOptions(next, sittingKeyRef.current)], currentIndex: prev.currentIndex + 1, fetchingNext: false,
             isAnswered: false, isFlipped: false,
             confidence: null, selectedOption: null, wrongSelection: null,
         }));
