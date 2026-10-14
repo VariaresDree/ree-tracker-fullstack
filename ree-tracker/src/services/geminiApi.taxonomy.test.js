@@ -21,6 +21,7 @@ describe('getStrictRules', () => {
 
   it('for a specific topic, demands it verbatim', () => {
     expect(getStrictRules('EE', 'Electric Circuits 1', LIVE.EE)).toContain('MUST be EXACTLY "Electric Circuits 1"');
+    expect(getStrictRules('EE', 'All', LIVE.EE)).toMatch(/OPTION ORDER: .*random position.*NEVER by its letter/);
   });
 });
 

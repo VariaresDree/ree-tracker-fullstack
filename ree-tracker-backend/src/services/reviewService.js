@@ -9,6 +9,21 @@ const { randomUUID } = require('crypto');
 const { resolveQuestionTopic } = require('./topicResolver');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
 const { sanitizeOptions, stripChoicePrefix } = require('../utils/sanitizeOptions');
+const { orderOptions } = require('@ree/shared');
+
+/**
+ * The order a new question's choices are stored in: an unbiased shuffle (the
+ * shared optionOrder rules: "All of the above" stays last, choices naming
+ * others by letter keep their order), keyed on `key` (random by default).
+ * Generated questions came with the key first far more often than not, and
+ * edits put it back there; learners now see a per-sitting order anyway, but
+ * the stored one shouldn't lean either (the printed key, admin previews, an
+ * older client). Applied on the way in — a pending submission and a publish —
+ * never on an edit, which keeps the order the admin set.
+ */
+function storageOrder(options, key = randomUUID()) {
+    return Array.isArray(options) ? orderOptions(options, `store|${key}`) : [];
+}
 
 // The content fields that define a question, shared by Question,
 // QuestionPendingReview, and QuestionVersion.snapshot.
@@ -49,7 +64,8 @@ function toLiveQuestionData(reviewRow, edits = {}) {
  * comment. `id` is optional: omitted, Prisma generates one (the single-create
  * path); passed, the caller controls it so it can reference the SAME id in
  * other statements of the same transaction before that transaction commits
- * (the bulk path — see approveBulk).
+ * (the bulk path — see approveBulk). The choices go in a fresh order
+ * (storageOrder), keyed on `id` when given and random otherwise.
  */
 function buildQuestionCreateData(data, topic, id) {
     return {
@@ -58,7 +74,7 @@ function buildQuestionCreateData(data, topic, id) {
         subtopic: topic?.name || data.subtopic || 'General',
         topicId: topic?.id ?? null,
         text: data.text || '',
-        options: Array.isArray(data.options) ? data.options : [],
+        options: storageOrder(data.options, id || undefined),
         answer: data.answer || '',
         difficulty: parseFloat(data.difficulty) || 2.0,
         fixedExplanation: data.fixedExplanation || null,
@@ -310,6 +326,6 @@ async function approveBulk(ids, editorId) {
 }
 
 module.exports = {
-    CONTENT_FIELDS, buildVersionSnapshot, toLiveQuestionData, buildQuestionCreateData,
+    CONTENT_FIELDS, buildVersionSnapshot, toLiveQuestionData, buildQuestionCreateData, storageOrder,
     createLiveQuestion, isBulkEligible, approveOneRow, approveBulk,
 };

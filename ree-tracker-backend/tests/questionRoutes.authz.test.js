@@ -93,6 +93,10 @@ describe('POST /api/questions — non-admins cannot write the live bank', () => 
         expect(res.status).toBe(201);
         expect(res.body.pendingReview).toBe(true);
         expect(pendingCreate).toHaveBeenCalled();
+        // Stored in a fresh order (reviewService.storageOrder), every choice kept.
+        const stored = pendingCreate.mock.calls[0][0].data;
+        expect([...stored.options].sort()).toEqual(['0 ohms', '10 ohms', 'Infinite', 'j10 ohms']);
+        expect(stored.options).toContain(stored.answer);
         // The critical assertion: nothing reached the live Question table.
         expect(liveCreate).not.toHaveBeenCalled();
     });

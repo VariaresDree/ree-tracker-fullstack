@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { saveQuestionToBank } from '../../services/dbQueries';
 import toast from 'react-hot-toast';
+import { newSittingKey, orderOptions } from '@ree/shared';
 
 export const useManualIngestion = (onSuccessCallback) => {
     const [manualMode, setManualMode] = useState(false);
@@ -32,12 +33,15 @@ export const useManualIngestion = (onSuccessCallback) => {
             return;
         }
 
-        const optionsArray = [
-            manualQ.answer.trim(), 
-            manualQ.distractor1.trim(), 
-            manualQ.distractor2.trim(), 
+        // The key goes to a random slot. The comparator sort this replaces
+        // (`sort(() => Math.random() - 0.5)`) is biased and left it near A;
+        // the server stores a fresh order on create anyway.
+        const optionsArray = orderOptions([
+            manualQ.answer.trim(),
+            manualQ.distractor1.trim(),
+            manualQ.distractor2.trim(),
             manualQ.distractor3.trim()
-        ].sort(() => Math.random() - 0.5);
+        ], newSittingKey());
 
         const payload = {
             subject,

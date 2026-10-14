@@ -387,6 +387,9 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
     return getOfflinePackMeta();
 };
 
+// Admin: where the key sits across the live bank, and the rows to fix
+// (GET /api/questions/option-audit; features/admin/AnswerPositions.jsx).
+export const fetchOptionAudit = async () => apiRequest('/api/questions/option-audit');
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
     const data = await apiRequest(`/api/questions/flagged?${queryParams.toString()}`);

@@ -17,6 +17,7 @@ import QuestionGenerator from '../../features/admin/ai/QuestionGenerator';
 import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
+import AnswerPositions from '../../features/admin/AnswerPositions';
 
 export default function QuestionBank() {
   const isOnline = useNetworkStatus();
@@ -69,6 +70,8 @@ export default function QuestionBank() {
         handlePdfSelect={handlePdfSelect} executePdfExtraction={executePdfExtraction}
         removeQuestion={removeQuestion} handleCommitToMatrix={handleCommitToMatrix}
       />
+
+      <AnswerPositions />
 
       <LibraryOverview 
         serverStats={serverStats}

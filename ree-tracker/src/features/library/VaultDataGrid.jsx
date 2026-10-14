@@ -6,6 +6,7 @@ import { useStore } from '../../store/useStore';
 import { fetchFlaggedQuestions } from '../../services/dbQueries';
 import { Button, Modal, FormField, Select, Input, Textarea, Badge, StatusPill, EmptyState } from '../../components/ui';
 import { Calculator, Brain, Pencil, X, Check, Shield, TriangleAlert, Search } from '../../components/ui/icons';
+import { answerSlotOf, distractorSlots, slotsOf, withAnswer, withDistractor } from './editSlots';
 
 export default function VaultDataGrid({
   filteredQuestions,
@@ -36,22 +37,21 @@ export default function VaultDataGrid({
   // --- VIRTUALIZATION SETUP ---
   const parentRef = useRef(null);
 
+  // Edits stay in place: the key keeps its slot (editSlots.js), chosen once
+  // per question opened. Rebuilding [answer, ...distractors] here put the key
+  // at A for every question an admin touched.
+  const [answerSlot, setAnswerSlot] = useState({ id: null, at: 0 });
+  if (editingQ && answerSlot.id !== editingQ.id) setAnswerSlot({ id: editingQ.id, at: answerSlotOf(editingQ) });
+  const answerAt = editingQ && answerSlot.id === editingQ.id ? answerSlot.at : answerSlotOf(editingQ);
+
   const editDistractors = useMemo(() => {
-    if (!editingQ || !editingQ.options) return ['', '', ''];
-    const dists = editingQ.options.filter(opt => opt !== editingQ.answer);
-    while (dists.length < 3) dists.push('');
-    return [dists[0], dists[1], dists[2]];
-  }, [editingQ?.options, editingQ?.answer]);
+    if (!editingQ) return ['', '', ''];
+    const slots = slotsOf(editingQ, answerAt);
+    return distractorSlots(answerAt).map((i) => slots[i]);
+  }, [editingQ, answerAt]);
 
-  const handleEditAnswerChange = (val) => {
-    setEditingQ({ ...editingQ, answer: val, options: [val, ...editDistractors] });
-  };
-
-  const handleEditDistractorChange = (index, val) => {
-    const newDists = [...editDistractors];
-    newDists[index] = val;
-    setEditingQ({ ...editingQ, options: [editingQ.answer || '', ...newDists] });
-  };
+  const handleEditAnswerChange = (val) => setEditingQ(withAnswer(editingQ, answerAt, val));
+  const handleEditDistractorChange = (index, val) => setEditingQ(withDistractor(editingQ, answerAt, index, val));
 
   useEffect(() => {
     if (showOnlyFlagged) {
