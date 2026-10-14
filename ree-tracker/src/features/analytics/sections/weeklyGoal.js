@@ -1,4 +1,4 @@
-// src/features/analytics/sections/focusGoal.js
+// src/features/analytics/sections/weeklyGoal.js
 //
 // The weekly focus goal's arithmetic, kept pure. A goal is minutes a week;
 // each board subject's part of it follows its weight on the board (the same

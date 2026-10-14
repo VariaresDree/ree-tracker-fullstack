@@ -9,7 +9,7 @@ const toast = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() });
 vi.mock('react-hot-toast', () => ({ default: toast }));
 
 const { default: FocusGoal } = await import('./FocusGoal');
-const { goalRows, minutesFromHours, weightsFrom, hoursLabel } = await import('./focusGoal');
+const { goalRows, minutesFromHours, weightsFrom, hoursLabel } = await import('./weeklyGoal');
 
 const WEEK = { startsOn: '2026-10-12', minutes: 200, bySubject: { General: 20, Mathematics: 30, ESAS: 60, EE: 90 } };
 const SHARES = [
@@ -22,7 +22,7 @@ beforeEach(() => {
   toast.error.mockClear();
 });
 
-describe('focusGoal', () => {
+describe('weeklyGoal', () => {
   it("splits the goal by the board's weights and pairs it with this week's minutes", () => {
     expect(goalRows(600, WEEK, weightsFrom(SHARES))).toEqual([
       { subject: 'Mathematics', target: 150, minutes: 30 },

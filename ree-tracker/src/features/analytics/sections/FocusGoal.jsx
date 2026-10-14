@@ -2,7 +2,7 @@
 //
 // Progress › Habits › Focus time › This week: focus minutes since Monday
 // (Manila) against a weekly goal the learner sets, and each board subject's
-// part of it by its weight on the board (focusGoal.js). Saved with
+// part of it by its weight on the board (weeklyGoal.js). Saved with
 // PUT /api/user/focus-goal, queued on the device when offline. Display only,
 // like the focus blocks: it never feeds θ, readiness or the forecast.
 import { useState } from 'react';
@@ -10,8 +10,7 @@ import toast from 'react-hot-toast';
 import { toDisplaySubject } from '@ree/shared';
 import { Button, FormField, Input, ProgressIndicator } from '../../../components/ui';
 import { writeOrQueue } from '../../../services/writeOrQueue';
-import { formatDuration } from '../../../utils/time';
-import { GOAL_MAX, GOAL_MIN, GOAL_PRESETS, goalRows, hoursLabel, minutesFromHours, weightsFrom } from './focusGoal';
+import { GOAL_MAX, GOAL_MIN, GOAL_PRESETS, goalRows, hoursLabel, minutesFromHours, weightsFrom } from './weeklyGoal';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const mondayLabel = (iso) => {
@@ -19,7 +18,11 @@ const mondayLabel = (iso) => {
   return m >= 1 && m <= 12 ? `Mon ${MONTHS[m - 1]} ${d}` : null;
 };
 const percent = (part, whole) => (whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 0);
-const duration = (minutes) => formatDuration(minutes * 60);
+// Whole minutes: a weekly goal reads "25m" and "2h 30m", not "25m 00s".
+const duration = (minutes) => {
+  const m = Math.max(0, Math.round(minutes || 0));
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+};
 
 function GoalForm({ current, onSave, onCancel, busy }) {
   const [hours, setHours] = useState(current ? String(Math.round((current / 60) * 10) / 10) : '');
