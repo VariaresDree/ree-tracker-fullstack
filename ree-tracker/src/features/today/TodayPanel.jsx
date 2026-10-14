@@ -18,6 +18,8 @@ import { usePlacement } from '../diagnostic/usePlacement';
 import FirstRunCard from '../onboarding/FirstRunCard';
 import { isEarlyEstimate } from '../analytics/earlyEstimate';
 import { forecastPlan } from '../exams/startingPlan';
+
+const withSource = (plan, source) => (plan ? { ...plan, source } : null);
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
 import { usePlanToday } from './usePlanToday';
 import { launchPractice } from '../active-recall/presets';
@@ -189,9 +191,13 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     daily,
     examInDays: daysToExam(stats?.examDate),
     start: placement.plan,
-    // Past the placement test, where to start comes from the forecast, once
-    // it has enough answers to trust (an early estimate isn't).
-    floor: early ? null : forecastPlan(snapshot?.subjectForecasts),
+    // Past the placement test, where to start comes from the forecast once
+    // it is trusted; until then (an early estimate, under 100 answers) the
+    // placement test's own reading of the floor stands, so 30 to 99 answers
+    // aren't left with neither.
+    floor: early
+      ? (placement.plan ? { ...placement.plan, source: 'placement' } : null)
+      : withSource(forecastPlan(snapshot?.subjectForecasts), 'forecast'),
     answered,
   });
 

@@ -26,4 +26,10 @@ describe('ReferenceBrowser — opened at a topic', () => {
     expect(screen.getByText('card Torque')).toBeInTheDocument();
     expect(screen.queryByText('card Fault MVA')).not.toBeInTheDocument();
   });
+
+  it("finds the topic the server's way, whatever the case or spacing another screen names it in", () => {
+    render(<ReferenceBrowser initialSubject="ee" initialTopic="  machines " />);
+    expect(screen.getByText('card Slip')).toBeInTheDocument();
+    expect(screen.getByText('card Torque')).toBeInTheDocument();
+  });
 });

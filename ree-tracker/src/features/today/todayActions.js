@@ -72,8 +72,9 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
  * @param {number|null} [input.examInDays]
  * @param {{mode:string, subject:string|null, reason:string}|null} [input.start]
  *   where the placement result says to start (features/exams/startingPlan)
- * @param {{mode:string, subject:string|null, reason:string, expected?:number}|null} [input.floor]
- *   the same rule on the forecast's projections (forecastPlan)
+ * @param {{mode:string, subject:string|null, reason:string, expected?:number, source?:'forecast'|'placement'}|null} [input.floor]
+ *   the same rule on the forecast's projections (forecastPlan), or the
+ *   placement's while the forecast is still an early estimate
  * @param {number} [input.answered]  questions answered so far
  *
  * Order: today's loop (due reviews and open mistakes in one session; it
@@ -87,10 +88,10 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
  * placement yet there's no mock: the placement prompt comes first, and a
  * timed board on day one contradicted the mode guide.
  *
- * After that the forecast takes over: a subject it projects under the 50%
- * floor, which fails the board on its own, gets an adaptive set on that
- * subject right after the loop. Nothing is added while every subject clears
- * the floor.
+ * After that the forecast takes over (the placement's reading until the
+ * forecast is trusted): a subject under the 50% floor, which fails the board
+ * on its own, gets an adaptive set on that subject right after the loop.
+ * Nothing is added while every subject clears the floor.
  */
 export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays, start = null, floor = null, answered = Infinity } = {}) {
   const actions = [];
@@ -202,10 +203,11 @@ function liftFloor(actions, floor) {
   const name = toDisplaySubject(floor.subject);
   const at = actions[0]?.key === 'loop' ? 1 : 0;
   const projected = Number.isFinite(floor.expected) ? ` at ${Math.round(floor.expected)}%` : '';
+  const said = floor.source === 'placement' ? `Your placement test put ${name}${projected}` : `Your forecast puts ${name}${projected}`;
   actions.splice(at, 0, {
     key: 'floor',
     title: `Lift ${name} above the ${SUBJECT_FLOOR}% floor`,
-    detail: `Your forecast puts ${name}${projected}, and a subject under ${SUBJECT_FLOOR}% fails the board whatever the average. An adaptive set on ${name}.`,
+    detail: `${said}, and a subject under ${SUBJECT_FLOOR}% fails the board whatever the average. An adaptive set on ${name}.`,
     cta: 'Start',
     preset: adaptivePreset({ subject: floor.subject, count: 20 }),
   });

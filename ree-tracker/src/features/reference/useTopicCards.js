@@ -1,27 +1,42 @@
 // src/features/reference/useTopicCards.js
 //
 // The live formula cards for one topic, for a screen that shows a missed
-// question. Every such screen shares one read of the card list per visit
-// (fetchReferenceCards, which this device's copy answers offline), and it's
-// made only when a link is first wanted, so Practice doesn't load the cards
-// until a question is missed.
+// question. The links on screen share one read of the card list
+// (fetchReferenceCards, which this device's copy answers offline), made only
+// when a link is first wanted, so Practice doesn't load the cards until a
+// question is missed. The read is kept for ten minutes, so cards approved
+// meanwhile appear; an empty one (offline, nothing saved yet) or a failed
+// one isn't kept at all, and coming back online drops it, so the links come
+// back once there's a connection.
 import { useEffect, useMemo, useState } from 'react';
 import { fetchReferenceCards } from '../../services/dbQueries';
 import { cardsForTopic } from './topicCards';
 
-let shared = null;
+const KEEP_MS = 10 * 60 * 1000;
+let shared = null; // { promise, at }
 
 function loadCards() {
-  if (!shared) {
-    // Started inside a promise, so even a synchronous failure lands in the
-    // handler below instead of the effect.
-    shared = Promise.resolve().then(() => fetchReferenceCards()).then(
-      (items) => (Array.isArray(items) ? items : []),
-      // A failed read is asked again next time, not remembered as "none".
-      () => { shared = null; return []; },
-    );
-  }
-  return shared;
+  if (shared && Date.now() - shared.at < KEEP_MS) return shared.promise;
+  const entry = { at: Date.now(), promise: null };
+  // Started inside a promise, so even a synchronous failure lands in the
+  // handler below instead of the effect.
+  entry.promise = Promise.resolve().then(() => fetchReferenceCards()).then(
+    (items) => {
+      const cards = Array.isArray(items) ? items : [];
+      if (cards.length === 0 && shared === entry) shared = null;
+      return cards;
+    },
+    () => {
+      if (shared === entry) shared = null;
+      return [];
+    },
+  );
+  shared = entry;
+  return entry.promise;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => { shared = null; });
 }
 
 /** Test seam: forget the shared card list. */

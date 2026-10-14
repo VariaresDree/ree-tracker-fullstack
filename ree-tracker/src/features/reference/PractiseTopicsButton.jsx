@@ -2,7 +2,7 @@
 //
 // The end of a formula-card review: "Practise these topics", two questions on
 // each topic just reviewed, as a Practice set (practiseTopics.js).
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Button } from '../../components/ui';
@@ -14,10 +14,17 @@ import { PER_TOPIC, questionsForTopics } from './practiseTopics';
 export default function PractiseTopicsButton({ topics }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  // Left the done screen while the questions were drawn (Back): stay left.
+  const onScreen = useRef(true);
+  useEffect(() => {
+    onScreen.current = true;
+    return () => { onScreen.current = false; };
+  }, []);
 
   const start = async () => {
     setBusy(true);
     const items = await questionsForTopics(topics);
+    if (!onScreen.current) return;
     if (items.length === 0) {
       setBusy(false);
       toast.error(navigator.onLine

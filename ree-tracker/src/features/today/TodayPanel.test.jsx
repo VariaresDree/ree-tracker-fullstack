@@ -200,6 +200,18 @@ describe('TodayPanel', () => {
     expect(screen.queryByText(/above the 50% floor/)).not.toBeInTheDocument();
   });
 
+  it('between 30 and 99 answers (the forecast still early), the placement test\u2019s floor stands', () => {
+    placement = { ...placement, plan: { mode: 'practice', subject: 'ESAS', reason: 'floor', expected: 44 } };
+    forecast = {
+      loading: false,
+      snapshot: { ...forecast.snapshot, subjectForecasts: { projectedGWA: { mean: 66 }, subjects: { ESAS: { expected: 70 } } } },
+    };
+    renderPanel({ readiness: { score: 52, breakdown: {} }, stats: { dailyTarget: 50 }, answered: 60 });
+    const rows = screen.getAllByRole('listitem').map((li) => li.textContent);
+    expect(rows[0]).toMatch(/Lift ESAS above the 50% floor/);
+    expect(rows[0]).toMatch(/Your placement test put ESAS at 44%/);
+  });
+
   it('a new learner: the placement plan leads the actions, the numbers say they are early, and the exam plan is asked for', () => {
     placement = { ...placement, plan: { mode: 'practice', subject: 'ESAS', reason: 'floor' }, isNew: true };
     renderPanel({ readiness: { score: 41, breakdown: {} }, stats: { dailyTarget: 50 }, answered: 6 });

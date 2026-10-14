@@ -29,6 +29,11 @@ import { useReferenceCards } from './useReferenceCards';
 import NotedFlashcard from './NotedFlashcard';
 import ReferenceStudyMode from './ReferenceStudyMode';
 import { dueCardIds, useCardReviews } from './useCardReviews';
+import { normalizeSubject } from '@ree/shared';
+
+// The server's topic key (trim + lowercase): a topic named by another screen
+// (a learner's stats row) can differ from the card's label in case or spaces.
+const topicKey = (s) => String(s ?? '').trim().toLowerCase();
 
 const SubjectCardSheet = lazy(() => import('./SubjectCardSheet'));
 
@@ -139,7 +144,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   // Hierarchy position: null selectedSubject = at the subject grid; etc.
   // Restored from this browser session unless another screen deep-linked a
   // topic or a search here.
-  const deepTopic = initialSubject && initialTopic ? { subject: initialSubject, topic: initialTopic } : null;
+  const deepTopic = initialSubject && initialTopic ? { subject: normalizeSubject(initialSubject) || initialSubject, topic: initialTopic } : null;
   const [saved] = useState(() => deepTopic || (initialSearch ? {} : readPosition()));
   const [selectedSubject, setSelectedSubject] = useState(saved.subject ?? null);
   const [selectedTopic, setSelectedTopic] = useState(saved.subject ? saved.topic ?? null : null);
@@ -238,7 +243,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   }, [cardsInSubject, safeTOS, selectedSubject]);
 
   const cardsInTopic = useMemo(
-    () => (selectedTopic ? cardsInSubject.filter((c) => c.topic?.name === selectedTopic) : []),
+    () => (selectedTopic ? cardsInSubject.filter((c) => topicKey(c.topic?.name) === topicKey(selectedTopic)) : []),
     [cardsInSubject, selectedTopic],
   );
 

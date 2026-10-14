@@ -110,6 +110,11 @@ describe('an established learner follows the forecast on the subject floor', () 
     });
   });
 
+  it("says where the reading comes from: the placement test's, until the forecast is trusted", () => {
+    const [, action] = buildTodayActions({ ...base, loop, floor: { ...floor, expected: 44, source: 'placement' } });
+    expect(action.detail).toMatch(/^Your placement test put ESAS at 44%, and a subject under 50% fails the board/);
+  });
+
   it('nothing is added while every subject clears the floor, or for a new learner (the placement plan leads)', () => {
     expect(buildTodayActions({ ...base, floor: { mode: 'gauntlet', subject: null, reason: 'average' } }).map((a) => a.key)).toEqual(['target', 'mock']);
     expect(buildTodayActions({ ...base, answered: 10, floor }).some((a) => a.key === 'floor')).toBe(false);

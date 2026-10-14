@@ -65,6 +65,23 @@ describe('useTopicCards', () => {
     expect(fetchReferenceCards).toHaveBeenCalledTimes(1);
   });
 
+  it("doesn't keep an empty read (offline, nothing saved yet), and coming back online drops a kept one", async () => {
+    fetchReferenceCards.mockResolvedValueOnce([]);
+    const offline = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }));
+    await waitFor(() => expect(fetchReferenceCards).toHaveBeenCalledTimes(1));
+    expect(offline.result.current).toEqual([]);
+    const later = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }));
+    await waitFor(() => expect(later.result.current).toHaveLength(2));
+    expect(fetchReferenceCards).toHaveBeenCalledTimes(2);
+
+    // Kept now; reconnecting asks again (cards approved meanwhile show).
+    renderHook(() => useTopicCards({ topicId: 't-p' }));
+    expect(fetchReferenceCards).toHaveBeenCalledTimes(2);
+    window.dispatchEvent(new Event('online'));
+    renderHook(() => useTopicCards({ topicId: 't-p' }));
+    await waitFor(() => expect(fetchReferenceCards).toHaveBeenCalledTimes(3));
+  });
+
   it('asks again after a failed read, rather than remembering "no cards"', async () => {
     fetchReferenceCards.mockRejectedValueOnce(new Error('500'));
     const first = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }));
