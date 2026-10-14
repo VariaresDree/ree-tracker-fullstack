@@ -26,6 +26,7 @@ import { useMistakes } from './useMistakes';
 import CauseChips from './CauseChips';
 import NoteButton, { NoteView } from './NoteButton';
 import { questionTarget } from './targets';
+import TopicCardsLink from '../reference/TopicCardsLink';
 import { causeSummary } from './causeSummary';
 import CauseTrend from './CauseTrend';
 
@@ -94,6 +95,7 @@ function MistakeCard({ item, expanded, onToggle, onTag, isOnline, ai }) {
             onExplain={(force) => ai.explain(question, { force })}
             showAnswer
           />
+          <TopicCardsLink topic={item.topic} subject={item.subject} />
           <NoteView type="question" targetId={item.questionId} target={questionTarget(question)} />
         </div>
       )}

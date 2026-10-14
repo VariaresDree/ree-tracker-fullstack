@@ -95,6 +95,32 @@ describe('a new learner follows the placement plan', () => {
   });
 });
 
+describe('an established learner follows the forecast on the subject floor', () => {
+  const base = { daily: { done: 0, target: 50 }, examInDays: 90, answered: 200 };
+  const loop = { items: [{ id: 'q1' }], counts: { due: 1, mistakes: 0 } };
+  const floor = { mode: 'practice', subject: 'ESAS', reason: 'floor', expected: 46.4 };
+
+  it('a subject projected under the floor: an adaptive set on it, right after the loop', () => {
+    const actions = buildTodayActions({ ...base, loop, floor });
+    expect(actions.map((a) => a.key)).toEqual(['loop', 'floor', 'target', 'mock']);
+    expect(actions[1]).toMatchObject({
+      title: 'Lift ESAS above the 50% floor',
+      detail: 'Your forecast puts ESAS at 46%, and a subject under 50% fails the board whatever the average. An adaptive set on ESAS.',
+      preset: expect.objectContaining({ source: 'adaptive', subject: 'ESAS', count: 20 }),
+    });
+  });
+
+  it("says where the reading comes from: the placement test's, until the forecast is trusted", () => {
+    const [, action] = buildTodayActions({ ...base, loop, floor: { ...floor, expected: 44, source: 'placement' } });
+    expect(action.detail).toMatch(/^Your placement test put ESAS at 44%, and a subject under 50% fails the board/);
+  });
+
+  it('nothing is added while every subject clears the floor, or for a new learner (the placement plan leads)', () => {
+    expect(buildTodayActions({ ...base, floor: { mode: 'gauntlet', subject: null, reason: 'average' } }).map((a) => a.key)).toEqual(['target', 'mock']);
+    expect(buildTodayActions({ ...base, answered: 10, floor }).some((a) => a.key === 'floor')).toBe(false);
+  });
+});
+
 describe('today’s study-plan task', () => {
   const drillTask = { id: 'd', kind: 'drill', topic: 'Protection', subject: 'EE', topicId: 't', targetCount: 15, dueDate: '2026-10-08', text: 'Drill Protection — 15 questions' };
   const blindSpot = forecast([{ type: 'BLIND_SPOT', payload: { topic: 'protection ', subject: 'EE', topicId: 't' } }]);

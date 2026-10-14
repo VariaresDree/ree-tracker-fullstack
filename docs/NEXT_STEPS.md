@@ -3,12 +3,24 @@
 Handoff notes for the next planning session. Written 2026-10-13, after
 [#143](https://github.com/VariaresDree/ree-tracker-fullstack/pull/143) and
 [#144](https://github.com/VariaresDree/ree-tracker-fullstack/pull/144) were merged;
-updated for the polish-and-features release that followed (branch
-`claude/jolly-cerf-yz78he`, section 1).
+updated for the two releases that followed (branch `claude/jolly-cerf-yz78he`,
+section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
 ## 1. What just shipped
+
+**The learning-loop release (after #154).** One commit per part:
+- **Hardening:**
+  - `GET /api/battles/:id/spectate` is players-only, like `/replay`;
+  - a request budget per signed-in learner (300 per 15 minutes, `RATE_LIMIT_USER_MAX`), so a class on one Wi-Fi no longer shares one budget; the per-address limit stays as a flood guard (3000, `RATE_LIMIT_GLOBAL_MAX`);
+  - `e2e-authed/screens.spec.ts` opens every screen and tab as a seeded admin and fails on any page error or error screen.
+- **Where to start keeps moving:** past 30 answers, Today applies the floor rule to the forecast's projections. A subject projected under 50% gets "Lift ESAS above the 50% floor" right after the loop.
+- **Formula cards ↔ questions:**
+  - a missed question links to its topic's cards (Practice, a sitting's review, Notebook › Mistakes);
+  - Formula cards opens at a topic (`{ subject, topic }` state);
+  - a card review ends with "Practise these topics", two questions on each topic rated.
+- **Weekly focus goal:** Progress › Habits › Focus time › This week, against a goal in hours, split by board weight (migration `20261018000000_weekly_focus_goal`).
 
 **The polish-and-features release (after #153).** One commit per part:
 - **Copy:**
@@ -85,7 +97,7 @@ updated for the polish-and-features release that followed (branch
   4. Verify with `POST /api/admin/push-test`.
 
   Scheduled reminders and streak pushes reach phones only after this. Until then the on-device reminder stands in.
-- [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261017000000` (the last is the battle rematch link).
+- [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261018000000` (the last two are the battle rematch link and the weekly focus goal).
 - [ ] **Run the manual checks** listed in #144: the battle scenario on two devices, a card review cycle, a focus block, a mistake tag, a note, and a reminder (after the two items above).
 - [ ] **Close the Phase 3 gate:** run one AI-generated batch through the review loop (edit and reject at least one item, approve the rest). See `ROADMAP.md`.
 
@@ -96,23 +108,23 @@ updated for the polish-and-features release that followed (branch
   - Completion is already safe across instances (a single DB transaction claims it).
   - Live broadcasts are not: running two backend instances needs `@socket.io/redis-adapter` and sticky sessions.
 - **Battles that were live when #144 deployed** have no `BattleParticipant` rows. They close with no outcomes, and their players can't rejoin. This is one-off.
-- **Spectating:** `GET /api/battles/:id/spectate` exists, but no screen uses it. It also has **no participant check**: any signed-in user can read any battle's live state. Gate it (players, or an opt-in "spectators allowed" flag) before building a screen. `/replay` is players-only now.
+- **Spectating:** `GET /api/battles/:id/spectate` exists, but no screen uses it. It's players-only now, like `/replay`. A screen for anyone else watching needs an opt-in first (a "spectators allowed" setting on the battle).
 - **Rematch** creates a new lobby with the same settings and tells the old room. There's no invite to a specific person (codes are still shared by hand), and a player who has left the results screen only sees it in Past battles.
 
-**Answer-key exposure** (fixed in the release after #144)
-- `POST /api/exams/grade`, the bookmarks list, the mistakes list and today's loop now keep a question's key from a player while it is in a battle they're still in (`services/answerGate.js`). A non-player can still grade any question id; that only matters if one player hands the ids to someone else.
+**Answer-key exposure**
+- A question's key stays closed to a player while it is in a battle they're still in (`services/answerGate.js`). That covers `POST /api/exams/grade`, bookmarks, mistakes, today's loop, `next-item`, the question lists (`GET /api/questions`, `POST /api/questions/review`) and a finished battle's replayed results.
+- **Still open:** a non-player can grade any question id, which matters only if one player hands the ids to someone else. An offline pack downloaded before a battle already holds its keys; that's the cost of Practice grading offline.
 
 **List caps (no pagination yet)**
 - Mistakes: the newest 300 questions, from the last 5,000 wrong attempts.
 - Notes: the newest 1,000.
 - Card reviews: every rated card.
 - Add cursors if real accounts get near these.
-- `QuestionAttempt (userId, isCorrect, createdAt)` is indexed now (migration `20261016000000_mistakes_index`).
 
 **Formula-card reviews**
 - No suspend/bury, no daily cap on new cards, no review history (only the latest schedule is kept).
 - Rating happens in study mode, and for up to 8 due cards inside Today's loop.
-- **Study plan cards days:** a cards task completes from each card's *latest* rating, so re-rating a card on a later day moves its count off the earlier day.
+- **Study plan cards days:** a cards task is ticked off for good once its day's ratings reach the target. Before that, the count it shows comes from each card's *latest* rating, so a card rated again on a later day leaves the earlier day's count.
 
 **Mistakes**
 - "Why you miss, by week" counts one cause per question, at its latest miss (`MistakeTag` keeps one cause). A true per-miss trend needs a history table of tags.
@@ -135,13 +147,13 @@ updated for the polish-and-features release that followed (branch
 - **Lint ratchet:** **0**. Keep it there; FEATURES.md (Quality gates) lists the patterns that replaced each rule's errors.
 - **Boot bundle:** 625 kB of the 700 kB budget (89%). Before adding anything to the shell, look at what `@ree/shared` and the shell pull in eagerly.
 - **Not done:** memoising `ExamNavigator`'s 100 buttons and `AnswerSheet`'s 400 bubbles. The exam clock no longer re-renders them every second, so they only re-render on an answer; worth it only if a profile on a low-end phone says so.
-- **Rate limit:** 300 requests per IP per 15 minutes (`RATE_LIMIT_GLOBAL_MAX` overrides it). A whole class behind one campus NAT shares that budget. Consider keying it on the signed-in user, as the AI limiter already is.
+- **Rate limits:** 300 requests per signed-in learner per 15 minutes (`RATE_LIMIT_USER_MAX`), and a per-address flood guard of 3000 before sign-in (`RATE_LIMIT_GLOBAL_MAX`). Both are in memory, so with two backend instances each counts on its own (as with live battle rooms). One address signed in as several accounts can now send up to 3000 a window where it was 300; the only routes open without sign-in are `/api/config/tos` and the secret-guarded cron route, so that's accepted.
 
 **Tests** (done in the release after #144)
 - Signed-in Playwright specs run on the Firebase Auth emulator with the real backend (`ree-tracker/e2e-authed/`, CI "E2E (signed in)"). Add a spec there for each new signed-in flow.
 - The two-client battle test lives in `tests/battleTwoClients.test.js`.
 - CI applies the migrations to a real Postgres, checks them against `schema.prisma`, and runs `tests/integration/*.dbtest.js` (`npm run test:db`).
-- **Worth adding:** a signed-in spec that opens every screen and tab, Admin included, and fails on any page error or error-boundary screen. A hook that read state above its declaration took the Question bank down on this branch, and no test opened that screen (it turned up while fixing a review finding). The same sweep run by hand (26 screens, as an admin) came back clean. The lint rule `no-use-before-define` now stops that exact mistake. Admin needs its own e2e account, since making the shared learner an admin would change what the other specs see.
+- `e2e-authed/screens.spec.ts` opens every screen and tab as a seeded admin and fails on any page error or error screen. Add new routes and tabs to its list.
 - **Battle keys and the offline pack:** the question lists and next-item leave out a running battle's questions, but an offline pack downloaded before the battle already holds their keys. That's the cost of Practice grading offline; the battle's time limit is the real guard.
 
 **Phase 2 gate:** axe runs in CI on Today, Habits, Exams, Library › Notebook, Progress › Overview and a running Practice session (WCAG 2.2 AA), plus Today in the ocean theme and on a phone. Lighthouse on signed-in screens is still manual.
@@ -152,12 +164,12 @@ updated for the polish-and-features release that followed (branch
 - ~~**One "Today" study loop**~~ shipped, and the due formula cards now come in the same session (up to 8).
 - ~~**Study plan generator** with cards and mistakes~~ shipped: open mistakes raise a topic's priority, and days with 5+ cards due get a cards task. Focus time is shown beside the plan, not fed in (display only by design).
 - ~~**Mistake patterns over time** and a **mistakes-only mock**~~ shipped (Notebook › Mistakes).
-- **Placement follow-up:** re-run the floor rule on the forecast's per-subject projections once a learner has history, so "where to start" keeps moving after the placement test.
-- **Formula ↔ question links:** a missed question surfaces the formula cards for its topic, and rating a card can queue two questions on it.
-- **Focus goals:** a weekly target per subject from the PRC weights, with the Habits chart showing progress against it.
+- ~~**Placement follow-up**~~ shipped: past 30 answers Today applies the floor rule to the forecast. Still open: a whole "where to start" card on Progress, not only Today's action.
+- ~~**Formula ↔ question links**~~ shipped both ways. Still open: Today's loop could add a due card's topic questions on its own.
+- ~~**Focus goals**~~ shipped as one weekly goal split by board weight. Still open: a reminder when a week is behind, and a per-subject goal the learner sets by hand.
 
 **Battles**
-- ~~Rematch, and a battle history with the per-question replay~~ shipped: Exams › Battles › Past battles, everyone's picks in a battle's review, and Rematch from the results, the review and the history. Spectate is still open (`/spectate` still serves any battle to anyone signed in).
+- ~~Rematch, and a battle history with the per-question replay~~ shipped: Exams › Battles › Past battles, everyone's picks in a battle's review, and Rematch from the results, the review and the history. Spectate stays players-only; a screen for others needs an opt-in first.
 - Ranked matchmaking by Elo (a queue rather than invite codes).
 
 **Reach and polish** (left out of the last release by choice; still the next obvious set)
@@ -168,6 +180,12 @@ updated for the polish-and-features release that followed (branch
 - Offline: notes, mistakes and card reviews already paint from cache and queue writes. Practising a formula-card review offline works once the cards are cached.
 
 ## 5. Where the new code lives
+
+**The learning-loop release**
+- Rate limits: `ree-tracker-backend/src/middlewares/userRateLimit.js` (called from `authMiddleware`), the address limit in `server.js`.
+- Where to start: `forecastPlan` in `ree-tracker/src/features/exams/startingPlan.js`, used by `features/today/{TodayPanel.jsx,todayActions.js}`.
+- Cards ↔ questions: `ree-tracker/src/features/reference/{topicCards,useTopicCards,TopicCardsLink,practiseTopics,PractiseTopicsButton}`.
+- Focus goal: `src/routes/focusRoutes.js` (`PUT /focus-goal`), `src/services/focusTime.js` (`week`), and `features/analytics/sections/{FocusGoal.jsx,weeklyGoal.js}`.
 
 **Battles**
 - Backend: `ree-tracker-backend/src/services/battleLifecycle.js`, `src/sockets/battleSocket.js`, `src/routes/battleRoutes.js`, `src/utils/battleLogic.js`.

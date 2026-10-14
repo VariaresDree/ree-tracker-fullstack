@@ -42,6 +42,10 @@ model User {
   // off) and the Manila day it last went out, so it goes once a day.
   reminderHour       Int?
   reminderLastSentOn String?
+  // Weekly focus goal in minutes (Progress › Habits › Focus time), split
+  // across the subjects by syllabus weight on screen. Display only, like the
+  // focus blocks it's measured against. Null = no goal.
+  weeklyFocusMinutes Int?
 
   // V1 Relations
   sessions         ExamSession[]

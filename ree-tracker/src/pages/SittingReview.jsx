@@ -39,6 +39,7 @@ import NoteButton, { NoteView } from '../features/notebook/NoteButton';
 import CauseChips from '../features/notebook/CauseChips';
 import { useMistakes } from '../features/notebook/useMistakes';
 import { questionTarget } from '../features/notebook/targets';
+import TopicCardsLink from '../features/reference/TopicCardsLink';
 import BattlePicks from '../features/exams/BattlePicks';
 import { ordinal } from '../features/exams/battleModes';
 
@@ -358,6 +359,10 @@ export default function SittingReview() {
                 onExplain={(force) => ai.explain(reviewItemToQuestion(current), { force })}
                 showAnswer
               />
+
+              {!current.isCorrect && (
+                <TopicCardsLink topic={current.topic} subject={current.subject} />
+              )}
 
               <NoteView type="question" targetId={current.questionId} target={questionTarget(reviewItemToQuestion(current))} />
 

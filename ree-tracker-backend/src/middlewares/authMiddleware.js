@@ -2,6 +2,7 @@
 const { getAuth } = require('firebase-admin/auth');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const { limitUser } = require('./userRateLimit');
 
 // First-write bootstrap: the very first time we see a Firebase UID we make
 // sure a matching User row exists in Postgres so downstream upserts /
@@ -55,12 +56,13 @@ module.exports = async (req, res, next) => {
         // Fire-and-await — first call per UID hits the DB, subsequent calls
         // are O(1) Set lookups. ~1ms amortized cost.
         await ensureUserExists(decodedToken);
-
-        next();
     } catch (error) {
         logger.error('Auth verification failed', { route: req.originalUrl, error: error.message });
-        res.status(401).json({ error: 'Unauthorized: Session expired or invalid. Token refresh required.' });
+        return res.status(401).json({ error: 'Unauthorized: Session expired or invalid. Token refresh required.' });
     }
+    // Outside the try: an error further down the chain is the route's to
+    // report, not a failed sign-in. The learner's own request budget.
+    return limitUser(req, res, next);
 };
 
 module.exports.ensuredUsers = ensuredUsers;

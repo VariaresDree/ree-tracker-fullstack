@@ -79,7 +79,7 @@ export default function WeakSignalsPanel({ data }) {
                   <p className="text-xs text-muted2">{toDisplaySubject(t.subject)} · median {fmtSecs(t.medianSecs)} per item</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => navigate('/library?tab=formulas', { state: { search: t.topic, kind: 'formula' } })}>
+                  <Button size="sm" variant="secondary" onClick={() => navigate('/library?tab=formulas', { state: { subject: t.subject, topic: t.topic, kind: 'formula' } })}>
                     Formula cards
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => drill(t)}>Drill</Button>

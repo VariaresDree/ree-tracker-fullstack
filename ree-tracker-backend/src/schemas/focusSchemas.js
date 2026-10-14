@@ -33,4 +33,12 @@ const focusBlockEditSchema = z.object({
     minutes: z.number().int().min(1).max(FOCUS_MAX_MINUTES).optional(),
 }).strip().refine((b) => b.subject !== undefined || b.minutes !== undefined, { message: 'Nothing to change.' });
 
-module.exports = { focusBlockSchema, focusBlockEditSchema };
+// PUT /api/user/focus-goal — the weekly focus goal, in minutes (null clears
+// it): from half an hour to 50 hours a week.
+const FOCUS_GOAL_MIN = 30;
+const FOCUS_GOAL_MAX = 3000;
+const focusGoalSchema = z.object({
+    weeklyMinutes: z.number().int().min(FOCUS_GOAL_MIN).max(FOCUS_GOAL_MAX).nullable(),
+}).strip();
+
+module.exports = { focusBlockSchema, focusBlockEditSchema, focusGoalSchema, FOCUS_GOAL_MIN, FOCUS_GOAL_MAX };

@@ -1,8 +1,8 @@
 // src/services/focusTime.js
 //
 // Progress › Habits › Focus time: the Pomodoro's focus blocks, per Manila day
-// for the last two weeks, and per subject over the last 30 days beside the PRC
-// weights. The pure summary is tested on its own (tests/focusRoutes.test.js).
+// for the last two weeks, per subject over the last 30 days beside the PRC
+// weights, and this Manila week (from Monday) against the weekly goal. The pure summary is tested on its own (tests/focusRoutes.test.js).
 // DISPLAY ONLY: FocusBlock is self-reported and never feeds θ, the forecast,
 // readiness or the rankings (tests/displayOnlyTables.test.js).
 
@@ -19,6 +19,14 @@ const BOARD_SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 
 const zeroBySubject = () => Object.fromEntries(FOCUS_SUBJECTS.map((s) => [s, 0]));
 
+/** The Manila date (YYYY-MM-DD) of the Monday that starts `now`'s Manila week. */
+function manilaWeekStart(now) {
+    const today = manilaDateOf(new Date(now));
+    const [y, m, d] = today.split('-').map(Number);
+    const sinceMonday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
+    return new Date(Date.UTC(y, m - 1, d - sinceMonday)).toISOString().slice(0, 10);
+}
+
 /**
  * @param {Array<{subject, minutes, endedAt}>} blocks the last 30 days' blocks
  * @param {{ now?: number, weights?: object }} [opts]
@@ -31,15 +39,21 @@ function summarizeFocus(blocks, { now = Date.now(), weights = null } = {}) {
     const dayByDate = new Map(days.map((d) => [d.date, d]));
     const last30 = { minutes: 0, blocks: 0, bySubject: zeroBySubject() };
     const since = now - SHARE_WINDOW_DAYS * DAY_MS;
+    const week = { startsOn: manilaWeekStart(now), minutes: 0, bySubject: zeroBySubject() };
 
     for (const b of blocks || []) {
         const ended = new Date(b.endedAt).getTime();
         const subject = FOCUS_SUBJECTS.includes(b.subject) ? b.subject : 'General';
         const minutes = Number(b.minutes) || 0;
-        const day = dayByDate.get(manilaDateOf(new Date(ended)));
+        const endedOn = manilaDateOf(new Date(ended));
+        const day = dayByDate.get(endedOn);
         if (day) {
             day.minutes += minutes;
             day.bySubject[subject] += minutes;
+        }
+        if (endedOn >= week.startsOn) {
+            week.minutes += minutes;
+            week.bySubject[subject] += minutes;
         }
         if (ended >= since) {
             last30.minutes += minutes;
@@ -58,27 +72,28 @@ function summarizeFocus(blocks, { now = Date.now(), weights = null } = {}) {
         weight: weights?.[subject] ?? null,
     }));
 
-    return { days, last30, shares, boardMinutes };
+    return { days, last30, shares, boardMinutes, week };
 }
 
 // How many of the newest blocks Habits lists to fix or delete.
 const RECENT_SHOWN = 10;
 
 async function loadFocusTime(userId, now = Date.now()) {
-    const [blocks, weights] = await Promise.all([
+    const [blocks, weights, user] = await Promise.all([
         prisma.focusBlock.findMany({
             where: { userId, endedAt: { gte: new Date(now - SHARE_WINDOW_DAYS * DAY_MS) } },
             select: { id: true, subject: true, minutes: true, startedAt: true, endedAt: true },
             orderBy: { endedAt: 'asc' },
         }),
         getSyllabusWeights(),
+        prisma.user.findUnique({ where: { id: userId }, select: { weeklyFocusMinutes: true } }),
     ]);
     const recent = blocks.slice(-RECENT_SHOWN).reverse().map((b) => ({
         id: b.id, subject: b.subject, minutes: b.minutes, startedAt: b.startedAt, endedAt: b.endedAt,
         // The most minutes this block can be set to: the time it spanned.
         maxMinutes: spanMinutes(b),
     }));
-    return { ...summarizeFocus(blocks, { now, weights }), recent };
+    return { ...summarizeFocus(blocks, { now, weights }), recent, goal: { weeklyMinutes: user?.weeklyFocusMinutes ?? null } };
 }
 
 function spanMinutes(b) {
@@ -137,4 +152,4 @@ async function recordFocusBlock(userId, block) {
     }
 }
 
-module.exports = { summarizeFocus, loadFocusTime, recordFocusBlock, updateFocusBlock, deleteFocusBlock, FocusBlockError };
+module.exports = { summarizeFocus, manilaWeekStart, loadFocusTime, recordFocusBlock, updateFocusBlock, deleteFocusBlock, FocusBlockError };

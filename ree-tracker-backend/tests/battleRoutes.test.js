@@ -250,6 +250,21 @@ describe('GET /api/battles/:id/replay', () => {
     });
 });
 
+describe('GET /api/battles/:id/spectate', () => {
+    it("is for the battle's players only: anyone else gets the 404 a missing battle gets", async () => {
+        finished('SPE001', { me: { placement: 1, score: 2, name: 'Rey' }, ana: { placement: 2, score: 1, name: 'Ana' } });
+        running('SPE002', 60_000, { me: {} });
+        expect((await get('/SPE001/spectate', 'stranger')).status).toBe(404);
+        expect((await get('/SPE002/spectate', 'stranger')).status).toBe(404);
+        expect((await get('/NOPE02/spectate')).status).toBe(404);
+        const done = await get('/SPE001/spectate');
+        expect(done.status).toBe(200);
+        expect(done.body).toMatchObject({ mode: 'POST', battle: { id: 'SPE001' } });
+        expect(done.body.outcomes.map((o) => o.userId)).toEqual(['me', 'ana']);
+        expect((await get('/SPE002/spectate')).body).toMatchObject({ mode: 'LIVE', battle: { id: 'SPE002' } });
+    });
+});
+
 describe('POST /api/battles/:id/rematch', () => {
     const POOL = Array.from({ length: 20 }, (_, i) => ({ id: `n${i}`, answer: 'A', text: `new ${i}`, options: ['A', 'B'] }));
     let samplePool;

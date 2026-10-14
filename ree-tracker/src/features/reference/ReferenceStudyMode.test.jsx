@@ -2,13 +2,16 @@
 // card's back has been seen, rate it (buttons or 1–4) and move on; each
 // button says when the card comes back.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { NEW_CARD, rateCard } from '@ree/shared';
 
 vi.mock('./Flashcard', () => ({
   default: ({ card, onFlip }) => <button type="button" onClick={() => onFlip?.(true)}>card {card.name}</button>,
 }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
+const questionsForTopics = vi.fn();
+vi.mock('./practiseTopics', async (orig) => ({ ...(await orig()), questionsForTopics: (...a) => questionsForTopics(...a) }));
 const { default: ReferenceStudyMode } = await import('./ReferenceStudyMode');
 const { overlayQueuedRatings, dueCardIds } = await import('./useCardReviews');
 
@@ -81,5 +84,61 @@ describe('card review rows', () => {
       { cardId: 'gone', nextReviewDate: '2026-10-01T16:00:00Z' },
     ];
     expect(dueCardIds(items, ['a', 'b', 'c'], now)).toEqual(['b', 'a']);
+  });
+
+  it('ends a review by offering two questions on each topic rated, as a Practice set', async () => {
+    const topical = [
+      { id: 'a', name: 'Slip', subject: 'EE', topic: { id: 't-m', name: 'Machines' } },
+      { id: 'b', name: 'Fault MVA', subject: 'EE', topic: { id: 't-p', name: 'Protection' } },
+    ];
+    questionsForTopics.mockResolvedValue([{ id: 'q1', text: 'Q1', answer: 'A' }]);
+    let practice;
+    function PracticeProbe() {
+      practice = useLocation().state;
+      return <p>practice</p>;
+    }
+    const reviews = { rate: vi.fn(() => Promise.resolve('sent')), rowFor: () => null };
+    render(
+      <MemoryRouter>
+        <Routes>
+          <Route path="/" element={<ReferenceStudyMode cards={topical} mode="review" reviews={reviews} onExit={vi.fn()} />} />
+          <Route path="/practice" element={<PracticeProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    for (const name of ['Slip', 'Fault MVA']) {
+      fireEvent.click(screen.getByRole('button', { name: `card ${name}` }));
+      fireEvent.click(screen.getByRole('button', { name: /Good/ }));
+    }
+    expect(screen.getByText('2 questions on each: Machines, Protection.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Practise these topics/ }));
+    await screen.findByText('practice');
+    expect(questionsForTopics).toHaveBeenCalledWith([{ subject: 'EE', topic: 'Machines' }, { subject: 'EE', topic: 'Protection' }]);
+    expect(practice.preset).toMatchObject({ source: 'items', items: [{ id: 'q1' }] });
+  });
+
+  it('stays put when the learner leaves before the questions are drawn', async () => {
+    let finish;
+    questionsForTopics.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const onExit = vi.fn();
+    let path;
+    function PathProbe() { path = useLocation().pathname; return null; }
+    const reviews = { rate: vi.fn(() => Promise.resolve('sent')), rowFor: () => null };
+    const view = render(
+      <MemoryRouter>
+        <ReferenceStudyMode cards={[{ id: 'a', name: 'Slip', subject: 'EE', topic: { id: 't-m', name: 'Machines' } }]} mode="review" reviews={reviews} onExit={onExit} />
+        <PathProbe />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'card Slip' }));
+    fireEvent.click(screen.getByRole('button', { name: /Good/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Practise these topics/ }));
+    // Back to the cards, then the draw finishes.
+    view.rerender(<MemoryRouter><PathProbe /></MemoryRouter>);
+    await act(async () => {
+      finish([{ id: 'q1', text: 'Q1', answer: 'A' }]);
+      await new Promise((r) => { setTimeout(r, 20); });
+    });
+    expect(path).toBe('/');
   });
 });

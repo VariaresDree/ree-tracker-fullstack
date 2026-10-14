@@ -3,7 +3,7 @@
 // subject, and the ordered next actions (today's plan task included), each of
 // which launches the right session.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { todayManila, dayBefore } from '@ree/shared';
 
@@ -178,6 +178,38 @@ describe('TodayPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
     expect(lastState.preset).toMatchObject({ source: 'smart-drill', drillTopic: 'Protection', count: 15 });
+  });
+
+  it('an established learner with a settled forecast: a subject projected under the floor leads after the loop', () => {
+    forecast = {
+      loading: false,
+      snapshot: {
+        ...forecast.snapshot,
+        weakTopics: [{ topic: 'Chemistry', subject: 'ESAS' }],
+        subjectForecasts: { projectedGWA: { mean: 66 }, subjects: { Mathematics: { expected: 70 }, ESAS: { expected: 47 }, EE: { expected: 74 } } },
+      },
+    };
+    renderPanel({ readiness: { score: 61, breakdown: {} }, stats: { dailyTarget: 50 } });
+    const rows = screen.getAllByRole('listitem').map((li) => li.textContent);
+    expect(rows[0]).toMatch(/Lift ESAS above the 50% floor/);
+    expect(rows[0]).toMatch(/puts ESAS at 47%/);
+    // An early forecast (no weak topic found yet) isn't trusted for it.
+    cleanup();
+    forecast = { loading: false, snapshot: { ...forecast.snapshot, weakTopics: [] } };
+    renderPanel({ readiness: { score: 61, breakdown: {} }, stats: { dailyTarget: 50 } });
+    expect(screen.queryByText(/above the 50% floor/)).not.toBeInTheDocument();
+  });
+
+  it('between 30 and 99 answers (the forecast still early), the placement test\u2019s floor stands', () => {
+    placement = { ...placement, plan: { mode: 'practice', subject: 'ESAS', reason: 'floor', expected: 44 } };
+    forecast = {
+      loading: false,
+      snapshot: { ...forecast.snapshot, subjectForecasts: { projectedGWA: { mean: 66 }, subjects: { ESAS: { expected: 70 } } } },
+    };
+    renderPanel({ readiness: { score: 52, breakdown: {} }, stats: { dailyTarget: 50 }, answered: 60 });
+    const rows = screen.getAllByRole('listitem').map((li) => li.textContent);
+    expect(rows[0]).toMatch(/Lift ESAS above the 50% floor/);
+    expect(rows[0]).toMatch(/Your placement test put ESAS at 44%/);
   });
 
   it('a new learner: the placement plan leads the actions, the numbers say they are early, and the exam plan is asked for', () => {

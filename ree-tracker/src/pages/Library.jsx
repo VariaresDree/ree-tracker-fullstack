@@ -5,7 +5,8 @@
 // "Module Library" was the question-bank authoring tool and moved to Admin.)
 // Handouts are read-only here — uploading and organising them is an Admin tab.
 // The tab lives in ?tab=; an old /materials deep link arrives with
-// { search, kind } state for the formula cards (routes/legacyRoutes.js).
+// { search, kind } state for the formula cards (routes/legacyRoutes.js), or
+// { subject, topic } to open them at a topic (features/reference/topicCards.js).
 import { lazy, Suspense, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -83,7 +84,14 @@ export default function Library() {
               or narrow it down by topic and subtopic. Search finds any card directly.
             </p>
           </div>
-          <ReferenceBrowser initialSearch={deepLink.search || ''} initialKind={deepLink.kind || 'all'} />
+          <ReferenceBrowser
+            // A new deep link opens afresh, even with Formula cards already open.
+            key={deepLink.topic ? `${deepLink.subject}|${deepLink.topic}` : deepLink.search || 'browse'}
+            initialSearch={deepLink.search || ''}
+            initialKind={deepLink.kind || 'all'}
+            initialSubject={deepLink.subject || null}
+            initialTopic={deepLink.topic || null}
+          />
         </div>
       )}
 
