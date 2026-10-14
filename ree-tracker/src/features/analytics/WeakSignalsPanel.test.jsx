@@ -49,7 +49,8 @@ describe('WeakSignalsPanel', () => {
     renderPanel(DATA);
     fireEvent.click(screen.getByRole('button', { name: 'Formula cards' }));
     expect(lastLocation().pathname + lastLocation().search).toBe('/library?tab=formulas');
-    expect(lastLocation().state).toMatchObject({ search: 'Power Systems', kind: 'formula' });
+    // At the topic itself, not a search for its name.
+    expect(lastLocation().state).toEqual({ subject: 'EE', topic: 'Power Systems', kind: 'formula' });
   });
 
   it('a recent confident miss renders through SmartText and drills its topic', () => {

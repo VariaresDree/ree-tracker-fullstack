@@ -23,6 +23,7 @@ import SolutionPanel from '../features/quiz/SolutionPanel';
 import { explanationKey } from '../services/aiExplanations';
 import NoteButton, { NoteView } from '../features/notebook/NoteButton';
 import { questionTarget } from '../features/notebook/targets';
+import TopicCardsLink from '../features/reference/TopicCardsLink';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
 
 export default function Practice() {
@@ -245,6 +246,10 @@ export default function Practice() {
                       onExplain={(force) => explainQuestion(currentQ, { force })}
                       headingLevel={2}
                   />
+                  {/* A miss: the formula cards for its topic, when it has any. */}
+                  {session.wrongSelection != null && (
+                      <TopicCardsLink topicId={currentQ.topicId} topic={currentQ.subtopic || currentQ.topic} subject={currentQ.subject} />
+                  )}
                   <NoteView type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
 
                   <div className="flex justify-between items-center mt-4 gap-3 flex-wrap">

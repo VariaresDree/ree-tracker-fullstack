@@ -123,10 +123,11 @@ function Breadcrumb({ items, onNavigate }) {
   );
 }
 
-// `initialSearch` / `initialKind` let another screen deep-link here — the
-// dashboard's "Formula cards" prescription opens the formulas for a topic that
-// is eating the learner's clock.
-export default function ReferenceBrowser({ initialSearch = '', initialKind = 'all' } = {}) {
+// Another screen can deep-link here: `initialSubject` + `initialTopic` open
+// at that topic (a missed question's cards, or the prescription for a topic
+// eating the learner's clock), and `initialSearch` / `initialKind` start a
+// search.
+export default function ReferenceBrowser({ initialSearch = '', initialKind = 'all', initialSubject = null, initialTopic = null } = {}) {
   const { cards, loading, loadError, reload } = useReferenceCards();
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = useMemo(() => dynamicTOS || {}, [dynamicTOS]);
@@ -137,8 +138,9 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
 
   // Hierarchy position: null selectedSubject = at the subject grid; etc.
   // Restored from this browser session unless another screen deep-linked a
-  // search here.
-  const [saved] = useState(() => (initialSearch ? {} : readPosition()));
+  // topic or a search here.
+  const deepTopic = initialSubject && initialTopic ? { subject: initialSubject, topic: initialTopic } : null;
+  const [saved] = useState(() => deepTopic || (initialSearch ? {} : readPosition()));
   const [selectedSubject, setSelectedSubject] = useState(saved.subject ?? null);
   const [selectedTopic, setSelectedTopic] = useState(saved.subject ? saved.topic ?? null : null);
   const [selectedSubtopic, setSelectedSubtopic] = useState(saved.topic ? saved.subtopic ?? null : null); // may be UNTAGGED

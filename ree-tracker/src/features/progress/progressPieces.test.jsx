@@ -20,7 +20,9 @@ describe('routePrescription', () => {
     return navigate.mock.calls[0];
   };
 
-  it('formula cards open the Library on that topic', () => {
+  it('formula cards open the Library at that topic (a v1 action with no subject searches for it)', () => {
+    expect(run({ type: 'FORMULA_CARDS', payload: { topic: 'Transformers', subject: 'EE' } }))
+      .toEqual(['/library?tab=formulas', { state: { subject: 'EE', topic: 'Transformers', kind: 'formula' } }]);
     expect(run({ type: 'FORMULA_CARDS', payload: { topic: 'Transformers' } }))
       .toEqual(['/library?tab=formulas', { state: { search: 'Transformers', kind: 'formula' } }]);
   });

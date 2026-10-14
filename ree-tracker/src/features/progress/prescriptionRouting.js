@@ -22,7 +22,10 @@ export function routePrescription(action, { navigate, tos }) {
     return;
   }
   if (type === 'FORMULA_CARDS') {
-    navigate('/library?tab=formulas', { state: { search: topic || '', kind: 'formula' } });
+    // Opened at the topic itself; a v1 action without a subject searches for it.
+    navigate('/library?tab=formulas', {
+      state: payload.subject && topic ? { subject: payload.subject, topic, kind: 'formula' } : { search: topic || '', kind: 'formula' },
+    });
     return;
   }
   if (type === 'DRILL' || type === 'BLIND_SPOT') {

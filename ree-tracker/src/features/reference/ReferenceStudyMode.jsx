@@ -8,7 +8,8 @@
 // it — Again, Hard, Good, Easy (or 1–4) — and it comes back for review when
 // it's due (each button says when). Rating moves on to the next card. Cards
 // used to be flipped and forgotten: nothing brought a formula back before the
-// exam.
+// exam. At the end, "Practise these topics" puts the formulas to use: two
+// questions on each topic rated (practiseTopics.js).
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { CARD_RATINGS } from '@ree/shared';
@@ -16,12 +17,16 @@ import { Button, EmptyState, StatusPill } from '../../components/ui';
 import { CheckCircle2, ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
 import NotedFlashcard from './NotedFlashcard';
 import CardRatingButtons from './CardRatingButtons';
+import PractiseTopicsButton from './PractiseTopicsButton';
+import { topicsOf } from './practiseTopics';
 
 export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse' }) {
   const [index, setIndex] = useState(0);
   // Cards whose back has been seen in this session: the ones that can be rated.
   const [seen, setSeen] = useState(() => new Set());
-  const [rated, setRated] = useState(0);
+  // The cards rated in this session, for the topics to practise at the end.
+  const [ratedCards, setRatedCards] = useState([]);
+  const rated = ratedCards.length;
   const [done, setDone] = useState(false);
   // The arrow keys and Escape are handled on the wrapper, so it takes focus
   // when study mode opens; they did nothing until something inside was
@@ -39,7 +44,7 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
   const rateCurrent = (rating) => {
     if (!canRate) return;
     const id = card.id;
-    setRated((n) => n + 1);
+    setRatedCards((prev) => [...prev, card]);
     if (atEnd) setDone(true);
     else goNext();
     wrapperRef.current?.focus({ preventScroll: true });
@@ -54,12 +59,18 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
   };
 
   if (done) {
+    const topics = topicsOf(ratedCards);
     return (
       <EmptyState
         icon={CheckCircle2}
         title={`Done: ${rated} card${rated === 1 ? '' : 's'} rated`}
         description="Each one comes back when it's due. Cards you knew well wait longer; the ones you missed come back tomorrow."
-        action={<Button onClick={onExit}>Back to formula cards</Button>}
+        action={(
+          <div className="flex flex-col items-center gap-3">
+            {topics.length > 0 && <PractiseTopicsButton topics={topics} />}
+            <Button variant={topics.length > 0 ? 'secondary' : 'primary'} onClick={onExit}>Back to formula cards</Button>
+          </div>
+        )}
       />
     );
   }

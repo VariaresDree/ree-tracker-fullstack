@@ -14,7 +14,9 @@ const fetchSittingReview = vi.fn();
 const fetchBattleReplay = vi.fn();
 const requestRematch = vi.fn();
 const apiRequest = vi.fn(async () => ({ items: [], truncated: false }));
+const fetchReferenceCards = vi.fn(async () => []);
 vi.mock('../services/dbQueries', () => ({
+  fetchReferenceCards: (...a) => fetchReferenceCards(...a),
   fetchSittingReview: (...a) => fetchSittingReview(...a),
   fetchBattleReplay: (...a) => fetchBattleReplay(...a),
   requestRematch: (...a) => requestRematch(...a),
@@ -25,6 +27,7 @@ vi.mock('idb-keyval', () => ({ get: async () => undefined, set: async () => {}, 
 vi.mock('../services/geminiApi', () => ({ generateMasterExplanation: vi.fn() }));
 
 const { default: SittingReview } = await import('./SittingReview');
+const { resetTopicCards } = await import('../features/reference/useTopicCards');
 
 const item = (order, over = {}) => ({
   order, questionId: `q${order}`, subject: 'EE', topic: 'Machines', text: `Question ${order}`,
@@ -61,6 +64,7 @@ const renderAt = (path = '/exams/sittings/sess-1') => render(
 );
 
 beforeEach(() => {
+  resetTopicCards();
   fetchSittingReview.mockReset();
   fetchBattleReplay.mockReset();
   requestRematch.mockReset();
@@ -76,6 +80,19 @@ describe('SittingReview', () => {
     expect(screen.getByText('66.5%')).toBeInTheDocument();
     expect(screen.getByText('Question 1')).toBeInTheDocument();
     expect(screen.getByText(/You answered this correctly/)).toBeInTheDocument();
+  });
+
+  it("a wrong answer links to its topic's formula cards; a right one doesn't", async () => {
+    fetchReferenceCards.mockResolvedValue([
+      { id: 'c1', subject: 'EE', topic: { id: 't-m', name: 'Machines' } },
+      { id: 'c2', subject: 'EE', topic: { id: 't-m', name: 'Machines' } },
+    ]);
+    fetchSittingReview.mockResolvedValue(REVIEW);
+    renderAt();
+    await screen.findByText('Question 1');
+    expect(screen.queryByRole('link', { name: /Formula cards/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /^Wrong/ }));
+    expect(await screen.findByRole('link', { name: 'Formula cards: Machines (2)' })).toHaveAttribute('href', '/library?tab=formulas');
   });
 
   it('the answer sheet shows your bubble and the correct one', async () => {
