@@ -3,7 +3,8 @@
 // Progress › Habits › Focus time: the Pomodoro's focus blocks (deep/focus-time)
 // — minutes per day for two weeks, and how the last 30 days split across the
 // board's subjects beside their PRC weights, so "EE is 45% of the board but
-// 20% of my focus" is visible. Pick what a block is for on the timer; fix or
+// 20% of my focus" is visible. This week runs against a weekly goal the
+// learner sets (FocusGoal). Pick what a block is for on the timer; fix or
 // delete a logged block under Recent blocks.
 import { toDisplaySubject } from '@ree/shared';
 import { ProgressIndicator } from '../../../components/ui';
@@ -12,6 +13,7 @@ import { BarList, DeepStatus, SectionCard, StatTile } from './shared';
 import { formatDuration } from '../../../utils/time';
 import { focusGapLine, pct } from './focusGap';
 import RecentFocusBlocks from './RecentFocusBlocks';
+import FocusGoal from './FocusGoal';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const shortDay = (isoDate) => {
@@ -31,11 +33,16 @@ export default function FocusTime() {
     <SectionCard eyebrow="Habits" title="Focus time">
       <DeepStatus status={status} retry={retry}>
         {last30.blocks === 0 ? (
-          <p className="text-sm text-muted2">
-            Start a focus block on the timer, and pick what it’s for. Finished blocks (and any you stop after five minutes) show here, split by subject.
-          </p>
+          <div className="flex flex-col gap-6">
+            <p className="text-sm text-muted2">
+              Start a focus block on the timer, and pick what it’s for. Finished blocks (and any you stop after five minutes) show here, split by subject.
+            </p>
+            <FocusGoal week={data?.week} goal={data?.goal} shares={shares} onSaved={retry} />
+          </div>
         ) : (
           <div className="flex flex-col gap-6">
+            <FocusGoal week={data?.week} goal={data?.goal} shares={shares} onSaved={retry} />
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <StatTile label="Focus (last 14 days)" value={formatDuration(total14 * 60)} color="var(--color-reeAmber-text)" />
               <StatTile label="Blocks (last 30 days)" value={String(last30.blocks)} sub={formatDuration(last30.minutes * 60)} color="var(--accent-text)" />

@@ -13,7 +13,7 @@ firebaseAuth.getAuth = () => ({ verifyIdToken });
 const prisma = require('../src/config/db');
 const focusRoutes = require('../src/routes/focusRoutes');
 const analyticsDeepRoutes = require('../src/routes/analyticsDeepRoutes');
-const { summarizeFocus } = require('../src/services/focusTime');
+const { summarizeFocus, manilaWeekStart } = require('../src/services/focusTime');
 
 const UID = 'uid-focus';
 function makeApp() {
@@ -35,6 +35,8 @@ const block = (over = {}) => {
 beforeEach(() => {
     verifyIdToken.mockImplementation(async (token) => ({ uid: token, email: `${token}@example.com` }));
     vi.spyOn(prisma.user, 'upsert').mockResolvedValue({ id: UID });
+    // No weekly goal unless a test says so.
+    vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ weeklyFocusMinutes: null });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -93,6 +95,51 @@ describe('focus summary', () => {
             { subject: 'ESAS', minutes: 0, share: 0, weight: 0.3 },
             { subject: 'EE', minutes: 30, share: 0.25, weight: 0.45 },
         ]);
+    });
+});
+
+describe('this week, against the weekly goal', () => {
+    it('a Manila week starts on Monday, whatever the UTC day', () => {
+        expect(manilaWeekStart(Date.parse('2026-10-14T04:00:00Z'))).toBe('2026-10-12'); // Wednesday
+        expect(manilaWeekStart(Date.parse('2026-10-12T00:30:00Z'))).toBe('2026-10-12'); // Monday 08:30
+        expect(manilaWeekStart(Date.parse('2026-10-11T17:00:00Z'))).toBe('2026-10-12'); // Monday 01:00, still Sunday in UTC
+        expect(manilaWeekStart(Date.parse('2026-10-11T15:00:00Z'))).toBe('2026-10-05'); // Sunday 23:00
+    });
+
+    it('adds up the minutes since Monday, by subject', () => {
+        const now = Date.parse('2026-10-14T04:00:00Z');
+        const { week } = summarizeFocus([
+            { subject: 'EE', minutes: 50, endedAt: '2026-10-14T01:00:00Z' },
+            { subject: 'General', minutes: 20, endedAt: '2026-10-11T17:00:00Z' }, // Monday 01:00 Manila
+            { subject: 'ESAS', minutes: 25, endedAt: '2026-10-11T15:00:00Z' }, // last week
+        ], { now });
+        expect(week).toEqual({
+            startsOn: '2026-10-12', minutes: 70,
+            bySubject: { General: 20, Mathematics: 0, ESAS: 0, EE: 50 },
+        });
+    });
+
+    it('the summary carries the goal', async () => {
+        vi.spyOn(prisma.focusBlock, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
+        prisma.user.findUnique.mockResolvedValue({ weeklyFocusMinutes: 600 });
+        const res = await request(makeApp()).get('/api/analytics/deep/focus-time').set(as());
+        expect(res.body.goal).toEqual({ weeklyMinutes: 600 });
+        expect(prisma.user.findUnique.mock.calls[0][0].where).toEqual({ id: UID });
+    });
+
+    it('PUT /api/user/focus-goal sets or clears it for the caller, within half an hour to 50 hours', async () => {
+        const update = vi.spyOn(prisma.user, 'update').mockResolvedValue({});
+        const put = (body) => request(makeApp()).put('/api/user/focus-goal').set(as()).send(body);
+        expect((await put({ weeklyMinutes: 600 })).status).toBe(200);
+        expect(update).toHaveBeenLastCalledWith({ where: { id: UID }, data: { weeklyFocusMinutes: 600 } });
+        expect((await put({ weeklyMinutes: null })).status).toBe(200);
+        expect(update).toHaveBeenLastCalledWith({ where: { id: UID }, data: { weeklyFocusMinutes: null } });
+        for (const bad of [{ weeklyMinutes: 10 }, { weeklyMinutes: 4000 }, { weeklyMinutes: 'lots' }, {}]) {
+            expect((await put(bad)).status).toBe(400);
+        }
+        expect(update).toHaveBeenCalledTimes(2);
+        expect((await request(makeApp()).put('/api/user/focus-goal').send({ weeklyMinutes: 600 })).status).toBe(401);
     });
 });
 
