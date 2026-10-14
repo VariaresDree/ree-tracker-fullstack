@@ -218,10 +218,12 @@ async function bootstrap() {
         },
     }));
 
-    // RATE_LIMIT_GLOBAL_MAX overrides the per-IP budget (default 300), for a
-    // deployment whose learners share one address (a campus network behind
-    // NAT) without a code change. See docs/NEXT_STEPS.md.
-    const globalMax = Number(process.env.RATE_LIMIT_GLOBAL_MAX) > 0 ? Number(process.env.RATE_LIMIT_GLOBAL_MAX) : 300;
+    // The per-address flood guard, before sign-in. Each signed-in learner has
+    // their own budget after it (middlewares/userRateLimit.js, 300 per 15
+    // minutes by default), so this one is set for a whole class behind one
+    // address (a review centre's Wi-Fi), not for one person. It was 300, and
+    // the class shared it. RATE_LIMIT_GLOBAL_MAX overrides it.
+    const globalMax = Number(process.env.RATE_LIMIT_GLOBAL_MAX) > 0 ? Number(process.env.RATE_LIMIT_GLOBAL_MAX) : 3000;
     const globalLimiter = rateLimit({
         windowMs: 15 * 60 * 1000,
         max: globalMax,

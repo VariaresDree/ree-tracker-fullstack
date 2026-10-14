@@ -96,23 +96,23 @@ updated for the polish-and-features release that followed (branch
   - Completion is already safe across instances (a single DB transaction claims it).
   - Live broadcasts are not: running two backend instances needs `@socket.io/redis-adapter` and sticky sessions.
 - **Battles that were live when #144 deployed** have no `BattleParticipant` rows. They close with no outcomes, and their players can't rejoin. This is one-off.
-- **Spectating:** `GET /api/battles/:id/spectate` exists, but no screen uses it. It also has **no participant check**: any signed-in user can read any battle's live state. Gate it (players, or an opt-in "spectators allowed" flag) before building a screen. `/replay` is players-only now.
+- **Spectating:** `GET /api/battles/:id/spectate` exists, but no screen uses it. It's players-only now, like `/replay`. A screen for anyone else watching needs an opt-in first (a "spectators allowed" setting on the battle).
 - **Rematch** creates a new lobby with the same settings and tells the old room. There's no invite to a specific person (codes are still shared by hand), and a player who has left the results screen only sees it in Past battles.
 
-**Answer-key exposure** (fixed in the release after #144)
-- `POST /api/exams/grade`, the bookmarks list, the mistakes list and today's loop now keep a question's key from a player while it is in a battle they're still in (`services/answerGate.js`). A non-player can still grade any question id; that only matters if one player hands the ids to someone else.
+**Answer-key exposure**
+- A question's key stays closed to a player while it is in a battle they're still in (`services/answerGate.js`). That covers `POST /api/exams/grade`, bookmarks, mistakes, today's loop, `next-item`, the question lists (`GET /api/questions`, `POST /api/questions/review`) and a finished battle's replayed results.
+- **Still open:** a non-player can grade any question id, which matters only if one player hands the ids to someone else. An offline pack downloaded before a battle already holds its keys; that's the cost of Practice grading offline.
 
 **List caps (no pagination yet)**
 - Mistakes: the newest 300 questions, from the last 5,000 wrong attempts.
 - Notes: the newest 1,000.
 - Card reviews: every rated card.
 - Add cursors if real accounts get near these.
-- `QuestionAttempt (userId, isCorrect, createdAt)` is indexed now (migration `20261016000000_mistakes_index`).
 
 **Formula-card reviews**
 - No suspend/bury, no daily cap on new cards, no review history (only the latest schedule is kept).
 - Rating happens in study mode, and for up to 8 due cards inside Today's loop.
-- **Study plan cards days:** a cards task completes from each card's *latest* rating, so re-rating a card on a later day moves its count off the earlier day.
+- **Study plan cards days:** a cards task is ticked off for good once its day's ratings reach the target. Before that, the count it shows comes from each card's *latest* rating, so a card rated again on a later day leaves the earlier day's count.
 
 **Mistakes**
 - "Why you miss, by week" counts one cause per question, at its latest miss (`MistakeTag` keeps one cause). A true per-miss trend needs a history table of tags.
@@ -135,13 +135,13 @@ updated for the polish-and-features release that followed (branch
 - **Lint ratchet:** **0**. Keep it there; FEATURES.md (Quality gates) lists the patterns that replaced each rule's errors.
 - **Boot bundle:** 625 kB of the 700 kB budget (89%). Before adding anything to the shell, look at what `@ree/shared` and the shell pull in eagerly.
 - **Not done:** memoising `ExamNavigator`'s 100 buttons and `AnswerSheet`'s 400 bubbles. The exam clock no longer re-renders them every second, so they only re-render on an answer; worth it only if a profile on a low-end phone says so.
-- **Rate limit:** 300 requests per IP per 15 minutes (`RATE_LIMIT_GLOBAL_MAX` overrides it). A whole class behind one campus NAT shares that budget. Consider keying it on the signed-in user, as the AI limiter already is.
+- **Rate limits:** 300 requests per signed-in learner per 15 minutes (`RATE_LIMIT_USER_MAX`), and a per-address flood guard of 3000 before sign-in (`RATE_LIMIT_GLOBAL_MAX`). Both are in memory, so with two backend instances each counts on its own (as with live battle rooms).
 
 **Tests** (done in the release after #144)
 - Signed-in Playwright specs run on the Firebase Auth emulator with the real backend (`ree-tracker/e2e-authed/`, CI "E2E (signed in)"). Add a spec there for each new signed-in flow.
 - The two-client battle test lives in `tests/battleTwoClients.test.js`.
 - CI applies the migrations to a real Postgres, checks them against `schema.prisma`, and runs `tests/integration/*.dbtest.js` (`npm run test:db`).
-- **Worth adding:** a signed-in spec that opens every screen and tab, Admin included, and fails on any page error or error-boundary screen. A hook that read state above its declaration took the Question bank down on this branch, and no test opened that screen (it turned up while fixing a review finding). The same sweep run by hand (26 screens, as an admin) came back clean. The lint rule `no-use-before-define` now stops that exact mistake. Admin needs its own e2e account, since making the shared learner an admin would change what the other specs see.
+- `e2e-authed/screens.spec.ts` opens every screen and tab as a seeded admin and fails on any page error or error screen. Add new routes and tabs to its list.
 - **Battle keys and the offline pack:** the question lists and next-item leave out a running battle's questions, but an offline pack downloaded before the battle already holds their keys. That's the cost of Practice grading offline; the battle's time limit is the real guard.
 
 **Phase 2 gate:** axe runs in CI on Today, Habits, Exams, Library › Notebook, Progress › Overview and a running Practice session (WCAG 2.2 AA), plus Today in the ocean theme and on a phone. Lighthouse on signed-in screens is still manual.

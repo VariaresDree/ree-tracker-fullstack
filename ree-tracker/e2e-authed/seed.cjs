@@ -10,6 +10,10 @@ const EMULATOR = process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099';
 const PROJECT = process.env.FIREBASE_PROJECT_ID || 'demo-ree';
 const EMAIL = 'learner@e2e.test';
 const PASSWORD = 'e2e-password-1';
+// An admin of its own, for the every-screen check (screens.spec.ts): making
+// the learner an admin would change what the other specs see.
+const ADMIN_EMAIL = 'admin@e2e.test';
+const ADMIN_PASSWORD = 'e2e-password-2';
 const Q = (n) => `e2e-q${n}`;
 const BATTLE_ID = 'E2ELIV';
 
@@ -19,14 +23,17 @@ async function emulator(pathname, init) {
     return res.json();
 }
 
+const signUp = async (email, password) => (await emulator('/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+})).localId;
+
 async function seed() {
-    // Fresh emulator accounts, then the learner.
+    // Fresh emulator accounts, then the learner and the admin.
     await emulator(`/emulator/v1/projects/${PROJECT}/accounts`, { method: 'DELETE' });
-    const { localId: uid } = await emulator('/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: EMAIL, password: PASSWORD, returnSecureToken: true }),
-    });
+    const uid = await signUp(EMAIL, PASSWORD);
+    const adminUid = await signUp(ADMIN_EMAIL, ADMIN_PASSWORD);
 
     const prisma = require(path.resolve(__dirname, '../../ree-tracker-backend/src/config/db'));
     try {
@@ -35,6 +42,7 @@ async function seed() {
         await prisma.question.deleteMany({ where: { id: { startsWith: 'e2e-' } } });
 
         await prisma.user.create({ data: { id: uid, email: EMAIL, displayName: 'E2E Learner' } });
+        await prisma.user.create({ data: { id: adminUid, email: ADMIN_EMAIL, displayName: 'E2E Admin', role: 'ADMIN' } });
         const question = (n, subject, subtopic) => ({
             id: Q(n), subject, subtopic, text: `E2E question ${n}: pick A`, options: ['A', 'B', 'C', 'D'], answer: 'A',
             fixedExplanation: `Why ${n}: A is right.`, type: 'conceptual',
@@ -67,4 +75,4 @@ async function seed() {
     return { uid, email: EMAIL, password: PASSWORD };
 }
 
-module.exports = { seed, EMAIL, PASSWORD };
+module.exports = { seed, EMAIL, PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD };

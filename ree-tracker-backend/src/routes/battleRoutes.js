@@ -407,8 +407,15 @@ function notifyOthersByPush(oldBattleId, by, newBattleId) {
 // GET /api/battles/:battleId/spectate — lightweight read-only snapshot
 // for spectator overlays. Same payload the lobby socket would broadcast
 // minus the participant attempt log. Polled (or upgraded to socket later).
+// For the battle's own players only, like /replay: anyone else gets the same
+// 404 as for a battle that doesn't exist. It used to serve any battle's
+// state, and a finished one's names, photos and rating changes, to anyone
+// signed in. A spectator screen for others needs its own opt-in first.
 router.get('/:battleId/spectate', authMiddleware, async (req, res) => {
     try {
+        if (!(await playedIn({ battleId: req.params.battleId, userId: req.user.id }))) {
+            return res.status(404).json({ error: 'Battle not found.' });
+        }
         const battle = await prisma.battle.findUnique({
             where: { id: req.params.battleId },
             select: { id: true, status: true, config: true, timeLimitSecs: true, hostId: true },
