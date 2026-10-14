@@ -3,12 +3,24 @@
 Handoff notes for the next planning session. Written 2026-10-13, after
 [#143](https://github.com/VariaresDree/ree-tracker-fullstack/pull/143) and
 [#144](https://github.com/VariaresDree/ree-tracker-fullstack/pull/144) were merged;
-updated for the polish-and-features release that followed (branch
-`claude/jolly-cerf-yz78he`, section 1).
+updated for the two releases that followed (branch `claude/jolly-cerf-yz78he`,
+section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
 ## 1. What just shipped
+
+**The learning-loop release (after #154).** One commit per part:
+- **Hardening:**
+  - `GET /api/battles/:id/spectate` is players-only, like `/replay`;
+  - a request budget per signed-in learner (300 per 15 minutes, `RATE_LIMIT_USER_MAX`), so a class on one Wi-Fi no longer shares one budget; the per-address limit stays as a flood guard (3000, `RATE_LIMIT_GLOBAL_MAX`);
+  - `e2e-authed/screens.spec.ts` opens every screen and tab as a seeded admin and fails on any page error or error screen.
+- **Where to start keeps moving:** past 30 answers, Today applies the floor rule to the forecast's projections. A subject projected under 50% gets "Lift ESAS above the 50% floor" right after the loop.
+- **Formula cards ↔ questions:**
+  - a missed question links to its topic's cards (Practice, a sitting's review, Notebook › Mistakes);
+  - Formula cards opens at a topic (`{ subject, topic }` state);
+  - a card review ends with "Practise these topics", two questions on each topic rated.
+- **Weekly focus goal:** Progress › Habits › Focus time › This week, against a goal in hours, split by board weight (migration `20261018000000_weekly_focus_goal`).
 
 **The polish-and-features release (after #153).** One commit per part:
 - **Copy:**
@@ -85,7 +97,7 @@ updated for the polish-and-features release that followed (branch
   4. Verify with `POST /api/admin/push-test`.
 
   Scheduled reminders and streak pushes reach phones only after this. Until then the on-device reminder stands in.
-- [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261017000000` (the last is the battle rematch link).
+- [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261018000000` (the last two are the battle rematch link and the weekly focus goal).
 - [ ] **Run the manual checks** listed in #144: the battle scenario on two devices, a card review cycle, a focus block, a mistake tag, a note, and a reminder (after the two items above).
 - [ ] **Close the Phase 3 gate:** run one AI-generated batch through the review loop (edit and reject at least one item, approve the rest). See `ROADMAP.md`.
 
@@ -152,12 +164,12 @@ updated for the polish-and-features release that followed (branch
 - ~~**One "Today" study loop**~~ shipped, and the due formula cards now come in the same session (up to 8).
 - ~~**Study plan generator** with cards and mistakes~~ shipped: open mistakes raise a topic's priority, and days with 5+ cards due get a cards task. Focus time is shown beside the plan, not fed in (display only by design).
 - ~~**Mistake patterns over time** and a **mistakes-only mock**~~ shipped (Notebook › Mistakes).
-- **Placement follow-up:** re-run the floor rule on the forecast's per-subject projections once a learner has history, so "where to start" keeps moving after the placement test.
-- **Formula ↔ question links:** a missed question surfaces the formula cards for its topic, and rating a card can queue two questions on it.
-- **Focus goals:** a weekly target per subject from the PRC weights, with the Habits chart showing progress against it.
+- ~~**Placement follow-up**~~ shipped: past 30 answers Today applies the floor rule to the forecast. Still open: a whole "where to start" card on Progress, not only Today's action.
+- ~~**Formula ↔ question links**~~ shipped both ways. Still open: Today's loop could add a due card's topic questions on its own.
+- ~~**Focus goals**~~ shipped as one weekly goal split by board weight. Still open: a reminder when a week is behind, and a per-subject goal the learner sets by hand.
 
 **Battles**
-- ~~Rematch, and a battle history with the per-question replay~~ shipped: Exams › Battles › Past battles, everyone's picks in a battle's review, and Rematch from the results, the review and the history. Spectate is still open (`/spectate` still serves any battle to anyone signed in).
+- ~~Rematch, and a battle history with the per-question replay~~ shipped: Exams › Battles › Past battles, everyone's picks in a battle's review, and Rematch from the results, the review and the history. Spectate stays players-only; a screen for others needs an opt-in first.
 - Ranked matchmaking by Elo (a queue rather than invite codes).
 
 **Reach and polish** (left out of the last release by choice; still the next obvious set)
@@ -168,6 +180,12 @@ updated for the polish-and-features release that followed (branch
 - Offline: notes, mistakes and card reviews already paint from cache and queue writes. Practising a formula-card review offline works once the cards are cached.
 
 ## 5. Where the new code lives
+
+**The learning-loop release**
+- Rate limits: `ree-tracker-backend/src/middlewares/userRateLimit.js` (called from `authMiddleware`), the address limit in `server.js`.
+- Where to start: `forecastPlan` in `ree-tracker/src/features/exams/startingPlan.js`, used by `features/today/{TodayPanel.jsx,todayActions.js}`.
+- Cards ↔ questions: `ree-tracker/src/features/reference/{topicCards,useTopicCards,TopicCardsLink,practiseTopics,PractiseTopicsButton}`.
+- Focus goal: `src/routes/focusRoutes.js` (`PUT /focus-goal`), `src/services/focusTime.js` (`week`), and `features/analytics/sections/{FocusGoal.jsx,focusGoal.js}`.
 
 **Battles**
 - Backend: `ree-tracker-backend/src/services/battleLifecycle.js`, `src/sockets/battleSocket.js`, `src/routes/battleRoutes.js`, `src/utils/battleLogic.js`.
