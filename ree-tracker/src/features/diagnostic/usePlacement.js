@@ -8,11 +8,9 @@
 // waved away.
 import { useCallback, useState } from 'react';
 import { useSyncedUserData } from '../../hooks/useSyncedUserData';
-import { startingPlan } from '../exams/startingPlan';
+import { NEW_LEARNER_MAX, startingPlan } from '../exams/startingPlan';
 
-// Answers under which a learner counts as new: the prompt shows, and Today's
-// actions follow the placement plan.
-export const NEW_LEARNER_MAX = 30;
+export { NEW_LEARNER_MAX };
 
 const dismissKey = (uid) => `ree_placement_dismissed:${uid}`;
 const readDismissed = (uid) => {

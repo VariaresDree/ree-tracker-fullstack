@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { startingPlan } from './startingPlan';
+import { forecastPlan, startingPlan } from './startingPlan';
 
 const result = (gwa, subjects) => ({ projectedGWA: gwa, subjects: Object.fromEntries(Object.entries(subjects).map(([s, e]) => [s, { expected: e }])) });
 
@@ -22,5 +22,27 @@ describe('startingPlan', () => {
 
   it('no result, no plan', () => {
     expect(startingPlan(null)).toBeNull();
+  });
+
+  it("carries the floor subject's projected score", () => {
+    expect(startingPlan(result(68, { Mathematics: 71, ESAS: 44, EE: 80 }))).toMatchObject({ subject: 'ESAS', expected: 44 });
+  });
+});
+
+describe('forecastPlan', () => {
+  const forecast = (mean, subjects) => ({
+    projectedGWA: { mean, low: mean - 5, high: mean + 5 },
+    subjects: Object.fromEntries(Object.entries(subjects).map(([s, e]) => [s, { expected: e, p50: 0.5 }])),
+  });
+
+  it("reads the forecast's projections with the same rule, its average from the mean", () => {
+    expect(forecastPlan(forecast(66, { Mathematics: 62, ESAS: 47, EE: 75 }))).toMatchObject({ mode: 'practice', subject: 'ESAS', reason: 'floor', expected: 47 });
+    // The mean, not the { mean, low, high } object, which would read as no average at all.
+    expect(forecastPlan(forecast(74, { Mathematics: 70, ESAS: 72, EE: 78 }))).toMatchObject({ mode: 'gauntlet', reason: 'average' });
+  });
+
+  it('no forecast, or one with no subjects, no plan', () => {
+    expect(forecastPlan(null)).toBeNull();
+    expect(forecastPlan({ projectedGWA: { mean: 70 }, subjects: {} })).toBeNull();
   });
 });

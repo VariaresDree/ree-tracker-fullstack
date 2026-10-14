@@ -17,6 +17,7 @@ import PlacementPrompt from '../diagnostic/PlacementPrompt';
 import { usePlacement } from '../diagnostic/usePlacement';
 import FirstRunCard from '../onboarding/FirstRunCard';
 import { isEarlyEstimate } from '../analytics/earlyEstimate';
+import { forecastPlan } from '../exams/startingPlan';
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
 import { usePlanToday } from './usePlanToday';
 import { launchPractice } from '../active-recall/presets';
@@ -188,6 +189,9 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     daily,
     examInDays: daysToExam(stats?.examDate),
     start: placement.plan,
+    // Past the placement test, where to start comes from the forecast, once
+    // it has enough answers to trust (an early estimate isn't).
+    floor: early ? null : forecastPlan(snapshot?.subjectForecasts),
     answered,
   });
 
