@@ -107,6 +107,17 @@ describe('placement test', () => {
         expect(created).toMatchObject({ userId: UID, mode: 'DIAGNOSTIC', verdict: 'IN_PROGRESS' });
     });
 
+    it('records that this client shows the choices in the seeded order, and only a tag it knows', async () => {
+        await request(makeApp()).post('/api/diagnostic/start').set(as(UID)).send({ optionOrder: 'seeded-v1' });
+        expect([...sessions.values()][0].config.optionOrder).toBe('seeded-v1');
+        sessions.clear();
+        await request(makeApp()).post('/api/diagnostic/start').set(as(UID)).send({ optionOrder: 'later' });
+        expect([...sessions.values()][0].config).not.toHaveProperty('optionOrder');
+        sessions.clear();
+        await request(makeApp()).post('/api/diagnostic/start').set(as(UID)).send({});
+        expect([...sessions.values()][0].config).not.toHaveProperty('optionOrder');
+    });
+
     it('never reveals whether an answer was right while the test runs', async () => {
         const app = makeApp();
         const { body } = await request(app).post('/api/diagnostic/start').set(as(UID)).send({});

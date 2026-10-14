@@ -142,6 +142,7 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
                     knownLevel: run.knownLevel,
                     startedAt: run.startedAt,
                     finishedAt: run.finishedAt,
+                    optionOrder: run.optionOrder,
                 });
                 invalidateDashboard(req.user.id);
             } catch (ladderErr) {

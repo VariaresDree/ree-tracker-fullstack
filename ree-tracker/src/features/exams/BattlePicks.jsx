@@ -10,7 +10,7 @@ import { formatDuration } from '../../utils/time';
 const LETTERS = ['A', 'B', 'C', 'D'];
 const MAX_TEXT = 40;
 
-/** "B, right, 42s"; "left blank". The letter is the option's place in the stored order. */
+/** "B, right, 42s"; "left blank". The letter is the option's place in the review's list (the order you saw). */
 function pickText(pick, options) {
   if (pick.answer == null) return 'left blank';
   const i = (options || []).indexOf(pick.answer);

@@ -97,7 +97,25 @@ describe('useSimulatorEngine — retake', () => {
     expect(again.result.current.session.questions).toEqual(shown);
     expect(startStoreSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: id }));
     await act(() => again.result.current.submitExam());
-    expect(api.finalizeExamSession).toHaveBeenCalledWith(id, expect.anything());
+    // Marked as shown in the seeded order, so its review lists them that way.
+    expect(api.finalizeExamSession).toHaveBeenCalledWith(id, expect.objectContaining({ optionOrder: 'seeded-v1' }));
+  });
+
+  it("an older draft (no sitting id) resumes without claiming the seeded order for its review", async () => {
+    const { result, unmount } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startSimulation({
+      mode: 'subject', subject: 'Mixed', isPrcStandard: false, count: 2, source: 'retake',
+      cognitiveFocus: 'mixed', retake: { sourceSessionId: 's1' }, retakeQuestions: QUESTIONS,
+    }));
+    unmount();
+    const draft = JSON.parse(localStorage.getItem('ree_sim_cache'));
+    delete draft.sittingId;
+    localStorage.setItem('ree_sim_cache', JSON.stringify(draft));
+
+    const again = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    act(() => again.result.current.resumeSimulation());
+    await act(() => again.result.current.submitExam());
+    expect(api.finalizeExamSession).toHaveBeenCalledWith('sess-r', expect.not.objectContaining({ optionOrder: expect.anything() }));
   });
 
   it('marks for review go with the sitting and the draft, not to bookmarks', async () => {

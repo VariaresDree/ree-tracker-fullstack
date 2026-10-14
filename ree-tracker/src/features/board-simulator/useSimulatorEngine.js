@@ -14,7 +14,7 @@ import { computeBattleDiagnostics } from './battleGrades';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
   PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
-  newSittingKey, shuffleWithKey,
+  newSittingKey, shuffleWithKey, OPTION_ORDER_VERSION,
 } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
 import { setupConfig } from './profiles';
@@ -357,9 +357,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       setConfig(parsed.config);
       configRef.current = parsed.config;
       // Back under this sitting's id: a Practice session since may have moved
-      // the store's. (Older drafts have none; they keep the store's.)
+      // the store's. (Older drafts have none; they keep the store's, and their
+      // choices weren't in the seeded order, so their review says so.)
+      sittingIdRef.current = parsed.sittingId || null;
       if (parsed.sittingId) {
-        sittingIdRef.current = parsed.sittingId;
         startStoreSession({ mode: 'BOARD_SIM', subject: parsed.config?.subject, sessionId: parsed.sittingId });
       }
       setSession({
@@ -624,6 +625,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 isPrcStandard: !!config.isPrcStandard,
                 targetSubject: isFullBoard ? 'Full board' : String(config.subject || '').slice(0, 32),
                 ...(markedIds.length > 0 ? { markedQuestionIds: markedIds.slice(0, 300) } : {}),
+                // The choices were shown in the order keyed on this id, so the
+                // review shows them that way.
+                ...(sittingIdRef.current && sittingIdRef.current === sessionId ? { optionOrder: OPTION_ORDER_VERSION } : {}),
             };
             const finalizePath = `/api/exams/sessions/${encodeURIComponent(sessionId)}/finalize`;
             const queueFinalize = () => { if (shouldFinalize) useStore.getState().queuePendingWrite(finalizePath, 'POST', examMeta); };

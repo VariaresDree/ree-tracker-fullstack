@@ -31,7 +31,7 @@ router.get('/status', authMiddleware, async (req, res) => {
 // POST /api/diagnostic/start — begin, or resume an unfinished sitting.
 router.post('/start', authMiddleware, validate(diagnosticStartSchema), async (req, res) => {
     try {
-        res.status(200).json(await diagnostic.start(req.user.id, { restart: req.body.restart }));
+        res.status(200).json(await diagnostic.start(req.user.id, { restart: req.body.restart, optionOrder: req.body.optionOrder }));
     } catch (error) {
         fail(res, error, 'start');
     }

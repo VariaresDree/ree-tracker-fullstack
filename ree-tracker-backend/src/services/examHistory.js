@@ -16,7 +16,7 @@
 'use strict';
 
 const prisma = require('../config/db');
-const { gradeBoardExam, deriveVerdict } = require('@ree/shared');
+const { gradeBoardExam, deriveVerdict, OPTION_ORDER_VERSION } = require('@ree/shared');
 const { subjectScoresBySession } = require('./deepAnalyticsHelpers');
 
 const HISTORY_MODES = ['BOARD_SIM', 'BATTLE'];
@@ -48,6 +48,7 @@ function sanitizeMeta(meta = {}) {
     if (KINDS.has(meta.kind)) out.kind = meta.kind;
     if (typeof meta.isPrcStandard === 'boolean') out.isPrcStandard = meta.isPrcStandard;
     if (typeof meta.targetSubject === 'string') out.targetSubject = meta.targetSubject.slice(0, 32);
+    if (meta.optionOrder === OPTION_ORDER_VERSION) out.optionOrder = OPTION_ORDER_VERSION;
     if (Array.isArray(meta.markedQuestionIds)) {
         out.markedQuestionIds = meta.markedQuestionIds
             .filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 200)

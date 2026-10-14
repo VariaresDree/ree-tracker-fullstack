@@ -11,7 +11,7 @@ import { auth } from '../../config/firebaseDb';
 import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../config/examStandards';
 import toast from 'react-hot-toast';
 import { classifySyncError, SYNC_OUTCOME } from '../../services/syncPolicy';
-import { decideGauntletOutcome, forfeitGauntlet, normalizeSubject } from '@ree/shared';
+import { decideGauntletOutcome, forfeitGauntlet, normalizeSubject, OPTION_ORDER_VERSION } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
 
 // What a graded run did to the ladder: 'advanced' / 'passed' / 'cleared' are
@@ -126,6 +126,9 @@ export const useGauntletEngine = (level) => {
     // under (and the sitting review's id); its start time decides whether it
     // was taken during a lock. Both are kept in the draft.
     const runIdRef = useRef(null);
+    // True when this run's choices were shown in the order keyed on its id
+    // (a draft from an older version wasn't), so its review shows that order.
+    const seededRef = useRef(false);
     const startedAtRef = useRef(null);
     const remainingAtSubmitRef = useRef(null);
 
@@ -170,6 +173,7 @@ export const useGauntletEngine = (level) => {
                 flags: Array.from(flagsRef.current || []),
                 timeSpentPerQuestion: timeSpentPerQuestionRef.current,
                 runId: runIdRef.current,
+                ...(seededRef.current ? { optionOrder: OPTION_ORDER_VERSION } : {}),
                 startedAt: startedAtRef.current,
                 savedAt: Date.now(),
             }));
@@ -236,6 +240,7 @@ export const useGauntletEngine = (level) => {
             // shown), and rebuilt by the run's review. The comparator sort it
             // replaces leaned the key toward where it was stored.
             runIdRef.current = newRunId();
+            seededRef.current = true;
             const selectedQs = allQs.slice(0, tier.items).map(q => presentOptions({
                 ...q,
                 question: q.text || q.question || '[Question Text Missing]',
@@ -321,6 +326,7 @@ export const useGauntletEngine = (level) => {
             timeSpentPerQuestionRef.current = parsed.timeSpentPerQuestion || {};
             // A draft from before runs had ids gets one now.
             runIdRef.current = parsed.runId || newRunId();
+            seededRef.current = parsed.optionOrder === OPTION_ORDER_VERSION && !!parsed.runId;
             remainingAtSubmitRef.current = null;
             startedAtRef.current = parsed.startedAt || new Date(parsed.savedAt || Date.now()).toISOString();
             questionsRef.current = restoredQuestions;
@@ -500,6 +506,7 @@ export const useGauntletEngine = (level) => {
                 knownLevel,
                 ...(startedAtRef.current ? { startedAt: startedAtRef.current } : {}),
                 finishedAt: new Date().toISOString(),
+                ...(seededRef.current ? { optionOrder: OPTION_ORDER_VERSION } : {}),
             },
         };
 

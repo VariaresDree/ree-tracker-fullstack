@@ -47,7 +47,8 @@ import { ordinal } from '../features/exams/battleModes';
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 const CONFIDENCE_LABEL = { HIGH: 'Sure', MED: 'Fairly sure', LOW: 'Unsure' };
 const LETTERS = ['A', 'B', 'C', 'D'];
-// The bubble for an answer on the answer sheet, by its place in the stored options.
+// The bubble for an answer on the answer sheet, by its place in the options as
+// listed: the order the learner saw, or the stored order for an older sitting.
 const letterIn = (options, value) => {
   if (value == null || value === '') return null;
   const i = (options || []).indexOf(value);
@@ -343,7 +344,9 @@ export default function SittingReview() {
                   : current.answered === false
                     ? 'You left this item blank.'
                     : current.isCorrect ? 'You answered this correctly.' : 'Your answer is marked wrong; the correct one is highlighted.'}
-                {' '}Choices are listed in their stored order, which can differ from the order you saw.
+                {/* A sitting from before choices were shuffled per sitting
+                    (no optionOrder) lists them in their stored order. */}
+                {!session.optionOrder && ' Choices are listed in their stored order, which can differ from the order you saw.'}
               </p>
 
               {battle && (

@@ -13,6 +13,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { OPTION_ORDER_VERSION } = require('@ree/shared');
 const prisma = require('../config/db');
 // Called through the module object (not destructured) so tests can patch it.
 const questionPool = require('./questionPool');
@@ -62,7 +63,10 @@ async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOf
         data: {
             id: battleId,
             hostId,
-            config: { ...config, count: pool.length },
+            // Each player sees the questions and their choices in the seeded
+            // order keyed on their sitting (`${battleId}:${userId}`), so the
+            // battle's review shows the order each of them saw.
+            config: { ...config, count: pool.length, optionOrder: OPTION_ORDER_VERSION },
             questions: pool,
             timeLimitSecs,
             ...(rematchOfId ? { rematchOfId } : {}),

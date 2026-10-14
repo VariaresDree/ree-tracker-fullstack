@@ -63,3 +63,22 @@ describe('gradeSchema — must not strip gauntlet confidence/time', () => {
     expect(r.success).toBe(false);
   });
 });
+
+describe('gradeSchema — keeps the run\'s choice-order tag', () => {
+  it('passes optionOrder through on the gauntlet block (validate() replaces req.body)', () => {
+    const parsed = gradeSchema.parse({
+      answers: [{ questionId: 'q1', userAnswer: 'A' }],
+      mode: 'GAUNTLET',
+      gauntlet: { level: 1, runId: 'run-12345', optionOrder: 'seeded-v1' },
+    });
+    expect(parsed.gauntlet.optionOrder).toBe('seeded-v1');
+  });
+
+  it('accepts a tag it does not know rather than failing the grade', () => {
+    const r = gradeSchema.safeParse({
+      answers: [{ questionId: 'q1', userAnswer: 'A' }],
+      gauntlet: { level: 1, runId: 'run-12345', optionOrder: 'seeded-v2' },
+    });
+    expect(r.success).toBe(true);
+  });
+});
