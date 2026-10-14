@@ -40,4 +40,5 @@ module.exports = {
     ...require('./srs'),
     ...require('./focus'),
     ...require('./reminders'),
+    ...require('./optionOrder'),
 };

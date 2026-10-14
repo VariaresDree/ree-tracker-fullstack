@@ -510,3 +510,13 @@ describe('shared contract — board pace and the Gauntlet ladder', () => {
         expect(d.outcome).toBe('advanced');
     });
 });
+
+describe('shared contract — the order answer choices are shown in', () => {
+    // The same key must give the same order on the device and on the server:
+    // a sitting's review rebuilds the order the learner saw from it.
+    it('one seeded order, with a closing option kept last', () => {
+        expect(shared.orderOptions(['w', 'x', 'y', 'z', 'All of the above'], 'contract|q1')).toEqual(['z', 'x', 'w', 'y', 'All of the above']);
+        expect(shared.shuffleWithKey([1, 2, 3, 4, 5], 'contract')).toEqual([2, 1, 5, 4, 3]);
+        expect(shared.OPTION_ORDER_VERSION).toBe('seeded-v1');
+    });
+});
