@@ -18,12 +18,16 @@ const { orderOptions } = require('@ree/shared');
  * Generated questions came with the key first far more often than not, and
  * edits put it back there; learners now see a per-sitting order anyway, but
  * the stored one shouldn't lean either (the printed key, admin previews, an
- * older client). Applied on the way in — a pending submission and a publish —
- * never on an edit, which keeps the order the admin set.
+ * older client). Applied on the way in — a pending submission, an admin's
+ * direct create and a publish — never on an edit, which keeps the order the
+ * admin set.
  */
 function storageOrder(options, key = randomUUID()) {
     return Array.isArray(options) ? orderOptions(options, `store|${key}`) : [];
 }
+
+/** `data` with its choices in a fresh stored order (storageOrder). */
+const withStorageOrder = (data, key) => ({ ...data, options: storageOrder(data?.options, key) });
 
 // The content fields that define a question, shared by Question,
 // QuestionPendingReview, and QuestionVersion.snapshot.
@@ -64,8 +68,9 @@ function toLiveQuestionData(reviewRow, edits = {}) {
  * comment. `id` is optional: omitted, Prisma generates one (the single-create
  * path); passed, the caller controls it so it can reference the SAME id in
  * other statements of the same transaction before that transaction commits
- * (the bulk path — see approveBulk). The choices go in a fresh order
- * (storageOrder), keyed on `id` when given and random otherwise.
+ * (the bulk path — see approveBulk). The choices are stored as given: the
+ * callers put them in a fresh order first (withStorageOrder), so the
+ * APPROVED version's snapshot matches the live row.
  */
 function buildQuestionCreateData(data, topic, id) {
     return {
@@ -74,7 +79,7 @@ function buildQuestionCreateData(data, topic, id) {
         subtopic: topic?.name || data.subtopic || 'General',
         topicId: topic?.id ?? null,
         text: data.text || '',
-        options: storageOrder(data.options, id || undefined),
+        options: Array.isArray(data.options) ? data.options : [],
         answer: data.answer || '',
         difficulty: parseFloat(data.difficulty) || 2.0,
         fixedExplanation: data.fixedExplanation || null,
@@ -155,7 +160,9 @@ function isBulkEligible(row) {
 async function approveOneRow(row, editorId) {
     const id = row.id;
     let questionId = row.promotedQuestionId || null;
-    const finalData = toLiveQuestionData(row, {});
+    // A first publish stores the choices in a fresh order; a retry of the
+    // bookkeeping (already published) leaves them as they are.
+    const finalData = questionId ? toLiveQuestionData(row, {}) : withStorageOrder(toLiveQuestionData(row, {}));
 
     if (!questionId) {
         if (!isBulkEligible(row)) return { id, ok: false, reason: 'invalid' };
@@ -273,7 +280,8 @@ async function approveBulk(ids, editorId) {
             failed.push({ id, reason: 'invalid' });
             continue;
         }
-        candidates.push({ row, finalData, questionId: randomUUID() });
+        const questionId = randomUUID();
+        candidates.push({ row, finalData: withStorageOrder(finalData, questionId), questionId });
     }
 
     // The topic gate createLiveQuestion enforces, applied BEFORE the batch so
@@ -326,6 +334,6 @@ async function approveBulk(ids, editorId) {
 }
 
 module.exports = {
-    CONTENT_FIELDS, buildVersionSnapshot, toLiveQuestionData, buildQuestionCreateData, storageOrder,
+    CONTENT_FIELDS, buildVersionSnapshot, toLiveQuestionData, buildQuestionCreateData, storageOrder, withStorageOrder,
     createLiveQuestion, isBulkEligible, approveOneRow, approveBulk,
 };

@@ -13,7 +13,7 @@ const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
 const { openBattleQuestionIds } = require('../services/answerGate');
 const { resolveTopic } = require('../services/topicResolver');
-const { buildVersionSnapshot, createLiveQuestion, storageOrder } = require('../services/reviewService');
+const { buildVersionSnapshot, createLiveQuestion, storageOrder, withStorageOrder } = require('../services/reviewService');
 const questionBankCache = require('../services/questionBankCache');
 const optionAudit = require('../services/optionAudit');
 
@@ -268,7 +268,8 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 
         // Manual/live creation — the same shared path review approval uses
         // (topic resolution + defaults live in reviewService.createLiveQuestion).
-        const newQuestion = await createLiveQuestion({ ...data, isFlagged: data.isFlagged || false });
+        // Stored with its choices in a fresh order, like a publish.
+        const newQuestion = await createLiveQuestion(withStorageOrder({ ...data, isFlagged: data.isFlagged || false }));
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {

@@ -52,6 +52,13 @@ describe('optionOrder', () => {
         expect(orderOptions(options, 'any')).toEqual(options);
         for (const ref of ['A and C', 'A, B and C', 'Either A or D', 'B & C only', '(A) and (B)']) expect(isLetterReference(ref)).toBe(true);
         for (const text of ['10 A and 5 V', 'A and B phases', 'Phase A']) expect(isLetterReference(text)).toBe(false);
+        // Ordinary words that spell a letter, "or" and a letter, and lower case.
+        for (const word of ['Core', 'Bore', 'Cord', 'Ford', 'Fore', 'a, b', 'Both a and b']) expect(isLetterReference(word)).toBe(false);
+        for (const ref of ['A, B, and C', 'BOTH A AND B', 'neither B nor D', 'A,B', 'A & B']) expect(isLetterReference(ref)).toBe(true);
+        // A question with such a word among its choices is still shuffled.
+        const transformer = ['Core', 'Winding', 'Tank', 'Bushing'];
+        const keys = Array.from({ length: 12 }, (_, i) => optionOrder(transformer, `k${i}`).join());
+        expect(new Set(keys).size).toBeGreaterThan(1);
     });
 
     it('leaves fewer than two options, and non-arrays, alone', () => {

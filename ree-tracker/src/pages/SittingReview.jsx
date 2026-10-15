@@ -155,6 +155,8 @@ export default function SittingReview() {
   const shown = useMemo(() => filterItems(items, { filter, subject }), [items, filter, subject]);
   const missed = useMemo(() => missedItems(items), [items]);
   const current = shown[Math.min(pos, Math.max(0, shown.length - 1))] || null;
+  // The item as this review lists it (the order the sitting showed).
+  const shownQuestion = current ? reviewItemToQuestion(current, { asShown: true }) : null;
 
   const choose = (next) => { setPos(0); next(); };
   const jumpTo = (order) => {
@@ -325,12 +327,12 @@ export default function SittingReview() {
                 {current.confidence && current.answered !== false && <Badge tone="neutral">{CONFIDENCE_LABEL[current.confidence] || current.confidence}</Badge>}
                 {current.marked && <Badge tone="amber">Marked</Badge>}
                 <span className="ml-auto">
-                  <NoteButton type="question" targetId={current.questionId} target={questionTarget(reviewItemToQuestion(current))} />
+                  <NoteButton type="question" targetId={current.questionId} target={questionTarget(shownQuestion)} />
                 </span>
               </div>
 
               <QuestionCard
-                question={reviewItemToQuestion(current)}
+                question={shownQuestion}
                 selectedOption={current.selectedAnswer || null}
                 state="reviewing"
                 showConfidence={false}
@@ -354,12 +356,12 @@ export default function SittingReview() {
               )}
 
               <SolutionPanel
-                key={explanationKey(reviewItemToQuestion(current))}
-                question={reviewItemToQuestion(current)}
+                key={explanationKey(shownQuestion)}
+                question={shownQuestion}
                 isOnline={isOnline}
-                aiText={ai.textFor(reviewItemToQuestion(current))}
-                aiLoading={ai.isLoading(reviewItemToQuestion(current))}
-                onExplain={(force) => ai.explain(reviewItemToQuestion(current), { force })}
+                aiText={ai.textFor(shownQuestion)}
+                aiLoading={ai.isLoading(shownQuestion)}
+                onExplain={(force) => ai.explain(shownQuestion, { force })}
                 showAnswer
               />
 
@@ -367,7 +369,7 @@ export default function SittingReview() {
                 <TopicCardsLink topic={current.topic} subject={current.subject} />
               )}
 
-              <NoteView type="question" targetId={current.questionId} target={questionTarget(reviewItemToQuestion(current))} />
+              <NoteView type="question" targetId={current.questionId} target={questionTarget(shownQuestion)} />
 
               {!current.isCorrect && current.answered !== false && (() => {
                 const mistake = mistakes?.find((m) => m.questionId === current.questionId);

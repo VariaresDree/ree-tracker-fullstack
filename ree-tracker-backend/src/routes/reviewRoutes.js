@@ -13,7 +13,7 @@ const idempotency = require('../middlewares/idempotency');
 const { reviewEditSchema, reviewApproveSchema, reviewRejectSchema, bulkIdsSchema } = require('../schemas/reviewSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { buildVersionSnapshot, toLiveQuestionData, createLiveQuestion, approveBulk } = require('../services/reviewService');
+const { buildVersionSnapshot, toLiveQuestionData, createLiveQuestion, approveBulk, withStorageOrder } = require('../services/reviewService');
 
 // Whole surface is admin-only.
 router.use(authMiddleware, requireAdmin);
@@ -94,8 +94,11 @@ router.put('/:id/approve', validate(reviewApproveSchema), async (req, res) => {
         if (!row) return res.status(404).json({ error: 'Review item not found.' });
         if (row.status !== 'PENDING') return res.status(409).json({ error: `Item is already ${row.status}.` });
 
-        const finalData = toLiveQuestionData(row, req.body);
         let questionId = row.promotedQuestionId || null;
+        // A first publish stores the choices in a fresh order (the version
+        // snapshot below matches the live row); a bookkeeping retry doesn't.
+        const merged = toLiveQuestionData(row, req.body);
+        const finalData = questionId ? merged : withStorageOrder(merged);
         if (!questionId) {
             const question = await createLiveQuestion(finalData);
             questionId = question.id;

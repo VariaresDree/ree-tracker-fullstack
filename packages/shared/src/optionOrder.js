@@ -53,8 +53,16 @@ const optionKey = (sittingKey, questionId) => `${sittingKey ?? ''}|${questionId 
 
 // "All of the above", "None of these", "Neither of the above", "All of them"…
 const CLOSING_OPTION = /^\s*(all|none|neither|both)\s+of\s+(the\s+)?(above|these|them|the\s+choices|the\s+options)\b/i;
-// "Both A and B", "A and C", "A, B and C", "Either A or D", "B & C only"
-const LETTERS_ONLY = /^\s*(both|either|neither|only)?\s*\(?[A-F]\)?(\s*(,|and|or|&|nor)\s*\(?[A-F]\)?)+(\s+only)?\s*\.?\s*$/i;
+// "Both A and B", "A and C", "A, B and C", "A, B, and C", "Either A or D",
+// "B & C only". Letters are capitals and the joining words stand apart, so
+// "Core", "Ford" (C-or-e, F-or-d) and "a, b" are ordinary choices.
+const anyCase = (word) => word.split('').map((c) => `[${c.toLowerCase()}${c.toUpperCase()}]`).join('');
+const LETTER = '\\(?[A-F]\\)?';
+const JOIN = `(?:\\s*[,&]\\s*|\\s*,?\\s+(?:${['and', 'or', 'nor'].map(anyCase).join('|')})\\s+)`;
+const LETTERS_ONLY = new RegExp(
+    `^\\s*(?:(?:${['both', 'either', 'neither', 'only'].map(anyCase).join('|')})\\s+)?`
+    + `${LETTER}(?:${JOIN}${LETTER})+(?:\\s+${anyCase('only')})?\\s*\\.?\\s*$`,
+);
 
 const isClosingOption = (option) => typeof option === 'string' && CLOSING_OPTION.test(option);
 const isLetterReference = (option) => typeof option === 'string' && LETTERS_ONLY.test(option);

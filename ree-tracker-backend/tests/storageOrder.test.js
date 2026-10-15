@@ -4,7 +4,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 // came with it first far more often than not, and nothing reordered them.
 
 const prisma = require('../src/config/db');
-const { storageOrder, buildQuestionCreateData, createLiveQuestion } = require('../src/services/reviewService');
+const { storageOrder, withStorageOrder, approveOneRow } = require('../src/services/reviewService');
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -30,21 +30,29 @@ describe('storageOrder', () => {
         expect(storageOrder(undefined)).toEqual([]);
     });
 
-    it('a publish with a known id is keyed on it, so a retried batch stores the same order', () => {
+    it('withStorageOrder keeps every field and choice, and is keyed when given a key', () => {
         const data = { subject: 'EE', text: 't', options: FOUR, answer: 'KEY' };
-        const a = buildQuestionCreateData(data, null, 'qid-1');
-        expect(buildQuestionCreateData(data, null, 'qid-1').options).toEqual(a.options);
-        expect(a.answer).toBe('KEY');
-        expect(a.options).toContain('KEY');
+        const a = withStorageOrder(data, 'qid-1');
+        expect(withStorageOrder(data, 'qid-1').options).toEqual(a.options);
+        expect(a).toMatchObject({ subject: 'EE', text: 't', answer: 'KEY' });
+        expect([...a.options].sort()).toEqual([...FOUR].sort());
+        expect(data.options).toEqual(FOUR);
     });
 
-    it('a live create stores a shuffled copy, never the caller’s array as given', async () => {
+    it('a publish stores the choices in a fresh order, and its APPROVED snapshot matches the live row', async () => {
         vi.spyOn(prisma.topic, 'findMany').mockResolvedValue([]);
-        const created = vi.spyOn(prisma.question, 'create').mockImplementation(async ({ data }) => ({ id: 'q', ...data }));
+        const created = vi.spyOn(prisma.question, 'create').mockImplementation(async ({ data }) => ({ id: 'q-live', ...data }));
+        const version = vi.spyOn(prisma.questionVersion, 'create').mockImplementation((args) => args);
+        vi.spyOn(prisma.questionPendingReview, 'update').mockImplementation((args) => args);
+        vi.spyOn(prisma, '$transaction').mockResolvedValue([]);
         const seen = new Set();
         for (let i = 0; i < 24; i += 1) {
-            await createLiveQuestion({ subject: 'EE', subtopic: 'General', text: 'x', options: FOUR, answer: 'KEY' });
-            seen.add(created.mock.calls.at(-1)[0].data.options.indexOf('KEY'));
+            const row = { id: `r${i}`, status: 'PENDING', subject: 'EE', subtopic: 'General', text: 'x', options: FOUR, answer: 'KEY', difficulty: 2 };
+            const res = await approveOneRow(row, 'admin');
+            expect(res.ok).toBe(true);
+            const live = created.mock.calls.at(-1)[0].data.options;
+            expect(version.mock.calls.at(-1)[0].data.snapshot.options).toEqual(live);
+            seen.add(live.indexOf('KEY'));
         }
         expect(seen.size).toBeGreaterThan(1);
     });

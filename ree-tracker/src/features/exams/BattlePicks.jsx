@@ -32,6 +32,8 @@ export default function BattlePicks({ picks, players, options, uid }) {
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-surface2 p-4">
       <h3 id={headingId} className="text-eyebrow">How everyone answered</h3>
+      {/* Each player saw the choices in their own order. */}
+      <p className="text-xs text-muted2">Letters follow the choices as listed above.</p>
       <ul className="flex flex-col gap-1.5">
         {picks.map((pick) => (
           <li key={pick.userId} className="flex items-center gap-2 text-sm">

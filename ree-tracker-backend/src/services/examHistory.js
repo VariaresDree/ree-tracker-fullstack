@@ -81,9 +81,17 @@ async function finalizeSession({ userId, sessionId, meta = {} }) {
     const { generalAverage, verdict } = gradeBoardExam(subjects);
     const prior = session.config && typeof session.config === 'object' ? session.config : {};
     const described = sanitizeMeta(meta);
+    // The choices were shown in the seeded order only if every finalise of the
+    // sitting says so: a full board's earlier section finalised without the
+    // tag (an older version of the app) showed its own order.
+    const seeded = described.optionOrder === OPTION_ORDER_VERSION
+        && (!prior.finalizedAt || prior.optionOrder === OPTION_ORDER_VERSION);
+    const { optionOrder: _priorOrder, ...priorRest } = prior;
+    const { optionOrder: _describedOrder, ...describedRest } = described;
     const config = {
-        ...prior,
-        ...described,
+        ...priorRest,
+        ...describedRest,
+        ...(seeded ? { optionOrder: OPTION_ORDER_VERSION } : {}),
         // A union, so finalising again (a replayed request) never drops marks.
         ...(described.markedQuestionIds || prior.markedQuestionIds
             ? { markedQuestionIds: mergeMarked(prior.markedQuestionIds, described.markedQuestionIds) }
