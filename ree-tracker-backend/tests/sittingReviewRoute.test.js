@@ -14,6 +14,7 @@ firebaseAuth.getAuth = () => ({ verifyIdToken });
 const prisma = require('../src/config/db');
 const analyticsDeepRoutes = require('../src/routes/analyticsDeepRoutes');
 const { isSittingClosed, orderReviewRows } = require('../src/services/sittingReview');
+const { optionKey, orderOptions, shuffleWithKey } = require('@ree/shared');
 
 const UID = 'uid-review';
 const as = (uid) => ({ Authorization: `Bearer ${uid}` });
@@ -153,6 +154,52 @@ describe('GET /sittings/:id/review', () => {
         expect(res.status).toBe(200);
         expect(res.body.session.kind).toBe('placement');
         expect(res.body.items.map((i) => [i.questionId, i.selectedAnswer])).toEqual([['m9', 'C'], ['e9', 'A']]);
+    });
+
+    it('lists the choices in the order the sitting showed them, and says so', async () => {
+        session = { id: 'mock-1', mode: 'BOARD_SIM', config: { finalizedAt: 'x', optionOrder: 'seeded-v1' }, createdAt: new Date() };
+        attempts = [attempt('e1', 'EE', { itemIndex: 0 }), attempt('e2', 'EE', { itemIndex: 1 })];
+        const res = await get('mock-1');
+        expect(res.body.session.optionOrder).toBe('seeded-v1');
+        for (const item of res.body.items) {
+            expect(item.options).toEqual(orderOptions(['A', 'B', 'C', 'D'], optionKey('mock-1', item.questionId)));
+            // The stored order too, for a retake or Practice set made from it.
+            expect(item.storedOptions).toEqual(['A', 'B', 'C', 'D']);
+        }
+        // Keyed per question: not every item keeps the stored order.
+        expect(res.body.items.some((i) => i.options.join() !== 'A,B,C,D')).toBe(true);
+    });
+
+    it('lists an older sitting (no mark) in the stored order', async () => {
+        session = { id: 'mock-0', mode: 'BOARD_SIM', config: { finalizedAt: 'x' }, createdAt: new Date() };
+        attempts = [attempt('e1', 'EE'), attempt('e2', 'EE', { itemIndex: 1 })];
+        const res = await get('mock-0');
+        expect(res.body.session.optionOrder).toBeNull();
+        expect(res.body.items.map((i) => i.options)).toEqual([['A', 'B', 'C', 'D'], ['A', 'B', 'C', 'D']]);
+        expect(res.body.items[0]).not.toHaveProperty('storedOptions');
+    });
+
+    it("shows a battle in this player's own order of questions and choices, marked on the battle", async () => {
+        const id = 'ABC123:uid-review';
+        session = { id, mode: 'BATTLE', config: { kind: 'battle', finalizedAt: 'x' }, createdAt: new Date() };
+        const ids = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+        attempts = ids.map((qid) => attempt(qid, 'EE', { itemIndex: null }));
+        battle = { status: 'COMPLETED', config: { optionOrder: 'seeded-v1' }, questions: ids.map((qid) => ({ id: qid })) };
+        const res = await get(id);
+        expect(res.body.session.optionOrder).toBe('seeded-v1');
+        expect(res.body.items.map((i) => i.questionId)).toEqual(shuffleWithKey(battle.questions, id).map((x) => x.id));
+        expect(res.body.items[0].options).toEqual(orderOptions(['A', 'B', 'C', 'D'], optionKey(id, res.body.items[0].questionId)));
+    });
+
+    it("orders a battle's choices as its snapshot showed them, even after the live question changed", async () => {
+        const id = 'ABC123:uid-review';
+        session = { id, mode: 'BATTLE', config: { kind: 'battle', finalizedAt: 'x' }, createdAt: new Date() };
+        const ids = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+        attempts = ids.map((qid) => attempt(qid, 'EE', { itemIndex: null }));
+        // Shown with a closing choice (kept last); the live rows now read "D".
+        battle = { status: 'COMPLETED', config: { optionOrder: 'seeded-v1' }, questions: ids.map((qid) => ({ id: qid, options: ['A', 'B', 'C', 'None of the above'] })) };
+        const res = await get(id);
+        for (const item of res.body.items) expect(item.options.at(-1)).toBe('D');
     });
 
     it('answers 409 SYNCING while a closed sitting’s answers are still queued', async () => {

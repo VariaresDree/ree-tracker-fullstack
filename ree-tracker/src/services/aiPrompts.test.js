@@ -78,6 +78,9 @@ describe('buildQuestionPrompt', () => {
     expect(BOARD_EXAM_SYSTEM).toMatch(/PRC/);
     expect(BOARD_EXAM_SYSTEM).toMatch(/60 Hz/);
     expect(BOARD_EXAM_SYSTEM).toMatch(/all of the above/);
+    // Options are shuffled per sitting: no key-first habit, no "option B".
+    expect(BOARD_EXAM_SYSTEM).toMatch(/correct option at a random position/);
+    expect(BOARD_EXAM_SYSTEM).toMatch(/never by its letter or position/);
     expect(BOARD_EXAM_SYSTEM).toContain('$X_L = 2\\pi f L$');
   });
 });

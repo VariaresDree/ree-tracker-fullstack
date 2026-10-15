@@ -180,6 +180,7 @@ export const getStrictRules = (subject, targetSubtopic, topics = liveTopicsFor(s
     7. Provide a "fixedExplanation" for EVERY question detailing the step-by-step mathematical derivation in Markdown LaTeX.
     8. ZERO-HALLUCINATION POLICY: When extracting data from technical charts (especially logarithmic graphs, X/R ratios, or PEC tables), you MUST explicitly state the exact plotted intersection in the explanation. DO NOT round standard engineering constants. If a chart intersection is 37, return 37, not 40.
     9. OPTION FORMATTING: Each string in "options" — and the "answer" — MUST contain ONLY the choice's content. NEVER prefix a choice with an enumerator label such as "A.", "B)", "(C)", or "D:". The interface renders the A/B/C/D labels automatically; a baked-in label is a formatting error that renders as a duplicate ("A. A. ...").
+    10. OPTION ORDER: The options are shuffled for every sitting, so their order means nothing. Put the correct option at a random position, not first. In the explanation, refer to an option by its content, NEVER by its letter or position ("option B", "the first choice"), and never write an option that names others by letter ("Both A and B").
 
     JSON SCHEMA:
     {"items": [

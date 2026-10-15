@@ -17,11 +17,18 @@
 // grace) is up — after that no answer is accepted, so nothing can be fished.
 // A battle used to open only on COMPLETED, and one that never completed (a
 // player left, the server restarted) kept everyone's review shut for good.
+//
+// Choices are listed in the order the learner saw them. A sitting marked
+// `optionOrder: 'seeded-v1'` (written by the client that showed it, or by the
+// battle at its creation) showed each question's choices in the seeded order
+// keyed on its session id (@ree/shared optionOrder), so the same key rebuilds
+// it here; letters, the answer sheet and every player's picks follow. Older
+// sittings carry no mark and list the stored order, which the page says.
 
 'use strict';
 
 const prisma = require('../config/db');
-const { normalizeSubject } = require('@ree/shared');
+const { normalizeSubject, optionKey, optionOrder, shuffleWithKey, OPTION_ORDER_VERSION } = require('@ree/shared');
 const { battleTiming } = require('../utils/battleLogic');
 const battleLifecycle = require('./battleLifecycle');
 
@@ -93,16 +100,36 @@ function orderReviewRows(rows, { fullBoard = false, questionOrder = null } = {})
     });
 }
 
-/** Pure: one row (an attempt, or a placement response) → a review item. */
-function reviewItem(row, question, order, marked) {
+/**
+ * Pure: the stored choices in the order a sitting keyed `key` showed them.
+ * The order is drawn over `shownFrom` when given (a battle's snapshot of the
+ * question, what its players were shown) and the same length, so an edit to
+ * the live question since (a choice reworded into "All of the above") can't
+ * change the order the review lists.
+ */
+function orderShown(stored, key, shownFrom = null) {
+    const basis = Array.isArray(shownFrom) && shownFrom.length === stored.length ? shownFrom : stored;
+    return optionOrder(basis, key).map((i) => stored[i]);
+}
+
+/**
+ * Pure: one row (an attempt, or a placement response) → a review item. With
+ * `orderKey` (the session id of a sitting shown in the seeded order), the
+ * choices come in the order that sitting showed them.
+ */
+function reviewItem(row, question, order, marked, orderKey = null, shownFrom = null) {
     const selected = row.selectedAnswer === undefined ? null : row.selectedAnswer;
+    const stored = Array.isArray(question?.options) ? question.options : [];
     return {
         order,
         questionId: row.questionId,
         subject: normalizeSubject(question?.subject || row.subject || ''),
         topic: question?.subtopic || row.subtopic || null,
         text: question?.text || null,
-        options: Array.isArray(question?.options) ? question.options : [],
+        options: orderKey ? orderShown(stored, optionKey(orderKey, row.questionId), shownFrom) : stored,
+        // The stored order too, when reordered: a retake or Practice set made
+        // from this review draws its own order from it.
+        ...(orderKey ? { storedOptions: stored } : {}),
         correctAnswer: question?.answer ?? null,
         explanation: question?.fixedExplanation || null,
         type: question?.type || null,
@@ -131,7 +158,7 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
     let battleClosesAt = null;
     if (session.mode === 'BATTLE') {
         const battleId = String(session.id).split(':')[0];
-        const select = { id: true, status: true, questions: true, startedAt: true, timeLimitSecs: true, createdAt: true };
+        const select = { id: true, status: true, config: true, questions: true, startedAt: true, timeLimitSecs: true, createdAt: true };
         battle = await prisma.battle.findUnique({ where: { id: battleId }, select });
         // Its time is up but nothing finished it: finish it now, so the review
         // has every player's result behind it.
@@ -148,6 +175,8 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
 
     const cfg = configOf(session);
     const marked = new Set(Array.isArray(cfg.markedQuestionIds) ? cfg.markedQuestionIds : []);
+    // A battle is marked on the battle (every player's sitting); the rest on the session.
+    const shownSeeded = (cfg.optionOrder ?? configOf(battle).optionOrder) === OPTION_ORDER_VERSION;
     let rows;
     if (session.mode === 'DIAGNOSTIC' && Array.isArray(cfg.responses)) {
         // The placement test keeps every response in order on the session,
@@ -161,9 +190,14 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
                 timeSpentMs: true, selectedAnswer: true, itemIndex: true, answeredAt: true, createdAt: true,
             },
         });
+        // A battle shown in the seeded order gave each player their own order
+        // of questions too, keyed the same way.
+        const battleQuestions = Array.isArray(battle?.questions)
+            ? (shownSeeded ? shuffleWithKey(battle.questions, session.id) : battle.questions)
+            : null;
         rows = orderReviewRows(attempts, {
             fullBoard: cfg.kind === 'full-board',
-            questionOrder: Array.isArray(battle?.questions) ? battle.questions.map((q) => q?.id).filter(Boolean) : null,
+            questionOrder: battleQuestions ? battleQuestions.map((q) => q?.id).filter(Boolean) : null,
         });
     }
     // Closed but nothing landed yet: the answers are still in the outbox.
@@ -174,6 +208,10 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
         select: QUESTION_SELECT,
     });
     const byId = new Map(questions.map((q) => [q.id, q]));
+    // A battle's players were shown its snapshot of each question.
+    const snapshotOptions = new Map((Array.isArray(battle?.questions) ? battle.questions : [])
+        .filter((q) => q?.id && Array.isArray(q.options))
+        .map((q) => [q.id, q.options]));
 
     return {
         session: {
@@ -188,9 +226,12 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
             totalQuestions: rows.length,
             timeTakenSecs: session.timeTakenSecs ?? null,
             hasMarks: marked.size > 0,
+            // Set: the choices below are in the order the learner saw them.
+            optionOrder: shownSeeded ? OPTION_ORDER_VERSION : null,
         },
-        items: rows.map((row, i) => reviewItem(row, byId.get(row.questionId), i + 1, marked)),
+        items: rows.map((row, i) => reviewItem(row, byId.get(row.questionId), i + 1, marked,
+            shownSeeded ? session.id : null, snapshotOptions.get(row.questionId) || null)),
     };
 }
 
-module.exports = { buildSittingReview, isSittingClosed, orderReviewRows, reviewItem, SittingReviewError };
+module.exports = { buildSittingReview, isSittingClosed, orderReviewRows, orderShown, reviewItem, SittingReviewError };

@@ -15,6 +15,7 @@ import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
 import PomodoroOwner from '../components/PomodoroOwner';
 import QuestionCard from '../features/quiz/QuestionCard';
+import { presentOptions } from '../features/quiz/presentOptions';
 import { Button, Card, Badge, Page, PageHeader, ProgressIndicator, Skeleton, EmptyState } from '../components/ui';
 import { Compass, ArrowRight } from '../components/ui/icons';
 import { fetchDiagnosticStatus, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
@@ -115,7 +116,9 @@ export default function Diagnostic() {
           </div>
           <Card elevated className="p-6 sm:p-8">
             <QuestionCard
-              question={item}
+              // The choices in this sitting's order (keyed by its session id),
+              // so the key isn't wherever it was stored.
+              question={presentOptions(item, sessionId)}
               selectedOption={selected}
               confidence={confidence}
               state="answering"

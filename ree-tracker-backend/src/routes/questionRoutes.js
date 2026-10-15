@@ -13,8 +13,9 @@ const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
 const { openBattleQuestionIds } = require('../services/answerGate');
 const { resolveTopic } = require('../services/topicResolver');
-const { buildVersionSnapshot, createLiveQuestion } = require('../services/reviewService');
+const { buildVersionSnapshot, createLiveQuestion, storageOrder, withStorageOrder } = require('../services/reviewService');
 const questionBankCache = require('../services/questionBankCache');
+const optionAudit = require('../services/optionAudit');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
 // flag, explanation change — can move the vault counts or the pack-manifest
@@ -206,6 +207,18 @@ router.get('/flagged', authMiddleware, async (req, res) => {
     }
 });
 
+// ANSWER POSITIONS — admin only. Where the key sits across the live bank, and
+// the rows to fix: keys not among their options, explanations that name an
+// option by letter, options that keep their order (services/optionAudit).
+router.get('/option-audit', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        return res.status(200).json(await optionAudit.auditLiveBank());
+    } catch (error) {
+        logger.error('Option audit error', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not audit the question bank.' });
+    }
+});
+
 // 2. ADD A NEW QUESTION
 router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res) => {
     try {
@@ -233,7 +246,9 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
                     subject: data.subject || 'Unknown',
                     subtopic: data.subtopic || 'General',
                     text: data.text || '',
-                    options: Array.isArray(data.options) ? data.options : [],
+                    // Stored in a fresh order: generated questions lean toward
+                    // the key first (reviewService.storageOrder).
+                    options: storageOrder(data.options),
                     answer: data.answer || '',
                     difficulty: parseFloat(data.difficulty) || 2.0,
                     fixedExplanation: data.fixedExplanation || null,
@@ -253,7 +268,8 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 
         // Manual/live creation — the same shared path review approval uses
         // (topic resolution + defaults live in reviewService.createLiveQuestion).
-        const newQuestion = await createLiveQuestion({ ...data, isFlagged: data.isFlagged || false });
+        // Stored with its choices in a fresh order, like a publish.
+        const newQuestion = await createLiveQuestion(withStorageOrder({ ...data, isFlagged: data.isFlagged || false }));
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {

@@ -2,7 +2,7 @@
 import { auth } from '../config/firebaseDb';
 import { invalidateDashboardSeed } from './dashboardSeed';
 import { fnv1a } from '../utils/contentHash';
-import { DEFAULT_SYLLABUS_WEIGHTS, fallbackDisplayName } from '@ree/shared';
+import { DEFAULT_SYLLABUS_WEIGHTS, OPTION_ORDER_VERSION, fallbackDisplayName } from '@ree/shared';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
 // ============================================================================
@@ -387,6 +387,9 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
     return getOfflinePackMeta();
 };
 
+// Admin: where the key sits across the live bank, and the rows to fix
+// (GET /api/questions/option-audit; features/admin/AnswerPositions.jsx).
+export const fetchOptionAudit = async () => apiRequest('/api/questions/option-audit');
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
     const data = await apiRequest(`/api/questions/flagged?${queryParams.toString()}`);
@@ -557,7 +560,9 @@ export const fetchSmartDrillQuestions = async (limit = 10, { topicId, topic, sub
 // Answers are never revealed mid-test; each response names the next item, or
 // carries the final result.
 export const fetchDiagnosticStatus = async () => apiRequest('/api/diagnostic/status');
-export const startDiagnostic = async (restart = false) => apiRequest('/api/diagnostic/start', 'POST', { restart });
+// optionOrder: this client shows the choices in the order keyed on the
+// session id, so the test's review can show them that way.
+export const startDiagnostic = async (restart = false) => apiRequest('/api/diagnostic/start', 'POST', { restart, optionOrder: OPTION_ORDER_VERSION });
 export const answerDiagnostic = async (body) => apiRequest('/api/diagnostic/answer', 'POST', body);
 export const finishDiagnostic = async (sessionId) => apiRequest('/api/diagnostic/finish', 'POST', { sessionId });
 

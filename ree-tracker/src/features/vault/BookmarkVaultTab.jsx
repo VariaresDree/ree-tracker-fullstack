@@ -13,7 +13,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { toDisplaySubject } from '@ree/shared';
+import { newSittingKey, toDisplaySubject } from '@ree/shared';
+import { presentOptions } from '../quiz/presentOptions';
 import { Badge, Button, Card, EmptyState, Input, SegmentedControl, Skeleton } from '../../components/ui';
 import { Bookmark, Check, CloudOff, Play, Search, TriangleAlert, X } from '../../components/ui/icons';
 import { bookmarksPreset, itemsPreset, launchPractice } from '../active-recall/presets';
@@ -29,7 +30,10 @@ import { questionTarget } from '../notebook/targets';
 // A bookmarks session draws up to this many of the saved questions.
 const PRACTICE_COUNT = 20;
 
-function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
+function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai, sittingKey }) {
+  // The choices in this visit's order: re-reading a saved question shouldn't
+  // be learning where its answer sits.
+  const options = presentOptions(item, sittingKey)?.options;
   const savedOn = item.bookmarkedAt ? new Date(item.bookmarkedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null;
   return (
     <Card as="li" className="p-4 sm:p-5 flex flex-col gap-4">
@@ -63,9 +67,9 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
             <SmartText text={item.content || item.question} />
           </div>
 
-          {item.options?.length > 0 && (
+          {options?.length > 0 && (
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {item.options.map((opt, idx) => {
+              {options.map((opt, idx) => {
                 const isCorrect = opt === item.answer;
                 return (
                   <li
@@ -114,6 +118,8 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai }) {
 }
 
 export default function BookmarkVaultTab({ currentUser, isOnline }) {
+  // A new order of each saved question's choices on every visit.
+  const [sittingKey] = useState(() => newSittingKey());
   const navigate = useNavigate();
   const [bookmarks, setBookmarks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -256,6 +262,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
                 onRemove={handleRemove}
                 isOnline={isOnline}
                 ai={ai}
+                sittingKey={sittingKey}
               />
             ))}
           </ul>

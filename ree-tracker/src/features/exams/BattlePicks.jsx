@@ -10,7 +10,7 @@ import { formatDuration } from '../../utils/time';
 const LETTERS = ['A', 'B', 'C', 'D'];
 const MAX_TEXT = 40;
 
-/** "B, right, 42s"; "left blank". The letter is the option's place in the stored order. */
+/** "B, right, 42s"; "left blank". The letter is the option's place in the review's list (the order you saw). */
 function pickText(pick, options) {
   if (pick.answer == null) return 'left blank';
   const i = (options || []).indexOf(pick.answer);
@@ -32,6 +32,8 @@ export default function BattlePicks({ picks, players, options, uid }) {
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-surface2 p-4">
       <h3 id={headingId} className="text-eyebrow">How everyone answered</h3>
+      {/* Each player saw the choices in their own order. */}
+      <p className="text-xs text-muted2">Letters follow the choices as listed above.</p>
       <ul className="flex flex-col gap-1.5">
         {picks.map((pick) => (
           <li key={pick.userId} className="flex items-center gap-2 text-sm">

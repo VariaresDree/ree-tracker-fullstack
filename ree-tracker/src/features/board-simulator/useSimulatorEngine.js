@@ -14,7 +14,9 @@ import { computeBattleDiagnostics } from './battleGrades';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
   PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
+  newSittingKey, shuffleWithKey, OPTION_ORDER_VERSION,
 } from '@ree/shared';
+import { presentOptions } from '../quiz/presentOptions';
 import { setupConfig } from './profiles';
 import { PRC_TIMES } from '../../config/examStandards';
 import { FULL_BOARD_SECTIONS, loadFullBoard, recordSection } from './fullBoard';
@@ -98,6 +100,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   // INITIAL empty-answers `session` — a crash-resume then restored zero answers.
   const currentIndexRef = useRef(0);
   const configRef = useRef(config);
+  // This sitting's id: its session on the server, and the key of the order its
+  // choices are shown in (the review rebuilds the order from it). Kept in the
+  // draft, so a resume submits under the same id.
+  const sittingIdRef = useRef(null);
   const bookmarksRef = useRef(bookmarks);
   const markedRef = useRef(marked);
   useEffect(() => { markedRef.current = marked; }, [marked]);
@@ -128,6 +134,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         endTime: endTimeRef.current,
         bookmarks: Array.from(bookmarksRef.current || []),
         marked: Array.from(markedRef.current || []),
+        sittingId: sittingIdRef.current,
         savedAt: Date.now(),
       }));
     } catch { /* quota / serialization — best effort */ }
@@ -270,8 +277,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       // 🚀 THE FIX: Final global shuffle destroys predictability in Full Blended Mode!
       pool = shuffleArray(pool);
 
-      // Final shuffle of the internal options A, B, C, D
-      return { pool: pool.map(q => q.options?.length > 0 ? { ...q, options: shuffleArray(q.options) } : q), timeLimitSecs };
+      // The choices are put in this sitting's order at start (presentOptions).
+      return { pool, timeLimitSecs };
   };
 
   const startSimulation = async (overrideConfig = null) => {
@@ -284,7 +291,15 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     if (runConfig !== config) setConfig(storedConfig);
     setSession(prev => ({ ...prev, loading: true, error: '' }));
     try {
-      const { pool, timeLimitSecs } = await buildExamPool(runConfig);
+      const built = await buildExamPool(runConfig);
+      const { timeLimitSecs } = built;
+      // This sitting's id keys the order of every question's choices: random
+      // per sitting, kept through a resume (the draft holds the questions as
+      // shown), and rebuilt by the sitting's review. A full-board section
+      // shares the board's id, as the server grades the three as one sitting.
+      const sittingId = runConfig.fullBoard?.sessionId || newSittingKey();
+      sittingIdRef.current = sittingId;
+      const pool = built.pool.map((q) => presentOptions(q, sittingId));
       
       timeSpentPerQuestion.current = {};
       currentAnswersRef.current = {};
@@ -299,7 +314,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       // UUID per submit).
       // A full-board section reuses the board's session id, so the server
       // grades all three sections as one sitting.
-      startStoreSession({ mode: 'BOARD_SIM', subject: runConfig.subject, sessionId: runConfig.fullBoard?.sessionId });
+      startStoreSession({ mode: 'BOARD_SIM', subject: runConfig.subject, sessionId: sittingId });
       
       const newState = { 
         isActive: true, isFinished: false, questions: pool, answers: {}, 
@@ -341,6 +356,13 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
       setConfig(parsed.config);
       configRef.current = parsed.config;
+      // Back under this sitting's id: a Practice session since may have moved
+      // the store's. (Older drafts have none; they keep the store's, and their
+      // choices weren't in the seeded order, so their review says so.)
+      sittingIdRef.current = parsed.sittingId || null;
+      if (parsed.sittingId) {
+        startStoreSession({ mode: 'BOARD_SIM', subject: parsed.config?.subject, sessionId: parsed.sittingId });
+      }
       setSession({
         isActive: true, isFinished: false, questions, answers, confidences,
         loading: false, error: '', diagnostics: null,
@@ -533,7 +555,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         // clientAttemptId below makes a retried submit a no-op server-side.
         // A full-board section always reports under the board's session —
         // also after a crash-resume, when the store pointer may have moved on.
-        const sessionId = config.fullBoard?.sessionId || useStore.getState().currentSessionId || crypto.randomUUID();
+        const sessionId = config.fullBoard?.sessionId || sittingIdRef.current || useStore.getState().currentSessionId || crypto.randomUUID();
         const fullBoardSection = config.fullBoard ? config.fullBoard.sectionIndex : null;
         const isFullBoard = fullBoardSection !== null && fullBoardSection !== undefined;
         // Only the LAST section closes a full board; the earlier ones leave the
@@ -603,6 +625,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 isPrcStandard: !!config.isPrcStandard,
                 targetSubject: isFullBoard ? 'Full board' : String(config.subject || '').slice(0, 32),
                 ...(markedIds.length > 0 ? { markedQuestionIds: markedIds.slice(0, 300) } : {}),
+                // The choices were shown in the order keyed on this id, so the
+                // review shows them that way.
+                ...(sittingIdRef.current && sittingIdRef.current === sessionId ? { optionOrder: OPTION_ORDER_VERSION } : {}),
             };
             const finalizePath = `/api/exams/sessions/${encodeURIComponent(sessionId)}/finalize`;
             const queueFinalize = () => { if (shouldFinalize) useStore.getState().queuePendingWrite(finalizePath, 'POST', examMeta); };
@@ -784,9 +809,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         return status;
       }
 
-      const pool = shuffleArray(battle.questions || []).map(q =>
-        q.options?.length > 0 ? { ...q, options: shuffleArray(q.options) } : q
-      );
+      // Each player's own order of questions and choices, the same on every
+      // open (a rejoin finds them where they were) and in the battle's review:
+      // keyed by the battle and the player, the id of their sitting.
+      const sittingKey = `${battleId}:${currentUser?.uid || ''}`;
+      const pool = shuffleWithKey(battle.questions || [], sittingKey).map((q) => presentOptions(q, sittingKey));
 
       if (pool.length === 0) throw new Error('No questions in battle');
 
@@ -948,10 +975,14 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       const subjectMap = { ee: 'EE', esas: 'ESAS', math: 'Mathematics', mathematics: 'Mathematics', blended: 'Blended' };
       const subject = subjectMap[String(config.subject || '').toLowerCase()] || config.subject || 'EE';
       const count = config.isPrcStandard ? 100 : (config.count || 20);
-      const pool = await fetchVaultQuestions(subject, 'All', count);
-      if (!pool || pool.length === 0) {
+      const drawn = await fetchVaultQuestions(subject, 'All', count);
+      if (!drawn || drawn.length === 0) {
         throw new Error('No questions available for the selected configuration.');
       }
+      // Each paper draws its own choice order; the key's letters follow it
+      // (answerLetterFor reads the printed order), and so does the key version.
+      const paperKey = newSittingKey();
+      const pool = drawn.map((q) => presentOptions(q, paperKey));
 
       const { generateExamPaper } = await import('./examPaper');
       const res = await generateExamPaper({ pool, subject, config });

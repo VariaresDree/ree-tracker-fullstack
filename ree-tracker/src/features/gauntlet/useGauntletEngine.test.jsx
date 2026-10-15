@@ -106,6 +106,21 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(saved.questions).toHaveLength(50); // tier 1's item count
   });
 
+  it("shows each question's choices in the run's order (keyed by its run id), not the stored one", async () => {
+    const { optionKey, orderOptions } = await import('@ree/shared');
+    const stored = makeQuestions(60).map((q, i) => ({ ...q, options: [`k${i}`, `b${i}`, `c${i}`, `d${i}`], answer: `k${i}` }));
+    apiRequestMock = vi.fn().mockResolvedValue({ items: stored });
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('active'));
+    const { runId, questions } = JSON.parse(localStorage.getItem(CACHE_KEY));
+    for (const q of questions) {
+      expect(q.options).toEqual(orderOptions(stored.find((x) => x.id === q.id).options, optionKey(runId, q.id)));
+    }
+    // Spread across the letters, not left at A.
+    const atA = questions.filter((q) => q.options[0] === q.answer).length;
+    expect(atA).toBeLessThan(questions.length / 2);
+  });
+
   it('offers resume (not a fresh fetch) when a matching-level cache exists on boot, and resumeGauntlet restores state without deleting the cache', async () => {
     const cachedQuestions = makeQuestions(50);
     localStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -335,6 +350,8 @@ describe('useGauntletEngine — the ladder on the server', () => {
     const [, , body] = apiRequestMock.mock.calls.find(([url]) => url === '/api/exams/grade');
     expect(body.gauntlet).toMatchObject({ level: 1, knownLevel: 3 });
     expect(typeof body.gauntlet.runId).toBe('string');
+    // Shown in the order keyed on the run id: its review lists them that way.
+    expect(body.gauntlet.optionOrder).toBe('seeded-v1');
     expect(body.gauntlet.startedAt).toEqual(expect.any(String));
     expect(body.answers[0]).toMatchObject({ clientAttemptId: `${body.gauntlet.runId}:q-0`, itemIndex: 0 });
     expect(body.answers[7]).toMatchObject({ itemIndex: 7, userAnswer: '' });
@@ -385,6 +402,21 @@ describe('useGauntletEngine — the ladder on the server', () => {
     expect(apiRequestMock).not.toHaveBeenCalledWith('/api/exams/gauntlet/forfeit', expect.anything(), expect.anything());
   });
 
+  it('a saved run shown in the seeded order keeps saying so when submitted', async () => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      level: '1', questions: makeQuestions(50), answers: { 0: 'A' }, confidences: {}, currentIndex: 0,
+      endTime: Date.now() + 5 * 60 * 1000, bookmarks: [], flags: [],
+      runId: 'seeded-run', optionOrder: 'seeded-v1', savedAt: Date.now(),
+    }));
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('resume'));
+    apiRequestMock.mockImplementationOnce(() => Promise.resolve({ results: [] }));
+    await act(async () => { result.current.submitSavedRun(); });
+    await waitFor(() => expect(result.current.status).toBe('diagnostics'));
+    const [, , body] = apiRequestMock.mock.calls.find(([url]) => url === '/api/exams/grade');
+    expect(body.gauntlet).toMatchObject({ runId: 'seeded-run', optionOrder: 'seeded-v1' });
+  });
+
   it('a saved run is submitted as it stands, under its own run id', async () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       level: '1',
@@ -409,6 +441,8 @@ describe('useGauntletEngine — the ladder on the server', () => {
 
     const [, , body] = apiRequestMock.mock.calls.find(([url]) => url === '/api/exams/grade');
     expect(body.gauntlet).toMatchObject({ runId: 'saved-run', startedAt: '2026-10-09T01:00:00.000Z' });
+    // A draft from before the seeded order doesn't claim it for its review.
+    expect(body.gauntlet).not.toHaveProperty('optionOrder');
     expect(body.answers[4]).toMatchObject({ userAnswer: 'C', clientAttemptId: 'saved-run:q-4' });
     // No fresh question set was fetched.
     expect(apiRequestMock).not.toHaveBeenCalledWith('/api/exams?limit=100');

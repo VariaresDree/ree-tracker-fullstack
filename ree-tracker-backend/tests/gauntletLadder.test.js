@@ -86,6 +86,14 @@ describe('gauntletService', () => {
         expect(tx.examSession.updateMany.mock.calls[0][0].data.config.gauntlet).toMatchObject({ outcome: 'advanced' });
     });
 
+    it('keeps a known order tag on the run, so its review lists the choices as they were shown', async () => {
+        await gauntletService.applyGauntletRun({ userId: 'u1', runId: 'run-12345', level: 1, optionOrder: 'seeded-v1', now: T0 });
+        expect(tx.examSession.updateMany.mock.calls[0][0].data.config.optionOrder).toBe('seeded-v1');
+        tx.examSession.updateMany.mockClear();
+        await gauntletService.applyGauntletRun({ userId: 'u1', runId: 'run-12345', level: 1, optionOrder: 'unknown', now: T0 });
+        expect(tx.examSession.updateMany.mock.calls[0][0].data.config).not.toHaveProperty('optionOrder');
+    });
+
     it('ignores the device’s level once the server tracks the ladder', async () => {
         user = { ...user, gauntletLevel: 2, gauntletUpdatedAt: new Date(T0 - 1) };
         const r = await gauntletService.applyGauntletRun({ userId: 'u1', runId: 'run-12345', level: 3, knownLevel: 5, now: T0 });

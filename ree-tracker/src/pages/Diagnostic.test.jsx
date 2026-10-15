@@ -48,6 +48,24 @@ describe('Diagnostic page', () => {
     expect(api.fetchDiagnosticStatus).toHaveBeenCalledTimes(2);
   });
 
+  it("shows each item's choices in this sitting's order (keyed by its session), and sends the chosen text", async () => {
+    const { optionKey, orderOptions } = await import('@ree/shared');
+    api.fetchDiagnosticStatus.mockResolvedValue({ status: 'none' });
+    api.startDiagnostic.mockResolvedValue({ sessionId: 's9', item: item('q7'), progress: { answered: 0, total: 19 } });
+    api.answerDiagnostic.mockResolvedValue({ done: false, item: item('q8'), progress: { answered: 1, total: 19 } });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start placement test' }));
+    await screen.findByText('Question q7');
+    // The answer choices (not the confidence radios), less their "A." labels.
+    const choices = screen.getAllByRole('radio').filter((r) => /^[A-D]\./.test(r.textContent));
+    const shown = choices.map((r) => r.textContent.replace(/^[A-D]\./, '').trim());
+    expect(shown).toEqual(orderOptions(['Henry', 'Farad', 'Ohm', 'Tesla'], optionKey('s9', 'q7')));
+    fireEvent.click(choices[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Submit answer/ }));
+    await screen.findByText('Question q8');
+    expect(api.answerDiagnostic).toHaveBeenCalledWith(expect.objectContaining({ questionId: 'q7', userAnswer: shown[0] }));
+  });
+
   it('runs from the intro to the placement result', async () => {
     api.fetchDiagnosticStatus.mockResolvedValue({ status: 'none' });
     api.startDiagnostic.mockResolvedValue({ sessionId: 's1', item: item('q1'), progress: { answered: 0, total: 19 } });

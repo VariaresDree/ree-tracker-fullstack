@@ -39,4 +39,14 @@ describe('retaking the misses', () => {
     // The Notebook's Mistakes mock is the same path under its own name.
     expect(retakeState({ ownerUid: 'u', sourceSessionId: null, items: missed, kind: 'mistakes' }).retake.kind).toBe('mistakes');
   });
+
+  it('hands a retake or Practice set the stored order, and keeps the order seen for the review itself', () => {
+    // A review of a shuffled sitting lists the order seen and sends the stored one.
+    const item = { questionId: 'x', text: 'T', options: ['c', 'a', 'd', 'b'], storedOptions: ['a', 'b', 'c', 'd'], correctAnswer: 'a' };
+    expect(reviewItemToQuestion(item).options).toEqual(['a', 'b', 'c', 'd']);
+    expect(retakeState({ ownerUid: 'u', sourceSessionId: 's', items: [item] }).retake.questions[0].options).toEqual(['a', 'b', 'c', 'd']);
+    expect(reviewItemToQuestion(item, { asShown: true }).options).toEqual(['c', 'a', 'd', 'b']);
+    // An older review has only one order.
+    expect(reviewItemToQuestion({ ...item, storedOptions: undefined }).options).toEqual(['c', 'a', 'd', 'b']);
+  });
 });

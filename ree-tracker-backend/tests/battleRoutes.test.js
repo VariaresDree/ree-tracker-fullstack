@@ -143,6 +143,9 @@ describe('POST /api/battles', () => {
         expect(res.status).toBe(201);
         expect(res.body).toEqual({ success: true, battleId: 'NEW001' });
         expect(db.state.battles.get('NEW001')).toMatchObject({ hostId: 'me', status: 'WAITING', questions: QUESTIONS, config: { subject: 'EE', count: 2 }, timeLimitSecs: 600 });
+        // Each player's choices (and questions) are shown in the seeded order,
+        // which the battle's review rebuilds.
+        expect(db.state.battles.get('NEW001').config.optionOrder).toBe('seeded-v1');
         expect(samplePool).toHaveBeenCalledWith({ subject: 'EE', subtopic: undefined, limit: 5 });
 
         expect((await post('/', 'me', body)).status).toBe(409);
@@ -299,6 +302,7 @@ describe('POST /api/battles/:id/rematch', () => {
         const made = db.state.battles.get(res.body.battleId);
         expect(made).toMatchObject({ hostId: 'me', status: 'WAITING', rematchOfId: 'OLD001', config: CONFIG, timeLimitSecs: 1800 });
         expect(made.questions).toEqual(POOL);
+        expect(made.config.optionOrder).toBe('seeded-v1');
         // The last battle's questions (their key was revealed) are drawn last.
         expect(samplePool).toHaveBeenCalledWith({ subject: 'EE', subtopic: undefined, limit: 20, avoidIds: QUESTIONS.map((q) => q.id) });
         expect(notifyRoom).toHaveBeenCalledWith('OLD001', 'rematch-ready', { battleId: res.body.battleId, by: { userId: 'me', displayName: 'Rey' } });

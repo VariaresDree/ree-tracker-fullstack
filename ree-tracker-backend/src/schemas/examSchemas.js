@@ -1,6 +1,13 @@
 const { z } = require('zod');
 const { storableTimeMs } = require('../config/telemetryBounds');
 
+// The client showed this sitting's choices in the seeded order keyed on its
+// session id (@ree/shared optionOrder), so its review can show them that way.
+// Older clients send nothing, and their sittings review in the stored order.
+// Any short tag is accepted, so a later client's tag never fails a submit;
+// the services keep only one they know (OPTION_ORDER_VERSION).
+const optionOrderField = z.string().max(32).optional();
+
 // NOTE: Question IDs are legacy 20-char Firebase push IDs, not UUIDs. A
 // `.uuid()` constraint here 400s every Gauntlet/Board-Sim submission. Accept
 // any non-empty id; the grade/submit handlers re-validate against the master
@@ -47,6 +54,7 @@ const gauntletRunSchema = z.object({
     knownLevel: z.number().int().min(1).max(5).optional(),
     startedAt: z.string().max(40).optional(),
     finishedAt: z.string().max(40).optional(),
+    optionOrder: optionOrderField,
 });
 
 const gradeSchema = z.object({
@@ -97,6 +105,7 @@ const finalizeSchema = z.object({
     // Items the learner marked for review during the sitting, kept for the
     // review's "Marked" filter. A full board sends the union of its sections.
     markedQuestionIds: z.array(z.string().min(1).max(200)).max(300).optional(),
+    optionOrder: optionOrderField,
 }).strip();
 
 module.exports = { examSubmitSchema, gradeSchema, gauntletForfeitSchema, nextItemSchema, finalizeSchema };

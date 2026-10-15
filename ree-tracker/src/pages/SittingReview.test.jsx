@@ -45,7 +45,7 @@ const REVIEW = {
 
 function Probe({ label }) {
   const loc = useLocation();
-  return <p>{label}: {JSON.stringify(loc.state)?.slice(0, 200)}</p>;
+  return <p>{label}: {JSON.stringify(loc.state)?.slice(0, 2000)}</p>;
 }
 
 function PathProbe() {
@@ -80,6 +80,27 @@ describe('SittingReview', () => {
     expect(screen.getByText('66.5%')).toBeInTheDocument();
     expect(screen.getByText('Question 1')).toBeInTheDocument();
     expect(screen.getByText(/You answered this correctly/)).toBeInTheDocument();
+  });
+
+  it('an older sitting says its choices are in the stored order; one shown in the seeded order lists them as seen', async () => {
+    fetchSittingReview.mockResolvedValue(REVIEW);
+    const older = renderAt();
+    await screen.findByText('Question 1');
+    expect(screen.getByText(/Choices are listed in their stored order/)).toBeInTheDocument();
+    older.unmount();
+
+    // The server lists a marked sitting's choices in the order seen; the
+    // letters (here the answer sheet's) follow that list.
+    fetchSittingReview.mockResolvedValue({
+      ...REVIEW,
+      session: { ...REVIEW.session, optionOrder: 'seeded-v1' },
+      items: [item(1, { options: ['30 A', '10 A', '40 A', '20 A'] }), ...REVIEW.items.slice(1)],
+    });
+    renderAt();
+    await screen.findByText('Question 1');
+    expect(screen.queryByText(/stored order/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Answer sheet' }));
+    expect(screen.getByRole('button', { name: 'Item 1, answered D, correct answer D' })).toBeInTheDocument();
   });
 
   it("a wrong answer links to its topic's formula cards; a right one doesn't", async () => {
@@ -124,6 +145,17 @@ describe('SittingReview', () => {
     const state = screen.getByText(/^simulator:/).textContent;
     expect(state).toContain('"ownerUid":"u1"');
     expect(state).toContain('"sourceSessionId":"sess-1"');
+  });
+
+  it('a retake from a review in the order seen runs the stored order, so its own review can rebuild what it shows', async () => {
+    fetchSittingReview.mockResolvedValue({
+      ...REVIEW,
+      session: { ...REVIEW.session, optionOrder: 'seeded-v1' },
+      items: REVIEW.items.map((i) => ({ ...i, options: ['40 A', '20 A', '10 A', '30 A'], storedOptions: ['10 A', '20 A', '30 A', '40 A'] })),
+    });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: /Retake missed/ }));
+    expect(screen.getByText(/^simulator:/).textContent).toContain('"options":["10 A","20 A","30 A","40 A"]');
   });
 
   it('practises the misses untimed', async () => {

@@ -47,7 +47,8 @@ import { ordinal } from '../features/exams/battleModes';
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 const CONFIDENCE_LABEL = { HIGH: 'Sure', MED: 'Fairly sure', LOW: 'Unsure' };
 const LETTERS = ['A', 'B', 'C', 'D'];
-// The bubble for an answer on the answer sheet, by its place in the stored options.
+// The bubble for an answer on the answer sheet, by its place in the options as
+// listed: the order the learner saw, or the stored order for an older sitting.
 const letterIn = (options, value) => {
   if (value == null || value === '') return null;
   const i = (options || []).indexOf(value);
@@ -154,6 +155,8 @@ export default function SittingReview() {
   const shown = useMemo(() => filterItems(items, { filter, subject }), [items, filter, subject]);
   const missed = useMemo(() => missedItems(items), [items]);
   const current = shown[Math.min(pos, Math.max(0, shown.length - 1))] || null;
+  // The item as this review lists it (the order the sitting showed).
+  const shownQuestion = current ? reviewItemToQuestion(current, { asShown: true }) : null;
 
   const choose = (next) => { setPos(0); next(); };
   const jumpTo = (order) => {
@@ -324,12 +327,12 @@ export default function SittingReview() {
                 {current.confidence && current.answered !== false && <Badge tone="neutral">{CONFIDENCE_LABEL[current.confidence] || current.confidence}</Badge>}
                 {current.marked && <Badge tone="amber">Marked</Badge>}
                 <span className="ml-auto">
-                  <NoteButton type="question" targetId={current.questionId} target={questionTarget(reviewItemToQuestion(current))} />
+                  <NoteButton type="question" targetId={current.questionId} target={questionTarget(shownQuestion)} />
                 </span>
               </div>
 
               <QuestionCard
-                question={reviewItemToQuestion(current)}
+                question={shownQuestion}
                 selectedOption={current.selectedAnswer || null}
                 state="reviewing"
                 showConfidence={false}
@@ -343,7 +346,9 @@ export default function SittingReview() {
                   : current.answered === false
                     ? 'You left this item blank.'
                     : current.isCorrect ? 'You answered this correctly.' : 'Your answer is marked wrong; the correct one is highlighted.'}
-                {' '}Choices are listed in their stored order, which can differ from the order you saw.
+                {/* A sitting from before choices were shuffled per sitting
+                    (no optionOrder) lists them in their stored order. */}
+                {!session.optionOrder && ' Choices are listed in their stored order, which can differ from the order you saw.'}
               </p>
 
               {battle && (
@@ -351,12 +356,12 @@ export default function SittingReview() {
               )}
 
               <SolutionPanel
-                key={explanationKey(reviewItemToQuestion(current))}
-                question={reviewItemToQuestion(current)}
+                key={explanationKey(shownQuestion)}
+                question={shownQuestion}
                 isOnline={isOnline}
-                aiText={ai.textFor(reviewItemToQuestion(current))}
-                aiLoading={ai.isLoading(reviewItemToQuestion(current))}
-                onExplain={(force) => ai.explain(reviewItemToQuestion(current), { force })}
+                aiText={ai.textFor(shownQuestion)}
+                aiLoading={ai.isLoading(shownQuestion)}
+                onExplain={(force) => ai.explain(shownQuestion, { force })}
                 showAnswer
               />
 
@@ -364,7 +369,7 @@ export default function SittingReview() {
                 <TopicCardsLink topic={current.topic} subject={current.subject} />
               )}
 
-              <NoteView type="question" targetId={current.questionId} target={questionTarget(reviewItemToQuestion(current))} />
+              <NoteView type="question" targetId={current.questionId} target={questionTarget(shownQuestion)} />
 
               {!current.isCorrect && current.answered !== false && (() => {
                 const mistake = mistakes?.find((m) => m.questionId === current.questionId);

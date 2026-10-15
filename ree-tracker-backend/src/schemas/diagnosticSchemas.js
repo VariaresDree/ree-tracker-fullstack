@@ -5,6 +5,10 @@ const { storableTimeMs } = require('../config/telemetryBounds');
 // OWNER-scoped (userId + mode), so a foreign id simply does not resolve.
 const diagnosticStartSchema = z.object({
     restart: z.boolean().optional().default(false),
+    // This client shows the choices in the seeded order keyed on the session
+    // id, so the test's review can show them that way (@ree/shared optionOrder).
+    // The service keeps only a tag it knows.
+    optionOrder: z.string().max(32).optional(),
 }).strip();
 
 const diagnosticAnswerSchema = z.object({

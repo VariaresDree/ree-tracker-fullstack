@@ -14,7 +14,7 @@
 
 const prisma = require('../config/db');
 const {
-    decideGauntletOutcome, forfeitGauntlet, gauntletState, getGauntletTier,
+    decideGauntletOutcome, forfeitGauntlet, gauntletState, getGauntletTier, OPTION_ORDER_VERSION,
 } = require('@ree/shared');
 const { subjectScoresBySession } = require('./deepAnalyticsHelpers');
 const { subjectRowsFor } = require('./examHistory');
@@ -69,7 +69,7 @@ async function lockUser(tx, userId) {
  * recorded under `runId` (recordAttempts with sessionId = runId). Idempotent:
  * a replay returns the stored result and changes nothing.
  */
-async function applyGauntletRun({ userId, runId, level, knownLevel, startedAt, finishedAt, now = Date.now() }) {
+async function applyGauntletRun({ userId, runId, level, knownLevel, startedAt, finishedAt, optionOrder = null, now = Date.now() }) {
     const tier = getGauntletTier(level);
     if (!tier) throw new GauntletError(400, 'Unknown Gauntlet level.');
 
@@ -121,6 +121,7 @@ async function applyGauntletRun({ userId, runId, level, knownLevel, startedAt, f
                     ...prior,
                     kind: 'gauntlet',
                     level: tier.level,
+                    ...(optionOrder === OPTION_ORDER_VERSION ? { optionOrder } : {}),
                     subjectScores,
                     generalAverage: decision.generalAverage,
                     finalizedAt: new Date(now).toISOString(),

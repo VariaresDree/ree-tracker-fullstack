@@ -117,6 +117,37 @@ describe('buildMockHistory', () => {
     });
 });
 
+describe('finalize — the order the choices were shown in', () => {
+    it('keeps a known order tag, so the review lists the choices as they were shown', async () => {
+        const res = await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as(UID))
+            .send({ kind: 'subject', optionOrder: 'seeded-v1' });
+        expect(res.status).toBe(200);
+        expect(prisma.examSession.updateMany.mock.calls[0][0].data.config.optionOrder).toBe('seeded-v1');
+    });
+
+    it("a full board keeps the tag only when every section's finalise carried it", async () => {
+        // An earlier section finalised by an older version: no tag, whatever the last says.
+        session.config = { count: 100, kind: 'full-board', finalizedAt: 'x' };
+        await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as(UID)).send({ kind: 'full-board', optionOrder: 'seeded-v1' });
+        expect(prisma.examSession.updateMany.mock.calls.at(-1)[0].data.config).not.toHaveProperty('optionOrder');
+        // Tagged so far, then a section without it: the tag goes.
+        session.config = { count: 100, kind: 'full-board', finalizedAt: 'x', optionOrder: 'seeded-v1' };
+        await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as(UID)).send({ kind: 'full-board' });
+        expect(prisma.examSession.updateMany.mock.calls.at(-1)[0].data.config).not.toHaveProperty('optionOrder');
+        // Tagged throughout (or a replayed finalise): kept.
+        await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as(UID)).send({ kind: 'full-board', optionOrder: 'seeded-v1' });
+        expect(prisma.examSession.updateMany.mock.calls.at(-1)[0].data.config.optionOrder).toBe('seeded-v1');
+    });
+
+    it('drops a tag it does not know without failing the finalise, and an older client sends none', async () => {
+        const later = await request(makeApp()).post('/api/exams/sessions/sess-1/finalize').set(as(UID))
+            .send({ kind: 'subject', optionOrder: 'seeded-v9' });
+        expect(later.status).toBe(200);
+        expect(prisma.examSession.updateMany.mock.calls[0][0].data.config).not.toHaveProperty('optionOrder');
+        expect(sanitizeMeta({ kind: 'subject' })).toEqual({ kind: 'subject' });
+    });
+});
+
 describe('finalize — items marked for review', () => {
     it('stores the marks, and a second finalise adds to them rather than replacing', async () => {
         session.config = { count: 100, markedQuestionIds: ['q1', 'q2'] };

@@ -22,7 +22,7 @@
 const { randomUUID } = require('crypto');
 const prisma = require('../config/db');
 const {
-    weightedAverage, normalizeSubject, DEFAULT_SYLLABUS_WEIGHTS, GENERAL_AVERAGE, SUBJECT_FLOOR,
+    weightedAverage, normalizeSubject, DEFAULT_SYLLABUS_WEIGHTS, GENERAL_AVERAGE, SUBJECT_FLOOR, OPTION_ORDER_VERSION,
 } = require('@ree/shared');
 const { itemParams, SE_FLOOR, PRIOR_SE } = require('../engine/irt');
 const { tccAt } = require('../engine/forecast');
@@ -103,7 +103,7 @@ async function serveNext(userId, sessionId, config) {
     return { done: true, config: current };
 }
 
-async function start(userId, { restart = false } = {}) {
+async function start(userId, { restart = false, optionOrder = null } = {}) {
     const existing = await prisma.examSession.findFirst({
         where: { userId, mode: MODE, verdict: 'IN_PROGRESS' },
         orderBy: { createdAt: 'desc' },
@@ -125,7 +125,11 @@ async function start(userId, { restart = false } = {}) {
     }
 
     const id = randomUUID();
-    const config = { kind: 'placement', version: 1, startedAt: new Date().toISOString(), responses: [] };
+    const config = {
+        kind: 'placement', version: 1, startedAt: new Date().toISOString(), responses: [],
+        // The client shows the choices in the seeded order keyed on this id.
+        ...(optionOrder === OPTION_ORDER_VERSION ? { optionOrder } : {}),
+    };
     await prisma.examSession.create({
         data: {
             id, userId, mode: MODE, targetSubject: 'BLENDED',
