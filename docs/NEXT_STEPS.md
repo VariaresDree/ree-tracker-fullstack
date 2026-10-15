@@ -3,12 +3,19 @@
 Handoff notes for the next planning session. Written 2026-10-13, after
 [#143](https://github.com/VariaresDree/ree-tracker-fullstack/pull/143) and
 [#144](https://github.com/VariaresDree/ree-tracker-fullstack/pull/144) were merged;
-updated for the two releases that followed (branch `claude/jolly-cerf-yz78he`,
+updated for the three releases that followed (branch `claude/jolly-cerf-yz78he`,
 section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
 ## 1. What just shipped
+
+**The shuffled-choices release (after #155).** Pressing A every time scored close to half a session: the key was stored first far more often than not. One commit per part, then the review's fixes:
+- **One seeded order** (`@ree/shared` `optionOrder`): an unbiased shuffle keyed on the sitting and the question. "All of the above" stays last; a question whose choices name others by letter ("Both A and B") keeps its order.
+- **Every answering screen** shows it, stable within a sitting (reloads, Next/Back, battle rejoins) and new each sitting: Practice and everything it runs, the Board Simulator, battles (questions too, per player), the Gauntlet, the placement test, Bookmarks and the printed paper. Grading compares text, so nothing else changed.
+- **Reviews show the order seen,** rebuilt on the server from the sitting's id when the sitting is tagged `optionOrder: 'seeded-v1'` (no migration).
+- **No lean at the source:** new questions are stored shuffled (submit, create, publish); grid edits keep each choice in its slot; the AI prompts ask for a random key position and no "option B" in explanations. **Admin › Question bank › Answer positions** shows the key's share per letter and the rows to fix.
+- Checked in a browser: always pressing A in Practice got 5 of 19 right, with the key spread over A–D; a mock board kept its order through a reload and in its review, and the next sitting drew new orders.
 
 **The learning-loop release (after #154).** One commit per part:
 - **Hardening:**
@@ -99,9 +106,14 @@ section 1).
   Scheduled reminders and streak pushes reach phones only after this. Until then the on-device reminder stands in.
 - [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261018000000` (the last two are the battle rematch link and the weekly focus goal).
 - [ ] **Run the manual checks** listed in #144: the battle scenario on two devices, a card review cycle, a focus block, a mistake tag, a note, and a reminder (after the two items above).
+- [ ] **Open Admin › Question bank › Answer positions** after the deploy. Reword the explanations it lists as naming an option by letter ("option B is wrong"): the choices are shuffled now, so those letters no longer match. Fix any answer it lists as not one of its options (those can't be graded). Existing rows keep their stored order by design; learners never see it any more.
 - [ ] **Close the Phase 3 gate:** run one AI-generated batch through the review loop (edit and reject at least one item, approve the rest). See `ROADMAP.md`.
 
 ## 3. Known limits and debt (worth fixing)
+
+**Shuffled choices**
+- **The old-app window.** A battle is tagged as shuffled when it's created, so a player still on a cached older app (before the update toast) sees a different order than their review lists. It closes once the app updates. Practice, mocks, the Gauntlet and the placement test are tagged by the app that showed them, so they're unaffected.
+- **Reviews rebuild the order from the live question.** If an admin changes a question's number of choices after a sitting, that sitting's review lists them in a different order than was shown (a battle uses its own snapshot, so only the count matters there). Storing the order per attempt would close this, at the cost of a column.
 
 **Battles**
 - **One instance for live rooms.** There is no socket.io Redis adapter.
@@ -244,6 +256,8 @@ With a local Postgres (CI runs both):
 cd ree-tracker-backend && DATABASE_URL=… npx prisma migrate deploy && DATABASE_URL=… npm run test:db
 cd ree-tracker && DATABASE_URL=… npm run e2e:authed   # Firebase Auth emulator + backend + Vite; PW_CHROMIUM_PATH for a local Chromium
 ```
+
+After pulling a change to `packages/shared`, restart Vite with `--force` (or delete `ree-tracker/node_modules/.vite`): Vite pre-bundles the CommonJS package once and doesn't notice its edits, so a new export reads as "is not a function" in dev. CI starts clean.
 
 House rules:
 - Migrations are additive only. Generate the SQL with `prisma migrate diff`.

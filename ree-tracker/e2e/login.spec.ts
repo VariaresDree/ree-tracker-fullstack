@@ -9,6 +9,10 @@ test.describe('Login screen', () => {
   test('has no critical/serious accessibility violations (real axe scan)', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByLabel(/Email Address/i)).toBeVisible();
+    // The card's entrance fade first: axe measures text mid-fade, at an
+    // opacity under 1, as lower contrast than it ends at (as e2e-authed does).
+    await page.waitForFunction(() => document.getAnimations()
+      .every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity));
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     const seriousOrWorse = results.violations.filter(
       (v) => v.impact === 'critical' || v.impact === 'serious',
