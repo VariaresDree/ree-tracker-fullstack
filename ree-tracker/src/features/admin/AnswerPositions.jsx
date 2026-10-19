@@ -13,7 +13,7 @@
 //   • questions kept in their stored order because an option names others by
 //     letter ("Both A and B").
 // Checked on demand: it reads the whole bank.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { fetchOptionAudit, fixOptionKeys } from '../../services/dbQueries';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Button, ProgressIndicator } from '../../components/ui';
@@ -44,14 +44,21 @@ function Finding({ count, children, ids }) {
 
 function KeyFixes({ fixes, onFixed }) {
   const [status, setStatus] = useState('idle');
+  // One request per press: a second click before the first re-render would
+  // find the keys already fixed and report nothing done.
+  const busy = useRef(false);
   if (!fixes?.length) return null;
 
   const fix = async () => {
+    if (busy.current) return;
+    busy.current = true;
     setStatus('saving');
     try {
       onFixed(await fixOptionKeys(fixes.map((f) => f.id)));
     } catch {
       setStatus('error');
+    } finally {
+      busy.current = false;
     }
   };
 
@@ -137,7 +144,10 @@ export default function AnswerPositions() {
               key={audit.checkedAt}
               fixes={audit.keyFixes}
               onFixed={({ fixed, skipped }) => {
-                setFixNote(`Fixed ${fixed.length} ${fixed.length === 1 ? 'answer' : 'answers'}${skipped.length ? `; ${skipped.length} had changed since the check and were left alone` : ''}.`);
+                // A key that is already its option's text is done, whoever fixed it.
+                const done = fixed.length + skipped.filter((k) => k.reason === 'already-an-option').length;
+                const left = skipped.length - (done - fixed.length);
+                setFixNote(`Fixed ${done} ${done === 1 ? 'answer' : 'answers'}${left ? `; ${left} had changed since the check and ${left === 1 ? 'was' : 'were'} left alone` : ''}.`);
                 check();
               }}
             />

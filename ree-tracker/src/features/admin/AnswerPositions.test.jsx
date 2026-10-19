@@ -60,4 +60,19 @@ describe('AnswerPositions', () => {
     expect(await screen.findByText(/answers aren’t one of the options/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Use the option/ })).not.toBeInTheDocument();
   });
+
+  it('counts keys already fixed (a second press) as fixed, and sends one request per press', async () => {
+    const withFix = { ...AUDIT, keyFixes: [{ id: 'q-m', from: 'x', to: '$x$' }, { id: 'q-n', from: 'y', to: '$y$' }] };
+    fetchOptionAudit.mockResolvedValueOnce(withFix).mockResolvedValueOnce({ ...AUDIT, keyFixes: [], checkedAt: '2026-10-14T00:02:00Z' });
+    let resolve;
+    fixOptionKeys.mockImplementation(() => new Promise((r) => { resolve = r; }));
+    render(<AnswerPositions />);
+    fireEvent.click(screen.getByRole('button', { name: 'Check the bank' }));
+    const press = await screen.findByRole('button', { name: 'Use the options’ text (2)' });
+    fireEvent.click(press);
+    fireEvent.click(press);
+    expect(fixOptionKeys).toHaveBeenCalledTimes(1);
+    resolve({ fixed: [], skipped: [{ id: 'q-m', reason: 'already-an-option' }, { id: 'q-n', reason: 'no-single-match' }] });
+    expect(await screen.findByRole('status')).toHaveTextContent('Fixed 1 answer; 1 had changed since the check and was left alone.');
+  });
 });
