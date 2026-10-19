@@ -96,7 +96,7 @@ section 1).
 
 ## 2. Owner actions (needed now)
 
-- [ ] **Move the keepalive off GitHub's scheduler.** It ran every 2 to 6 hours, not every 10 minutes. Options: Supabase `pg_cron` + `pg_net` calling `/healthz` (free, no account needed), or cron-job.org.
+- [x] **Keepalive moved off GitHub's scheduler** (2026-10-19), which ran it every 2 to 6 hours. The Supabase job `keep-backend-awake` (`pg_cron` + `pg_net`) calls `GET /health` every 10 minutes, 06:00–23:59 Manila. See it with `select * from cron.job;`, its results in `net._http_response`; remove it with `select cron.unschedule('keep-backend-awake');`. The GitHub workflow stays as the `/healthz` check.
 - [ ] **After the deploy, open Admin › Question bank › Answer positions** and press **Use the option's text** for the 3 fixable keys; give question `201494a1…` (two identical options, "F = A'B'C + A'BC' + AB") a real fourth option and key by hand.
 - [x] **`GROQ_API_KEY` and `OPENROUTER_API_KEY` set on Render** (2026-10-13). Optional backup: `CEREBRAS_API_KEY`. Open Admin › AI models and press **Test all models**; a model shown as "Not offered" is skipped automatically, and can be replaced with `AI_CHAIN_<TASK>` on Render or in `src/config/aiModels.js`.
 - [ ] **Check Render's build command** (backend service → Settings → Build Command) reads `npm install && npx prisma generate && npm run migrate:deploy`, as in `render.yaml`. A Blueprint-synced service picks it up by itself; otherwise paste it in. The old command still works, it just doesn't retry when the database's connection pooler is momentarily full.
