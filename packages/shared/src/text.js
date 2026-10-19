@@ -48,6 +48,17 @@ function withMathDelimiters(value) {
     return `$${trimmed}$`;
 }
 
+/**
+ * True when a field leaves inline math open: an odd count of unescaped single
+ * `$` once `$$` pairs are set aside. Everything after the stray `$` then
+ * renders as LaTeX (a hand edit that typed `AB'$$` for `AB'$` did this).
+ */
+function hasUnbalancedMath(value) {
+    if (typeof value !== 'string') return false;
+    const singles = value.replace(/\\\$/g, '').replace(/\$\$/g, '').match(/\$/g);
+    return !!singles && singles.length % 2 === 1;
+}
+
 // ── Choice-prefix stripping ─────────────────────────────────────────────────
 
 // Multiple-choice options sometimes arrive with a baked-in enumerator label
@@ -126,6 +137,7 @@ function sanitizeGeneratedBatch(items) {
 
 module.exports = {
     withMathDelimiters,
+    hasUnbalancedMath,
     MATH_CONTROL_CHARS_RE,
     CHOICE_PREFIX,
     stripChoicePrefix,

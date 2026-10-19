@@ -36,7 +36,7 @@ describe('auditOptions', () => {
         expect(audit.total).toBe(6);
         expect(audit.positions).toMatchObject({ A: 3, B: 1, C: 1, D: 0, missing: 1, fixedOrder: 1 });
         expect(audit.shares).toMatchObject({ A: 60, B: 20, C: 20, D: 0 });
-        expect(audit.samples).toEqual({ missing: ['m1'], fixedOrder: ['f1'], letterInExplanation: ['a2', 'c1'] });
+        expect(audit.samples).toEqual({ missing: ['m1'], fixedOrder: ['f1'], letterInExplanation: ['a2', 'c1'], brokenMath: [], duplicateOptions: [] });
         expect(audit.letterInExplanation).toBe(2);
     });
 
@@ -53,6 +53,18 @@ describe('auditOptions', () => {
         const audit = auditOptions([...ROWS, DOLLAR, dup]);
         expect(audit.samples.missing).toEqual(['m1', 'k1', 'd1']);
         expect(audit.keyFixes).toEqual([{ id: 'k1', from: '1 - k^3', to: '$1 - k^3$' }]);
+    });
+
+    it('lists math that won’t render and identical options', () => {
+        const audit = auditOptions([
+            { id: 'ok', text: 'Find $x$.', options: ['$1$', '$2$'], answer: '$1$' },
+            { id: 'stray', text: 'Find $x$.', options: ["$AB'$$", '$2$'], answer: '$2$' },
+            { id: 'dup', text: 'Pick one', options: ['5 A', '5  A', '6 A'], answer: '6 A' },
+        ]);
+        expect(audit.brokenMath).toBe(1);
+        expect(audit.duplicateOptions).toBe(1);
+        expect(audit.samples.brokenMath).toEqual(['stray']);
+        expect(audit.samples.duplicateOptions).toEqual(['dup']);
     });
 
     it('handles an empty bank', () => {

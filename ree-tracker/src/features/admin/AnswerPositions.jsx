@@ -12,32 +12,51 @@
 //     the choices are shuffled;
 //   • questions kept in their stored order because an option names others by
 //     letter ("Both A and B").
+//   • math that won't render (a stray `$`) and questions with two identical
+//     options.
+// Every listed id opens that question in the editor (QuestionEditModal), so
+// a row can be fixed here without looking it up elsewhere.
 // Checked on demand: it reads the whole bank.
 import { useRef, useState } from 'react';
-import { fetchOptionAudit, fixOptionKeys } from '../../services/dbQueries';
+import { fetchOptionAudit, fixOptionKeys, fetchQuestionById, updateQuestionInBank } from '../../services/dbQueries';
+import QuestionEditModal from '../library/QuestionEditModal';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Button, ProgressIndicator } from '../../components/ui';
 import { ListChecks } from '../../components/ui/icons';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
 
-function IdList({ ids, total }) {
+function IdList({ ids, total, onOpen }) {
   if (!ids?.length) return null;
   return (
-    <p className="text-xs text-muted2 break-all">
-      {total > ids.length ? `First ${ids.length}: ` : ''}
-      <span className="font-mono">{ids.join(', ')}</span>
-    </p>
+    <div className="flex flex-col gap-1">
+      {total > ids.length && <p className="text-xs text-muted2">First {ids.length}:</p>}
+      <ul className="flex flex-wrap gap-1.5" aria-label="Questions to fix">
+        {ids.map((id) => (
+          <li key={id}>
+            <button
+              type="button"
+              onClick={() => onOpen(id)}
+              className="touch-target font-mono text-xs px-2 py-1 rounded-[var(--radius-default)] border border-border bg-surface2 text-textMain hover:border-[var(--accent)] cursor-pointer"
+              aria-label={`Open question ${id}`}
+              title="Open in the editor"
+            >
+              {id.length > 13 ? `${id.slice(0, 8)}…` : id}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
-function Finding({ count, children, ids }) {
+function Finding({ count, children, ids, onOpen }) {
   return (
-    <li className="flex flex-col gap-1">
+    <li className="flex flex-col gap-1.5">
       <p className="text-sm text-textMain">
         <span className="font-semibold tabular-nums">{count}</span> {children}
       </p>
-      <IdList ids={ids} total={count} />
+      <IdList ids={ids} total={count} onOpen={onOpen} />
     </li>
   );
 }
@@ -87,6 +106,31 @@ function KeyFixes({ fixes, onFixed }) {
 export default function AnswerPositions() {
   const [state, setState] = useState({ status: 'idle', audit: null });
   const [fixNote, setFixNote] = useState('');
+  // The question open in the editor, and its save.
+  const [editing, setEditing] = useState(null);
+  const [edit, setEdit] = useState({ saving: false, error: '', loadingId: null });
+
+  const open = async (id) => {
+    setEdit({ saving: false, error: '', loadingId: id });
+    try {
+      setEditing(await fetchQuestionById(id));
+      setEdit({ saving: false, error: '', loadingId: null });
+    } catch (err) {
+      setEdit({ saving: false, error: `Couldn’t open that question: ${err.message}`, loadingId: null });
+    }
+  };
+  const closeEditor = () => { setEditing(null); setEdit({ saving: false, error: '', loadingId: null }); };
+  const saveEdit = async (q) => {
+    setEdit((e) => ({ ...e, saving: true, error: '' }));
+    try {
+      await updateQuestionInBank(q.id, q);
+      closeEditor();
+      setFixNote('Question saved.');
+      check();
+    } catch (err) {
+      setEdit((e) => ({ ...e, saving: false, error: `Couldn’t save: ${err.message}` }));
+    }
+  };
 
   const check = async () => {
     setState((s) => ({ ...s, status: 'loading' }));
@@ -112,12 +156,15 @@ export default function AnswerPositions() {
             Where the correct answer is stored across the live bank. Learners see the choices in a new order each sitting, and new questions are stored shuffled; this checks the balance and lists the questions to fix.
           </p>
         </div>
-        <Button size="sm" variant="secondary" onClick={check} loading={status === 'loading'} disabled={status === 'loading'}>
+        <Button size="sm" variant="secondary" onClick={() => { setFixNote(''); check(); }} loading={status === 'loading'} disabled={status === 'loading'}>
           {audit ? 'Check again' : 'Check the bank'}
         </Button>
       </header>
 
       {status === 'error' && <p className="text-sm" role="alert" style={{ color: 'var(--accent-danger)' }}>Couldn’t check the bank. Try again.</p>}
+      {edit.loadingId && <p className="text-xs text-muted2" role="status">Opening the question…</p>}
+      {!editing && edit.error && <p className="text-sm" role="alert" style={{ color: 'var(--accent-danger)' }}>{edit.error}</p>}
+      <QuestionEditModal question={editing} onChange={setEditing} onClose={closeEditor} onSave={saveEdit} saving={edit.saving} error={edit.error} />
 
       {audit && (
         <div className="flex flex-col gap-4" aria-live="polite">
@@ -136,7 +183,7 @@ export default function AnswerPositions() {
             {audit.total} live questions{p.other > 0 ? `; ${p.other} with the answer past D` : ''}. An even bank sits near 25% each.
           </p>
           <ul className="flex flex-col gap-3">
-            <Finding count={p.missing} ids={audit.samples.missing}>
+            <Finding count={p.missing} ids={audit.samples.missing} onOpen={open}>
               {p.missing === 1 ? 'answer isn’t' : 'answers aren’t'} one of the options, so {p.missing === 1 ? 'it' : 'they'} can’t be graded. Edit the answer to the exact option text.
             </Finding>
             {fixNote && <li className="text-xs text-muted2" role="status">{fixNote}</li>}
@@ -151,10 +198,20 @@ export default function AnswerPositions() {
                 check();
               }}
             />
-            <Finding count={audit.letterInExplanation} ids={audit.samples.letterInExplanation}>
+            {audit.brokenMath != null && (
+              <Finding count={audit.brokenMath} ids={audit.samples.brokenMath} onOpen={open}>
+                {audit.brokenMath === 1 ? 'question has' : 'questions have'} math that may not render: a stray $ in the text, an option or the explanation leaves the rest as raw LaTeX.
+              </Finding>
+            )}
+            {audit.duplicateOptions != null && (
+              <Finding count={audit.duplicateOptions} ids={audit.samples.duplicateOptions} onOpen={open}>
+                {audit.duplicateOptions === 1 ? 'question has' : 'questions have'} two identical options. Replace one with a real distractor.
+              </Finding>
+            )}
+            <Finding count={audit.letterInExplanation} ids={audit.samples.letterInExplanation} onOpen={open}>
               {audit.letterInExplanation === 1 ? 'explanation names' : 'explanations name'} an option by letter (“option B”). Reword to name the option by its content.
             </Finding>
-            <Finding count={p.fixedOrder} ids={audit.samples.fixedOrder}>
+            <Finding count={p.fixedOrder} ids={audit.samples.fixedOrder} onOpen={open}>
               {p.fixedOrder === 1 ? 'question keeps' : 'questions keep'} the stored order because an option names others by letter (“Both A and B”). Rewrite those options to shuffle {p.fixedOrder === 1 ? 'it' : 'them'}.
             </Finding>
           </ul>

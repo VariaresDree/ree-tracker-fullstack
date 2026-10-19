@@ -1,13 +1,17 @@
 // Admin › Question bank › Answer positions: checked on demand, the balance
 // per letter and the rows to fix.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const fetchOptionAudit = vi.fn();
 const fixOptionKeys = vi.fn();
+const fetchQuestionById = vi.fn();
+const updateQuestionInBank = vi.fn();
 vi.mock('../../services/dbQueries', () => ({
   fetchOptionAudit: (...a) => fetchOptionAudit(...a),
   fixOptionKeys: (...a) => fixOptionKeys(...a),
+  fetchQuestionById: (...a) => fetchQuestionById(...a),
+  updateQuestionInBank: (...a) => updateQuestionInBank(...a),
 }));
 vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
 const { default: AnswerPositions } = await import('./AnswerPositions');
@@ -22,7 +26,7 @@ const AUDIT = {
 };
 
 // A block body: a function returned from beforeEach runs as its teardown.
-beforeEach(() => { fetchOptionAudit.mockReset(); fixOptionKeys.mockReset(); });
+beforeEach(() => { fetchOptionAudit.mockReset(); fixOptionKeys.mockReset(); fetchQuestionById.mockReset(); updateQuestionInBank.mockReset(); });
 
 describe('AnswerPositions', () => {
   it('reads the bank only when asked, then shows the balance and what to fix', async () => {
@@ -74,5 +78,21 @@ describe('AnswerPositions', () => {
     expect(fixOptionKeys).toHaveBeenCalledTimes(1);
     resolve({ fixed: [], skipped: [{ id: 'q-m', reason: 'already-an-option' }, { id: 'q-n', reason: 'no-single-match' }] });
     expect(await screen.findByRole('status')).toHaveTextContent('Fixed 1 answer; 1 had changed since the check and was left alone.');
+  });
+
+  it('opens a listed question in the editor, saves it, then checks again', async () => {
+    const q = { id: 'q-m', subject: 'EE', subtopic: '', type: 'conceptual', difficulty: 2, text: 'Which gate inverts its input?', options: ['NOT', 'AND', 'OR', 'XOR'], answer: 'NOT', fixedExplanation: '' };
+    fetchOptionAudit.mockResolvedValue({ ...AUDIT, brokenMath: 1, duplicateOptions: 0, samples: { ...AUDIT.samples, brokenMath: ['q-m'], duplicateOptions: [] } });
+    fetchQuestionById.mockResolvedValue(q);
+    updateQuestionInBank.mockResolvedValue({});
+    render(<AnswerPositions />);
+    fireEvent.click(screen.getByRole('button', { name: 'Check the bank' }));
+    expect(await screen.findByText(/math that may not render/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Open question q-m' })[0]);
+    expect(fetchQuestionById).toHaveBeenCalledWith('q-m');
+    fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateQuestionInBank).toHaveBeenCalledWith('q-m', expect.objectContaining({ id: 'q-m', difficulty: 2, isFlagged: false })));
+    expect(await screen.findByText('Question saved.')).toBeInTheDocument();
+    expect(fetchOptionAudit).toHaveBeenCalledTimes(2);
   });
 });

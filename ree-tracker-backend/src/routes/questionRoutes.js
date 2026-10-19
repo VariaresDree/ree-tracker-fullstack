@@ -104,7 +104,7 @@ async function withoutOpenBattles(userId, questions) {
 // battle creation) — see that module for the randomization rationale.
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const { subject, subtopic, limit = 50, sort = 'random', offset = 0 } = req.query;
+        const { subject, subtopic, limit = 50, sort = 'random', offset = 0, q } = req.query;
 
         // Deterministic ingestion ordering for the admin/library review grid:
         // newest- or oldest-created first, with real offset pagination so
@@ -116,6 +116,12 @@ router.get('/', authMiddleware, async (req, res) => {
             const subjFilter = getSubjectFilter(subject);
             if (subjFilter) whereClause.subject = subjFilter;
             if (subtopic && subtopic !== 'All') whereClause.subtopic = subtopic.trim();
+            // Admin search: a question's id, or words in its text. Admins only,
+            // since the grid is the only caller.
+            const search = typeof q === 'string' ? q.trim().slice(0, 200) : '';
+            if (search && await isAdminUser(req.user.id)) {
+                whereClause.OR = [{ id: search }, { text: { contains: search, mode: 'insensitive' } }];
+            }
 
             const cap = Math.min(parseInt(limit) || 50, 2000);
             const skip = Math.max(0, parseInt(offset) || 0);
@@ -548,6 +554,20 @@ router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
         res.status(200).json({ success: true });
     } catch (err) {
         res.status(500).json({ error: "Deletion failed." });
+    }
+});
+
+// ONE QUESTION by id, admin only: Admin › Answer positions opens a listed
+// question in the editor. Declared last so the named GET routes above match
+// first.
+router.get('/:id', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const question = await prisma.question.findUnique({ where: { id: req.params.id } });
+        if (!question) return res.status(404).json({ error: 'Question not found.' });
+        return res.status(200).json(question);
+    } catch (error) {
+        logger.error('Question read error', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not load the question.' });
     }
 });
 

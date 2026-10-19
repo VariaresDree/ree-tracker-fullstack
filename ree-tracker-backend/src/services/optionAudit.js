@@ -12,13 +12,16 @@
 //   • explanations that name an option by letter ("option B is wrong"),
 //     which stop making sense once the options are shuffled;
 //   • questions whose options name others by letter ("Both A and B"), which
-//     keep their stored order and so aren't shuffled at all.
+//     keep their stored order and so aren't shuffled at all;
+//   • math that won't render: a stray `$` in the text, an option or the
+//     explanation leaves the rest of it as raw LaTeX;
+//   • two identical options, where a learner can't tell which is meant.
 // Existing rows are never reordered here: rewording comes first.
 
 'use strict';
 
 const prisma = require('../config/db');
-const { answerPositions, isLetterReference, matchOption } = require('@ree/shared');
+const { answerPositions, isLetterReference, matchOption, hasUnbalancedMath } = require('@ree/shared');
 const { buildVersionSnapshot } = require('./reviewService');
 const questionBankCache = require('./questionBankCache');
 
@@ -42,6 +45,10 @@ function auditOptions(rows) {
     const fixedOrder = [];
     const letterInExplanation = [];
     let letterInExplanationCount = 0;
+    const brokenMath = [];
+    let brokenMathCount = 0;
+    const duplicateOptions = [];
+    let duplicateOptionsCount = 0;
     for (const q of list) {
         const options = Array.isArray(q.options) ? q.options : [];
         if (!options.includes(q.answer)) {
@@ -50,6 +57,15 @@ function auditOptions(rows) {
             if (to !== null && keyFixes.length < SAMPLE) keyFixes.push({ id: q.id, from: q.answer, to });
         }
         if (options.some(isLetterReference) && fixedOrder.length < SAMPLE) fixedOrder.push(q.id);
+        if ([q.text, q.fixedExplanation, ...options].some(hasUnbalancedMath)) {
+            brokenMathCount += 1;
+            if (brokenMath.length < SAMPLE) brokenMath.push(q.id);
+        }
+        const forms = options.map((o) => (typeof o === 'string' ? o.replace(/\s+/g, ' ').trim() : o));
+        if (new Set(forms).size !== forms.length) {
+            duplicateOptionsCount += 1;
+            if (duplicateOptions.length < SAMPLE) duplicateOptions.push(q.id);
+        }
         if (namesOptionByLetter(q.fixedExplanation)) {
             letterInExplanationCount += 1;
             if (letterInExplanation.length < SAMPLE) letterInExplanation.push(q.id);
@@ -63,7 +79,9 @@ function auditOptions(rows) {
         // Percent of the rows whose key is among their options.
         shares: { A: share(positions.A), B: share(positions.B), C: share(positions.C), D: share(positions.D), other: share(positions.other) },
         letterInExplanation: letterInExplanationCount,
-        samples: { missing, fixedOrder, letterInExplanation },
+        brokenMath: brokenMathCount,
+        duplicateOptions: duplicateOptionsCount,
+        samples: { missing, fixedOrder, letterInExplanation, brokenMath, duplicateOptions },
         // Keys that match an option up to form, with the option they become.
         keyFixes,
     };
@@ -73,7 +91,7 @@ function auditOptions(rows) {
 async function auditLiveBank() {
     const rows = await prisma.question.findMany({
         where: { isFlagged: false },
-        select: { id: true, options: true, answer: true, fixedExplanation: true },
+        select: { id: true, text: true, options: true, answer: true, fixedExplanation: true },
     });
     return { ...auditOptions(rows), checkedAt: new Date().toISOString() };
 }

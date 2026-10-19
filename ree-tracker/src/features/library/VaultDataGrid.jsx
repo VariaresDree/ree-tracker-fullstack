@@ -1,12 +1,12 @@
 // src/features/library/VaultDataGrid.jsx
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import LatexRenderer from '../../components/LatexRenderer';
 import { useStore } from '../../store/useStore';
 import { fetchFlaggedQuestions } from '../../services/dbQueries';
-import { Button, Modal, FormField, Select, Input, Textarea, Badge, StatusPill, EmptyState } from '../../components/ui';
+import { Button, Modal, FormField, Select, Input, Badge, StatusPill, EmptyState } from '../../components/ui';
 import { Calculator, Brain, Pencil, X, Check, Shield, TriangleAlert, Search } from '../../components/ui/icons';
-import { answerSlotOf, distractorSlots, slotsOf, withAnswer, withDistractor } from './editSlots';
+import QuestionEditModal from './QuestionEditModal';
 
 export default function VaultDataGrid({
   filteredQuestions,
@@ -16,6 +16,8 @@ export default function VaultDataGrid({
   isFetchingVault,
   hasMore, isLoadingMore, loadMoreQuestions,
   editingQ, setEditingQ, handleUpdateSubmit,
+  saveState = { saving: false, error: '' }, closeEditor = () => setEditingQ(null),
+  search = '', setSearch = () => {},
   isAdmin,
   sortOrder = 'recent', setSortOrder = () => {}
 }) {
@@ -34,24 +36,15 @@ export default function VaultDataGrid({
   const [isFetchingFlagged, setIsFetchingFlagged] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
+  // The search box searches once typing pauses.
+  const [searchDraft, setSearchDraft] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => { if (searchDraft.trim() !== search) setSearch(searchDraft.trim()); }, 350);
+    return () => clearTimeout(t);
+  }, [searchDraft, search, setSearch]);
+
   // --- VIRTUALIZATION SETUP ---
   const parentRef = useRef(null);
-
-  // Edits stay in place: the key keeps its slot (editSlots.js), chosen once
-  // per question opened. Rebuilding [answer, ...distractors] here put the key
-  // at A for every question an admin touched.
-  const [answerSlot, setAnswerSlot] = useState({ id: null, at: 0 });
-  if (editingQ && answerSlot.id !== editingQ.id) setAnswerSlot({ id: editingQ.id, at: answerSlotOf(editingQ) });
-  const answerAt = editingQ && answerSlot.id === editingQ.id ? answerSlot.at : answerSlotOf(editingQ);
-
-  const editDistractors = useMemo(() => {
-    if (!editingQ) return ['', '', ''];
-    const slots = slotsOf(editingQ, answerAt);
-    return distractorSlots(answerAt).map((i) => slots[i]);
-  }, [editingQ, answerAt]);
-
-  const handleEditAnswerChange = (val) => setEditingQ(withAnswer(editingQ, answerAt, val));
-  const handleEditDistractorChange = (index, val) => setEditingQ(withDistractor(editingQ, answerAt, index, val));
 
   useEffect(() => {
     if (showOnlyFlagged) {
@@ -69,8 +62,9 @@ export default function VaultDataGrid({
     }
   }, [showOnlyFlagged, filterSubject, filterSubtopic]);
 
-  const interceptSubmit = (updatedQ) => {
-    handleUpdateSubmit(updatedQ);
+  const interceptSubmit = async (updatedQ) => {
+    const saved = await handleUpdateSubmit(updatedQ);
+    if (saved === false) return;
     if (showOnlyFlagged) {
         if (!updatedQ.isFlagged) {
             setAdminFlaggedQs(prev => prev.filter(q => q.id !== updatedQ.id));
@@ -101,7 +95,17 @@ export default function VaultDataGrid({
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
 
       {/* Filters & flagged toggle */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-surface border border-border p-4 rounded-[var(--radius-lg)] shadow-sm sm:items-end">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 bg-surface border border-border p-4 rounded-[var(--radius-lg)] shadow-sm sm:items-end">
+        {isAdmin && !showOnlyFlagged && (
+          <FormField label="Search" hint="Words in the question, or its ID" className="flex-[2] min-w-[14rem]">
+            <Input
+              type="search"
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              placeholder="e.g. multiplexer, or 201494a1-…"
+            />
+          </FormField>
+        )}
         <FormField label="Subject" className="flex-1">
           <Select
             value={filterSubject}
@@ -178,7 +182,7 @@ export default function VaultDataGrid({
               compact
               icon={Search}
               title={showOnlyFlagged ? 'No reported questions' : 'No questions found'}
-              description={showOnlyFlagged ? 'Nothing has been reported in this subject.' : 'Try a different subject or topic filter.'}
+              description={showOnlyFlagged ? 'Nothing has been reported in this subject.' : search ? `Nothing matches “${search}” here. Check the ID, or clear the subject and topic filters.` : 'Try a different subject or topic filter.'}
             />
           </div>
         ) : (
@@ -294,116 +298,14 @@ export default function VaultDataGrid({
         <p className="text-sm text-muted2">It will be removed from the question bank for everyone. This can't be undone.</p>
       </Modal>
 
-      {/* Edit modal */}
-      <Modal
-        open={!!editingQ}
-        onClose={() => setEditingQ(null)}
-        size="xl"
-        icon={Pencil}
-        title="Edit question"
-        closeOnBackdrop={false}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setEditingQ(null)}>Cancel</Button>
-            <Button onClick={() => interceptSubmit({ ...editingQ, isFlagged: false })}>Save changes</Button>
-          </>
-        }
-      >
-        {editingQ && (
-          <div className="flex flex-col gap-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="Subject">
-                <Select
-                  value={editingQ.subject || 'EE'}
-                  onChange={e => setEditingQ({ ...editingQ, subject: e.target.value })}
-                >
-                  {dynamicTOS && Object.keys(dynamicTOS).map(subj => (
-                      <option key={subj} value={subj}>{subj}</option>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField label="Topic">
-                <Select
-                  value={editingQ.subtopic || ''}
-                  onChange={e => setEditingQ({ ...editingQ, subtopic: e.target.value })}
-                >
-                  <option value="">Select a topic…</option>
-                  {dynamicTOS && dynamicTOS[editingQ.subject || 'EE']?.map(topic => (
-                      <option key={topic} value={topic}>{topic}</option>
-                  ))}
-                </Select>
-              </FormField>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="Question type">
-                <Select
-                  value={editingQ.type || 'calculation'}
-                  onChange={e => setEditingQ({ ...editingQ, type: e.target.value })}
-                >
-                  <option value="calculation">Calculation (heavy math)</option>
-                  <option value="conceptual">Conceptual (theory)</option>
-                </Select>
-              </FormField>
-              <FormField label="Difficulty">
-                <Select
-                  value={typeof editingQ.difficulty === 'number' ? String(editingQ.difficulty) : (editingQ.difficulty || '2')}
-                  onChange={e => setEditingQ({ ...editingQ, difficulty: e.target.value })}
-                >
-                  <option value="1">1 — Foundation (easy)</option>
-                  <option value="2">2 — Core (medium)</option>
-                  <option value="3">3 — Advanced (hard)</option>
-                </Select>
-              </FormField>
-            </div>
-
-            <FormField label="Question text">
-              <Textarea
-                value={editingQ.text}
-                onChange={e => setEditingQ({ ...editingQ, text: e.target.value })}
-                className="min-h-[100px] leading-relaxed custom-scrollbar"
-                placeholder="Write the full question…"
-              />
-            </FormField>
-
-            <FormField label="Correct answer">
-              <Input
-                value={editingQ.answer || ''}
-                onChange={e => handleEditAnswerChange(e.target.value)}
-                placeholder="The exact correct value or statement"
-                style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}
-              />
-            </FormField>
-
-            <FormField label="Wrong options (distractors)">
-              {({ id }) => (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {editDistractors.map((distVal, idx) => (
-                    <Input
-                      key={idx}
-                      id={idx === 0 ? id : undefined}
-                      value={distVal}
-                      onChange={e => handleEditDistractorChange(idx, e.target.value)}
-                      placeholder={`Wrong option ${idx + 1}`}
-                      aria-label={`Wrong option ${idx + 1}`}
-                      style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 20%, transparent)' }}
-                    />
-                  ))}
-                </div>
-              )}
-            </FormField>
-
-            <FormField label="Solution / explanation" hint="Shown as the offline solution after answering.">
-              <Textarea
-                value={editingQ.fixedExplanation || ''}
-                onChange={e => setEditingQ({ ...editingQ, fixedExplanation: e.target.value })}
-                className="min-h-[100px] leading-relaxed custom-scrollbar"
-                placeholder="Step-by-step derivation…"
-              />
-            </FormField>
-          </div>
-        )}
-      </Modal>
+      <QuestionEditModal
+        question={editingQ}
+        onChange={setEditingQ}
+        onClose={closeEditor}
+        onSave={interceptSubmit}
+        saving={saveState.saving}
+        error={saveState.error}
+      />
     </div>
   );
 }
