@@ -107,6 +107,17 @@ describe('createLiveQuestion — hard taxonomy gate', () => {
   });
 });
 
+// A key that is none of its options can never be graded right; refused before
+// any database access, like the taxonomy gate.
+describe('createLiveQuestion — the key must be one of the options', () => {
+  it('rejects a key that matches no option', () =>
+    expect(createLiveQuestion({ subject: 'EE', text: 'q', options: ['1', '2'], answer: '3' }))
+      .rejects.toMatchObject({ code: 'ANSWER_NOT_AN_OPTION' }));
+  it('rejects a key that matches two identical options', () =>
+    expect(createLiveQuestion({ subject: 'EE', text: 'q', options: ['$x$', 'y', '$x$'], answer: 'x' }))
+      .rejects.toMatchObject({ code: 'ANSWER_NOT_AN_OPTION' }));
+});
+
 // "Accept All" clean-item gate: bulk approval carries NO inline edits, so the
 // row itself must satisfy the invariants the inline editor enforces one-by-one.
 // Anything failing stays in the queue for individual review. (The approveBulk

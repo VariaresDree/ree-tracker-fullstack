@@ -5,14 +5,17 @@
 // question's choices in an order drawn for each sitting, and new questions are
 // stored shuffled, so a bank that still leans toward A no longer shows; this
 // checks the balance and lists the rows to fix:
-//   • answers that aren't one of their options (can't be graded);
+//   • answers that aren't one of their options (can't be graded); one that
+//     matches an option up to form (a missing `$`, a dropped full stop) is
+//     fixed here in one press (POST /api/questions/option-audit/fix-keys);
 //   • explanations that name an option by letter, which stop matching once
 //     the choices are shuffled;
 //   • questions kept in their stored order because an option names others by
 //     letter ("Both A and B").
 // Checked on demand: it reads the whole bank.
 import { useState } from 'react';
-import { fetchOptionAudit } from '../../services/dbQueries';
+import { fetchOptionAudit, fixOptionKeys } from '../../services/dbQueries';
+import LatexRenderer from '../../components/LatexRenderer';
 import { Button, ProgressIndicator } from '../../components/ui';
 import { ListChecks } from '../../components/ui/icons';
 
@@ -39,8 +42,44 @@ function Finding({ count, children, ids }) {
   );
 }
 
+function KeyFixes({ fixes, onFixed }) {
+  const [status, setStatus] = useState('idle');
+  if (!fixes?.length) return null;
+
+  const fix = async () => {
+    setStatus('saving');
+    try {
+      onFixed(await fixOptionKeys(fixes.map((f) => f.id)));
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <li className="flex flex-col gap-2 pl-3 border-l-2 border-border">
+      <p className="text-xs text-muted2">
+        {fixes.length === 1 ? 'This one matches an option' : `These ${fixes.length} match an option`} except for form (a missing $, a full stop), so {fixes.length === 1 ? 'it' : 'they'} can take the option’s exact text:
+      </p>
+      <ul className="flex flex-col gap-1 text-xs">
+        {fixes.map((f) => (
+          <li key={f.id} className="text-textMain break-words">
+            <span className="font-mono text-muted2">{f.from}</span> → <LatexRenderer content={f.to} />
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" onClick={fix} loading={status === 'saving'} disabled={status === 'saving'}>
+          {fixes.length === 1 ? 'Use the option’s text' : `Use the options’ text (${fixes.length})`}
+        </Button>
+        {status === 'error' && <p className="text-xs" role="alert" style={{ color: 'var(--accent-danger)' }}>Couldn’t save. Try again.</p>}
+      </div>
+    </li>
+  );
+}
+
 export default function AnswerPositions() {
   const [state, setState] = useState({ status: 'idle', audit: null });
+  const [fixNote, setFixNote] = useState('');
 
   const check = async () => {
     setState((s) => ({ ...s, status: 'loading' }));
@@ -93,6 +132,15 @@ export default function AnswerPositions() {
             <Finding count={p.missing} ids={audit.samples.missing}>
               {p.missing === 1 ? 'answer isn’t' : 'answers aren’t'} one of the options, so {p.missing === 1 ? 'it' : 'they'} can’t be graded. Edit the answer to the exact option text.
             </Finding>
+            {fixNote && <li className="text-xs text-muted2" role="status">{fixNote}</li>}
+            <KeyFixes
+              key={audit.checkedAt}
+              fixes={audit.keyFixes}
+              onFixed={({ fixed, skipped }) => {
+                setFixNote(`Fixed ${fixed.length} ${fixed.length === 1 ? 'answer' : 'answers'}${skipped.length ? `; ${skipped.length} had changed since the check and were left alone` : ''}.`);
+                check();
+              }}
+            />
             <Finding count={audit.letterInExplanation} ids={audit.samples.letterInExplanation}>
               {audit.letterInExplanation === 1 ? 'explanation names' : 'explanations name'} an option by letter (“option B”). Reword to name the option by its content.
             </Finding>

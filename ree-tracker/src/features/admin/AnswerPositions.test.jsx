@@ -4,7 +4,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const fetchOptionAudit = vi.fn();
-vi.mock('../../services/dbQueries', () => ({ fetchOptionAudit: (...a) => fetchOptionAudit(...a) }));
+const fixOptionKeys = vi.fn();
+vi.mock('../../services/dbQueries', () => ({
+  fetchOptionAudit: (...a) => fetchOptionAudit(...a),
+  fixOptionKeys: (...a) => fixOptionKeys(...a),
+}));
+vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
 const { default: AnswerPositions } = await import('./AnswerPositions');
 
 const AUDIT = {
@@ -17,7 +22,7 @@ const AUDIT = {
 };
 
 // A block body: a function returned from beforeEach runs as its teardown.
-beforeEach(() => { fetchOptionAudit.mockReset(); });
+beforeEach(() => { fetchOptionAudit.mockReset(); fixOptionKeys.mockReset(); });
 
 describe('AnswerPositions', () => {
   it('reads the bank only when asked, then shows the balance and what to fix', async () => {
@@ -39,5 +44,20 @@ describe('AnswerPositions', () => {
     render(<AnswerPositions />);
     fireEvent.click(screen.getByRole('button', { name: 'Check the bank' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t check the bank');
+  });
+
+  it('fixes keys that match an option up to form, then checks again', async () => {
+    const withFix = { ...AUDIT, keyFixes: [{ id: 'q-m', from: '1 - k^3', to: '$1 - k^3$' }] };
+    fetchOptionAudit.mockResolvedValueOnce(withFix).mockResolvedValueOnce({ ...AUDIT, positions: { ...AUDIT.positions, missing: 0 }, samples: { ...AUDIT.samples, missing: [] }, keyFixes: [], checkedAt: '2026-10-14T00:01:00Z' });
+    fixOptionKeys.mockResolvedValue({ fixed: ['q-m'], skipped: [] });
+    render(<AnswerPositions />);
+    fireEvent.click(screen.getByRole('button', { name: 'Check the bank' }));
+    expect(await screen.findByText('$1 - k^3$')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Use the option’s text' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Fixed 1 answer.');
+    expect(fixOptionKeys).toHaveBeenCalledWith(['q-m']);
+    expect(fetchOptionAudit).toHaveBeenCalledTimes(2);
+    expect(await screen.findByText(/answers aren’t one of the options/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Use the option/ })).not.toBeInTheDocument();
   });
 });

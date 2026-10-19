@@ -136,7 +136,7 @@ router.put('/:id/approve', validate(reviewApproveSchema), async (req, res) => {
         }
         return res.status(200).json({ success: true, questionId });
     } catch (error) {
-        if (error.code === 'INVALID_TAXONOMY' || error.code === 'UNKNOWN_TOPIC') return res.status(400).json({ error: error.message });
+        if (['INVALID_TAXONOMY', 'UNKNOWN_TOPIC', 'ANSWER_NOT_AN_OPTION'].includes(error.code)) return res.status(400).json({ error: error.message });
         logger.error('review approve failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to approve review item.' });
     }
