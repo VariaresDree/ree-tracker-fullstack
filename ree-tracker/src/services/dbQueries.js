@@ -290,9 +290,11 @@ export const fetchServerStats = async () => safeApiRequest('/api/questions/stats
 // `cursor` is an integer offset (or null for the first page). `sort` is one of
 // 'recent' | 'oldest' | 'random'; the admin vault list defaults to 'recent' so
 // newly ingested questions surface first, with `nextOffset` driving Load More.
-export const fetchPaginatedQuestions = async (cursor = null, filterSubject = 'All', filterSubtopic = 'All', limitCount = 50, sort = 'recent') => {
+// `search` (admins): a question's id or words in its text.
+export const fetchPaginatedQuestions = async (cursor = null, filterSubject = 'All', filterSubtopic = 'All', limitCount = 50, sort = 'recent', search = '') => {
     const offset = typeof cursor === 'number' ? cursor : 0;
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic, limit: limitCount, sort, offset });
+    if (search && search.trim()) queryParams.set('q', search.trim());
     const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
     return { items: normalizeQuestions(data), nextOffset: data?.nextOffset ?? null };
 };
@@ -392,6 +394,8 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
 export const fetchOptionAudit = async () => apiRequest('/api/questions/option-audit');
 // Admin: set each listed key to the option it matches up to form (the audit's
 // keyFixes). Returns { fixed, skipped }.
+// Admin: one live question by id (Answer positions opens it in the editor).
+export const fetchQuestionById = async (id) => normalizeQuestions([await apiRequest(`/api/questions/${encodeURIComponent(id)}`)])[0];
 export const fixOptionKeys = async (ids) => apiRequest('/api/questions/option-audit/fix-keys', 'POST', { ids });
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic });

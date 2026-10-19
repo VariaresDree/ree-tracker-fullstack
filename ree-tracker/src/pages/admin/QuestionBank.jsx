@@ -27,14 +27,15 @@ export default function QuestionBank() {
   // Global filters mapped at the page level so all sub-hooks can react
   const [filterSubject, setFilterSubject] = useState('All');
   const [filterSubtopic, setFilterSubtopic] = useState('All');
+  const [search, setSearch] = useState('');
 
   // 1. Vault Data Sub-Engine
   const {
     questions, serverStats, vaultMetadata, resyncVaultMetadata,
     isFetchingVault, hasMore, isLoadingMore, loadMoreQuestions,
-    editingQ, setEditingQ, handleDelete, handleUpdateSubmit, initializeVault,
+    editingQ, setEditingQ, handleDelete, handleUpdateSubmit, saveState, closeEditor, initializeVault,
     sortOrder, setSortOrder
-  } = useVaultGrid(filterSubject, filterSubtopic);
+  } = useVaultGrid(filterSubject, filterSubtopic, search);
 
   // 2. AI Generator Sub-Engine (Passes initializeVault to auto-refresh the grid on QA success)
   const {
@@ -103,6 +104,10 @@ export default function QuestionBank() {
           editingQ={editingQ}
           setEditingQ={setEditingQ}
           handleUpdateSubmit={handleUpdateSubmit}
+          saveState={saveState}
+          closeEditor={closeEditor}
+          search={search}
+          setSearch={setSearch}
           isAdmin={isAdmin}
           sortOrder={sortOrder}
           setSortOrder={setSortOrder}

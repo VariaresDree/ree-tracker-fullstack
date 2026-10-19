@@ -6,6 +6,8 @@
 // explanation); whether the physics is right is the answer check's job, and
 // the reviewer's.
 
+import { hasUnbalancedMath as unbalancedDollars } from '@ree/shared';
+
 const BANNED_OPTION = /\b(all|none) of the above\b|\bboth [a-d] and [a-d]\b/i;
 
 /**
@@ -34,13 +36,6 @@ export function questionIssues(q, { expectedType } = {}) {
   return issues;
 }
 
-// An odd count of unescaped single `$` (after removing `$$` pairs) leaves math
-// open, and the rest of the text renders as LaTeX.
-function unbalancedDollars(s) {
-  if (typeof s !== 'string') return false;
-  const singles = s.replace(/\\\$/g, '').replace(/\$\$/g, '').match(/\$/g);
-  return !!singles && singles.length % 2 === 1;
-}
 
 /** Cleans what models commonly get wrong in form, without changing content. */
 export function normalizeGenerated(q) {

@@ -242,3 +242,42 @@ describe('PUT /api/questions/:id — the key stays one of the options', () => {
     });
 });
 
+describe('GET /api/questions/:id — one question, for admins', () => {
+    beforeEach(() => {
+        vi.spyOn(prisma.question, 'findUnique').mockImplementation(async ({ where }) => (where.id === 'q1' ? { id: 'q1', text: 'T' } : null));
+    });
+
+    it('403s a non-admin', async () => {
+        const res = await request(app).get('/api/questions/q1').set(as(USER_UID));
+        expect(res.status).toBe(403);
+        expect(prisma.question.findUnique).not.toHaveBeenCalledWith({ where: { id: 'q1' } });
+    });
+
+    it('returns the question, or 404', async () => {
+        const ok = await request(app).get('/api/questions/q1').set(as(ADMIN_UID));
+        expect(ok.status).toBe(200);
+        expect(ok.body).toEqual({ id: 'q1', text: 'T' });
+        const missing = await request(app).get('/api/questions/nope').set(as(ADMIN_UID));
+        expect(missing.status).toBe(404);
+    });
+});
+
+describe('GET /api/questions?q= — admin search by id or text', () => {
+    beforeEach(() => {
+        vi.spyOn(prisma.question, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
+    });
+    const where = () => prisma.question.findMany.mock.calls[0][0].where;
+
+    it('searches the id and the text for an admin', async () => {
+        const res = await request(app).get('/api/questions?sort=recent&q=%20multiplexer%20').set(as(ADMIN_UID));
+        expect(res.status).toBe(200);
+        expect(where().OR).toEqual([{ id: 'multiplexer' }, { text: { contains: 'multiplexer', mode: 'insensitive' } }]);
+    });
+
+    it('ignores the search for a learner', async () => {
+        await request(app).get('/api/questions?sort=recent&q=multiplexer').set(as(USER_UID));
+        expect(where().OR).toBeUndefined();
+    });
+});
+
