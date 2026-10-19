@@ -390,6 +390,9 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
 // Admin: where the key sits across the live bank, and the rows to fix
 // (GET /api/questions/option-audit; features/admin/AnswerPositions.jsx).
 export const fetchOptionAudit = async () => apiRequest('/api/questions/option-audit');
+// Admin: set each listed key to the option it matches up to form (the audit's
+// keyFixes). Returns { fixed, skipped }.
+export const fixOptionKeys = async (ids) => apiRequest('/api/questions/option-audit/fix-keys', 'POST', { ids });
 export const fetchFlaggedQuestions = async (filterSubject = 'All', filterSubtopic = 'All') => {
     const queryParams = new URLSearchParams({ subject: filterSubject, subtopic: filterSubtopic });
     const data = await apiRequest(`/api/questions/flagged?${queryParams.toString()}`);

@@ -3,9 +3,13 @@ import ReactDOM from 'react-dom/client';
 import toast from 'react-hot-toast';
 import App from './App';
 import './styles/index.css';
+import { wakeBackend } from './services/wakeBackend';
 
 // PWA Service Worker Registration
 import { registerSW } from 'virtual:pwa-register';
+
+// Start the backend's boot now, while sign-in loads (services/wakeBackend).
+wakeBackend();
 
 // Initializes background caching and auto-updates when a new deployment is detected
 const updateSW = registerSW({

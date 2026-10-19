@@ -10,6 +10,12 @@ section 1).
 
 ## 1. What just shipped
 
+**The trust-the-bank release (after #156).** Verified first (2026-10-19): CI green, Vercel on ceb38ef with no runtime errors, `/healthz` all ok (Groq, OpenRouter, Gemini), migrations through `20261018000000` applied, CRON_SECRET working. Then:
+- **The key is always one of the options:** `matchOption` (`@ree/shared`) gives a key its option's exact text when it differs only in form (`$`, spacing, a label, a closing full stop), and every live write refuses a key that matches no option.
+- **Answer positions fixes keys in one press** (`POST /api/questions/option-audit/fix-keys`). The live bank had 4 ungradeable rows; 3 are fixable this way, the 4th has two identical options and needs a hand edit.
+- **The app wakes the backend when it opens** (`services/wakeBackend.js`), because GitHub ran the 10-minute keepalive only every 2 to 6 hours.
+- **RLS on every table** (`20261019000000_rls_on_every_table`), with a DB test that fails on a new table without it.
+
 **The shuffled-choices release (after #155).** Pressing A every time scored close to half a session: the key was stored first far more often than not. One commit per part, then the review's fixes:
 - **One seeded order** (`@ree/shared` `optionOrder`): an unbiased shuffle keyed on the sitting and the question. "All of the above" stays last; a question whose choices name others by letter ("Both A and B") keeps its order.
 - **Every answering screen** shows it, stable within a sitting (reloads, Next/Back, battle rejoins) and new each sitting: Practice and everything it runs, the Board Simulator, battles (questions too, per player), the Gauntlet, the placement test, Bookmarks and the printed paper. Grading compares text, so nothing else changed.
@@ -90,9 +96,11 @@ section 1).
 
 ## 2. Owner actions (needed now)
 
+- [ ] **Move the keepalive off GitHub's scheduler.** It ran every 2 to 6 hours, not every 10 minutes. Options: Supabase `pg_cron` + `pg_net` calling `/healthz` (free, no account needed), or cron-job.org.
+- [ ] **After the deploy, open Admin › Question bank › Answer positions** and press **Use the option's text** for the 3 fixable keys; give question `201494a1…` (two identical options, "F = A'B'C + A'BC' + AB") a real fourth option and key by hand.
 - [x] **`GROQ_API_KEY` and `OPENROUTER_API_KEY` set on Render** (2026-10-13). Optional backup: `CEREBRAS_API_KEY`. Open Admin › AI models and press **Test all models**; a model shown as "Not offered" is skipped automatically, and can be replaced with `AI_CHAIN_<TASK>` on Render or in `src/config/aiModels.js`.
 - [ ] **Check Render's build command** (backend service → Settings → Build Command) reads `npm install && npx prisma generate && npm run migrate:deploy`, as in `render.yaml`. A Blueprint-synced service picks it up by itself; otherwise paste it in. The old command still works, it just doesn't retry when the database's connection pooler is momentarily full.
-- [ ] **Set `CRON_SECRET`.** Generate one long random string and set it in two places:
+- [x] **Set `CRON_SECRET`** (done 2026-10-13; the reminders run answers 200). Generate one long random string and set it in two places:
   - Render → the backend service → Environment;
   - GitHub → Settings → Secrets and variables → Actions.
 
@@ -104,7 +112,7 @@ section 1).
   4. Verify with `POST /api/admin/push-test`.
 
   Scheduled reminders and streak pushes reach phones only after this. Until then the on-device reminder stands in.
-- [ ] **Check the deploy ran the migrations.** The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261018000000` (the last two are the battle rematch link and the weekly focus goal).
+- [x] **Check the deploy ran the migrations** (checked in the database 2026-10-19: through `20261018000000`). The Render build runs `prisma migrate deploy`; its log should list the migrations `20261011000000` to `20261018000000` (the last two are the battle rematch link and the weekly focus goal).
 - [ ] **Run the manual checks** listed in #144: the battle scenario on two devices, a card review cycle, a focus block, a mistake tag, a note, and a reminder (after the two items above).
 - [ ] **Open Admin › Question bank › Answer positions** after the deploy. Reword the explanations it lists as naming an option by letter ("option B is wrong"): the choices are shuffled now, so those letters no longer match. Fix any answer it lists as not one of its options (those can't be graded). Existing rows keep their stored order by design; learners never see it any more.
 - [ ] **Close the Phase 3 gate:** run one AI-generated batch through the review loop (edit and reject at least one item, approve the rest). See `ROADMAP.md`.

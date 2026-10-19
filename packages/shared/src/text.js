@@ -70,18 +70,53 @@ function sanitizeOptions(options) {
     return Array.isArray(options) ? options.map(stripChoicePrefix) : options;
 }
 
+// ── Matching a key to its option ────────────────────────────────────────────
+
+// Grading compares the key with the chosen option's text exactly, so a key
+// that differs from its option only in form can never be marked right. The
+// live bank had four: the option was "$1 - k^3$" and the key "1 - k^3"
+// (models drop the math delimiters), or the key lost the option's closing
+// "$" or full stop. These are the differences that never change meaning:
+// a choice label, `$` delimiters, spacing, a closing full stop. Letter case
+// is not one of them: "10 MA" and "10 mA" are different currents.
+const keyForm = (s) => stripChoicePrefix(s)
+    .replace(/\$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\.$/, '')
+    .trim();
+
+/**
+ * The option `answer` names: the option itself when it matches exactly, else
+ * the one option equal to it up to form (keyForm). Null when none matches, or
+ * when two options do (the question has duplicate choices, and picking one
+ * would be a guess).
+ */
+function matchOption(answer, options) {
+    if (typeof answer !== 'string' || !Array.isArray(options)) return null;
+    if (options.includes(answer)) return answer;
+    const want = keyForm(answer);
+    if (!want) return null;
+    const hits = options.filter((o) => typeof o === 'string' && keyForm(o) === want);
+    return hits.length === 1 ? hits[0] : null;
+}
+
 /**
  * Clean a generated question: strip prefixes from every option AND from the
- * answer, preserving the "answer exactly equals one option" invariant.
+ * answer, preserving the "answer exactly equals one option" invariant (a key
+ * that matches an option only up to form takes that option's text).
  */
 function sanitizeGeneratedQuestion(q) {
     // The guard the backend copy was missing. It runs inside a Zod .transform(),
     // outside any route try/catch, so throwing here becomes a 500, not a 400.
     if (!q || typeof q !== 'object') return q;
+    const options = q.options !== undefined ? sanitizeOptions(q.options) : undefined;
+    let answer = q.answer !== undefined ? stripChoicePrefix(q.answer) : undefined;
+    if (typeof answer === 'string' && Array.isArray(options)) answer = matchOption(answer, options) ?? answer;
     return {
         ...q,
-        ...(q.options !== undefined ? { options: sanitizeOptions(q.options) } : {}),
-        ...(q.answer !== undefined ? { answer: stripChoicePrefix(q.answer) } : {}),
+        ...(options !== undefined ? { options } : {}),
+        ...(answer !== undefined ? { answer } : {}),
     };
 }
 
@@ -95,6 +130,7 @@ module.exports = {
     CHOICE_PREFIX,
     stripChoicePrefix,
     sanitizeOptions,
+    matchOption,
     sanitizeGeneratedQuestion,
     sanitizeGeneratedBatch,
     // Backend's historical name for sanitizeGeneratedQuestion.

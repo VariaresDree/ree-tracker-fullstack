@@ -11,6 +11,7 @@ const {
     stripChoicePrefix,
     sanitizeOptions,
     sanitizeQuestionShape,
+    matchOption,
 } = require('@ree/shared');
 
-module.exports = { CHOICE_PREFIX, stripChoicePrefix, sanitizeOptions, sanitizeQuestionShape };
+module.exports = { CHOICE_PREFIX, stripChoicePrefix, sanitizeOptions, sanitizeQuestionShape, matchOption };

@@ -16,6 +16,7 @@ const { resolveTopic } = require('../services/topicResolver');
 const { buildVersionSnapshot, createLiveQuestion, storageOrder, withStorageOrder } = require('../services/reviewService');
 const questionBankCache = require('../services/questionBankCache');
 const optionAudit = require('../services/optionAudit');
+const { matchOption } = require('../utils/sanitizeOptions');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
 // flag, explanation change — can move the vault counts or the pack-manifest
@@ -219,6 +220,17 @@ router.get('/option-audit', authMiddleware, requireAdmin, async (req, res) => {
     }
 });
 
+// Set the listed keys to the option each matches up to form (no `$`, a
+// dropped full stop), as the audit's keyFixes propose. Admin only, versioned.
+router.post('/option-audit/fix-keys', authMiddleware, requireAdmin, validate(bulkIdsSchema), async (req, res) => {
+    try {
+        return res.status(200).json(await optionAudit.fixKeys(req.body.ids, req.user?.id));
+    } catch (error) {
+        logger.error('Key fix error', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not fix the answers.' });
+    }
+});
+
 // 2. ADD A NEW QUESTION
 router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res) => {
     try {
@@ -273,7 +285,7 @@ router.post('/', authMiddleware, validate(questionCreateSchema), async (req, res
 
         return res.status(201).json({ success: true, id: newQuestion.id });
     } catch (error) {
-        if (error.code === 'INVALID_TAXONOMY' || error.code === 'UNKNOWN_TOPIC') return res.status(400).json({ error: error.message });
+        if (['INVALID_TAXONOMY', 'UNKNOWN_TOPIC', 'ANSWER_NOT_AN_OPTION'].includes(error.code)) return res.status(400).json({ error: error.message });
         logger.error('Question create error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Failed to insert question.' });
     }
@@ -293,6 +305,16 @@ router.put('/:id', authMiddleware, requireAdmin, validate(questionUpdateSchema),
         // "correct answer" fix is always traceable (who, when, from what).
         const previous = await prisma.question.findUnique({ where: { id: req.params.id } });
         if (!previous) return res.status(404).json({ error: 'Question not found.' });
+
+        // An edit to the key or the choices must leave the key one of the
+        // choices (taking the option's own text when it matches only up to
+        // form), or the question can never be graded right.
+        let answer = data.answer;
+        if (data.answer !== undefined || data.options !== undefined) {
+            const matched = matchOption(data.answer ?? previous.answer, data.options ?? previous.options);
+            if (!matched) return res.status(400).json({ error: 'The answer must be one of the options.' });
+            answer = matched;
+        }
 
         // Choice-label sanitisation ("A."/"b)" prefixes) is applied by the Zod
         // transform in questionUpdateSchema via the validate() middleware above.
@@ -317,7 +339,7 @@ router.put('/:id', authMiddleware, requireAdmin, validate(questionUpdateSchema),
                     topicId: topic !== undefined ? (topic?.id ?? null) : undefined,
                     text: data.text,
                     options: data.options,
-                    answer: data.answer,
+                    answer,
                     difficulty: data.difficulty,
                     fixedExplanation: data.fixedExplanation,
                     isFlagged: data.isFlagged

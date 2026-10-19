@@ -206,3 +206,39 @@ describe('PATCH /api/questions/:id/flag — one account cannot quarantine the ba
         expect(res.status).toBe(404);
     });
 });
+
+describe('PUT /api/questions/:id — the key stays one of the options', () => {
+    const PREVIOUS = { id: 'q1', subject: 'EE', options: ['$1 - k^3$', '$k^3$'], answer: '$1 - k^3$' };
+    beforeEach(() => {
+        vi.spyOn(prisma.question, 'findUnique').mockResolvedValue(PREVIOUS);
+        vi.spyOn(prisma.question, 'update').mockImplementation(async (args) => args);
+        vi.spyOn(prisma.questionVersion, 'create').mockImplementation(async (args) => args);
+        vi.spyOn(prisma, '$transaction').mockImplementation(async (ops) => Promise.all(ops));
+    });
+    const put = (body) => request(app).put('/api/questions/q1').set(as(ADMIN_UID)).send(body);
+
+    it('refuses a key that is none of the options', async () => {
+        const res = await put({ answer: 'k^4' });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('The answer must be one of the options.');
+        expect(prisma.question.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses new options that leave the stored key out', async () => {
+        const res = await put({ options: ['$2k$', '$k^3$'] });
+        expect(res.status).toBe(400);
+    });
+
+    it('stores the option’s own text for a key without its $', async () => {
+        const res = await put({ answer: 'k^3' });
+        expect(res.status).toBe(200);
+        expect(prisma.question.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ answer: '$k^3$' }) }));
+    });
+
+    it('leaves the key alone when neither it nor the options change', async () => {
+        const res = await put({ text: 'A clearer question' });
+        expect(res.status).toBe(200);
+        expect(prisma.question.update.mock.calls[0][0].data.answer).toBeUndefined();
+    });
+});
+

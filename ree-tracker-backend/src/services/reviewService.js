@@ -8,7 +8,7 @@ const logger = require('../utils/logger');
 const { randomUUID } = require('crypto');
 const { resolveQuestionTopic } = require('./topicResolver');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
-const { sanitizeOptions, stripChoicePrefix } = require('../utils/sanitizeOptions');
+const { sanitizeOptions, stripChoicePrefix, matchOption } = require('../utils/sanitizeOptions');
 const { orderOptions } = require('@ree/shared');
 
 /**
@@ -73,14 +73,17 @@ function toLiveQuestionData(reviewRow, edits = {}) {
  * APPROVED version's snapshot matches the live row.
  */
 function buildQuestionCreateData(data, topic, id) {
+    const options = Array.isArray(data.options) ? data.options : [];
     return {
         ...(id ? { id } : {}),
         subject: data.subject || 'Unknown',
         subtopic: topic?.name || data.subtopic || 'General',
         topicId: topic?.id ?? null,
         text: data.text || '',
-        options: Array.isArray(data.options) ? data.options : [],
-        answer: data.answer || '',
+        options,
+        // The option's own text when the key matches it only up to form
+        // (@ree/shared matchOption), since grading compares text exactly.
+        answer: matchOption(data.answer, options) ?? (data.answer || ''),
         difficulty: parseFloat(data.difficulty) || 2.0,
         fixedExplanation: data.fixedExplanation || null,
         source: data.source || 'manual',
@@ -119,6 +122,13 @@ async function createLiveQuestion(data) {
             { code: 'INVALID_TAXONOMY' },
         );
     }
+    // A key that is none of its options can never be graded right.
+    if (!matchOption(data.answer, Array.isArray(data.options) ? data.options : [])) {
+        throw Object.assign(
+            new Error('The answer must be one of the options.'),
+            { code: 'ANSWER_NOT_AN_OPTION' },
+        );
+    }
     const topic = await resolveQuestionTopic(data.subject, data.subtopic);
     const created = await prisma.question.create({ data: buildQuestionCreateData(data, topic) });
     questionBankCache.invalidateAll();
@@ -144,7 +154,7 @@ function isBulkEligible(row) {
     if (!Array.isArray(options) || options.length < 2) return false;
     const answer = stripChoicePrefix(row.answer);
     if (typeof answer !== 'string' || answer.trim().length === 0) return false;
-    return options.includes(answer);
+    return matchOption(answer, options) !== null;
 }
 
 /**
@@ -170,7 +180,7 @@ async function approveOneRow(row, editorId) {
             const question = await createLiveQuestion(finalData);
             questionId = question.id;
         } catch (err) {
-            const reason = err.code === 'INVALID_TAXONOMY' ? 'invalid'
+            const reason = err.code === 'INVALID_TAXONOMY' || err.code === 'ANSWER_NOT_AN_OPTION' ? 'invalid'
                 : err.code === 'UNKNOWN_TOPIC' ? 'unknown-topic'
                 : 'create-failed';
             return { id, ok: false, reason };
