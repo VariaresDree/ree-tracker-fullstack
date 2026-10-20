@@ -207,26 +207,25 @@ export function logoLayers(detail = 'full') {
 /**
  * The mark as a standalone SVG string (icons, favicons, the fidelity check).
  * @param {{ ink?: string, detail?: 'full'|'small', keyline?: string|null, background?: string|null,
- *   radius?: number, viewBox?: string, size?: number, padding?: number }} [opts]
- *   background + radius: a rounded tile behind the mark (radius as a share of the side);
- *   padding: extra space around the mark, as a share of the side.
+ *   radius?: number, circle?: boolean, viewBox?: string, size?: number, padding?: number,
+ *   mono?: string|null }} [opts]
+ *   background + radius: a rounded tile behind the mark (radius as a share of the side), or
+ *   a disc with `circle`; padding: extra space around the mark, as a share of the side;
+ *   mono: the whole mark in one colour, as a silhouette (notification icons).
  */
 export function logoSvg({
   ink = LOGO_COLORS.ink, detail = 'full', keyline = null, background = null,
-  radius = 0, viewBox = LOGO_VIEWBOX, size = null, padding = 0,
+  radius = 0, circle = false, viewBox = LOGO_VIEWBOX, size = null, padding = 0, mono = null,
 } = {}) {
+  if (mono) return monoSvg({ color: mono, viewBox, size, padding });
   const c = LOGO_COLORS;
   const p = LOGO_PATHS;
   const layers = logoLayers(detail);
-  let [vx, vy, vw, vh] = viewBox.split(/\s+/).map(Number);
-  if (padding) {
-    const extra = (vw * padding) / (1 - 2 * padding);
-    vx -= extra; vy -= extra; vw += 2 * extra; vh += 2 * extra;
-  }
+  const [vx, vy, vw, vh] = paddedBox(viewBox, padding);
   const dim = size ? ` width="${size}" height="${size}"` : '';
-  const tile = background
-    ? `<rect x="${f(vx)}" y="${f(vy)}" width="${f(vw)}" height="${f(vh)}" rx="${f(vw * radius)}" fill="${background}"/>`
-    : '';
+  const tile = !background ? ''
+    : circle ? `<circle cx="${f(vx + vw / 2)}" cy="${f(vy + vh / 2)}" r="${f(vw / 2)}" fill="${background}"/>`
+      : `<rect x="${f(vx)}" y="${f(vy)}" width="${f(vw)}" height="${f(vh)}" rx="${f(vw * radius)}" fill="${background}"/>`;
   const stroke = keyline ? ` stroke="${keyline}" stroke-width="8" stroke-linejoin="round" paint-order="stroke"` : '';
   const boltFill = layers.flame ? 'url(#ree-bolt)' : c.bolt;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(vx)} ${f(vy)} ${f(vw)} ${f(vh)}"${dim}>`
@@ -243,4 +242,33 @@ export function logoSvg({
     + (layers.boltCore ? `<path fill="${c.boltCore}" d="${p.boltCore}"/>` : '')
     + `<path fill="${c.redShadow}" d="${p.boltShadow}"/>`
     + '</svg>';
+}
+
+/** The tight square around the mark itself (no breathing room), for icons. */
+export const LOGO_TIGHT_VIEWBOX = '227 190.5 626 626';
+
+function paddedBox(viewBox, padding) {
+  let [vx, vy, vw, vh] = viewBox.split(/\s+/).map(Number);
+  if (padding) {
+    const extra = (vw * padding) / (1 - 2 * padding);
+    vx -= extra; vy -= extra; vw += 2 * extra; vh += 2 * extra;
+  }
+  return [vx, vy, vw, vh];
+}
+
+// The mark as a one-colour silhouette (notification icons, Android's themed
+// icon). In one colour the bolt would melt into the top piece it crosses, so
+// it is cut out of the letterforms with a gap, as the red edge does in colour;
+// the gear's hub is a hole.
+function monoSvg({ color, viewBox, size, padding }) {
+  const p = LOGO_PATHS;
+  const [vx, vy, vw, vh] = paddedBox(viewBox, padding);
+  const dim = size ? ` width="${size}" height="${size}"` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${f(vx)} ${f(vy)} ${f(vw)} ${f(vh)}"${dim}>`
+    + `<defs><mask id="ree-mono" maskUnits="userSpaceOnUse" x="${f(vx)}" y="${f(vy)}" width="${f(vw)}" height="${f(vh)}">`
+    + `<rect x="${f(vx)}" y="${f(vy)}" width="${f(vw)}" height="${f(vh)}" fill="#fff"/>`
+    + `<path d="${p.bolt}" fill="#000" stroke="#000" stroke-width="26" stroke-linejoin="round"/>`
+    + `<circle cx="${GEAR.cx}" cy="${GEAR.cy}" r="${GEAR.hub}" fill="#000"/></mask></defs>`
+    + `<g fill="${color}"><g mask="url(#ree-mono)"><path fill-rule="evenodd" d="${p.top}"/><path fill-rule="evenodd" d="${p.r}"/><path d="${p.s}"/><path d="${p.gear}"/></g>`
+    + `<path d="${p.chipBody}"/><path d="${p.bolt}"/></g></svg>`;
 }

@@ -34,7 +34,7 @@ function notifySessionOver(body) {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.ready
-        .then((reg) => reg.showNotification('REE.ai', { body, tag: 'pomodoro', icon: '/pwa-192x192.png' }))
+        .then((reg) => reg.showNotification('REE.ai', { body, tag: 'pomodoro', icon: '/pwa-192x192.png', badge: '/badge-96.png' }))
         .catch(() => {});
 }
 

@@ -63,6 +63,15 @@ describe('logoSvg', () => {
     expect(svg).not.toMatch(/NaN|undefined/);
   });
 
+  it('in one colour, cuts the bolt out of the letterforms instead of merging into them', () => {
+    const svg = logoSvg({ mono: '#ffffff' });
+    expect(svg).toContain('<mask id="ree-mono"');
+    expect(svg).not.toContain(LOGO_COLORS.red);
+    expect(svg).not.toContain(LOGO_COLORS.bolt);
+    expect([...svg.matchAll(/fill="(#[0-9a-f]+)"/gi)].map((m) => m[1]).filter((c) => c !== '#fff' && c !== '#000'))
+      .toEqual(['#ffffff']);
+  });
+
   it('every path is finite, closed geometry', () => {
     for (const [name, d] of Object.entries(LOGO_PATHS)) {
       expect(d, name).toMatch(/^M/);
