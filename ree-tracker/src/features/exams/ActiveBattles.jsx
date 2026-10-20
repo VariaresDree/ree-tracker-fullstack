@@ -49,7 +49,7 @@ export default function ActiveBattles() {
   if (shown.length === 0) return null;
 
   return (
-    <Card elevated className="p-5 sm:p-6 flex flex-col gap-4 md:col-span-2" aria-labelledby="active-battles-title">
+    <Card elevated padding="md" className="flex flex-col gap-4" aria-labelledby="active-battles-title">
       <div>
         <h2 id="active-battles-title" className="text-lg font-semibold text-textMain">Your battles in progress</h2>
         <p className="text-sm text-muted2 mt-1">Left one part-way? Your answers are saved, and the clock kept running.</p>

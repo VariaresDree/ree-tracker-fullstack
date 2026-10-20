@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import LatexRenderer from '../components/LatexRenderer';
 import Scratchpad from '../components/Scratchpad';
-import { Button, Badge, StatusPill, Card, Modal } from '../components/ui';
+import { Button, Badge, StatusPill, Modal, Page, StickyToolbar, QuestionSurface } from '../components/ui';
 import { Pencil, Flag, Bookmark } from '../components/ui/icons';
 import ReviewSetup from '../features/active-recall/ReviewSetup';
 import SessionSummary from '../features/active-recall/SessionSummary';
@@ -137,7 +137,10 @@ export default function Practice() {
   const isLastQuestion = session.currentIndex + 1 >= total;
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in pb-12 max-w-4xl mx-auto w-full relative z-0">
+    // `relative`: the scratchpad covers the session from md up (absolute,
+    // inset-0). `z-0`: one stacking context, so the question's inner layers
+    // stay under the layout's header and bars.
+    <Page width="reading" className="relative z-0">
       {/* The setup and summary screens have their own h1; the running session
           had none, and its solution panel's heading sat under nothing. */}
       <h1 className="sr-only">Practice</h1>
@@ -159,7 +162,7 @@ export default function Practice() {
         </p>
       </Modal>
 
-      <div className="flex justify-between items-center bg-surface/60 backdrop-blur-xl border border-border2/50 px-4 py-3 rounded-full shadow-sm z-10">
+      <StickyToolbar>
         <Button variant="ghost" tone="danger" size="sm" onClick={() => (session.totalAnswered > 0 ? setConfirmEnd(true) : endSession())} disabled={isSubmitting}>
             End session
         </Button>
@@ -180,9 +183,9 @@ export default function Practice() {
                 />
             </div>
         </div>
-      </div>
+      </StickyToolbar>
 
-      <Card elevated className="p-6 sm:p-10 rounded-[var(--radius-xl)] flex flex-col relative overflow-hidden transition-colors duration-700">
+      <QuestionSurface className="overflow-hidden transition-colors duration-700">
 
           {/* Prompt + subject eyebrow + Item N badge are owned by QuestionCard
               (inside MCQMode below) — the standalone block that used to live
@@ -263,7 +266,7 @@ export default function Practice() {
                   </div>
               </div>
           )}
-      </Card>
-    </div>
+      </QuestionSurface>
+    </Page>
   );
 }

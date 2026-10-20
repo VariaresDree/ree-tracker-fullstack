@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchReadinessHistory } from '../../services/dbQueries';
-import { Badge, Card, Button, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
+import { Badge, Card, Button, Grid, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useCardReviewSummary } from '../../hooks/useCardReviewSummary';
@@ -206,14 +206,14 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
       <PlacementPrompt status={placement.status} answered={answered} dismissed={placement.dismissed} onDismiss={placement.dismiss} />
       <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
 
-      <Card elevated glow grain className="p-5 sm:p-6 flex flex-col gap-6">
+      <Card elevated glow grain padding="lg" className="flex flex-col gap-6">
         <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain">Where you stand, and what to do next</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <Grid kind="cards" gap="lg">
           <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />
           <PassBlock snapshot={snapshot} loading={loading} isOnline={isOnline} early={early} />
           <TargetBlock daily={daily} />
-        </div>
+        </Grid>
 
         <div className="flex flex-col gap-2">
           <h3 className="text-eyebrow">Next best actions</h3>
@@ -224,7 +224,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-textMain">{a.title}</p>
+                  <p className="text-sm font-medium text-textMain [overflow-wrap:anywhere]">{a.title}</p>
                   <p className="text-xs text-muted2 line-clamp-2">{a.detail}</p>
                 </div>
                 {/* Full width under the text on a phone, where a long title

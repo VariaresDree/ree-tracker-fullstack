@@ -35,7 +35,7 @@ export function KpiTile({
   if (compact) {
     return (
       <Card padding="sm" className={cn('flex flex-col gap-1 min-w-0', className)}>
-        <span className="text-eyebrow truncate">{label}</span>
+        <span className="text-eyebrow [overflow-wrap:anywhere]">{label}</span>
         <span className="text-display text-textMain text-2xl leading-tight tabular-nums">
           {typeof value === 'number' ? value.toFixed(precision) : value}
           {suffix && <span className="text-muted2 text-base ml-1 font-sans">{suffix}</span>}

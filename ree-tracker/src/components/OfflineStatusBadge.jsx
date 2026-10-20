@@ -37,7 +37,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
         return (
             <div
                 title={summary}
-                className="w-10 h-10 mx-auto rounded-xl border border-border2 bg-surface2 flex items-center justify-center relative"
+                className="w-10 h-10 mx-auto rounded-full border border-border2 bg-surface2 flex items-center justify-center relative"
             >
                 {/* Only the connection is announced as it changes; the counts
                     are there to read, not called out on every answer. */}
@@ -54,7 +54,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
     }
 
     return (
-        <div className="rounded-xl border border-border2 bg-surface2/40 px-3 py-2.5 flex flex-col gap-2">
+        <div className="rounded-[var(--radius-lg)] border border-border2 bg-surface2/40 px-3 py-2.5 flex flex-col gap-2">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2" role="status">
                     <span aria-hidden="true" className={`w-2 h-2 rounded-full ${isOnline ? 'bg-reeGreen' : 'bg-reeAmber animate-pulse'}`} />

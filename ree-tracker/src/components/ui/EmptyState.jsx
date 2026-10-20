@@ -1,4 +1,5 @@
 import { cn } from './cn';
+import { IconChip } from './IconChip';
 
 // Zero-data moments are invitations to act, not blank space. Icon chip +
 // plain-language title/description + optional CTA.
@@ -15,17 +16,7 @@ export function EmptyState({ icon: Icon, title, description, action, compact = f
         className
       )}
     >
-      {Icon && (
-        <span
-          className="inline-flex h-12 w-12 items-center justify-center rounded-full"
-          style={{
-            background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
-            color: 'var(--accent-text)',
-          }}
-        >
-          <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
-        </span>
-      )}
+      {Icon && <IconChip icon={Icon} size="lg" round />}
       <div className="flex flex-col gap-1 max-w-sm">
         <Title className="text-textMain font-semibold text-base">{title}</Title>
         {description && <p className="text-sm text-muted2">{description}</p>}

@@ -25,7 +25,7 @@ function NavItem({ item, active, collapsed }) {
       to={item.to}
       aria-current={active ? 'page' : undefined}
       title={collapsed ? item.label : undefined}
-      className={cn('group flex items-center rounded-xl border-l-2 p-3 transition-colors', collapsed && 'justify-center', active ? ACTIVE : IDLE)}
+      className={cn('group flex items-center rounded-[var(--radius-default)] border-l-2 p-3 transition-colors', collapsed && 'justify-center', active ? ACTIVE : IDLE)}
     >
       <Icon size={20} strokeWidth={1.75} aria-hidden="true" className={cn('shrink-0', active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100')} />
       {collapsed ? (
@@ -83,7 +83,7 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={() => toggleSidebarCollapse()}
-            className="w-10 h-10 bg-surface2 hover:bg-surface3 border border-border2 rounded-xl flex items-center justify-center transition-colors cursor-pointer text-muted hover:text-textMain touch-target"
+            className="w-10 h-10 bg-surface2 hover:bg-surface3 border border-border2 rounded-full flex items-center justify-center transition-colors cursor-pointer text-muted hover:text-textMain touch-target"
             aria-label="Show the focus timer"
             title="Show the focus timer"
           >
@@ -117,8 +117,11 @@ export default function Sidebar() {
           aria-current={active === 'account' ? 'page' : undefined}
           title={collapsed ? 'Account' : undefined}
           className={cn(
-            'flex items-center gap-3 p-2.5 rounded-xl transition-all border shadow-sm',
-            collapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'flex-1 min-w-0',
+            // The shape and inset per mode, not both at once: cn() doesn't
+            // merge, so the collapsed `rounded-full p-0` lost to the shared
+            // radius and `p-2.5`, and the avatar sat in a padded square.
+            'flex items-center gap-3 transition-all border shadow-sm',
+            collapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'flex-1 min-w-0 p-2.5 rounded-[var(--radius-lg)]',
             active === 'account'
               ? 'bg-surface3 border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
               : 'bg-surface hover:bg-surface3 border-border2 hover:border-[color-mix(in_srgb,var(--accent)_45%,transparent)]',
@@ -139,7 +142,7 @@ export default function Sidebar() {
           onClick={() => setConfirmingLogout(true)}
           aria-label="Log out"
           title="Log out"
-          className="touch-target inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-border2 bg-surface text-muted hover:text-textMain hover:bg-surface3 cursor-pointer transition-colors"
+          className="touch-target inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-full border border-border2 bg-surface text-muted hover:text-textMain hover:bg-surface3 cursor-pointer transition-colors"
         >
           <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
         </button>

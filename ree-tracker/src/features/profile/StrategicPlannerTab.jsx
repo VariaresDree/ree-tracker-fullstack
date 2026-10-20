@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiRequest } from '../../services/dbQueries';
-import { Badge, Button, Card, EmptyState, FormField, Input, Skeleton } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, FormField, Grid, Input, Skeleton } from '../../components/ui';
 import { Check, ChevronLeft, ChevronRight, ListChecks, Plus, TriangleAlert, X } from '../../components/ui/icons';
 import { isTaskDone, kindLabel, taskLaunch } from './plannerTasks';
 import { launchPractice } from '../active-recall/presets';
@@ -41,7 +41,7 @@ function MonthCalendar({ month, onMonth, tasks, selectedDay, onSelectDay }) {
   }
 
   return (
-    <Card className="p-4">
+    <Card padding="sm">
       <div className="flex justify-between items-center mb-3">
         <Button size="icon" variant="ghost" aria-label="Previous month" onClick={() => onMonth(new Date(year, m - 1, 1))}>
           <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -263,10 +263,10 @@ export default function StrategicPlannerTab({ currentUser }) {
     <div className="flex flex-col gap-6">
       <StudyPlanGenerator onPlanGenerated={reload} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <Grid kind="split" className="items-start">
         <MonthCalendar month={month} onMonth={setMonth} tasks={tasks} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
 
-        <Card className="lg:col-span-2 p-5 sm:p-6 flex flex-col gap-5">
+        <Card padding="md" className="@4xl:col-span-2 flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-textMain">Your tasks</h2>
@@ -294,7 +294,7 @@ export default function StrategicPlannerTab({ currentUser }) {
 
           {list}
         </Card>
-      </div>
+      </Grid>
     </div>
   );
 }

@@ -38,7 +38,7 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
   }, [currentIndex, view]);
 
   return (
-    <div className="bg-surface/80 backdrop-blur-md border border-border2/50 rounded-2xl p-4 shadow-sm relative z-10">
+    <div className="bg-surface/80 backdrop-blur-md border border-border2/50 rounded-[var(--radius-lg)] p-4 shadow-sm relative z-10">
       {sheet && (
         <div className="flex justify-end mb-3">
           <SegmentedControl label="Navigator view" size="sm" options={VIEWS} value={view} onChange={setView} />

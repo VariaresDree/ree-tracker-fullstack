@@ -199,6 +199,26 @@ every feature add, change, or removal, not on a schedule.
   - **Toasts** sit below the phone header, centred on a phone. They covered the header.
   - **Account's sections** scroll into view below the header on notched phones. `scroll-mt` follows the header's real height, so a fixed 5 rem no longer hides the heading.
   - The phone chrome's sizes (`--phone-header-h`, `--sticky-top`, `--bottom-bar-h`) are mirrored onto `<html>` while the layout is mounted, so toasts, the offer and dialogs, which render outside it, can use them.
+- [x] **Layout standard** (`components/ui/Page.jsx` holds the rules; `Grid`, `StickyToolbar`, `QuestionSurface`, Card `padding`, KpiTile `compact`, IconChip): every page, tab and card follows one set of rules.
+  - **Frame:** every routed screen sits in `<Page width="wide|reading|narrow">`. No screen keeps its own `max-w`/`pt`/`pb` wrapper; the layout's `<main>` owns the bottom space. That covers Practice, the session summary, the simulator's screens, battles, the Gauntlet, sitting reviews, the placement test, Admin and the handout viewer. The simulator's screens share one frame, which BoardSimulator sizes per screen (reading for setup, narrow for the full-board break, wide for the exam and results), so nested frames no longer double the spacing.
+  - **Rhythm:** page gap 6, section gap 4, gap 3 inside a card.
+  - **Cards:** a card's own inset is `padding` (sm tiles and rows, md section cards, lg heroes and questions). Surfaces take the card radius; wells and controls take the default radius. The `rounded-xl`/`2xl` drift is gone app-wide, including Library, Handouts, battles, rankings, analytics, the sidebar and the charts. Nested cards in the simulator's setup are wells inside one card.
+  - **Grids follow the room they have.** `<Grid kind="kpi|tiles|pair|cards|split">` uses container queries. Viewport breakpoints ignored the 288 px sidebar: at 768 px, `md:grid-cols-3` split about 430 px into three columns. Progress, the Exams tabs, Library, Today, the planner, analytics, the simulator's results, the Gauntlet's results and sitting reviews use it. Fixed three-column figure rows no longer crush on a 360 px phone, and the exam answer sheet picks its columns by its own width.
+  - **One session toolbar and one question card.** Practice, the simulator and the Gauntlet share `StickyToolbar`; Practice's now sticks under the header too. They share `QuestionSurface`, which replaces four paddings and two radii.
+  - **Figure tiles:** the five hand-rolled stat tiles are `KpiTile compact`: sitting review, simulator and Gauntlet results, the mock-board analytics and the session summary. The analytics `SectionCard` renders through `Panel`. Panel titles and compact labels wrap rather than truncate.
+  - **Icon chips:** dialogs, empty states, the mock-board profiles, quizzes, rank, battle lobby and credentials all use `IconChip`.
+  - **Headers:**
+    - No h1 inside a card: the simulator setup, battle lobby, Gauntlet results and full-board screens use `PageHeader`. Rankings and the battle lobby's player lists use `CardHeader`.
+    - Duplicate titles that repeated their tab are gone: Library's Formula cards, Handouts and Imported quizzes (screen-reader only now), and Admin's Formula cards.
+  - **Overflow:** long names truncate in rankings rows. User text wraps anywhere. Action rows wrap.
+  - **Smaller fixes:**
+    - The collapsed sidebar's account button is a true circle (its padding and radius used to fight).
+    - The phone Scratchpad in a simulator review sits above the bottom bar (a stacking context held it under).
+    - Outside-score Edit/Delete and the explanation review's Approve/Reject use `Button`.
+  - **Tests:**
+    - `layoutGuards.test.js` scans the source for hand-rolled page frames, `max-w-5xl`, `rounded-xl`/`2xl` and viewport 3–4 column grids, allowing forms and dialogs.
+    - `e2e-authed/layout.spec.ts`, at 360, 390 and 820 px, checks that no main screen scrolls sideways, that a page ends clear of the bottom bar and focus timer, and that the account menu opens over a session toolbar.
+    - `e2e-authed/visual-sweep.spec.ts` (`VISUAL_SWEEP=1`) screenshots every theme on the main screens at four widths.
 - [x] **Theme list and browser colour** (`src/theme/themes.js`, `src/theme/applyAppearance.js`) — one list of the 13 themes for the picker, the pre-paint script and the browser: the status bar / installed app's title bar now takes each theme's card colour (it stayed navy on every theme), set before first paint by `index.html` and on every change by `applyTheme`. Native controls and scrollbars follow the theme's lightness (`color-scheme`). `themeMeta.test.js` keeps the list, `index.css` and `index.html` in step.
 
 ## Exam & Practice Modes

@@ -71,7 +71,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
   ];
 
   return (
-    <div className="bg-surface border border-border2 p-6 md:p-8 rounded-xl shadow-sm w-full flex flex-col relative">
+    <div className="bg-surface border border-border2 p-6 md:p-8 rounded-[var(--radius-lg)] shadow-sm w-full flex flex-col relative">
       {/* Header */}
       <div className="w-full flex flex-col md:flex-row md:justify-between md:items-end mb-6 border-b border-border2 pb-4 gap-3">
         <div>

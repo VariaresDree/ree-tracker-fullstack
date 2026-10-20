@@ -19,7 +19,7 @@ function ConfidenceMatrix({ stats }) {
         {CELLS.map((c) => (
           <div
             key={c.key}
-            className="group relative p-4 sm:p-5 rounded-2xl border border-border bg-surface2/20 overflow-hidden transition-all duration-300 hover:bg-surface2/40"
+            className="group relative p-4 sm:p-5 rounded-[var(--radius-default)] border border-border bg-surface2/20 overflow-hidden transition-all duration-300 hover:bg-surface2/40"
             style={{ borderColor: `color-mix(in srgb, ${c.color} 22%, var(--border-main))` }}
           >
             <div
@@ -58,7 +58,7 @@ function ConfidenceMatrix({ stats }) {
         ))}
       </div>
 
-      <div className="bg-surface2/30 p-4 rounded-xl border border-border flex items-start gap-2.5">
+      <div className="bg-surface2/30 p-4 rounded-[var(--radius-default)] border border-border flex items-start gap-2.5">
         <CircleAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: 'var(--accent-danger)' }} />
         <p className="text-[0.7rem] text-muted2 leading-relaxed">
           <strong className="text-textMain font-semibold">Blind spots</strong> (high confidence, wrong) hurt your

@@ -11,7 +11,7 @@ const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="bg-surface/90 backdrop-blur-md border border-border2/80 p-3.5 rounded-xl shadow-xl z-50">
+      <div className="bg-surface/90 backdrop-blur-md border border-border2/80 p-3.5 rounded-[var(--radius-default)] shadow-xl z-50">
         <p className="text-[11px] uppercase tracking-widest font-black text-textMain mb-2 border-b border-border2/50 pb-2">
           {data.date} <span className="text-muted font-medium ml-2">({data.name})</span>
         </p>

@@ -9,7 +9,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
-import { EmptyState, Skeleton } from '../components/ui';
+import { EmptyState, Page, Skeleton } from '../components/ui';
 import { WifiOff } from '../components/ui/icons';
 
 export default function AdminRoute({ children }) {
@@ -20,10 +20,10 @@ export default function AdminRoute({ children }) {
 
   if (!roleResolved) {
     return (
-      <div className="flex flex-col gap-4 max-w-5xl mx-auto w-full pt-4">
+      <Page>
         <p role="status" className="text-sm text-muted2">Checking access…</p>
         <Skeleton className="h-40" />
-      </div>
+      </Page>
     );
   }
 

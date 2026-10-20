@@ -7,9 +7,9 @@
 // learner sets (FocusGoal). Pick what a block is for on the timer; fix or
 // delete a logged block under Recent blocks.
 import { toDisplaySubject } from '@ree/shared';
-import { ProgressIndicator } from '../../../components/ui';
+import { Grid, KpiTile, ProgressIndicator } from '../../../components/ui';
 import { useDeepAnalytics } from '../useDeepAnalytics';
-import { BarList, DeepStatus, SectionCard, StatTile } from './shared';
+import { BarList, DeepStatus, SectionCard } from './shared';
 import { formatDuration } from '../../../utils/time';
 import { focusGapLine, pct } from './focusGap';
 import RecentFocusBlocks from './RecentFocusBlocks';
@@ -43,11 +43,11 @@ export default function FocusTime() {
           <div className="flex flex-col gap-6">
             <FocusGoal week={data?.week} goal={data?.goal} shares={shares} onSaved={retry} />
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <StatTile label="Focus (last 14 days)" value={formatDuration(total14 * 60)} color="var(--color-reeAmber-text)" />
-              <StatTile label="Blocks (last 30 days)" value={String(last30.blocks)} sub={formatDuration(last30.minutes * 60)} color="var(--accent-text)" />
-              <StatTile label="Average per focus day" value={activeDays > 0 ? `${Math.round(total14 / activeDays)}min` : '—'} color="var(--accent-success)" />
-            </div>
+            <Grid kind="tiles" gap="sm">
+              <KpiTile compact label="Focus (last 14 days)" value={formatDuration(total14 * 60)} />
+              <KpiTile compact label="Blocks (last 30 days)" value={String(last30.blocks)} hint={formatDuration(last30.minutes * 60)} />
+              <KpiTile compact label="Average per focus day" value={activeDays > 0 ? `${Math.round(total14 / activeDays)}min` : '—'} />
+            </Grid>
 
             <div className="flex flex-col gap-2">
               <h3 className="text-eyebrow">Focus minutes per day, last 14 days</h3>

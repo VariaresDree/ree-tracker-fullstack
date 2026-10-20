@@ -177,7 +177,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
               <div className={`text-2xl text-display tabular-nums shrink-0 ${textClass}`}>{metricDisplay}</div>
             </>
           );
-          const tileClass = `p-3.5 rounded-xl border flex justify-between items-center transition-all shrink-0 ${bgClass}`;
+          const tileClass = `p-3.5 rounded-[var(--radius-default)] border flex justify-between items-center transition-all shrink-0 ${bgClass}`;
 
           return onDrillTopic ? (
             <button

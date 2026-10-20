@@ -51,12 +51,11 @@ export default function Admin() {
 
           {tab === 'explanations' && <ExplanationReview />}
 
+          {/* No title of its own: the "Formula cards" tab above already names
+              it, and a second "Formula cards" heading repeated it. */}
           {tab === 'references' && (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-display text-2xl text-textMain tracking-tight">Formula cards</h2>
-                <p className="text-sm text-muted2 mt-1">Review AI-generated cards, create and re-categorize cards, manage cited sources, and keep the data debt at zero.</p>
-              </div>
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-muted2">Review AI-generated cards, create and re-categorize cards, manage cited sources, and keep the data debt at zero.</p>
               <ReferenceAdminV2 />
             </div>
           )}

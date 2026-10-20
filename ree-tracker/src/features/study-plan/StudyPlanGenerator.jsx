@@ -21,7 +21,7 @@ import { planTopics } from './planTopics';
 import { useDeepAnalytics } from '../analytics/useDeepAnalytics';
 import { focusGapLine } from '../analytics/sections/focusGap';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
-import { Badge, Button, Card, Modal } from '../../components/ui';
+import { Badge, Button, Card, Grid, Modal } from '../../components/ui';
 import { CalendarDays, Check, TriangleAlert } from '../../components/ui/icons';
 
 const PLAN_DAYS = 42;
@@ -91,7 +91,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
   const daysTone = daysUntilExam === null ? null : daysUntilExam <= 30 ? 'danger' : daysUntilExam <= 90 ? 'amber' : 'success';
 
   return (
-    <Card className="p-5 sm:p-6 flex flex-col gap-5">
+    <Card padding="md" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-textMain">Study plan</h2>
@@ -141,7 +141,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
         </div>
       </fieldset>
 
-      <dl className="grid grid-cols-3 gap-3">
+      <Grid kind="tiles" gap="sm" as="dl">
         <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3 text-center">
           <dt className="text-eyebrow">Topics</dt>
           <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{topicsToGenerate.length}</dd>
@@ -154,7 +154,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
           <dt className="text-eyebrow">Days planned</dt>
           <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{daysUntilExam ? Math.min(daysUntilExam, PLAN_DAYS) : '—'}</dd>
         </div>
-      </dl>
+      </Grid>
 
       {(builtFrom || focusLine) && (
         <div className="flex flex-col gap-1 text-sm">

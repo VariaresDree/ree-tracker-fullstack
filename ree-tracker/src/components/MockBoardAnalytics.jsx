@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { isPassingVerdict, VERDICT } from '@ree/shared';
 import { sittingKindLabel } from '../features/board-simulator/profiles';
 import { SkeletonChart } from './SkeletonLoaders';
-import { Panel, DataTable, StatusPill, Button, Modal, EmptyState } from './ui';
+import { Panel, DataTable, StatusPill, Button, Modal, EmptyState, Grid, KpiTile } from './ui';
 import { BarChart3, RefreshCw, Trash2, ShieldAlert, CloudOff } from './ui/icons';
 import OutsideScoresPanel from '../features/exams/OutsideScoresPanel';
 
@@ -51,7 +51,7 @@ function ScoreTooltip({ active, payload }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="bg-surface/95 backdrop-blur-md border border-border2 p-3.5 rounded-lg shadow-xl text-xs z-50">
+      <div className="bg-surface/95 backdrop-blur-md border border-border2 p-3.5 rounded-[var(--radius-default)] shadow-xl text-xs z-50">
         <p className="font-semibold text-textMain mb-2 border-b border-border2 pb-2">
           {data.date} <span className="text-muted font-normal ml-2">{data.kind}</span>
         </p>
@@ -67,15 +67,10 @@ function ScoreTooltip({ active, payload }) {
   return null;
 }
 
+// A headline figure: the shared compact KpiTile, its value in the verdict's
+// tone when it has one.
 function MiniStat({ label, value, tone }) {
-  return (
-    <div className="rounded-xl border border-border bg-surface2/30 p-3.5">
-      <div className="text-eyebrow">{label}</div>
-      <div className="text-2xl text-display tabular-nums mt-1" style={tone ? { color: TONE[tone] } : undefined}>
-        {value}
-      </div>
-    </div>
-  );
+  return <KpiTile compact label={label} value={tone ? <span style={{ color: TONE[tone] }}>{value}</span> : value} />;
 }
 
 export default function MockBoardAnalytics() {
@@ -237,11 +232,11 @@ export default function MockBoardAnalytics() {
         bodyClassName="flex flex-col gap-5"
       >
         {/* Over the latest 20 sittings, which is what the list holds. */}
-        <div className="grid grid-cols-3 gap-3">
+        <Grid kind="tiles" gap="sm">
           <MiniStat label="Sittings (last 20)" value={totalRuns} />
           <MiniStat label="Average" value={`${avgScore}%`} tone={avgScore >= 70 ? 'success' : 'amber'} />
           <MiniStat label="Passed" value={`${passCount} of ${totalRuns}`} tone={passRate >= 70 ? 'success' : 'danger'} />
-        </div>
+        </Grid>
 
         {loading ? (
           <div className="h-[320px] flex items-center justify-center"><SkeletonChart /></div>

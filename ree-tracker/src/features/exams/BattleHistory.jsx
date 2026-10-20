@@ -198,7 +198,7 @@ export default function BattleHistory({ onHost }) {
   }
 
   return (
-    <Card elevated className="p-5 sm:p-6 flex flex-col gap-4 md:col-span-2" aria-labelledby="battle-history-title">
+    <Card elevated padding="md" className="flex flex-col gap-4" aria-labelledby="battle-history-title">
       <div>
         <h2 id="battle-history-title" className="text-lg font-semibold text-textMain flex items-center gap-2">
           <History size={18} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Past battles

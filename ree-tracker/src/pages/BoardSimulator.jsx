@@ -16,7 +16,7 @@ import { hideExamSession } from '../services/dbQueries';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
 import PomodoroOwner from '../components/PomodoroOwner';
-import { Card, Button } from '../components/ui';
+import { Card, Button, Page } from '../components/ui';
 import { Layers } from '../components/ui/icons';
 import { setupConfig } from '../features/board-simulator/profiles';
 import { formatClock } from '../utils/time';
@@ -249,25 +249,35 @@ export default function BoardSimulator() {
     if (engine.session.isFinished) window.scrollTo?.(0, 0);
   }, [engine.session.isFinished]);
 
+  // One frame for whichever screen shows. The screens (setup, the full-board
+  // break, the exam, the results above their review) render into it rather
+  // than each owning a <Page>: they are composed together here, and nested
+  // pages doubled the top inset and the gaps. Setup reads at reading width,
+  // the break is a short form, the exam and its results take the wide frame.
+  const showSetup = !showBoardBreak && !engine.session.isActive && !engine.session.isFinished;
+  const pageWidth = showBoardBreak ? 'narrow' : showSetup ? 'reading' : 'wide';
+
   const content = (
-    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">
+    <Page width={pageWidth}>
 
       {activeBattleId && battleConnected && opponentProgress.length > 0 && engine.session.isActive && !engine.session.isFinished && (
-        <div className="bg-surface border border-reeRed/30 rounded-xl p-4 shadow-sm animate-in fade-in">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-black uppercase tracking-widest text-reeRed-text flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-reeGreen animate-pulse"></span> Live Opponents
-            </span>
-          </div>
+        <Card
+          padding="sm"
+          className="flex flex-col gap-3 shadow-sm animate-in fade-in"
+          style={{ borderColor: 'color-mix(in srgb, var(--color-reeRed) 30%, transparent)' }}
+        >
+          <span className="text-[11px] font-black uppercase tracking-widest text-reeRed-text flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-reeGreen animate-pulse"></span> Live Opponents
+          </span>
           <div className="flex flex-wrap gap-3">
             {opponentProgress.map(op => (
-              <div key={op.id} className="bg-bg border border-border2 rounded-lg px-3 py-2 flex items-center gap-3">
+              <div key={op.id} className="bg-bg border border-border2 rounded-[var(--radius-default)] px-3 py-2 flex items-center gap-3 min-w-0">
                 <span className="text-xs font-bold text-textMain truncate max-w-[120px]">{op.displayName}</span>
                 <span className="text-xs font-mono text-reeCyan-text">{op.itemsAnswered} ans</span>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {showBoardBreak && (
@@ -283,10 +293,10 @@ export default function BoardSimulator() {
       )}
 
       {showBoardBanner && (
-        <Card className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between" role="region" aria-label="Full PRC board in progress">
-          <div className="flex items-start gap-3">
+        <Card padding="sm" className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between" role="region" aria-label="Full PRC board in progress">
+          <div className="flex items-start gap-3 min-w-0">
             <Layers size={18} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent-text)' }} />
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium text-textMain">You have a full PRC board in progress</p>
               <p className="text-xs text-muted2">
                 {board.sectionIndex} of {FULL_BOARD_SECTIONS.length} sections done. Next: {toDisplaySubject(FULL_BOARD_SECTIONS[board.sectionIndex])}.
@@ -299,7 +309,7 @@ export default function BoardSimulator() {
 
       {showBoardResult && board && <FullBoardResults board={board} />}
 
-      {!showBoardBreak && !engine.session.isActive && !engine.session.isFinished && (
+      {showSetup && (
         <SimulatorConfig
             initialProfile={searchParams.get('profile')}
             onStartFullBoard={beginFullBoard}
@@ -324,19 +334,14 @@ export default function BoardSimulator() {
       )}
 
       {(engine.session.isActive || engine.session.isFinished) && !showBoardBreak && (
-        <div className={engine.session.isFinished ? "mt-4" : ""}>
-          <SimulatorActive
-            engine={engine}
-            formatTime={formatTimerMinutes}
-            onExitReview={exitReview}
-            isOnline={isOnline}
+        <SimulatorActive
+          engine={engine}
+          formatTime={formatTimerMinutes}
+          onExitReview={exitReview}
+          isOnline={isOnline}
         />
-        </div>
       )}
-
-
-
-    </div>
+    </Page>
   );
 
   // In an exam the floating Pomodoro (MainLayout) is gone; its owner clock

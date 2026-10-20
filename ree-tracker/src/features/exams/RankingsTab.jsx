@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { fetchPaginatedLeaderboard } from '../../services/dbQueries';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Badge, Button, EmptyState, StatusPill } from '../../components/ui';
+import { Badge, Button, Card, CardEyebrow, CardHeader, CardTitle, EmptyState, Grid, StatusPill } from '../../components/ui';
 import { ChevronDown, ChevronUp, Flame, Trophy } from '../../components/ui/icons';
 import YourRankCard from './YourRankCard';
 
@@ -54,9 +54,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
         aria-expanded={open}
         aria-controls={detailId}
         onClick={() => setOpen((o) => !o)}
-        className="w-full grid grid-cols-12 gap-3 p-3 items-center text-left rounded-[var(--radius-default)] cursor-pointer hover-glow"
+        className="w-full flex items-center gap-2 sm:gap-3 p-3 text-left rounded-[var(--radius-default)] cursor-pointer hover-glow"
       >
-        <div className="col-span-2 sm:col-span-1 flex justify-center">
+        <div className="shrink-0 w-8 sm:w-10 flex justify-center">
           <div
             className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold tabular-nums ${rank && rank <= 3 ? '' : 'bg-surface2 border-border2 text-muted'}`}
             style={rank ? rankStyle(rank - 1) : undefined}
@@ -64,36 +64,34 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
             {rank ?? '—'}
           </div>
         </div>
-        <div className="col-span-5 sm:col-span-6 flex items-center gap-3 min-w-0">
-          <div className="flex flex-col min-w-0">
-            <span className={`text-sm font-bold truncate flex items-center gap-2 ${isMe ? 'text-[var(--accent-text)]' : 'text-textMain'}`}>
-              {agent.displayName}
-              {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
-            </span>
-            <span className="text-[11px] text-muted2 tabular-nums truncate">{agent.questionsAnswered || 0} answered</span>
-          </div>
+        <div className="flex-1 min-w-0 flex flex-col">
+          <span className={`min-w-0 text-sm font-bold flex items-center gap-2 ${isMe ? 'text-[var(--accent-text)]' : 'text-textMain'}`}>
+            <span className="min-w-0 truncate" title={agent.displayName}>{agent.displayName}</span>
+            {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
+          </span>
+          <span className="text-[11px] text-muted2 tabular-nums truncate">{agent.questionsAnswered || 0} answered</span>
         </div>
-        <div className="col-span-2 flex flex-col items-end">
+        <div className="shrink-0 w-12 flex flex-col items-end">
           <span className="text-sm font-bold tabular-nums inline-flex items-center gap-1" style={{ color: 'var(--color-reeAmber-text)' }}>
             <Flame size={13} strokeWidth={2} aria-hidden="true" />{agent.streak || 0}
           </span>
           <span className="text-[10px] text-muted uppercase tracking-wide">Streak</span>
         </div>
-        <div className="col-span-2 flex flex-col items-end">
+        <div className="shrink-0 w-14 flex flex-col items-end">
           <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(2)}</span>
           <span className="text-[10px] text-muted uppercase tracking-wide">θ</span>
         </div>
-        <div className="col-span-1 flex justify-end text-muted">
+        <div className="shrink-0 flex justify-end text-muted">
           {open ? <ChevronUp size={18} strokeWidth={2} aria-hidden="true" /> : <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />}
         </div>
       </button>
 
       {open && (
-        <div id={detailId} className="grid grid-cols-3 gap-2 px-3 pb-3 pt-0.5 animate-in fade-in slide-in-from-top-1">
+        <Grid kind="tiles" gap="sm" id={detailId} className="px-3 pb-3 pt-0.5 animate-in fade-in slide-in-from-top-1">
           <RankDetailStat label="Active days" value={agent.activeDays || 0} />
           <RankDetailStat label="Answered" value={agent.questionsAnswered || 0} />
           <RankDetailStat label="Accuracy" value={`${Math.round((agent.accuracy || 0) * 100)}%`} accent="success" />
-        </div>
+        </Grid>
       )}
     </div>
   );
@@ -223,16 +221,16 @@ export default function RankingsTab() {
     <div className="flex flex-col gap-6">
       <YourRankCard listRank={myListRank} />
 
-      <div className="bg-surface border border-border2 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px] h-[65vh] animate-in fade-in slide-in-from-bottom-2">
-        <div className="p-5 border-b border-border2 bg-surface2/50 flex justify-between items-center shrink-0">
-          <div>
-            <p className="text-eyebrow">Rankings</p>
-            <h2 className="text-sm font-semibold text-textMain flex items-center gap-2 mt-0.5">
-              <Trophy size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> All reviewers, by ability score
-            </h2>
+      <Card className="shadow-sm overflow-hidden flex flex-col min-h-[500px] h-[65vh] animate-in fade-in slide-in-from-bottom-2">
+        <CardHeader className="border-b border-border shrink-0">
+          <div className="min-w-0">
+            <CardEyebrow>Rankings</CardEyebrow>
+            <CardTitle className="mt-0.5 flex items-center gap-2">
+              <Trophy size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0" style={{ color: 'var(--color-reeAmber-text)' }} /> All reviewers, by ability score
+            </CardTitle>
           </div>
           <StatusPill tone={isOnline ? 'signal' : 'danger'}>{isOnline ? 'Live' : 'Offline'}</StatusPill>
-        </div>
+        </CardHeader>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 stagger-fade-in">
           {showLoading ? (
@@ -288,7 +286,7 @@ export default function RankingsTab() {
             </>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

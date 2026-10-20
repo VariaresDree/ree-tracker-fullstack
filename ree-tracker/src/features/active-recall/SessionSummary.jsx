@@ -6,22 +6,12 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import LatexRenderer from '../../components/LatexRenderer';
-import { Button, Card, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
+import { Button, Card, Grid, KpiTile, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
 import { Crosshair, RotateCcw } from '../../components/ui/icons';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
 import NotificationOptIn from '../../components/NotificationOptIn';
 import { formatDuration } from '../../utils/time';
-
-function Figure({ label, value, sub }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-eyebrow">{label}</span>
-      <span className="text-display text-3xl text-textMain tabular-nums">{value}</span>
-      {sub && <span className="text-xs text-muted2">{sub}</span>}
-    </div>
-  );
-}
 
 /**
  * @param {object} props
@@ -48,20 +38,20 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
   ].filter(Boolean);
 
   return (
-    <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 page-fade-in">
+    <Page width="reading">
       <PageHeader
         title="Session complete"
         subtitle={`${parts.join(' and ') || '0 questions'} in ${formatDuration(durationSecs)}.`}
         meta={total > 0 ? <StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill> : null}
       />
 
-      <Card elevated glow className="p-5 sm:p-6 flex flex-col gap-6">
+      <Card elevated glow padding="md" className="flex flex-col gap-4">
         {total > 0 && (
-          <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-4">
-            <Figure label="Score" value={`${correct}/${total}`} sub={`${accuracy}% correct`} />
-            <Figure label="Time" value={formatDuration(durationSecs)} />
-            <Figure label="Per question" value={avgSecs != null ? `${avgSecs}s` : '—'} sub="average" />
-          </div>
+          <Grid kind="tiles" gap="sm">
+            <KpiTile compact label="Score" value={`${correct}/${total}`} hint={`${accuracy}% correct`} />
+            <KpiTile compact label="Time" value={formatDuration(durationSecs)} />
+            <KpiTile compact label="Per question" value={avgSecs != null ? `${avgSecs}s` : '—'} hint="average" />
+          </Grid>
         )}
         {cardsRated > 0 && (
           <p className="text-sm text-textMain">
@@ -86,7 +76,7 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
 
         {cardsNext > 0 && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
-            <p className="text-sm text-textMain flex-1">
+            <p className="text-sm text-textMain flex-1 min-w-0">
               {cardsRated > 0 ? `${cardsNext} more formula card${cardsNext === 1 ? '' : 's'}` : `Next in today’s loop: ${cardsNext} formula card${cardsNext === 1 ? '' : 's'}`} due for review.
             </p>
             <Button as={Link} to="/library?tab=formulas" className="w-full sm:w-auto">Review cards</Button>
@@ -149,7 +139,7 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
             {missed.map((m) => (
               <li key={m.id} className="p-4 rounded-[var(--radius-default)] border border-border bg-surface2/40 flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted2">
-                  <span>{m.topic}</span>
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{m.topic}</span>
                   {m.confident && <StatusPill tone="danger" dot={false}>Wrong while sure</StatusPill>}
                 </div>
                 <div className="text-sm text-textMain leading-relaxed overflow-x-auto [&_p]:!m-0">
@@ -166,6 +156,6 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
           </ol>
         </SectionCard>
       )}
-    </div>
+    </Page>
   );
 }

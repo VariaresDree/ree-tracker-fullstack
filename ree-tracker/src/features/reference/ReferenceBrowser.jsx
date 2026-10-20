@@ -23,7 +23,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
-import { Input, FormField, SegmentedControl, EmptyState, Button, Card, Skeleton, StatusPill } from '../../components/ui';
+import { Input, FormField, SegmentedControl, EmptyState, Button, Card, Grid, Skeleton, StatusPill } from '../../components/ui';
 import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import NotedFlashcard from './NotedFlashcard';
@@ -81,7 +81,7 @@ function BrowseTile({ label, count, onClick, eyebrow, detail }) {
       type="button"
       onClick={onClick}
       disabled={count === 0}
-      className="text-left bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 shadow-sm transition-all hover:border-[var(--accent)]/50 hover:shadow-md focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border2 disabled:hover:shadow-sm"
+      className="text-left bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 shadow-sm transition hover:border-[var(--accent)]/50 hover:shadow-md focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border2 disabled:hover:shadow-sm"
     >
       <div className="flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0">
@@ -336,7 +336,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   }
 
   return (
-    <div className="flex flex-col gap-5 animate-in fade-in">
+    <div className="flex flex-col gap-4 animate-in fade-in">
       {/* Top bar: search (bypasses the hierarchy) + kind filter (applies everywhere) */}
       <div className="flex flex-col gap-3">
         <FormField label="Search">
@@ -355,7 +355,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
       </div>
 
       {!studying && dueCards.length > 0 && (
-        <Card className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-live="polite">
+        <Card padding="sm" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-live="polite">
           <div className="flex items-start gap-3 min-w-0">
             <History size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
             <div className="min-w-0">
@@ -393,7 +393,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           </>
         )
       ) : !selectedSubject ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Grid kind="cards">
           {Object.keys(safeTOS).map((s) => (
             <BrowseTile
               key={s}
@@ -403,7 +403,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
               onClick={() => handleSelectSubject(s)}
             />
           ))}
-        </div>
+        </Grid>
       ) : !selectedTopic ? (
         (safeTOS[selectedSubject] || []).length === 0 ? (
           <EmptyState icon={BookOpen} title="No topics configured" description="This subject has no syllabus topics yet." />
@@ -435,7 +435,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
                 />
               </Suspense>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Grid kind="cards">
                 {(safeTOS[selectedSubject] || []).map((t) => (
                   <BrowseTile
                     key={t}
@@ -445,7 +445,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
                     onClick={() => handleSelectTopic(t)}
                   />
                 ))}
-              </div>
+              </Grid>
             )}
           </>
         )
@@ -464,23 +464,23 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
               <SubjectCardSheet cards={cardsInTopic} scopeLabel={selectedTopic} by="subtopic" onStudy={(set) => startStudying(set)} />
             </Suspense>
           ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(subtopicCounts)
-            .filter(([key]) => key !== UNTAGGED)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([tag, count]) => (
-              <BrowseTile key={tag} label={tag} count={count} onClick={() => setSelectedSubtopic(tag)} />
-            ))}
-          {subtopicCounts[UNTAGGED] > 0 && (
-            <BrowseTile
-              key={UNTAGGED}
-              label="General"
-              eyebrow="Not tied to a specific subtopic"
-              count={subtopicCounts[UNTAGGED]}
-              onClick={() => setSelectedSubtopic(UNTAGGED)}
-            />
-          )}
-        </div>
+            <Grid kind="cards">
+              {Object.entries(subtopicCounts)
+                .filter(([key]) => key !== UNTAGGED)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([tag, count]) => (
+                  <BrowseTile key={tag} label={tag} count={count} onClick={() => setSelectedSubtopic(tag)} />
+                ))}
+              {subtopicCounts[UNTAGGED] > 0 && (
+                <BrowseTile
+                  key={UNTAGGED}
+                  label="General"
+                  eyebrow="Not tied to a specific subtopic"
+                  count={subtopicCounts[UNTAGGED]}
+                  onClick={() => setSelectedSubtopic(UNTAGGED)}
+                />
+              )}
+            </Grid>
           )}
         </>
       ) : leafCards.length === 0 ? (

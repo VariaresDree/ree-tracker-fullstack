@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import Scratchpad from '../../components/Scratchpad';
 import QuestionCard from '../quiz/QuestionCard';
-import { Button, StatusPill, Badge } from '../../components/ui';
+import { Button, StatusPill, Badge, QuestionSurface, StickyToolbar } from '../../components/ui';
 import { Pencil, Flag, Bookmark, Pin } from '../../components/ui/icons';
 import ExamClock from '../../components/exam/ExamClock';
 import ExamNavigator from '../../components/exam/ExamNavigator';
@@ -139,12 +139,17 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
         onJump={handleIndexChange}
       />
 
-      <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full animate-in fade-in duration-500 pb-12 z-0 relative">
+      {/* The exam renders into BoardSimulator's <Page> (wide), which owns the
+          frame; this div bounds the toolbar's sticky range to the exam. It
+          used to be `relative z-0`, a stacking context that held the phone
+          Scratchpad sheet (layer 70 in index.css) under the phone bottom bar
+          and header (45, 50) in the review. */}
+      <div className="flex flex-col gap-6 min-w-0">
 
         {/* Toolbar: submit (always reachable) / answered count / pace / clock.
             Two rows on a phone so the answered count isn't the first thing hidden. */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center bg-surface/90 backdrop-blur-xl border border-border2/60 px-3 sm:px-4 py-2.5 rounded-[var(--radius-lg)] shadow-sm sticky top-[var(--sticky-top,calc(max(0.5rem,env(safe-area-inset-top))+2.25rem))] z-30">
-          <div className="flex items-center justify-between gap-2">
+        <StickyToolbar>
+          <div className="flex w-full sm:w-auto items-center justify-between gap-2">
             {!isReview ? (
               <Button tone="danger" size="sm" onClick={() => setShowSubmit(true)} disabled={isSubmitting}>
                 Submit exam
@@ -159,7 +164,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
             </Badge>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
             <StatusPill tone="success" className="hidden md:inline-flex">Hotkeys on</StatusPill>
             <Badge tone="velocity" className="hidden sm:inline-flex tabular-nums">
               {isReview ? 'Review mode' : `${answeredCount} of ${totalQuestions} answered`}
@@ -182,7 +187,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
               />
             )}
           </div>
-        </div>
+        </StickyToolbar>
 
         <ExamNavigator
           count={totalQuestions}
@@ -200,8 +205,12 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
         />
 
         {/* Exam canvas: QuestionCard owns the prompt + confidence + choices + reveal */}
-        <div
-          className="p-5 sm:p-10 bg-surface/90 backdrop-blur-2xl border rounded-[var(--radius-xl)] elevate-2 flex flex-col relative overflow-hidden transition-colors duration-700"
+        {/* md:isolate: from md up the Scratchpad is an overlay (z 40) inside
+            this card, and the card keeps it below the sticky toolbar (z 30)
+            when the question scrolls under it. On a phone the Scratchpad is a
+            sheet on the layer scale, so nothing contains it. */}
+        <QuestionSurface
+          className="overflow-hidden md:isolate transition-colors duration-700"
           style={{
             borderColor: isReview
               ? `color-mix(in srgb, ${isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)'} 30%, transparent)`
@@ -243,7 +252,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
           )}
 
           {/* Previous / next, and Submit on the last item */}
-          <div className="flex justify-between items-center pt-8 mt-4 border-t border-border2/50 gap-3">
+          <div className="flex flex-wrap justify-between items-center pt-8 mt-4 border-t border-border2/50 gap-3">
             <Button variant="secondary" onClick={() => handleIndexChange(currentIndex - 1)} disabled={currentIndex === 0}>
               Previous
             </Button>
@@ -258,7 +267,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
               </Button>
             )}
           </div>
-        </div>
+        </QuestionSurface>
       </div>
     </>
   );

@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useFileManager } from './useFileManager';
-import { Button, EmptyState, FormField, Input, Modal, Select, Skeleton } from '../../components/ui';
+import { Button, Card, EmptyState, FormField, Grid, Input, Modal, Select, Skeleton } from '../../components/ui';
 import { FolderOpen, FileText, FileUp, Pencil, Plus, Scissors, X, Download, TriangleAlert, CloudOff } from '../../components/ui/icons';
 
 export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, openMaterialId = null }) {
@@ -153,14 +153,14 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
   return (
     <div className="animate-in fade-in flex flex-col gap-6">
       {clipboard && isAdmin && (
-        <div className="bg-reeBlue/10 border border-reeBlue/30 p-3 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3 animate-in slide-in-from-top-4 shadow-sm">
-          <div className="flex items-center gap-3 text-sm">
+        <div className="bg-reeBlue/10 border border-reeBlue/30 p-3 rounded-[var(--radius-lg)] flex flex-wrap justify-between items-center gap-3 animate-in slide-in-from-top-4 shadow-sm">
+          <div className="flex items-center gap-3 text-sm min-w-0">
             {clipboard.type === 'folder'
               ? <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" />
               : <FileText size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" />}
-            <span className="text-textMain font-medium">Moving <span className="font-bold text-[var(--accent-text)]">"{clipboard.name}"</span></span>
+            <span className="text-textMain font-medium min-w-0 [overflow-wrap:anywhere]">Moving <span className="font-bold text-[var(--accent-text)]">"{clipboard.name}"</span></span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => setClipboard(null)}>Cancel</Button>
             <Button size="sm" onClick={handlePaste} disabled={clipboard.id === currentFolderId}>
               Paste here
@@ -169,10 +169,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-border2 pb-6 gap-4">
-        <div>
-          <h2 className="text-display text-2xl tracking-tight text-textMain">Handouts</h2>
-          <p className="text-sm text-muted2 mt-1">
+      <div className="flex flex-wrap justify-between items-end border-b border-border2 pb-6 gap-4">
+        <div className="min-w-0 flex-1 basis-72">
+          {/* The tab already says "Handouts"; the heading stays for screen
+              readers' heading list. */}
+          <h2 className="sr-only">Handouts</h2>
+          <p className="text-sm text-muted2">
             {isAdmin
               ? 'Upload and organize handouts. Reviewers can open them but not change them.'
               : 'Review notes and reference files, sorted into folders. Open a folder, then tap a file to read it.'}
@@ -180,7 +182,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           <div className="flex items-center gap-2 mt-3 font-mono text-xs text-muted2 flex-wrap">
             {breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={crumb.id}>
-                <button onClick={() => navigateToBreadcrumb(idx)} onDragOver={(e) => handleDragOver(e, crumb.id)} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, crumb.id)} className={`inline-flex items-center px-2 py-1 pointer-coarse:min-h-11 rounded transition-colors cursor-pointer ${idx === breadcrumbs.length - 1 ? 'text-reeBlue-text font-bold bg-reeBlue/10' : 'hover:bg-surface2 hover:text-textMain'} ${dragOverFolderId === crumb.id ? 'bg-reeBlue/30 border border-reeBlue shadow-lg scale-105' : 'border border-transparent'}`}>
+                <button onClick={() => navigateToBreadcrumb(idx)} onDragOver={(e) => handleDragOver(e, crumb.id)} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, crumb.id)} className={`inline-flex items-center px-2 py-1 pointer-coarse:min-h-11 rounded-[var(--radius-sm)] transition-colors cursor-pointer ${idx === breadcrumbs.length - 1 ? 'text-reeBlue-text font-bold bg-reeBlue/10' : 'hover:bg-surface2 hover:text-textMain'} ${dragOverFolderId === crumb.id ? 'bg-reeBlue/30 border border-reeBlue shadow-lg scale-105' : 'border border-transparent'}`}>
                   {crumb.name}
                 </button>
                 {idx < breadcrumbs.length - 1 && <span className="select-none">/</span>}
@@ -205,26 +207,30 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
       </div>
 
       {isCreatingFolder && isAdmin && (
-        <div className="p-5 bg-surface border border-reeBlue/40 rounded-xl flex flex-col sm:flex-row gap-3 items-center shadow-lg animate-in fade-in slide-in-from-top-2">
+        <Card
+          padding="md"
+          className="flex flex-col sm:flex-row gap-3 items-center shadow-lg animate-in fade-in slide-in-from-top-2"
+          style={{ borderColor: 'color-mix(in srgb, var(--color-reeBlue) 40%, transparent)' }}
+        >
           <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="hidden sm:block text-[var(--accent-text)]" />
           <Input autoFocus aria-label="New folder name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolderClick(); }} placeholder="Folder name" className="flex-1" />
           <div className="flex gap-2 w-full sm:w-auto">
             <Button className="flex-1 sm:flex-none" onClick={handleCreateFolderClick} disabled={!newFolderName.trim()}>Create</Button>
             <Button className="flex-1 sm:flex-none" variant="secondary" onClick={() => setIsCreatingFolder(false)}>Cancel</Button>
           </div>
-        </div>
+        </Card>
       )}
 
       {isAddingMaterial && isAdmin && (
-        <div className="p-6 bg-surface border border-border2 rounded-xl flex flex-col gap-5 shadow-xl animate-in fade-in slide-in-from-top-2">
-          <div className="flex gap-2" role="group" aria-label="Add from">
+        <Card padding="md" className="flex flex-col gap-4 shadow-xl animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Add from">
             <Button size="sm" variant={uploadMode === 'local' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'local'} onClick={() => setUploadMode('local')}>Upload a file</Button>
             <Button size="sm" variant={uploadMode === 'link' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'link'} onClick={() => setUploadMode('link')}>Link (YouTube or Google Drive)</Button>
           </div>
 
 
           {uploadMode === 'local' ? (
-            <div className="border-2 border-dashed border-border2 rounded-xl p-8 text-center hover:bg-surface2 transition-colors relative cursor-pointer">
+            <div className="border-2 border-dashed border-border2 rounded-[var(--radius-default)] p-8 text-center hover:bg-surface2 transition-colors relative cursor-pointer">
               <input type="file" aria-label="Choose a file to upload" accept=".pdf,.doc,.docx,image/*,audio/*,video/*" onChange={handleLocalFileUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" />
               <div className="text-sm text-muted2 flex flex-col items-center gap-3" aria-live="polite">
                 {isUploading ? (
@@ -245,20 +251,20 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
             </div>
           )}
           
-          <div className="flex justify-end gap-3 mt-2 border-t border-border2 pt-4">
+          <div className="flex flex-wrap justify-end gap-3 mt-2 border-t border-border2 pt-4">
             <Button variant="secondary" onClick={() => setIsAddingMaterial(false)}>Cancel</Button>
             {uploadMode === 'link' && (
                 <Button onClick={handleAddMaterialClick} disabled={!newMaterial.name || !newMaterial.url || isUploading}>Add link</Button>
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       {isLoading && folders.length === 0 && materials.length === 0 ? (
-        <div role="status" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <Grid kind="cards" role="status" className="@5xl:grid-cols-4">
           <span className="sr-only">Loading the handouts…</span>
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[72px] rounded-xl" />)}
-        </div>
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[72px] rounded-[var(--radius-lg)]" />)}
+        </Grid>
       ) : loadError && folders.length === 0 && materials.length === 0 ? (
         loadError === 'offline' ? (
           <EmptyState
@@ -282,7 +288,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           description={isAdmin ? 'Create a folder or add a file to start.' : 'Nothing has been added here yet.'}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <Grid kind="cards" className="@5xl:grid-cols-4">
           {visibleFolders.map(f => {
             const isDropTarget = dragOverFolderId === f.id;
             return (
@@ -294,7 +300,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, f.id)}
                 onClick={() => navigateToFolder(f.id, f.name)}
-                className={`p-4 rounded-xl transition-all cursor-pointer flex justify-between items-start group shadow-sm min-h-[72px] h-auto ${
+                className={`p-4 rounded-[var(--radius-lg)] transition cursor-pointer flex justify-between items-start group shadow-sm min-h-[72px] h-auto ${
                   isDropTarget
                     ? 'bg-reeBlue/20 border-2 border-reeBlue shadow-lg scale-105 z-10'
                     : 'bg-surface border border-border2 hover:border-reeBlue/40 hover:bg-surface2'
@@ -303,7 +309,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                 <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0 pointer-events-none">
                   <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className="opacity-90 group-hover:scale-110 transition-transform text-[var(--accent-text)] shrink-0" />
                   {editingItem.id === f.id && editingItem.type === 'folder' ? (
-                    <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded w-full font-bold pointer-events-auto" />
+                    <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded-[var(--radius-sm)] w-full font-bold pointer-events-auto" />
                   ) : (
                     <span
                       role="button"
@@ -313,47 +319,48 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); }
                       }}
-                      className="pointer-events-auto text-left font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5 rounded cursor-pointer"
+                      className="pointer-events-auto text-left font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5 rounded-[var(--radius-sm)] cursor-pointer"
                     >
                       {f.name}
                     </span>
                   )}
                 </div>
                 {isAdmin && (
-                  <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2 shrink-0 bg-surface2/80 backdrop-blur rounded p-1">
+                  <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2 shrink-0 bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1">
                     {!(editingItem.id === f.id && editingItem.type === 'folder') && (
-                      <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-text)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                      <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-text)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
-                    <button onClick={(e) => handleCut(f, 'folder', e)} aria-label="Cut folder to move" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => handleCut(f, 'folder', e)} aria-label="Cut folder to move" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
               </div>
             );
           })}
           {visibleMaterials.map(m => (
-            <div
+            <Card
               key={m.id}
+              padding="md"
               draggable={isAdmin ? "true" : "false"}
               onDragStart={(e) => handleDragStart(e, m, 'material')}
-              className={`p-5 bg-surface border border-border2 rounded-xl flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
+              className={`flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
             >
               <div className="flex justify-between items-start">
-                <span className={`px-2 py-0.5 bg-bg border border-border2 text-[11px] font-mono rounded uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>
+                <span className={`px-2 py-0.5 bg-bg border border-border2 text-[11px] font-mono rounded-[var(--radius-sm)] uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>
                     {m.type}
                 </span>
                 {isAdmin && (
-                  <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded p-1 -mt-1 -mr-1">
+                  <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1 -mt-1 -mr-1">
                     {!(editingItem.id === m.id && editingItem.type === 'material') && (
-                      <button onClick={(e) => initiateRename(m, 'material', e)} aria-label="Rename file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                      <button onClick={(e) => initiateRename(m, 'material', e)} aria-label="Rename file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
-                    <button onClick={(e) => handleCut(m, 'material', e)} aria-label="Cut file to move" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(m.id, 'material', m.name); }} aria-label="Delete file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => handleCut(m, 'material', e)} aria-label="Cut file to move" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(m.id, 'material', m.name); }} aria-label="Delete file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
               </div>
               {editingItem.id === m.id && editingItem.type === 'material' ? (
-                <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} className="bg-bg border border-reeCyan text-sm text-textMain px-2 py-1 rounded w-full mt-3 font-bold flex-1" />
+                <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} className="bg-bg border border-reeCyan text-sm text-textMain px-2 py-1 rounded-[var(--radius-sm)] w-full mt-3 font-bold flex-1" />
               ) : (
                 <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 pointer-events-none line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
               )}
@@ -367,9 +374,9 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                     </Button>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
-        </div>
+        </Grid>
       )}
 
       <Modal
