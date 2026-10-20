@@ -10,6 +10,17 @@ import { cn } from './cn';
 // and the active tab is scrolled into view, so a deep link to the last tab
 // doesn't open with it off-screen. Each tab names its panel (`id`, shared
 // with <TabPanel>), so a screen reader can go from the tab to its content.
+//
+// The fade is a mask on the strip, not a band painted in the page colour on
+// top, so it fades into whatever is behind: the page's texture, or a card.
+const FADE = '2rem';
+const fadeName = ({ left, right }) => (left && right ? 'both' : left ? 'left' : right ? 'right' : undefined);
+function fadeMask({ left, right }) {
+  if (!left && !right) return undefined;
+  const mask = `linear-gradient(to right, ${left ? 'transparent' : '#000'}, #000 ${left ? FADE : '0px'}, #000 calc(100% - ${right ? FADE : '0px'}), ${right ? 'transparent' : '#000'})`;
+  return { maskImage: mask, WebkitMaskImage: mask };
+}
+
 export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
   const autoId = useId();
   const id = idProp || autoId;
@@ -80,9 +91,11 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
         aria-label={label}
         onKeyDown={onKeyDown}
         onScroll={measure}
+        data-fade={fadeName(fade)}
         // No scrollbar track under the strip (arrow keys move between tabs,
         // and touch scrolls it).
         className="flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={fadeMask(fade)}
       >
         {tabs.map((t, i) => {
           const on = t.id === active;
@@ -112,12 +125,6 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
           );
         })}
       </div>
-      {fade.left && (
-        <span aria-hidden="true" data-fade="left" className="pointer-events-none absolute left-0 top-0 bottom-px w-8" style={{ background: 'linear-gradient(to right, var(--bg-primary), transparent)' }} />
-      )}
-      {fade.right && (
-        <span aria-hidden="true" data-fade="right" className="pointer-events-none absolute right-0 top-0 bottom-px w-8" style={{ background: 'linear-gradient(to left, var(--bg-primary), transparent)' }} />
-      )}
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { TELEMETRY_BATCH_MAX } from '@ree/shared';
 import { dropLegacyLedger } from '../services/simulationLedger';
 import { clearUserCaches } from '../services/userCache';
 import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro } from '../utils/pomodoroLogic';
-import { applyTheme } from '../theme/applyAppearance';
+import { applyTexture, applyTheme } from '../theme/applyAppearance';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
 // Lives outside the store so multiple resets just call clearTimeout on the
@@ -770,6 +770,14 @@ export const useStore = create(
         applyTheme(newTheme);
         set({ theme: newTheme });
       },
+      // Plain background: the page in its flat colour, without the theme's
+      // glow and texture. Kept in localStorage too, for the pre-paint script.
+      plainBackground: localStorage.getItem('ree-texture') === 'off',
+      setPlainBackground: (plain) => {
+        localStorage.setItem('ree-texture', plain ? 'off' : 'on');
+        applyTexture(plain);
+        set({ plainBackground: !!plain });
+      },
 
       // 5. NOTIFICATIONS SLICE — prefs for local + in-page notifications.
       // `enabled` gates the in-page Pomodoro "session over" system notification;
@@ -810,6 +818,7 @@ export const useStore = create(
         pomodoro: state.pomodoro,
         pomodoroWidget: state.pomodoroWidget,
         theme: state.theme,
+        plainBackground: state.plainBackground,
         notifications: state.notifications,
         // isAdmin is deliberately NOT persisted. Rehydrating it meant anyone who
         // edited the IndexedDB record in DevTools got the full admin UI on the

@@ -4,7 +4,8 @@
 // (none for the default) and the browser's theme colour, so the status bar
 // and the installed app's title bar match the theme instead of staying navy.
 // index.html runs the same steps before first paint; the store's setTheme and
-// MainLayout call this afterwards.
+// MainLayout call this afterwards. applyTexture does the same for the Plain
+// background setting.
 import { DEFAULT_THEME, themeById } from './themes';
 
 export function applyTheme(id) {
@@ -14,4 +15,12 @@ export function applyTheme(id) {
   else root.setAttribute('data-theme', theme.id);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.metaColor);
   return theme.id;
+}
+
+/** Plain background: drops the theme's glow and pattern (index.css, data-texture). */
+export function applyTexture(plain) {
+  const root = document.documentElement;
+  if (plain) root.setAttribute('data-texture', 'off');
+  else root.removeAttribute('data-texture');
+  return !!plain;
 }

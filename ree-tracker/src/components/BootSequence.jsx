@@ -51,7 +51,7 @@ export default function BootSequence({ label = 'Preparing your session' }) {
   }, [elapsedStage]);
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-bg text-textMain px-6 text-center">
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 text-textMain px-6 text-center">
       <Logo animated size={76} />
 
       {/* Only the label is live: a screen reader is told the app is working.

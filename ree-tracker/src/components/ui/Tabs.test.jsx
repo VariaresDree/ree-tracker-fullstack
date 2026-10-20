@@ -49,12 +49,15 @@ describe('Tabs', () => {
       scrollLeft: { configurable: true, writable: true, value: 0 },
     });
     act(() => report());
-    expect(container.querySelector('[data-fade="right"]')).not.toBeNull();
-    expect(container.querySelector('[data-fade="left"]')).toBeNull();
+    expect(strip).toHaveAttribute('data-fade', 'right');
+    strip.scrollLeft = 270;
+    fireEvent.scroll(strip);
+    expect(strip).toHaveAttribute('data-fade', 'both');
     strip.scrollLeft = 540;
     fireEvent.scroll(strip);
-    expect(container.querySelector('[data-fade="left"]')).not.toBeNull();
-    expect(container.querySelector('[data-fade="right"]')).toBeNull();
+    expect(strip).toHaveAttribute('data-fade', 'left');
+    // Painted bands in the page colour would show as stripes over the texture.
+    expect(container.querySelector('span[data-fade]')).toBeNull();
   });
 
   it('scrolls the strip, not the page, to show the active tab', () => {

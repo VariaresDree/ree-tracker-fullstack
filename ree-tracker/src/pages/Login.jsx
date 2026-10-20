@@ -57,10 +57,8 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-bg p-4 relative overflow-hidden page-fade-in">
-            {/* Ambient glow */}
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}></div>
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent-signal) 10%, transparent)' }}></div>
+        // The page's glow and texture (index.css, per theme) show around the card.
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden page-fade-in">
 
             <div className="w-full max-w-md p-8 bg-surface border border-border rounded-[var(--radius-xl)] elevate-3 relative z-10">
                 <div className="text-center mb-8">

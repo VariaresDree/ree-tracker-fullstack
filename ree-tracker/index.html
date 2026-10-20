@@ -35,9 +35,9 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500&display=swap" media="print" onload="this.media='all';this.onload=null" />
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500&display=swap" /></noscript>
 
-    <!-- ZERO-FLICKER THEME BOOT SCRIPT: the theme and the browser's theme
-         colour before first paint (src/theme/applyAppearance.js does the same
-         afterwards). The map is each theme's card surface, as in
+    <!-- ZERO-FLICKER THEME BOOT SCRIPT: the theme, the browser's theme
+         colour and the Plain background setting before first paint
+         (src/theme/applyAppearance.js does the same afterwards). The map is each theme's card surface, as in
          src/theme/themes.js; themeMeta.test.js keeps the two in step. -->
     <script>
       (function() {
@@ -50,6 +50,9 @@
           }
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', META[theme]);
+          if (localStorage.getItem('ree-texture') === 'off') {
+            document.documentElement.setAttribute('data-texture', 'off');
+          }
         } catch (e) {}
       })();
     </script>

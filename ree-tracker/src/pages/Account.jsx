@@ -90,7 +90,9 @@ function NameForm({ currentUser }) {
 
 export default function Account() {
   const { currentUser, isAdmin } = useAuth();
-  const { stats, theme, setTheme } = useStore(useShallow((s) => ({ stats: s.stats, theme: s.theme, setTheme: s.setTheme })));
+  const { stats, theme, setTheme, plainBackground, setPlainBackground } = useStore(useShallow((s) => ({
+    stats: s.stats, theme: s.theme, setTheme: s.setTheme, plainBackground: s.plainBackground, setPlainBackground: s.setPlainBackground,
+  })));
 
   // The exam plan form is keyed on the saved values, so a change saved
   // elsewhere re-seeds it — but not while it's being edited: stats landing
@@ -131,7 +133,7 @@ export default function Account() {
       </Section>
 
       <Section id="appearance" title="Appearance">
-        <ThemingArchitecture theme={theme} setTheme={setTheme} />
+        <ThemingArchitecture theme={theme} setTheme={setTheme} plainBackground={plainBackground} setPlainBackground={setPlainBackground} />
       </Section>
 
       <Section id="notifications" title="Notifications">

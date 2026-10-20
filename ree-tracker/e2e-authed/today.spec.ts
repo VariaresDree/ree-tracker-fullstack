@@ -79,6 +79,25 @@ test('Today in a dark colour theme has no serious accessibility violations', asy
   await expectNoSeriousViolations(page);
 });
 
+test('a theme sets its texture and the browser colour; Plain turns the texture off and stays off', async ({ page }) => {
+  const layer = (pseudo: '::before' | '::after') => page.evaluate((p) => getComputedStyle(document.body, p).content, pseudo);
+  await page.goto('/account#appearance');
+  await page.getByRole('radiogroup', { name: 'Theme' }).getByRole('radio', { name: /^Light/ }).click();
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#ffffff');
+  expect(await layer('::after')).not.toBe('none');
+
+  await page.getByRole('radiogroup', { name: 'Background' }).getByRole('radio', { name: 'Plain' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-texture', 'off');
+  expect(await layer('::before')).toBe('none');
+  expect(await layer('::after')).toBe('none');
+
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-texture', 'off');
+  await expect(page.getByRole('radiogroup', { name: 'Background' }).getByRole('radio', { name: 'Plain' })).toHaveAttribute('aria-checked', 'true', { timeout: 20_000 });
+  await page.getByRole('radiogroup', { name: 'Background' }).getByRole('radio', { name: 'Textured' }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-texture', 'off');
+});
+
 test('Today on a phone has no serious accessibility violations', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

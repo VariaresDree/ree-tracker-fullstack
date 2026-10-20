@@ -47,7 +47,7 @@ class ErrorBoundary extends React.Component {
       }
 
       return (
-        <div role="alert" aria-live="assertive" className="min-h-screen flex flex-col items-center justify-center gap-6 bg-bg p-4">
+        <div role="alert" aria-live="assertive" className="min-h-screen flex flex-col items-center justify-center gap-6 p-4">
           <Logo decorative size={48} />
           <Card className="max-w-md w-full">
             <EmptyState

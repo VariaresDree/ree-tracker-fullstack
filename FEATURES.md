@@ -40,7 +40,7 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Account** (`pages/Account.jsx`, replaces Profile) — one scrolling page with anchored sections that other screens link to (`/account#offline`). **Jump links** to the nine sections sit under the header; on a phone "Sign-in & security" was a long scroll away with nothing saying it was there.
   - **Your name.**
   - **Exam plan** (`features/account/ExamPlanForm.jsx`): the **only** editor for the exam date and daily target (10–500), with days to go and the per-subject split. The date used to be editable in three places (Profile, Daily targets "Config", the planner), and the target only in Config. **The date can be cleared**: an empty date is saved as none (the store used to drop it, so a date once set could never be removed).
-  - **Appearance** (the 13 themes).
+  - **Appearance:** the 13 themes, and **Background: Textured / Plain** (see Page textures).
   - **Notifications** (`NotificationSettings.jsx`). The one-time reminder offer after a first session is a card inside the results screen that ends it (Practice's summary, mock-board results, Gauntlet results), not a floating card over their last buttons. While a results screen hosts it, the floating copy hides; elsewhere it still floats (`components/NotificationOptIn.jsx`).
   - **Offline & sync** (`OfflineSyncSettings.jsx`): the offline pack, which was only in the sidebar, plus cloud-backup status and restore. The pack's state is **one for the whole app** (`hooks/useOfflinePack.js`): this badge and the shell's each kept their own, so both could start the same download at once and only one said "Syncing…". **"Merge from cloud backup"** says what it does — your cloud progress is merged in and unsynced answers on the device are kept; it said it *replaced* the device's progress, which it never did.
   - **Daily reminder copy:** outside the phone app it says the reminder is only in the REE.ai phone app; it told web users to add the site to their Home Screen, which doesn't enable it.
@@ -151,6 +151,36 @@ every feature add, change, or removal, not on a schedule.
   - The unused Android Studio robot vectors and Vite's sample `icons.svg` are gone.
   - `appIcons.test.js` checks four things: the favicon matches today's geometry, every icon is a PNG at its listed size, the manifest and the page link files that exist, and Android's adaptive layers and the reminder icon exist at every density.
   - Android isn't built in CI. After `npx cap sync android`, check the launcher icon, splash and reminder icon on a device.
+- [x] **Page textures** (`styles/index.css` › PAGE TEXTURES, `public/textures/`): each of the 13 themes has a background of its own behind the page. It is a soft glow plus a faint pattern, on two fixed layers behind everything. Cards, panels and the exam screens stay solid. The dot grid it replaces never showed, because every full-screen wrapper painted an opaque page colour over it.
+  - **Per theme:**
+
+    | Theme | Glow | Pattern |
+    |---|---|---|
+    | Original | violet from the top left, cyan from the bottom right | dot grid |
+    | Light | faint accent light from the top | graph paper |
+    | Midnight | none, so the page stays black | sparse stars |
+    | Paper | warm vignette | paper fibres |
+    | Cyberpunk | magenta and cyan corners | neon honeycomb |
+    | Retrowave | pink horizon | synth grid in perspective along the bottom |
+    | Forest | light through the canopy | topographic contours |
+    | Ocean | surface light | swell lines |
+    | Sakura | blush from the top right | drifting petals |
+    | Phosphor | green bloom | scanlines |
+    | Organs | red glow | cells |
+    | Math | none | blueprint grid (minor 20 px, major 100 px) |
+    | Electrical | amber from the top left | circuit-board traces |
+  - **How it's built:**
+    - The pattern is a one-colour tile used as a mask, painted in the theme's `--texture-ink` at `--texture-opacity`.
+    - Themes set parameters only.
+    - Tiles are tiny seamless SVGs (all under 4 KB), written by `scripts/brand/build-textures.mjs`. They are fetched by URL, not inlined into the stylesheet.
+    - The simple patterns are CSS gradients.
+  - **Readable by construction:** `themeContrast.test.js` › page textures checks text that sits straight on the page (`--text-main`, both muted tones and accent text at 4.5:1, the focus ring at 3:1). It measures against each glow at its peak, a pattern line at full strength, and both together, in every theme. The tile test checks that every tile is used, small and inert.
+  - **Off switch:** Account › Appearance › **Background: Plain** sets `data-texture="off"`. It is kept in the store and `localStorage` (`ree-texture`) and applied before first paint, so a reload never flashes the texture. Like the theme, it survives a sign-out.
+  - The texture is also off whenever the system asks for less: reduced transparency, more contrast, forced colours, and print.
+  - **Shell:**
+    - The page wrappers no longer paint over the texture (the layout, login, boot, error and "still reaching your session" screens). Login's two blurred orbs are gone; the theme's glow replaces them.
+    - The phone header is see-through and blurred like the bottom bar; both turn solid under reduced transparency.
+    - Tab rows fade at a scrolled edge with a mask. A band painted in the page colour would have striped the texture.
 - [x] **Theme list and browser colour** (`src/theme/themes.js`, `src/theme/applyAppearance.js`) — one list of the 13 themes for the picker, the pre-paint script and the browser: the status bar / installed app's title bar now takes each theme's card colour (it stayed navy on every theme), set before first paint by `index.html` and on every change by `applyTheme`. Native controls and scrollbars follow the theme's lightness (`color-scheme`). `themeMeta.test.js` keeps the list, `index.css` and `index.html` in step.
 
 ## Exam & Practice Modes

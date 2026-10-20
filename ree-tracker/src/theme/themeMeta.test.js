@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { THEMES, themeById } from './themes';
-import { applyTheme } from './applyAppearance';
+import { applyTexture, applyTheme } from './applyAppearance';
 
 const css = fs.readFileSync(path.resolve(process.cwd(), 'src/styles/index.css'), 'utf8');
 const html = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf8');
@@ -36,5 +36,13 @@ describe('themes', () => {
     applyTheme('dark');
     expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
     expect(applyTheme('no-such-theme')).toBe('dark');
+  });
+
+  it('the Plain background setting is applied before first paint and after', () => {
+    expect(html).toMatch(/localStorage\.getItem\('ree-texture'\) === 'off'\)[\s\S]*?setAttribute\('data-texture', 'off'\)/);
+    applyTexture(true);
+    expect(document.documentElement.getAttribute('data-texture')).toBe('off');
+    applyTexture(false);
+    expect(document.documentElement.hasAttribute('data-texture')).toBe(false);
   });
 });

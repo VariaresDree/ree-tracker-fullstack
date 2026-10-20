@@ -284,7 +284,7 @@ export const AuthProvider = ({ children }) => {
         // NOT the same as "logged out". A weak connection must never eject an
         // authenticated user to the Login form; it gets a reconnecting state
         // it can retry from instead.
-        <div className="flex flex-col justify-center items-center h-screen bg-bg text-textMain gap-4 px-6 text-center">
+        <div className="flex flex-col justify-center items-center h-screen text-textMain gap-4 px-6 text-center">
           <Logo decorative size={48} />
           <WifiOff size={24} strokeWidth={1.75} className="text-muted2" aria-hidden="true" />
           <div className="flex flex-col gap-1">

@@ -9,6 +9,8 @@
    codebase since before this session. Registering it here makes all of that
    already-intended behavior actually work, not just the fixes added now. */
 @custom-variant pointer-coarse (@media (pointer: coarse));
+/* Blurred, see-through chrome turns solid when the system asks for less transparency. */
+@custom-variant reduce-transparency (@media (prefers-reduced-transparency: reduce));
 
 /* A control that has to be hit with a finger: at least 44x44 CSS px on touch
    screens (WCAG 2.5.5 / Apple HIG), unchanged for a mouse. Pair it with
@@ -543,20 +545,167 @@
 html { color-scheme: dark; }
 html:is([data-theme="light"], [data-theme="paper"], [data-theme="sakura"]) { color-scheme: light; }
 
+/* ==========================================================================
+   PAGE TEXTURES
+   Every theme has a background of its own: a glow (body::before) and a
+   pattern (body::after), two fixed layers behind everything. The pattern is
+   a one-colour tile used as a mask and painted in --texture-ink at
+   --texture-opacity, so it stays faint whatever the tile. Cards, panels and
+   the exam screens stay solid; only the page between them shows it.
+   Themes set the parameters below and nothing else. Tiles live in
+   public/textures (written by scripts/brand/build-textures.mjs) and are
+   fetched by absolute URL, not inlined into this stylesheet. The simple
+   patterns are gradients.
+   Off with Account > Appearance > Plain (data-texture="off" on <html>), and
+   whenever the system asks for less: reduced transparency, more contrast,
+   forced colours, and print. themeContrast.test.js keeps text on the page
+   readable over the strongest point of each theme's texture.
+   ========================================================================== */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100lvh;
+  z-index: -1;
+  pointer-events: none;
+  contain: strict;
+}
+body::before {
+  background-image: var(--texture-glow, none);
+}
+body::after {
+  background-color: var(--texture-ink, var(--text-main));
+  opacity: var(--texture-opacity, 0);
+  mask-image: var(--texture-mask, none);
+  mask-size: var(--texture-size, auto);
+  mask-position: var(--texture-position, 0 0);
+  mask-repeat: var(--texture-repeat, repeat);
+}
+@supports not ((mask-image: none) or (-webkit-mask-image: none)) {
+  body::after { content: none; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active), print {
+  body::before, body::after { content: none; }
+}
+:root[data-texture="off"] body::before,
+:root[data-texture="off"] body::after { content: none; }
+
+/* Original: violet from the top left, cyan from the bottom right, a dot grid. */
+body {
+  --texture-glow:
+    radial-gradient(70vmax 50vmax at 0% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    radial-gradient(60vmax 45vmax at 100% 100%, color-mix(in srgb, var(--accent-signal) 6%, transparent), transparent 70%);
+  --texture-mask: radial-gradient(circle, #000 1.1px, transparent 1.6px);
+  --texture-size: 28px 28px;
+  --texture-ink: var(--text-main);
+  --texture-opacity: 0.055;
+}
+/* Light: graph paper under a faint accent light from the top. */
+[data-theme="light"] body {
+  --texture-glow: radial-gradient(90vmax 45vmax at 50% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%);
+  --texture-mask: linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px);
+  --texture-size: 24px 24px;
+  --texture-opacity: 0.035;
+}
+/* Midnight: a few stars, and the page stays black. */
+[data-theme="midnight"] body {
+  --texture-glow: none;
+  --texture-mask: url("/textures/stars.svg");
+  --texture-size: 280px 280px;
+  --texture-opacity: 0.12;
+}
+/* Paper: fibres in the sheet, darker toward the edges. */
+[data-theme="paper"] body {
+  --texture-glow: radial-gradient(140vmax 100vmax at 50% 40%, transparent 50%, color-mix(in srgb, var(--text-main) 6%, transparent));
+  --texture-mask: url("/textures/fibre.svg");
+  --texture-size: 220px 220px;
+  --texture-opacity: 0.055;
+}
+/* Cyberpunk: a neon honeycomb, magenta and cyan in the corners. */
+[data-theme="cyberpunk"] body {
+  --texture-glow:
+    radial-gradient(65vmax 50vmax at 100% 0%, color-mix(in srgb, var(--brand-purple) 13%, transparent), transparent 70%),
+    radial-gradient(60vmax 45vmax at 0% 100%, color-mix(in srgb, var(--brand-blue) 10%, transparent), transparent 70%);
+  --texture-mask: url("/textures/hex.svg");
+  --texture-size: 27.7px 48px;
+  --texture-ink: var(--brand-blue);
+  --texture-opacity: 0.07;
+}
+/* Retrowave: a synth grid running to a pink horizon. */
+[data-theme="retrowave"] body {
+  --texture-glow:
+    radial-gradient(120vmax 55vh at 50% 100%, color-mix(in srgb, #ec4899 16%, transparent), transparent 70%),
+    radial-gradient(70vmax 40vmax at 50% 0%, color-mix(in srgb, #a855f7 10%, transparent), transparent 70%);
+  --texture-mask: url("/textures/synth-grid.svg");
+  --texture-size: 100% 42%;
+  --texture-position: 0 100%;
+  --texture-repeat: no-repeat;
+  --texture-ink: var(--text-muted);
+  --texture-opacity: 0.18;
+}
+/* Forest: contour lines under light through the canopy. */
+[data-theme="forest"] body {
+  --texture-glow: radial-gradient(90vmax 55vmax at 30% -10%, color-mix(in srgb, #34d399 10%, transparent), transparent 70%);
+  --texture-mask: url("/textures/topo.svg");
+  --texture-size: 240px 240px;
+  --texture-ink: var(--text-muted);
+  --texture-opacity: 0.08;
+}
+/* Ocean: swell lines, lighter toward the surface. */
+[data-theme="ocean"] body {
+  --texture-glow: linear-gradient(to bottom, color-mix(in srgb, #81e6f5 10%, transparent), transparent 45%);
+  --texture-mask: url("/textures/waves.svg");
+  --texture-size: 120px 36px;
+  --texture-opacity: 0.06;
+}
+/* Sakura: petals drifting, blush from the top right. */
+[data-theme="sakura"] body {
+  --texture-glow: radial-gradient(70vmax 50vmax at 100% 0%, color-mix(in srgb, #f472b6 14%, transparent), transparent 70%);
+  --texture-mask: url("/textures/petals.svg");
+  --texture-size: 260px 260px;
+  --texture-ink: #db2777;
+  --texture-opacity: 0.09;
+}
+/* Phosphor: scanlines and a green bloom. */
+[data-theme="terminal"] body {
+  --texture-glow: radial-gradient(80vmax 60vmax at 50% 0%, color-mix(in srgb, #22c55e 8%, transparent), transparent 70%);
+  --texture-mask: repeating-linear-gradient(#000 0 1px, transparent 1px 3px);
+  --texture-size: auto;
+  --texture-opacity: 0.06;
+}
+/* Organs: cells, and a red glow. */
+[data-theme="organs"] body {
+  --texture-glow: radial-gradient(70vmax 50vmax at 0% 0%, color-mix(in srgb, #ef4444 12%, transparent), transparent 70%);
+  --texture-mask: url("/textures/cells.svg");
+  --texture-size: 200px 200px;
+  --texture-ink: var(--text-muted);
+  --texture-opacity: 0.07;
+}
+/* Math: a blueprint, minor lines every 20px and major every 100px. */
+[data-theme="math"] body {
+  --texture-glow: none;
+  --texture-mask:
+    linear-gradient(rgb(0 0 0 / 0.45) 1px, transparent 1px), linear-gradient(90deg, rgb(0 0 0 / 0.45) 1px, transparent 1px),
+    linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px);
+  --texture-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+  --texture-opacity: 0.14;
+}
+/* Electrical: circuit-board traces, amber light from the top left. */
+[data-theme="electrical"] body {
+  --texture-glow: radial-gradient(70vmax 50vmax at 0% 0%, color-mix(in srgb, #f59e0b 12%, transparent), transparent 70%);
+  --texture-mask: url("/textures/pcb.svg");
+  --texture-size: 160px 160px;
+  --texture-ink: var(--brand-blue);
+  --texture-opacity: 0.08;
+}
+
 @layer base {
   body {
     @apply bg-bg text-textMain font-sans antialiased transition-colors duration-300;
-    background-image: radial-gradient(var(--border-main) 1px, transparent 1px);
-    background-size: 30px 30px;
     font-optical-sizing: auto;
-  }
-
-  /* Override blueprint specific background for Math theme */
-  [data-theme="math"] body {
-      background-image:
-        linear-gradient(var(--border-main) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border-main) 1px, transparent 1px);
-      background-size: 20px 20px;
   }
 
   /* Global focus-visible ring. An outline, not a box-shadow: this rule sits

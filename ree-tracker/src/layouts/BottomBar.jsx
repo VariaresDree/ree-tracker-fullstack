@@ -13,7 +13,7 @@ export default function BottomBar() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed bottom-0 inset-x-0 z-[45] bg-surface/95 backdrop-blur-md border-t border-border2 grid grid-cols-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
+      className="fixed bottom-0 inset-x-0 z-[45] bg-surface/95 backdrop-blur-md reduce-transparency:bg-surface reduce-transparency:backdrop-blur-none border-t border-border2 grid grid-cols-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
     >
       {PRIMARY_NAV.map((item) => {
         const Icon = item.icon;

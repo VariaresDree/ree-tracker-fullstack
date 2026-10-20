@@ -1,11 +1,16 @@
 // src/features/profile/ThemingArchitecture.jsx
 import { Palette } from '../../components/ui/icons';
-import { cn } from '../../components/ui';
+import { cn, SegmentedControl } from '../../components/ui';
 // Three-dot swatches mirror each theme's real tokens ([page, panel, text or
 // accent]): far more informative than the emoji they replace.
 import { THEMES } from '../../theme/themes';
 
-export default function ThemingArchitecture({ theme, setTheme }) {
+const BACKGROUNDS = [
+  { value: 'textured', label: 'Textured' },
+  { value: 'plain', label: 'Plain' },
+];
+
+export default function ThemingArchitecture({ theme, setTheme, plainBackground = false, setPlainBackground }) {
   return (
     <div className="bg-surface border border-border p-6 rounded-[var(--radius-lg)] shadow-sm">
       <div className="border-b border-border pb-4 mb-6">
@@ -43,6 +48,22 @@ export default function ThemingArchitecture({ theme, setTheme }) {
           );
         })}
       </div>
+
+      {setPlainBackground && (
+        <div className="mt-6 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-textMain">Background</p>
+            <p className="text-xs text-muted2 mt-0.5">Each theme's glow and pattern behind the page. Cards are unaffected.</p>
+          </div>
+          <SegmentedControl
+            label="Background"
+            size="sm"
+            options={BACKGROUNDS}
+            value={plainBackground ? 'plain' : 'textured'}
+            onChange={(v) => setPlainBackground(v === 'plain')}
+          />
+        </div>
+      )}
     </div>
   );
 }

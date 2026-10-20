@@ -15,12 +15,13 @@ import useMediaQuery from '../hooks/useMediaQuery';
 import Sidebar from './Sidebar';
 import PhoneHeader from './PhoneHeader';
 import BottomBar from './BottomBar';
-import { applyTheme } from '../theme/applyAppearance';
+import { applyTexture, applyTheme } from '../theme/applyAppearance';
 
 export default function MainLayout({ children }) {
   // The theme alone: the UI slice also holds the sidebar's collapse, and the
   // whole shell re-rendered when it toggled.
   const theme = useStore((s) => s.theme);
+  const plainBackground = useStore((s) => s.plainBackground);
   const location = useLocation();
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
@@ -28,6 +29,9 @@ export default function MainLayout({ children }) {
   useEffect(() => {
     applyTheme(theme || localStorage.getItem('ree-theme') || 'dark');
   }, [theme]);
+  useEffect(() => {
+    applyTexture(plainBackground);
+  }, [plainBackground]);
 
   // A new page starts at its top — or at the section a link points to
   // (/account#offline). The router keeps the old scroll position otherwise.
@@ -77,7 +81,7 @@ export default function MainLayout({ children }) {
       };
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col md:flex-row font-sans text-textMain relative" style={chromeOffsets}>
+    <div className="min-h-screen flex flex-col md:flex-row font-sans text-textMain relative" style={chromeOffsets}>
       {/* First stop for a keyboard user: past the navigation, straight to the page. */}
       <a
         href="#main-content"
