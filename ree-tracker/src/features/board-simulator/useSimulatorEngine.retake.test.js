@@ -24,8 +24,6 @@ vi.mock('../../store/slices', () => ({
   useEngineActionsSlice: () => ({ dynamicTOS: {}, setStats: vi.fn(), startSession: startStoreSession, endSession: vi.fn(() => Promise.resolve()) }),
 }));
 vi.mock('../../services/analyticsSync', () => ({ normalizeMicroTopics: (m) => m }));
-const generateExamPaper = vi.fn(() => Promise.resolve({ items: 2, pages: 1, setLabel: 'SET A', unmatched: 0 }));
-vi.mock('./examPaper', () => ({ generateExamPaper }));
 
 const { useSimulatorEngine } = await import('./useSimulatorEngine');
 const { optionKey, orderOptions } = await import('@ree/shared');
@@ -137,30 +135,6 @@ describe('useSimulatorEngine — retake', () => {
     const markedId = result.current.session.questions[1].id;
     await act(() => result.current.submitExam());
     expect(api.finalizeExamSession).toHaveBeenCalledWith(sittingId(), expect.objectContaining({ markedQuestionIds: [markedId] }));
-  });
-
-  it('a printed paper draws its own choice order, a new one each print', async () => {
-    const four = [
-      { id: 'q1', subject: 'EE', text: 'Q1', options: ['a1', 'b1', 'c1', 'd1'], answer: 'a1' },
-      { id: 'q2', subject: 'EE', text: 'Q2', options: ['a2', 'b2', 'c2', 'd2'], answer: 'a2' },
-      { id: 'q3', subject: 'EE', text: 'Q3', options: ['a3', 'b3', 'c3', 'd3'], answer: 'a3' },
-    ];
-    api.fetchVaultQuestions.mockResolvedValue(four);
-    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
-    const printed = [];
-    for (let i = 0; i < 6; i += 1) {
-      await act(() => result.current.exportOfflinePDF());
-      printed.push(generateExamPaper.mock.calls.at(-1)[0].pool);
-    }
-    for (const pool of printed) {
-      expect(pool.map((q) => q.id)).toEqual(['q1', 'q2', 'q3']);
-      pool.forEach((q, i) => expect([...q.options].sort()).toEqual(four[i].options));
-    }
-    // Six prints of three questions: not all with the key at A, nor all alike.
-    expect(printed.flat().some((q) => q.options[0] !== q.answer)).toBe(true);
-    expect(new Set(printed.map((pool) => JSON.stringify(pool.map((q) => q.options)))).size).toBeGreaterThan(1);
-    // The stored rows are untouched.
-    expect(four[0].options).toEqual(['a1', 'b1', 'c1', 'd1']);
   });
 
   it('back to setup drops what the run left behind', async () => {

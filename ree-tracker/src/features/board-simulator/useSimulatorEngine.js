@@ -9,7 +9,8 @@ import {
 import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
-import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
+import { shuffleArray } from '../../utils/shuffle';
+import { applyFocusFilter, stratifiedSample } from './poolFilters';
 import { computeBattleDiagnostics } from './battleGrades';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
@@ -78,7 +79,6 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
   const [examTotalSecs, setExamTotalSecs] = useState(0);
   
   const [hasSavedSession, setHasSavedSession] = useState(!!localStorage.getItem('ree_sim_cache'));
-  const [isExporting, setIsExporting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeIsUp, setTimeIsUp] = useState(false);
 
@@ -202,20 +202,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           : (config.count || 20);
 
       // Cognitive Filter: Forgiving matching to prevent 0-item crashes
+      // (poolFilters, shared with the printed paper). When the focus matches
+      // nothing, the raw mix is used instead.
       const applyFilter = (rawPool) => {
-          if (!config.cognitiveFocus || config.cognitiveFocus === 'mixed') return rawPool;
-          
-          const filtered = rawPool.filter(q => {
-              const typeStr = String(q.type || q.questionType || q.category || q.cognitiveFocus || '').toLowerCase();
-              const isCalc = typeStr.includes('calc') || typeStr.includes('math') || typeStr.includes('problem');
-              return config.cognitiveFocus === 'calculation' ? isCalc : !isCalc;
-          });
-
-          // Fallback: If filter is too strict, return the raw mix instead of crashing
-          if (filtered.length === 0 && rawPool.length > 0) {
-              toast("No questions matched that focus, so this mock uses the mixed set.");
-              return rawPool; 
-          }
+          const { pool: filtered, fallback } = applyFocusFilter(rawPool, config.cognitiveFocus);
+          if (fallback) toast("No questions matched that focus, so this mock uses the mixed set.");
           return filtered;
       };
 
@@ -961,53 +952,12 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     }
   };
 
-  // Export a print-ready PRC-style board-exam packet: questionnaire (2-column
-  // options, continuous flow) + answer sheet (bubble grid + a QR encoding the
-  // set id / key version) + a COLUMN-MAJOR answer key. LaTeX is flattened to
-  // WinAnsi-safe text since jsPDF can't render KaTeX — a study-on-paper artefact,
-  // not a pixel render of the on-screen exam. Heavy PDF/layout code lives in
-  // ./examPaper and is dynamically imported so jsPDF stays out of the initial chunk.
-  const exportOfflinePDF = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    const toastId = toast.loading('Compiling board-exam paper…');
-    try {
-      const subjectMap = { ee: 'EE', esas: 'ESAS', math: 'Mathematics', mathematics: 'Mathematics', blended: 'Blended' };
-      const subject = subjectMap[String(config.subject || '').toLowerCase()] || config.subject || 'EE';
-      const count = config.isPrcStandard ? 100 : (config.count || 20);
-      const drawn = await fetchVaultQuestions(subject, 'All', count);
-      if (!drawn || drawn.length === 0) {
-        throw new Error('No questions available for the selected configuration.');
-      }
-      // Each paper draws its own choice order; the key's letters follow it
-      // (answerLetterFor reads the printed order), and so does the key version.
-      const paperKey = newSittingKey();
-      const pool = drawn.map((q) => presentOptions(q, paperKey));
-
-      const { generateExamPaper } = await import('./examPaper');
-      const res = await generateExamPaper({ pool, subject, config });
-      if (res.unmatched > 0) {
-        // Don't silently ship a key with '-' entries — tell the user which
-        // items need a fix (usually a stored answer that isn't verbatim one of
-        // its options).
-        toast(`Exam paper ready (${res.items} items, ${res.setLabel}) — but ${res.unmatched} answer${res.unmatched === 1 ? '' : 's'} couldn't be matched to an option and show "-" in the key. Review those items.`, { id: toastId, duration: 8000 });
-      } else {
-        toast.success(`Exam paper ready — ${res.items} items, ${res.pages} pages (${res.setLabel}).`, { id: toastId });
-      }
-    } catch (err) {
-      console.error('Exam paper export failed:', err);
-      toast.error(err?.message || 'Failed to export exam paper.', { id: toastId });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   return {
     config, setConfig, session, setSession,
     currentIndex, setCurrentIndex, examEndTime, remainingSecsNow, showTime, setShowTime,
     bookmarks, toggleBookmark, marked, toggleMarked, examTotalSecs, startSimulation, startMultiplayerBattle, handleSelectOption,
     handleSelectConfidence, handleIndexChange, submitExam, applyServerScore, applyBattleGrades,
     hasSavedSession, resumeSimulation, handleFlagQuestion, getElapsedMs,
-    exportOfflinePDF, isExporting, isSubmitting, resetToSetup, savedDraftMeta
+    isSubmitting, resetToSetup, savedDraftMeta
   };
 };
