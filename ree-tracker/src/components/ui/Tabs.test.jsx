@@ -60,6 +60,20 @@ describe('Tabs', () => {
     expect(container.querySelector('span[data-fade]')).toBeNull();
   });
 
+  it('one bar marks the active tab and slides to the next by a transform', () => {
+    render(<Harness />);
+    screen.getAllByRole('tab').forEach((t, i) => Object.defineProperties(t, {
+      offsetLeft: { configurable: true, value: i * 100 },
+      offsetWidth: { configurable: true, value: 90 },
+    }));
+    fireEvent.click(screen.getByRole('tab', { name: 'topics' }));
+    const bar = document.querySelector('[data-indicator]');
+    expect(bar).toHaveAttribute('aria-hidden', 'true');
+    expect(bar.style.transform).toBe('translateX(100px) scaleX(90)');
+    // The tabs no longer draw their own underline, so only the bar moves.
+    expect(screen.getByRole('tab', { name: 'topics' }).className).not.toMatch(/border-\[var\(--accent\)\]/);
+  });
+
   it('scrolls the strip, not the page, to show the active tab', () => {
     const scrollTo = vi.fn();
     render(<Harness />);

@@ -19,7 +19,7 @@ function ConfidenceMatrix({ stats }) {
         {CELLS.map((c) => (
           <div
             key={c.key}
-            className="group relative p-4 sm:p-5 rounded-[var(--radius-default)] border border-border bg-surface2/20 overflow-hidden transition-all duration-300 hover:bg-surface2/40"
+            className="group relative p-4 sm:p-5 rounded-[var(--radius-default)] border border-border bg-surface2/20 overflow-hidden transition-colors duration-300 hover:bg-surface2/40"
             style={{ borderColor: `color-mix(in srgb, ${c.color} 22%, var(--border-main))` }}
           >
             <div

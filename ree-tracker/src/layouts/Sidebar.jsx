@@ -31,7 +31,7 @@ function NavItem({ item, active, collapsed }) {
       {collapsed ? (
         <span className="sr-only">{item.label}</span>
       ) : (
-        <span className="flex flex-col min-w-0 ml-3">
+        <span className="flex flex-col min-w-0 ml-3 animate-in fade-in">
           <span className="text-sm font-semibold tracking-tight truncate">{item.label}</span>
           {item.desc && (
             <span className={cn('text-micro mt-0.5 truncate', active ? 'text-[color-mix(in_srgb,var(--accent-text)_75%,var(--text-muted2))]' : 'text-muted2')}>
@@ -56,7 +56,9 @@ export default function Sidebar() {
   const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   return (
-    <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)] transition-[width] duration-300', collapsed ? 'w-20' : 'w-72')}>
+    // The width snaps; the labels fade in. Animating `width` re-laid out the
+    // whole page on every frame for 300ms.
+    <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
       <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3')}>
         {collapsed ? (
           <Link to="/" aria-label="REE.ai home" className="inline-flex touch-target items-center justify-center">
@@ -70,7 +72,7 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => toggleSidebarCollapse()}
-          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-all touch-target inline-flex items-center justify-center"
+          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-colors touch-target inline-flex items-center justify-center"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -120,7 +122,7 @@ export default function Sidebar() {
             // The shape and inset per mode, not both at once: cn() doesn't
             // merge, so the collapsed `rounded-full p-0` lost to the shared
             // radius and `p-2.5`, and the avatar sat in a padded square.
-            'flex items-center gap-3 transition-all border shadow-sm',
+            'flex items-center gap-3 transition-colors border shadow-sm',
             collapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'flex-1 min-w-0 p-2.5 rounded-[var(--radius-lg)]',
             active === 'account'
               ? 'bg-surface3 border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'

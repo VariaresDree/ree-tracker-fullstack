@@ -429,7 +429,7 @@ export default function ReferenceAdminV2() {
     }, [live, deferredLiveSearch, liveSort]);
 
     const cardRow = (card, actions) => (
-        <div key={card.id} className="bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 min-w-0 transition-all hover:border-[var(--accent)]/40 hover:shadow-md">
+        <div key={card.id} className="bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 min-w-0 transition-[border-color,box-shadow] hover:border-[var(--accent)]/40 hover:shadow-md">
             <div className="flex items-start justify-between gap-3 min-w-0">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

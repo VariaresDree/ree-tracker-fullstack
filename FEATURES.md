@@ -226,6 +226,31 @@ every feature add, change, or removal, not on a schedule.
   - **Group inside a card:** `.text-h3`, 15 px semibold. The h3s were 14, 16 and 18 px.
   - **Small labels:** the `text-micro` size (11 px) is a theme token, replacing the arbitrary `text-[11px]` in 35 files. `layoutGuards.test.js` keeps it that way.
   - **Figures line up as they change:** `tabular-nums` on the quiz results score, battle history scores, the study plan's days badge, the focus timer's minute inputs, and every chart axis.
+- [x] **Motion and focus** (`styles/index.css`, `components/ui/Tabs.jsx`, `components/ui/FormField.jsx`): motion eases only what changes, and stops for people who ask it to.
+  - **Hover colours ease again.** `.btn-press` had `transition: transform`, which replaced Tailwind's `transition-colors` on the same element, so every button's and segmented control's hover colour snapped. It now names every property a control changes, at 120 ms out-quart. `.hover-glow`'s lift and glow apply only where there is a mouse; on a touch screen a tap left the tile lifted.
+  - **Clickable cards** (the simulator's profiles, the battle formats) get `.interactive-card`: a 1 px lift under a mouse and a slight press.
+  - **No `transition-all`:** the 18 left each name what they animate:
+    - colours for chips, tiles and badges;
+    - width for progress bars;
+    - filter, opacity and colours for the exam clock;
+    - colours and transform for the answer choices.
+  - **The sidebar** snaps to its width and its labels fade in. Animating `width` re-laid out the whole page on every frame for 300 ms.
+  - **Tabs:**
+    - One underline bar slides between tabs, moved by a transform; it isn't animated the first time.
+    - A new tab's content fades in over 180 ms on the same element, so nothing inside resets.
+    - Both are skipped under reduced motion.
+    - In forced-colours mode the active tab keeps a system-coloured border.
+  - **`zoom-in`** is defined. The simulator's resume notice and an answer's result icon used it, so they appeared without it.
+  - **The two motion/react components** (the board forecast and the recommended fixes) follow the reduced-motion setting (`MotionConfig reducedMotion="user"`).
+  - **Dead view-transition CSS** is gone; nothing started a view transition.
+  - **Focus:**
+    - Six controls drew their own box-shadow ring and hid the outline: inline hints, formula tiles and sheets, flashcards and the quiz file picker. They now use the global focus outline, which survives forced colours.
+    - A field in error keeps its danger border and gets a danger focus ring.
+    - Native checkboxes, radios and ranges take the accent colour.
+    - Scrollbar tracks follow the theme; they were fixed navy.
+  - **Tests:**
+    - `transitions.test.js` covers: no `transition-all`, `.btn-press` easing colours, the sidebar not animating width, and motion/react under `MotionConfig`.
+    - The Tabs test checks that the bar moves by transform.
 - [x] **Theme list and browser colour** (`src/theme/themes.js`, `src/theme/applyAppearance.js`) — one list of the 13 themes for the picker, the pre-paint script and the browser: the status bar / installed app's title bar now takes each theme's card colour (it stayed navy on every theme), set before first paint by `index.html` and on every change by `applyTheme`. Native controls and scrollbars follow the theme's lightness (`color-scheme`). `themeMeta.test.js` keeps the list, `index.css` and `index.html` in step.
 
 ## Exam & Practice Modes

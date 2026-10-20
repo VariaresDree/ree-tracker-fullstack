@@ -46,7 +46,7 @@ export function ProgressIndicator({
         aria-label={ariaLabel || (typeof label === 'string' ? label : undefined)}
       >
         <div
-          className="h-full rounded-full transition-all duration-500 ease-out"
+          className="h-full rounded-full transition-[width] duration-500 ease-out"
           style={{ width: `${pct}%`, background: fill }}
         />
       </div>

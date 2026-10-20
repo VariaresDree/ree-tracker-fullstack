@@ -55,10 +55,15 @@ export function FormField({ label, hint, error, required, id: idProp, className,
 // sizes already use — this shared field base had none. Measured live: a
 // Select rendered 42px tall (py-2.5 + text-sm line-height + border), 2px
 // under the 44px minimum. min-height only (not height), so desktop is unchanged.
+//
+// An invalid field (FormField sets aria-invalid with its error) keeps a
+// danger border, and its focus ring turns danger too, so the field in error
+// still says so while it is being fixed: it went back to the accent on focus.
 const fieldBase =
   'w-full bg-bg border border-border text-textMain text-sm ' +
   'rounded-[var(--radius-default)] px-3.5 py-2.5 pointer-coarse:min-h-11 ' +
   'focus:border-[var(--accent)] transition-colors ' +
+  'aria-[invalid=true]:border-[var(--accent-danger)] aria-[invalid=true]:[--focus-ring-color:var(--accent-danger)] ' +
   'disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-muted';
 
 export const Input = forwardRef(function Input({ className, ...rest }, ref) {

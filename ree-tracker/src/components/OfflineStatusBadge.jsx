@@ -83,7 +83,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                     // doesn't visually bloat on desktop mouse use, but still
                     // clears the target size on the touch devices this actually
                     // matters for.
-                    className={`shrink-0 px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:min-h-11 rounded-lg border text-xs font-semibold transition-all ${
+                    className={`shrink-0 px-2.5 py-1 pointer-coarse:px-4 pointer-coarse:min-h-11 rounded-lg border text-xs font-semibold transition-colors ${
                         !isOnline || isRefreshing
                             ? 'opacity-40 cursor-not-allowed border-border2 text-muted'
                             // On the card colour, where blue text is held to 4.5:1: on

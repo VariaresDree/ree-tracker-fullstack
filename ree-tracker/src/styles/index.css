@@ -38,7 +38,7 @@
 @keyframes tw-enter {
   from {
     opacity: var(--tw-enter-opacity, 1);
-    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale(var(--tw-enter-scale, 1));
   }
 }
 @utility animate-in {
@@ -49,6 +49,11 @@
 }
 @utility fade-in {
   --tw-enter-opacity: 0;
+}
+/* Used by the simulator's resume notice and an answer's result icon, but
+   never defined until now, so they appeared without it. */
+@utility zoom-in {
+  --tw-enter-scale: 0.95;
 }
 @utility slide-in-from-bottom-* {
   --tw-enter-translate-y: calc(var(--spacing) * --value(integer));
@@ -558,7 +563,7 @@
 /* Native controls, scrollbars and form fields follow the theme's lightness.
    Written with :is() so the theme parsers in the tests (a theme block is
    [data-theme="x"] followed by its brace) don't read it as a theme. */
-html { color-scheme: dark; }
+html { color-scheme: dark; accent-color: var(--accent); }
 html:is([data-theme="light"], [data-theme="paper"], [data-theme="sakura"]) { color-scheme: light; }
 
 /* ==========================================================================
@@ -849,9 +854,28 @@ body {
     100% { background-position: -200% 0; }
   }
 
-  /* Button press */
-  .btn-press { transition: transform 0.1s ease; }
+  /* Press feedback. The transition names every property a control changes:
+     the old `transition: transform` replaced Tailwind's transition-colors on
+     the same element, so every button's hover colour snapped instead of
+     easing. */
+  .btn-press {
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, filter, box-shadow, transform;
+    transition-duration: 120ms;
+    transition-timing-function: var(--ease-out-quart);
+  }
   .btn-press:active { transform: scale(0.97); }
+
+  /* A card that is itself the control (a mock profile, a battle format, a
+     practice preset): a 1px lift under a mouse, a slight press on tap. */
+  .interactive-card {
+    transition-property: color, background-color, border-color, box-shadow, transform;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out-quart);
+  }
+  @media (hover: hover) {
+    .interactive-card:hover { transform: translateY(-1px); }
+  }
+  .interactive-card:active { transform: scale(0.99); }
 
   /* Glassmorphism card */
   .glass-card {
@@ -862,11 +886,17 @@ body {
 
   /* Hover glow */
   .hover-glow {
-    transition: box-shadow 0.25s ease, transform 0.25s ease;
+    transition-property: box-shadow, transform, border-color, background-color;
+    transition-duration: 250ms;
+    transition-timing-function: var(--ease-out-quart);
   }
-  .hover-glow:hover {
-    box-shadow: 0 0 20px color-mix(in srgb, var(--brand-blue, #3b82f6) 15%, transparent);
-    transform: translateY(-1px);
+  /* Hover only where there is one: on a touch screen a tap left the tile
+     lifted and glowing until the next tap elsewhere. */
+  @media (hover: hover) {
+    .hover-glow:hover {
+      box-shadow: 0 0 20px color-mix(in srgb, var(--brand-blue, #3b82f6) 15%, transparent);
+      transform: translateY(-1px);
+    }
   }
 
   /* Pulse glow for live indicators */
@@ -1076,27 +1106,6 @@ body {
   .elevate-3 { box-shadow: var(--shadow-3); }
   .elevate-glow { box-shadow: var(--shadow-glow-velocity); }
 
-  /* View Transitions API — 180ms crossfade + y-translate for route swaps.
-     React Router's `viewTransition` prop triggers document.startViewTransition,
-     the browser auto-snapshots the old + new pages, and we style the default
-     ::view-transition-{old,new}(root) pseudo-elements. Per-element hero
-     transitions can attach `view-transition-name: foo` later. */
-  @media (prefers-reduced-motion: no-preference) {
-    ::view-transition-old(root) {
-      animation: vt-fade-out 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-    ::view-transition-new(root) {
-      animation: vt-fade-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-  }
-  @keyframes vt-fade-out {
-    to { opacity: 0; transform: translateY(-6px); }
-  }
-  @keyframes vt-fade-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
   /* Subtle grain overlay for hero panels (4% noise) */
   .grain-overlay {
     position: relative;
@@ -1189,7 +1198,7 @@ body {
 .scrollable::-webkit-scrollbar-track,
 .custom-scrollbar::-webkit-scrollbar-track,
 .scrollbar-dark::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5); 
+  background: color-mix(in srgb, var(--bg-surface2) 60%, transparent);
   border-radius: 8px;
 }
 

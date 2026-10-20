@@ -55,7 +55,7 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
           numberOf={numberOf}
         />
       ) : (
-      <div ref={scrollRef} className="flex overflow-x-auto gap-2.5 pb-4 items-center px-2 scroll-smooth [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 transition-all">
+      <div ref={scrollRef} className="flex overflow-x-auto gap-2.5 pb-4 items-center px-2 scroll-smooth [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
         {Array.from({ length: count }).map((_, idx) => {
           const answered = !!isAnswered?.(idx);
           const isCurrent = idx === currentIndex;
@@ -86,7 +86,7 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
               onClick={() => onSelect?.(idx)}
               aria-label={navigatorLabel({ idx, number, answered, reviewState, marked })}
               aria-current={isCurrent ? 'step' : undefined}
-              className={`w-10 h-10 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 rounded-[var(--radius-default)] border text-xs transition-all duration-300 cursor-pointer flex items-center justify-center relative ${btnClass}`}
+              className={`w-10 h-10 pointer-coarse:w-11 pointer-coarse:h-11 shrink-0 rounded-[var(--radius-default)] border text-xs transition-[color,background-color,border-color,box-shadow,transform] duration-300 cursor-pointer flex items-center justify-center relative ${btnClass}`}
             >
               {number}
               {reviewState === 'correct' && <Check aria-hidden strokeWidth={3} className="absolute -bottom-1 -left-1 w-3 h-3" style={{ color: 'var(--accent-success)' }} />}

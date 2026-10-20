@@ -93,7 +93,7 @@ export default function LibraryIngestion({
                       e.preventDefault();
                       if (!parsingPdf) fileInputRef.current?.click();
                   }}
-                  className={`border-2 border-dashed rounded-[var(--radius-lg)] p-6 flex flex-col items-center justify-center transition-all relative cursor-pointer min-h-[140px] flex-1 group
+                  className={`border-2 border-dashed rounded-[var(--radius-lg)] p-6 flex flex-col items-center justify-center transition-[background-color,border-color,transform] relative cursor-pointer min-h-[140px] flex-1 group
                       ${isDragging ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[var(--accent)] scale-[1.02]' : 'bg-bg border-border2 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] hover:bg-surface'}
                   `}
               >

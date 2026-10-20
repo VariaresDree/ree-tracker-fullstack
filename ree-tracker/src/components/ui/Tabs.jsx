@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from './cn';
+import { prefersReducedMotion } from '../../motion/presets';
 
 // Page-level tab row (Exams, Progress, Library, Admin, a sitting review). Real
 // tablist semantics with arrow-key movement, 44px touch targets, and
@@ -27,7 +28,31 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
   const refs = useRef([]);
   const stripRef = useRef(null);
   const [fade, setFade] = useState({ left: false, right: false });
+  // The active tab's underline: one bar that slides between tabs (a
+  // transform: a 1px bar moved and stretched), placed without a slide the
+  // first time.
+  const [bar, setBar] = useState(null);
+  const [slide, setSlide] = useState(false);
   const idx = tabs.findIndex((t) => t.id === active);
+
+  // Reads the active index from a ref, so the resize observer (set up once)
+  // places the bar for whichever tab is active by then.
+  const activeIdx = useRef(idx);
+  const placeBar = useCallback(() => {
+    const tab = refs.current[activeIdx.current];
+    if (!tab) return;
+    const next = { x: tab.offsetLeft, w: tab.offsetWidth };
+    setBar((b) => (b && b.x === next.x && b.w === next.w ? b : next));
+  }, []);
+  useLayoutEffect(() => {
+    activeIdx.current = idx;
+    placeBar();
+  });
+  useEffect(() => {
+    if (!bar || slide) return undefined;
+    const raf = requestAnimationFrame(() => setSlide(true));
+    return () => cancelAnimationFrame(raf);
+  }, [bar, slide]);
 
   const measure = () => {
     const el = stripRef.current;
@@ -42,10 +67,10 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
   useEffect(() => {
     const el = stripRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(() => measure());
+    const ro = new ResizeObserver(() => { measure(); placeBar(); });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [placeBar]);
 
   // Keep the active tab in view. scrollTo on the strip, not scrollIntoView,
   // which would also scroll the page.
@@ -94,9 +119,20 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
         data-fade={fadeName(fade)}
         // No scrollbar track under the strip (arrow keys move between tabs,
         // and touch scrolls it).
-        className="flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="relative flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={fadeMask(fade)}
       >
+        {bar && (
+          <span
+            aria-hidden="true"
+            data-indicator=""
+            className={cn(
+              'pointer-events-none absolute bottom-0 left-0 h-0.5 w-px origin-left bg-[var(--accent)] forced-colors:hidden',
+              slide && 'transition-transform duration-200 ease-out'
+            )}
+            style={{ transform: `translateX(${bar.x}px) scaleX(${bar.w})` }}
+          />
+        )}
         {tabs.map((t, i) => {
           const on = t.id === active;
           const Icon = t.icon;
@@ -113,10 +149,12 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
               onClick={() => onChange(t.id)}
               className={cn(
                 'inline-flex items-center gap-2 whitespace-nowrap min-h-11 px-4 text-sm font-medium',
-                'rounded-t-[var(--radius-default)] transition-colors border-b-2 -mb-px',
+                'rounded-t-[var(--radius-default)] transition-colors border-b-2 border-transparent -mb-px',
                 on
-                  ? 'text-[var(--accent-text)] border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]'
-                  : 'text-muted2 border-transparent hover:text-textMain hover:bg-surface2'
+                  // Forced colours drop the bar's background: the tab's own
+                  // border marks it there.
+                  ? 'text-[var(--accent-text)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] forced-colors:border-[Highlight]'
+                  : 'text-muted2 hover:text-textMain hover:bg-surface2'
               )}
             >
               {Icon && <Icon size={16} strokeWidth={1.75} aria-hidden="true" />}
@@ -129,10 +167,22 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
   );
 }
 
-/** The content under <Tabs>, labelled by the active tab. Pass the same `id`. */
+/**
+ * The content under <Tabs>, labelled by the active tab. Pass the same `id`.
+ * A new tab's content fades in (180ms, not under reduced motion), on the
+ * same element: no remount, so nothing inside resets.
+ */
 export function TabPanel({ id, active, className, children }) {
+  const ref = useRef(null);
+  const shown = useRef(active);
+  useEffect(() => {
+    if (shown.current === active) return;
+    shown.current = active;
+    if (prefersReducedMotion()) return;
+    ref.current?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' });
+  }, [active]);
   return (
-    <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${active}`} className={className}>
+    <div ref={ref} role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${active}`} className={className}>
       {children}
     </div>
   );

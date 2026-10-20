@@ -81,7 +81,7 @@ function BrowseTile({ label, count, onClick, eyebrow, detail }) {
       type="button"
       onClick={onClick}
       disabled={count === 0}
-      className="text-left bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 shadow-sm transition hover:border-[var(--accent)]/50 hover:shadow-md focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border2 disabled:hover:shadow-sm"
+      className="text-left bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 shadow-sm transition hover:border-[var(--accent)]/50 hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border2 disabled:hover:shadow-sm"
     >
       <div className="flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0">

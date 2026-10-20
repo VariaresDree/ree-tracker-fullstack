@@ -103,7 +103,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
                   aria-checked={selected}
                   onClick={() => setProfile(p.id)}
                   className={cn(
-                    'p-4 rounded-[var(--radius-default)] border text-left transition-[background-color,border-color,transform] cursor-pointer flex flex-col gap-3 min-w-0 btn-press',
+                    'p-4 rounded-[var(--radius-default)] border text-left cursor-pointer flex flex-col gap-3 min-w-0 interactive-card',
                     selected
                       ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
                       : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'

@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { MotionConfig, motion } from 'motion/react';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Stat, Skeleton } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
@@ -82,69 +82,71 @@ export function TrajectoryCard() {
   const early = isEarlyEstimate({ snapshot });
 
   return (
-    <motion.div {...cardEnter}>
-      <Card elevated grain className="overflow-hidden">
-        <CardHeader>
-          <div>
-            <CardEyebrow>Board forecast</CardEyebrow>
-            <CardTitle>Projected board outcome</CardTitle>
-          </div>
-          {early ? <Badge tone="signal">Early estimate</Badge> : null}
-        </CardHeader>
-        <CardBody className="flex flex-col gap-5">
-          <p className="text-xs text-muted2">{ABOUT_TRAJECTORY}</p>
-
-          <div className="grid grid-cols-2 gap-6">
-            <Stat label="Pass probability" value={pctFmt(pass)} suffix="%" />
-            {gwa ? (
-              <div className="flex flex-col">
-                <span className="text-eyebrow">Projected average</span>
-                <span className="text-display text-3xl text-textMain tabular-nums">{gwa.mean.toFixed(1)}%</span>
-                <span className="text-xs text-muted2 tabular-nums">likely {Math.round(gwa.low)}–{Math.round(gwa.high)}%</span>
-              </div>
-            ) : (
-              <Stat label="Topnotcher chance" value={pctFmt(snapshot.topnotcherProbability)} suffix="%" />
-            )}
-          </div>
-
-          {conditional >= 0.05 && (
-            <p className="text-xs rounded-[var(--radius-default)] border px-3 py-2"
-              style={{ borderColor: 'color-mix(in srgb, var(--color-reeAmber) 40%, transparent)', color: 'var(--text-main)' }}>
-              <strong className="font-semibold">{pctFmt(conditional)}% chance of a conditional result</strong> — the
-              average is met but a subject falls under {SUBJECT_FLOOR}%, so that subject would have to be retaken.
-            </p>
-          )}
-
-          {projection?.subjects && (
-            <div className="flex flex-col gap-3" aria-label="Projected rating by subject">
-              <div className="flex justify-between text-micro text-muted2">
-                <span>Projected rating by subject</span>
-                <span>floor {SUBJECT_FLOOR}% · pass {GENERAL_AVERAGE}%</span>
-              </div>
-              {SUBJECTS.map((s) => (
-                <SubjectRow key={s} subject={s} data={projection.subjects[s]} isBinding={s === binding} />
-              ))}
+    <MotionConfig reducedMotion="user">
+      <motion.div {...cardEnter}>
+        <Card elevated grain className="overflow-hidden">
+          <CardHeader>
+            <div>
+              <CardEyebrow>Board forecast</CardEyebrow>
+              <CardTitle>Projected board outcome</CardTitle>
             </div>
-          )}
+            {early ? <Badge tone="signal">Early estimate</Badge> : null}
+          </CardHeader>
+          <CardBody className="flex flex-col gap-5">
+            <p className="text-xs text-muted2">{ABOUT_TRAJECTORY}</p>
 
-          <div className="flex items-center justify-between text-micro text-muted2 font-mono">
-            <span>
-              Topnotcher {pctFmt(snapshot.topnotcherProbability)}% (estimate) · model {snapshot.modelVersion ?? 'v1'}
-            </span>
-            {/* Inline text-link visually; the tap AREA grows to 44px on touch
-                via padding + matching negative margin. */}
-            <button
-              type="button"
-              onClick={recompute}
-              disabled={loading}
-              className="underline-offset-2 hover:underline disabled:opacity-50 pointer-coarse:p-4 pointer-coarse:-m-4 rounded-sm"
-            >
-              {loading ? 'Retrying…' : 'Recompute'}
-            </button>
-          </div>
-        </CardBody>
-      </Card>
-    </motion.div>
+            <div className="grid grid-cols-2 gap-6">
+              <Stat label="Pass probability" value={pctFmt(pass)} suffix="%" />
+              {gwa ? (
+                <div className="flex flex-col">
+                  <span className="text-eyebrow">Projected average</span>
+                  <span className="text-display text-3xl text-textMain tabular-nums">{gwa.mean.toFixed(1)}%</span>
+                  <span className="text-xs text-muted2 tabular-nums">likely {Math.round(gwa.low)}–{Math.round(gwa.high)}%</span>
+                </div>
+              ) : (
+                <Stat label="Topnotcher chance" value={pctFmt(snapshot.topnotcherProbability)} suffix="%" />
+              )}
+            </div>
+
+            {conditional >= 0.05 && (
+              <p className="text-xs rounded-[var(--radius-default)] border px-3 py-2"
+                style={{ borderColor: 'color-mix(in srgb, var(--color-reeAmber) 40%, transparent)', color: 'var(--text-main)' }}>
+                <strong className="font-semibold">{pctFmt(conditional)}% chance of a conditional result</strong> — the
+                average is met but a subject falls under {SUBJECT_FLOOR}%, so that subject would have to be retaken.
+              </p>
+            )}
+
+            {projection?.subjects && (
+              <div className="flex flex-col gap-3" aria-label="Projected rating by subject">
+                <div className="flex justify-between text-micro text-muted2">
+                  <span>Projected rating by subject</span>
+                  <span>floor {SUBJECT_FLOOR}% · pass {GENERAL_AVERAGE}%</span>
+                </div>
+                {SUBJECTS.map((s) => (
+                  <SubjectRow key={s} subject={s} data={projection.subjects[s]} isBinding={s === binding} />
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-micro text-muted2 font-mono">
+              <span>
+                Topnotcher {pctFmt(snapshot.topnotcherProbability)}% (estimate) · model {snapshot.modelVersion ?? 'v1'}
+              </span>
+              {/* Inline text-link visually; the tap AREA grows to 44px on touch
+                  via padding + matching negative margin. */}
+              <button
+                type="button"
+                onClick={recompute}
+                disabled={loading}
+                className="underline-offset-2 hover:underline disabled:opacity-50 pointer-coarse:p-4 pointer-coarse:-m-4 rounded-sm"
+              >
+                {loading ? 'Retrying…' : 'Recompute'}
+              </button>
+            </div>
+          </CardBody>
+        </Card>
+      </motion.div>
+    </MotionConfig>
   );
 }
 

@@ -38,7 +38,7 @@ export default function Pomodoro() {
       resetPomodoro();
     };
     return (
-      <div className="flex flex-col gap-2 p-3 bg-surface border border-border2 rounded-[var(--radius-default)] text-center w-full text-xs text-textMain transition-all shadow-inner">
+      <div className="flex flex-col gap-2 p-3 bg-surface border border-border2 rounded-[var(--radius-default)] text-center w-full text-xs text-textMain shadow-inner">
         <div className="text-eyebrow">Timer settings</div>
         <div className="flex items-end justify-center gap-3">
           <label className="flex flex-col gap-1 items-center">
@@ -78,7 +78,7 @@ export default function Pomodoro() {
   }
 
   return (
-    <div className="w-full p-4 bg-surface border border-border2 rounded-[var(--radius-lg)] flex flex-col items-center gap-2.5 shadow-md transition-all">
+    <div className="w-full p-4 bg-surface border border-border2 rounded-[var(--radius-lg)] flex flex-col items-center gap-2.5 shadow-md">
       {/* Header Info */}
       <div className="flex justify-between items-center w-full border-b border-border2/40 pb-2">
         <span className="text-eyebrow" style={{ color: pomodoro.isWork ? 'var(--color-reeAmber-text)' : 'var(--accent-success)' }}>
