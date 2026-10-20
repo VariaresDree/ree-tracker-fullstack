@@ -28,6 +28,24 @@ describe('transitions', () => {
     expect(hits).toEqual([]);
   });
 
+  it('a transition list names scale and translate when the element moves by them', () => {
+    // Tailwind v4 writes scale-*/translate-* as the CSS `scale` and
+    // `translate` properties, not `transform`: a list naming only
+    // `transform` let those moves jump.
+    const hits = [];
+    for (const f of files) {
+      fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        const list = line.match(/transition-\[([^\]]*)\]/)?.[1];
+        if (!list) return;
+        const props = list.split(',');
+        for (const [prop, re] of [['scale', /(^|[\s:'"`])-?scale-/], ['translate', /(^|[\s:'"`])-?translate-[xy]-/]]) {
+          if (re.test(line) && !props.includes(prop)) hits.push(`${path.relative(SRC, f)}:${i + 1} needs ${prop}`);
+        }
+      });
+    }
+    expect(hits).toEqual([]);
+  });
+
   it('button press feedback keeps the hover colour change', () => {
     const css = read('styles/index.css');
     const rule = css.match(/\.btn-press\s*\{([^}]*)\}/)?.[1] ?? '';

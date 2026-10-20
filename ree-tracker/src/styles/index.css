@@ -588,6 +588,9 @@ body::after {
   position: fixed;
   top: 0;
   left: 0;
+  /* bottom: the height where lvh is unknown (older WebViews), which would
+     otherwise collapse to 0 under size containment; height wins elsewhere. */
+  bottom: 0;
   width: 100%;
   height: 100lvh;
   z-index: -1;

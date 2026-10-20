@@ -175,7 +175,7 @@ every feature add, change, or removal, not on a schedule.
     - Tiles are tiny seamless SVGs (all under 4 KB), written by `scripts/brand/build-textures.mjs`. They are fetched by URL, not inlined into the stylesheet.
     - The simple patterns are CSS gradients.
   - **Readable by construction:** `themeContrast.test.js` › page textures checks text that sits straight on the page (`--text-main`, both muted tones and accent text at 4.5:1, the focus ring at 3:1). It measures against each glow at its peak, a pattern line at full strength, and both together, in every theme. The tile test checks that every tile is used, small and inert.
-  - **Off switch:** Account › Appearance › **Background: Plain** sets `data-texture="off"`. It is kept in the store and `localStorage` (`ree-texture`) and applied before first paint, so a reload never flashes the texture. Like the theme, it survives a sign-out.
+  - **Off switch:** Account › Appearance › **Background: Plain** sets `data-texture="off"`. It is kept in the store and `localStorage` (`ree-texture`) and applied before first paint, so a reload never flashes the texture. After the store restores from IndexedDB it rewrites both `localStorage` copies (Plain and the theme), so another tab can't leave the first paint and the restored look apart. Like the theme, it survives a sign-out.
   - The texture is also off whenever the system asks for less: reduced transparency, more contrast, forced colours, and print.
   - **Shell:**
     - The page wrappers no longer paint over the texture (the layout, login, boot, error and "still reaching your session" screens). Login's two blurred orbs are gone; the theme's glow replaces them.
@@ -213,7 +213,7 @@ every feature add, change, or removal, not on a schedule.
   - **Overflow:** long names truncate in rankings rows. User text wraps anywhere. Action rows wrap.
   - **Smaller fixes:**
     - The collapsed sidebar's account button is a true circle (its padding and radius used to fight).
-    - The phone Scratchpad in a simulator review sits above the bottom bar (a stacking context held it under).
+    - The phone Scratchpad sits above the bottom bar in a simulator review and in Practice. A stacking context held it under the bar, and a stroke near the bottom tapped a nav link.
     - Outside-score Edit/Delete and the explanation review's Approve/Reject use `Button`.
   - **Tests:**
     - `layoutGuards.test.js` scans the source for hand-rolled page frames, `max-w-5xl`, `rounded-xl`/`2xl` and viewport 3–4 column grids, allowing forms and dialogs.
@@ -233,10 +233,10 @@ every feature add, change, or removal, not on a schedule.
     - colours for chips, tiles and badges;
     - width for progress bars;
     - filter, opacity and colours for the exam clock;
-    - colours and transform for the answer choices.
+    - colours, `translate` and `scale` for the answer choices, the navigator cells and the upload dropzone. Tailwind v4 moves elements with the CSS `scale`/`translate` properties, so a list naming only `transform` would make them jump; `transitions.test.js` checks for this.
   - **The sidebar** snaps to its width and its labels fade in. Animating `width` re-laid out the whole page on every frame for 300 ms.
   - **Tabs:**
-    - One underline bar slides between tabs, moved by a transform; it isn't animated the first time.
+    - One underline bar slides between tabs, moved by a transform; it isn't animated the first time. It re-measures when the tabs resize, for example when the web font arrives after first paint.
     - A new tab's content fades in over 180 ms on the same element, so nothing inside resets.
     - Both are skipped under reduced motion.
     - In forced-colours mode the active tab keeps a system-coloured border.

@@ -40,7 +40,10 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
   const activeIdx = useRef(idx);
   const placeBar = useCallback(() => {
     const tab = refs.current[activeIdx.current];
-    if (!tab) return;
+    if (!tab) {
+      setBar(null);
+      return;
+    }
     const next = { x: tab.offsetLeft, w: tab.offsetWidth };
     setBar((b) => (b && b.x === next.x && b.w === next.w ? b : next));
   }, []);
@@ -69,8 +72,12 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(() => { measure(); placeBar(); });
     ro.observe(el);
+    // The tabs too: their widths change when the web font arrives (it loads
+    // after first paint), which doesn't resize the strip, and the bar stayed
+    // at the fallback font's positions.
+    refs.current.forEach((tab) => tab && ro.observe(tab));
     return () => ro.disconnect();
-  }, [placeBar]);
+  }, [placeBar, tabs.length]);
 
   // Keep the active tab in view. scrollTo on the strip, not scrollIntoView,
   // which would also scroll the page.

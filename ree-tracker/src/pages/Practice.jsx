@@ -137,10 +137,13 @@ export default function Practice() {
   const isLastQuestion = session.currentIndex + 1 >= total;
 
   return (
-    // `relative`: the scratchpad covers the session from md up (absolute,
-    // inset-0). `z-0`: one stacking context, so the question's inner layers
-    // stay under the layout's header and bars.
-    <Page width="reading" className="relative z-0">
+    // `relative`: the Scratchpad covers the session from md up (absolute,
+    // inset-0), inside this page's own stacking context (md:isolate), over
+    // the sticky toolbar. On a phone the Scratchpad is a sheet on the layer
+    // scale (index.css), so nothing may contain it: with `z-0` here the
+    // bottom bar covered the bottom of the sheet, and a stroke there left
+    // the session.
+    <Page width="reading" className="relative md:isolate">
       {/* The setup and summary screens have their own h1; the running session
           had none, and its solution panel's heading sat under nothing. */}
       <h1 className="sr-only">Practice</h1>

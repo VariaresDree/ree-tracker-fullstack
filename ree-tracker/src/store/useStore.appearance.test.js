@@ -39,3 +39,16 @@ describe('Plain background', () => {
     expect(useStore.getState().plainBackground).toBe(true);
   });
 });
+
+describe('the pre-paint copy follows the restored store', () => {
+  it('after restoring from IndexedDB, localStorage holds what was restored', async () => {
+    localStorage.setItem('ree-texture', 'off');
+    localStorage.setItem('ree-theme', 'paper');
+    idbMem.set('ree-tracker-secure-storage', JSON.stringify({ state: { plainBackground: false, theme: 'ocean' }, version: 0 }));
+    await useStore.persist.rehydrate();
+    expect(useStore.getState().plainBackground).toBe(false);
+    expect(localStorage.getItem('ree-texture')).toBe('on');
+    expect(localStorage.getItem('ree-theme')).toBe('ocean');
+    idbMem.clear();
+  });
+});

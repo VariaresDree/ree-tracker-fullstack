@@ -835,6 +835,15 @@ export const useStore = create(
       // IDB hydration completes, so merging is race-free; dedupe by id.
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        // The pre-paint script (index.html) reads the theme and the Plain
+        // background from localStorage; the store restores them from
+        // IndexedDB. Another tab can leave the two apart, and every load
+        // then painted one look and switched to the other. Whatever was
+        // restored is what the next load paints first.
+        try {
+          if (state.theme) localStorage.setItem('ree-theme', state.theme);
+          localStorage.setItem('ree-texture', state.plainBackground ? 'off' : 'on');
+        } catch { /* storage unavailable: the store still applies them */ }
         // Legacy pomodoro shape ({ timeLeft } counter) → timestamp model, and
         // clean up a block that expired while the app was closed.
         state.pomodoro = migratePomodoro(state.pomodoro);
