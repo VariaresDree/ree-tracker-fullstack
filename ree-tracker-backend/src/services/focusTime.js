@@ -96,6 +96,7 @@ async function loadFocusTime(userId, now = Date.now()) {
     return { ...summarizeFocus(blocks, { now, weights }), recent, goal: { weeklyMinutes: user?.weeklyFocusMinutes ?? null } };
 }
 
+// Capped at FOCUS_MAX_MINUTES (the longest PRC section: a timed paper exam).
 function spanMinutes(b) {
     const span = Math.ceil((new Date(b.endedAt).getTime() - new Date(b.startedAt).getTime()) / 60000) + 1;
     return Math.max(1, Math.min(FOCUS_MAX_MINUTES, Number.isFinite(span) ? span : 1));

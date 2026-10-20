@@ -5,12 +5,12 @@
 // Collapsible to an icon rail.
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import Pomodoro from '../components/Pomodoro';
+import FocusLauncher from '../components/focus/FocusLauncher';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { useUISlice } from '../store/slices';
 import { cn, Logo } from '../components/ui';
-import { LogOut, PanelLeftClose, PanelLeftOpen, Timer } from '../components/ui/icons';
+import { LogOut, PanelLeftClose, PanelLeftOpen } from '../components/ui/icons';
 import Avatar from '../components/Avatar';
 import LogoutConfirm from '../components/LogoutConfirm';
 import { PRIMARY_NAV, ADMIN_NAV, activeNavId } from './navModel';
@@ -80,20 +80,10 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <div className="p-4 border-b border-border2 bg-surface2/10 shrink-0 flex justify-center w-full">
-        {collapsed ? (
-          <button
-            type="button"
-            onClick={() => toggleSidebarCollapse()}
-            className="w-10 h-10 bg-surface2 hover:bg-surface3 border border-border2 rounded-full flex items-center justify-center transition-colors cursor-pointer text-muted hover:text-textMain touch-target"
-            aria-label="Show the focus timer"
-            title="Show the focus timer"
-          >
-            <Timer size={18} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        ) : (
-          <Pomodoro />
-        )}
+      {/* The focus timer is full screen now (/focus); this opens it, and
+          shows the time left while a block runs. */}
+      <div className={cn('px-3 py-2 border-b border-border2 shrink-0 flex', collapsed && 'justify-center')}>
+        <FocusLauncher variant={collapsed ? 'icon' : 'row'} />
       </div>
 
       <nav aria-label="Primary" className="flex-1 overflow-y-auto p-3 flex flex-col gap-1 custom-scrollbar min-h-0">

@@ -6,7 +6,7 @@
 // can't go past the time the block spanned (the server checks it too).
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { FOCUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
+import { FOCUS_MAX_MINUTES, FOCUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { Button, Input, Select } from '../../../components/ui';
 import { apiRequest } from '../../../services/dbQueries';
 
@@ -26,7 +26,7 @@ function BlockRow({ block, onChanged }) {
   const [subject, setSubject] = useState(block.subject);
   const [minutes, setMinutes] = useState(String(block.minutes));
   const [busy, setBusy] = useState(false);
-  const max = block.maxMinutes || 180;
+  const max = block.maxMinutes || FOCUS_MAX_MINUTES;
   const n = Number(minutes);
   const valid = Number.isInteger(n) && n >= 1 && n <= max;
 

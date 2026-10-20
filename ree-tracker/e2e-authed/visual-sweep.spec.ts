@@ -16,6 +16,7 @@ const SCREENS: Record<string, string> = {
   library: '/library',
   appearance: '/account#appearance',
   simulator: '/simulator',
+  focus: '/focus',
 };
 const WIDTHS = [1280, 820, 390, 360];
 

@@ -14,6 +14,7 @@ const prisma = require('../src/config/db');
 const focusRoutes = require('../src/routes/focusRoutes');
 const analyticsDeepRoutes = require('../src/routes/analyticsDeepRoutes');
 const { summarizeFocus, manilaWeekStart } = require('../src/services/focusTime');
+const { FOCUS_MAX_MINUTES } = require('@ree/shared');
 
 const UID = 'uid-focus';
 function makeApp() {
@@ -56,7 +57,7 @@ describe('POST /api/user/focus-blocks', () => {
         vi.spyOn(prisma.focusBlock, 'create').mockResolvedValue({});
         expect((await post(block({ subject: 'Chemistry' }))).status).toBe(400);
         expect((await post(block({ minutes: 0 }))).status).toBe(400);
-        expect((await post(block({ minutes: 200 }))).status).toBe(400);
+        expect((await post(block({ minutes: 361 }))).status).toBe(400);
         expect((await post(block({ minutes: 60 }))).status).toBe(400); // longer than the block lasted
         expect((await post(block({ endedAt: new Date(Date.now() + 3600_000).toISOString() }))).status).toBe(400);
         expect(prisma.focusBlock.create).not.toHaveBeenCalled();
@@ -64,6 +65,19 @@ describe('POST /api/user/focus-blocks', () => {
 
     it('needs a sign-in', async () => {
         expect((await request(makeApp()).post('/api/user/focus-blocks').send(block())).status).toBe(401);
+    });
+
+    // A paper exam timed on the focus timer counts: up to the longest PRC
+    // section (EE, 6 hours), and not a minute more, however long it spanned.
+    it('takes a block as long as the longest board section, and no longer', async () => {
+        const create = vi.spyOn(prisma.focusBlock, 'create').mockResolvedValue({});
+        const end = Date.now() - 60_000;
+        const sixHoursTen = { startedAt: new Date(end - 370 * 60_000).toISOString(), endedAt: new Date(end).toISOString() };
+        expect(FOCUS_MAX_MINUTES).toBe(360);
+        expect((await post(block({ ...sixHoursTen, minutes: 360 }))).status).toBe(201);
+        expect(create.mock.calls[0][0].data).toMatchObject({ minutes: 360 });
+        expect((await post(block({ ...sixHoursTen, minutes: 361, clientId: 'focus-1700000000001' }))).status).toBe(400);
+        expect(create).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -186,6 +200,15 @@ describe('fixing a logged focus block', () => {
         expect((await patch('b1', { subject: 'Chemistry' })).status).toBe(400);
         expect((await patch('b1', {})).status).toBe(400);
         expect(updateMany).not.toHaveBeenCalled();
+    });
+
+    it('lets a 6-hour block (a timed EE paper) be set to any minutes it spanned', async () => {
+        const start = new Date(Date.now() - 7 * 3600_000);
+        vi.spyOn(prisma.focusBlock, 'findFirst').mockResolvedValue({ id: 'b6', startedAt: start, endedAt: new Date(start.getTime() + 6 * 3600_000) });
+        const updateMany = vi.spyOn(prisma.focusBlock, 'updateMany').mockResolvedValue({ count: 1 });
+        expect((await patch('b6', { minutes: 300 })).status).toBe(200);
+        expect((await patch('b6', { minutes: 361 })).status).toBe(400);
+        expect(updateMany).toHaveBeenCalledTimes(1);
     });
 
     it("answers 404 for a block that isn't the caller's", async () => {

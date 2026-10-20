@@ -11,7 +11,10 @@ import { classifySyncError, createBackoff, SYNC_OUTCOME } from '../services/sync
 import { TELEMETRY_BATCH_MAX } from '@ree/shared';
 import { dropLegacyLedger } from '../services/simulationLedger';
 import { clearUserCaches } from '../services/userCache';
-import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro } from '../utils/pomodoroLogic';
+import {
+  freshPomodoro, migratePomodoro, remainingSecs, resetForSignOut,
+  startTimer, pauseTimer, resetTimer, skipTimer, completeTimer, setMode, setExamSection, setExamFullBoard, updateSettings,
+} from '../utils/pomodoroLogic';
 import { applyTexture, applyTheme } from '../theme/applyAppearance';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
@@ -59,6 +62,28 @@ const OFFLINE_MIRROR_KEY = 'ree_pending_sync';
 const syncBackoff = createBackoff();
 
 const newId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+
+// Focus blocks the timer logs are stamped with the account that ran them, as
+// queued writes are: the owning clock sends only the signed-in account's
+// (hooks/usePomodoroClock). Blocks already waiting keep their stamp; legacy
+// unstamped ones are sent for whoever is signed in, as before.
+function stampFocusLogs(before, after, ownerUid) {
+  const logs = after.pendingFocusLogs || [];
+  if (!ownerUid || logs === before?.pendingFocusLogs) return after;
+  const known = new Set((before?.pendingFocusLogs || []).map((b) => b.clientId));
+  if (logs.every((b) => known.has(b.clientId) || b.ownerUid !== undefined)) return after;
+  return { ...after, pendingFocusLogs: logs.map((b) => (known.has(b.clientId) || b.ownerUid !== undefined ? b : { ...b, ownerUid })) };
+}
+
+// One timer transition: `fn(pomodoro, now)` from utils/pomodoroLogic, its new
+// logs stamped. A transition that changes nothing changes no state.
+function setPomodoro(set, fn) {
+  set((state) => {
+    const next = fn(state.pomodoro, Date.now());
+    if (next === state.pomodoro) return state;
+    return { pomodoro: stampFocusLogs(state.pomodoro, next, auth.currentUser?.uid || state.ownerUid || null) };
+  });
+}
 
 // HIGH-PERFORMANCE ASYNC STORAGE ADAPTER
 const idbStorage = {
@@ -673,6 +698,12 @@ export const useStore = create(
           currentSessionId: null,
           currentSessionMode: null,
           currentSubject: null,
+          // The focus timer kept the signed-out account's running block and
+          // its logged blocks still waiting to be sent, which the next
+          // account's owner clock then sent under its own token. The lengths
+          // and toggles are the device's and stay.
+          pomodoro: resetForSignOut(getStore().pomodoro),
+          pomodoroWidget: { ...getStore().pomodoroWidget, pinned: false, dismissed: false },
         });
         try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch { /* best effort */ }
         try { await useStore.persist?.clearStorage?.(); } catch { /* best effort */ }
@@ -724,36 +755,36 @@ export const useStore = create(
         });
       },
 
-      // 3. POMODORO PROTOCOL SLICE — timestamp model (utils/pomodoroLogic).
+      // 3. FOCUS TIMER SLICE — timestamp model (utils/pomodoroLogic).
       // Remaining time is DERIVED from `endsAt`, never ticked into the store,
       // so the timer survives sidebar unmounts, route changes, and reloads.
-      pomodoro: {
-        workDuration: 25, breakDuration: 5, isWork: true, isRunning: false, endsAt: null, pausedRemaining: 25 * 60,
-        // Focus time: what the focus blocks are for, when this one started,
-        // and finished blocks waiting to be sent (hooks/usePomodoroClock).
-        subject: 'General', focusStartedAt: null, pendingFocusLogs: [],
-      },
-      updatePomodoro: (config) => set((state) => {
-        const p = state.pomodoro;
-        const newLength = (config.workDuration != null && config.workDuration !== p.workDuration)
-          || (config.breakDuration != null && config.breakDuration !== p.breakDuration);
-        // A new length ends the block in progress: what ran of a focus block
-        // is logged on the length it ran at.
-        return { pomodoro: { ...(newLength ? resetTimer(p) : p), ...config } };
-      }),
-      setPomodoroSubject: (subject) => set((state) => ({ pomodoro: { ...state.pomodoro, subject } })),
+      // Focus time: what the focus blocks are for, when this one started, and
+      // finished blocks waiting to be sent (hooks/usePomodoroClock).
+      pomodoro: freshPomodoro(),
+      // Settings, clamped. Only a new length for the current mode ends the
+      // block in progress (what ran of a focus block is logged on the length
+      // it ran at).
+      updatePomodoro: (patch) => setPomodoro(set, (p, now) => updateSettings(p, patch, now)),
+      setPomodoroSubject: (subject) => setPomodoro(set, (p, now) => updateSettings(p, { subject }, now)),
       // Sent (or queued) by the owning clock; dropped from the timer's list.
       clearFocusLogs: (clientIds) => set((state) => ({
         pomodoro: { ...state.pomodoro, pendingFocusLogs: (state.pomodoro.pendingFocusLogs || []).filter((b) => !clientIds.includes(b.clientId)) },
       })),
       startPomodoro: () => set((state) => ({
-        pomodoro: startTimer(state.pomodoro),
+        pomodoro: startTimer(state.pomodoro, Date.now()),
         // A fresh start un-dismisses the floating widget.
         pomodoroWidget: { ...state.pomodoroWidget, dismissed: false },
       })),
-      pausePomodoro: () => set((state) => ({ pomodoro: pauseTimer(state.pomodoro) })),
-      resetPomodoro: () => set((state) => ({ pomodoro: resetTimer(state.pomodoro) })),
-      switchPomodoroMode: () => set((state) => ({ pomodoro: switchMode(state.pomodoro) })),
+      pausePomodoro: () => setPomodoro(set, (p, now) => pauseTimer(p, now)),
+      resetPomodoro: () => setPomodoro(set, (p, now) => resetTimer(p, now)),
+      skipPomodoro: () => setPomodoro(set, (p, now) => skipTimer(p, now)),
+      // The block ran out (the owning clock calls this). Idempotent: nothing
+      // happens unless the block is running and at zero, so two calls for one
+      // ending move the timer on once.
+      completePomodoro: () => setPomodoro(set, (p, now) => (p.isRunning && remainingSecs(p, now) === 0 ? completeTimer(p, now) : p)),
+      setPomodoroMode: (mode) => setPomodoro(set, (p, now) => setMode(p, mode, now)),
+      setPomodoroExamSection: (section) => setPomodoro(set, (p, now) => setExamSection(p, section, now)),
+      setPomodoroExamFullBoard: (on) => setPomodoro(set, (p) => setExamFullBoard(p, on)),
 
       // Floating timer widget: pin keeps it visible while paused; dismissed
       // hides it until the next start; x/y persist the dragged position.
@@ -846,7 +877,7 @@ export const useStore = create(
         } catch { /* storage unavailable: the store still applies them */ }
         // Legacy pomodoro shape ({ timeLeft } counter) → timestamp model, and
         // clean up a block that expired while the app was closed.
-        state.pomodoro = migratePomodoro(state.pomodoro);
+        state.pomodoro = stampFocusLogs(state.pomodoro, migratePomodoro(state.pomodoro), auth.currentUser?.uid || state.ownerUid || null);
         try {
           const raw = localStorage.getItem(OFFLINE_MIRROR_KEY);
           if (raw) {

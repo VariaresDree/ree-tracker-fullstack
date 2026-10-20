@@ -20,6 +20,7 @@ const SCREENS = [
   ...tabs('/admin', ['questions', 'explanations', 'references', 'handouts', 'ai']),
   '/simulator',
   '/diagnostic',
+  '/focus',
 ];
 
 test('every screen and tab opens without an error', async ({ page }) => {

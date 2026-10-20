@@ -9,29 +9,18 @@
 // placement test) render it themselves; the rest get it from App's AppShell.
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useStore } from '../store/useStore';
 import FloatingPomodoro from '../components/FloatingPomodoro';
 import useMediaQuery from '../hooks/useMediaQuery';
+import { useAppearance } from '../hooks/useAppearance';
 import Sidebar from './Sidebar';
 import PhoneHeader from './PhoneHeader';
 import BottomBar from './BottomBar';
-import { applyTexture, applyTheme } from '../theme/applyAppearance';
 
 export default function MainLayout({ children }) {
-  // The theme alone: the UI slice also holds the sidebar's collapse, and the
-  // whole shell re-rendered when it toggled.
-  const theme = useStore((s) => s.theme);
-  const plainBackground = useStore((s) => s.plainBackground);
+  // The theme and background (hooks/useAppearance; /focus uses it too).
+  useAppearance();
   const location = useLocation();
   const isDesktop = useMediaQuery('(min-width: 768px)');
-
-  // Enforce the global theming architecture on render/change.
-  useEffect(() => {
-    applyTheme(theme || localStorage.getItem('ree-theme') || 'dark');
-  }, [theme]);
-  useEffect(() => {
-    applyTexture(plainBackground);
-  }, [plainBackground]);
 
   // A new page starts at its top — or at the section a link points to
   // (/account#offline). The router keeps the old scroll position otherwise.
@@ -116,10 +105,11 @@ export default function MainLayout({ children }) {
         {children}
       </main>
 
-      {/* Floating Pomodoro pill — always mounted (owns the completion tick),
-          renders only while running or pinned. Absent from ExamLayout routes
-          by construction, keeping the exam screens distraction-free; there
-          PomodoroOwner keeps the block ending on time. */}
+      {/* Floating focus-timer pill — always mounted (owns the completion
+          tick), renders only while running or pinned; a tap opens /focus.
+          Absent from ExamLayout routes by construction, keeping the exam
+          screens distraction-free; there PomodoroOwner keeps the block ending
+          on time. /focus, outside this layout, owns the clock itself. */}
       <FloatingPomodoro />
 
       {!isDesktop && <BottomBar />}
