@@ -21,7 +21,7 @@ export function TodaySkeleton() {
       </div>
       <div aria-hidden="true" className="rounded-[var(--radius-lg)] border border-border p-6 sm:p-8 flex flex-col gap-6">
         <div className="skeleton-shimmer h-7 w-72 max-w-full rounded-lg" />
-        <Grid kind="cards" gap="lg">
+        <Grid kind="cards" gap="lg" className="@2xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <SkeletonCard key={i} className="h-28" />
           ))}

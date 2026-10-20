@@ -209,7 +209,9 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
       <Card elevated glow grain padding="lg" className="flex flex-col gap-6">
         <h2 id="today-heading" className="text-h2 text-textMain">Where you stand, and what to do next</h2>
 
-        <Grid kind="cards" gap="lg">
+        {/* Three blocks side by side as soon as they fit (42rem): the cards
+            grid reaches three only at 56rem, which left the third alone. */}
+        <Grid kind="cards" gap="lg" className="@2xl:grid-cols-3">
           <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />
           <PassBlock snapshot={snapshot} loading={loading} isOnline={isOnline} early={early} />
           <TargetBlock daily={daily} />

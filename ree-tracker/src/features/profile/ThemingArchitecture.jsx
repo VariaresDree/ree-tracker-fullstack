@@ -1,6 +1,6 @@
 // src/features/profile/ThemingArchitecture.jsx
 import { Palette } from '../../components/ui/icons';
-import { Card, cn, Grid, SegmentedControl } from '../../components/ui';
+import { cn, Grid, SegmentedControl } from '../../components/ui';
 // Three-dot swatches mirror each theme's real tokens ([page, panel, text or
 // accent]): far more informative than the emoji they replace.
 import { THEMES } from '../../theme/themes';
@@ -11,8 +11,10 @@ const BACKGROUNDS = [
 ];
 
 export default function ThemingArchitecture({ theme, setTheme, plainBackground = false, setPlainBackground }) {
+  // No card of its own: it sits in Account's Appearance card, and a card in
+  // a card drew a second frame.
   return (
-    <Card padding="lg" className="shadow-sm">
+    <div className="flex flex-col">
       <div className="border-b border-border pb-4 mb-6">
         <h3 className="text-h3 text-textMain flex items-center gap-2">
           <Palette size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Theme
@@ -64,6 +66,6 @@ export default function ThemingArchitecture({ theme, setTheme, plainBackground =
           />
         </div>
       )}
-    </Card>
+    </div>
   );
 }
