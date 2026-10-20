@@ -1,11 +1,17 @@
 import { cn } from './cn';
 
 // `as` renders another element (an <li> in a list of cards, a <section>).
-export function Card({ as: Tag = 'div', className, elevated = false, glow = false, grain = false, ...rest }) {
+// `padding` is the one inset a card's own content takes when it doesn't use
+// CardHeader/CardBody: sm for tiles and list rows, md for a section's card,
+// lg for a hero or a question. Cards had ten hand-picked paddings.
+const PADDING = { none: '', sm: 'p-4', md: 'p-5', lg: 'p-6 sm:p-8' };
+
+export function Card({ as: Tag = 'div', className, padding = 'none', elevated = false, glow = false, grain = false, ...rest }) {
   return (
     <Tag
       className={cn(
         'bg-surface border border-border rounded-[var(--radius-lg)]',
+        PADDING[padding],
         elevated && 'elevate-2',
         glow && 'elevate-glow',
         grain && 'grain-overlay',
