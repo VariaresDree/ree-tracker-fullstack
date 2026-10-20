@@ -18,4 +18,5 @@ export { Page } from './Page';
 export { IconChip } from './IconChip';
 export { ProgressIndicator } from './ProgressIndicator';
 export { Sparkline } from './Sparkline';
+export { Logo, Wordmark } from './Logo';
 export { cn } from './cn';

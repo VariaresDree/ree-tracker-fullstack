@@ -129,6 +129,16 @@ every feature add, change, or removal, not on a schedule.
       - Past sittings' chart: **Take a mock board**.
       - A formula-card topic empty under a kind filter: **Show every kind**.
 
+## Brand & design system
+
+- [x] **The REE.ai mark** (`components/ui/Logo.jsx`, `components/ui/logoGeometry.js`) — the vector logo, drawn from the original artwork (`ree-tracker/design/brand/logo-source.png`) and kept to its design: the triangle of letterforms with its D counter, the R and the S, the lightning bolt with its red edge and ember, the gear with its red hub, the red chip with its ruler, and the yellow trefoil seen through the letters.
+  - **Polished, not redrawn:** the triangle is exactly equilateral (60° edges), every gap is one width and every stem one width, the gear is regular (8 teeth on 45°) with one clearance circle shared by the top piece and the S, the bolt's opposite edges are parallel with rounded caps, and the chip's walls repeat its notch. The trefoil is the traced shape, clipped to the letterforms.
+  - **One geometry source:** `logoGeometry.js` builds every path; `<Logo>` draws from it and so do the icon builder and the fidelity check, so nothing drifts.
+  - **Fidelity check:** `npm run brand:fidelity` renders the vector on the artwork's grid in Chromium and measures each part against it (letterforms IoU 0.95, trefoil 0.90, bolt 0.79, red 0.76, centres within 1–10 px), writing `design/brand/compare.png` and a 16–128 px sizes strip.
+  - **Variants:** `mark`, `lockup` ("REE.ai Core") and `compact` ("REE.ai"); `decorative` beside text that names it; `animated` for loading screens (letterforms rise, the bolt strikes, then the gear turns and the bolt flickers; transform/opacity only, still under reduced motion). Below 40 px the fine detail (ruler ticks, the bolt's core and flame) is left out.
+  - **Colours:** the yellow bolt, red hub/chip/bolt edge and the trefoil are fixed brand colours. The letterforms, gear and chip frame take `--logo-ink`: white on the 10 dark themes, near-black on Light, Paper and Sakura, which also give the bolt an amber keyline (`--logo-keyline`) so it holds on white. `themeContrast.test.js` keeps the ink at 3:1 on the page and cards in every theme.
+  - **Accessible name:** `role="img"` + `aria-label` ("REE.ai"), never a `<title>`; a lockup is named by its text.
+
 ## Exam & Practice Modes
 
 - [x] **Shuffled answer choices** (`@ree/shared` `optionOrder`, `features/quiz/presentOptions.js`) — every screen a learner answers on shows a question's choices in an order drawn for that sitting, so the key's position, spatial memory and elimination by routine stop paying. Shown in their stored order, the key sat at A so often that pressing A every time scored close to half a session.

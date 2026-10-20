@@ -164,6 +164,16 @@ describe('theme contrast (WCAG AA)', () => {
             expect(failures).toEqual([]);
         });
 
+        // The mark's letterforms (components/ui/Logo.jsx) are a graphic that
+        // identifies the app: 3:1 against the page and cards it sits on.
+        it(`${name}: the logo's ink clears 3:1 on the page and cards`, () => {
+            const ink = resolve(t, t['--logo-ink'] ?? THEME_TOKENS['--logo-ink']);
+            const failures = ['--bg-primary', '--bg-surface']
+                .map((bg) => ({ bg, ratio: +contrast(ink, resolve(t, t[bg])).toFixed(2) }))
+                .filter((r) => r.ratio < 3);
+            expect(failures).toEqual([]);
+        });
+
         // WCAG 1.4.11: a focus indicator is a non-text graphic, 3:1 against
         // what it sits on.
         it(`${name}: the focus ring clears 3:1 on the page, cards and panels`, () => {
