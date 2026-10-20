@@ -45,7 +45,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                 <span className="sr-only">{summary.replace(/^(Online|Offline) · /, '')}</span>
                 <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-reeGreen' : 'bg-reeAmber'} ${!isOnline ? 'animate-pulse' : ''}`} />
                 {pending > 0 && (
-                    <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-reeAmber text-[10px] font-bold text-bg flex items-center justify-center">
+                    <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-reeAmber text-[10px] font-bold tabular-nums text-bg flex items-center justify-center">
                         {pending > 99 ? '99+' : pending}
                     </span>
                 )}
@@ -54,7 +54,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
     }
 
     return (
-        <div className="rounded-[var(--radius-lg)] border border-border2 bg-surface2/40 px-3 py-2.5 flex flex-col gap-2">
+        <div className="rounded-[var(--radius-lg)] border border-border2 bg-surface2/40 px-3 py-2.5 flex flex-col gap-2 tabular-nums">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2" role="status">
                     <span aria-hidden="true" className={`w-2 h-2 rounded-full ${isOnline ? 'bg-reeGreen' : 'bg-reeAmber animate-pulse'}`} />

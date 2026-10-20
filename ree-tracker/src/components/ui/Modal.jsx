@@ -117,6 +117,7 @@ export function Modal({
         <FocusTrap active>
           <Card
             elevated
+            glass={false}
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? titleId : undefined}

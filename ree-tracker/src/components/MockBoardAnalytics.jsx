@@ -51,7 +51,7 @@ function ScoreTooltip({ active, payload }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="bg-surface/95 backdrop-blur-md border border-border2 p-3.5 rounded-[var(--radius-default)] shadow-xl text-xs z-50">
+      <div className="bg-surface/95 backdrop-blur-md border border-border2 p-3.5 rounded-[var(--radius-default)] shadow-xl text-xs z-50 tabular-nums">
         <p className="font-semibold text-textMain mb-2 border-b border-border2 pb-2">
           {data.date} <span className="text-muted font-normal ml-2">{data.kind}</span>
         </p>

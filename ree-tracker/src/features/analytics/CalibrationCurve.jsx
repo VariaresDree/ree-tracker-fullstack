@@ -85,7 +85,7 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
                 label={{ value: 'Observed accuracy (%)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 10 }}
               />
               <Tooltip
-                contentStyle={{ background: 'var(--bg-surface2)', border: '1px solid var(--border-light)', borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: 'var(--bg-surface2)', border: '1px solid var(--border-light)', borderRadius: 8, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}
                 labelStyle={{ color: 'var(--text-muted2)' }}
               />
               <ReferenceLine

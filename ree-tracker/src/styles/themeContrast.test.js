@@ -315,3 +315,61 @@ describe('page textures', () => {
         });
     }
 });
+
+// Glass surfaces (index.css, GLASS SURFACES): a page card or the sidebar is
+// --bg-surface at --glass-alpha over the page, so what's behind it changes
+// its colour. Everything that sits on a card is re-checked on that mix, at
+// each point the page-texture check uses (the page, each glow's peak, and a
+// line of the pattern over each): body text, accent text and status colours
+// (4.5:1), status pills and the accent and signal tints (4.5:1), the
+// button-tone labels (4.5:1), and the focus ring (3:1). Unblurred, as on a
+// phone, so the pattern's lines count at full strength.
+describe('glass cards', () => {
+    const all = themes();
+    const decls = (body) => Object.fromEntries([...body.matchAll(/(--(?:texture|glass)-[a-z]+)\s*:\s*([^;]+);/g)].map((d) => [d[1], d[2].trim()]));
+    const base = decls(css.match(/(?:^|\n)body\s*\{([^}]*--texture-[^}]*)\}/)?.[1] ?? '');
+    const own = Object.fromEntries([...css.matchAll(/\[data-theme="([a-z]+)"\] body\s*\{([^}]*)\}/g)].map((m) => [m[1], decls(m[2])]));
+    const layer = (name) => ({ ...base, ...(own[name] || {}) });
+    const alphaOf = (name) => Number(String(layer(name)['--glass-alpha']).replace('%', '')) / 100;
+
+    it('every theme sets its glass strength, between 80% and fully solid', () => {
+        expect(base['--glass-alpha']).toMatch(/^\d+%$/);
+        for (const name of Object.keys(own)) {
+            expect(own[name]['--glass-alpha'], name).toMatch(/^\d+%$/);
+            expect(alphaOf(name), name).toBeGreaterThanOrEqual(0.8);
+            expect(alphaOf(name), name).toBeLessThanOrEqual(1);
+        }
+    });
+
+    it('glass turns solid where there is no texture, and inside another glass surface', () => {
+        const rules = css.replace(/\s+/g, ' ');
+        expect(rules).toMatch(/\.surface-glass \.surface-glass, \.exam-environment \.surface-glass, :root\[data-texture="off"\] \.surface-glass \{ background-color: var\(--bg-surface\);/);
+        expect(rules).toMatch(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\), \(forced-colors: active\), print \{ \.surface-glass \{ background-color: var\(--bg-surface\);/);
+    });
+
+    for (const name of Object.keys(all)) {
+        it(`${name}: what sits on a card still reads with the page showing through`, () => {
+            const t = all[name];
+            const x = layer(name);
+            const page = resolve(t, t['--bg-primary']);
+            const glows = [...(x['--texture-glow'] || '').matchAll(/color-mix\(in srgb, (.+?) (\d+)%, transparent\)/g)]
+                .map((m) => mix(resolve(t, m[1]), page, Number(m[2]) / 100));
+            const ink = resolve(t, x['--texture-ink']);
+            const opacity = Number(x['--texture-opacity']);
+            const surface = resolve(t, t['--bg-surface']);
+            const cards = [page, ...glows].flatMap((g) => [g, mix(ink, g, opacity)]).map((g) => mix(surface, g, alphaOf(name)));
+            const c = (token) => resolve(t, t[token]);
+            const failures = cards.flatMap((card) => [
+                ...['--text-main', '--text-muted', '--text-muted2', '--accent-text', '--accent-success', '--accent-danger'].map((k) => [k, c(k), card, 4.5]),
+                ...['--accent-success', '--accent-danger'].map((k) => [`${k} pill`, c(k), tint(c(k), card), 4.5]),
+                ['--accent-text on a 15% accent tint', c('--accent-text'), mix(c('--accent'), card, 0.15), 4.5],
+                ['--accent-signal on its 15% tint', c('--accent-signal'), mix(c('--accent-signal'), card, 0.15), 4.5],
+                ...Object.entries(TONE_TEXT).map(([tone, colour]) => [`${tone} button label`, resolve(t, colour), card, 4.5]),
+                ['--focus-ring-color', c('--focus-ring-color'), card, 3],
+            ])
+                .map(([what, fg, bg, min]) => ({ what, bg, ratio: +contrast(fg, bg).toFixed(2), min }))
+                .filter((r) => r.ratio < r.min);
+            expect(failures).toEqual([]);
+        });
+    }
+});

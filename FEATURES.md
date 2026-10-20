@@ -152,7 +152,7 @@ every feature add, change, or removal, not on a schedule.
   - The unused Android Studio robot vectors and Vite's sample `icons.svg` are gone.
   - `appIcons.test.js` checks four things: the favicon matches today's geometry, every icon is a PNG at its listed size, the manifest and the page link files that exist, and Android's adaptive layers and the reminder icon exist at every density.
   - Android isn't built in CI. After `npx cap sync android`, check the launcher icon, splash and reminder icon on a device.
-- [x] **Page textures** (`styles/index.css` › PAGE TEXTURES, `public/textures/`): each of the 13 themes has a background of its own behind the page. It is a soft glow plus a faint pattern, on two fixed layers behind everything. Cards, panels and the exam screens stay solid. The dot grid it replaces never showed, because every full-screen wrapper painted an opaque page colour over it.
+- [x] **Page textures** (`styles/index.css` › PAGE TEXTURES, `public/textures/`): each of the 13 themes has a background of its own behind the page. It is a soft glow plus a faint pattern, on two fixed layers behind everything. Page cards are frosted glass over it (see Glass cards); dialogs, the question card and the exam screens stay solid. The dot grid it replaces never showed, because every full-screen wrapper painted an opaque page colour over it.
   - **Per theme:**
 
     | Theme | Glow | Pattern |
@@ -182,6 +182,25 @@ every feature add, change, or removal, not on a schedule.
     - The page wrappers no longer paint over the texture (the layout, login, boot, error and "still reaching your session" screens). Login's two blurred orbs are gone; the theme's glow replaces them.
     - The phone header is see-through and blurred like the bottom bar; both turn solid under reduced transparency.
     - Tab rows fade at a scrolled edge with a mask. A band painted in the page colour would have striped the texture.
+- [x] **Glass cards** (`styles/index.css` › GLASS SURFACES, `components/ui/Card.jsx`): page cards sit on the theme's texture as frosted glass instead of opaque blocks, so the glow and pattern carry through and the cards read as one layer above the page.
+  - **How it's built:**
+    - A card is `--bg-surface` at the theme's `--glass-alpha` over the page, blurred by `--glass-blur` (12 px). Both are set per theme, beside its texture.
+    - The alpha is 88% on the light themes and 85% on the dark ones. Cyberpunk, Sakura and Math use 98%: their status and accent colours were already at the AA floor on a solid card.
+    - The blur applies only where there's a fine pointer. On a phone, a dozen blurred cards scrolling over a fixed background cost frames, and the tint alone looks the same. `--bg-surface` stays a hex colour, so the theme parsers and the browser colour are untouched.
+  - **Where:** every `Card` is glass by default, which covers Panel, KpiTile, the analytics section cards, Today's hero and the hub tabs' cards.
+  - **Solid instead:**
+    - dialogs (`Modal`) and the question card (`QuestionSurface`), which pass `glass={false}`;
+    - a card inside another card (no glass on glass);
+    - every card on an exam screen (`.exam-environment`);
+    - whenever there's no texture to show: Background: Plain, reduced transparency, more contrast, forced colours and print.
+  - **Readable by construction:** `themeContrast.test.js` › glass cards re-checks everything that sits on a card on the mix, in every theme and unblurred, at the page, each glow's peak, and a pattern line over each. That covers body and accent text, success and danger, status pills on their 12% tint, accent and signal tints, every button tone's label, and the focus ring. Lowering a theme's alpha past what it can take fails the test. The unused `.glass-card` class is gone.
+- [x] **Figures that change keep their width** (`components/ui/Badge.jsx`, `StatusPill.jsx`): badges and status pills (countdowns, streaks, scores, counts) use tabular figures, so a ticking or updating number doesn't jitter the pill. The same applies to:
+  - the ability and mock-board chart tooltips, and the calibration curve's tooltip;
+  - the offline badge's unsynced count and its panel;
+  - the planner's subject weights;
+  - the weak-signal rates and the calibration "about N% expected" line.
+
+  `layoutGuards.test.js` keeps `tabular-nums` in Badge, StatusPill, Stat and KpiTile.
 - [x] **Nothing covers anything on a phone** (`layouts/MainLayout.jsx`, `components/FloatingPomodoro.jsx`, `styles/index.css` › Layers): one z-index scale, written down in `index.css`:
 
   | Layer | z |

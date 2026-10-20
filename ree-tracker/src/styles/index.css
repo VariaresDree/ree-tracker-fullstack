@@ -571,8 +571,9 @@ html:is([data-theme="light"], [data-theme="paper"], [data-theme="sakura"]) { col
    Every theme has a background of its own: a glow (body::before) and a
    pattern (body::after), two fixed layers behind everything. The pattern is
    a one-colour tile used as a mask and painted in --texture-ink at
-   --texture-opacity, so it stays faint whatever the tile. Cards, panels and
-   the exam screens stay solid; only the page between them shows it.
+   --texture-opacity, so it stays faint whatever the tile. Page cards and
+   the sidebar are frosted glass over it (GLASS SURFACES below); dialogs,
+   question cards and the exam screens stay solid.
    Themes set the parameters below and nothing else. Tiles live in
    public/textures (written by scripts/brand/build-textures.mjs) and are
    fetched by absolute URL, not inlined into this stylesheet. The simple
@@ -626,6 +627,8 @@ body {
   --texture-size: 28px 28px;
   --texture-ink: var(--text-main);
   --texture-opacity: 0.055;
+  --glass-alpha: 88%;
+  --glass-blur: 12px;
 }
 /* Light: graph paper under a faint accent light from the top. */
 [data-theme="light"] body {
@@ -633,6 +636,7 @@ body {
   --texture-mask: linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px);
   --texture-size: 24px 24px;
   --texture-opacity: 0.035;
+  --glass-alpha: 88%;
 }
 /* Midnight: a few stars, and the page stays black. */
 [data-theme="midnight"] body {
@@ -640,6 +644,7 @@ body {
   --texture-mask: url("/textures/stars.svg");
   --texture-size: 280px 280px;
   --texture-opacity: 0.12;
+  --glass-alpha: 85%;
 }
 /* Paper: fibres in the sheet, darker toward the edges. */
 [data-theme="paper"] body {
@@ -647,6 +652,7 @@ body {
   --texture-mask: url("/textures/fibre.svg");
   --texture-size: 220px 220px;
   --texture-opacity: 0.055;
+  --glass-alpha: 88%;
 }
 /* Cyberpunk: a neon honeycomb, magenta and cyan in the corners. */
 [data-theme="cyberpunk"] body {
@@ -657,6 +663,7 @@ body {
   --texture-size: 27.7px 48px;
   --texture-ink: var(--brand-blue);
   --texture-opacity: 0.07;
+  --glass-alpha: 98%;
 }
 /* Retrowave: a synth grid running to a pink horizon. */
 [data-theme="retrowave"] body {
@@ -669,6 +676,7 @@ body {
   --texture-repeat: no-repeat;
   --texture-ink: var(--text-muted);
   --texture-opacity: 0.18;
+  --glass-alpha: 85%;
 }
 /* Forest: contour lines under light through the canopy. */
 [data-theme="forest"] body {
@@ -677,6 +685,7 @@ body {
   --texture-size: 240px 240px;
   --texture-ink: var(--text-muted);
   --texture-opacity: 0.08;
+  --glass-alpha: 85%;
 }
 /* Ocean: swell lines, lighter toward the surface. */
 [data-theme="ocean"] body {
@@ -684,6 +693,7 @@ body {
   --texture-mask: url("/textures/waves.svg");
   --texture-size: 120px 36px;
   --texture-opacity: 0.06;
+  --glass-alpha: 85%;
 }
 /* Sakura: petals drifting, blush from the top right. */
 [data-theme="sakura"] body {
@@ -692,6 +702,7 @@ body {
   --texture-size: 260px 260px;
   --texture-ink: #db2777;
   --texture-opacity: 0.09;
+  --glass-alpha: 98%;
 }
 /* Phosphor: scanlines and a green bloom. */
 [data-theme="terminal"] body {
@@ -699,6 +710,7 @@ body {
   --texture-mask: repeating-linear-gradient(#000 0 1px, transparent 1px 3px);
   --texture-size: auto;
   --texture-opacity: 0.06;
+  --glass-alpha: 85%;
 }
 /* Organs: cells, and a red glow. */
 [data-theme="organs"] body {
@@ -707,6 +719,7 @@ body {
   --texture-size: 200px 200px;
   --texture-ink: var(--text-muted);
   --texture-opacity: 0.07;
+  --glass-alpha: 85%;
 }
 /* Math: a blueprint, minor lines every 20px and major every 100px. */
 [data-theme="math"] body {
@@ -716,6 +729,7 @@ body {
     linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px);
   --texture-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
   --texture-opacity: 0.14;
+  --glass-alpha: 98%;
 }
 /* Electrical: circuit-board traces, amber light from the top left. */
 [data-theme="electrical"] body {
@@ -724,6 +738,7 @@ body {
   --texture-size: 160px 160px;
   --texture-ink: var(--brand-blue);
   --texture-opacity: 0.08;
+  --glass-alpha: 85%;
 }
 
 @layer base {
@@ -880,11 +895,40 @@ body {
   }
   .interactive-card:active { transform: scale(0.99); }
 
-  /* Glassmorphism card */
-  .glass-card {
-    background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+  /* GLASS SURFACES: page cards (<Card>, <Panel>, <KpiTile>) and the
+     sidebar. The card colour at --glass-alpha (per theme, beside its
+     texture) over the page, so the theme's glow and pattern show through,
+     frosted. The blur is only where there's a fine pointer: on a phone a
+     dozen blurred cards scrolling over a fixed background cost frames, and
+     the tint alone reads the same. themeContrast.test.js ("glass cards")
+     re-checks text, status and focus colours on the mix at the strongest
+     point of each texture; the three themes already at the floor
+     (cyberpunk, sakura, math) stay all but solid.
+     Solid wherever there's no texture to show (Plain, less transparency,
+     more contrast, forced colours, print, the exam screens), and inside
+     another glass surface (no glass on glass). */
+  .surface-glass {
+    background-color: color-mix(in srgb, var(--bg-surface) var(--glass-alpha, 100%), transparent);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .surface-glass {
+      -webkit-backdrop-filter: blur(var(--glass-blur, 12px));
+      backdrop-filter: blur(var(--glass-blur, 12px));
+    }
+  }
+  .surface-glass .surface-glass,
+  .exam-environment .surface-glass,
+  :root[data-texture="off"] .surface-glass {
+    background-color: var(--bg-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active), print {
+    .surface-glass {
+      background-color: var(--bg-surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
   }
 
   /* Hover glow */

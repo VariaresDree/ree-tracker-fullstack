@@ -129,6 +129,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
                 key={subject}
                 size="sm"
                 variant={on ? 'outline' : 'secondary'}
+                className="tabular-nums"
                 aria-pressed={on}
                 onClick={() => toggleSubject(subject)}
               >
