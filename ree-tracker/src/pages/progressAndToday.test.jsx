@@ -138,7 +138,7 @@ describe('Progress', () => {
     at('/progress', Progress);
     expect(screen.getByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
     const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-    expect(tabs).toEqual(['Overview', 'Topics', 'Weak spots', 'Confidence', 'Habits', 'Syllabus', 'Study plan']);
+    expect(tabs).toEqual(['Overview', 'Topics', 'Syllabus', 'Confidence', 'Weak spots', 'Habits', 'Study plan']);
     expect(await screen.findByText('overview accuracy=64')).toBeInTheDocument();
   });
 

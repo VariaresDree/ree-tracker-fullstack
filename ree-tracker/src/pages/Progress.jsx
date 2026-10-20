@@ -3,11 +3,13 @@
 // How you're doing, in one place, one question per tab:
 //   Overview    — headline numbers, ability trend, board forecast, AI report
 //   Topics      — mastery per subtopic, accuracy per subject
-//   Weak spots  — blind spots, time sinks, recommended fixes, the drills
-//   Confidence  — does confidence match accuracy?
-//   Habits      — study calendar, study time, time per question
 //   Syllabus    — the Read / Watched / Drilled checklist per TOS topic
+//   Confidence  — does confidence match accuracy?
+//   Weak spots  — blind spots, time sinks, recommended fixes, the drills
+//   Habits      — study calendar, study time, time per question
 //   Study plan  — the planner
+// The order goes from where you stand (Overview, Topics, how much of the
+// syllabus is covered) to why (Confidence, Weak spots, Habits) to what next.
 // These were spread over the old Dashboard, Profile's "Comparative analytics"
 // and "Deep analytics", and the planner. The tab lives in ?tab=, and each tab
 // is its own chunk, so recharts loads only where a chart is drawn.
@@ -31,10 +33,10 @@ const StrategicPlannerTab = lazy(() => import('../features/profile/StrategicPlan
 const TABS = [
   { id: 'overview', label: 'Overview', icon: Gauge },
   { id: 'topics', label: 'Topics', icon: LayoutGrid },
-  { id: 'weak-spots', label: 'Weak spots', icon: Crosshair },
-  { id: 'confidence', label: 'Confidence', icon: Target },
-  { id: 'habits', label: 'Habits', icon: CalendarDays },
   { id: 'syllabus', label: 'Syllabus', icon: ListChecks },
+  { id: 'confidence', label: 'Confidence', icon: Target },
+  { id: 'weak-spots', label: 'Weak spots', icon: Crosshair },
+  { id: 'habits', label: 'Habits', icon: CalendarDays },
   { id: 'plan', label: 'Study plan', icon: ClipboardList },
 ];
 
