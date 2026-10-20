@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { fetchMultiplayerBattle } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Button, Card, FormField, Grid, Input, cn } from '../../components/ui';
+import { Button, Card, CardTitle, cn, FormField, Grid, Input } from '../../components/ui';
 import { Check, Swords } from '../../components/ui/icons';
 import HostBattleModal from './HostBattleModal';
 import ActiveBattles from './ActiveBattles';
@@ -57,7 +57,7 @@ export default function BattlesTab() {
         >
           <div className="absolute top-0 right-0 w-48 h-48 bg-reeRed/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
           <div>
-            <h2 className="text-lg font-semibold text-textMain tracking-tight mb-1 relative z-10">Join a battle</h2>
+            <CardTitle size="lg" className="mb-1 relative z-10">Join a battle</CardTitle>
             <p className="text-sm text-muted2 mb-6 relative z-10 leading-relaxed">
               Enter the 6-character code from the host to join their lobby.
             </p>
@@ -95,7 +95,7 @@ export default function BattlesTab() {
 
         <Card padding="lg" className="shadow-sm flex flex-col">
           <div>
-            <h2 className="text-lg font-semibold text-textMain tracking-tight mb-1">Host a battle</h2>
+            <CardTitle size="lg" className="mb-1">Host a battle</CardTitle>
             <p className="text-sm text-muted2 mb-5 leading-relaxed">
               Set the subject, length, and time limit, then share your code with other reviewers.
             </p>

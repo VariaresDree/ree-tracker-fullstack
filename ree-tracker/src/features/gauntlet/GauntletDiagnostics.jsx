@@ -14,7 +14,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CANONICAL_SUBJECTS, GENERAL_AVERAGE, SUBJECT_FLOOR, VERDICT, toDisplaySubject } from '@ree/shared';
 import LatexRenderer from '../../components/LatexRenderer';
 import NotificationOptIn from '../../components/NotificationOptIn';
-import { Badge, Button, Card, Grid, KpiTile, Page, PageHeader, ProgressIndicator } from '../../components/ui';
+import { Badge, Button, Card, CardTitle, Grid, KpiTile, Page, PageHeader, ProgressIndicator } from '../../components/ui';
 import { ClipboardList, Play } from '../../components/ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
@@ -90,7 +90,7 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
 
       {subjects.length > 0 && (
         <Card padding="md" className="flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-textMain">By subject</h2>
+          <CardTitle>By subject</CardTitle>
           <Grid kind="tiles">
             {subjects.map((s) => {
               const pct = subjectScores[s];
@@ -112,7 +112,7 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
       {weakTopics.length > 0 && (
         <Card padding="md" className="flex flex-col gap-4">
           <div>
-            <h2 className="text-base font-semibold text-textMain">What to review</h2>
+            <CardTitle>What to review</CardTitle>
             <p className="text-sm text-muted2">The topics your misses came from, most first. Drill one to work on it.</p>
           </div>
           <ul className="flex flex-col gap-2">
@@ -135,7 +135,7 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
 
       {review.length > 0 && (
         <Card padding="md" className="flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-textMain">Missed questions ({review.length})</h2>
+          <CardTitle>Missed questions ({review.length})</CardTitle>
           <ul className="flex flex-col gap-4">
             {missed.map((item, i) => {
               const question = {

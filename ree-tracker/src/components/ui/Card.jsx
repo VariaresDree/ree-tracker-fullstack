@@ -47,11 +47,16 @@ export function CardHeader({ className, ...rest }) {
 // six h4 section headings inside cards (Profile, Arena, LibraryOverview)
 // would then sit under an h2 and become h2 -> h4 skips of their own. They are
 // h3 now, so every chain reads h1/h2 -> h2 -> h3.
-export function CardTitle({ className, ...rest }) {
+//
+// `size="lg"` for a card that stands alone at the top of a section (an
+// Account section, a battle's Join and Host); the hero card of a screen
+// takes .text-h2 instead.
+export function CardTitle({ className, size = 'md', ...rest }) {
   return (
     <h2
       className={cn(
-        'text-textMain font-semibold tracking-tight text-base',
+        'text-textMain font-semibold tracking-tight',
+        size === 'lg' ? 'text-lg' : 'text-base',
         className
       )}
       {...rest}

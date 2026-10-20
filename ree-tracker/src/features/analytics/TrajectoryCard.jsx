@@ -117,7 +117,7 @@ export function TrajectoryCard() {
 
           {projection?.subjects && (
             <div className="flex flex-col gap-3" aria-label="Projected rating by subject">
-              <div className="flex justify-between text-[11px] text-muted2">
+              <div className="flex justify-between text-micro text-muted2">
                 <span>Projected rating by subject</span>
                 <span>floor {SUBJECT_FLOOR}% · pass {GENERAL_AVERAGE}%</span>
               </div>
@@ -127,7 +127,7 @@ export function TrajectoryCard() {
             </div>
           )}
 
-          <div className="flex items-center justify-between text-[11px] text-muted2 font-mono">
+          <div className="flex items-center justify-between text-micro text-muted2 font-mono">
             <span>
               Topnotcher {pctFmt(snapshot.topnotcherProbability)}% (estimate) · model {snapshot.modelVersion ?? 'v1'}
             </span>

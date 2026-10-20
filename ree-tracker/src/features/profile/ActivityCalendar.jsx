@@ -1,5 +1,6 @@
 // src/features/profile/ActivityCalendar.jsx
 import { useRef, useState } from 'react';
+import { CardTitle } from '../../components/ui';
 import { todayManila } from '../../utils/manilaDate';
 import { CALENDAR_LEVELS, calendarLevel, levelFill } from './calendarLevels';
 
@@ -75,7 +76,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       {/* Header */}
       <div className="w-full flex flex-col md:flex-row md:justify-between md:items-end mb-6 border-b border-border2 pb-4 gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-textMain tracking-tight">Study calendar</h2>
+          <CardTitle size="lg">Study calendar</CardTitle>
           <p className="text-sm text-muted mt-1">Questions answered each day, against your daily target of {targetQuota}.</p>
           <p className="text-eyebrow mt-2 text-textMain">
             {grandTotal.toLocaleString()} questions answered all-time
@@ -95,7 +96,7 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       {/* Grid Canvas */}
       <div className="w-full border-t border-l border-border2 bg-surface2/30 rounded-lg overflow-hidden">
         {/* Days of Week */}
-        <div className="grid grid-cols-7 text-center text-[11px] md:text-xs font-black text-muted uppercase tracking-widest bg-surface border-b border-border2" aria-hidden="true">
+        <div className="grid grid-cols-7 text-center text-micro md:text-xs font-black text-muted uppercase tracking-widest bg-surface border-b border-border2" aria-hidden="true">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
                 <div key={d} className="py-2 border-r border-border2 last:border-r-0">{d}</div>
             ))}
@@ -131,9 +132,9 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
                       className={`block w-full aspect-square border-r border-b border-border2/50 relative cursor-pointer transition-colors focus-visible:outline-offset-[-4px] ${level ? '' : 'bg-surface2 text-muted2'} ${level?.share === 100 ? 'font-black' : ''} ${isToday ? 'ring-2 ring-inset ring-[var(--accent)]' : ''}`}
                       style={level ? { background: levelFill(level.share), color: level.ink } : undefined}
                     >
-                        <span className="absolute top-1 left-1.5 text-[11px] md:text-sm font-bold">{d}</span>
+                        <span className="absolute top-1 left-1.5 text-micro md:text-sm font-bold">{d}</span>
                         {count > 0 && (
-                            <span className="absolute bottom-1 right-1.5 text-[11px] md:text-xs font-mono">{count}</span>
+                            <span className="absolute bottom-1 right-1.5 text-micro md:text-xs font-mono">{count}</span>
                         )}
                     </button>
                 );
@@ -154,11 +155,11 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
       <div className="w-full flex flex-wrap justify-between items-center gap-x-4 gap-y-2 mt-4 pt-4 border-t border-border2 text-xs text-muted uppercase font-bold tracking-widest">
         <span className="shrink-0 text-textMain">Questions a day</span>
         <div className="flex items-center gap-x-3 gap-y-2 md:gap-x-4 flex-wrap">
-            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-surface2 border border-border2"></div> <span className="text-[11px]">0 Qs</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded bg-surface2 border border-border2"></div> <span className="text-micro">0 Qs</span></div>
             {CALENDAR_LEVELS.map((l, i) => (
               <div key={l.share} className="flex items-center gap-1.5">
                 <div className="w-4 h-4 rounded border border-border2" style={{ background: levelFill(l.share) }}></div>
-                <span className="text-[11px]">{legend[i]}</span>
+                <span className="text-micro">{legend[i]}</span>
               </div>
             ))}
         </div>

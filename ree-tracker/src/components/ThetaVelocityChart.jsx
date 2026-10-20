@@ -12,7 +12,7 @@ const CustomTooltip = ({ active, payload }) => {
     const data = payload[0].payload;
     return (
       <div className="bg-surface/90 backdrop-blur-md border border-border2/80 p-3.5 rounded-[var(--radius-default)] shadow-xl z-50">
-        <p className="text-[11px] uppercase tracking-widest font-black text-textMain mb-2 border-b border-border2/50 pb-2">
+        <p className="text-micro uppercase tracking-widest font-black text-textMain mb-2 border-b border-border2/50 pb-2">
           {data.date} <span className="text-muted font-medium ml-2">({data.name})</span>
         </p>
         <div className="flex flex-col gap-1">
@@ -23,7 +23,7 @@ const CustomTooltip = ({ active, payload }) => {
                 Probability", a third θ→% mapping on the same page that
                 disagreed with the forecast card next to it. The pass
                 probability now lives in one place: the PRC-rule forecast. */}
-            <p className="text-[11px] font-medium text-muted2">
+            <p className="text-micro font-medium text-muted2">
               {data.theta >= 0 ? 'Above' : 'Below'} the average candidate (θ = 0)
             </p>
         </div>

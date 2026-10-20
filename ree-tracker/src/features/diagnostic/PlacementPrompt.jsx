@@ -7,7 +7,7 @@
 // (it used to be reachable only from Account after that). The status comes
 // from usePlacement, which Today's actions read too.
 import { Link } from 'react-router-dom';
-import { Card, Button, IconChip } from '../../components/ui';
+import { Button, Card, CardTitle, IconChip } from '../../components/ui';
 import { Compass } from '../../components/ui/icons';
 import { NEW_LEARNER_MAX } from './usePlacement';
 
@@ -32,9 +32,9 @@ export default function PlacementPrompt({ status, answered = 0, dismissed = fals
     <Card elevated glow className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
       <IconChip icon={Compass} size="lg" />
       <div className="flex-1 min-w-0">
-        <h2 className="text-textMain font-semibold">
+        <CardTitle>
           {inProgress ? 'Finish your placement test' : 'Find your starting level'}
-        </h2>
+        </CardTitle>
         <p className="text-sm text-muted2 mt-0.5">
           {inProgress
             ? `${status.progress?.answered || 0} of about ${status.progress?.total || 19} questions done — pick up where you left off.`

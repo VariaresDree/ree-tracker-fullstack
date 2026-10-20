@@ -308,7 +308,7 @@ function BattleRoom({ battleId }) {
                                     </div>
                                     <div className="text-right shrink-0">
                                         <div className="text-lg font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{r.score}/{r.total ?? battleConfig?.questionCount ?? r.itemsAnswered}</div>
-                                        <div className="text-[11px] text-muted font-mono tabular-nums">
+                                        <div className="text-micro text-muted font-mono tabular-nums">
                                             {Math.round(r.timeTakenSecs / 60)}m
                                             {r.elo && Number.isFinite(r.elo.delta) && <> · rating {r.elo.delta >= 0 ? '+' : '−'}{Math.abs(Math.round(r.elo.delta))}</>}
                                         </div>

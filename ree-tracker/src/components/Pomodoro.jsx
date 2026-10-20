@@ -50,7 +50,7 @@ export default function Pomodoro() {
               max={MAX_MINUTES}
               value={draft.work}
               onChange={(e) => setDraft((d) => ({ ...d, work: e.target.value }))}
-              className="w-14 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-mono font-bold focus:border-[var(--accent)]"
+              className="w-14 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-mono font-bold tabular-nums focus:border-[var(--accent)]"
               style={{ color: 'var(--color-reeAmber-text)' }}
             />
           </label>
@@ -63,7 +63,7 @@ export default function Pomodoro() {
               max={MAX_MINUTES}
               value={draft.rest}
               onChange={(e) => setDraft((d) => ({ ...d, rest: e.target.value }))}
-              className="w-14 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-mono font-bold focus:border-[var(--accent)]"
+              className="w-14 py-1 bg-bg text-center rounded-[var(--radius-sm)] border border-border2 font-mono font-bold tabular-nums focus:border-[var(--accent)]"
               style={{ color: 'var(--accent-success)' }}
             />
           </label>

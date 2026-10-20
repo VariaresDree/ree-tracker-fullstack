@@ -38,7 +38,7 @@ export default function Calibration() {
                     <div className="text-3xl font-semibold tabular-nums" style={{ color }}>{item.accuracy}%</div>
                     <div className="text-xs text-muted2 mt-1">{item.correct} of {item.total} correct</div>
                     {verdict && <div className="text-xs font-medium mt-2" style={{ color }}>{verdict.label}</div>}
-                    {expected != null && <div className="text-[11px] text-muted2 mt-0.5">about {Math.round(expected * 100)}% expected</div>}
+                    {expected != null && <div className="text-micro text-muted2 mt-0.5">about {Math.round(expected * 100)}% expected</div>}
                   </li>
                 );
               })}

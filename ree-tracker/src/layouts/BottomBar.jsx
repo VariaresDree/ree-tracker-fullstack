@@ -23,7 +23,7 @@ export default function BottomBar() {
             key={item.id}
             to={item.to}
             aria-current={on ? 'page' : undefined}
-            className={`flex flex-col items-center justify-center gap-1 min-h-14 py-2 text-[11px] font-medium tracking-wide transition-colors ${on ? 'text-[var(--accent-text)]' : 'text-muted hover:text-textMain'}`}
+            className={`flex flex-col items-center justify-center gap-1 min-h-14 py-2 text-micro font-medium tracking-wide transition-colors ${on ? 'text-[var(--accent-text)]' : 'text-muted hover:text-textMain'}`}
           >
             <Icon size={20} strokeWidth={on ? 2.25 : 1.75} aria-hidden="true" />
             {item.label}

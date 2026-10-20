@@ -226,7 +226,7 @@ export default function QuestionCard({
                 >
                   {level}
                   {/* The button's own colour, not 30% of it (1.3:1). */}
-                  <span className="text-[11px] font-mono font-normal hidden sm:inline">
+                  <span className="text-micro font-mono font-normal hidden sm:inline">
                     [{['Q', 'W', 'E'][i]}]
                   </span>
                 </button>

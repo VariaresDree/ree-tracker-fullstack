@@ -138,7 +138,7 @@ export default function GauntletTab() {
         style={{ borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)' }}
       >
         <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}></div>
-        <h2 className="text-display text-2xl text-textMain tracking-tight mb-2 relative z-10 flex items-center gap-3">
+        <h2 className="text-h2 text-textMain mb-2 relative z-10 flex items-center gap-3">
           <Shield size={24} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-text)' }} /> The Gauntlet
         </h2>
         <p className="text-sm text-muted2 relative z-10 leading-relaxed max-w-2xl">

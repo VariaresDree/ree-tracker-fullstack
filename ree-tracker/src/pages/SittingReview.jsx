@@ -23,7 +23,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { fetchBattleReplay, fetchSittingReview, requestRematch } from '../services/dbQueries';
 import { explanationKey } from '../services/aiExplanations';
-import { Badge, Button, Card, EmptyState, Grid, KpiTile, Page, PageHeader, QuestionSurface, SegmentedControl, Skeleton, Tabs } from '../components/ui';
+import { Badge, Button, Card, CardTitle, EmptyState, Grid, KpiTile, Page, PageHeader, QuestionSurface, SegmentedControl, Skeleton, Tabs } from '../components/ui';
 import { ChevronLeft, ClipboardList, RotateCcw, Play, Swords } from '../components/ui/icons';
 import ExamNavigator from '../components/exam/ExamNavigator';
 import QuestionCard from '../features/quiz/QuestionCard';
@@ -252,7 +252,7 @@ export default function SittingReview() {
 
       <Card padding="md" className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-textMain">Go again on what you missed</h2>
+          <CardTitle>Go again on what you missed</CardTitle>
           <p className="text-sm text-muted2">
             {missed.length > 0
               ? `${missed.length} item${missed.length === 1 ? '' : 's'}: a timed retake at the board’s pace, or untimed practice with answers as you go.`
@@ -279,7 +279,7 @@ export default function SittingReview() {
       <PacingPanel items={items} onJump={jumpTo} />
 
       <section aria-labelledby="items-heading" className="flex flex-col gap-4">
-        <h2 id="items-heading" className="text-lg font-semibold text-textMain">Items</h2>
+        <CardTitle size="lg" id="items-heading">Items</CardTitle>
         {subjects.length > 1 && (
           <Tabs
             label="Subject"

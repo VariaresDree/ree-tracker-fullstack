@@ -9,7 +9,7 @@
 // Every row ends in an action. The per-exam blind spots and slow items already
 // existed on the results screen; nothing tracked them across sessions.
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, EmptyState } from '../../components/ui';
+import { Button, Card, CardTitle, EmptyState } from '../../components/ui';
 import { Crosshair } from '../../components/ui/icons';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 import { toDisplaySubject, TIME_SINK_MS } from '@ree/shared';
@@ -41,7 +41,7 @@ export default function WeakSignalsPanel({ data }) {
     <div className="flex flex-col gap-5">
       <Card elevated className="p-5 flex flex-col gap-3">
         <div>
-          <h2 className="text-textMain font-semibold">Blind spots</h2>
+          <CardTitle>Blind spots</CardTitle>
           <p className="text-xs text-muted2">Topics you answered confidently and got wrong. Fix these first — you don&apos;t know you don&apos;t know them.</p>
         </div>
         {blindSpots.length === 0 ? (
@@ -65,7 +65,7 @@ export default function WeakSignalsPanel({ data }) {
 
       <Card elevated className="p-5 flex flex-col gap-3">
         <div>
-          <h2 className="text-textMain font-semibold">Time sinks</h2>
+          <CardTitle>Time sinks</CardTitle>
           <p className="text-xs text-muted2">Topics whose median answer runs past the {Math.round(TIME_SINK_MS / 60000)}-minute board pace.</p>
         </div>
         {timeSinks.length === 0 ? (
@@ -92,7 +92,7 @@ export default function WeakSignalsPanel({ data }) {
 
       {recent.length > 0 && (
         <Card elevated className="p-5 flex flex-col gap-3">
-          <h2 className="text-textMain font-semibold">Recently answered confidently wrong</h2>
+          <CardTitle>Recently answered confidently wrong</CardTitle>
           <ul className="flex flex-col gap-2">
             {/* The question renders its maths (it printed the raw "$\\frac{…}$"),
                 and each row ends in an action like the cards above. */}

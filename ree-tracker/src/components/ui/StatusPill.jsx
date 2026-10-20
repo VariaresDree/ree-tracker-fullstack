@@ -40,7 +40,7 @@ export function StatusPill({ status, tone, children, dot = true, className }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full border text-[11px] font-medium tracking-wide whitespace-nowrap',
+        'inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full border text-micro font-medium tracking-wide whitespace-nowrap',
         !accent && 'bg-surface2 text-muted2 border-border',
         className
       )}

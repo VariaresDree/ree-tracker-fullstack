@@ -40,6 +40,10 @@ describe('layout standard', () => {
     expect(scan(/\brounded-(xl|2xl)\b/)).toEqual([]);
   });
 
+  it('small labels use the text-micro size, not an arbitrary 11px', () => {
+    expect(scan(/text-\[11px\]/)).toEqual([]);
+  });
+
   it('page grids follow the room they have (<Grid>), not the window', () => {
     expect(scan(/(?<![@\w-])(md|lg|xl):grid-cols-[3-6]\b/, {
       'components/ui/Grid.jsx': 'documents the rule it replaces',

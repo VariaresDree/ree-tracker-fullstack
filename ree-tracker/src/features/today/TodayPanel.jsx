@@ -207,7 +207,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
       <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
 
       <Card elevated glow grain padding="lg" className="flex flex-col gap-6">
-        <h2 id="today-heading" className="text-display text-xl sm:text-2xl text-textMain">Where you stand, and what to do next</h2>
+        <h2 id="today-heading" className="text-h2 text-textMain">Where you stand, and what to do next</h2>
 
         <Grid kind="cards" gap="lg">
           <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />

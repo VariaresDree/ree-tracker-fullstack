@@ -82,7 +82,7 @@ export function SegmentedControl({
               {Icon && <Icon size={14} strokeWidth={1.75} aria-hidden="true" />}
               {opt.label}
             </span>
-            {opt.hint && <span className="text-[11px] font-normal text-muted">{opt.hint}</span>}
+            {opt.hint && <span className="text-micro font-normal text-muted">{opt.hint}</span>}
           </button>
         );
       })}

@@ -45,7 +45,7 @@ function ConfidenceMatrix({ stats }) {
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: c.color }}>
                   {c.label}
                 </span>
-                <span className="text-[11px] text-muted mt-0.5">{c.sub}</span>
+                <span className="text-micro text-muted mt-0.5">{c.sub}</span>
               </div>
               <div
                 className="text-4xl sm:text-5xl text-display tabular-nums shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5"

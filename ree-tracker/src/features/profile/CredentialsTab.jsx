@@ -49,7 +49,7 @@ export default function CredentialsTab({ currentUser }) {
 
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-base font-semibold text-textMain">Readiness certificate</h3>
+          <h3 className="text-h3 text-textMain">Readiness certificate</h3>
           {status === 'ready' && (
             <Badge tone={unlocked ? 'success' : 'neutral'}>{unlocked ? 'Unlocked' : `Readiness ${score} of ${CERTIFICATE_MIN_READINESS}`}</Badge>
           )}

@@ -46,7 +46,7 @@ export default function LibraryIngestion({
               generation card sets, instead of leaving dead space below it — and a
               taller drop target is easier to hit. */}
           <div className="flex flex-col flex-1">
-            <h3 className="text-base font-semibold text-textMain flex items-center gap-2 mb-1">
+            <h3 className="text-h3 text-textMain flex items-center gap-2 mb-1">
               <FileText size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-text)' }} /> PDF & image extraction
             </h3>
             <p className="text-xs text-muted2 mb-4">Drop a PDF or a photo of a page. The AI pulls out the questions (or writes some from the content) for you to check before they go to the review queue.</p>

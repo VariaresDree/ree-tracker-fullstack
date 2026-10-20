@@ -21,7 +21,7 @@ import { planTopics } from './planTopics';
 import { useDeepAnalytics } from '../analytics/useDeepAnalytics';
 import { focusGapLine } from '../analytics/sections/focusGap';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
-import { Badge, Button, Card, Grid, Modal } from '../../components/ui';
+import { Badge, Button, Card, CardTitle, Grid, Modal } from '../../components/ui';
 import { CalendarDays, Check, TriangleAlert } from '../../components/ui/icons';
 
 const PLAN_DAYS = 42;
@@ -94,7 +94,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
     <Card padding="md" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-textMain">Study plan</h2>
+          <CardTitle size="lg">Study plan</CardTitle>
           <p className="text-sm text-muted2 mt-1 max-w-prose">
             Plans the next six weeks from your mastery and the PRC weights: a targeted drill most days (topics with
             open mistakes come up more), a timed sitting each week, light review before the exam, and a formula-card
@@ -110,7 +110,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
         <p className="text-eyebrow mb-2">Board exam date</p>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm font-semibold text-textMain tabular-nums">{examDate || 'Not set'}</span>
-          {daysTone && <Badge tone={daysTone}>{daysUntilExam === 1 ? '1 day' : `${daysUntilExam} days`}</Badge>}
+          {daysTone && <Badge tone={daysTone} className="tabular-nums">{daysUntilExam === 1 ? '1 day' : `${daysUntilExam} days`}</Badge>}
           <Link to="/account#exam-plan" className="text-sm text-[var(--accent-text)] hover:underline touch-target inline-flex items-center">
             {examDate ? 'Change' : 'Set your exam date'}
           </Link>

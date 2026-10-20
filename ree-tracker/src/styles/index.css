@@ -136,6 +136,9 @@
   --fluid-base: clamp(0.85rem, 0.8rem + 0.25vw, 1rem);     /* body */
   --fluid-lg:   clamp(1.05rem, 0.95rem + 0.5vw, 1.25rem);  /* subhead */
   --fluid-xl:   clamp(1.3rem, 1.1rem + 1vw, 1.75rem);      /* heading */
+  /* The small label size (chips, hints, timer captions): `text-micro`. It
+     was written as the arbitrary text-[11px] in 35 places. */
+  --text-micro: 0.6875rem;
 
   /* Motion tokens */
   --ease-spring-soft: cubic-bezier(0.34, 1.2, 0.64, 1);
@@ -892,6 +895,36 @@ body {
     font-weight: 500;
   }
 
+  /* Headings: one size per level, everywhere.
+       h1  the page's title (PageHeader)
+       h2  a section on the page (SectionHeader) or a hero card's title
+       h3  a group inside a card
+     A card's own title is CardTitle (an h2 at text-base, or size lg). The
+     page titles and section titles were six different sizes. */
+  .text-h1,
+  .text-h2 {
+    font-family: var(--font-display);
+    font-feature-settings: "ss01" on, "ss02" on;
+    font-weight: 500;
+    text-wrap: balance;
+  }
+  .text-h1 {
+    font-size: clamp(1.5rem, 1.3rem + 0.9vw, 1.875rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  .text-h2 {
+    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+  }
+  .text-h3 {
+    font-size: 0.9375rem;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+
   /* THE micro-label. Every eyebrow / tiny uppercase label in the app uses
      this one class — no more ad-hoc text-[0.55–0.7rem] + tracking-widest
      combinations. Override color with a text-* class when needed. */
@@ -911,6 +944,9 @@ body {
     font-weight: 500;
     color: var(--text-muted);
   }
+
+  /* Chart axes: figures in columns that line up as they change. */
+  .recharts-cartesian-axis-tick-value { font-variant-numeric: tabular-nums; }
 
   /* Fluid body/heading utilities (tokens defined in @theme). Use where fixed
      Tailwind text-* sizes render too small on tablets; opt-in, not global. */

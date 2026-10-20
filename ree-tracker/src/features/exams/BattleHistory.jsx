@@ -18,7 +18,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useSyncedUserData } from '../../hooks/useSyncedUserData';
 import { fetchBattleHistory, requestRematch } from '../../services/dbQueries';
-import { Button, Card, EmptyState, Skeleton } from '../../components/ui';
+import { Button, Card, CardTitle, EmptyState, Skeleton } from '../../components/ui';
 import { ClipboardList, CloudOff, History, RotateCcw, Swords, TriangleAlert } from '../../components/ui/icons';
 import { battleLabel, ordinal, placeLabel } from './battleModes';
 
@@ -57,7 +57,7 @@ function BattleRow({ item, uid, busy, onRematch }) {
               {placeLabel(item.placement, item.players)}
             </span>
             <span aria-hidden="true">·</span>
-            <span>{item.score}/{item.total}</span>
+            <span className="tabular-nums">{item.score}/{item.total}</span>
             {Number.isFinite(item.eloDelta) && (
               <>
                 <span aria-hidden="true">·</span>
@@ -200,9 +200,9 @@ export default function BattleHistory({ onHost }) {
   return (
     <Card elevated padding="md" className="flex flex-col gap-4" aria-labelledby="battle-history-title">
       <div>
-        <h2 id="battle-history-title" className="text-lg font-semibold text-textMain flex items-center gap-2">
+        <CardTitle size="lg" id="battle-history-title" className="flex items-center gap-2">
           <History size={18} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Past battles
-        </h2>
+        </CardTitle>
         <p className="text-sm text-muted2 mt-1">Review your answers beside everyone else’s, or play the same settings again.</p>
       </div>
       {items != null && offline && (

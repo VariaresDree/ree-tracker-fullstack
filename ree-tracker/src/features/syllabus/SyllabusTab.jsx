@@ -103,7 +103,7 @@ const TopicRow = memo(function TopicRow({ row, onSave, onDrill }) {
   return (
     <li className="rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3.5 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-semibold text-textMain break-words">{row.name}</h3>
+        <h3 className="text-h3 text-textMain break-words">{row.name}</h3>
         {isTopicCovered(row) && <StatusPill tone="success" dot={false}>Covered</StatusPill>}
       </div>
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`${row.name}: checklist`}>

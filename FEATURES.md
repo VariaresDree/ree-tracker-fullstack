@@ -219,6 +219,13 @@ every feature add, change, or removal, not on a schedule.
     - `layoutGuards.test.js` scans the source for hand-rolled page frames, `max-w-5xl`, `rounded-xl`/`2xl` and viewport 3–4 column grids, allowing forms and dialogs.
     - `e2e-authed/layout.spec.ts`, at 360, 390 and 820 px, checks that no main screen scrolls sideways, that a page ends clear of the bottom bar and focus timer, and that the account menu opens over a session toolbar.
     - `e2e-authed/visual-sweep.spec.ts` (`VISUAL_SWEEP=1`) screenshots every theme on the main screens at four widths.
+- [x] **Type scale** (`styles/index.css` › Headings, `components/ui/SectionHeader.jsx`): one size per heading level, everywhere. Page and section titles were set by hand at six sizes.
+  - **Page title:** `.text-h1` (Fraunces, 1.5–1.875 rem, balanced lines), from `PageHeader`.
+  - **Section on the page:** `.text-h2` (Fraunces, 1.25–1.5 rem), from the new `SectionHeader` (title, description, actions). The Notebook, Bookmarks and Admin › AI models headers use it. Hero cards' titles (Today's "Where you stand", the Gauntlet) use it too.
+  - **Card title:** `CardTitle` (an h2): `text-base`, or `size="lg"` for a card standing alone at the top of a section (Account's sections, Join and Host a battle, the study calendar and plan). About twenty hand-styled card h2s (results, battles, weak signals, the placement prompt, first-run card) now use it.
+  - **Group inside a card:** `.text-h3`, 15 px semibold. The h3s were 14, 16 and 18 px.
+  - **Small labels:** the `text-micro` size (11 px) is a theme token, replacing the arbitrary `text-[11px]` in 35 files. `layoutGuards.test.js` keeps it that way.
+  - **Figures line up as they change:** `tabular-nums` on the quiz results score, battle history scores, the study plan's days badge, the focus timer's minute inputs, and every chart axis.
 - [x] **Theme list and browser colour** (`src/theme/themes.js`, `src/theme/applyAppearance.js`) — one list of the 13 themes for the picker, the pre-paint script and the browser: the status bar / installed app's title bar now takes each theme's card colour (it stayed navy on every theme), set before first paint by `index.html` and on every change by `applyTheme`. Native controls and scrollbars follow the theme's lightness (`color-scheme`). `themeMeta.test.js` keeps the list, `index.css` and `index.html` in step.
 
 ## Exam & Practice Modes

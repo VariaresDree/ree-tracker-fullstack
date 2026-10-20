@@ -69,7 +69,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
             <span className="min-w-0 truncate" title={agent.displayName}>{agent.displayName}</span>
             {isMe && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
           </span>
-          <span className="text-[11px] text-muted2 tabular-nums truncate">{agent.questionsAnswered || 0} answered</span>
+          <span className="text-micro text-muted2 tabular-nums truncate">{agent.questionsAnswered || 0} answered</span>
         </div>
         <div className="shrink-0 w-12 flex flex-col items-end">
           <span className="text-sm font-bold tabular-nums inline-flex items-center gap-1" style={{ color: 'var(--color-reeAmber-text)' }}>

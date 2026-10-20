@@ -6,7 +6,7 @@
 // timed, which one can lock you out. Shown in full on the placement result
 // (with the one to start with marked), and folded on Exams and Practice.
 import { Link } from 'react-router-dom';
-import { Badge, cn } from '../../components/ui';
+import { Badge, CardTitle, cn } from '../../components/ui';
 import { ChevronDown } from '../../components/ui/icons';
 import { MODES } from './modes';
 
@@ -71,7 +71,7 @@ export default function ModeGuide({ start, here, note, folded = false, headingLe
   }
   return (
     <section aria-labelledby="mode-guide-heading" className="flex flex-col gap-3">
-      <h2 id="mode-guide-heading" className="text-base font-semibold text-textMain">Which mode do I use?</h2>
+      <CardTitle id="mode-guide-heading">Which mode do I use?</CardTitle>
       {/* Why "Start here" sits where it does, when it isn't the average
           (startingPlan: a subject under the floor comes first). */}
       {note && <p className="text-sm text-textMain">{note}</p>}

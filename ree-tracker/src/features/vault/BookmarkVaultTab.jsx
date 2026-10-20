@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { newSittingKey, toDisplaySubject } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
-import { Badge, Button, Card, EmptyState, Input, SegmentedControl, Skeleton } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, Input, SectionHeader, SegmentedControl, Skeleton } from '../../components/ui';
 import { Bookmark, Check, CloudOff, Play, Search, TriangleAlert, X } from '../../components/ui/icons';
 import { bookmarksPreset, itemsPreset, launchPractice } from '../active-recall/presets';
 import { fetchBookmarks, removeBookmark, saveBookmark } from '../../services/dbQueries';
@@ -273,28 +273,27 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="border-b border-border pb-5 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
-        <div>
-          <h2 className="text-display text-2xl text-textMain tracking-tight">Bookmarks</h2>
-          <p className="text-muted2 mt-1 text-sm">
-            Questions you saved while practising. Open one to see its answer, or practise them as a session.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-muted2 tabular-nums">
-            {isFiltered ? `${filtered.length} of ${bookmarks.length}` : `${bookmarks.length} saved`}
-          </span>
-          <Button
-            size="sm"
-            className="whitespace-nowrap"
-            onClick={practise}
-            disabled={practiseCount === 0 || (!isFiltered && !isOnline)}
-            title={!isFiltered && !isOnline ? 'Needs a connection' : undefined}
-          >
-            <Play size={14} strokeWidth={2} aria-hidden="true" /> {isFiltered ? `Practise these ${practiseCount}` : 'Practise bookmarks'}
-          </Button>
-        </div>
-      </div>
+      <SectionHeader
+        divider
+        title="Bookmarks"
+        description="Questions you saved while practising. Open one to see its answer, or practise them as a session."
+        actions={(
+          <>
+            <span className="text-xs text-muted2 tabular-nums">
+              {isFiltered ? `${filtered.length} of ${bookmarks.length}` : `${bookmarks.length} saved`}
+            </span>
+            <Button
+              size="sm"
+              className="whitespace-nowrap"
+              onClick={practise}
+              disabled={practiseCount === 0 || (!isFiltered && !isOnline)}
+              title={!isFiltered && !isOnline ? 'Needs a connection' : undefined}
+            >
+              <Play size={14} strokeWidth={2} aria-hidden="true" /> {isFiltered ? `Practise these ${practiseCount}` : 'Practise bookmarks'}
+            </Button>
+          </>
+        )}
+      />
       {body}
     </div>
   );

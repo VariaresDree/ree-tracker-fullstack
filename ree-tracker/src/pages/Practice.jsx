@@ -175,7 +175,7 @@ export default function Practice() {
                 or why it turns red (past three minutes, the board's slowest
                 pace). */}
             <div className="flex flex-col items-end leading-tight">
-                <span className="text-[11px] text-muted2">This question</span>
+                <span className="text-micro text-muted2">This question</span>
                 <QuestionTimer
                   key={questionStartedAt}
                   startedAt={questionStartedAt}

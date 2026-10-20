@@ -34,7 +34,7 @@ function NavItem({ item, active, collapsed }) {
         <span className="flex flex-col min-w-0 ml-3">
           <span className="text-sm font-semibold tracking-tight truncate">{item.label}</span>
           {item.desc && (
-            <span className={cn('text-[11px] mt-0.5 truncate', active ? 'text-[color-mix(in_srgb,var(--accent-text)_75%,var(--text-muted2))]' : 'text-muted2')}>
+            <span className={cn('text-micro mt-0.5 truncate', active ? 'text-[color-mix(in_srgb,var(--accent-text)_75%,var(--text-muted2))]' : 'text-muted2')}>
               {item.desc}
             </span>
           )}
@@ -133,7 +133,7 @@ export default function Sidebar() {
           ) : (
             <span className="flex flex-col overflow-hidden min-w-0">
               <span className="text-sm font-semibold text-textMain truncate">{name}</span>
-              <span className="text-[11px] text-muted2 mt-0.5">Account &amp; settings</span>
+              <span className="text-micro text-muted2 mt-0.5">Account &amp; settings</span>
             </span>
           )}
         </Link>

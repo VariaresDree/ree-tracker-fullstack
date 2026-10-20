@@ -172,7 +172,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
                 <div className={`text-sm font-semibold truncate ${tileActive ? 'text-textMain' : 'text-muted'}`} title={item.name}>
                   {item.name}
                 </div>
-                <div className={`text-[11px] uppercase tracking-wider mt-0.5 font-medium ${textClass}`}>{subLabel}</div>
+                <div className={`text-micro uppercase tracking-wider mt-0.5 font-medium ${textClass}`}>{subLabel}</div>
               </div>
               <div className={`text-2xl text-display tabular-nums shrink-0 ${textClass}`}>{metricDisplay}</div>
             </>

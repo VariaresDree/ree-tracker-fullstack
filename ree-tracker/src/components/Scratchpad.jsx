@@ -146,10 +146,10 @@ export default function Scratchpad({ isOpen, onClose }) {
           Scratchpad
         </span>
         <div className="flex gap-2">
-          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-colors shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
+          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-micro font-bold uppercase transition-colors shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Clear
           </button>
-          <button onClick={onClose} className="px-3 py-1 bg-[color-mix(in_srgb,var(--accent-danger)_88%,black)] hover:brightness-110 text-[var(--on-danger)] rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-all shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
+          <button onClick={onClose} className="px-3 py-1 bg-[color-mix(in_srgb,var(--accent-danger)_88%,black)] hover:brightness-110 text-[var(--on-danger)] rounded-[var(--radius-sm)] text-micro font-bold uppercase transition-all shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Close
           </button>
         </div>

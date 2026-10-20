@@ -346,7 +346,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               className={`flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
             >
               <div className="flex justify-between items-start">
-                <span className={`px-2 py-0.5 bg-bg border border-border2 text-[11px] font-mono rounded-[var(--radius-sm)] uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>
+                <span className={`px-2 py-0.5 bg-bg border border-border2 text-micro font-mono rounded-[var(--radius-sm)] uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>
                     {m.type}
                 </span>
                 {isAdmin && (

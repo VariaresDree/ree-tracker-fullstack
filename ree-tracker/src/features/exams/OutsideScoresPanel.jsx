@@ -46,7 +46,7 @@ function EntryRow({ entry, firstTry, onEdit, onDelete }) {
   return (
     <li className="rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3.5 flex items-start gap-3">
       <div className="min-w-0 flex-1 flex flex-col gap-1">
-        <h3 className="text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{entry.title}</h3>
+        <h3 className="text-h3 text-textMain [overflow-wrap:anywhere]">{entry.title}</h3>
         <p className="text-xs text-muted2 [overflow-wrap:anywhere]">
           {fmtDate(entry.takenOn)} · {subjectLabel(entry.subject)}{entry.source ? ` · ${entry.source}` : ''}
         </p>

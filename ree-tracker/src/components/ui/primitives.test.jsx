@@ -3,7 +3,7 @@
 // per-tone ink, and DataTable's clickable rows from the keyboard.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Badge, Button, Card, DataTable, Grid, IconChip, KpiTile, Page, QuestionSurface, StickyToolbar } from './index';
+import { Badge, Button, Card, CardTitle, DataTable, Grid, IconChip, KpiTile, Page, PageHeader, QuestionSurface, SectionHeader, StickyToolbar } from './index';
 import { Target } from './icons';
 
 describe('Page', () => {
@@ -102,5 +102,20 @@ describe('DataTable', () => {
     fireEvent.keyDown(card, { key: ' ' });
     expect(onRowClick).toHaveBeenCalledTimes(2);
     expect(onRowClick).toHaveBeenCalledWith({ id: 1, name: 'Sitting 1' });
+  });
+});
+
+describe('type scale', () => {
+  it('one size per heading level: the page title, a section title, a card title', () => {
+    render(<>
+      <PageHeader title="Exams" />
+      <SectionHeader title="Notebook" description="Every question you got wrong." actions={<Button>Practise</Button>} />
+      <Card><CardTitle>Blind spots</CardTitle><CardTitle size="lg">Join a battle</CardTitle></Card>
+    </>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Exams' }).className).toMatch(/\btext-h1\b/);
+    expect(screen.getByRole('heading', { level: 2, name: 'Notebook' }).className).toMatch(/\btext-h2\b/);
+    expect(screen.getByRole('heading', { level: 2, name: 'Blind spots' }).className).toMatch(/\btext-base\b/);
+    expect(screen.getByRole('heading', { level: 2, name: 'Join a battle' }).className).toMatch(/\btext-lg\b/);
+    expect(screen.getByRole('button', { name: 'Practise' })).toBeInTheDocument();
   });
 });

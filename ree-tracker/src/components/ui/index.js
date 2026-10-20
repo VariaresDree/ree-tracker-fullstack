@@ -14,6 +14,7 @@ export { EmptyState } from './EmptyState';
 export { SegmentedControl } from './SegmentedControl';
 export { Tabs, TabPanel } from './Tabs';
 export { PageHeader } from './PageHeader';
+export { SectionHeader } from './SectionHeader';
 export { Page } from './Page';
 export { Grid } from './Grid';
 export { StickyToolbar } from './StickyToolbar';

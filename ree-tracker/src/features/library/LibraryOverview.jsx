@@ -402,7 +402,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   return (
     <Card padding="md" className="shadow-sm flex flex-col gap-4">
       <div className="flex justify-between items-center border-b border-border pb-4 flex-wrap gap-4">
-        <h3 className="text-lg font-semibold text-textMain tracking-tight flex items-center gap-2">
+        <h3 className="text-h3 text-textMain flex items-center gap-2">
           <Layers size={18} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Question bank overview
         </h3>
         <div className="flex flex-wrap gap-2 z-10">
@@ -461,7 +461,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                     <div key={sub} className="flex justify-between items-center text-xs group shrink-0">
                       <span className={`truncate pr-3 transition-colors ${count > 0 ? 'text-textMain font-medium' : 'text-muted2 opacity-50'}`} title={sub}>{sub}</span>
                       <span
-                        className="font-mono text-[11px] px-2 py-0.5 rounded-[var(--radius-sm)] border tabular-nums"
+                        className="font-mono text-micro px-2 py-0.5 rounded-[var(--radius-sm)] border tabular-nums"
                         style={count > 0
                           ? { color: accent, background: `color-mix(in srgb, ${accent} 10%, transparent)`, borderColor: `color-mix(in srgb, ${accent} 30%, transparent)`, fontWeight: 700 }
                           : { opacity: 0.3 }}

@@ -16,7 +16,7 @@ import ExamLayout from '../layouts/ExamLayout';
 import PomodoroOwner from '../components/PomodoroOwner';
 import QuestionCard from '../features/quiz/QuestionCard';
 import { presentOptions } from '../features/quiz/presentOptions';
-import { Button, Card, Badge, Grid, Page, PageHeader, ProgressIndicator, QuestionSurface, Skeleton, EmptyState } from '../components/ui';
+import { Badge, Button, Card, CardTitle, EmptyState, Grid, Page, PageHeader, ProgressIndicator, QuestionSurface, Skeleton } from '../components/ui';
 import { Compass, ArrowRight } from '../components/ui/icons';
 import { fetchDiagnosticStatus, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
@@ -237,7 +237,7 @@ function PlacementResult({ result, sessionId }) {
           return (
             <Card key={s} elevated padding="md" className="flex flex-col gap-2 min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-textMain font-semibold min-w-0">{toDisplaySubject(s)}</h2>
+                <CardTitle className="min-w-0">{toDisplaySubject(s)}</CardTitle>
                 <Badge tone={BAND_TONE[r.band]}>{BAND_LABEL[r.band]}</Badge>
               </div>
               <span className="text-display text-3xl tabular-nums text-textMain">{Math.round(r.expected)}%</span>
@@ -252,7 +252,7 @@ function PlacementResult({ result, sessionId }) {
       {/* The exam date and daily target, asked here once instead of a silent
           default, with the study plan the placement prompt promised. */}
       <Card elevated padding="md" className="flex flex-col gap-3">
-        <h2 className="text-base font-semibold text-textMain">Your exam plan</h2>
+        <CardTitle>Your exam plan</CardTitle>
         <p className="text-sm text-muted2">Your exam date sets the countdown and the study plan. You can change both in Account any time.</p>
         <ExamPlanForm offerPlan />
       </Card>

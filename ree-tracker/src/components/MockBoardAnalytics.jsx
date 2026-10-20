@@ -295,7 +295,7 @@ export default function MockBoardAnalytics() {
         icon={BarChart3}
         eyebrow="History"
         title="Past sittings"
-        action={<span className="text-[11px] text-muted2 tabular-nums">{history.length} sitting{history.length === 1 ? '' : 's'}</span>}
+        action={<span className="text-micro text-muted2 tabular-nums">{history.length} sitting{history.length === 1 ? '' : 's'}</span>}
         bodyClassName="max-h-[520px] overflow-y-auto custom-scrollbar"
       >
         {loading ? (

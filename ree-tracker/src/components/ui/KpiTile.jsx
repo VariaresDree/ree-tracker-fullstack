@@ -40,7 +40,7 @@ export function KpiTile({
           {typeof value === 'number' ? value.toFixed(precision) : value}
           {suffix && <span className="text-muted2 text-base ml-1 font-sans">{suffix}</span>}
         </span>
-        {hint && <span className="text-[11px] text-muted2 tabular-nums">{hint}</span>}
+        {hint && <span className="text-micro text-muted2 tabular-nums">{hint}</span>}
       </Card>
     );
   }
@@ -59,7 +59,7 @@ export function KpiTile({
         {Icon ? <IconChip icon={Icon} size="sm" tone={TONE_CHIP[tone] || 'accent'} className={iconGlow ? 'pulse-glow' : undefined} /> : <span />}
         {hasDelta && (
           <span
-            className="inline-flex items-center gap-1 rounded-full border px-2 h-6 text-[11px] font-medium tabular-nums"
+            className="inline-flex items-center gap-1 rounded-full border px-2 h-6 text-micro font-medium tabular-nums"
             style={{
               color: deltaColor,
               borderColor: `color-mix(in srgb, ${deltaColor} 35%, transparent)`,
@@ -104,7 +104,7 @@ export function KpiTile({
           bottom regardless of whether a hint is present. */}
       <div className="mt-auto flex flex-col gap-0.5">
         <span className="text-eyebrow">{label}</span>
-        {hint && <span className="text-[11px] text-muted2 tabular-nums">{hint}</span>}
+        {hint && <span className="text-micro text-muted2 tabular-nums">{hint}</span>}
       </div>
     </Card>
   );

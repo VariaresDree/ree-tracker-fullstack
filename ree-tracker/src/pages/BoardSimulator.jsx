@@ -266,7 +266,7 @@ export default function BoardSimulator() {
           className="flex flex-col gap-3 shadow-sm animate-in fade-in"
           style={{ borderColor: 'color-mix(in srgb, var(--color-reeRed) 30%, transparent)' }}
         >
-          <span className="text-[11px] font-black uppercase tracking-widest text-reeRed-text flex items-center gap-2">
+          <span className="text-micro font-black uppercase tracking-widest text-reeRed-text flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-reeGreen animate-pulse"></span> Live Opponents
           </span>
           <div className="flex flex-wrap gap-3">

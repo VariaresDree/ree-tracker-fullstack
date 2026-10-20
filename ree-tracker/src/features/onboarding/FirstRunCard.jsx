@@ -6,7 +6,7 @@
 // offer to build the study plan. Shown after the placement prompt, never
 // beside it; "Later" hides it for this account on this device.
 import { useState } from 'react';
-import { Button, Card, IconChip } from '../../components/ui';
+import { Button, Card, CardTitle, IconChip } from '../../components/ui';
 import { CalendarDays } from '../../components/ui/icons';
 import ExamPlanForm from '../account/ExamPlanForm';
 
@@ -29,7 +29,7 @@ export default function FirstRunCard({ uid, show }) {
       <div className="flex items-start gap-4">
         <IconChip icon={CalendarDays} />
         <div className="flex-1 min-w-0">
-          <h2 className="text-textMain font-semibold">Set up your review</h2>
+          <CardTitle>Set up your review</CardTitle>
           <p className="text-sm text-muted2 mt-0.5">
             Your exam date sets the countdown and the study plan. The daily target is split by the board’s subject weights.
           </p>

@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchActiveBattles } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Button, Card, StatusPill } from '../../components/ui';
+import { Button, Card, CardTitle, StatusPill } from '../../components/ui';
 import { ArrowRight, Clock, Swords } from '../../components/ui/icons';
 import { formatTimeOfDay } from '../../utils/time';
 import { battleLabel } from './battleModes';
@@ -51,7 +51,7 @@ export default function ActiveBattles() {
   return (
     <Card elevated padding="md" className="flex flex-col gap-4" aria-labelledby="active-battles-title">
       <div>
-        <h2 id="active-battles-title" className="text-lg font-semibold text-textMain">Your battles in progress</h2>
+        <CardTitle size="lg" id="active-battles-title">Your battles in progress</CardTitle>
         <p className="text-sm text-muted2 mt-1">Left one part-way? Your answers are saved, and the clock kept running.</p>
       </div>
       <ul className="flex flex-col gap-3">

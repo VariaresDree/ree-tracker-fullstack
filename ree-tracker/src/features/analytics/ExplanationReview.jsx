@@ -12,7 +12,7 @@ const StatusBadge = ({ status }) => {
         REJECTED: 'bg-reeRed/20 text-reeRed-text border-reeRed/30'
     };
     return (
-        <span className={`shrink-0 px-2 py-0.5 text-[11px] font-bold rounded-[var(--radius-sm)] border ${colors[status] || colors.PENDING}`}>
+        <span className={`shrink-0 px-2 py-0.5 text-micro font-bold rounded-[var(--radius-sm)] border ${colors[status] || colors.PENDING}`}>
             {status}
         </span>
     );
@@ -170,11 +170,11 @@ export default function ExplanationReview() {
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-2 mb-1 min-w-0">
-                                    <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
+                                    <span className="text-micro font-bold uppercase tracking-widest text-muted">
                                         {q.subject}
                                     </span>
-                                    <span className="text-[11px] text-muted">•</span>
-                                    <span className="text-[11px] text-muted">{q.subtopic}</span>
+                                    <span className="text-micro text-muted">•</span>
+                                    <span className="text-micro text-muted">{q.subtopic}</span>
                                 </div>
                                 <div className="text-xs text-textMain font-medium line-clamp-2 [&_p]:!mb-0">
                                     <LatexRenderer content={q.text} />
@@ -187,7 +187,7 @@ export default function ExplanationReview() {
                     {expandedId === q.id && (
                         <div className="border-t border-border2 p-4">
                             <div className="bg-bg rounded-[var(--radius-default)] p-3 mb-3 border border-border2">
-                                <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-2">
+                                <div className="text-micro font-bold uppercase tracking-widest text-muted mb-2">
                                     Question
                                 </div>
                                 <div className="text-xs text-textMain leading-relaxed">
@@ -195,7 +195,7 @@ export default function ExplanationReview() {
                                 </div>
                             </div>
                             <div className="bg-surface2 rounded-[var(--radius-default)] p-3 mb-4">
-                                <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-2">
+                                <div className="text-micro font-bold uppercase tracking-widest text-muted mb-2">
                                     AI-Generated Explanation
                                 </div>
                                 <div className="text-xs text-textMain leading-relaxed">

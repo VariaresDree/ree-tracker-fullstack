@@ -4,7 +4,7 @@
 // Each card opens /simulator?profile=<id>, where the Simulator's setup screen
 // already has that profile chosen (and offers to resume a saved sitting).
 import { Link } from 'react-router-dom';
-import { Card, Button, Grid, IconChip } from '../../components/ui';
+import { Button, Card, CardTitle, Grid, IconChip } from '../../components/ui';
 import { ArrowRight } from '../../components/ui/icons';
 import { SIM_PROFILES } from '../board-simulator/profiles';
 
@@ -20,7 +20,7 @@ export default function MockBoardTab() {
               <div className="flex items-start gap-3">
                 <IconChip icon={Icon} />
                 <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-textMain">{p.name}</h2>
+                  <CardTitle>{p.name}</CardTitle>
                   <p className="text-sm text-muted2 mt-1 leading-relaxed">{p.description}</p>
                 </div>
               </div>

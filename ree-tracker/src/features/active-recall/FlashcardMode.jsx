@@ -76,7 +76,7 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
                     )}
                     style={{ color: r.accent, '--rating-accent': r.accent }}
                   >
-                    {r.label} <span className="block mt-1 opacity-40 font-mono text-[11px] normal-case">[{r.key}]</span>
+                    {r.label} <span className="block mt-1 opacity-40 font-mono text-micro normal-case">[{r.key}]</span>
                   </button>
                 ))}
               </div>

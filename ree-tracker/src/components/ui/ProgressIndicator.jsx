@@ -32,7 +32,7 @@ export function ProgressIndicator({
   return (
     <div className={cn('w-full', className)}>
       {(label || showValue) && (
-        <div className="flex justify-between items-center mb-1.5 text-[11px] text-muted2 tabular-nums">
+        <div className="flex justify-between items-center mb-1.5 text-micro text-muted2 tabular-nums">
           {label ? <span>{label}</span> : <span />}
           {showValue && <span>{Math.round(value)} / {max}</span>}
         </div>

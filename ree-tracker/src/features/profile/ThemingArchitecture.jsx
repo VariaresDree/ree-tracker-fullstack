@@ -14,7 +14,7 @@ export default function ThemingArchitecture({ theme, setTheme, plainBackground =
   return (
     <Card padding="lg" className="shadow-sm">
       <div className="border-b border-border pb-4 mb-6">
-        <h3 className="text-sm font-semibold text-textMain flex items-center gap-2">
+        <h3 className="text-h3 text-textMain flex items-center gap-2">
           <Palette size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Theme
         </h3>
         <p className="text-xs text-muted2 mt-1">Choose how the app looks.</p>
@@ -43,7 +43,7 @@ export default function ThemingArchitecture({ theme, setTheme, plainBackground =
                 ))}
               </span>
               <span className={cn('block text-xs font-bold', selected ? 'text-textMain' : 'text-muted')}>{t.label}</span>
-              <span className="text-[11px] text-muted2 block leading-tight">{t.desc}</span>
+              <span className="text-micro text-muted2 block leading-tight">{t.desc}</span>
             </button>
           );
         })}
