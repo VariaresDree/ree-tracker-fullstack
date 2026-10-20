@@ -28,22 +28,27 @@ export default function PlacementPrompt({ status, answered = 0, dismissed = fals
     );
   }
 
+  // In a row only when the card is wide enough for one (a container query):
+  // beside the sidebar on a tablet the window said `sm`, and the text was
+  // left a 150px column between the icon and the buttons.
   return (
-    <Card elevated glow className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-      <IconChip icon={Compass} size="lg" />
-      <div className="flex-1 min-w-0">
-        <CardTitle>
-          {inProgress ? 'Finish your placement test' : 'Find your starting level'}
-        </CardTitle>
-        <p className="text-sm text-muted2 mt-0.5">
-          {inProgress
-            ? `${status.progress?.answered || 0} of about ${status.progress?.total || 19} questions done — pick up where you left off.`
-            : 'About 19 adaptive questions across Math, ESAS and EE. You get a level for each subject, where to start, and the option of a study plan to your exam date.'}
-        </p>
-      </div>
-      <div className="flex gap-2 shrink-0">
-        <Button as={Link} to="/diagnostic">{inProgress ? 'Resume' : 'Take the test'}</Button>
-        <Button variant="ghost" onClick={onDismiss}>Not now</Button>
+    <Card elevated glow padding="md" className="@container">
+      <div className="flex flex-col @2xl:flex-row @2xl:items-center gap-4">
+        <IconChip icon={Compass} size="lg" />
+        <div className="flex-1 min-w-0">
+          <CardTitle>
+            {inProgress ? 'Finish your placement test' : 'Find your starting level'}
+          </CardTitle>
+          <p className="text-sm text-muted2 mt-0.5">
+            {inProgress
+              ? `${status.progress?.answered || 0} of about ${status.progress?.total || 19} questions done — pick up where you left off.`
+              : 'About 19 adaptive questions across Math, ESAS and EE. You get a level for each subject, where to start, and the option of a study plan to your exam date.'}
+          </p>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Button as={Link} to="/diagnostic">{inProgress ? 'Resume' : 'Take the test'}</Button>
+          <Button variant="ghost" onClick={onDismiss}>Not now</Button>
+        </div>
       </div>
     </Card>
   );
