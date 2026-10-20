@@ -26,7 +26,7 @@ export default function CaqResults({ fileName, questions, answers, score, elapse
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <p className="text-eyebrow mb-1">{fileName}</p>
-            <p className="text-2xl font-bold text-textMain">
+            <p className="text-2xl font-bold text-textMain tabular-nums">
               {score.correct} / {score.total} correct
               <span className="text-muted2 text-base font-medium ml-2">({pct}%)</span>
             </p>

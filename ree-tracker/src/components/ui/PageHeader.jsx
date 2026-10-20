@@ -12,8 +12,8 @@ export function PageHeader({ title, subtitle, meta, actions, className }) {
       )}
     >
       <div className="min-w-0">
-        <h1 className="text-display text-textMain text-2xl sm:text-3xl leading-tight">{title}</h1>
-        {subtitle && <p className="text-sm text-muted2 mt-1.5">{subtitle}</p>}
+        <h1 className="text-h1 text-textMain">{title}</h1>
+        {subtitle && <p className="text-sm text-muted2 mt-1.5 text-pretty">{subtitle}</p>}
       </div>
       {(meta || actions) && (
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">

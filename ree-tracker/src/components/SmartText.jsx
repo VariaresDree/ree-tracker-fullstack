@@ -98,7 +98,7 @@ function GlossaryTerm({ term, definition }) {
     <span ref={wrapRef} className="relative inline-block">
       <button
         type="button"
-        className="text-reeCyan-text border-b border-dashed border-reeCyan font-bold cursor-help focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] rounded-[var(--radius-sm)]"
+        className="text-reeCyan-text border-b border-dashed border-reeCyan font-bold cursor-help rounded-[var(--radius-sm)]"
         aria-describedby={tooltipId}
         aria-expanded={visible}
         onPointerEnter={(e) => { if (e.pointerType === 'mouse') setHovered(true); }}

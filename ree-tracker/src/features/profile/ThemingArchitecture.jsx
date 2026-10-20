@@ -1,37 +1,28 @@
 // src/features/profile/ThemingArchitecture.jsx
 import { Palette } from '../../components/ui/icons';
-import { cn } from '../../components/ui';
+import { cn, Grid, SegmentedControl } from '../../components/ui';
+// Three-dot swatches mirror each theme's real tokens ([page, panel, text or
+// accent]): far more informative than the emoji they replace.
+import { THEMES } from '../../theme/themes';
 
-// Three-dot swatches mirror each theme's real tokens in src/styles/index.css
-// ([bg-primary, bg-surface(2), text-main/accent]) — far more informative than
-// the emoji they replace, and immune to platform emoji fonts.
-const THEMES = [
-  { id: 'dark', label: 'Original', desc: 'Deep space', swatch: ['#0b0f1a', '#1a2236', '#7c5cff'] },
-  { id: 'light', label: 'Light', desc: 'PRC Standard', swatch: ['#f8fafc', '#e2e8f0', '#0f172a'] },
-  { id: 'midnight', label: 'Midnight', desc: 'OLED Pure Black', swatch: ['#000000', '#09090b', '#fafafa'] },
-  { id: 'paper', label: 'Paper', desc: 'Warm Sepia', swatch: ['#fdf6e3', '#fefce8', '#451a03'] },
-  { id: 'cyberpunk', label: 'Cyberpunk', desc: 'Neon Edge', swatch: ['#0f0f15', '#1e1b4b', '#fef08a'] },
-  { id: 'retrowave', label: 'Retrowave', desc: 'Synth Vibe', swatch: ['#1e002a', '#3b0764', '#fdf4ff'] },
-  { id: 'forest', label: 'Forest', desc: 'Deep Woods', swatch: ['#022c22', '#064e3b', '#ecfdf5'] },
-  { id: 'ocean', label: 'Ocean', desc: 'Abyssal Depth', swatch: ['#082f49', '#164e63', '#e0f2fe'] },
-  { id: 'sakura', label: 'Sakura', desc: 'Cherry Blossom', swatch: ['#fdf2f8', '#fce7f3', '#831843'] },
-  { id: 'terminal', label: 'Phosphor', desc: 'Green on black', swatch: ['#000000', '#052e16', '#4ade80'] },
-  { id: 'organs', label: 'Organs', desc: 'Flesh & Crimson', swatch: ['#450a0a', '#7f1d1d', '#fef2f2'] },
-  { id: 'math', label: 'Math', desc: 'Blueprint Grid', swatch: ['#1e3a8a', '#1e40af', '#eff6ff'] },
-  { id: 'electrical', label: 'Electrical', desc: 'Copper & Amber', swatch: ['#24140b', '#451a03', '#fef3c7'] },
+const BACKGROUNDS = [
+  { value: 'textured', label: 'Textured' },
+  { value: 'plain', label: 'Plain' },
 ];
 
-export default function ThemingArchitecture({ theme, setTheme }) {
+export default function ThemingArchitecture({ theme, setTheme, plainBackground = false, setPlainBackground }) {
+  // No card of its own: it sits in Account's Appearance card, and a card in
+  // a card drew a second frame.
   return (
-    <div className="bg-surface border border-border p-6 rounded-[var(--radius-lg)] shadow-sm">
+    <div className="flex flex-col">
       <div className="border-b border-border pb-4 mb-6">
-        <h3 className="text-sm font-semibold text-textMain flex items-center gap-2">
+        <h3 className="text-h3 text-textMain flex items-center gap-2">
           <Palette size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Theme
         </h3>
         <p className="text-xs text-muted2 mt-1">Choose how the app looks.</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3" role="radiogroup" aria-label="Theme">
+      <Grid kind="tiles" gap="sm" className="@2xl:grid-cols-4 @4xl:grid-cols-5" role="radiogroup" aria-label="Theme">
         {THEMES.map((t) => {
           const selected = theme === t.id;
           return (
@@ -42,7 +33,7 @@ export default function ThemingArchitecture({ theme, setTheme }) {
               aria-checked={selected}
               onClick={() => setTheme(t.id)}
               className={cn(
-                'p-3 min-h-11 rounded-[var(--radius-default)] border flex flex-col items-center justify-center gap-2 transition-all cursor-pointer text-center',
+                'p-3 min-h-11 min-w-0 rounded-[var(--radius-default)] border flex flex-col items-center justify-center gap-2 transition cursor-pointer text-center',
                 selected
                   ? 'bg-surface3 border-[color-mix(in_srgb,var(--accent)_60%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--accent)_40%,transparent)]'
                   : 'bg-bg border-border2 hover:border-muted hover:bg-surface2'
@@ -54,11 +45,27 @@ export default function ThemingArchitecture({ theme, setTheme }) {
                 ))}
               </span>
               <span className={cn('block text-xs font-bold', selected ? 'text-textMain' : 'text-muted')}>{t.label}</span>
-              <span className="text-[11px] text-muted2 block leading-tight">{t.desc}</span>
+              <span className="text-micro text-muted2 block leading-tight">{t.desc}</span>
             </button>
           );
         })}
-      </div>
+      </Grid>
+
+      {setPlainBackground && (
+        <div className="mt-6 pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-textMain">Background</p>
+            <p className="text-xs text-muted2 mt-0.5">Each theme's glow and pattern behind the page. Cards are unaffected.</p>
+          </div>
+          <SegmentedControl
+            label="Background"
+            size="sm"
+            options={BACKGROUNDS}
+            value={plainBackground ? 'plain' : 'textured'}
+            onChange={(v) => setPlainBackground(v === 'plain')}
+          />
+        </div>
+      )}
     </div>
   );
 }

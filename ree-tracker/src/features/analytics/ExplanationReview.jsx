@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchPendingExplanations, updateExplanationStatus, bulkApproveExplanations } from '../../services/dbQueries';
-import { Button, Modal } from '../../components/ui';
+import { Button, Card, Modal } from '../../components/ui';
 import { Check, CheckCircle2, X } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
@@ -12,7 +12,7 @@ const StatusBadge = ({ status }) => {
         REJECTED: 'bg-reeRed/20 text-reeRed-text border-reeRed/30'
     };
     return (
-        <span className={`px-2 py-0.5 text-[11px] font-bold rounded border ${colors[status] || colors.PENDING}`}>
+        <span className={`shrink-0 px-2 py-0.5 text-micro font-bold rounded-[var(--radius-sm)] border ${colors[status] || colors.PENDING}`}>
             {status}
         </span>
     );
@@ -105,8 +105,8 @@ export default function ExplanationReview() {
 
     return (
         <div className="space-y-3">
-            <div className="flex items-start justify-between mb-2 gap-3">
-                <div>
+            <div className="flex flex-wrap items-start justify-between mb-2 gap-3">
+                <div className="min-w-0">
                     <h2 className="text-sm font-bold text-textMain">
                         Explanation review queue ({questions.length})
                     </h2>
@@ -116,7 +116,7 @@ export default function ExplanationReview() {
                         rejected explanations are discarded so the question can be re-derived later.
                     </p>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
                     <Button size="sm" tone="success" onClick={() => setShowBulkConfirm(true)} disabled={isBulkApproving}>
                         Accept all {questions.length} shown
                     </Button>
@@ -151,7 +151,7 @@ export default function ExplanationReview() {
             </Modal>
 
             {questions.map(q => (
-                <div key={q.id} className="bg-surface border border-border2 rounded-xl overflow-hidden">
+                <Card key={q.id} className="overflow-hidden">
                     {/* A button-role row, not a <button>: it holds the question's
                         rendered LaTeX, block content a <button> can't contain.
                         It was a bare clickable div, out of reach of the keyboard. */}
@@ -169,12 +169,12 @@ export default function ExplanationReview() {
                     >
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-[11px] font-bold uppercase tracking-widest text-muted">
+                                <div className="flex flex-wrap items-center gap-2 mb-1 min-w-0">
+                                    <span className="text-micro font-bold uppercase tracking-widest text-muted">
                                         {q.subject}
                                     </span>
-                                    <span className="text-[11px] text-muted">•</span>
-                                    <span className="text-[11px] text-muted">{q.subtopic}</span>
+                                    <span className="text-micro text-muted">•</span>
+                                    <span className="text-micro text-muted">{q.subtopic}</span>
                                 </div>
                                 <div className="text-xs text-textMain font-medium line-clamp-2 [&_p]:!mb-0">
                                     <LatexRenderer content={q.text} />
@@ -186,16 +186,16 @@ export default function ExplanationReview() {
 
                     {expandedId === q.id && (
                         <div className="border-t border-border2 p-4">
-                            <div className="bg-bg rounded-lg p-3 mb-3 border border-border2">
-                                <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-2">
+                            <div className="bg-bg rounded-[var(--radius-default)] p-3 mb-3 border border-border2">
+                                <div className="text-micro font-bold uppercase tracking-widest text-muted mb-2">
                                     Question
                                 </div>
                                 <div className="text-xs text-textMain leading-relaxed">
                                     <LatexRenderer content={q.text} />
                                 </div>
                             </div>
-                            <div className="bg-surface2 rounded-lg p-3 mb-4">
-                                <div className="text-[11px] font-bold uppercase tracking-widest text-muted mb-2">
+                            <div className="bg-surface2 rounded-[var(--radius-default)] p-3 mb-4">
+                                <div className="text-micro font-bold uppercase tracking-widest text-muted mb-2">
                                     AI-Generated Explanation
                                 </div>
                                 <div className="text-xs text-textMain leading-relaxed">
@@ -203,25 +203,31 @@ export default function ExplanationReview() {
                                 </div>
                             </div>
 
-                            <div className="flex gap-2">
-                                <button
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    tone="success"
+                                    className="flex-1"
                                     onClick={() => handleAction(q.id, 'APPROVED')}
                                     disabled={processing === q.id}
-                                    className="flex-1 px-3 py-2 bg-reeGreen/10 hover:bg-reeGreen/20 text-reeGreen-text border border-reeGreen/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                                 >
-                                    {processing === q.id ? 'Saving…' : <><Check size={14} strokeWidth={2} aria-hidden="true" className="inline -mt-0.5 mr-1" />Approve</>}
-                                </button>
-                                <button
+                                    {processing === q.id ? 'Saving…' : <><Check size={14} strokeWidth={2} aria-hidden="true" />Approve</>}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    tone="danger"
+                                    className="flex-1"
                                     onClick={() => handleAction(q.id, 'REJECTED')}
                                     disabled={processing === q.id}
-                                    className="flex-1 px-3 py-2 bg-reeRed/10 hover:bg-reeRed/20 text-reeRed-text border border-reeRed/30 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                                 >
-                                    <X size={14} strokeWidth={2} aria-hidden="true" className="inline -mt-0.5 mr-1" />Reject
-                                </button>
+                                    <X size={14} strokeWidth={2} aria-hidden="true" />Reject
+                                </Button>
                             </div>
                         </div>
                     )}
-                </div>
+                </Card>
             ))}
         </div>
     );

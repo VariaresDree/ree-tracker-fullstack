@@ -23,7 +23,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { fetchBattleReplay, fetchSittingReview, requestRematch } from '../services/dbQueries';
 import { explanationKey } from '../services/aiExplanations';
-import { Badge, Button, Card, EmptyState, PageHeader, SegmentedControl, Skeleton, Tabs } from '../components/ui';
+import { Badge, Button, Card, CardTitle, EmptyState, Grid, KpiTile, Page, PageHeader, QuestionSurface, SegmentedControl, Skeleton, Tabs } from '../components/ui';
 import { ChevronLeft, ClipboardList, RotateCcw, Play, Swords } from '../components/ui/icons';
 import ExamNavigator from '../components/exam/ExamNavigator';
 import QuestionCard from '../features/quiz/QuestionCard';
@@ -167,18 +167,18 @@ export default function SittingReview() {
 
   if (state.status === 'loading') {
     return (
-      <div className="flex flex-col gap-4 w-full max-w-5xl mx-auto pt-4" aria-busy="true">
+      <Page width="reading" aria-busy="true">
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="h-24" />
         <Skeleton className="h-80" />
-      </div>
+      </Page>
     );
   }
 
   if (state.status === 'error') {
     const view = errorView(state.error, retry);
     return (
-      <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto pt-4">
+      <Page width="narrow">
         <EmptyState
           titleAs="h1"
           icon={ClipboardList}
@@ -191,7 +191,7 @@ export default function SittingReview() {
             </>
           )}
         />
-      </div>
+      </Page>
     );
   }
 
@@ -206,7 +206,7 @@ export default function SittingReview() {
     .map((f) => ({ value: f.id, label: `${f.label} ${counts[f.id]}`, disabled: f.id !== 'all' && counts[f.id] === 0 }));
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto pt-4 pb-[calc(var(--bottom-bar-h,0px)+1.5rem)] page-fade-in">
+    <Page width="reading">
       <Button as={Link} to={BACK} variant="ghost" size="sm" className="self-start -mb-2 text-muted hover:text-textMain">
         <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
       </Button>
@@ -242,28 +242,17 @@ export default function SittingReview() {
         </ol>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-4">
-          <p className="text-eyebrow">Correct</p>
-          <p className="text-2xl font-semibold tabular-nums text-textMain mt-1">{correct}<span className="text-muted text-base"> / {items.length}</span></p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-eyebrow">Weighted average</p>
-          <p className="text-2xl font-semibold tabular-nums text-textMain mt-1">{typeof session.generalAverage === 'number' ? `${session.generalAverage.toFixed(1)}%` : '—'}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-eyebrow">Missed</p>
-          <p className="text-2xl font-semibold tabular-nums mt-1" style={{ color: missed.length ? 'var(--accent-danger)' : 'var(--accent-success)' }}>{missed.length}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-eyebrow">Left blank</p>
-          <p className="text-2xl font-semibold tabular-nums text-textMain mt-1">{blank}</p>
-        </Card>
-      </div>
+      <Grid kind="kpi" gap="sm">
+        <KpiTile compact label="Correct" value={correct} suffix={`/ ${items.length}`} />
+        <KpiTile compact label="Weighted average" value={typeof session.generalAverage === 'number' ? `${session.generalAverage.toFixed(1)}%` : '—'} />
+        {/* The count keeps its tone: red while anything was missed. */}
+        <KpiTile compact label="Missed" value={<span style={{ color: missed.length ? 'var(--accent-danger)' : 'var(--accent-success)' }}>{missed.length}</span>} />
+        <KpiTile compact label="Left blank" value={blank} />
+      </Grid>
 
-      <Card className="p-5 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-textMain">Go again on what you missed</h2>
+      <Card padding="md" className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+        <div className="min-w-0">
+          <CardTitle>Go again on what you missed</CardTitle>
           <p className="text-sm text-muted2">
             {missed.length > 0
               ? `${missed.length} item${missed.length === 1 ? '' : 's'}: a timed retake at the board’s pace, or untimed practice with answers as you go.`
@@ -290,7 +279,7 @@ export default function SittingReview() {
       <PacingPanel items={items} onJump={jumpTo} />
 
       <section aria-labelledby="items-heading" className="flex flex-col gap-4">
-        <h2 id="items-heading" className="text-lg font-semibold text-textMain">Items</h2>
+        <CardTitle size="lg" id="items-heading">Items</CardTitle>
         {subjects.length > 1 && (
           <Tabs
             label="Subject"
@@ -319,7 +308,7 @@ export default function SittingReview() {
               }}
             />
 
-            <Card elevated className="p-5 sm:p-8 flex flex-col gap-6">
+            <QuestionSurface className="gap-6">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted2">
                 <span className="font-medium text-textMain">Item {current.order} of {items.length}</span>
                 {current.topic && <span>· {current.topic}</span>}
@@ -392,15 +381,15 @@ export default function SittingReview() {
                 );
               })()}
 
-              <div className="flex justify-between gap-3 border-t border-border pt-5">
+              <div className="flex flex-wrap justify-between gap-3 border-t border-border pt-5">
                 <Button variant="secondary" onClick={() => setPos((p) => Math.max(0, p - 1))} disabled={pos <= 0}>Previous</Button>
                 <span className="self-center text-xs text-muted2 tabular-nums">{Math.min(pos, shown.length - 1) + 1} of {shown.length}</span>
                 <Button onClick={() => setPos((p) => Math.min(shown.length - 1, p + 1))} disabled={pos >= shown.length - 1}>Next</Button>
               </div>
-            </Card>
+            </QuestionSurface>
           </>
         )}
       </section>
-    </div>
+    </Page>
   );
 }

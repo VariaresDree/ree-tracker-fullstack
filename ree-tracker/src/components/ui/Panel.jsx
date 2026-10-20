@@ -28,7 +28,9 @@ export function Panel({
             )}
             <div className="min-w-0">
               {eyebrow && <CardEyebrow>{eyebrow}</CardEyebrow>}
-              {title && <CardTitle className="mt-0.5 truncate">{title}</CardTitle>}
+              {/* Wraps, never truncates: a long title ("Questions you missed
+                  (first 10 of 14)") lost its end to an ellipsis on a phone. */}
+              {title && <CardTitle className="mt-0.5 text-pretty [overflow-wrap:anywhere]">{title}</CardTitle>}
             </div>
           </div>
           {action && <div className="shrink-0 flex items-center gap-2">{action}</div>}

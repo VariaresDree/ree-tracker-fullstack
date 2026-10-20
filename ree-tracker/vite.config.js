@@ -151,27 +151,24 @@ export default defineConfig(async ({ mode, command }) => {
       : []),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+      // The icons are drawn from the mark's geometry by
+      // scripts/brand/build-icons.mjs; "any" icons keep their rounded tile,
+      // maskable ones fill the square with the mark inside the safe circle.
+      includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'badge-96.png'],
       manifest: {
         name: 'REE.ai — Electrical Engineering board review',
         short_name: 'REE.ai',
         description: 'Review for the Philippine Registered Electrical Engineer board exam: practice, mock boards and your readiness.',
-        theme_color: '#0a0f1e',
-        background_color: '#0a0f1e',
+        // The default theme's surface (the browser bar) and page.
+        theme_color: '#121826',
+        background_color: '#0b0f1a',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
-          {
-            src: '/pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ]
       },
       workbox: {

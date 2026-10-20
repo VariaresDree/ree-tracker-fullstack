@@ -93,7 +93,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
                 aria-checked={selected}
                 onClick={() => setHostConfig({ ...hostConfig, mode: m.id })}
                 className={cn(
-                  'p-4 rounded-[var(--radius-lg)] border text-left transition-all cursor-pointer btn-press',
+                  'p-4 rounded-[var(--radius-lg)] border text-left cursor-pointer interactive-card',
                   selected
                     ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
                     : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'

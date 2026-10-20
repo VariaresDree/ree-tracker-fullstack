@@ -1,10 +1,13 @@
 // src/features/board-simulator/FullBoardScreens.jsx
 //
 // The two screens of a full PRC board that the single-sitting simulator does
-// not have: the break between sections, and the board result.
+// not have: the break between sections, and the board result. Both render
+// into BoardSimulator's <Page> (narrow for the break; the result sits on the
+// wide results page above the last section's diagnostics), so they have no
+// frame of their own. Each title is a PageHeader, not an h1 inside the card.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Button, Badge, IconChip, Modal, ProgressIndicator } from '../../components/ui';
+import { Card, Button, Badge, IconChip, Modal, PageHeader, ProgressIndicator } from '../../components/ui';
 import { Landmark, TriangleAlert, ClipboardList, ChevronLeft } from '../../components/ui/icons';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, PRC_EXAM_FORMAT, toDisplaySubject, VERDICT } from '@ree/shared';
 import { FULL_BOARD_SECTIONS, FULL_BOARD_TTL_MS, fullBoardSummary } from './fullBoard';
@@ -22,21 +25,17 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
   const expires = board.startedAt ? new Date(board.startedAt + FULL_BOARD_TTL_MS) : null;
 
   return (
-    <div className="max-w-3xl mx-auto w-full flex flex-col gap-6 page-fade-in">
+    <>
       {onBack && (
         <Button variant="ghost" size="sm" className="self-start -mb-2 text-muted hover:text-textMain" onClick={onBack}>
           <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Other mock formats
         </Button>
       )}
-      <Card elevated grain className="p-6 sm:p-8 flex flex-col gap-6">
-        <div className="flex items-start gap-3">
+      <PageHeader title={done === 0 ? 'Ready when you are' : `Section ${done} of ${FULL_BOARD_SECTIONS.length} complete`} />
+      <Card elevated grain padding="lg" className="flex flex-col gap-6">
+        <div className="flex items-center gap-3">
           <IconChip icon={Landmark} size="lg" />
-          <div>
-            <span className="text-eyebrow">Full PRC board</span>
-            <h1 className="text-display text-2xl text-textMain mt-1">
-              {done === 0 ? 'Ready when you are' : `Section ${done} of ${FULL_BOARD_SECTIONS.length} complete`}
-            </h1>
-          </div>
+          <span className="text-eyebrow">Full PRC board</span>
         </div>
 
         <ProgressIndicator value={done} max={FULL_BOARD_SECTIONS.length} ariaLabel="Board progress" size="sm" />
@@ -46,8 +45,8 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
             const result = board.sections?.[i];
             const isNext = i === board.sectionIndex;
             return (
-              <li key={s} className="flex items-center justify-between gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
-                <span className="text-sm text-textMain font-medium">{i + 1}. {toDisplaySubject(s)}</span>
+              <li key={s} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
+                <span className="text-sm text-textMain font-medium min-w-0">{i + 1}. {toDisplaySubject(s)}</span>
                 <span className="text-xs text-muted2 tabular-nums">
                   {result
                     ? `Done · ${result.answered ?? result.total} of ${result.total} answered · ${fmtDuration(result.timeTakenSecs || 0)}`
@@ -92,7 +91,7 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
           The finished sections stay in your analytics, but this sitting will not get a board result.
         </p>
       </Modal>
-    </div>
+    </>
   );
 }
 
@@ -100,47 +99,49 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
 export function FullBoardResults({ board }) {
   const summary = fullBoardSummary(board);
   return (
-    <Card elevated glow className="p-6 sm:p-8 flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-eyebrow">Full PRC board result</h1>
-          <p className="text-display text-5xl text-textMain tabular-nums mt-1">{summary.generalAverage.toFixed(1)}%</p>
-          <p className="text-sm text-muted2">General weighted average · {fmtDuration(summary.timeTakenSecs)} across three sections</p>
+    <>
+      <PageHeader title="Full PRC board result" />
+      <Card elevated glow padding="lg" className="flex flex-col gap-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-display text-5xl text-textMain tabular-nums">{summary.generalAverage.toFixed(1)}%</p>
+            <p className="text-sm text-muted2">General weighted average · {fmtDuration(summary.timeTakenSecs)} across three sections</p>
+          </div>
+          <Badge tone={VERDICT_TONE[summary.verdict] || 'neutral'}>{summary.verdict}</Badge>
         </div>
-        <Badge tone={VERDICT_TONE[summary.verdict] || 'neutral'}>{summary.verdict}</Badge>
-      </div>
-      <div className="flex flex-col gap-3" aria-label="Rating by subject">
-        {FULL_BOARD_SECTIONS.map((s) => {
-          const pct = summary.subjectScores[s] ?? 0;
-          const below = pct < SUBJECT_FLOOR;
-          return (
-            <div key={s} className="flex flex-col gap-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-textMain font-medium">{toDisplaySubject(s)}</span>
-                <span className="tabular-nums text-textMain">
-                  {pct}%{below && <span className="text-xs" style={{ color: 'var(--accent-danger)' }}> · under the {SUBJECT_FLOOR}% floor</span>}
-                </span>
+        <div className="flex flex-col gap-3" aria-label="Rating by subject">
+          {FULL_BOARD_SECTIONS.map((s) => {
+            const pct = summary.subjectScores[s] ?? 0;
+            const below = pct < SUBJECT_FLOOR;
+            return (
+              <div key={s} className="flex flex-col gap-1">
+                <div className="flex flex-wrap justify-between gap-x-2 text-sm">
+                  <span className="text-textMain font-medium">{toDisplaySubject(s)}</span>
+                  <span className="tabular-nums text-textMain">
+                    {pct}%{below && <span className="text-xs" style={{ color: 'var(--accent-danger)' }}> · under the {SUBJECT_FLOOR}% floor</span>}
+                  </span>
+                </div>
+                <ProgressIndicator
+                  value={pct}
+                  max={100}
+                  tone={below ? 'danger' : pct >= GENERAL_AVERAGE ? 'success' : 'amber'}
+                  ariaLabel={`${toDisplaySubject(s)} rating`}
+                  size="sm"
+                />
               </div>
-              <ProgressIndicator
-                value={pct}
-                max={100}
-                tone={below ? 'danger' : pct >= GENERAL_AVERAGE ? 'success' : 'amber'}
-                ariaLabel={`${toDisplaySubject(s)} rating`}
-                size="sm"
-              />
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-xs text-muted2">
-        The board needs a {GENERAL_AVERAGE}% weighted average (Math 25 / ESAS 30 / EE 45) with no subject under {SUBJECT_FLOOR}%.
-        The answers below are the final ({toDisplaySubject(FULL_BOARD_SECTIONS[FULL_BOARD_SECTIONS.length - 1])}) section; the full review has all three.
-      </p>
-      {board.sessionId && (
-        <Button as={Link} to={`/exams/sittings/${encodeURIComponent(board.sessionId)}`} variant="secondary" className="self-start">
-          <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review all three sections
-        </Button>
-      )}
-    </Card>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted2">
+          The board needs a {GENERAL_AVERAGE}% weighted average (Math 25 / ESAS 30 / EE 45) with no subject under {SUBJECT_FLOOR}%.
+          The answers below are the final ({toDisplaySubject(FULL_BOARD_SECTIONS[FULL_BOARD_SECTIONS.length - 1])}) section; the full review has all three.
+        </p>
+        {board.sessionId && (
+          <Button as={Link} to={`/exams/sittings/${encodeURIComponent(board.sessionId)}`} variant="secondary" className="self-start">
+            <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review all three sections
+          </Button>
+        )}
+      </Card>
+    </>
   );
 }

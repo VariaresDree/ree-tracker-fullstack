@@ -23,7 +23,7 @@ export default function ExamLayout({
           forest, organs, electrical and retrowave themes, whose danger is a
           light pink. themeContrast.test.js measures the pair in every theme. */}
       <header
-        className="sticky top-0 z-30 flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase"
+        className="sticky top-0 z-[50] flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-[0.7rem] sm:text-[0.8rem] font-semibold tracking-wide uppercase"
         style={{
           background: 'color-mix(in srgb, var(--accent-danger) 88%, black)',
           color: 'var(--on-danger)',

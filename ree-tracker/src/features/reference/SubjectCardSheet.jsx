@@ -86,7 +86,7 @@ export default function SubjectCardSheet({ cards, scopeLabel, by = 'topic', topi
                 key={g.label}
                 type="button"
                 onClick={() => jumpTo(g.label)}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-border2 bg-surface px-3 min-h-8 pointer-coarse:min-h-11 text-xs text-muted2 hover:text-textMain hover:border-[var(--accent)]/50 transition-colors focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] whitespace-nowrap"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-border2 bg-surface px-3 min-h-8 pointer-coarse:min-h-11 text-xs text-muted2 hover:text-textMain hover:border-[var(--accent)]/50 transition-colors whitespace-nowrap"
               >
                 {g.label}
                 <span className="tabular-nums text-muted">{g.cards.length}</span>
@@ -122,7 +122,7 @@ export default function SubjectCardSheet({ cards, scopeLabel, by = 'topic', topi
                   type="button"
                   aria-expanded={open}
                   onClick={() => toggle(g.label)}
-                  className="inline-flex items-center gap-2 text-left text-fluid-base font-bold text-textMain hover:text-[var(--accent-text)] transition-colors cursor-pointer [overflow-wrap:anywhere] focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] rounded-[var(--radius-sm)]"
+                  className="inline-flex items-center gap-2 text-left text-fluid-base font-bold text-textMain hover:text-[var(--accent-text)] transition-colors cursor-pointer [overflow-wrap:anywhere] rounded-[var(--radius-sm)]"
                 >
                   {open
                     ? <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-muted" />

@@ -82,7 +82,7 @@ export default function Flashcard({ card, onFlip, initialFlipped = false }) {
         aria-label={`${card.name} flashcard — ${flipped ? 'showing details, press to see the front' : 'press to reveal details'}`}
         aria-describedby={flipped ? `${faceId}-back` : `${faceId}-front`}
         onClick={() => { const next = !flipped; setFlipped(next); onFlip?.(next); }}
-        className={`flip-inner w-full cursor-pointer rounded-[var(--radius-lg)] transition-shadow hover:shadow-md focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] ${flipped ? 'is-flipped' : ''}`}
+        className={`flip-inner w-full cursor-pointer rounded-[var(--radius-lg)] transition-shadow hover:shadow-md ${flipped ? 'is-flipped' : ''}`}
       >
         {/* FRONT */}
         <div ref={frontRef} id={`${faceId}-front`} className={`flip-front ${faceClasses}`} aria-hidden={flipped}>

@@ -3,7 +3,8 @@
 // per-tone ink, and DataTable's clickable rows from the keyboard.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Badge, Button, Card, DataTable, Page } from './index';
+import { Badge, Button, Card, CardTitle, DataTable, Grid, IconChip, KpiTile, Page, PageHeader, QuestionSurface, SectionHeader, StickyToolbar } from './index';
+import { Target } from './icons';
 
 describe('Page', () => {
   it('has one width per kind of page, and no bottom padding of its own', () => {
@@ -30,6 +31,52 @@ describe('Card', () => {
     render(<ul><Card as="li">row</Card></ul>);
     expect(screen.getByRole('listitem')).toHaveTextContent('row');
   });
+
+  it('takes one of the standard insets, none by default', () => {
+    const { container, rerender } = render(<Card>x</Card>);
+    expect(container.firstChild.className).not.toMatch(/\bp-\d/);
+    rerender(<Card padding="sm">x</Card>);
+    expect(container.firstChild.className).toMatch(/\bp-4\b/);
+    rerender(<Card padding="lg">x</Card>);
+    expect(container.firstChild.className).toMatch(/\bp-6 sm:p-8\b/);
+  });
+});
+
+describe('Grid', () => {
+  it('sets its columns by the room it has (container queries), not the window', () => {
+    const { container, rerender } = render(<Grid kind="kpi"><i /><i /></Grid>);
+    expect(container.firstChild.className).toMatch(/@container/);
+    const grid = container.firstChild.firstChild;
+    expect(grid.className).toMatch(/grid-cols-2 @3xl:grid-cols-4/);
+    expect(grid.className).not.toMatch(/(^|\s)(sm|md|lg|xl):grid-cols/);
+    rerender(<Grid kind="cards" gap="lg" className="stagger-fade-in"><i /></Grid>);
+    expect(container.firstChild.firstChild.className).toMatch(/grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-6 stagger-fade-in/);
+  });
+});
+
+describe('StickyToolbar and QuestionSurface', () => {
+  it('the toolbar sticks under the header on the toolbar layer; the question card has one inset', () => {
+    render(<><StickyToolbar data-testid="bar">x</StickyToolbar><QuestionSurface data-testid="q">y</QuestionSurface></>);
+    expect(screen.getByTestId('bar').className).toMatch(/sticky top-\[var\(--sticky-top,0\.75rem\)\] z-30/);
+    expect(screen.getByTestId('q').className).toMatch(/p-6 sm:p-8/);
+    expect(screen.getByTestId('q').className).toMatch(/rounded-\[var\(--radius-lg\)\]/);
+  });
+});
+
+describe('KpiTile and IconChip', () => {
+  it('a compact tile shows text values as given, without the count-up', () => {
+    render(<KpiTile compact label="Time" value="4m 12s" />);
+    expect(screen.getByText('4m 12s')).toBeInTheDocument();
+    expect(screen.getByText('Time').className).toMatch(/text-eyebrow/);
+  });
+
+  it('an icon chip takes a tone, a size and a round shape', () => {
+    const { container } = render(<IconChip icon={Target} tone="amber" size="sm" round />);
+    const chip = container.firstChild;
+    expect(chip.className).toMatch(/h-9 w-9/);
+    expect(chip.className).toMatch(/rounded-full/);
+    expect(chip.getAttribute('style')).toMatch(/reeAmber-text/);
+  });
 });
 
 describe('Button', () => {
@@ -55,5 +102,20 @@ describe('DataTable', () => {
     fireEvent.keyDown(card, { key: ' ' });
     expect(onRowClick).toHaveBeenCalledTimes(2);
     expect(onRowClick).toHaveBeenCalledWith({ id: 1, name: 'Sitting 1' });
+  });
+});
+
+describe('type scale', () => {
+  it('one size per heading level: the page title, a section title, a card title', () => {
+    render(<>
+      <PageHeader title="Exams" />
+      <SectionHeader title="Notebook" description="Every question you got wrong." actions={<Button>Practise</Button>} />
+      <Card><CardTitle>Blind spots</CardTitle><CardTitle size="lg">Join a battle</CardTitle></Card>
+    </>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Exams' }).className).toMatch(/\btext-h1\b/);
+    expect(screen.getByRole('heading', { level: 2, name: 'Notebook' }).className).toMatch(/\btext-h2\b/);
+    expect(screen.getByRole('heading', { level: 2, name: 'Blind spots' }).className).toMatch(/\btext-base\b/);
+    expect(screen.getByRole('heading', { level: 2, name: 'Join a battle' }).className).toMatch(/\btext-lg\b/);
+    expect(screen.getByRole('button', { name: 'Practise' })).toBeInTheDocument();
   });
 });

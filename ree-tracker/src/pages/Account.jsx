@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { syncDashboardStats } from '../services/analyticsSync';
 import { updateUserProfile } from '../services/dbQueries';
-import { Page, PageHeader, Card, Button, FormField, Input } from '../components/ui';
+import { Page, PageHeader, Card, CardTitle, Button, FormField, Input } from '../components/ui';
 import ThemingArchitecture from '../features/profile/ThemingArchitecture';
 import CredentialsTab from '../features/profile/CredentialsTab';
 import ExamPlanForm from '../features/account/ExamPlanForm';
@@ -42,10 +42,10 @@ const SECTIONS = [
 
 function Section({ id, title, description, children }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-20">
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-[calc(var(--sticky-top,0.75rem)+0.75rem)]">
       <Card className="p-5 sm:p-6 flex flex-col gap-4">
         <div>
-          <h2 id={`${id}-title`} className="text-lg font-semibold text-textMain">{title}</h2>
+          <CardTitle size="lg" id={`${id}-title`}>{title}</CardTitle>
           {description && <p className="text-sm text-muted2 mt-1">{description}</p>}
         </div>
         {children}
@@ -90,7 +90,9 @@ function NameForm({ currentUser }) {
 
 export default function Account() {
   const { currentUser, isAdmin } = useAuth();
-  const { stats, theme, setTheme } = useStore(useShallow((s) => ({ stats: s.stats, theme: s.theme, setTheme: s.setTheme })));
+  const { stats, theme, setTheme, plainBackground, setPlainBackground } = useStore(useShallow((s) => ({
+    stats: s.stats, theme: s.theme, setTheme: s.setTheme, plainBackground: s.plainBackground, setPlainBackground: s.setPlainBackground,
+  })));
 
   // The exam plan form is keyed on the saved values, so a change saved
   // elsewhere re-seeds it — but not while it's being edited: stats landing
@@ -131,7 +133,7 @@ export default function Account() {
       </Section>
 
       <Section id="appearance" title="Appearance">
-        <ThemingArchitecture theme={theme} setTheme={setTheme} />
+        <ThemingArchitecture theme={theme} setTheme={setTheme} plainBackground={plainBackground} setPlainBackground={setPlainBackground} />
       </Section>
 
       <Section id="notifications" title="Notifications">

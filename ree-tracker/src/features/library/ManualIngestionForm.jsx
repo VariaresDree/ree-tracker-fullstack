@@ -17,7 +17,7 @@ export default function ManualIngestionForm({
 
     return (
         <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-6 shadow-sm animate-in fade-in">
-            <h3 className="text-lg font-semibold text-textMain tracking-tight mb-6">
+            <h3 className="text-h3 text-textMain mb-6">
                 Add a question manually
             </h3>
 

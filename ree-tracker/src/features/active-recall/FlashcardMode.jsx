@@ -34,7 +34,7 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
         <button
           ref={revealRef}
           onClick={handleFlashcardReveal}
-          className="w-full py-12 bg-surface2/20 hover:bg-surface2/40 border-2 border-dashed border-border2/60 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] rounded-[var(--radius-xl)] text-muted hover:text-[var(--accent-text)] font-semibold transition-all duration-300 cursor-pointer shadow-sm hover:-translate-y-1 flex items-center justify-center gap-2"
+          className="w-full py-12 bg-surface2/20 hover:bg-surface2/40 border-2 border-dashed border-border2/60 hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)] rounded-[var(--radius-default)] text-muted hover:text-[var(--accent-text)] font-semibold transition duration-300 cursor-pointer shadow-sm hover:-translate-y-1 flex items-center justify-center gap-2"
         >
           Show answer <KBD>Space</KBD>
         </button>
@@ -47,7 +47,7 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
             tabIndex={-1}
             role="region"
             aria-label="Answer"
-            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-xl)] text-center overflow-x-auto math-scroll-mobile"
+            className="p-8 sm:p-12 border-t border-border2/40 rounded-[var(--radius-default)] text-center overflow-x-auto math-scroll-mobile"
             style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 10%, transparent), transparent)' }}
           >
             <div className="text-eyebrow mb-4 flex items-center justify-center gap-2" style={{ color: 'var(--accent-success)' }}>
@@ -70,13 +70,13 @@ export default function FlashcardMode({ session, handleFlashcardReveal, handleFl
                     onClick={() => handleFlashcardRating(r.id)}
                     className={cn(
                       'py-4 bg-surface2/30 border-2 border-border2/50 rounded-[var(--radius-default)]',
-                      'text-xs font-bold uppercase cursor-pointer transition-all shadow-sm hover:-translate-y-0.5',
+                      'text-xs font-bold uppercase cursor-pointer transition shadow-sm hover:-translate-y-0.5',
                       'hover:bg-[color-mix(in_srgb,var(--rating-accent)_10%,transparent)]',
                       'hover:border-[color-mix(in_srgb,var(--rating-accent)_50%,transparent)]'
                     )}
                     style={{ color: r.accent, '--rating-accent': r.accent }}
                   >
-                    {r.label} <span className="block mt-1 opacity-40 font-mono text-[11px] normal-case">[{r.key}]</span>
+                    {r.label} <span className="block mt-1 opacity-40 font-mono text-micro normal-case">[{r.key}]</span>
                   </button>
                 ))}
               </div>

@@ -1,5 +1,6 @@
 import { Card } from './Card';
 import { Stat } from './Stat';
+import { IconChip } from './IconChip';
 import { cn } from './cn';
 import { TrendingUp, TrendingDown } from './icons';
 
@@ -7,14 +8,8 @@ import { TrendingUp, TrendingDown } from './icons';
 // delta pill. The single building block of the dashboard's top strip
 // (Testora/Kravio pattern). Colors come from CSS accent vars via inline style so
 // the tone stays dynamic without fighting Tailwind's JIT.
-// Each tone colours the tile's icon (and its tint): the text forms.
-const TONE_VAR = {
-  velocity: 'var(--accent-text)',
-  signal: 'var(--accent-signal)',
-  success: 'var(--accent-success)',
-  danger: 'var(--accent-danger)',
-  amber: 'var(--color-reeAmber-text)',
-};
+// Each tone colours the tile's icon chip (IconChip's tones).
+const TONE_CHIP = { velocity: 'accent', signal: 'signal', success: 'success', danger: 'danger', amber: 'amber' };
 
 export function KpiTile({
   icon: Icon,
@@ -28,11 +23,27 @@ export function KpiTile({
   hint,
   className,
   iconGlow = false,
+  compact = false,
 }) {
-  const accent = TONE_VAR[tone] || TONE_VAR.velocity;
   const hasDelta = delta !== undefined && delta !== null && !Number.isNaN(Number(delta));
   const up = Number(delta) >= 0;
   const deltaColor = up ? 'var(--accent-success)' : 'var(--accent-danger)';
+
+  // `compact`: the small figure tiles of a results or review screen (a
+  // sitting's score, time, pace), which had five hand-rolled versions. Flat,
+  // smaller, no count-up, and the value may be text ("4m 12s", "—").
+  if (compact) {
+    return (
+      <Card padding="sm" className={cn('flex flex-col gap-1 min-w-0', className)}>
+        <span className="text-eyebrow [overflow-wrap:anywhere]">{label}</span>
+        <span className="text-display text-textMain text-2xl leading-tight tabular-nums">
+          {typeof value === 'number' ? value.toFixed(precision) : value}
+          {suffix && <span className="text-muted2 text-base ml-1 font-sans">{suffix}</span>}
+        </span>
+        {hint && <span className="text-micro text-muted2 tabular-nums">{hint}</span>}
+      </Card>
+    );
+  }
 
   return (
     <Card elevated className={cn('p-4 sm:p-5 flex flex-col gap-3 hover-glow', className)}>
@@ -45,15 +56,10 @@ export function KpiTile({
             child the stagger animation doesn't target sidesteps that whole
             class of collision, and reads better anyway — a pulsing icon
             chip, not the entire card glowing. */}
-        <span
-          className={`inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] shrink-0 ${iconGlow ? 'pulse-glow' : ''}`}
-          style={{ background: `color-mix(in srgb, ${accent} 14%, transparent)`, color: accent }}
-        >
-          {Icon ? <Icon size={18} strokeWidth={1.75} aria-hidden="true" /> : null}
-        </span>
+        {Icon ? <IconChip icon={Icon} size="sm" tone={TONE_CHIP[tone] || 'accent'} className={iconGlow ? 'pulse-glow' : undefined} /> : <span />}
         {hasDelta && (
           <span
-            className="inline-flex items-center gap-1 rounded-full border px-2 h-6 text-[11px] font-medium tabular-nums"
+            className="inline-flex items-center gap-1 rounded-full border px-2 h-6 text-micro font-medium tabular-nums"
             style={{
               color: deltaColor,
               borderColor: `color-mix(in srgb, ${deltaColor} 35%, transparent)`,
@@ -98,7 +104,7 @@ export function KpiTile({
           bottom regardless of whether a hint is present. */}
       <div className="mt-auto flex flex-col gap-0.5">
         <span className="text-eyebrow">{label}</span>
-        {hint && <span className="text-[11px] text-muted2 tabular-nums">{hint}</span>}
+        {hint && <span className="text-micro text-muted2 tabular-nums">{hint}</span>}
       </div>
     </Card>
   );

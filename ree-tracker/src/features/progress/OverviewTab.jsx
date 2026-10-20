@@ -5,7 +5,7 @@
 // middle cards.
 import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, KpiTile, Panel, SegmentedControl } from '../../components/ui';
+import { Badge, Grid, KpiTile, Panel, SegmentedControl } from '../../components/ui';
 import { ArrowRight, AudioWaveform, Flame, Gauge, ListChecks, Timer } from '../../components/ui/icons';
 import { SkeletonChart } from '../../components/SkeletonLoaders';
 import { TrajectoryCard } from '../analytics/TrajectoryCard';
@@ -31,19 +31,19 @@ export default function OverviewTab({ stats, kpi }) {
         <AiBoardReport stats={stats} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 stagger-fade-in">
+      <Grid kind="kpi" className="stagger-fade-in">
         <KpiTile icon={Gauge} tone="success" label="Accuracy" value={kpi.accuracy} suffix="%" />
         <KpiTile icon={ListChecks} tone="signal" label="Questions answered" value={kpi.answered} />
         <KpiTile icon={Timer} tone="signal" label="Average time per question" value={kpi.avgSec} precision={1} suffix="s" />
         <KpiTile icon={Flame} tone="amber" label="Day streak" value={kpi.streak} hint="days" iconGlow={kpi.streak > 0} />
-      </div>
+      </Grid>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <Grid kind="split" className="items-start">
         <Panel
           icon={AudioWaveform}
           eyebrow="Ability"
           title="Ability trend (θ)"
-          className="lg:col-span-2 grain-overlay"
+          className="@4xl:col-span-2 grain-overlay"
           bodyClassName="h-[260px] sm:h-[300px]"
           action={
             <div className="flex items-center gap-2">
@@ -57,7 +57,7 @@ export default function OverviewTab({ stats, kpi }) {
           </Suspense>
         </Panel>
         <TrajectoryCard />
-      </div>
+      </Grid>
 
       <Link
         to="/exams?tab=history"

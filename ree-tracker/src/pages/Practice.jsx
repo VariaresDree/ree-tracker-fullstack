@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import LatexRenderer from '../components/LatexRenderer';
 import Scratchpad from '../components/Scratchpad';
-import { Button, Badge, StatusPill, Card, Modal } from '../components/ui';
+import { Button, Badge, StatusPill, Modal, Page, StickyToolbar, QuestionSurface } from '../components/ui';
 import { Pencil, Flag, Bookmark } from '../components/ui/icons';
 import ReviewSetup from '../features/active-recall/ReviewSetup';
 import SessionSummary from '../features/active-recall/SessionSummary';
@@ -137,7 +137,13 @@ export default function Practice() {
   const isLastQuestion = session.currentIndex + 1 >= total;
 
   return (
-    <div className="flex flex-col gap-6 page-fade-in pb-12 max-w-4xl mx-auto w-full relative z-0">
+    // `relative`: the Scratchpad covers the session from md up (absolute,
+    // inset-0), inside this page's own stacking context (md:isolate), over
+    // the sticky toolbar. On a phone the Scratchpad is a sheet on the layer
+    // scale (index.css), so nothing may contain it: with `z-0` here the
+    // bottom bar covered the bottom of the sheet, and a stroke there left
+    // the session.
+    <Page width="reading" className="relative md:isolate">
       {/* The setup and summary screens have their own h1; the running session
           had none, and its solution panel's heading sat under nothing. */}
       <h1 className="sr-only">Practice</h1>
@@ -159,7 +165,7 @@ export default function Practice() {
         </p>
       </Modal>
 
-      <div className="flex justify-between items-center bg-surface/60 backdrop-blur-xl border border-border2/50 px-4 py-3 rounded-full shadow-sm z-10">
+      <StickyToolbar>
         <Button variant="ghost" tone="danger" size="sm" onClick={() => (session.totalAnswered > 0 ? setConfirmEnd(true) : endSession())} disabled={isSubmitting}>
             End session
         </Button>
@@ -172,7 +178,7 @@ export default function Practice() {
                 or why it turns red (past three minutes, the board's slowest
                 pace). */}
             <div className="flex flex-col items-end leading-tight">
-                <span className="text-[11px] text-muted2">This question</span>
+                <span className="text-micro text-muted2">This question</span>
                 <QuestionTimer
                   key={questionStartedAt}
                   startedAt={questionStartedAt}
@@ -180,9 +186,9 @@ export default function Practice() {
                 />
             </div>
         </div>
-      </div>
+      </StickyToolbar>
 
-      <Card elevated className="p-6 sm:p-10 rounded-[var(--radius-xl)] flex flex-col relative overflow-hidden transition-colors duration-700">
+      <QuestionSurface className="overflow-hidden transition-colors duration-700">
 
           {/* Prompt + subject eyebrow + Item N badge are owned by QuestionCard
               (inside MCQMode below) — the standalone block that used to live
@@ -263,7 +269,7 @@ export default function Practice() {
                   </div>
               </div>
           )}
-      </Card>
-    </div>
+      </QuestionSurface>
+    </Page>
   );
 }

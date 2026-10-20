@@ -25,7 +25,7 @@ export default function CardRatingButtons({ row, onRate, disabled = false }) {
             <Button key={r} size="sm" variant="secondary" tone={r === 'again' ? 'danger' : undefined} onClick={() => onRate(r)} disabled={disabled} aria-keyshortcuts={String(i + 1)} className="h-auto py-2">
               <span className="flex flex-col items-center leading-tight">
                 <span>{CARD_RATING_LABELS[r]}</span>
-                <span className="text-[11px] text-muted2 font-normal">{intervalLabel(next.interval)}</span>
+                <span className="text-micro text-muted2 font-normal">{intervalLabel(next.interval)}</span>
               </span>
             </Button>
           );

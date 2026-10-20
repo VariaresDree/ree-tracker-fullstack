@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiRequest } from '../../services/dbQueries';
-import { Badge, Button, Card, EmptyState, FormField, Input, Skeleton } from '../../components/ui';
+import { Badge, Button, Card, CardTitle, EmptyState, FormField, Grid, Input, Skeleton } from '../../components/ui';
 import { Check, ChevronLeft, ChevronRight, ListChecks, Plus, TriangleAlert, X } from '../../components/ui/icons';
 import { isTaskDone, kindLabel, taskLaunch } from './plannerTasks';
 import { launchPractice } from '../active-recall/presets';
@@ -41,19 +41,19 @@ function MonthCalendar({ month, onMonth, tasks, selectedDay, onSelectDay }) {
   }
 
   return (
-    <Card className="p-4">
+    <Card padding="sm">
       <div className="flex justify-between items-center mb-3">
         <Button size="icon" variant="ghost" aria-label="Previous month" onClick={() => onMonth(new Date(year, m - 1, 1))}>
           <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
         </Button>
-        <h3 className="text-sm font-semibold text-textMain" aria-live="polite">
+        <h3 className="text-h3 text-textMain" aria-live="polite">
           {month.toLocaleString(undefined, { month: 'long', year: 'numeric' })}
         </h3>
         <Button size="icon" variant="ghost" aria-label="Next month" onClick={() => onMonth(new Date(year, m + 1, 1))}>
           <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" />
         </Button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-muted mb-1" aria-hidden="true">
+      <div className="grid grid-cols-7 gap-1 text-center text-micro font-semibold text-muted mb-1" aria-hidden="true">
         {WEEKDAYS.map((d) => <div key={d}>{d}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
@@ -117,7 +117,7 @@ function TaskRow({ task, today, onToggle, onDelete, onStart }) {
         </button>
         <div className="flex flex-col min-w-0">
           <span className={`text-sm font-medium truncate ${done ? 'line-through text-muted' : 'text-textMain'}`}>{task.text}</span>
-          <span className="flex items-center gap-2 flex-wrap text-[11px] text-muted2">
+          <span className="flex items-center gap-2 flex-wrap text-micro text-muted2">
             {label && <span>{label}</span>}
             {task.progress && !done && <span className="tabular-nums">{task.progress.count}/{task.progress.target} today</span>}
             {task.progress?.done && !task.completed && <span style={{ color: 'var(--accent-success)' }}>Done from your answers</span>}
@@ -263,13 +263,13 @@ export default function StrategicPlannerTab({ currentUser }) {
     <div className="flex flex-col gap-6">
       <StudyPlanGenerator onPlanGenerated={reload} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <Grid kind="split" className="items-start">
         <MonthCalendar month={month} onMonth={setMonth} tasks={tasks} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
 
-        <Card className="lg:col-span-2 p-5 sm:p-6 flex flex-col gap-5">
+        <Card padding="md" className="@4xl:col-span-2 flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-textMain">Your tasks</h2>
+              <CardTitle size="lg">Your tasks</CardTitle>
               <p className="text-sm text-muted2 mt-1">Your plan's tasks and your own, by due date. Overdue tasks are red; today's are amber.</p>
             </div>
             {selectedDay && (
@@ -294,7 +294,7 @@ export default function StrategicPlannerTab({ currentUser }) {
 
           {list}
         </Card>
-      </div>
+      </Grid>
     </div>
   );
 }

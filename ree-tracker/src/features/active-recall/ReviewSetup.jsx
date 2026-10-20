@@ -4,7 +4,7 @@
 // session behind a disclosure.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Button, FormField, IconChip, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
+import { Card, Button, FormField, Grid, IconChip, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
 import { Shuffle, Crosshair, Gauge, Layers, Bookmark, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
@@ -119,7 +119,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           there is a queue: every miss and every low-confidence answer starts a
           card, so it fills from ordinary practice. */}
       {srs && srs.total > 0 && (
-        <Card elevated className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <Card elevated padding="md" className="flex flex-col sm:flex-row sm:items-center gap-4">
           <IconChip icon={RotateCcw} tone="success" />
           <div className="flex-1 min-w-0">
             <p className="text-textMain font-semibold">
@@ -140,14 +140,14 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
       )}
 
       {/* One-click presets */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-fade-in">
+      <Grid kind="cards" className="stagger-fade-in">
         {PRESETS.map((preset) => {
           const offline = preset.needsConnection && !isOnline;
           const Icon = preset.icon;
           return (
-            <Card key={preset.id} elevated className="p-5 flex flex-col gap-3 hover-glow">
+            <Card key={preset.id} elevated padding="md" className="flex flex-col gap-3 hover-glow">
               <IconChip icon={Icon} />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-textMain font-semibold">{preset.name}</p>
                 <p className="text-xs text-muted2 mt-0.5">{preset.meta}</p>
               </div>
@@ -163,7 +163,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
             </Card>
           );
         })}
-      </div>
+      </Grid>
 
       {/* Custom session — progressive disclosure */}
       <Card elevated>
@@ -173,7 +173,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           aria-expanded={showCustom}
           className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left cursor-pointer hover:bg-surface2 rounded-[var(--radius-lg)] transition-colors"
         >
-          <div>
+          <div className="min-w-0">
             <p className="text-textMain font-semibold">Custom session</p>
             <p className="text-xs text-muted2 mt-0.5">Choose the mode, focus, scope, length and source yourself.</p>
           </div>
@@ -280,7 +280,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
             {/* Sticky above the mobile bottom nav so the CTA never scrolls out
                 of reach on a tall form. The offset comes from the layout, so a
                 phone's home-indicator inset can't push it under the bar. */}
-            <div className={cn('sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+1.25rem)] md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
+            <div className={cn('sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+var(--fab-space,0px)+1.25rem)] md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
               <Button
                 size="lg"
                 fullWidth

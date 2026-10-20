@@ -47,7 +47,19 @@ export default function FloatingPomodoro() {
   // Out of the way while the Scratchpad is open: both were z-[70], and on a
   // phone the pill sat on the sheet being written on. The clock above keeps
   // running; the pill comes back when the Scratchpad closes.
-  if (!visible || scratchpadOpen) return null;
+  const shown = visible && !scratchpadOpen;
+
+  // While the pill shows, the page ends above it and the floating
+  // notification offer and Practice's start bar sit above it: it covered
+  // the last ~44px of every page (index.css, --fab-space).
+  useEffect(() => {
+    if (!shown) return undefined;
+    const root = document.documentElement.style;
+    root.setProperty('--fab-space', '4.5rem');
+    return () => root.removeProperty('--fab-space');
+  }, [shown]);
+
+  if (!shown) return null;
 
   const onPointerDown = (e) => {
     // Buttons handle their own clicks; drag only from the pill body.

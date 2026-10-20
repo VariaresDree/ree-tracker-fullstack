@@ -9,7 +9,7 @@ import Pomodoro from '../components/Pomodoro';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { useUISlice } from '../store/slices';
-import { cn } from '../components/ui';
+import { cn, Logo } from '../components/ui';
 import { LogOut, PanelLeftClose, PanelLeftOpen, Timer } from '../components/ui/icons';
 import Avatar from '../components/Avatar';
 import LogoutConfirm from '../components/LogoutConfirm';
@@ -25,16 +25,16 @@ function NavItem({ item, active, collapsed }) {
       to={item.to}
       aria-current={active ? 'page' : undefined}
       title={collapsed ? item.label : undefined}
-      className={cn('group flex items-center rounded-xl border-l-2 p-3 transition-colors', collapsed && 'justify-center', active ? ACTIVE : IDLE)}
+      className={cn('group flex items-center rounded-[var(--radius-default)] border-l-2 p-3 transition-colors', collapsed && 'justify-center', active ? ACTIVE : IDLE)}
     >
       <Icon size={20} strokeWidth={1.75} aria-hidden="true" className={cn('shrink-0', active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100')} />
       {collapsed ? (
         <span className="sr-only">{item.label}</span>
       ) : (
-        <span className="flex flex-col min-w-0 ml-3">
+        <span className="flex flex-col min-w-0 ml-3 animate-in fade-in">
           <span className="text-sm font-semibold tracking-tight truncate">{item.label}</span>
           {item.desc && (
-            <span className={cn('text-[11px] mt-0.5 truncate', active ? 'text-[color-mix(in_srgb,var(--accent-text)_75%,var(--text-muted2))]' : 'text-muted2')}>
+            <span className={cn('text-micro mt-0.5 truncate', active ? 'text-[color-mix(in_srgb,var(--accent-text)_75%,var(--text-muted2))]' : 'text-muted2')}>
               {item.desc}
             </span>
           )}
@@ -56,17 +56,23 @@ export default function Sidebar() {
   const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   return (
-    <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)] transition-[width] duration-300', collapsed ? 'w-20' : 'w-72')}>
-      <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'justify-center' : 'justify-between')}>
-        {!collapsed && (
-          <Link to="/" className="text-2xl font-bold tracking-tight text-[var(--accent-text)]">
-            REE<span className="text-textMain">.ai</span> Core
+    // The width snaps; the labels fade in. Animating `width` re-laid out the
+    // whole page on every frame for 300ms.
+    <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
+      <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3')}>
+        {collapsed ? (
+          <Link to="/" aria-label="REE.ai home" className="inline-flex touch-target items-center justify-center">
+            <Logo decorative size={34} />
+          </Link>
+        ) : (
+          <Link to="/" className="min-w-0">
+            <Logo variant="lockup" size={36} wordmarkClassName="text-xl" />
           </Link>
         )}
         <button
           type="button"
           onClick={() => toggleSidebarCollapse()}
-          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-all touch-target inline-flex items-center justify-center"
+          className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-colors touch-target inline-flex items-center justify-center"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -79,7 +85,7 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={() => toggleSidebarCollapse()}
-            className="w-10 h-10 bg-surface2 hover:bg-surface3 border border-border2 rounded-xl flex items-center justify-center transition-colors cursor-pointer text-muted hover:text-textMain touch-target"
+            className="w-10 h-10 bg-surface2 hover:bg-surface3 border border-border2 rounded-full flex items-center justify-center transition-colors cursor-pointer text-muted hover:text-textMain touch-target"
             aria-label="Show the focus timer"
             title="Show the focus timer"
           >
@@ -113,8 +119,11 @@ export default function Sidebar() {
           aria-current={active === 'account' ? 'page' : undefined}
           title={collapsed ? 'Account' : undefined}
           className={cn(
-            'flex items-center gap-3 p-2.5 rounded-xl transition-all border shadow-sm',
-            collapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'flex-1 min-w-0',
+            // The shape and inset per mode, not both at once: cn() doesn't
+            // merge, so the collapsed `rounded-full p-0` lost to the shared
+            // radius and `p-2.5`, and the avatar sat in a padded square.
+            'flex items-center gap-3 transition-colors border shadow-sm',
+            collapsed ? 'w-11 h-11 justify-center p-0 rounded-full' : 'flex-1 min-w-0 p-2.5 rounded-[var(--radius-lg)]',
             active === 'account'
               ? 'bg-surface3 border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
               : 'bg-surface hover:bg-surface3 border-border2 hover:border-[color-mix(in_srgb,var(--accent)_45%,transparent)]',
@@ -126,7 +135,7 @@ export default function Sidebar() {
           ) : (
             <span className="flex flex-col overflow-hidden min-w-0">
               <span className="text-sm font-semibold text-textMain truncate">{name}</span>
-              <span className="text-[11px] text-muted2 mt-0.5">Account &amp; settings</span>
+              <span className="text-micro text-muted2 mt-0.5">Account &amp; settings</span>
             </span>
           )}
         </Link>
@@ -135,7 +144,7 @@ export default function Sidebar() {
           onClick={() => setConfirmingLogout(true)}
           aria-label="Log out"
           title="Log out"
-          className="touch-target inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-border2 bg-surface text-muted hover:text-textMain hover:bg-surface3 cursor-pointer transition-colors"
+          className="touch-target inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-full border border-border2 bg-surface text-muted hover:text-textMain hover:bg-surface3 cursor-pointer transition-colors"
         >
           <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
         </button>

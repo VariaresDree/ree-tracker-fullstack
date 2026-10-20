@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { requestRematch } from '../services/dbQueries';
-import { Button, Badge, StatusPill, Card, EmptyState } from '../components/ui';
+import { Button, Badge, StatusPill, Card, CardHeader, CardTitle, CardBody, EmptyState, IconChip, Page, PageHeader } from '../components/ui';
 import { ChevronLeft, Swords, Users, Copy, Trophy, ClipboardList, Clock, RotateCcw } from '../components/ui/icons';
 import { formatTimeOfDay } from '../utils/time';
 import toast from 'react-hot-toast';
@@ -106,7 +106,7 @@ function BattleRoom({ battleId }) {
     // show a clear, actionable state instead of an endless "Connecting…" spinner.
     if (!connected && !results && (!isOnline || connectionFailed)) {
         return (
-            <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
+            <Page width="reading">
                 <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/exams?tab=battles')}>
                     <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
                 </Button>
@@ -119,7 +119,7 @@ function BattleRoom({ battleId }) {
                         : 'Live battles need an internet connection. Reconnect, then retry.'}
                     action={<Button onClick={() => window.location.reload()}>Retry</Button>}
                 />
-            </div>
+            </Page>
         );
     }
 
@@ -128,7 +128,7 @@ function BattleRoom({ battleId }) {
     const amIn = participants.some(p => p.id === currentUser?.uid);
     if (error && !amIn && !results) {
         return (
-            <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
+            <Page width="reading">
                 <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/exams?tab=battles')}>
                     <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
                 </Button>
@@ -139,27 +139,40 @@ function BattleRoom({ battleId }) {
                     description={error}
                     action={<Button onClick={() => navigate('/exams?tab=battles')}>Host or join another</Button>}
                 />
-            </div>
+            </Page>
         );
     }
 
     // Still handshaking while online — brief, bounded by the 10s socket timeout.
     if (!connected && !results) {
         return (
-            <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-[var(--accent-danger)]">
-                <span className="telemetry-spinner !w-8 !h-8 border-t-transparent"></span>
-                <span className="text-muted2 font-mono uppercase tracking-widest text-xs">Connecting to the lobby…</span>
-            </div>
+            <Page width="reading">
+                <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-[var(--accent-danger)]">
+                    <span className="telemetry-spinner !w-8 !h-8 border-t-transparent"></span>
+                    <span className="text-muted2 font-mono uppercase tracking-widest text-xs">Connecting to the lobby…</span>
+                </div>
+            </Page>
         );
     }
 
     return (
-        <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
-            <Button variant="ghost" size="sm" className="self-start text-muted hover:text-textMain" onClick={() => navigate('/exams?tab=battles')}>
+        <Page width="reading">
+            <Button variant="ghost" size="sm" className="self-start -mb-2 text-muted hover:text-textMain" onClick={() => navigate('/exams?tab=battles')}>
                 <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" /> Back to Exams
             </Button>
 
-            <Card elevated grain className="p-8 relative overflow-hidden animate-in slide-in-from-bottom-2"
+            <PageHeader
+                title="Battle room"
+                meta={(
+                    <span aria-live="polite">
+                        <StatusPill tone={connected ? 'success' : 'danger'}>
+                            {connected ? 'Connected' : 'Reconnecting…'}
+                        </StatusPill>
+                    </span>
+                )}
+            />
+
+            <Card elevated grain padding="lg" className="relative overflow-hidden animate-in slide-in-from-bottom-2"
                 style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)' }}
             >
                 <div
@@ -167,27 +180,12 @@ function BattleRoom({ battleId }) {
                     style={{ background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)' }}
                 ></div>
                 <div className="relative z-10 text-center flex flex-col items-center">
-                    <span
-                        className="inline-flex h-14 w-14 items-center justify-center rounded-full mb-4"
-                        style={{
-                            background: 'color-mix(in srgb, var(--accent-danger) 12%, transparent)',
-                            color: 'var(--accent-danger)',
-                        }}
-                    >
-                        <Swords size={26} strokeWidth={1.75} aria-hidden="true" />
-                    </span>
-                    <h1 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Battle room</h1>
+                    <IconChip icon={Swords} tone="danger" size="lg" round />
 
-                    <span aria-live="polite" className="mt-3">
-                        <StatusPill tone={connected ? 'success' : 'danger'}>
-                            {connected ? 'Connected' : 'Reconnecting…'}
-                        </StatusPill>
-                    </span>
-
-                    <div className="mt-6 mb-2">
+                    <div className="mt-4 mb-2 max-w-full">
                         <span className="text-eyebrow block mb-2">Battle code</span>
                         <span
-                            className="text-4xl font-bold font-mono tracking-[0.2em] px-6 py-2 rounded-[var(--radius-lg)] select-all inline-block border"
+                            className="text-4xl font-bold font-mono tracking-[0.2em] px-6 py-2 rounded-[var(--radius-default)] select-all inline-block border max-w-full [overflow-wrap:anywhere]"
                             style={{
                                 color: 'var(--accent-danger)',
                                 background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)',
@@ -211,14 +209,14 @@ function BattleRoom({ battleId }) {
             </Card>
 
             {/* Players */}
-            <Card elevated className="overflow-hidden">
-                <div className="p-5 border-b border-border2 bg-surface2/50 flex justify-between items-center">
-                    <h2 className="text-sm font-semibold text-textMain flex items-center gap-2">
+            <Card elevated>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
                         <Users size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-signal)]" /> Players
-                    </h2>
+                    </CardTitle>
                     <StatusPill tone="success">{present.length} online</StatusPill>
-                </div>
-                <div className="p-4 flex flex-col gap-2">
+                </CardHeader>
+                <CardBody className="flex flex-col gap-2">
                     {participants.length === 0 ? (
                         <EmptyState
                             compact
@@ -228,7 +226,7 @@ function BattleRoom({ battleId }) {
                         />
                     ) : (
                         participants.map((p) => (
-                            <div key={p.id} className={`flex items-center justify-between p-4 rounded-[var(--radius-lg)] border transition-all ${
+                            <div key={p.id} className={`flex items-center justify-between gap-3 p-4 rounded-[var(--radius-default)] border transition-[background-color,border-color,opacity] ${
                                 p.id === currentUser?.uid
                                     ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
                                     : p.connected ? 'bg-surface2 border-border2' : 'bg-surface2/50 border-border2 opacity-50'
@@ -257,7 +255,7 @@ function BattleRoom({ battleId }) {
                         the battle has actually started, where a lone player is a
                         real 1-player match rather than a still-forming lobby. */}
                     {participants.length === 1 && battleStatus === 'WAITING' && (
-                        <div className="flex items-center justify-between gap-3 p-4 rounded-[var(--radius-lg)] border border-dashed border-border2 bg-surface2/20">
+                        <div className="flex items-center justify-between gap-3 p-4 rounded-[var(--radius-default)] border border-dashed border-border2 bg-surface2/20">
                             <div className="flex items-center gap-3 min-w-0">
                                 <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-dashed border-muted2 animate-pulse"></span>
                                 <span className="text-sm font-medium text-muted2">Open seat — send them the code</span>
@@ -267,76 +265,82 @@ function BattleRoom({ battleId }) {
                             </Button>
                         </div>
                     )}
-                </div>
+                </CardBody>
             </Card>
 
             {/* Final scores */}
             {results && (
-                <Card elevated className="p-6 animate-in fade-in slide-in-from-bottom-2"
+                <Card elevated className="animate-in fade-in slide-in-from-bottom-2"
                     style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 30%, transparent)' }}
                 >
-                    <h2 className="text-lg font-semibold text-textMain mb-4 flex items-center gap-2">
-                        <Trophy size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> Final scores
-                    </h2>
-                    <p className="text-xs text-muted2 mb-4">
-                        Results are recorded. Progress can take a minute to catch up after a multiplayer exam.
-                    </p>
-                    <div className="flex flex-col gap-3">
-                        {results.map((r, idx) => (
-                            <div key={r.id} className={`flex items-center justify-between p-4 rounded-[var(--radius-lg)] border ${
-                                idx === 0 ? '' : 'bg-surface2 border-border2'
-                            }`}
-                                style={idx === 0 ? {
-                                    background: 'color-mix(in srgb, var(--color-reeAmber) 10%, transparent)',
-                                    borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
-                                } : undefined}
-                            >
-                                <div className="flex items-center gap-3 min-w-0">
-                                    <span
-                                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border tabular-nums shrink-0"
-                                        style={idx === 0 ? {
-                                            color: 'var(--color-reeAmber-text)',
-                                            background: 'color-mix(in srgb, var(--color-reeAmber) 20%, transparent)',
-                                            borderColor: 'var(--color-reeAmber)',
-                                        } : { color: 'var(--text-muted)', borderColor: 'var(--border-light)' }}
-                                    >{idx + 1}</span>
-                                    <span className="text-sm font-bold text-textMain truncate">{r.displayName}</span>
-                                    {r.id === currentUser?.uid && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
-                                </div>
-                                <div className="text-right shrink-0">
-                                    <div className="text-lg font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{r.score}/{r.total ?? battleConfig?.questionCount ?? r.itemsAnswered}</div>
-                                    <div className="text-[11px] text-muted font-mono tabular-nums">
-                                        {Math.round(r.timeTakenSecs / 60)}m
-                                        {r.elo && Number.isFinite(r.elo.delta) && <> · rating {r.elo.delta >= 0 ? '+' : '−'}{Math.abs(Math.round(r.elo.delta))}</>}
+                    <CardHeader>
+                        <div className="min-w-0">
+                            <CardTitle className="flex items-center gap-2">
+                                <Trophy size={18} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> Final scores
+                            </CardTitle>
+                            <p className="text-xs text-muted2 mt-1">
+                                Results are recorded. Progress can take a minute to catch up after a multiplayer exam.
+                            </p>
+                        </div>
+                    </CardHeader>
+                    <CardBody>
+                        <div className="flex flex-col gap-3">
+                            {results.map((r, idx) => (
+                                <div key={r.id} className={`flex items-center justify-between gap-3 p-4 rounded-[var(--radius-default)] border ${
+                                    idx === 0 ? '' : 'bg-surface2 border-border2'
+                                }`}
+                                    style={idx === 0 ? {
+                                        background: 'color-mix(in srgb, var(--color-reeAmber) 10%, transparent)',
+                                        borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
+                                    } : undefined}
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <span
+                                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border tabular-nums shrink-0"
+                                            style={idx === 0 ? {
+                                                color: 'var(--color-reeAmber-text)',
+                                                background: 'color-mix(in srgb, var(--color-reeAmber) 20%, transparent)',
+                                                borderColor: 'var(--color-reeAmber)',
+                                            } : { color: 'var(--text-muted)', borderColor: 'var(--border-light)' }}
+                                        >{idx + 1}</span>
+                                        <span className="text-sm font-bold text-textMain truncate">{r.displayName}</span>
+                                        {r.id === currentUser?.uid && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <div className="text-lg font-bold tabular-nums" style={{ color: 'var(--accent-success)' }}>{r.score}/{r.total ?? battleConfig?.questionCount ?? r.itemsAnswered}</div>
+                                        <div className="text-micro text-muted font-mono tabular-nums">
+                                            {Math.round(r.timeTakenSecs / 60)}m
+                                            {r.elo && Number.isFinite(r.elo.delta) && <> · rating {r.elo.delta >= 0 ? '+' : '−'}{Math.abs(Math.round(r.elo.delta))}</>}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
-                    {/* Always there, so a rematch started while you look is announced. */}
-                    <div aria-live="polite">
-                        {rematchByOther && (
-                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[var(--radius-lg)] border"
-                                style={{
-                                    background: 'color-mix(in srgb, var(--accent-danger) 8%, transparent)',
-                                    borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)',
-                                }}
-                            >
-                                <p className="text-sm text-textMain flex items-center gap-2 min-w-0">
-                                    <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0" style={{ color: 'var(--accent-danger)' }} />
-                                    <span><span className="font-semibold">{rematch.by.displayName}</span> started a rematch</span>
-                                </p>
-                                <Button tone="danger" size="sm" className="shrink-0" aria-label="Join the rematch" loading={rematching} disabled={rematching} onClick={handleRematch}>
-                                    Join
-                                </Button>
-                            </div>
-                        )}
-                    </div>
+                            ))}
+                        </div>
+                        {/* Always there, so a rematch started while you look is announced. */}
+                        <div aria-live="polite">
+                            {rematchByOther && (
+                                <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[var(--radius-default)] border"
+                                    style={{
+                                        background: 'color-mix(in srgb, var(--accent-danger) 8%, transparent)',
+                                        borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)',
+                                    }}
+                                >
+                                    <p className="text-sm text-textMain flex items-center gap-2 min-w-0">
+                                        <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0" style={{ color: 'var(--accent-danger)' }} />
+                                        <span><span className="font-semibold">{rematch.by.displayName}</span> started a rematch</span>
+                                    </p>
+                                    <Button tone="danger" size="sm" className="shrink-0" aria-label="Join the rematch" loading={rematching} disabled={rematching} onClick={handleRematch}>
+                                        Join
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </CardBody>
                 </Card>
             )}
 
             {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                 <Button variant="secondary" className="flex-1" onClick={copyInviteLink}>
                     <Copy size={16} strokeWidth={1.75} aria-hidden="true" /> Copy battle code
                 </Button>
@@ -398,6 +402,6 @@ function BattleRoom({ battleId }) {
                     </span>
                 )}
             </div>
-        </div>
+        </Page>
     );
 }

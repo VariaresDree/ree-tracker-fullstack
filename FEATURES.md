@@ -40,7 +40,7 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Account** (`pages/Account.jsx`, replaces Profile) — one scrolling page with anchored sections that other screens link to (`/account#offline`). **Jump links** to the nine sections sit under the header; on a phone "Sign-in & security" was a long scroll away with nothing saying it was there.
   - **Your name.**
   - **Exam plan** (`features/account/ExamPlanForm.jsx`): the **only** editor for the exam date and daily target (10–500), with days to go and the per-subject split. The date used to be editable in three places (Profile, Daily targets "Config", the planner), and the target only in Config. **The date can be cleared**: an empty date is saved as none (the store used to drop it, so a date once set could never be removed).
-  - **Appearance** (the 13 themes).
+  - **Appearance:** the 13 themes, and **Background: Textured / Plain** (see Page textures).
   - **Notifications** (`NotificationSettings.jsx`). The one-time reminder offer after a first session is a card inside the results screen that ends it (Practice's summary, mock-board results, Gauntlet results), not a floating card over their last buttons. While a results screen hosts it, the floating copy hides; elsewhere it still floats (`components/NotificationOptIn.jsx`).
   - **Offline & sync** (`OfflineSyncSettings.jsx`): the offline pack, which was only in the sidebar, plus cloud-backup status and restore. The pack's state is **one for the whole app** (`hooks/useOfflinePack.js`): this badge and the shell's each kept their own, so both could start the same download at once and only one said "Syncing…". **"Merge from cloud backup"** says what it does — your cloud progress is merged in and unsynced answers on the device are kept; it said it *replaced* the device's progress, which it never did.
   - **Daily reminder copy:** outside the phone app it says the reminder is only in the REE.ai phone app; it told web users to add the site to their Home Screen, which doesn't enable it.
@@ -128,6 +128,130 @@ every feature add, change, or removal, not on a schedule.
       - Blind spots: **Start a practice set**.
       - Past sittings' chart: **Take a mock board**.
       - A formula-card topic empty under a kind filter: **Show every kind**.
+
+## Brand & design system
+
+- [x] **The REE.ai mark** (`components/ui/Logo.jsx`, `components/ui/logoGeometry.js`) — the vector logo, drawn from the original artwork (`ree-tracker/design/brand/logo-source.png`) and kept to its design: the triangle of letterforms with its D counter, the R and the S, the lightning bolt with its red edge and ember, the gear with its red hub, the red chip with its ruler, and the yellow trefoil seen through the letters.
+  - **Polished, not redrawn:** the triangle is exactly equilateral (60° edges), every gap is one width and every stem one width, the gear is regular (8 teeth on 45°) with one clearance circle shared by the top piece and the S, the bolt's opposite edges are parallel with rounded caps, and the chip's walls repeat its notch. The trefoil is the traced shape, clipped to the letterforms.
+  - **One geometry source:** `logoGeometry.js` builds every path; `<Logo>` draws from it and so do the icon builder and the fidelity check, so nothing drifts.
+  - **Fidelity check:** `npm run brand:fidelity` renders the vector on the artwork's grid in Chromium and measures each part against it (letterforms IoU 0.95, trefoil 0.90, bolt 0.79, red 0.76, centres within 1–10 px), writing `design/brand/compare.png` and a 16–128 px sizes strip.
+  - **Variants:** `mark`, `lockup` ("REE.ai Core") and `compact` ("REE.ai"); `decorative` beside text that names it; `animated` for loading screens (letterforms rise, the bolt strikes, then the gear turns and the bolt flickers; transform/opacity only, still under reduced motion). Below 40 px the fine detail (ruler ticks, the bolt's core and flame) is left out.
+  - **Colours:** the yellow bolt, red hub/chip/bolt edge and the trefoil are fixed brand colours. The letterforms, gear and chip frame take `--logo-ink`: white on the 10 dark themes, near-black on Light, Paper and Sakura, which also give the bolt an amber keyline (`--logo-keyline`) so it holds on white. `themeContrast.test.js` keeps the ink at 3:1 on the page and cards in every theme.
+  - **Accessible name:** `role="img"` + `aria-label` ("REE.ai"), never a `<title>`; a lockup is named by its text.
+  - **Where it appears:** the sidebar (lockup with "REE.ai Core"; mark only, as the home link, when collapsed), the phone header (mark + "REE.ai"), the login card, the boot screen and every lazy-route loading state (animated; it replaces the placeholder bolt `BrandMark`), and the full-page error and "still trying to reach your session" screens. The wordmark has one treatment everywhere: REE and Core in the text colour, `.ai` in the accent (the sidebar and phone header had it reversed).
+- [x] **App icons** (`scripts/brand/build-icons.mjs`, `scripts/brand/iconSpecs.mjs`): every icon is the mark, rendered from `logoGeometry.js` in Chromium with `npm run brand:icons` and committed. They replace Vite's stock favicon, the plain "REE .ai" text icons and Capacitor's stock Android art.
+  - **Browser:** `favicon.svg` (the small detail on a black rounded tile, so it holds on a light tab) and `favicon.ico` (16/32/48 px PNGs).
+  - **iPhone:** `apple-touch-icon.png` (180 px, full bleed; iOS rounds it).
+  - **Installed app (PWA):** `pwa-192x192` / `pwa-512x512` (purpose `any`, rounded tile) and separate `pwa-maskable-192x192` / `-512x512` (full black square, mark inside the 80% safe circle). The one 512 icon used to be both, so a mask cropped it. The manifest's `theme_color` and `background_color` are the default theme's surface and page.
+  - **Web notifications:** the focus-timer notification carries `badge-96.png`, the mark in one colour, for Android's status bar.
+  - **Android launcher:** square and round icons at every density, and the adaptive icon's layers. The mark is inside the 66 dp circle every launcher shows, on a black background (it was white), plus a one-colour layer for Android 13 themed icons.
+  - **Android splash:** all 11 `splash.png` files show the mark on black, and Android 12+'s system splash uses the same black.
+  - **Android notifications:** the daily reminder's small icon is `ic_stat_ree` (white silhouette, every density) tinted the brand red (`capacitor.config.json` › `LocalNotifications`). It used to be Capacitor's default.
+  - In one colour (badge, themed and notification icons) the bolt is cut out of the letterforms with a gap, as its red edge does in colour, and the gear's hub is a hole.
+  - The unused Android Studio robot vectors and Vite's sample `icons.svg` are gone.
+  - `appIcons.test.js` checks four things: the favicon matches today's geometry, every icon is a PNG at its listed size, the manifest and the page link files that exist, and Android's adaptive layers and the reminder icon exist at every density.
+  - Android isn't built in CI. After `npx cap sync android`, check the launcher icon, splash and reminder icon on a device.
+- [x] **Page textures** (`styles/index.css` › PAGE TEXTURES, `public/textures/`): each of the 13 themes has a background of its own behind the page. It is a soft glow plus a faint pattern, on two fixed layers behind everything. Cards, panels and the exam screens stay solid. The dot grid it replaces never showed, because every full-screen wrapper painted an opaque page colour over it.
+  - **Per theme:**
+
+    | Theme | Glow | Pattern |
+    |---|---|---|
+    | Original | violet from the top left, cyan from the bottom right | dot grid |
+    | Light | faint accent light from the top | graph paper |
+    | Midnight | none, so the page stays black | sparse stars |
+    | Paper | warm vignette | paper fibres |
+    | Cyberpunk | magenta and cyan corners | neon honeycomb |
+    | Retrowave | pink horizon | synth grid in perspective along the bottom |
+    | Forest | light through the canopy | topographic contours |
+    | Ocean | surface light | swell lines |
+    | Sakura | blush from the top right | drifting petals |
+    | Phosphor | green bloom | scanlines |
+    | Organs | red glow | cells |
+    | Math | none | blueprint grid (minor 20 px, major 100 px) |
+    | Electrical | amber from the top left | circuit-board traces |
+  - **How it's built:**
+    - The pattern is a one-colour tile used as a mask, painted in the theme's `--texture-ink` at `--texture-opacity`.
+    - Themes set parameters only.
+    - Tiles are tiny seamless SVGs (all under 4 KB), written by `scripts/brand/build-textures.mjs`. They are fetched by URL, not inlined into the stylesheet.
+    - The simple patterns are CSS gradients.
+  - **Readable by construction:** `themeContrast.test.js` › page textures checks text that sits straight on the page (`--text-main`, both muted tones and accent text at 4.5:1, the focus ring at 3:1). It measures against each glow at its peak, a pattern line at full strength, and both together, in every theme. The tile test checks that every tile is used, small and inert.
+  - **Off switch:** Account › Appearance › **Background: Plain** sets `data-texture="off"`. It is kept in the store and `localStorage` (`ree-texture`) and applied before first paint, so a reload never flashes the texture. After the store restores from IndexedDB it rewrites both `localStorage` copies (Plain and the theme), so another tab can't leave the first paint and the restored look apart. Like the theme, it survives a sign-out.
+  - The texture is also off whenever the system asks for less: reduced transparency, more contrast, forced colours, and print.
+  - **Shell:**
+    - The page wrappers no longer paint over the texture (the layout, login, boot, error and "still reaching your session" screens). Login's two blurred orbs are gone; the theme's glow replaces them.
+    - The phone header is see-through and blurred like the bottom bar; both turn solid under reduced transparency.
+    - Tab rows fade at a scrolled edge with a mask. A band painted in the page colour would have striped the texture.
+- [x] **Nothing covers anything on a phone** (`layouts/MainLayout.jsx`, `components/FloatingPomodoro.jsx`, `styles/index.css` › Layers): one z-index scale, written down in `index.css`:
+
+  | Layer | z |
+  |---|---|
+  | Page toolbars | 30 |
+  | Bottom bar | 45 |
+  | Phone header and exam banner | 50 |
+  | Notification offer | 60 |
+  | Focus timer | 70 |
+  | Dialogs | 100 |
+  | Full-screen viewers | 200+ |
+
+  - **The account menu** opens over the simulator's and the Gauntlet's sticky toolbars. The phone header sat at 40 and the toolbars at 50, so the menu opened under them.
+  - **The floating focus timer** no longer hides the end of a page. While it shows it sets `--fab-space`, and the page's bottom padding, the floating notification offer and Practice's sticky Start bar keep that much clear. The pill covered the last ~44 px of every page and sat on the Start button.
+  - **The notification offer** sits above the bottom bar and the timer, on desktop too. It collided with the pill.
+  - **Toasts** sit below the phone header, centred on a phone. They covered the header.
+  - **Account's sections** scroll into view below the header on notched phones. `scroll-mt` follows the header's real height, so a fixed 5 rem no longer hides the heading.
+  - The phone chrome's sizes (`--phone-header-h`, `--sticky-top`, `--bottom-bar-h`) are mirrored onto `<html>` while the layout is mounted, so toasts, the offer and dialogs, which render outside it, can use them.
+- [x] **Layout standard** (`components/ui/Page.jsx` holds the rules; `Grid`, `StickyToolbar`, `QuestionSurface`, Card `padding`, KpiTile `compact`, IconChip): every page, tab and card follows one set of rules.
+  - **Frame:** every routed screen sits in `<Page width="wide|reading|narrow">`. No screen keeps its own `max-w`/`pt`/`pb` wrapper; the layout's `<main>` owns the bottom space. That covers Practice, the session summary, the simulator's screens, battles, the Gauntlet, sitting reviews, the placement test, Admin and the handout viewer. The simulator's screens share one frame, which BoardSimulator sizes per screen (reading for setup, narrow for the full-board break, wide for the exam and results), so nested frames no longer double the spacing.
+  - **Rhythm:** page gap 6, section gap 4, gap 3 inside a card.
+  - **Cards:** a card's own inset is `padding` (sm tiles and rows, md section cards, lg heroes and questions). Surfaces take the card radius; wells and controls take the default radius. The `rounded-xl`/`2xl` drift is gone app-wide, including Library, Handouts, battles, rankings, analytics, the sidebar and the charts. Nested cards in the simulator's setup are wells inside one card.
+  - **Grids follow the room they have.** `<Grid kind="kpi|tiles|pair|cards|split">` uses container queries. Viewport breakpoints ignored the 288 px sidebar: at 768 px, `md:grid-cols-3` split about 430 px into three columns. Progress, the Exams tabs, Library, Today, the planner, analytics, the simulator's results, the Gauntlet's results and sitting reviews use it. Fixed three-column figure rows no longer crush on a 360 px phone, and the exam answer sheet picks its columns by its own width.
+  - **One session toolbar and one question card.** Practice, the simulator and the Gauntlet share `StickyToolbar`; Practice's now sticks under the header too. They share `QuestionSurface`, which replaces four paddings and two radii.
+  - **Figure tiles:** the five hand-rolled stat tiles are `KpiTile compact`: sitting review, simulator and Gauntlet results, the mock-board analytics and the session summary. The analytics `SectionCard` renders through `Panel`. Panel titles and compact labels wrap rather than truncate.
+  - **Icon chips:** dialogs, empty states, the mock-board profiles, quizzes, rank, battle lobby and credentials all use `IconChip`.
+  - **Headers:**
+    - No h1 inside a card: the simulator setup, battle lobby, Gauntlet results and full-board screens use `PageHeader`. Rankings and the battle lobby's player lists use `CardHeader`.
+    - Duplicate titles that repeated their tab are gone: Library's Formula cards, Handouts and Imported quizzes (screen-reader only now), and Admin's Formula cards.
+  - **Overflow:** long names truncate in rankings rows. User text wraps anywhere. Action rows wrap.
+  - **Smaller fixes:**
+    - The collapsed sidebar's account button is a true circle (its padding and radius used to fight).
+    - The phone Scratchpad sits above the bottom bar in a simulator review and in Practice. A stacking context held it under the bar, and a stroke near the bottom tapped a nav link.
+    - Outside-score Edit/Delete and the explanation review's Approve/Reject use `Button`.
+  - **Tests:**
+    - `layoutGuards.test.js` scans the source for hand-rolled page frames, `max-w-5xl`, `rounded-xl`/`2xl` and viewport 3–4 column grids, allowing forms and dialogs.
+    - `e2e-authed/layout.spec.ts`, at 360, 390 and 820 px, checks that no main screen scrolls sideways, that a page ends clear of the bottom bar and focus timer, and that the account menu opens over a session toolbar.
+    - `e2e-authed/visual-sweep.spec.ts` (`VISUAL_SWEEP=1`) screenshots every theme on the main screens at four widths.
+- [x] **Type scale** (`styles/index.css` › Headings, `components/ui/SectionHeader.jsx`): one size per heading level, everywhere. Page and section titles were set by hand at six sizes.
+  - **Page title:** `.text-h1` (Fraunces, 1.5–1.875 rem, balanced lines), from `PageHeader`.
+  - **Section on the page:** `.text-h2` (Fraunces, 1.25–1.5 rem), from the new `SectionHeader` (title, description, actions). The Notebook, Bookmarks and Admin › AI models headers use it. Hero cards' titles (Today's "Where you stand", the Gauntlet) use it too.
+  - **Card title:** `CardTitle` (an h2): `text-base`, or `size="lg"` for a card standing alone at the top of a section (Account's sections, Join and Host a battle, the study calendar and plan). About twenty hand-styled card h2s (results, battles, weak signals, the placement prompt, first-run card) now use it.
+  - **Group inside a card:** `.text-h3`, 15 px semibold. The h3s were 14, 16 and 18 px.
+  - **Small labels:** the `text-micro` size (11 px) is a theme token, replacing the arbitrary `text-[11px]` in 35 files. `layoutGuards.test.js` keeps it that way.
+  - **Figures line up as they change:** `tabular-nums` on the quiz results score, battle history scores, the study plan's days badge, the focus timer's minute inputs, and every chart axis.
+- [x] **Motion and focus** (`styles/index.css`, `components/ui/Tabs.jsx`, `components/ui/FormField.jsx`): motion eases only what changes, and stops for people who ask it to.
+  - **Hover colours ease again.** `.btn-press` had `transition: transform`, which replaced Tailwind's `transition-colors` on the same element, so every button's and segmented control's hover colour snapped. It now names every property a control changes, at 120 ms out-quart. `.hover-glow`'s lift and glow apply only where there is a mouse; on a touch screen a tap left the tile lifted.
+  - **Clickable cards** (the simulator's profiles, the battle formats) get `.interactive-card`: a 1 px lift under a mouse and a slight press.
+  - **No `transition-all`:** the 18 left each name what they animate:
+    - colours for chips, tiles and badges;
+    - width for progress bars;
+    - filter, opacity and colours for the exam clock;
+    - colours, `translate` and `scale` for the answer choices, the navigator cells and the upload dropzone. Tailwind v4 moves elements with the CSS `scale`/`translate` properties, so a list naming only `transform` would make them jump; `transitions.test.js` checks for this.
+  - **The sidebar** snaps to its width and its labels fade in. Animating `width` re-laid out the whole page on every frame for 300 ms.
+  - **Tabs:**
+    - One underline bar slides between tabs, moved by a transform; it isn't animated the first time. It re-measures when the tabs resize, for example when the web font arrives after first paint.
+    - A new tab's content fades in over 180 ms on the same element, so nothing inside resets.
+    - Both are skipped under reduced motion.
+    - In forced-colours mode the active tab keeps a system-coloured border.
+  - **`zoom-in`** is defined. The simulator's resume notice and an answer's result icon used it, so they appeared without it.
+  - **The two motion/react components** (the board forecast and the recommended fixes) follow the reduced-motion setting (`MotionConfig reducedMotion="user"`).
+  - **Dead view-transition CSS** is gone; nothing started a view transition.
+  - **Focus:**
+    - Six controls drew their own box-shadow ring and hid the outline: inline hints, formula tiles and sheets, flashcards and the quiz file picker. They now use the global focus outline, which survives forced colours.
+    - A field in error keeps its danger border and gets a danger focus ring.
+    - Native checkboxes, radios and ranges take the accent colour.
+    - Scrollbar tracks follow the theme; they were fixed navy.
+  - **Tests:**
+    - `transitions.test.js` covers: no `transition-all`, `.btn-press` easing colours, the sidebar not animating width, and motion/react under `MotionConfig`.
+    - The Tabs test checks that the bar moves by transform.
+- [x] **Theme list and browser colour** (`src/theme/themes.js`, `src/theme/applyAppearance.js`) — one list of the 13 themes for the picker, the pre-paint script and the browser: the status bar / installed app's title bar now takes each theme's card colour (it stayed navy on every theme), set before first paint by `index.html` and on every change by `applyTheme`. Native controls and scrollbars follow the theme's lightness (`color-scheme`). `themeMeta.test.js` keeps the list, `index.css` and `index.html` in step.
 
 ## Exam & Practice Modes
 

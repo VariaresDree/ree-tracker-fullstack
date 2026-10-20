@@ -15,7 +15,7 @@ import {
 } from '../../services/dbQueries';
 import { sanitizeOptions, stripChoicePrefix } from '../../utils/sanitizeOptions';
 import { isKnownTopic } from '../../utils/topicLabels';
-import { Button, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill, ProgressIndicator } from '../../components/ui';
+import { Button, Card, Grid, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill, ProgressIndicator } from '../../components/ui';
 import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers, TriangleAlert } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
@@ -400,9 +400,9 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   };
 
   return (
-    <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-6 shadow-sm flex flex-col gap-6">
+    <Card padding="md" className="shadow-sm flex flex-col gap-4">
       <div className="flex justify-between items-center border-b border-border pb-4 flex-wrap gap-4">
-        <h3 className="text-lg font-semibold text-textMain tracking-tight flex items-center gap-2">
+        <h3 className="text-h3 text-textMain flex items-center gap-2">
           <Layers size={18} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" /> Question bank overview
         </h3>
         <div className="flex flex-wrap gap-2 z-10">
@@ -425,7 +425,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <Grid kind="kpi" gap="sm">
         {[
           { label: 'Total questions', value: serverStats?.total || 0, accent: null },
           { label: 'Mathematics', value: serverStats?.math || 0, accent: TRACK_ACCENT.Mathematics },
@@ -434,22 +434,22 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
         ].map((s) => (
           <div
             key={s.label}
-            className="p-4 bg-bg border rounded-[var(--radius-lg)] text-center"
+            className="p-4 bg-bg border rounded-[var(--radius-default)] text-center min-w-0"
             style={{ borderColor: s.accent ? `color-mix(in srgb, ${s.accent} 20%, transparent)` : 'var(--border-light)' }}
           >
             <div className="text-display text-3xl tabular-nums" style={{ color: s.accent || 'var(--text-main)' }}>{s.value}</div>
             <div className="text-eyebrow mt-1">{s.label}</div>
           </div>
         ))}
-      </div>
+      </Grid>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 animate-in fade-in">
+      <Grid kind="cards" className="animate-in fade-in">
         {['Mathematics', 'ESAS', 'EE'].map(s => {
           const accent = TRACK_ACCENT[s];
           const safeSubj = toDisplaySubject(s);
 
           return (
-            <div key={s} className="p-5 bg-surface2 border rounded-[var(--radius-lg)] flex flex-col h-[280px]" style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}>
+            <div key={s} className="p-4 bg-surface2 border rounded-[var(--radius-default)] flex flex-col h-[280px] min-w-0" style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}>
               <div className="border-b border-border2 pb-3 mb-3 shrink-0">
                 <div className="text-eyebrow" style={{ color: accent }}>{s}</div>
               </div>
@@ -461,7 +461,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                     <div key={sub} className="flex justify-between items-center text-xs group shrink-0">
                       <span className={`truncate pr-3 transition-colors ${count > 0 ? 'text-textMain font-medium' : 'text-muted2 opacity-50'}`} title={sub}>{sub}</span>
                       <span
-                        className="font-mono text-[11px] px-2 py-0.5 rounded-[var(--radius-sm)] border tabular-nums"
+                        className="font-mono text-micro px-2 py-0.5 rounded-[var(--radius-sm)] border tabular-nums"
                         style={count > 0
                           ? { color: accent, background: `color-mix(in srgb, ${accent} 10%, transparent)`, borderColor: `color-mix(in srgb, ${accent} 30%, transparent)`, fontWeight: 700 }
                           : { opacity: 0.3 }}
@@ -473,7 +473,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
             </div>
           );
         })}
-      </div>
+      </Grid>
 
       {/* --- Syllabus editor --- */}
       <Modal
@@ -522,9 +522,9 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Grid kind="cards" className="@3xl:grid-cols-3">
               {Object.keys(editTOS).map(subject => (
-                  <div key={subject} className="bg-surface2/40 border border-border rounded-[var(--radius-lg)] p-4 flex flex-col max-h-[350px]">
+                  <div key={subject} className="bg-surface2/40 border border-border rounded-[var(--radius-default)] p-4 flex flex-col max-h-[350px] min-w-0">
                       <h3 className="text-eyebrow mb-3 pb-2 border-b border-border shrink-0">{subject}</h3>
                       <div className="flex-1 flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2">
                           {editTOS[subject].map(sub => (
@@ -542,7 +542,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                       </div>
                   </div>
               ))}
-            </div>
+            </Grid>
           </>
         )}
       </Modal>
@@ -621,7 +621,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
 
                         {isEditing ? (
                             <div className="flex flex-col gap-3">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Grid kind="pair" gap="sm">
                                     <FormField label="Subject">
                                         <Select
                                             value={editDraft.subject}
@@ -651,7 +651,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                                             })()}
                                         </Select>
                                     </FormField>
-                                </div>
+                                </Grid>
                                 <FormField label="Question text">
                                     <Textarea
                                         rows={3}
@@ -689,7 +689,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                                     <LatexRenderer content={q.content || q.text || q.question || "No content available."} />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Grid kind="pair" gap="sm">
                                     {q.options && q.options.map((opt, i) => (
                                         <div
                                           key={i}
@@ -701,7 +701,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                                             {String.fromCharCode(65 + i)}. <LatexRenderer content={opt} />
                                         </div>
                                     ))}
-                                </div>
+                                </Grid>
                             </>
                         )}
                     </div>
@@ -770,6 +770,6 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           </div>
         )}
       </Modal>
-    </div>
+    </Card>
   );
 }

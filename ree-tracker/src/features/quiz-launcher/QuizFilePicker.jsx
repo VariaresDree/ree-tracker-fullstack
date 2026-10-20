@@ -48,7 +48,7 @@ export default function QuizFilePicker({ onFilesSelected }) {
         onDragLeave={() => setIsDragOver(false)}
         onDrop={onDrop}
         aria-label="Choose quiz files or drag them here"
-        className={`flex flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-dashed p-10 text-center cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:[box-shadow:var(--focus-ring)] ${
+        className={`flex flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border-2 border-dashed p-10 text-center cursor-pointer transition-colors ${
           isDragOver
             ? 'border-[var(--accent-velocity)] bg-[color-mix(in_srgb,var(--accent-velocity)_8%,transparent)]'
             : 'border-border2 bg-surface2/30 hover:border-[var(--accent-velocity)]/50'

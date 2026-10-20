@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
-import { Badge, Button, Skeleton, StatusPill } from '../../components/ui';
+import { Badge, Button, Card, Grid, KpiTile, Skeleton, StatusPill } from '../../components/ui';
 import { Lock, Shield, Swords, Trophy } from '../../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../../config/examStandards';
 import { cooldownLabel, formatLimit, tierState } from './gauntletTierState';
@@ -15,8 +15,9 @@ import { cooldownLabel, formatLimit, tierState } from './gauntletTierState';
 function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
   const { subject, isPassed, isCleared, isUnlocked, isLocked, isCoolingDown } = state;
   return (
-    <div
-      className={`p-6 rounded-[var(--radius-lg)] border flex flex-col transition-all relative overflow-hidden bg-surface ${isLocked ? 'opacity-60' : ''}`}
+    <Card
+      padding="md"
+      className={`flex flex-col transition-[opacity,border-color] relative overflow-hidden ${isLocked ? 'opacity-60' : ''}`}
       style={{
         borderColor: isCleared
           ? 'color-mix(in srgb, var(--accent-success) 30%, transparent)'
@@ -73,7 +74,7 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
           </Button>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -111,9 +112,9 @@ export default function GauntletTab() {
       <div role="status" className="flex flex-col gap-6">
         <span className="sr-only">Loading the Gauntlet…</span>
         <Skeleton className="h-36 rounded-[var(--radius-lg)]" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Grid kind="pair">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-56 rounded-[var(--radius-lg)]" />)}
-        </div>
+        </Grid>
       </div>
     );
   }
@@ -131,12 +132,13 @@ export default function GauntletTab() {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
-      <div
-        className="p-6 bg-surface border rounded-[var(--radius-lg)] shadow-sm relative overflow-hidden flex flex-col justify-center"
+      <Card
+        padding="lg"
+        className="shadow-sm relative overflow-hidden flex flex-col justify-center"
         style={{ borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)' }}
       >
         <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}></div>
-        <h2 className="text-display text-2xl text-textMain tracking-tight mb-2 relative z-10 flex items-center gap-3">
+        <h2 className="text-h2 text-textMain mb-2 relative z-10 flex items-center gap-3">
           <Shield size={24} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-text)' }} /> The Gauntlet
         </h2>
         <p className="text-sm text-muted2 relative z-10 leading-relaxed max-w-2xl">
@@ -144,28 +146,22 @@ export default function GauntletTab() {
           board exams (Math, ESAS, EE) unlock at their real board time. Failing any exam locks
           the Gauntlet for 12 hours.
         </p>
-        <div className="mt-4 flex gap-4 relative z-10 flex-wrap">
-          <div className="bg-bg border border-border2 px-4 py-2 rounded-[var(--radius-default)] flex flex-col">
-            <span className="text-eyebrow mb-0.5">Current tier</span>
-            <span className="font-mono text-lg font-bold tabular-nums" style={{ color: 'var(--accent-text)' }}>Level {currentLevel}</span>
-          </div>
-          <div className="bg-bg border border-border2 px-4 py-2 rounded-[var(--radius-default)] flex flex-col">
-            <span className="text-eyebrow mb-0.5">Questions answered</span>
-            <span className="font-mono text-lg font-bold text-textMain tabular-nums">{totalAnswered}</span>
-          </div>
+        <div className="mt-4 flex gap-3 relative z-10 flex-wrap">
+          <KpiTile compact label="Current tier" value={`Level ${currentLevel}`} />
+          <KpiTile compact label="Questions answered" value={totalAnswered} />
         </div>
-      </div>
+      </Card>
 
       <div>
         <p className="text-eyebrow mb-3">Blended tiers</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{GAUNTLET_TIERS.filter((t) => !isSubjectTier(t)).map(card)}</div>
+        <Grid kind="pair">{GAUNTLET_TIERS.filter((t) => !isSubjectTier(t)).map(card)}</Grid>
       </div>
       <div>
         <p className="text-eyebrow mb-3 flex items-center gap-2">
           Subject boards — 100 items each at board time
           {!subjectsUnlocked && <Lock size={12} strokeWidth={2} className="text-muted" aria-hidden="true" />}
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{GAUNTLET_TIERS.filter((t) => isSubjectTier(t)).map(card)}</div>
+        <Grid kind="cards">{GAUNTLET_TIERS.filter((t) => isSubjectTier(t)).map(card)}</Grid>
       </div>
     </div>
   );

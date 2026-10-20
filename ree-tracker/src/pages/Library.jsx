@@ -76,14 +76,16 @@ export default function Library() {
 
       <TabPanel id="library" active={tab}>
       {tab === 'formulas' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 flex flex-col gap-6">
-          <div className="border-b border-border pb-5">
-            <h2 className="text-display text-2xl text-textMain tracking-tight">Formula cards</h2>
-            <p className="text-muted2 mt-1 text-sm max-w-prose">
-              Every constant, formula and concept as a flip card. Open a subject to see all of its cards on one page,
-              or narrow it down by topic and subtopic. Search finds any card directly.
-            </p>
-          </div>
+        <div className="animate-in fade-in slide-in-from-bottom-2 flex flex-col gap-4">
+          {/* The tab and the location trail below already say "Formula cards":
+              no visible title repeating them. The heading stays for screen
+              readers' heading list, and the topic headings of "All cards"
+              (h3) sit under it. */}
+          <h2 className="sr-only">Formula cards</h2>
+          <p className="text-muted2 text-sm max-w-prose">
+            Every constant, formula and concept as a flip card. Open a subject to see all of its cards on one page,
+            or narrow it down by topic and subtopic. Search finds any card directly.
+          </p>
           <ReferenceBrowser
             // A new deep link opens afresh, even with Formula cards already open.
             key={deepLink.topic ? `${deepLink.subject}|${deepLink.topic}` : deepLink.search || 'browse'}

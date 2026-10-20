@@ -10,9 +10,8 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { generateCertificate } from '../../utils/certificateEngine';
 import { fetchReadinessScore } from '../../services/dbQueries';
-import { Badge, Button, Card } from '../../components/ui';
+import { Badge, Button, Card, IconChip } from '../../components/ui';
 import { Award, Download, Lock } from '../../components/ui/icons';
-import { cn } from '../../components/ui/cn';
 
 export const CERTIFICATE_MIN_READINESS = 70;
 
@@ -45,18 +44,12 @@ export default function CredentialsTab({ currentUser }) {
   };
 
   return (
-    <Card className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 items-start">
-      <div
-        className={cn('w-14 h-14 shrink-0 rounded-[var(--radius-lg)] flex items-center justify-center border', unlocked ? '' : 'bg-surface2 border-border text-muted')}
-        style={unlocked ? { color: 'var(--accent-text)', borderColor: 'var(--accent-velocity)', background: 'color-mix(in srgb, var(--accent-velocity) 14%, transparent)' } : undefined}
-        aria-hidden="true"
-      >
-        {unlocked ? <Award size={26} strokeWidth={1.75} /> : <Lock size={22} strokeWidth={1.75} />}
-      </div>
+    <Card padding="md" className="flex flex-col sm:flex-row gap-4 items-start">
+      <IconChip icon={unlocked ? Award : Lock} tone={unlocked ? 'accent' : 'muted'} size="lg" />
 
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-base font-semibold text-textMain">Readiness certificate</h3>
+          <h3 className="text-h3 text-textMain">Readiness certificate</h3>
           {status === 'ready' && (
             <Badge tone={unlocked ? 'success' : 'neutral'}>{unlocked ? 'Unlocked' : `Readiness ${score} of ${CERTIFICATE_MIN_READINESS}`}</Badge>
           )}

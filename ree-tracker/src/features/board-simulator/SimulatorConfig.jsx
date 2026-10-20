@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Card, Button, FormField, IconChip, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
+import { Card, Button, FormField, Grid, IconChip, PageHeader, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
 import { FileText, TriangleAlert } from '../../components/ui/icons';
 import { PRC_TIMES } from '../../config/examStandards';
 import { SIM_PROFILES, configForProfile } from './profiles';
@@ -54,16 +54,15 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
     begin();
   };
 
+  // The screen renders into BoardSimulator's <Page> (reading width), which
+  // owns the frame: the setup sits under the full-board banner there.
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6 page-fade-in pb-12 w-full">
-      <Card elevated grain className="p-6 sm:p-10">
-        <div className="mb-8 border-b border-border pb-5">
-          <h1 className="text-display text-2xl sm:text-3xl text-textMain tracking-tight">Mock board</h1>
-          <p className="text-sm text-muted2 mt-1">Choose how strict the exam should be.</p>
-        </div>
+    <>
+      <PageHeader title="Mock board" subtitle="Choose how strict the exam should be." />
 
+      <Card elevated grain padding="lg" className="flex flex-col gap-6">
         {session?.error && (
-          <div className="mb-8 p-4 rounded-[var(--radius-default)] border-l-4 text-sm font-medium animate-in zoom-in"
+          <div className="p-4 rounded-[var(--radius-default)] border-l-4 text-sm font-medium animate-in zoom-in [overflow-wrap:anywhere]"
             style={{
               borderColor: 'var(--accent-danger)',
               background: 'color-mix(in srgb, var(--accent-danger) 12%, transparent)',
@@ -75,10 +74,10 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
         )}
 
         {engine?.hasSavedSession && (
-          <Card className="mb-8 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4"
+          <div className="p-4 rounded-[var(--radius-default)] border bg-surface2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in slide-in-from-top-4"
             style={{ borderColor: 'color-mix(in srgb, var(--color-reeAmber) 45%, transparent)' }}
           >
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <StatusPill tone="amber">In progress</StatusPill>
               <p className="text-textMain font-semibold">Resume your last exam?</p>
               <p className="text-sm text-muted2">You have an unfinished mock board saved on this device.</p>
@@ -86,13 +85,13 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             <Button tone="amber" onClick={engine.resumeSimulation} className="w-full sm:w-auto">
               Resume exam
             </Button>
-          </Card>
+          </div>
         )}
 
         {/* Exam profile */}
-        <div className="mb-8">
-          <span className="text-eyebrow block mb-3">Exam profile</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" role="radiogroup" aria-label="Exam profile">
+        <div className="flex flex-col gap-3">
+          <span className="text-eyebrow block">Exam profile</span>
+          <Grid kind="cards" role="radiogroup" aria-label="Exam profile">
             {SIM_PROFILES.map((p) => {
               const selected = activeProfile === p.id;
               const Icon = p.icon;
@@ -104,30 +103,30 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
                   aria-checked={selected}
                   onClick={() => setProfile(p.id)}
                   className={cn(
-                    'p-5 rounded-[var(--radius-lg)] border text-left transition-all cursor-pointer flex flex-col gap-3 btn-press',
+                    'p-4 rounded-[var(--radius-default)] border text-left cursor-pointer flex flex-col gap-3 min-w-0 interactive-card',
                     selected
                       ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
                       : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'
                   )}
                 >
                   <IconChip icon={Icon} tone={selected ? 'accent' : 'muted'} />
-                  <div>
+                  <div className="min-w-0">
                     <span className={cn('block text-sm font-semibold mb-1', selected ? 'text-[var(--accent-text)]' : 'text-textMain')}>{p.name}</span>
                     <p className="text-xs text-muted2 leading-relaxed">{p.description}</p>
                   </div>
                 </button>
               );
             })}
-          </div>
+          </Grid>
         </div>
 
         {fullBoardSelected && (
-          <Card className="mb-8 p-5 flex flex-col gap-3 bg-surface2">
+          <div className="p-4 flex flex-col gap-3 rounded-[var(--radius-default)] border border-border bg-surface2">
             <span className="text-eyebrow">Sections, in board order</span>
             <ol className="flex flex-col gap-2">
               {FULL_BOARD_ROWS.map(([key, label], i) => (
-                <li key={key} className="flex justify-between gap-3 text-sm">
-                  <span className="text-textMain">{i + 1}. {label}</span>
+                <li key={key} className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm">
+                  <span className="text-textMain min-w-0">{i + 1}. {label}</span>
                   <span className="text-muted2 font-mono tabular-nums">100 items · {hms(prcSectionSeconds(key))}</span>
                 </li>
               ))}
@@ -135,14 +134,14 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             <p className="text-xs text-muted2">
               Each section runs on its own clock. Break between sections for as long as you like — the sitting keeps for 7 days.
             </p>
-          </Card>
+          </div>
         )}
 
         {/* Subject & topic */}
         {!fullBoardSelected && (
         <>
-        <div className="flex flex-col sm:flex-row gap-4 mb-8 animate-in fade-in slide-in-from-top-2">
-          <FormField label="Subject" className="flex-1">
+        <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-top-2">
+          <FormField label="Subject" className="flex-1 min-w-0">
             <Select
               disabled={isBlended}
               value={config.subject}
@@ -157,7 +156,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           </FormField>
 
           {isCustom && config.subject && config.subject !== 'blended' && (
-            <FormField label="Topic" className="flex-1 animate-in fade-in slide-in-from-left-4">
+            <FormField label="Topic" className="flex-1 min-w-0 animate-in fade-in slide-in-from-left-4">
               <Select
                 value={config.subtopic || 'All'}
                 onChange={(e) => setConfig({ ...config, subtopic: e.target.value })}
@@ -172,8 +171,8 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
         {/* Length, or the enforced board time limit */}
         {isCustom ? (
-          <div className="mb-8 animate-in fade-in slide-in-from-bottom-3">
-            <span className="text-eyebrow block mb-3">Length</span>
+          <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-3">
+            <span className="text-eyebrow block">Length</span>
             <SegmentedControl
               label="Number of questions"
               value={config.count}
@@ -185,7 +184,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             />
           </div>
         ) : (
-          <Card className="mb-8 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-3 bg-surface2">
+          <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-3 rounded-[var(--radius-default)] border border-border bg-surface2">
             <div className="flex flex-col gap-1">
               <span className="text-eyebrow">Time limit</span>
               <span className="text-sm text-muted2">Fixed by PRC board rules.</span>
@@ -193,7 +192,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             <span className="text-display text-3xl text-textMain font-mono tabular-nums bg-surface px-6 py-3 rounded-[var(--radius-default)] border border-border">
               {hms(isBlended ? PRC_TIMES.BLENDED : (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED))}
             </span>
-          </Card>
+          </div>
         )}
 
         </>
@@ -201,8 +200,8 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
         {/* Source (custom only) */}
         {isCustom && (
-          <div className="mb-10 animate-in fade-in slide-in-from-bottom-4">
-            <span className="text-eyebrow block mb-3">Source</span>
+          <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4">
+            <span className="text-eyebrow block">Source</span>
             <SegmentedControl
               label="Question source"
               value={config.source}
@@ -217,39 +216,41 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
         )}
 
         {/* Primary action, with the PDF export visibly subordinate */}
-        {/* The warning the old nav confirm modal gave, now where you commit. */}
-        <p className="text-xs text-muted2 mb-3">Timed like the real board. The clock keeps running if you leave the exam.</p>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-6 border-t border-border">
-          <Button
-            size="lg"
-            // NOT bare `flex-1`: this container is `flex-col` on mobile, where
-            // `flex-1` (flex-basis:0) zeroes the button's own preferred main-
-            // size (its height, on that axis) and `min-height:auto` collapses
-            // it to its content minimum — the h-12 utility never wins. Measured
-            // live: 308x24px instead of the intended 48px. `w-full` avoids the
-            // collapse on mobile; `sm:flex-1` restores the intended stretch-to-
-            // fill once the row is horizontal (`sm:flex-row`) and height is the
-            // cross axis again.
-            className="w-full sm:flex-1"
-            loading={session?.loading && !engine?.isExporting}
-            disabled={session?.loading}
-            onClick={handleStart}
-          >
-            {fullBoardSelected ? 'Start the full board' : 'Start mock board'}
-          </Button>
-          <Button
-            variant="ghost"
-            loading={engine?.isExporting}
-            disabled={session?.loading || engine?.isExporting || fullBoardSelected}
-            onClick={engine?.exportOfflinePDF}
-          >
-            <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
-            Export exam paper (PDF)
-          </Button>
+        <div className="flex flex-col gap-3 pt-6 border-t border-border">
+          {/* The warning the old nav confirm modal gave, now where you commit. */}
+          <p className="text-xs text-muted2">Timed like the real board. The clock keeps running if you leave the exam.</p>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
+            <Button
+              size="lg"
+              // NOT bare `flex-1`: this container is `flex-col` on mobile, where
+              // `flex-1` (flex-basis:0) zeroes the button's own preferred main-
+              // size (its height, on that axis) and `min-height:auto` collapses
+              // it to its content minimum — the h-12 utility never wins. Measured
+              // live: 308x24px instead of the intended 48px. `w-full` avoids the
+              // collapse on mobile; `sm:flex-1` restores the intended stretch-to-
+              // fill once the row is horizontal (`sm:flex-row`) and height is the
+              // cross axis again.
+              className="w-full sm:flex-1"
+              loading={session?.loading && !engine?.isExporting}
+              disabled={session?.loading}
+              onClick={handleStart}
+            >
+              {fullBoardSelected ? 'Start the full board' : 'Start mock board'}
+            </Button>
+            <Button
+              variant="ghost"
+              loading={engine?.isExporting}
+              disabled={session?.loading || engine?.isExporting || fullBoardSelected}
+              onClick={engine?.exportOfflinePDF}
+            >
+              <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
+              Export exam paper (PDF)
+            </Button>
+          </div>
+          <p className="text-micro text-muted2">
+            Exports a printable packet: questionnaire, a bubble answer sheet with a scannable set QR, and a column-major answer key.
+          </p>
         </div>
-        <p className="text-[11px] text-muted2 mt-2">
-          Exports a printable packet: questionnaire, a bubble answer sheet with a scannable set QR, and a column-major answer key.
-        </p>
       </Card>
 
       <Modal
@@ -279,6 +280,6 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           Starting a new exam replaces the one saved on this device. Your answers in the saved exam will be lost.
         </p>
       </Modal>
-    </div>
+    </>
   );
 }

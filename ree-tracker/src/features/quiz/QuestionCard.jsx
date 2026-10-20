@@ -218,7 +218,7 @@ export default function QuestionCard({
                   role="radio"
                   aria-checked={isSelected}
                   onClick={() => onConfidenceChange?.(level)}
-                  className={`py-3.5 rounded-[var(--radius-default)] border-2 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-all duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
+                  className={`py-3.5 rounded-[var(--radius-default)] border-2 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-[color,background-color,border-color,box-shadow,translate,scale] duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
                     isSelected
                       ? 'bg-surface3 border-textMain text-textMain shadow-md'
                       : 'bg-surface2/30 border-border2/50 text-muted hover:border-textMain/40 hover:text-textMain hover:bg-surface2'
@@ -226,7 +226,7 @@ export default function QuestionCard({
                 >
                   {level}
                   {/* The button's own colour, not 30% of it (1.3:1). */}
-                  <span className="text-[11px] font-mono font-normal hidden sm:inline">
+                  <span className="text-micro font-mono font-normal hidden sm:inline">
                     [{['Q', 'W', 'E'][i]}]
                   </span>
                 </button>
@@ -320,7 +320,7 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       onClick={onClick}
       ref={innerRef}
       tabIndex={tabIndex}
-      className={`group p-5 sm:p-6 rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-all duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
+      className={`group p-5 sm:p-6 rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-[color,background-color,border-color,box-shadow,translate,scale] duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
     >
       <span className={`w-8 shrink-0 font-black font-mono text-base sm:text-lg tracking-wider transition-colors duration-200 ${letterColor}`}>
         {letter}.

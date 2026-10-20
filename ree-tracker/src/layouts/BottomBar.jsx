@@ -13,7 +13,7 @@ export default function BottomBar() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed bottom-0 inset-x-0 z-[45] bg-surface/95 backdrop-blur-md border-t border-border2 grid grid-cols-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
+      className="fixed bottom-0 inset-x-0 z-[45] bg-surface/95 backdrop-blur-md reduce-transparency:bg-surface reduce-transparency:backdrop-blur-none border-t border-border2 grid grid-cols-5 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
     >
       {PRIMARY_NAV.map((item) => {
         const Icon = item.icon;
@@ -23,7 +23,7 @@ export default function BottomBar() {
             key={item.id}
             to={item.to}
             aria-current={on ? 'page' : undefined}
-            className={`flex flex-col items-center justify-center gap-1 min-h-14 py-2 text-[11px] font-medium tracking-wide transition-colors ${on ? 'text-[var(--accent-text)]' : 'text-muted hover:text-textMain'}`}
+            className={`flex flex-col items-center justify-center gap-1 min-h-14 py-2 text-micro font-medium tracking-wide transition-colors ${on ? 'text-[var(--accent-text)]' : 'text-muted hover:text-textMain'}`}
           >
             <Icon size={20} strokeWidth={on ? 2.25 : 1.75} aria-hidden="true" />
             {item.label}

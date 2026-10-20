@@ -58,7 +58,7 @@ export default function QuestionGenerator({ isOnline = true, onSaved }) {
   return (
     <section className="p-5 sm:p-6 bg-surface border border-border rounded-[var(--radius-lg)] shadow-sm flex flex-col gap-5" aria-labelledby="qgen-title">
       <header className="flex flex-col gap-1">
-        <h3 id="qgen-title" className="text-base font-semibold text-textMain flex items-center gap-2">
+        <h3 id="qgen-title" className="text-h3 text-textMain flex items-center gap-2">
           <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> AI question generator
         </h3>
         <p className="text-xs text-muted2">
@@ -281,7 +281,7 @@ function GeneratedItem({ q, idx, g, disabled }) {
                 <span className="font-mono opacity-60 shrink-0">{String.fromCharCode(65 + i)}.</span>
                 <span className="min-w-0 flex-1 math-scroll-mobile [&_p]:!m-0"><LatexRenderer content={opt} /></span>
                 {isAnswer && <><Check size={14} strokeWidth={2.5} className="shrink-0" style={{ color: 'var(--accent-success)' }} aria-hidden="true" /><span className="sr-only">Answer key</span></>}
-                {isCheckPick && <span className="text-[11px] shrink-0" style={{ color: 'var(--accent-danger)' }}>Checker</span>}
+                {isCheckPick && <span className="text-micro shrink-0" style={{ color: 'var(--accent-danger)' }}>Checker</span>}
               </div>
             );
           })}

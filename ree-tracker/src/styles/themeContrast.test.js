@@ -164,6 +164,16 @@ describe('theme contrast (WCAG AA)', () => {
             expect(failures).toEqual([]);
         });
 
+        // The mark's letterforms (components/ui/Logo.jsx) are a graphic that
+        // identifies the app: 3:1 against the page and cards it sits on.
+        it(`${name}: the logo's ink clears 3:1 on the page and cards`, () => {
+            const ink = resolve(t, t['--logo-ink'] ?? THEME_TOKENS['--logo-ink']);
+            const failures = ['--bg-primary', '--bg-surface']
+                .map((bg) => ({ bg, ratio: +contrast(ink, resolve(t, t[bg])).toFixed(2) }))
+                .filter((r) => r.ratio < 3);
+            expect(failures).toEqual([]);
+        });
+
         // WCAG 1.4.11: a focus indicator is a non-text graphic, 3:1 against
         // what it sits on.
         it(`${name}: the focus ring clears 3:1 on the page, cards and panels`, () => {
@@ -248,6 +258,59 @@ describe('theme contrast (WCAG AA)', () => {
                 const min = bg === '--bg-surface3' ? 3 : 4.5;
                 return { pair: `${fg} on ${bg}`, ratio: +contrast(resolve(t, t[fg]), resolve(t, t[bg])).toFixed(2), min };
             })).filter((r) => r.ratio < r.min);
+            expect(failures).toEqual([]);
+        });
+    }
+});
+
+// Page textures (index.css, PAGE TEXTURES): the default in `body {…}` and
+// each theme's own `[data-theme="x"] body {…}`. Text sits straight on the
+// page in headers, tab rows and between cards, so it must still read where
+// the texture is strongest: under the glow's peak (every glow at its peak at
+// once), on a line of the pattern, and both together.
+describe('page textures', () => {
+    const all = themes();
+    const decls = (body) => Object.fromEntries([...body.matchAll(/(--texture-[a-z]+)\s*:\s*([^;]+);/g)].map((d) => [d[1], d[2].trim()]));
+    const base = decls(css.match(/(?:^|\n)body\s*\{([^}]*--texture-[^}]*)\}/)?.[1] ?? '');
+    const own = Object.fromEntries([...css.matchAll(/\[data-theme="([a-z]+)"\] body\s*\{([^}]*)\}/g)].map((m) => [m[1], decls(m[2])]));
+    const texture = (name) => ({ ...base, ...(own[name] || {}) });
+    const publicDir = new URL('../../public/', import.meta.url);
+
+    it('every theme has a texture of its own', () => {
+        expect(base['--texture-mask']).toBeTruthy();
+        expect(Object.keys(own).sort()).toEqual(Object.keys(all).filter((n) => n !== 'default').sort());
+        for (const [name, t] of Object.entries(own)) expect(t['--texture-mask'], name).toBeTruthy();
+    });
+
+    it('every tile is a small, inert SVG that the stylesheet uses', () => {
+        const used = new Set([...css.matchAll(/url\("\/textures\/([a-z-]+\.svg)"\)/g)].map((m) => m[1]));
+        const files = fs.readdirSync(new URL('textures/', publicDir));
+        expect([...used].sort()).toEqual(files.sort());
+        for (const file of files) {
+            const svg = fs.readFileSync(new URL(`textures/${file}`, publicDir), 'utf8');
+            expect(svg.length, file).toBeLessThan(4096);
+            expect(svg, file).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+            expect(svg, file).not.toMatch(/<script|<foreignObject|href=|url\((?!#)/i);
+        }
+    });
+
+    for (const name of Object.keys(all)) {
+        it(`${name}: text on the page reads over the texture`, () => {
+            const t = all[name];
+            const x = texture(name);
+            const page = resolve(t, t['--bg-primary']);
+            // Each glow sits in its own corner, so they are taken one at a time.
+            const glows = [...(x['--texture-glow'] || '').matchAll(/color-mix\(in srgb, (.+?) (\d+)%, transparent\)/g)]
+                .map((m) => mix(resolve(t, m[1]), page, Number(m[2]) / 100));
+            const ink = resolve(t, x['--texture-ink']);
+            const opacity = Number(x['--texture-opacity']);
+            expect(opacity, 'opacity').toBeGreaterThanOrEqual(0);
+            expect(opacity, 'opacity').toBeLessThanOrEqual(0.5);
+            const grounds = [page, ...glows].flatMap((g) => [g, mix(ink, g, opacity)]);
+            const failures = [
+                ['--text-main', 4.5], ['--text-muted', 4.5], ['--text-muted2', 4.5], ['--accent-text', 4.5], ['--focus-ring-color', 3],
+            ].flatMap(([fg, min]) => grounds.map((bg) => ({ fg, bg, ratio: +contrast(resolve(t, t[fg]), bg).toFixed(2), min })))
+                .filter((r) => r.ratio < r.min);
             expect(failures).toEqual([]);
         });
     }

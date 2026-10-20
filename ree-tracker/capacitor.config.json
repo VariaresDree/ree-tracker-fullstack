@@ -5,6 +5,10 @@
   "plugins": {
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_ree",
+      "iconColor": "#F20606"
     }
   }
 }

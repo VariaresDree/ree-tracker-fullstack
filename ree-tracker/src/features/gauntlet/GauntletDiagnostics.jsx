@@ -14,7 +14,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CANONICAL_SUBJECTS, GENERAL_AVERAGE, SUBJECT_FLOOR, VERDICT, toDisplaySubject } from '@ree/shared';
 import LatexRenderer from '../../components/LatexRenderer';
 import NotificationOptIn from '../../components/NotificationOptIn';
-import { Badge, Button, Card, ProgressIndicator } from '../../components/ui';
+import { Badge, Button, Card, CardTitle, Grid, KpiTile, Page, PageHeader, ProgressIndicator } from '../../components/ui';
 import { ClipboardList, Play } from '../../components/ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
@@ -50,14 +50,15 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
   const missed = showAllMissed ? review : review.slice(0, MISSED_SHOWN);
 
   return (
-    <div className="max-w-3xl mx-auto w-full flex flex-col gap-6 pt-4 pb-12 page-fade-in">
-      <Card elevated className="p-6 sm:p-8 flex flex-col gap-5">
+    <Page width="reading">
+      {/* The outcome is the screen's title: a PageHeader, not an h1 inside
+          the card. */}
+      <PageHeader title={title} subtitle={`Gauntlet level ${level}`} />
+      <Card elevated padding="lg" className="flex flex-col gap-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-eyebrow">Gauntlet level {level}</p>
-            <h1 className="text-display text-3xl text-textMain mt-1">{title}</h1>
-            {line && <p className="text-sm text-muted2 mt-1 max-w-prose">{line}</p>}
-            {isTimeOut && <p className="text-xs text-muted2 mt-1">Time ran out, so your answers were submitted.</p>}
+          <div className="min-w-0 flex flex-col gap-1">
+            {line && <p className="text-sm text-muted2 max-w-prose">{line}</p>}
+            {isTimeOut && <p className="text-xs text-muted2">Time ran out, so your answers were submitted.</p>}
           </div>
           {verdict && <Badge tone={tone}>{verdict}</Badge>}
         </div>
@@ -71,20 +72,11 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
           </p>
         </div>
 
-        <dl className="grid grid-cols-3 gap-3">
-          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
-            <dt className="text-eyebrow">Correct</dt>
-            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{correctCount} / {totalItems}</dd>
-          </div>
-          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
-            <dt className="text-eyebrow">Raw score</dt>
-            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{scorePct}%</dd>
-          </div>
-          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
-            <dt className="text-eyebrow">Time used</dt>
-            <dd className="text-lg font-semibold tabular-nums text-textMain mt-1">{formatDuration(timeUsedSecs)}</dd>
-          </div>
-        </dl>
+        <Grid kind="tiles" gap="sm">
+          <KpiTile compact label="Correct" value={`${correctCount} / ${totalItems}`} />
+          <KpiTile compact label="Raw score" value={`${scorePct}%`} />
+          <KpiTile compact label="Time used" value={formatDuration(timeUsedSecs)} />
+        </Grid>
 
         <div className="flex flex-wrap gap-3">
           {sessionId && (
@@ -97,14 +89,14 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
       </Card>
 
       {subjects.length > 0 && (
-        <Card className="p-5 sm:p-6">
-          <h2 className="text-base font-semibold text-textMain mb-4">By subject</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card padding="md" className="flex flex-col gap-4">
+          <CardTitle>By subject</CardTitle>
+          <Grid kind="tiles">
             {subjects.map((s) => {
               const pct = subjectScores[s];
               return (
-                <div key={s} className="flex flex-col gap-2">
-                  <div className="flex justify-between text-sm">
+                <div key={s} className="flex flex-col gap-2 min-w-0">
+                  <div className="flex flex-wrap justify-between gap-x-2 text-sm">
                     <span className="text-textMain font-medium">{toDisplaySubject(s)}</span>
                     <span className="tabular-nums text-textMain">{pct}%</span>
                   </div>
@@ -113,14 +105,14 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
                 </div>
               );
             })}
-          </div>
+          </Grid>
         </Card>
       )}
 
       {weakTopics.length > 0 && (
-        <Card className="p-5 sm:p-6 flex flex-col gap-4">
+        <Card padding="md" className="flex flex-col gap-4">
           <div>
-            <h2 className="text-base font-semibold text-textMain">What to review</h2>
+            <CardTitle>What to review</CardTitle>
             <p className="text-sm text-muted2">The topics your misses came from, most first. Drill one to work on it.</p>
           </div>
           <ul className="flex flex-col gap-2">
@@ -142,8 +134,8 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
       )}
 
       {review.length > 0 && (
-        <Card className="p-5 sm:p-6 flex flex-col gap-4">
-          <h2 className="text-base font-semibold text-textMain">Missed questions ({review.length})</h2>
+        <Card padding="md" className="flex flex-col gap-4">
+          <CardTitle>Missed questions ({review.length})</CardTitle>
           <ul className="flex flex-col gap-4">
             {missed.map((item, i) => {
               const question = {
@@ -154,21 +146,21 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
                 fixedExplanation: item.explanation,
               };
               return (
-                <li key={item.questionId || i} className="p-4 rounded-[var(--radius-lg)] bg-surface2 border border-border flex flex-col gap-3">
+                <li key={item.questionId || i} className="p-4 rounded-[var(--radius-default)] bg-surface2 border border-border flex flex-col gap-3 min-w-0">
                   <span className="text-eyebrow">{item.subtopic}</span>
-                  <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto custom-scrollbar"><LatexRenderer content={item.text} /></div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}>
+                  <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto custom-scrollbar [overflow-wrap:anywhere]"><LatexRenderer content={item.text} /></div>
+                  <Grid kind="pair" gap="sm">
+                    <div className="p-3 rounded-[var(--radius-default)] border min-w-0" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}>
                       <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-danger)' }}>Your answer</span>
-                      <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto">
+                      <div className="text-sm text-textMain [&_p]:!m-0 overflow-x-auto [overflow-wrap:anywhere]">
                         {item.userAnswer ? <span className="line-through"><LatexRenderer inline content={item.userAnswer} /></span> : <span className="text-muted2">Left blank</span>}
                       </div>
                     </div>
-                    <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}>
+                    <div className="p-3 rounded-[var(--radius-default)] border min-w-0" style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}>
                       <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-success)' }}>Correct answer</span>
-                      <div className="text-sm font-semibold text-textMain [&_p]:!m-0 overflow-x-auto"><LatexRenderer content={item.correctAnswer || '—'} /></div>
+                      <div className="text-sm font-semibold text-textMain [&_p]:!m-0 overflow-x-auto [overflow-wrap:anywhere]"><LatexRenderer content={item.correctAnswer || '—'} /></div>
                     </div>
-                  </div>
+                  </Grid>
                   <SolutionPanel
                     key={explanationKey(question)}
                     question={question}
@@ -192,6 +184,6 @@ export default function GauntletDiagnostics({ diagnostics, level }) {
       {/* The one-time reminder offer after a first session, in the page
           rather than floating over the buttons above. */}
       <NotificationOptIn inline />
-    </div>
+    </Page>
   );
 }

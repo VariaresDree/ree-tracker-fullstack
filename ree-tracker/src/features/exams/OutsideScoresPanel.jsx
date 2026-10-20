@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { outsideScorePercent, outsideScoreSummary, retestDelta } from '@ree/shared';
-import { Panel, Button, Modal, EmptyState, StatusPill, Sparkline, Skeleton } from '../../components/ui';
+import { Panel, Button, Grid, Modal, EmptyState, StatusPill, Sparkline, Skeleton } from '../../components/ui';
 import { ClipboardList, Plus, Pencil, Trash2, ShieldAlert, CloudOff, RotateCcw } from '../../components/ui/icons';
 import { useOutsideScores } from './useOutsideScores';
 import OutsideScoreForm from './OutsideScoreForm';
@@ -22,7 +22,7 @@ const fmtDate = (day) => new Date(`${day}T00:00:00+08:00`).toLocaleDateString('e
 
 function SubjectTile({ s }) {
   return (
-    <div className="rounded-xl border border-border bg-surface2/30 p-3.5 flex flex-col gap-1 min-w-0">
+    <div className="rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3.5 flex flex-col gap-1 min-w-0">
       <span className="text-eyebrow">{subjectLabel(s.subject)}</span>
       <span className="text-2xl text-display tabular-nums">{fmtPct(s.average)}</span>
       <span className="text-xs text-muted2">
@@ -44,10 +44,10 @@ function EntryRow({ entry, firstTry, onEdit, onDelete }) {
   // A retest often shares its first try's name: the date tells them apart.
   const name = `${entry.title}, ${fmtDate(entry.takenOn)}`;
   return (
-    <li className="rounded-xl border border-border bg-surface2/30 p-3.5 flex items-start gap-3">
+    <li className="rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3.5 flex items-start gap-3">
       <div className="min-w-0 flex-1 flex flex-col gap-1">
-        <h3 className="text-sm font-semibold text-textMain break-words">{entry.title}</h3>
-        <p className="text-xs text-muted2">
+        <h3 className="text-h3 text-textMain [overflow-wrap:anywhere]">{entry.title}</h3>
+        <p className="text-xs text-muted2 [overflow-wrap:anywhere]">
           {fmtDate(entry.takenOn)} · {subjectLabel(entry.subject)}{entry.source ? ` · ${entry.source}` : ''}
         </p>
         {firstTry && (
@@ -57,29 +57,19 @@ function EntryRow({ entry, firstTry, onEdit, onDelete }) {
             </StatusPill>
           </div>
         )}
-        {entry.note && <p className="text-xs text-muted line-clamp-2 break-words">{entry.note}</p>}
+        {entry.note && <p className="text-xs text-muted line-clamp-2 [overflow-wrap:anywhere]">{entry.note}</p>}
       </div>
       <div className="text-right shrink-0">
         <div className="text-base font-semibold tabular-nums text-textMain">{fmtPct(pct)}</div>
         <div className="text-xs text-muted2 tabular-nums">{entry.score}/{entry.total}</div>
       </div>
       <div className="flex flex-col sm:flex-row gap-1 shrink-0">
-        <button
-          type="button"
-          onClick={() => onEdit(entry)}
-          aria-label={`Edit ${name}`}
-          className="touch-target inline-flex items-center justify-center p-1.5 rounded-md text-muted hover:text-textMain hover:bg-surface2 transition-colors"
-        >
+        <Button type="button" size="icon" variant="ghost" onClick={() => onEdit(entry)} aria-label={`Edit ${name}`}>
           <Pencil size={15} strokeWidth={1.75} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(entry)}
-          aria-label={`Delete ${name}`}
-          className="touch-target inline-flex items-center justify-center p-1.5 rounded-md text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] transition-colors"
-        >
+        </Button>
+        <Button type="button" size="icon" variant="ghost" tone="danger" onClick={() => onDelete(entry)} aria-label={`Delete ${name}`}>
           <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        </Button>
       </div>
     </li>
   );
@@ -192,9 +182,9 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
             )}
           </p>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Grid kind="kpi" gap="sm">
             {usedSubjects.map((s) => <SubjectTile key={s.subject} s={s} />)}
-          </div>
+          </Grid>
 
           <ul className="flex flex-col gap-2" aria-label="Outside scores, newest first">
             {list.map((entry) => (

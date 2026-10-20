@@ -7,7 +7,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAiStatus, setAiStatus } from '../../../hooks/useAiStatus';
 import { probeAiModels } from '../../../services/geminiApi';
-import { Button, StatusPill, Skeleton, EmptyState } from '../../../components/ui';
+import { Button, SectionHeader, StatusPill, Skeleton, EmptyState } from '../../../components/ui';
 import { RefreshCw, Activity, Check, X } from '../../../components/ui/icons';
 
 const STATE = {
@@ -69,26 +69,23 @@ export default function AiStatusPanel() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:justify-between">
-        <div>
-          <h2 className="text-display text-2xl text-textMain tracking-tight">AI models</h2>
-          <p className="text-sm text-muted2 mt-1 max-w-2xl">
-            Each feature has its own chain of models. Learner features use fast open models; admin generation uses the most accurate one.
-            When a model fails or times out, the next one answers, and a failing model is skipped for a while.
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Button variant="secondary" size="sm" onClick={() => refresh()}>
-            <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" /> Refresh
-          </Button>
-          <Button size="sm" onClick={probe} loading={probing}>
-            <Activity size={14} strokeWidth={1.75} aria-hidden="true" /> Test all models
-          </Button>
-        </div>
-      </div>
+      <SectionHeader
+        title="AI models"
+        description="Each feature has its own chain of models. Learner features use fast open models; admin generation uses the most accurate one. When a model fails or times out, the next one answers, and a failing model is skipped for a while."
+        actions={(
+          <>
+            <Button variant="secondary" size="sm" onClick={() => refresh()}>
+              <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" /> Refresh
+            </Button>
+            <Button size="sm" onClick={probe} loading={probing}>
+              <Activity size={14} strokeWidth={1.75} aria-hidden="true" /> Test all models
+            </Button>
+          </>
+        )}
+      />
 
       <section aria-labelledby="ai-providers" className="flex flex-col gap-3">
-        <h3 id="ai-providers" className="text-base font-semibold text-textMain">Providers</h3>
+        <h3 id="ai-providers" className="text-h3 text-textMain">Providers</h3>
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {providers.map(([id, p]) => (
             <li key={id} className="bg-surface border border-border rounded-[var(--radius-lg)] p-4 flex items-start gap-3">
@@ -116,7 +113,7 @@ export default function AiStatusPanel() {
       </section>
 
       <section aria-labelledby="ai-features" className="flex flex-col gap-3">
-        <h3 id="ai-features" className="text-base font-semibold text-textMain">Features</h3>
+        <h3 id="ai-features" className="text-h3 text-textMain">Features</h3>
         <ul className="flex flex-col gap-3">
           {Object.entries(status.tasks).map(([id, t]) => (
             <li key={id} className="bg-surface border border-border rounded-[var(--radius-lg)] p-4 flex flex-col gap-3 min-w-0">
@@ -145,7 +142,7 @@ export default function AiStatusPanel() {
                     </span>
                     <span className="shrink-0"><Pill state={m.state} /></span>
                     {m.lastError && m.state !== 'ok' && (
-                      <span className="sm:basis-full text-[11px] [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>
+                      <span className="sm:basis-full text-micro [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>
                         Last failure: {ERROR_KIND[m.lastError.kind] || m.lastError.kind}{m.lastError.message ? ` (${m.lastError.message.slice(0, 140)})` : ''}
                       </span>
                     )}

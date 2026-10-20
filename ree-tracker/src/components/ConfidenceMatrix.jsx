@@ -19,7 +19,7 @@ function ConfidenceMatrix({ stats }) {
         {CELLS.map((c) => (
           <div
             key={c.key}
-            className="group relative p-4 sm:p-5 rounded-2xl border border-border bg-surface2/20 overflow-hidden transition-all duration-300 hover:bg-surface2/40"
+            className="group relative p-4 sm:p-5 rounded-[var(--radius-default)] border border-border bg-surface2/20 overflow-hidden transition-colors duration-300 hover:bg-surface2/40"
             style={{ borderColor: `color-mix(in srgb, ${c.color} 22%, var(--border-main))` }}
           >
             <div
@@ -45,7 +45,7 @@ function ConfidenceMatrix({ stats }) {
                 <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: c.color }}>
                   {c.label}
                 </span>
-                <span className="text-[11px] text-muted mt-0.5">{c.sub}</span>
+                <span className="text-micro text-muted mt-0.5">{c.sub}</span>
               </div>
               <div
                 className="text-4xl sm:text-5xl text-display tabular-nums shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5"
@@ -58,7 +58,7 @@ function ConfidenceMatrix({ stats }) {
         ))}
       </div>
 
-      <div className="bg-surface2/30 p-4 rounded-xl border border-border flex items-start gap-2.5">
+      <div className="bg-surface2/30 p-4 rounded-[var(--radius-default)] border border-border flex items-start gap-2.5">
         <CircleAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: 'var(--accent-danger)' }} />
         <p className="text-[0.7rem] text-muted2 leading-relaxed">
           <strong className="text-textMain font-semibold">Blind spots</strong> (high confidence, wrong) hurt your

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import FocusTrap from '../FocusTrap';
 import { Card, CardFooter } from './Card';
 import { Button } from './Button';
+import { IconChip } from './IconChip';
 import { X } from './icons';
 import { cn } from './cn';
 
@@ -53,6 +54,8 @@ const TONE_VAR = {
   danger: 'var(--accent-danger)',
   amber: 'var(--color-reeAmber-text)',
 };
+// The header icon's chip (IconChip's tones), one per dialog tone.
+const TONE_CHIP = { default: 'accent', danger: 'danger', amber: 'amber' };
 
 export function Modal({
   open,
@@ -121,17 +124,7 @@ export function Modal({
             style={{ '--modal-accent': accent }}
           >
             <div className="px-5 pt-5 pb-3 flex items-start gap-3 shrink-0">
-              {Icon && (
-                <span
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] shrink-0"
-                  style={{
-                    background: 'color-mix(in srgb, var(--modal-accent) 14%, transparent)',
-                    color: 'var(--modal-accent)',
-                  }}
-                >
-                  <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
-                </span>
-              )}
+              {Icon && <IconChip icon={Icon} size="sm" tone={TONE_CHIP[tone] || TONE_CHIP.default} />}
               <div className="flex-1 min-w-0">
                 {eyebrow && <p className="text-eyebrow mb-0.5">{eyebrow}</p>}
                 {title && (

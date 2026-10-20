@@ -28,7 +28,7 @@ import ExamClock from '../components/exam/ExamClock';
 import PomodoroOwner from '../components/PomodoroOwner';
 import PaceIndicator from '../components/exam/PaceIndicator';
 import { getGauntletTier } from '../config/examStandards';
-import { Button, Modal, EmptyState, Badge, StatusPill } from '../components/ui';
+import { Button, Modal, EmptyState, Badge, StatusPill, Page, QuestionSurface, StickyToolbar } from '../components/ui';
 import { TriangleAlert, Flag, Bookmark, WifiOff } from '../components/ui/icons';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
@@ -37,10 +37,12 @@ const BACK_TO_GAUNTLET = '/exams?tab=gauntlet';
 function Waiting({ label }) {
   return (
     <MainLayout>
-      <div role="status" className="flex flex-col items-center justify-center h-[70vh] gap-4 page-fade-in text-[var(--accent-text)]">
-        <span className="telemetry-spinner !w-12 !h-12 border-t-transparent" aria-hidden="true"></span>
-        <span className="text-sm font-semibold">{label}</span>
-      </div>
+      <Page>
+        <div role="status" className="flex flex-col items-center justify-center h-[70vh] gap-4 text-[var(--accent-text)]">
+          <span className="telemetry-spinner !w-12 !h-12 border-t-transparent" aria-hidden="true"></span>
+          <span className="text-sm font-semibold">{label}</span>
+        </div>
+      </Page>
     </MainLayout>
   );
 }
@@ -48,9 +50,9 @@ function Waiting({ label }) {
 function Notice({ icon, title, description, action }) {
   return (
     <MainLayout>
-      <div className="flex items-center justify-center min-h-[70vh] page-fade-in px-4">
+      <Page width="narrow" className="min-h-[70vh] justify-center">
         <EmptyState titleAs="h1" icon={icon} title={title} description={description} action={action} />
-      </div>
+      </Page>
     </MainLayout>
   );
 }
@@ -228,17 +230,17 @@ export default function Gauntlet() {
         </p>
       </Modal>
 
-      <div className="flex flex-col gap-4 pb-8">
+      <Page>
         {/* Toolbar. Two rows on phones (leave + clock, then level, count,
             pace and Submit), one row from md. */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-[var(--sticky-top,calc(max(0.5rem,env(safe-area-inset-top))+2.25rem))] z-50">
-          <div className="flex items-center justify-between gap-3">
+        <StickyToolbar>
+          <div className="flex w-full md:w-auto items-center justify-between gap-3">
             <Button variant="ghost" tone="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
               Leave
             </Button>
             <div className="md:hidden">{clock}</div>
           </div>
-          <div className="flex flex-wrap items-center justify-between md:justify-end gap-2 sm:gap-3">
+          <div className="flex w-full md:w-auto flex-wrap items-center justify-between md:justify-end gap-2 sm:gap-3">
             <Badge tone="velocity">Level {level}</Badge>
             <StatusPill tone="success" className="tabular-nums">
               {answeredCount}/{questions.length} answered
@@ -257,7 +259,7 @@ export default function Gauntlet() {
               Submit exam
             </Button>
           </div>
-        </div>
+        </StickyToolbar>
 
         <ExamNavigator
           count={questions.length}
@@ -267,7 +269,7 @@ export default function Gauntlet() {
           sheet={{ letterOf }}
         />
 
-        <div className="bg-surface border border-border2 rounded-[var(--radius-lg)] p-6 md:p-8 min-h-[420px] flex flex-col relative shadow-md">
+        <QuestionSurface className="min-h-[420px]">
           <QuestionCard
             question={currentQ}
             selectedOption={answers[currentIndex] ?? null}
@@ -281,9 +283,9 @@ export default function Gauntlet() {
             onConfidenceChange={(lvl) => handleConfidence?.(currentIndex, lvl)}
             headerSlot={itemActions}
           />
-        </div>
+        </QuestionSurface>
 
-        <div className="flex justify-between items-center gap-3">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <Button variant="secondary" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
             Previous
           </Button>
@@ -297,7 +299,7 @@ export default function Gauntlet() {
             </Button>
           )}
         </div>
-      </div>
+      </Page>
     </ExamLayout>
   );
 }

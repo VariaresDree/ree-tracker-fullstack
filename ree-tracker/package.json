@@ -8,6 +8,8 @@
     "build": "vite build",
     "check:bundle": "node scripts/check-eager-bundle.cjs",
     "check:sw": "node scripts/check-sw-routes.cjs",
+    "brand:fidelity": "node scripts/brand/logo-fidelity.mjs",
+    "brand:icons": "node scripts/brand/build-icons.mjs",
     "lint": "eslint .",
     "lint:ratchet": "node scripts/lintRatchet.mjs",
     "preview": "vite preview",

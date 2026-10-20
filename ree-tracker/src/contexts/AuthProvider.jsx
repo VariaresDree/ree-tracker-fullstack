@@ -25,6 +25,7 @@ import { claimApiCacheFor, purgeApiCache } from '../services/apiCache';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
 import { Button } from '../components/ui/Button';
+import { Logo } from '../components/ui/Logo';
 import { WifiOff } from '../components/ui/icons';
 import BootSequence from '../components/BootSequence';
 import { AuthContext } from './AuthContext';
@@ -283,8 +284,9 @@ export const AuthProvider = ({ children }) => {
         // NOT the same as "logged out". A weak connection must never eject an
         // authenticated user to the Login form; it gets a reconnecting state
         // it can retry from instead.
-        <div className="flex flex-col justify-center items-center h-screen bg-bg text-textMain gap-4 px-6 text-center">
-          <WifiOff size={32} strokeWidth={1.75} className="text-muted2" aria-hidden="true" />
+        <div className="flex flex-col justify-center items-center h-screen text-textMain gap-4 px-6 text-center">
+          <Logo decorative size={48} />
+          <WifiOff size={24} strokeWidth={1.75} className="text-muted2" aria-hidden="true" />
           <div className="flex flex-col gap-1">
             <p className="font-semibold tracking-tight">Still trying to reach your session…</p>
             <p className="text-sm text-muted2 max-w-xs">

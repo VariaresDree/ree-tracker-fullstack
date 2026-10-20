@@ -85,7 +85,7 @@ export default function ExamClock({
             </Button>
             <div
                 data-testid="exam-clock"
-                className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-widest px-4 py-1 rounded-[var(--radius-default)] border transition-all duration-300 ${!showTime ? 'blur-sm opacity-20' : ''} ${critical ? 'animate-pulse' : 'bg-surface/50 text-textMain border-border2/60 shadow-inner'}`}
+                className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-widest px-4 py-1 rounded-[var(--radius-default)] border transition-[filter,opacity,color,background-color,border-color] duration-300 ${!showTime ? 'blur-sm opacity-20' : ''} ${critical ? 'animate-pulse' : 'bg-surface/50 text-textMain border-border2/60 shadow-inner'}`}
                 style={critical ? {
                     color: 'var(--accent-danger)',
                     background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)',

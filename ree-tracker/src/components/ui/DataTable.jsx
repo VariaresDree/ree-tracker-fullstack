@@ -71,7 +71,7 @@ export function DataTable({
               <th
                 key={col.key}
                 className={cn(
-                  'py-2.5 px-3 text-[11px] font-mono uppercase tracking-[0.14em] text-muted font-medium',
+                  'py-2.5 px-3 text-micro font-mono uppercase tracking-[0.14em] text-muted font-medium',
                   alignCls(col.align)
                 )}
                 aria-sort={sort?.key === col.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
@@ -136,7 +136,7 @@ export function DataTable({
           >
             {columns.map((col) => (
               <div key={col.key} className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-mono uppercase tracking-wider text-muted shrink-0">{col.label}</span>
+                <span className="text-micro font-mono uppercase tracking-wider text-muted shrink-0">{col.label}</span>
                 <span className="text-sm text-textMain text-right tabular-nums min-w-0 truncate">
                   {col.render ? col.render(r) : r[col.key]}
                 </span>

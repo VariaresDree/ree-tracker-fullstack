@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { fetchLeaderboardMe } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Card, Skeleton } from '../../components/ui';
+import { Card, IconChip, Skeleton } from '../../components/ui';
 import { Trophy } from '../../components/ui/icons';
 
 export default function YourRankCard({ listRank = null }) {
@@ -49,10 +49,8 @@ export default function YourRankCard({ listRank = null }) {
   }
 
   return (
-    <Card elevated className="p-5 flex items-center gap-4">
-      <span className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-full bg-surface2 border border-border" aria-hidden="true">
-        <Trophy size={20} strokeWidth={1.75} style={{ color: 'var(--color-reeAmber-text)' }} />
-      </span>
+    <Card elevated padding="md" className="flex items-center gap-4">
+      <IconChip icon={Trophy} tone="amber" size="lg" round />
       <div className="min-w-0 flex flex-col gap-1">
         <h2 className="text-eyebrow">Your rank</h2>
         {body}

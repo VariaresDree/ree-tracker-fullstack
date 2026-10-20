@@ -16,7 +16,7 @@ import ExamLayout from '../layouts/ExamLayout';
 import PomodoroOwner from '../components/PomodoroOwner';
 import QuestionCard from '../features/quiz/QuestionCard';
 import { presentOptions } from '../features/quiz/presentOptions';
-import { Button, Card, Badge, Page, PageHeader, ProgressIndicator, Skeleton, EmptyState } from '../components/ui';
+import { Badge, Button, Card, CardTitle, EmptyState, Grid, Page, PageHeader, ProgressIndicator, QuestionSurface, Skeleton } from '../components/ui';
 import { Compass, ArrowRight } from '../components/ui/icons';
 import { fetchDiagnosticStatus, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
@@ -106,7 +106,7 @@ export default function Diagnostic() {
       <ExamLayout shortMessage="Placement test" message="Placement test — answers are revealed at the end">
         <PomodoroOwner />
         <h1 className="sr-only">Placement test</h1>
-        <div className="flex flex-col gap-5">
+        <Page width="reading">
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between text-xs text-muted2">
               <span>Question {progress.answered + 1} of about {progress.total}</span>
@@ -114,7 +114,7 @@ export default function Diagnostic() {
             </div>
             <ProgressIndicator value={progress.answered} max={progress.total} ariaLabel="Placement test progress" size="sm" />
           </div>
-          <Card elevated className="p-6 sm:p-8">
+          <QuestionSurface>
             <QuestionCard
               // The choices in this sitting's order (keyed by its session id),
               // so the key isn't wherever it was stored.
@@ -128,14 +128,14 @@ export default function Diagnostic() {
               onSelect={setSelected}
               onConfidenceChange={setConfidence}
             />
-          </Card>
-          <div className="flex justify-between items-center gap-3">
+          </QuestionSurface>
+          <div className="flex flex-wrap justify-between items-center gap-3">
             <Button variant="ghost" onClick={() => navigate('/')}>Save and exit</Button>
             <Button size="lg" onClick={submit} disabled={!selected} loading={submitting}>
               Submit answer <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
             </Button>
           </div>
-        </div>
+        </Page>
       </ExamLayout>
     );
   }
@@ -164,7 +164,7 @@ export default function Diagnostic() {
         )}
 
         {phase === 'intro' && (
-          <Card elevated className="p-6 sm:p-8 flex flex-col gap-5">
+          <Card elevated padding="lg" className="flex flex-col gap-4">
             <ul className="text-sm text-textMain flex flex-col gap-2 list-disc pl-5">
               <li>About 19 questions across Mathematics, ESAS and EE, chosen to match your level as you go.</li>
               <li>No feedback until the end — answer as you would on the board, and say how sure you are.</li>
@@ -219,9 +219,10 @@ function PlacementResult({ result, sessionId }) {
   const subjects = result.subjects || {};
   const plan = startingPlan(result);
   const start = startButton(plan);
+  // A fragment: the result's sections sit straight in the page, at its gap.
   return (
-    <div className="flex flex-col gap-5">
-      <Card elevated glow className="p-6 sm:p-8 flex flex-col gap-2">
+    <>
+      <Card elevated glow padding="lg" className="flex flex-col gap-2">
         <span className="text-eyebrow">Projected general weighted average</span>
         <span className="text-display text-5xl text-textMain tabular-nums">{Number(gwa || 0).toFixed(1)}%</span>
         <p className="text-sm text-muted2">
@@ -230,13 +231,13 @@ function PlacementResult({ result, sessionId }) {
         </p>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <Grid kind="tiles">
         {SUBJECTS.filter((s) => subjects[s]).map((s) => {
           const r = subjects[s];
           return (
-            <Card key={s} elevated className="p-5 flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-textMain font-semibold">{toDisplaySubject(s)}</h2>
+            <Card key={s} elevated padding="md" className="flex flex-col gap-2 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="min-w-0">{toDisplaySubject(s)}</CardTitle>
                 <Badge tone={BAND_TONE[r.band]}>{BAND_LABEL[r.band]}</Badge>
               </div>
               <span className="text-display text-3xl tabular-nums text-textMain">{Math.round(r.expected)}%</span>
@@ -244,14 +245,14 @@ function PlacementResult({ result, sessionId }) {
             </Card>
           );
         })}
-      </div>
+      </Grid>
 
       <ModeGuide start={plan.mode} note={plan.note} />
 
       {/* The exam date and daily target, asked here once instead of a silent
           default, with the study plan the placement prompt promised. */}
-      <Card elevated className="p-5 sm:p-6 flex flex-col gap-3">
-        <h2 className="text-base font-semibold text-textMain">Your exam plan</h2>
+      <Card elevated padding="md" className="flex flex-col gap-3">
+        <CardTitle>Your exam plan</CardTitle>
         <p className="text-sm text-muted2">Your exam date sets the countdown and the study plan. You can change both in Account any time.</p>
         <ExamPlanForm offerPlan />
       </Card>
@@ -275,6 +276,6 @@ function PlacementResult({ result, sessionId }) {
           Start a targeted drill
         </Button>
       </div>
-    </div>
+    </>
   );
 }

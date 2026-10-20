@@ -139,17 +139,17 @@ export default function Scratchpad({ isOpen, onClose }) {
       // the screen, and the canvas sized itself to all of it); over the
       // question area from md up. See-through either way: the learner
       // writes over the question they're solving.
-      className="fixed inset-x-0 bottom-0 h-[85dvh] z-[70] md:absolute md:inset-0 md:h-auto md:z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-t-xl md:rounded-xl overflow-hidden flex flex-col page-fade-in"
+      className="fixed inset-x-0 bottom-0 h-[85dvh] z-[70] md:absolute md:inset-0 md:h-auto md:z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-t-[var(--radius-lg)] md:rounded-[var(--radius-lg)] overflow-hidden flex flex-col page-fade-in"
     >
       <div className="flex justify-between items-center p-2 bg-bg/90 border-b border-border2 pointer-events-auto">
         <span className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-signal)' }}>
           Scratchpad
         </span>
         <div className="flex gap-2">
-          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-colors shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
+          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-micro font-bold uppercase transition-colors shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Clear
           </button>
-          <button onClick={onClose} className="px-3 py-1 bg-[color-mix(in_srgb,var(--accent-danger)_88%,black)] hover:brightness-110 text-[var(--on-danger)] rounded-[var(--radius-sm)] text-[11px] font-bold uppercase transition-all shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
+          <button onClick={onClose} className="px-3 py-1 bg-[color-mix(in_srgb,var(--accent-danger)_88%,black)] hover:brightness-110 text-[var(--on-danger)] rounded-[var(--radius-sm)] text-micro font-bold uppercase transition-[filter] shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
             Close
           </button>
         </div>

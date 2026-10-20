@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { MotionConfig, motion } from 'motion/react';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Button, Skeleton } from '../../components/ui';
 import { ArrowRight } from '../../components/ui/icons';
 import { useForecast } from '../../hooks/useForecast';
@@ -91,29 +91,31 @@ export function PrescriptionPanel({ onAction }) {
   const weak = snapshot?.weakTopics ?? [];
 
   return (
-    <Card elevated>
-      <CardHeader>
-        <div>
-          <CardEyebrow>Recommended fixes</CardEyebrow>
-          <CardTitle>Three actions to close your widest gaps</CardTitle>
-        </div>
-        {weak[0] && <Badge tone="danger">Weak: {weak[0].topic}</Badge>}
-      </CardHeader>
+    <MotionConfig reducedMotion="user">
+      <Card elevated>
+        <CardHeader>
+          <div>
+            <CardEyebrow>Recommended fixes</CardEyebrow>
+            <CardTitle>Three actions to close your widest gaps</CardTitle>
+          </div>
+          {weak[0] && <Badge tone="danger">Weak: {weak[0].topic}</Badge>}
+        </CardHeader>
 
-      <CardBody className="space-y-3">
-        {actions.length === 0 ? (
-          <p className="text-muted2 text-sm">
-            {ABOUT_PRESCRIPTION} Answer a few questions and they appear here.
-          </p>
-        ) : (
-          actions.map((a, i) => (
-            <motion.div key={i} {...rowEnter(i)}>
-              <PrescriptionRow action={a} onAction={onAction} />
-            </motion.div>
-          ))
-        )}
-      </CardBody>
-    </Card>
+        <CardBody className="space-y-3">
+          {actions.length === 0 ? (
+            <p className="text-muted2 text-sm">
+              {ABOUT_PRESCRIPTION} Answer a few questions and they appear here.
+            </p>
+          ) : (
+            actions.map((a, i) => (
+              <motion.div key={i} {...rowEnter(i)}>
+                <PrescriptionRow action={a} onAction={onAction} />
+              </motion.div>
+            ))
+          )}
+        </CardBody>
+      </Card>
+    </MotionConfig>
   );
 }
 

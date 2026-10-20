@@ -12,7 +12,7 @@
 // "try another file" message rather than the boundary's generic crash UI.
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../../components/ui';
+import { Button, Card, IconChip } from '../../components/ui';
 import { FileText, Play, Trash2, Clock, CircleAlert, CheckCircle2 } from '../../components/ui/icons';
 import QuizFilePicker from './QuizFilePicker';
 import { parseCaqArchive } from './caqParser';
@@ -52,8 +52,10 @@ export default function QuizLauncherTab() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-display text-2xl text-textMain tracking-tight">Imported quizzes</h2>
-        <p className="text-sm text-muted2 mt-1">
+        {/* The tab already says "Imported quizzes"; the heading stays for
+            screen readers' heading list. */}
+        <h2 className="sr-only">Imported quizzes</h2>
+        <p className="text-sm text-muted2">
           Load your own quiz files and take them as a timed practice exam. They stay on this device
           and work offline.
         </p>
@@ -65,10 +67,8 @@ export default function QuizLauncherTab() {
         <div className="flex flex-col gap-2">
           <p className="text-eyebrow">Loaded files</p>
           {entries.map((entry) => (
-            <div key={entry.id} className="flex items-center gap-3 bg-surface border border-border rounded-[var(--radius-lg)] p-4">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-default)] shrink-0 bg-surface2 text-muted2">
-                <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
-              </span>
+            <Card key={entry.id} padding="sm" className="flex items-center gap-3">
+              <IconChip icon={FileText} tone="muted" size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-textMain truncate" title={entry.fileName}>{entry.fileName}</p>
                 {entry.status === 'parsing' && (
@@ -82,7 +82,7 @@ export default function QuizLauncherTab() {
                   </p>
                 )}
                 {entry.status === 'error' && (
-                  <p className="text-xs flex items-center gap-1.5" style={{ color: 'var(--accent-danger)' }}>
+                  <p className="text-xs flex items-center gap-1.5 [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>
                     <CircleAlert size={12} strokeWidth={1.75} aria-hidden="true" /> {entry.error}
                   </p>
                 )}
@@ -97,7 +97,7 @@ export default function QuizLauncherTab() {
                   <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
                 </Button>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}

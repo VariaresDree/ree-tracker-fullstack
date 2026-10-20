@@ -1,7 +1,8 @@
 // src/features/analytics/sections/StudyTime.jsx
 // Daily study time over the last 14 Manila days (deep/study-time).
+import { Grid, KpiTile } from '../../../components/ui';
 import { useDeepAnalytics } from '../useDeepAnalytics';
-import { BarList, DeepStatus, SectionCard, StatTile } from './shared';
+import { BarList, DeepStatus, SectionCard } from './shared';
 import { formatDuration as fmtDuration } from '../../../utils/time';
 
 // 'YYYY-MM-DD' (Manila-keyed by the server) → 'Jul 3' without a timezone
@@ -43,11 +44,11 @@ export default function StudyTime() {
           <p className="text-sm text-muted2">Finish a practice session or a mock board to start tracking study time.</p>
         ) : (
           <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <StatTile label="Active days (last 14)" value={`${activeDays} / 14`} color="var(--accent-text)" />
-              <StatTile label="Time (last 14 days)" value={fmtDuration(windowSecs)} sub={`All time: ${Math.round(allSecs / 3600)}h`} color="var(--accent-success)" />
-              <StatTile label="Average per active day" value={activeDays > 0 ? `${Math.round(windowSecs / 60 / activeDays)}min` : '—'} color="var(--color-reeCyan-text)" />
-            </div>
+            <Grid kind="tiles" gap="sm">
+              <KpiTile compact label="Active days (last 14)" value={`${activeDays} / 14`} />
+              <KpiTile compact label="Time (last 14 days)" value={fmtDuration(windowSecs)} hint={`All time: ${Math.round(allSecs / 3600)}h`} />
+              <KpiTile compact label="Average per active day" value={activeDays > 0 ? `${Math.round(windowSecs / 60 / activeDays)}min` : '—'} />
+            </Grid>
             <div className="flex flex-col gap-2">
               <h3 className="text-eyebrow">Minutes per day, last 14 days</h3>
               {/* All 14 days. The list's 12-row default cut the two newest — today

@@ -14,7 +14,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { VERDICT, GENERAL_AVERAGE, SUBJECT_FLOOR } from '@ree/shared';
 import LatexRenderer from '../../components/LatexRenderer';
 import NotificationOptIn from '../../components/NotificationOptIn';
-import { Badge, Button, Card, EmptyState, ProgressIndicator, StatusPill } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, Grid, KpiTile, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
 import { Shield, TriangleAlert, ClipboardList, Clock, Play } from '../../components/ui/icons';
 import PacingPanel from '../exams/PacingPanel';
 import { formatDuration, formatTimeOfDay } from '../../utils/time';
@@ -46,6 +46,11 @@ function useIsPast(at) {
 // `headingLevel`: 1 on its own; 2 under the full-board result, which has the
 // h1. The sections (By subject, Pacing, Weak topics, Blind spots) sit one
 // level below the title: they were fixed h2s, level with "Last section".
+// At level 1 the title is the screen's PageHeader (never an h1 inside a
+// card); at level 2 it is the hero card's eyebrow heading.
+//
+// The screen renders into BoardSimulator's <Page>, which owns the frame: the
+// results sit above their item review there (SimulatorActive), on one page.
 export default function SimulatorDiagnostics({ session, engine, isBattle = false, onExit, headingLevel = 1, submitPending = false, onCheckResults }) {
   const Heading = `h${headingLevel}`;
   const Section = `h${headingLevel + 1}`;
@@ -67,13 +72,14 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full page-fade-in">
-      <Card elevated className="p-6 sm:p-8 flex flex-col gap-5">
+    <>
+      {headingLevel === 1 && <PageHeader title={title} />}
+      <Card elevated padding="lg" className="flex flex-col gap-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Heading className="text-eyebrow">{title}</Heading>
+          <div className="min-w-0">
+            {headingLevel > 1 && <Heading className="text-eyebrow mb-2">{title}</Heading>}
             {pending ? (
-              <div className="mt-2 flex flex-col gap-2" role="status">
+              <div className="flex flex-col gap-2" role="status">
                 <p className="text-display text-3xl text-textMain">Waiting for the other players</p>
                 <p className="text-sm text-muted2">Your answers are locked in. Scores, the answer key and the review open when everyone has finished or the time runs out.</p>
                 {resultsBy && !resultsDue && (
@@ -86,7 +92,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
               </div>
             ) : (
               <>
-                <p className="text-display text-6xl sm:text-7xl tabular-nums mt-2" style={{ color: TONE_COLOR[tone] || 'var(--text-main)' }}>
+                <p className="text-display text-6xl sm:text-7xl tabular-nums" style={{ color: TONE_COLOR[tone] || 'var(--text-main)' }}>
                   {hasGwa ? diagnostics.generalAverage.toFixed(1) : diagnostics.score}%
                 </p>
                 <p className="text-sm text-muted2 mt-1">
@@ -98,24 +104,12 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
           {!pending && diagnostics.verdict && <Badge tone={tone}>{diagnostics.verdict}</Badge>}
         </div>
 
-        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
-            <dt className="text-eyebrow">Correct</dt>
-            <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{pending ? '—' : `${diagnostics.correctItems} / ${diagnostics.totalItems}`}</dd>
-          </div>
-          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
-            <dt className="text-eyebrow">Raw score</dt>
-            <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{pending || diagnostics.score == null ? '—' : `${diagnostics.score}%`}</dd>
-          </div>
-          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
-            <dt className="text-eyebrow">Left blank</dt>
-            <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{diagnostics.unansweredItems ?? '—'}</dd>
-          </div>
-          <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3">
-            <dt className="text-eyebrow">Time used</dt>
-            <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{formatDuration(diagnostics.timeTakenSecs)}</dd>
-          </div>
-        </dl>
+        <Grid kind="kpi" gap="sm">
+          <KpiTile compact label="Correct" value={pending ? '—' : `${diagnostics.correctItems} / ${diagnostics.totalItems}`} />
+          <KpiTile compact label="Raw score" value={pending || diagnostics.score == null ? '—' : `${diagnostics.score}%`} />
+          <KpiTile compact label="Left blank" value={diagnostics.unansweredItems ?? '—'} />
+          <KpiTile compact label="Time used" value={formatDuration(diagnostics.timeTakenSecs)} />
+        </Grid>
 
         <div className="flex flex-wrap gap-3">
           {diagnostics.sessionId && !pending && (
@@ -134,15 +128,15 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
 
       {!pending && (
         <>
-          <Card className="p-5 sm:p-6">
-            <Section className="text-base font-semibold text-textMain mb-4">By subject</Section>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card padding="md" className="flex flex-col gap-4">
+            <Section className="text-base font-semibold text-textMain">By subject</Section>
+            <Grid kind="tiles">
               {SUBJECTS.map(({ key, label }) => {
                 const pct = diagnostics.subjectScores?.[key];
                 const rated = pct !== null && pct !== undefined;
                 return (
-                  <div key={key} className="flex flex-col gap-2">
-                    <div className="flex justify-between text-sm">
+                  <div key={key} className="flex flex-col gap-2 min-w-0">
+                    <div className="flex flex-wrap justify-between gap-x-2 text-sm">
                       <span className="text-textMain font-medium">{label}</span>
                       <span className="tabular-nums text-textMain">{rated ? `${pct}%` : 'Not asked'}</span>
                     </div>
@@ -151,15 +145,15 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
                   </div>
                 );
               })}
-            </div>
+            </Grid>
           </Card>
 
           {diagnostics.pacingItems?.length > 0 && <PacingPanel items={diagnostics.pacingItems} headingLevel={headingLevel + 1} />}
 
-          <Card className="p-5 sm:p-6 flex flex-col gap-4">
+          <Card padding="md" className="flex flex-col gap-4">
             <div className="flex items-start gap-3">
               <TriangleAlert size={18} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: 'var(--accent-danger)' }} />
-              <div>
+              <div className="min-w-0">
                 <Section className="text-base font-semibold text-textMain">Weak topics</Section>
                 <p className="text-sm text-muted2">Topics under 60% in this sitting. Drill one to work on it.</p>
               </div>
@@ -180,7 +174,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
             )}
           </Card>
 
-          <Card className="p-5 sm:p-6 flex flex-col gap-4" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 35%, transparent)' }}>
+          <Card padding="md" className="flex flex-col gap-4" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 35%, transparent)' }}>
             <div>
               <Section className="text-base font-semibold text-textMain flex items-center gap-2">
                 Blind spots <Badge tone="danger">{diagnostics.blindSpots?.length || 0}</Badge>
@@ -190,20 +184,20 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
             {diagnostics.blindSpots?.length > 0 ? (
               <ul className="flex flex-col gap-4">
                 {diagnostics.blindSpots.map((q, i) => (
-                  <li key={q.id || i} className="p-4 sm:p-5 rounded-[var(--radius-lg)] bg-surface2 border border-border flex flex-col gap-4">
-                    <div className="text-sm sm:text-base text-textMain [&_p]:!m-0 overflow-x-auto custom-scrollbar">
+                  <li key={q.id || i} className="p-4 rounded-[var(--radius-default)] bg-surface2 border border-border flex flex-col gap-3 min-w-0">
+                    <div className="text-sm sm:text-base text-textMain [&_p]:!m-0 overflow-x-auto custom-scrollbar [overflow-wrap:anywhere]">
                       <LatexRenderer content={q.text || q.question} />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}>
+                    <Grid kind="pair" gap="sm">
+                      <div className="p-3 rounded-[var(--radius-default)] border min-w-0" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 40%, transparent)' }}>
                         <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-danger)' }}>Your answer</span>
-                        <div className="text-sm text-textMain line-through [&_p]:!m-0 overflow-x-auto"><LatexRenderer content={q.userAnswer || 'No answer'} /></div>
+                        <div className="text-sm text-textMain line-through [&_p]:!m-0 overflow-x-auto [overflow-wrap:anywhere]"><LatexRenderer content={q.userAnswer || 'No answer'} /></div>
                       </div>
-                      <div className="p-3 rounded-[var(--radius-default)] border" style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}>
+                      <div className="p-3 rounded-[var(--radius-default)] border min-w-0" style={{ borderColor: 'color-mix(in srgb, var(--accent-success) 40%, transparent)' }}>
                         <span className="text-eyebrow block mb-1" style={{ color: 'var(--accent-success)' }}>Correct answer</span>
-                        <div className="text-sm font-semibold text-textMain [&_p]:!m-0 overflow-x-auto"><LatexRenderer content={q.answer} /></div>
+                        <div className="text-sm font-semibold text-textMain [&_p]:!m-0 overflow-x-auto [overflow-wrap:anywhere]"><LatexRenderer content={q.answer} /></div>
                       </div>
-                    </div>
+                    </Grid>
                   </li>
                 ))}
               </ul>
@@ -219,6 +213,6 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }

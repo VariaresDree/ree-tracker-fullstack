@@ -11,6 +11,7 @@ import RouteFallback from './components/RouteFallback';
 import { TodaySkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
 import NotificationOptIn from './components/NotificationOptIn';
+import useMediaQuery from './hooks/useMediaQuery';
 import Login from './pages/Login';
 import LegacyRedirect from './routes/LegacyRedirect';
 import AdminRoute from './routes/AdminRoute';
@@ -56,7 +57,15 @@ const SecureAppTerminal = () => {
   // One toast host for both branches. It used to mount only inside the signed-in
   // app, so the login screen's messages ("a reset link is on its way") never
   // showed, and queued ones popped up after signing in.
-  const toaster = <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }} />;
+  // Toasts sit below the phone header (they covered it), centred on a phone.
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const toaster = (
+    <Toaster
+      position={isDesktop ? 'top-right' : 'top-center'}
+      containerStyle={{ top: 'calc(var(--phone-header-h, 0.5rem) + 0.5rem)' }}
+      toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }}
+    />
+  );
 
   if (!currentUser) return <>{toaster}<Login /></>;
 
