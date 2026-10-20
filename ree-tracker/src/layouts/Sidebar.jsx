@@ -15,7 +15,10 @@ import Avatar from '../components/Avatar';
 import LogoutConfirm from '../components/LogoutConfirm';
 import { PRIMARY_NAV, ADMIN_NAV, activeNavId } from './navModel';
 
-const ACTIVE = 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent-text)]';
+// The current page: an accent tint, the accent edge, and a soft glow (an
+// inner hairline and a faint outer bloom in the accent). The glow is a
+// shadow, so forced colours drop it and keep the edge.
+const ACTIVE = 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent-text)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_28%,transparent),0_0_18px_-6px_color-mix(in_srgb,var(--accent)_55%,transparent)]';
 const IDLE = 'border-l-transparent text-textMain hover:bg-surface2';
 
 function NavItem({ item, active, collapsed }) {
@@ -57,8 +60,10 @@ export default function Sidebar() {
 
   return (
     // The width snaps; the labels fade in. Animating `width` re-laid out the
-    // whole page on every frame for 300ms.
-    <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
+    // whole page on every frame for 300ms. Glass, like the page's cards: the
+    // theme's glow and pattern carry on behind it (solid wherever the cards
+    // are; index.css › GLASS SURFACES).
+    <aside className={cn('sticky top-0 h-screen shrink-0 surface-glass border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
       <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3')}>
         {collapsed ? (
           <Link to="/" aria-label="REE.ai home" className="inline-flex touch-target items-center justify-center">

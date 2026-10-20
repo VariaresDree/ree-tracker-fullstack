@@ -219,6 +219,7 @@ every feature add, change, or removal, not on a schedule.
     - The alpha is 88% on the light themes and 85% on the dark ones. Cyberpunk, Sakura and Math use 98%: their status and accent colours were already at the AA floor on a solid card.
     - The blur applies only where there's a fine pointer. On a phone, a dozen blurred cards scrolling over a fixed background cost frames, and the tint alone looks the same. `--bg-surface` stays a hex colour, so the theme parsers and the browser colour are untouched.
   - **Where:** every `Card` is glass by default, which covers Panel, KpiTile, the analytics section cards, Today's hero and the hub tabs' cards.
+  - **The sidebar** (`layouts/Sidebar.jsx`) is the same glass, so the theme's texture runs behind it instead of stopping at an opaque column. The current page keeps its accent tint and edge and gains a soft glow: an accent hairline inside and a faint bloom outside. It's a shadow, so forced colours drop it and keep the edge. `layoutGuards.test.js` keeps both.
   - **Solid instead:**
     - dialogs (`Modal`) and the question card (`QuestionSurface`), which pass `glass={false}`;
     - a card inside another card (no glass on glass);
