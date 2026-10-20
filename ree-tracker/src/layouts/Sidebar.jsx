@@ -9,7 +9,7 @@ import Pomodoro from '../components/Pomodoro';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { useUISlice } from '../store/slices';
-import { cn } from '../components/ui';
+import { cn, Logo } from '../components/ui';
 import { LogOut, PanelLeftClose, PanelLeftOpen, Timer } from '../components/ui/icons';
 import Avatar from '../components/Avatar';
 import LogoutConfirm from '../components/LogoutConfirm';
@@ -57,10 +57,14 @@ export default function Sidebar() {
 
   return (
     <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)] transition-[width] duration-300', collapsed ? 'w-20' : 'w-72')}>
-      <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'justify-center' : 'justify-between')}>
-        {!collapsed && (
-          <Link to="/" className="text-2xl font-bold tracking-tight text-[var(--accent-text)]">
-            REE<span className="text-textMain">.ai</span> Core
+      <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3')}>
+        {collapsed ? (
+          <Link to="/" aria-label="REE.ai home" className="inline-flex touch-target items-center justify-center">
+            <Logo decorative size={34} />
+          </Link>
+        ) : (
+          <Link to="/" className="min-w-0">
+            <Logo variant="lockup" size={36} wordmarkClassName="text-xl" />
           </Link>
         )}
         <button

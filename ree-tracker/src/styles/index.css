@@ -537,6 +537,12 @@
 }
 
 
+/* Native controls, scrollbars and form fields follow the theme's lightness.
+   Written with :is() so the theme parsers in the tests (a theme block is
+   [data-theme="x"] followed by its brace) don't read it as a theme. */
+html { color-scheme: dark; }
+html:is([data-theme="light"], [data-theme="paper"], [data-theme="sakura"]) { color-scheme: light; }
+
 @layer base {
   body {
     @apply bg-bg text-textMain font-sans antialiased transition-colors duration-300;

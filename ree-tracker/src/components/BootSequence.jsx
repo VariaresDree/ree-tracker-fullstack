@@ -16,7 +16,7 @@
 //            slow connection feels seen rather than hung
 //   > 25s    AuthContext swaps to its reconnect/retry screen (untouched)
 import { useEffect, useState } from 'react';
-import BrandMark from './BrandMark';
+import { Logo, Wordmark } from './ui/Logo';
 import { prefersReducedMotion } from '../motion/presets';
 
 // Shown only once the wait is long enough to be worth filling. Board-relevant
@@ -52,14 +52,14 @@ export default function BootSequence({ label = 'Preparing your session' }) {
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-bg text-textMain px-6 text-center">
-      <BrandMark size={76} />
+      <Logo animated size={76} />
 
       {/* Only the label is live: a screen reader is told the app is working.
           The whole screen used to be the live region, so every rotating tip
           was read out too, every few seconds. */}
       <div role="status" aria-live="polite" className="flex flex-col items-center gap-1.5">
-        <p className="text-xl font-bold tracking-tight text-[var(--accent-text)]">
-          REE<span className="text-textMain">.ai</span>
+        <p className="text-xl">
+          <Wordmark full={false} />
         </p>
         <p className="text-eyebrow">{label}</p>
       </div>

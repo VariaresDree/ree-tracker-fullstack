@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { DISPLAY_NAME_MAX } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
-import { Button, FormField, Input } from '../components/ui';
+import { Button, FormField, Input, Logo } from '../components/ui';
 import { Eye, EyeOff } from '../components/ui/icons';
 import toast from 'react-hot-toast';
 import { authErrorMessage } from '../utils/authErrors';
@@ -64,6 +64,7 @@ export default function Login() {
 
             <div className="w-full max-w-md p-8 bg-surface border border-border rounded-[var(--radius-xl)] elevate-3 relative z-10">
                 <div className="text-center mb-8">
+                    <Logo decorative size={76} className="mx-auto mb-4" />
                     <h1 className="text-display text-3xl text-textMain tracking-tight mb-2">
                         REE<span className="text-[var(--accent-text)]">.ai</span> Core
                     </h1>

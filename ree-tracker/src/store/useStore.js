@@ -12,6 +12,7 @@ import { TELEMETRY_BATCH_MAX } from '@ree/shared';
 import { dropLegacyLedger } from '../services/simulationLedger';
 import { clearUserCaches } from '../services/userCache';
 import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro } from '../utils/pomodoroLogic';
+import { applyTheme } from '../theme/applyAppearance';
 
 // Module-scope debounce handle for the per-answer event-driven sync.
 // Lives outside the store so multiple resets just call clearTimeout on the
@@ -766,11 +767,7 @@ export const useStore = create(
       theme: localStorage.getItem('ree-theme') || 'dark',
       setTheme: (newTheme) => {
         localStorage.setItem('ree-theme', newTheme);
-        if (newTheme === 'dark' || !newTheme) {
-          document.documentElement.removeAttribute('data-theme');
-        } else {
-          document.documentElement.setAttribute('data-theme', newTheme);
-        }
+        applyTheme(newTheme);
         set({ theme: newTheme });
       },
 

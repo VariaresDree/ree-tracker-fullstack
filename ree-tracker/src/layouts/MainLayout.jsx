@@ -15,6 +15,7 @@ import useMediaQuery from '../hooks/useMediaQuery';
 import Sidebar from './Sidebar';
 import PhoneHeader from './PhoneHeader';
 import BottomBar from './BottomBar';
+import { applyTheme } from '../theme/applyAppearance';
 
 export default function MainLayout({ children }) {
   // The theme alone: the UI slice also holds the sidebar's collapse, and the
@@ -25,12 +26,7 @@ export default function MainLayout({ children }) {
 
   // Enforce the global theming architecture on render/change.
   useEffect(() => {
-    const activeTheme = theme || localStorage.getItem('ree-theme') || 'dark';
-    if (activeTheme === 'dark') {
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', activeTheme);
-    }
+    applyTheme(theme || localStorage.getItem('ree-theme') || 'dark');
   }, [theme]);
 
   // A new page starts at its top — or at the section a link points to
