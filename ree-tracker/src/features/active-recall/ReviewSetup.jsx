@@ -280,7 +280,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
             {/* Sticky above the mobile bottom nav so the CTA never scrolls out
                 of reach on a tall form. The offset comes from the layout, so a
                 phone's home-indicator inset can't push it under the bar. */}
-            <div className={cn('sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+1.25rem)] md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
+            <div className={cn('sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+var(--fab-space,0px)+1.25rem)] md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
               <Button
                 size="lg"
                 fullWidth

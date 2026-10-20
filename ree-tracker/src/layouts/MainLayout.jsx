@@ -7,7 +7,7 @@
 //
 // Pages that switch between this and ExamLayout (Simulator, Gauntlet,
 // placement test) render it themselves; the rest get it from App's AppShell.
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import FloatingPomodoro from '../components/FloatingPomodoro';
@@ -79,6 +79,16 @@ export default function MainLayout({ children }) {
         '--sticky-top': 'calc(var(--phone-header-h) + 0.25rem)',
         '--bottom-bar-h': 'calc(3.6rem + env(safe-area-inset-bottom))',
       };
+  // The same offsets on <html>, for what renders outside this tree: toasts,
+  // the floating notification offer and dialogs. Before paint, so nothing
+  // lands under the chrome for a frame.
+  const offsetsKey = JSON.stringify(chromeOffsets);
+  useLayoutEffect(() => {
+    const root = document.documentElement.style;
+    const entries = Object.entries(JSON.parse(offsetsKey));
+    for (const [name, value] of entries) root.setProperty(name, value);
+    return () => { for (const [name] of entries) root.removeProperty(name); };
+  }, [offsetsKey]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row font-sans text-textMain relative" style={chromeOffsets}>
@@ -101,7 +111,7 @@ export default function MainLayout({ children }) {
         key={location.pathname}
         id="main-content"
         tabIndex={-1}
-        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem)] md:pb-8 overflow-x-clip relative page-fade-in outline-hidden"
+        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem+var(--fab-space,0px))] md:pb-[calc(2rem+var(--fab-space,0px))] overflow-x-clip relative page-fade-in outline-hidden"
       >
         {children}
       </main>

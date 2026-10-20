@@ -12,6 +12,19 @@
 /* Blurred, see-through chrome turns solid when the system asks for less transparency. */
 @custom-variant reduce-transparency (@media (prefers-reduced-transparency: reduce));
 
+/* Layers, bottom to top. Content and local popovers (chart tooltips, hints)
+   stay at z 0-10 inside their cards; the page textures sit behind it all.
+     30    page sticky toolbars (Practice, the Gauntlet, the simulator)
+     45    phone bottom bar
+     50    phone header and the exam banner (the account menu opens inside it,
+           so it must clear the toolbars: at 40 it opened under them)
+     60    the floating notification offer
+     70    the floating focus timer, the phone Scratchpad sheet
+     100   dialogs and the skip link
+     200+  full-screen viewers (materials, PDFs)
+   While the timer shows it sets --fab-space on <html>, and the page, the
+   notification offer and Practice's start bar keep that much clear of it. */
+
 /* A control that has to be hit with a finger: at least 44x44 CSS px on touch
    screens (WCAG 2.5.5 / Apple HIG), unchanged for a mouse. Pair it with
    inline-flex + centring so the content stays put as the box grows. */

@@ -231,7 +231,7 @@ export default function Gauntlet() {
       <div className="flex flex-col gap-4 pb-8">
         {/* Toolbar. Two rows on phones (leave + clock, then level, count,
             pace and Submit), one row from md. */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-[var(--sticky-top,calc(max(0.5rem,env(safe-area-inset-top))+2.25rem))] z-50">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-surface/90 backdrop-blur-xl border border-border2/60 px-4 py-3 rounded-[var(--radius-lg)] shadow-sm sticky top-[var(--sticky-top,calc(max(0.5rem,env(safe-area-inset-top))+2.25rem))] z-30">
           <div className="flex items-center justify-between gap-3">
             <Button variant="ghost" tone="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
               Leave

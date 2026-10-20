@@ -181,6 +181,24 @@ every feature add, change, or removal, not on a schedule.
     - The page wrappers no longer paint over the texture (the layout, login, boot, error and "still reaching your session" screens). Login's two blurred orbs are gone; the theme's glow replaces them.
     - The phone header is see-through and blurred like the bottom bar; both turn solid under reduced transparency.
     - Tab rows fade at a scrolled edge with a mask. A band painted in the page colour would have striped the texture.
+- [x] **Nothing covers anything on a phone** (`layouts/MainLayout.jsx`, `components/FloatingPomodoro.jsx`, `styles/index.css` › Layers): one z-index scale, written down in `index.css`:
+
+  | Layer | z |
+  |---|---|
+  | Page toolbars | 30 |
+  | Bottom bar | 45 |
+  | Phone header and exam banner | 50 |
+  | Notification offer | 60 |
+  | Focus timer | 70 |
+  | Dialogs | 100 |
+  | Full-screen viewers | 200+ |
+
+  - **The account menu** opens over the simulator's and the Gauntlet's sticky toolbars. The phone header sat at 40 and the toolbars at 50, so the menu opened under them.
+  - **The floating focus timer** no longer hides the end of a page. While it shows it sets `--fab-space`, and the page's bottom padding, the floating notification offer and Practice's sticky Start bar keep that much clear. The pill covered the last ~44 px of every page and sat on the Start button.
+  - **The notification offer** sits above the bottom bar and the timer, on desktop too. It collided with the pill.
+  - **Toasts** sit below the phone header, centred on a phone. They covered the header.
+  - **Account's sections** scroll into view below the header on notched phones. `scroll-mt` follows the header's real height, so a fixed 5 rem no longer hides the heading.
+  - The phone chrome's sizes (`--phone-header-h`, `--sticky-top`, `--bottom-bar-h`) are mirrored onto `<html>` while the layout is mounted, so toasts, the offer and dialogs, which render outside it, can use them.
 - [x] **Theme list and browser colour** (`src/theme/themes.js`, `src/theme/applyAppearance.js`) — one list of the 13 themes for the picker, the pre-paint script and the browser: the status bar / installed app's title bar now takes each theme's card colour (it stayed navy on every theme), set before first paint by `index.html` and on every change by `applyTheme`. Native controls and scrollbars follow the theme's lightness (`color-scheme`). `themeMeta.test.js` keeps the list, `index.css` and `index.html` in step.
 
 ## Exam & Practice Modes

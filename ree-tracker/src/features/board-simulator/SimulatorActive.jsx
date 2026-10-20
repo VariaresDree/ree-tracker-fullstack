@@ -143,7 +143,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
 
         {/* Toolbar: submit (always reachable) / answered count / pace / clock.
             Two rows on a phone so the answered count isn't the first thing hidden. */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center bg-surface/90 backdrop-blur-xl border border-border2/60 px-3 sm:px-4 py-2.5 rounded-[var(--radius-lg)] shadow-sm sticky top-[var(--sticky-top,calc(max(0.5rem,env(safe-area-inset-top))+2.25rem))] z-50">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center bg-surface/90 backdrop-blur-xl border border-border2/60 px-3 sm:px-4 py-2.5 rounded-[var(--radius-lg)] shadow-sm sticky top-[var(--sticky-top,calc(max(0.5rem,env(safe-area-inset-top))+2.25rem))] z-30">
           <div className="flex items-center justify-between gap-2">
             {!isReview ? (
               <Button tone="danger" size="sm" onClick={() => setShowSubmit(true)} disabled={isSubmitting}>

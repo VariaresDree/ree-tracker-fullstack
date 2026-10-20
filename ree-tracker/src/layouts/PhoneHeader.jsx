@@ -15,7 +15,7 @@ export default function PhoneHeader() {
   const [timerOpen, setTimerOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-[40] h-[var(--phone-header-h,auto)] bg-surface/95 backdrop-blur-md reduce-transparency:bg-surface reduce-transparency:backdrop-blur-none border-b border-border2 shadow-sm flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+    <header className="sticky top-0 z-[50] h-[var(--phone-header-h,auto)] bg-surface/95 backdrop-blur-md reduce-transparency:bg-surface reduce-transparency:backdrop-blur-none border-b border-border2 shadow-sm flex items-center justify-between gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
       <Link to="/" className="inline-flex items-center gap-2 pointer-coarse:min-h-11">
         <Logo decorative size={28} />
         <Wordmark full={false} className="text-lg" />

@@ -42,7 +42,7 @@ const SECTIONS = [
 
 function Section({ id, title, description, children }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-20">
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-[calc(var(--sticky-top,0.75rem)+0.75rem)]">
       <Card className="p-5 sm:p-6 flex flex-col gap-4">
         <div>
           <h2 id={`${id}-title`} className="text-lg font-semibold text-textMain">{title}</h2>

@@ -102,7 +102,7 @@ export default function NotificationOptIn({ inline = false }) {
   return (
     <div className={inline
       ? 'animate-in fade-in'
-      : 'fixed z-[60] left-4 right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] md:left-auto md:right-6 md:bottom-6 md:max-w-sm animate-in fade-in slide-in-from-bottom-4'}
+      : 'fixed z-[60] left-4 right-4 bottom-[calc(var(--bottom-bar-h,0px)+var(--fab-space,0px)+0.75rem)] md:left-auto md:right-6 md:bottom-[calc(1.5rem+var(--fab-space,0px))] md:max-w-sm animate-in fade-in slide-in-from-bottom-4'}
     >
       <div className="bg-surface border border-border2 rounded-[var(--radius-lg)] elevate-3 p-4">
         <div className="flex items-start gap-3">

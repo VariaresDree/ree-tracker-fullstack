@@ -166,4 +166,24 @@ describe('sticky offsets', () => {
         expect(container.firstChild.style.getPropertyValue('--sticky-top')).toBe('0.75rem');
         expect(container.firstChild.style.getPropertyValue('--bottom-bar-h')).toBe('0px');
     });
+
+    it('are on <html> too, for toasts, the notification offer and dialogs, and leave with the layout', () => {
+        const { container, unmount } = at('/');
+        const html = document.documentElement.style;
+        expect(html.getPropertyValue('--bottom-bar-h')).toBe(container.firstChild.style.getPropertyValue('--bottom-bar-h'));
+        expect(html.getPropertyValue('--phone-header-h')).toContain('safe-area-inset-top');
+        unmount();
+        expect(html.getPropertyValue('--bottom-bar-h')).toBe('');
+    });
+
+    it('the phone header sits above page toolbars, so its account menu opens over them', () => {
+        at('/');
+        const header = screen.getAllByRole('banner')[0];
+        expect(header.className).toContain('z-[50]');
+    });
+
+    it('the page ends clear of the floating timer while it shows', () => {
+        at('/');
+        expect(document.getElementById('main-content').className).toContain('var(--fab-space,0px)');
+    });
 });
