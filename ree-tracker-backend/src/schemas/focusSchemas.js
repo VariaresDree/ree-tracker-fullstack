@@ -6,6 +6,9 @@ const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 // POST /api/user/focus-blocks — one finished (or stopped-early) focus block.
+// Up to FOCUS_MAX_MINUTES: the longest PRC section (EE, 6 hours), since a
+// paper exam timed on the focus timer counts as focus time. The device drops a
+// block this refuses, so the server takes a new cap no later than the app.
 const focusBlockSchema = z.object({
     clientId: z.string().min(8).max(64),
     subject: z.enum(FOCUS_SUBJECTS),

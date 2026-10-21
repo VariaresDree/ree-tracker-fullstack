@@ -52,7 +52,7 @@ export default function WeakSignalsPanel({ data }) {
               <li key={`${b.subject}:${b.topic}`} className="flex items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-textMain truncate">{b.topic}</p>
-                  <p className="text-xs text-muted2">
+                  <p className="text-xs text-muted2 tabular-nums">
                     {toDisplaySubject(b.subject)} · {b.confidentMisses} confident misses of {b.attempts} answers ({Math.round(b.rate * 100)}%)
                   </p>
                 </div>

@@ -235,6 +235,16 @@ describe('PRC board exam (format + grading)', () => {
     });
 });
 
+describe('focus time cap', () => {
+    // A paper exam timed on the focus timer is logged as one focus block, so
+    // the cap is the longest PRC section, from the one PRC format.
+    it('is the longest PRC section (EE, 6 hours)', () => {
+        const { FOCUS_MAX_MINUTES } = shared;
+        expect(FOCUS_MAX_MINUTES).toBe(Math.max(...Object.values(PRC_EXAM_FORMAT).map((f) => f.minutes)));
+        expect(FOCUS_MAX_MINUTES).toBe(360);
+    });
+});
+
 describe('apportionItems', () => {
     it('splits a full blend exactly 25/30/45', () => {
         expect(apportionItems(100)).toEqual({ Mathematics: 25, ESAS: 30, EE: 45 });

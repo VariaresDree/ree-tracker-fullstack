@@ -4,11 +4,12 @@ import { signIn } from './helpers';
 // The layout standard, measured in a real browser at phone and tablet widths:
 // no screen scrolls sideways, a page ends clear of the bottom bar and the
 // floating focus timer, and the phone header's account menu opens over a
-// session's sticky toolbar (it opened under the simulator's).
+// session's sticky toolbar (it opened under the simulator's). The header's
+// timer link opens the full-screen timer (/focus), and Escape comes back.
 
 const sidewaysOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const todaysLoop = (page: Page) => page.getByRole('listitem').filter({ hasText: "Start today's loop" });
-const SCREENS = ['/', '/practice', '/exams', '/progress', '/library', '/account', '/simulator'];
+const SCREENS = ['/', '/practice', '/exams', '/progress', '/library', '/account', '/simulator', '/focus'];
 
 test.beforeEach(async ({ page }) => {
   await signIn(page);
@@ -31,9 +32,13 @@ test('on a phone, a page ends clear of the bottom bar and the focus timer', asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/account');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'Focus timer' }).click();
-  await page.getByRole('dialog', { name: 'Focus timer' }).getByRole('button', { name: 'Start' }).click();
+  // The header opens the full-screen timer; Escape comes back to the page.
+  await page.getByRole('link', { name: 'Focus timer' }).click();
+  await expect(page).toHaveURL(/\/focus$/);
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
   await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
   const pill = page.getByRole('timer');
   await expect(pill).toBeVisible();
 

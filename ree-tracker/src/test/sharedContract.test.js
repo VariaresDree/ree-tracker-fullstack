@@ -14,6 +14,7 @@
 // only shows up in a production build — one of them goes red.
 import { describe, it, expect } from 'vitest';
 import * as shared from '@ree/shared';
+import { MAX_MINUTES as POMODORO_MAX_MINUTES } from '../utils/pomodoroLogic';
 import {
     deriveVerdict,
     isPassingVerdict,
@@ -234,6 +235,18 @@ describe('PRC board exam (format + grading)', () => {
 
     it('an exam with no rated subject is a 0, not NaN', () => {
         expect(gradeBoardExam({})).toEqual({ generalAverage: 0, verdict: 'FAILED' });
+    });
+});
+
+describe('focus time cap', () => {
+    // A paper exam timed on the focus timer is logged as one focus block: the
+    // server's cap is the longest PRC section, and it covers every length the
+    // timer's settings allow.
+    it('is the longest PRC section, and no shorter than a block the settings allow', () => {
+        const { FOCUS_MAX_MINUTES } = shared;
+        expect(FOCUS_MAX_MINUTES).toBe(Math.max(...Object.values(PRC_EXAM_FORMAT).map((f) => f.minutes)));
+        expect(FOCUS_MAX_MINUTES).toBe(360);
+        expect(FOCUS_MAX_MINUTES).toBeGreaterThanOrEqual(POMODORO_MAX_MINUTES);
     });
 });
 

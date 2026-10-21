@@ -6,13 +6,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import MainLayout from './MainLayout';
+import { freshPomodoro } from '../utils/pomodoroLogic';
 
-vi.mock('../components/Pomodoro', () => ({ default: () => null }));
 vi.mock('../components/FloatingPomodoro', () => ({ default: () => null }));
 vi.mock('../components/OfflineStatusBadge', () => ({ default: () => <span data-testid="offline-badge" /> }));
 const auth = { currentUser: { displayName: 'Rey', email: 'rey@example.com' }, isAdmin: false, roleResolved: true, logout: vi.fn() };
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => auth }));
-const storeState = { syncQueue: [], pendingWrites: [], resetStore: vi.fn() };
+const storeState = { syncQueue: [], pendingWrites: [], resetStore: vi.fn(), pomodoro: freshPomodoro() };
 vi.mock('../store/useStore', () => ({ useStore: (sel) => sel(storeState) }));
 vi.mock('../store/slices', async () => {
     const { create } = await import('zustand');
@@ -102,6 +102,13 @@ describe('phone shell', () => {
         at('/');
         expect(screen.getAllByTestId('offline-badge')).toHaveLength(1);
     });
+
+    // The header's timer dialog is gone: the timer is full screen (/focus).
+    it('the header links to the full-screen focus timer', () => {
+        at('/account');
+        expect(screen.getByRole('link', { name: 'Focus timer' })).toHaveAttribute('href', '/focus');
+        expect(screen.queryByRole('button', { name: 'Focus timer' })).toBeNull();
+    });
 });
 
 describe('desktop shell', () => {
@@ -114,6 +121,19 @@ describe('desktop shell', () => {
         expect(within(primaryNav()).getByRole('link', { current: 'page' })).toHaveTextContent('Progress');
         expect(screen.getAllByRole('navigation', { name: 'Primary' })).toHaveLength(1);
         expect(screen.getAllByTestId('offline-badge')).toHaveLength(1);
+    });
+
+    it('the sidebar links to the full-screen focus timer, expanded and collapsed', () => {
+        desktop();
+        at('/');
+        // The row is named by what it shows (WCAG 2.5.3): "Focus timer 25:00".
+        const row = screen.getByRole('link', { name: /^Focus timer\s*25:00$/ });
+        expect(row).toHaveAttribute('href', '/focus');
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+        const collapsed = screen.getByRole('link', { name: 'Focus timer' });
+        expect(collapsed).toHaveAttribute('href', '/focus');
+        expect(collapsed).not.toHaveTextContent('25:00');
+        fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
     });
 
     it('the sidebar has Log out, which asks first', () => {

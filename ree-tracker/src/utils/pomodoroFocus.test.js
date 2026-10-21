@@ -1,16 +1,14 @@
-// Focus time from the Pomodoro: a finished focus block is logged in full, one
-// stopped early only after five minutes and for what ran, a break never, and
-// one that ran out while the app was closed is still counted, dated when it
-// ended. Pauses don't restart a block.
+// Focus time from the focus timer: a finished focus block is logged in full,
+// one stopped early only after five minutes and for what ran, a break never,
+// and one that ran out while the app was closed is still counted, dated when
+// it ended (and the timer moves on). Pauses don't restart a block. A paper
+// exam counts under its section.
 import { describe, it, expect } from 'vitest';
-import { startTimer, pauseTimer, resetTimer, switchMode, migratePomodoro, focusBlockFor } from './pomodoroLogic';
+import { startTimer, pauseTimer, resetTimer, completeTimer, skipTimer, setMode, migratePomodoro, focusBlockFor, freshPomodoro } from './pomodoroLogic';
 
 const T0 = 1_760_000_000_000;
 const MIN = 60_000;
-const base = (over = {}) => ({
-  workDuration: 25, breakDuration: 5, isWork: true, isRunning: false, endsAt: null, pausedRemaining: 25 * 60,
-  subject: 'EE', focusStartedAt: null, pendingFocusLogs: [], ...over,
-});
+const base = (over = {}) => freshPomodoro({ subject: 'EE', ...over });
 
 describe('focus blocks', () => {
   it('logs a finished block in full, with its subject, dated from its first start', () => {
@@ -19,11 +17,11 @@ describe('focus blocks', () => {
     p = pauseTimer(p, T0 + 10 * MIN);
     p = startTimer(p, T0 + 20 * MIN); // resumed: same block
     expect(p.focusStartedAt).toBe(T0);
-    p = switchMode(p, p.endsAt + 500); // ran out
+    p = completeTimer(p, p.endsAt + 500); // ran out
     expect(p.pendingFocusLogs).toEqual([{
       clientId: `focus-${T0}`, subject: 'EE', minutes: 25, startedAt: T0, endedAt: T0 + 35 * MIN, completed: true,
     }]);
-    expect(p).toMatchObject({ isWork: false, focusStartedAt: null });
+    expect(p).toMatchObject({ mode: 'short', focusStartedAt: null });
   });
 
   it('logs what ran of a block reset after five minutes, nothing under five', () => {
@@ -36,21 +34,32 @@ describe('focus blocks', () => {
     expect(resetTimer(p, T0 + 13 * MIN).pendingFocusLogs).toHaveLength(1);
   });
 
+  it('logs what ran when skipped or switched away from', () => {
+    expect(skipTimer(startTimer(base(), T0), T0 + 7 * MIN).pendingFocusLogs).toEqual([expect.objectContaining({ minutes: 7 })]);
+    expect(setMode(startTimer(base(), T0), 'short', T0 + 6 * MIN).pendingFocusLogs).toEqual([expect.objectContaining({ minutes: 6 })]);
+  });
+
   it('never logs a break', () => {
-    const brk = startTimer(base({ isWork: false, pausedRemaining: 5 * 60 }), T0);
+    const brk = startTimer(base({ mode: 'short' }), T0);
     expect(brk.focusStartedAt).toBeNull();
-    expect(switchMode(brk, brk.endsAt + 1).pendingFocusLogs).toEqual([]);
+    expect(completeTimer(brk, brk.endsAt + 1).pendingFocusLogs).toEqual([]);
     expect(focusBlockFor(brk, T0 + 10 * MIN)).toBeNull();
   });
 
-  it('counts a block that ran out while the app was closed, once', () => {
+  it('counts a block that ran out while the app was closed, once, and moves on', () => {
     const closed = { ...startTimer(base(), T0), endsAt: T0 + 25 * MIN };
     const reopened = migratePomodoro(closed); // Date.now() is far past T0
     expect(reopened.pendingFocusLogs).toEqual([expect.objectContaining({ minutes: 25, completed: true, endedAt: T0 + 25 * MIN })]);
-    expect(reopened).toMatchObject({ isRunning: false, pausedRemaining: 0, focusStartedAt: null });
-    // Resetting it, or starting the next block, doesn't count it again.
+    expect(reopened).toMatchObject({ mode: 'short', isRunning: false, pausedRemaining: 5 * 60, focusStartedAt: null });
+    // Resetting the break, or starting the next block, doesn't count it again.
     expect(resetTimer(reopened, Date.now()).pendingFocusLogs).toHaveLength(1);
-    expect(startTimer(reopened, T0 + 60 * MIN).focusStartedAt).toBe(T0 + 60 * MIN);
+    expect(startTimer(reopened, T0 + 60 * MIN).focusStartedAt).toBeNull(); // a break
+  });
+
+  it('logs a 6-hour EE paper exam under EE', () => {
+    const running = startTimer(base({ mode: 'exam', examSection: 'EE' }), T0);
+    const p = completeTimer(running, running.endsAt);
+    expect(p.pendingFocusLogs).toEqual([expect.objectContaining({ subject: 'EE', minutes: 360, completed: true, endedAt: T0 + 360 * MIN })]);
   });
 
   it('keeps the subject and anything waiting through a reload, defaulting to General', () => {

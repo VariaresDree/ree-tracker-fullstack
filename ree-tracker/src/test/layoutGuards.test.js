@@ -58,3 +58,29 @@ describe('layout standard', () => {
     })).toEqual([]);
   });
 });
+
+// Numbers that change in place (a countdown, a streak, a score, a count)
+// keep their width when a digit changes, so a pill or tile doesn't jitter:
+// the primitives that show them set tabular figures for everything inside.
+describe('tabular figures', () => {
+  it.each(['Badge', 'StatusPill', 'Stat', 'KpiTile'])('%s keeps tabular-nums', (name) => {
+    expect(fs.readFileSync(path.join(SRC, `components/ui/${name}.jsx`), 'utf8')).toMatch(/\btabular-nums\b/);
+  });
+});
+
+// The sidebar is glass like the page's cards, so the theme's texture runs
+// behind it; its current page glows in the accent (a shadow, which forced
+// colours drop, keeping the accent edge).
+describe('sidebar surface', () => {
+  const src = fs.readFileSync(path.join(SRC, 'layouts/Sidebar.jsx'), 'utf8');
+  it('is a glass surface, not a solid card colour', () => {
+    const aside = src.match(/<aside className=\{[^\n]*/)?.[0] ?? '';
+    expect(aside).toMatch(/\bsurface-glass\b/);
+    expect(aside).not.toMatch(/\bbg-surface\b/);
+  });
+  it('marks the current page with the accent edge and a glow', () => {
+    const active = src.match(/const ACTIVE = '([^']*)'/)?.[1] ?? '';
+    expect(active).toMatch(/border-l-\[var\(--accent\)\]/);
+    expect(active).toMatch(/shadow-\[inset_0_0_0_1px_color-mix/);
+  });
+});

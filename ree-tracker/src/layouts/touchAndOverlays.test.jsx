@@ -6,6 +6,7 @@
 //   - a list of controls measured under 44px on touch screens.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { todayManila } from '../utils/manilaDate';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,8 +21,7 @@ vi.mock('../store/slices', () => ({
     useSessionSlice: () => ({ startPomodoro: vi.fn(), pausePomodoro: vi.fn(), pomodoroWidget: widget, setPomodoroWidget: vi.fn() }),
 }));
 vi.mock('../hooks/usePomodoroClock', () => ({
-    usePomodoroClock: () => ({ pomodoro: { isWork: true, isRunning: false }, remaining: 600 }),
-    formatClock: () => '10:00',
+    usePomodoroClock: () => ({ pomodoro: { mode: 'focus', isRunning: false }, remaining: 600 }),
 }));
 
 describe('Scratchpad', () => {
@@ -36,7 +36,8 @@ describe('Scratchpad', () => {
 
     // Both were z-[70]: on a phone the floating timer sat on the sheet.
     it('the floating Pomodoro steps aside while it is open, and comes back after', () => {
-        const ui = (open) => <><FloatingPomodoro /><Scratchpad isOpen={open} onClose={() => {}} /></>;
+        // The pill opens /focus, so it needs a router.
+        const ui = (open) => <MemoryRouter><FloatingPomodoro /><Scratchpad isOpen={open} onClose={() => {}} /></MemoryRouter>;
         const { rerender } = render(ui(false));
         expect(screen.getByRole('timer')).toBeInTheDocument();
         rerender(ui(true));

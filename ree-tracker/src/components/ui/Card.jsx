@@ -6,11 +6,17 @@ import { cn } from './cn';
 // lg for a hero or a question. Cards had ten hand-picked paddings.
 const PADDING = { none: '', sm: 'p-4', md: 'p-5', lg: 'p-6 sm:p-8' };
 
-export function Card({ as: Tag = 'div', className, padding = 'none', elevated = false, glow = false, grain = false, ...rest }) {
+// `glass`: frosted over the page's texture (index.css, .surface-glass). On by
+// default, since most cards sit straight on the page; a card inside another
+// card, and every card on an exam screen, turns solid by itself. Off for
+// surfaces that float over content or must read as paper: dialogs and the
+// question card.
+export function Card({ as: Tag = 'div', className, padding = 'none', elevated = false, glow = false, grain = false, glass = true, ...rest }) {
   return (
     <Tag
       className={cn(
-        'bg-surface border border-border rounded-[var(--radius-lg)]',
+        glass ? 'surface-glass' : 'bg-surface',
+        'border border-border rounded-[var(--radius-lg)]',
         PADDING[padding],
         elevated && 'elevate-2',
         glow && 'elevate-glow',

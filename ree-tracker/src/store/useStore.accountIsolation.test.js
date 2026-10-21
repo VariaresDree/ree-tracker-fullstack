@@ -89,6 +89,29 @@ describe('resetStore', () => {
     // back into the next user's queue on the next cold start.
     expect(localStorage.getItem('ree_pending_sync')).toBeNull();
   });
+
+  // The focus timer kept the signed-out account's running block and the
+  // logged blocks waiting to be sent; the next account's owner clock then
+  // sent them under its own token. The device's lengths and toggles stay.
+  it("clears the focus timer's running block and waiting blocks, keeping the lengths", async () => {
+    const { freshPomodoro, startTimer } = await import('../utils/pomodoroLogic');
+    useStore.setState({
+      pomodoro: {
+        ...startTimer(freshPomodoro({ workDuration: 50, breakDuration: 10, longEvery: 3, autoStartBreaks: true, sound: false, mode: 'exam', examSection: 'EE', subject: 'EE' }), Date.now() - 60_000),
+        pendingFocusLogs: [{ clientId: 'focus-1', subject: 'EE', minutes: 25, ownerUid: 'user-A' }],
+      },
+      pomodoroWidget: { pinned: true, dismissed: true, x: 40, y: 60 },
+    });
+    await useStore.getState().resetStore();
+
+    const { pomodoro, pomodoroWidget } = useStore.getState();
+    expect(pomodoro).toMatchObject({
+      workDuration: 50, breakDuration: 10, longEvery: 3, autoStartBreaks: true, sound: false,
+      mode: 'focus', subject: 'General', isRunning: false, endsAt: null, focusStartedAt: null,
+      pendingFocusLogs: [], pausedRemaining: 50 * 60,
+    });
+    expect(pomodoroWidget).toEqual({ pinned: false, dismissed: false, x: 40, y: 60 });
+  });
 });
 
 describe('flushQueueToCloud account ownership', () => {

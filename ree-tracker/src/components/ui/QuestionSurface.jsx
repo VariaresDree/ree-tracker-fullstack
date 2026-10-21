@@ -6,7 +6,7 @@ import { cn } from './cn';
 // the one (Card's lg inset, the card radius).
 export function QuestionSurface({ className, children, ...rest }) {
   return (
-    <Card elevated padding="lg" className={cn('flex flex-col relative min-w-0', className)} {...rest}>
+    <Card elevated glass={false} padding="lg" className={cn('flex flex-col relative min-w-0', className)} {...rest}>
       {children}
     </Card>
   );

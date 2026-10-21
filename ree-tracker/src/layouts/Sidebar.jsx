@@ -5,17 +5,20 @@
 // Collapsible to an icon rail.
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import Pomodoro from '../components/Pomodoro';
+import FocusLauncher from '../components/focus/FocusLauncher';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { useUISlice } from '../store/slices';
 import { cn, Logo } from '../components/ui';
-import { LogOut, PanelLeftClose, PanelLeftOpen, Timer } from '../components/ui/icons';
+import { LogOut, PanelLeftClose, PanelLeftOpen } from '../components/ui/icons';
 import Avatar from '../components/Avatar';
 import LogoutConfirm from '../components/LogoutConfirm';
 import { PRIMARY_NAV, ADMIN_NAV, activeNavId } from './navModel';
 
-const ACTIVE = 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent-text)]';
+// The current page: an accent tint, the accent edge, and a soft glow (an
+// inner hairline and a faint outer bloom in the accent). The glow is a
+// shadow, so forced colours drop it and keep the edge.
+const ACTIVE = 'bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] border-l-[var(--accent)] text-[var(--accent-text)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_28%,transparent),0_0_18px_-6px_color-mix(in_srgb,var(--accent)_55%,transparent)]';
 const IDLE = 'border-l-transparent text-textMain hover:bg-surface2';
 
 function NavItem({ item, active, collapsed }) {
@@ -57,8 +60,10 @@ export default function Sidebar() {
 
   return (
     // The width snaps; the labels fade in. Animating `width` re-laid out the
-    // whole page on every frame for 300ms.
-    <aside className={cn('sticky top-0 h-screen shrink-0 bg-surface border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
+    // whole page on every frame for 300ms. Glass, like the page's cards: the
+    // theme's glow and pattern carry on behind it (solid wherever the cards
+    // are; index.css › GLASS SURFACES).
+    <aside className={cn('sticky top-0 h-screen shrink-0 surface-glass border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
       <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3')}>
         {collapsed ? (
           <Link to="/" aria-label="REE.ai home" className="inline-flex touch-target items-center justify-center">
@@ -80,20 +85,10 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <div className="p-4 border-b border-border2 bg-surface2/10 shrink-0 flex justify-center w-full">
-        {collapsed ? (
-          <button
-            type="button"
-            onClick={() => toggleSidebarCollapse()}
-            className="w-10 h-10 bg-surface2 hover:bg-surface3 border border-border2 rounded-full flex items-center justify-center transition-colors cursor-pointer text-muted hover:text-textMain touch-target"
-            aria-label="Show the focus timer"
-            title="Show the focus timer"
-          >
-            <Timer size={18} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        ) : (
-          <Pomodoro />
-        )}
+      {/* The focus timer is full screen now (/focus); this opens it, and
+          shows the time left while a block runs. */}
+      <div className={cn('px-3 py-2 border-b border-border2 shrink-0 flex', collapsed && 'justify-center')}>
+        <FocusLauncher variant={collapsed ? 'icon' : 'row'} />
       </div>
 
       <nav aria-label="Primary" className="flex-1 overflow-y-auto p-3 flex flex-col gap-1 custom-scrollbar min-h-0">

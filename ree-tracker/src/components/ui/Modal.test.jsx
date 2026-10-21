@@ -83,4 +83,11 @@ describe('Modal — keyboardSafe', () => {
     expect(footer.parentElement.className).toMatch(/overflow-y-auto/);
     expect(footer.parentElement).toContainElement(screen.getByLabelText('Note'));
   });
+
+  it('is solid, not glass: the page under it would show through the text', () => {
+    render(<Modal open onClose={() => {}} title="Add a note">x</Modal>);
+    const dialog = screen.getByRole('dialog', { name: 'Add a note' });
+    expect(dialog).toHaveClass('bg-surface');
+    expect(dialog).not.toHaveClass('surface-glass');
+  });
 });

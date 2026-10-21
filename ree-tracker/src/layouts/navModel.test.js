@@ -31,6 +31,10 @@ describe('navModel', () => {
         expect(activeNavId(path)).toBe(id);
     });
 
+    it('the full-screen focus timer belongs to no destination', () => {
+        expect(activeNavId('/focus')).toBeNull();
+    });
+
     it('matches whole path segments, never prefixes', () => {
         expect(activeNavId('/practiceX')).toBeNull();
         expect(activeNavId('/exams-old')).toBeNull();

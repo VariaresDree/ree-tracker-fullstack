@@ -1,5 +1,5 @@
 // src/features/board-simulator/SimulatorConfig.jsx
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Card, Button, FormField, Grid, IconChip, PageHeader, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
@@ -14,11 +14,16 @@ const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), 
 
 const FULL_BOARD_ROWS = [['Mathematics', 'Mathematics'], ['ESAS', 'ESAS'], ['EE', 'Electrical Engineering']];
 
+// The print/export dialog and everything behind it (the draw, jsPDF, the LaTeX
+// writer, fflate, qrcode) load only when it is opened.
+const ExportDialog = lazy(() => import('../exam-export/ExportDialog'));
+
 export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine, onStartFullBoard, initialProfile }) {
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
   const isOnline = useNetworkStatus();
   const [showNewExamGuard, setShowNewExamGuard] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   // A profile chosen in the Exams hub arrives as /simulator?profile=<id>.
   const [fullBoardSelected, setFullBoardSelected] = useState(() => initialProfile === 'prc_full');
 
@@ -231,7 +236,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
               // fill once the row is horizontal (`sm:flex-row`) and height is the
               // cross axis again.
               className="w-full sm:flex-1"
-              loading={session?.loading && !engine?.isExporting}
+              loading={session?.loading}
               disabled={session?.loading}
               onClick={handleStart}
             >
@@ -239,19 +244,26 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             </Button>
             <Button
               variant="ghost"
-              loading={engine?.isExporting}
-              disabled={session?.loading || engine?.isExporting || fullBoardSelected}
-              onClick={engine?.exportOfflinePDF}
+              disabled={session?.loading || fullBoardSelected}
+              onClick={() => setShowExport(true)}
             >
               <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
-              Export exam paper (PDF)
+              {'Print or export\u2026'}
             </Button>
           </div>
           <p className="text-micro text-muted2">
-            Exports a printable packet: questionnaire, a bubble answer sheet with a scannable set QR, and a column-major answer key.
+            {fullBoardSelected
+              ? 'Print one section at a time: choose One subject (PRC clock) or Mixed paper.'
+              : 'A question paper, a bubble answer sheet and the answer key, as a print-ready PDF or as LaTeX files to edit.'}
           </p>
         </div>
       </Card>
+
+      {showExport && (
+        <Suspense fallback={null}>
+          <ExportDialog open onClose={() => setShowExport(false)} config={config} />
+        </Suspense>
+      )}
 
       <Modal
         open={showNewExamGuard}

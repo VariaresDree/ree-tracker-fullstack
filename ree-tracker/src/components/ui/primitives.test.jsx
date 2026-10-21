@@ -32,6 +32,18 @@ describe('Card', () => {
     expect(screen.getByRole('listitem')).toHaveTextContent('row');
   });
 
+  it('is frosted glass over the page, and solid where it must be', () => {
+    const { container, rerender } = render(<Card>x</Card>);
+    expect(container.firstChild).toHaveClass('surface-glass');
+    expect(container.firstChild).not.toHaveClass('bg-surface');
+    rerender(<Card glass={false}>x</Card>);
+    expect(container.firstChild).toHaveClass('bg-surface');
+    expect(container.firstChild).not.toHaveClass('surface-glass');
+    // The question card reads as paper.
+    rerender(<QuestionSurface>q</QuestionSurface>);
+    expect(container.firstChild).toHaveClass('bg-surface');
+  });
+
   it('takes one of the standard insets, none by default', () => {
     const { container, rerender } = render(<Card>x</Card>);
     expect(container.firstChild.className).not.toMatch(/\bp-\d/);

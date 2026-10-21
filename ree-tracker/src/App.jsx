@@ -31,6 +31,9 @@ const Gauntlet = lazy(() => import('./pages/Gauntlet'));
 const Diagnostic = lazy(() => import('./pages/Diagnostic'));
 const SittingReview = lazy(() => import('./pages/SittingReview'));
 const QuizRunPage = lazy(() => import('./features/quiz-launcher/QuizRunPage'));
+// The full-screen focus timer: outside the app shell, and lazy (only the
+// sidebar's small launcher is in the first download).
+const Focus = lazy(() => import('./pages/Focus'));
 
 // The app shell as a layout route: the navigation stays on screen while a page
 // chunk loads, and only the page area shows the loading state.
@@ -108,6 +111,9 @@ const SecureAppTerminal = () => {
               the "distraction-free exam" banner onto Simulator's setup
               screen before any exam had started. */}
           <Route path="/simulator" element={<ErrorBoundary name="Simulator"><BoardSimulator /></ErrorBoundary>} />
+          {/* The focus timer, full screen: no navigation, the theme's
+              background, and the timer's own clock (pages/Focus.jsx). */}
+          <Route path="/focus" element={<ErrorBoundary name="Focus timer"><Focus /></ErrorBoundary>} />
           <Route path="/gauntlet/:level" element={<ErrorBoundary name="Gauntlet"><Gauntlet /></ErrorBoundary>} />
           {/* Placement test — owns its layout like the Simulator: MainLayout
               for the intro and result, ExamLayout while answering. */}
