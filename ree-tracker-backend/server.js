@@ -320,6 +320,7 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/noteRoutes'));
     app.use('/api/user', require('./src/routes/cardReviewRoutes'));
     app.use('/api/user', require('./src/routes/focusRoutes'));
+    app.use('/api/user', require('./src/routes/printedSetRoutes'));
     app.use('/api/user', require('./src/routes/todayLoopRoutes'));
     app.use('/api/user', require('./src/routes/reminderRoutes'));
     app.use('/api/cron', require('./src/routes/cronRoutes'));

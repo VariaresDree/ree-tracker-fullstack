@@ -42,4 +42,11 @@
          (@capacitor/local-notifications). No FCM / google-services.json needed —
          reminders are scheduled and fired entirely on-device. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The answer-sheet scanner (Exams > Paper sets): the WebView's camera
+         request becomes this runtime permission prompt, and a photo input
+         with capture opens the camera. Not required: a phone without a
+         camera can still choose a photo from its gallery. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>

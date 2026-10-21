@@ -22,6 +22,10 @@ const DISPLAY_ONLY = {
     mistakeTag: ['routes/mistakeRoutes.js', 'services/mistakeList.js'],
     userNote: ['routes/noteRoutes.js'],
     focusBlock: ['services/focusTime.js'],
+    // Printed paper sets and their scanned sheets: scores on the learner's
+    // own printouts, marked from photos, never θ, readiness or the rankings.
+    printedSet: ['routes/printedSetRoutes.js'],
+    scannedSheet: ['routes/printedSetRoutes.js'],
 };
 
 function sourceFiles(dir) {

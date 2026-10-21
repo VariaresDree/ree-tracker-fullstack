@@ -90,6 +90,8 @@ model User {
   notes              UserNote[]
   cardReviews        CardReview[]
   focusBlocks        FocusBlock[]
+  printedSets        PrintedSet[]
+  scannedSheets      ScannedSheet[]
 
   @@index([thetaRating])
   @@index([lastActive])
@@ -745,6 +747,73 @@ model UserNote {
 
   @@unique([userId, targetType, targetId])
   @@index([userId, updatedAt])
+}
+
+// A printed paper set (Exams › Paper sets): a mock exam drawn once on the
+// device, printed, and marked from photos of its answer sheets. The questions
+// are kept as drawn; `edits` holds the learner's changes for this printing
+// only (never the question bank). keyVersion is recomputed here from the
+// edited key (@ree/shared keyVersionOf), never taken from the client. The id
+// is made on the device (12 Crockford characters, PRINT_ID_RE), so it can
+// print and scan offline. DISPLAY ONLY: paper results never reach θ, the
+// forecast, readiness or the rankings (tests/displayOnlyTables.test.js).
+model PrintedSet {
+  id          String         @id // PRINT_ID_RE, made on the device
+  userId      String
+  contentId   String         // the draw's setId (fnv1a of the question ids)
+  keyVersion  String         // keyVersionOf(effectiveItems(items, edits))
+  label       String         // "SET B"
+  title       String
+  code        String         // 'EE' | 'ESAS' | 'MATH' | 'BLENDED'
+  profile     String         // 'prc_subject' | 'prc_blended' | 'custom'
+  itemCount   Int
+  config      Json           // the setup screen's config, for "Draw a new set"
+  plan        Json           // resolveExportPlan's output
+  sections    Json           // [{ subject, title, from, to, requested?, drawn? }]
+  items       Json           // as drawn: [{ n, id, subject, subtopic, difficulty, type, text, options, answer, answerIndex, explanation, figure }]
+  edits       Json           @default("{}") // { "<n>": { text?, options?, answerIndex?, explanation? } }
+  prefs       Json           // { paper: 'a4'|'letter'|'long', docs: { paper, sheet, key }, solutions }
+  warnings    Json?
+  sittingKey  String
+  generatedAt DateTime
+  printedAt   DateTime?      // set the first time it is printed, then kept
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sheets      ScannedSheet[]
+
+  @@index([userId, createdAt])
+}
+
+// One scanned answer sheet of a printed set: a taker's (examiner use) or the
+// learner's own (a self-check, which also gets one OutsideScore through the
+// existing route). Only the answers and the name leave the device, never the
+// photo. The id is a UUID from the device, so an offline replay lands once.
+// The score is the server's (@ree/shared scorePaperSheet), redone whenever
+// the set's key changes. DISPLAY ONLY, like PrintedSet.
+model ScannedSheet {
+  id             String     @id // UUID from the device
+  userId         String
+  setId          String
+  takerName      String?
+  isSelf         Boolean    @default(false)
+  answers        String     // one character per item (ANSWER_RE): A-F, '-' blank, '*' two or more marks
+  keyVersion     String     // the key it was scored with
+  correct        Int
+  scored         Int
+  sectionScores  Json       // [{ subject, correct, total, percent }]
+  generalAverage Float?
+  verdict        String?
+  review         Json?      // { corrected: number[], unsure: number[] }
+  outsideScoreId String?    // the self-check's history entry (a plain id, no foreign key)
+  scannedAt      DateTime
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  set            PrintedSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, setId, scannedAt])
+  @@index([setId])
 }
 
 model PlannerTask {
