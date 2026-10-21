@@ -1,217 +1,24 @@
 // src/features/board-simulator/examPaper.js
-// Builds a print-ready PRC-style board-exam packet (questionnaire + answer sheet
-// + answer key) from a question pool, using jsPDF. Two goals drive the layout:
-//   1. Readable, UN-mangled math — jsPDF's standard Helvetica only speaks
-//      WinAnsi (Latin-1), so mathToText() converts LaTeX/unicode into a
-//      WinAnsi-safe plain-text form. Anything it can't map is dropped rather
-//      than rendered as tofu (the "�" you see in naive exports).
-//   2. Space efficiency — options are laid out A/C over B/D in two columns and
-//      questions flow continuously across pages (not one-per-page).
-// It renders an ExamDraw (features/exam-export/drawExamPaper), the same set the
-// LaTeX export renders, so a paper, its sheet and its key always agree. Every
-// answer-sheet row draws one bubble per option (2-6), and the sheet and key
-// continue onto new pages instead of dropping rows past the page bottom.
+// The old print-ready PDF (questionnaire + answer sheet + answer key) of an
+// ExamDraw, drawn with jsPDF in Helvetica, so its math is mathToText's plain
+// Latin-1 text. Only the old export dialog (exam-export/ExportDialog.jsx) still
+// uses it; the print preview replaces both.
+//
+// The shared helpers moved to features/exam-export/paperFormat.js; they are
+// re-exported here so the old imports keep working until this file goes.
 import { stripChoicePrefix } from '../../utils/sanitizeOptions';
-import { fnv1a } from '../../utils/contentHash';
 import { answerSheetLayout, pageCells, paginateColumnMajor } from '../exam-export/sheetLayout';
+import {
+    columnMajorPosition, formatDuration, formatPaperDate, letterOf, mathToText, paperDay, partLabel, setLabelFor,
+} from '../exam-export/paperFormat';
 
-// --- Math → WinAnsi-safe text --------------------------------------------
-const SUP = { 1: '¹', 2: '²', 3: '³' }; // ¹ ² ³ exist in Latin-1
+export {
+    SUBJECT_CODE, answerLetterFor, chooseOptionLayout, columnMajorPosition, deriveExamIdentity, formatDuration,
+    formatPaperDate, letterOf, mathToText, paperDay, partLabel, setLabelFor,
+} from '../exam-export/paperFormat';
 
-// LaTeX command → readable text. Greek is spelled out (board papers do the
-// same); a handful of symbols map to their Latin-1 glyph (× · ÷ ± ° µ).
-const CMD = {
-    // operators / relations
-    times: '×', cdot: '·', div: '÷', pm: '±', mp: '-/+',
-    leq: '<=', le: '<=', geq: '>=', ge: '>=', neq: '!=', ne: '!=', approx: '~=',
-    equiv: '=', propto: ' proportional to ', sim: '~', ll: '<<', gg: '>>',
-    to: '->', rightarrow: '->', Rightarrow: '=>', leftarrow: '<-', leftrightarrow: '<->',
-    // misc
-    infty: 'infinity', partial: 'd', nabla: 'grad ', angle: 'angle ', perp: ' perpendicular to ',
-    int: 'integral ', oint: 'contour integral ', sum: 'sum ', prod: 'product ',
-    degree: '°', circ: '°', ohm: 'ohm', ldots: '...', cdots: '...', dots: '...',
-    ast: '*', star: '*', prime: "'", cong: '~=', parallel: ' || ',
-    // functions kept as-is
-    cos: 'cos', sin: 'sin', tan: 'tan', cot: 'cot', sec: 'sec', csc: 'csc',
-    sinh: 'sinh', cosh: 'cosh', tanh: 'tanh', arctan: 'arctan', arcsin: 'arcsin', arccos: 'arccos',
-    log: 'log', ln: 'ln', exp: 'exp', lim: 'lim', max: 'max', min: 'min', det: 'det',
-    // greek
-    alpha: 'alpha', beta: 'beta', gamma: 'gamma', Gamma: 'Gamma', delta: 'delta', Delta: 'Delta',
-    epsilon: 'epsilon', varepsilon: 'epsilon', zeta: 'zeta', eta: 'eta', theta: 'theta', Theta: 'Theta',
-    vartheta: 'theta', iota: 'iota', kappa: 'kappa', lambda: 'lambda', Lambda: 'Lambda',
-    mu: 'µ', nu: 'nu', xi: 'xi', Xi: 'Xi', rho: 'rho', varrho: 'rho', pi: 'pi', Pi: 'Pi',
-    sigma: 'sigma', Sigma: 'Sigma', tau: 'tau', upsilon: 'upsilon', phi: 'phi', varphi: 'phi',
-    Phi: 'Phi', chi: 'chi', psi: 'psi', Psi: 'Psi', omega: 'omega', Omega: 'ohm',
-};
-
-// Common unicode → WinAnsi-safe fallback (covers pre-rendered content that
-// already contains real glyphs rather than LaTeX).
-const UNI = {
-    '−': '-', '–': '-', '—': '-', '⁄': '/',
-    '√': 'sqrt', '∫': 'integral ', '∑': 'sum ', '∏': 'product ',
-    '∞': 'infinity', '∂': 'd', '∇': 'grad ', '∠': 'angle ',
-    '≤': '<=', '≥': '>=', '≠': '!=', '≈': '~=', '≡': '=',
-    '→': '->', '←': '<-', '↔': '<->', '⇒': '=>',
-    'Δ': 'Delta ', 'Ω': 'ohm', 'Σ': 'sum ', 'Φ': 'Phi', 'Θ': 'Theta',
-    'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'δ': 'delta', 'ε': 'epsilon',
-    'η': 'eta', 'θ': 'theta', 'κ': 'kappa', 'λ': 'lambda', 'μ': 'µ',
-    'ν': 'nu', 'π': 'pi', 'ρ': 'rho', 'σ': 'sigma', 'τ': 'tau',
-    'φ': 'phi', 'χ': 'chi', 'ψ': 'psi', 'ω': 'omega',
-    '₀': '_0', '₁': '_1', '₂': '_2', '₃': '_3', '₄': '_4',
-    '₅': '_5', '₆': '_6', '₇': '_7', '₈': '_8', '₉': '_9',
-    '⁰': '^0', '⁴': '^4', '⁵': '^5', '⁶': '^6', '⁷': '^7',
-    '⁸': '^8', '⁹': '^9',
-};
-
-const supOrCaret = (g) => {
-    if (/^\d$/.test(g) && SUP[g]) return SUP[g];
-    return g.length === 1 ? '^' + g : '^(' + g + ')';
-};
-
-export function mathToText(input) {
-    if (input == null) return '';
-    let s = String(input);
-
-    // 1. Strip math delimiters + spacing macros, keep inner content.
-    s = s
-        .replace(/\$\$([\s\S]*?)\$\$/g, ' $1 ')
-        .replace(/\$([^$]*)\$/g, ' $1 ')
-        .replace(/\\\[([\s\S]*?)\\\]/g, ' $1 ')
-        .replace(/\\\(([\s\S]*?)\\\)/g, ' $1 ')
-        .replace(/\\left|\\right/g, '')
-        .replace(/\\(?:,|;|:|!|quad|qquad)/g, ' ')
-        .replace(/\\[ ~]/g, ' ')            // \  and \~ explicit spaces
-        .replace(/\^\{?\\circ\}?/g, '°')    // ^\circ / ^{\circ} degree
-        .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
-        .replace(/\\displaystyle/g, '');
-
-    // 2. Fractions + roots — the [^{}] groups only match innermost (brace-free)
-    // content, so loop to peel nested \frac/\sqrt from the inside out.
-    let prev;
-    let guard = 0;
-    do {
-        prev = s;
-        s = s
-            .replace(/\\sqrt\s*\[([^\]]*)\]\s*\{([^{}]*)\}/g, '($2)^(1/$1)')
-            .replace(/\\sqrt\s*\{([^{}]*)\}/g, 'sqrt($1)')
-            .replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '($1)/($2)');
-        guard++;
-    } while (s !== prev && guard < 8);
-
-    // 4. Named commands (greek + operators + functions).
-    s = s.replace(/\\([a-zA-Z]+)/g, (m, name) => (name in CMD ? CMD[name] : name));
-
-    // 5. Super/subscripts.
-    s = s
-        .replace(/\^\{([^{}]*)\}/g, (m, g) => supOrCaret(g))
-        .replace(/\^(\d)/g, (m, d) => SUP[d] || '^' + d)
-        .replace(/\^([A-Za-z])/g, '^$1')
-        .replace(/_\{([^{}]*)\}/g, '_$1');
-
-    // 6. Unescape LaTeX-escaped punctuation, then drop any leftover \cmd{arg}/
-    // \cmd and stray braces.
-    s = s
-        .replace(/\\([$%&#_(){}[\]|.,])/g, '$1')
-        .replace(/\\[a-zA-Z]+\s*\{([^{}]*)\}/g, '$1')
-        .replace(/\\[a-zA-Z]+/g, ' ')
-        .replace(/[{}]/g, '');
-
-    // 7. Normalise remaining non-ASCII to WinAnsi-safe text: map known glyphs,
-    // keep Latin-1 (<=0xFF) as-is, DROP anything else so nothing renders as tofu.
-    s = s.replace(/[\u0080-\uFFFF]/g, (ch) => {
-        if (UNI[ch] != null) return UNI[ch];
-        return ch.charCodeAt(0) <= 0xFF ? ch : '';
-    });
-
-    // 8. Whitespace tidy (+ space a coefficient before an adjacent sqrt so
-    // "2pisqrt(LC)" reads as "2pi sqrt(LC)").
-    return s
-        .replace(/\^\s*°/g, '°')            // leftover superscript-degree -> °
-        .replace(/([0-9A-Za-z])(sqrt\()/g, '$1 $2')
-        .replace(/[ \t]{2,}/g, ' ')
-        .replace(/\(\s+/g, '(')
-        .replace(/\s+\)/g, ')')
-        .replace(/\s+([,;.])/g, '$1')
-        .trim();
-}
-
-// --- helpers --------------------------------------------------------------
 const PT_TO_MM = 0.3527777778;
 const lineHeight = (pt, factor = 1.15) => pt * PT_TO_MM * factor;
-const letterOf = (i) => String.fromCharCode(65 + i);
-
-export const SUBJECT_CODE = { EE: 'EE', ESAS: 'ESAS', Mathematics: 'MATH', Math: 'MATH', Blended: 'BLENDED' };
-
-export function formatDuration(mins) {
-    const m = Math.max(0, Math.round(mins || 0));
-    const h = Math.floor(m / 60);
-    const r = m % 60;
-    if (h && r) return `${h} hr ${r} min`;
-    if (h) return `${h} hour${h > 1 ? 's' : ''}`;
-    return `${r} minutes`;
-}
-
-// --- Answer-key helpers (exported + unit-tested) -------------------------
-// Column-major position: fill each column top-to-bottom before moving right.
-// PH answer-sheet/key convention — e.g. 50 items in 5 cols of 10 → col 0 =
-// items 1..10, col 1 = 11..20, … (this is what the answer SHEET already did;
-// the answer KEY used to be row-major and disagreed with it).
-export function columnMajorPosition(idx, rows) {
-    const r = Math.max(1, rows);
-    return { col: Math.floor(idx / r), row: idx % r };
-}
-
-const normAns = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-
-// Map a question's stored answer to its option LETTER (A/B/C/…), matching the
-// cleaned option order that gets PRINTED so the key always agrees with the
-// questionnaire. Normalizes whitespace/case before comparing — the old exact
-// string-equality silently emitted '-' on trivial mismatches. Returns
-// { letter, matched } so the caller can warn on unmatched items instead of
-// shipping a silent '-' key. `cleanedOptions` (already mathToText'd) may be
-// passed to avoid recomputing.
-export function answerLetterFor(question, cleanedOptions) {
-    const options = cleanedOptions
-        || (question.options || []).map((o) => mathToText(stripChoicePrefix(o)));
-    const target = mathToText(stripChoicePrefix(question.answer || ''));
-    let idx = options.findIndex((o) => normAns(o) === normAns(target));
-    // Fallback: compare RAW option/answer text (pre-mathToText), in case the
-    // transform diverged between the two sides.
-    if (idx < 0 && Array.isArray(question.options)) {
-        idx = question.options.findIndex((o) => normAns(o) === normAns(question.answer));
-    }
-    return { letter: idx >= 0 ? letterOf(idx) : '-', matched: idx >= 0 };
-}
-
-// Deterministic exam identity for the QR + printed codes. setId binds to the
-// ordered question set; keyVersion is a checksum of the answer key (the LETTERS
-// only — never the answer text), so the QR identifies the correct key page
-// without leaking answers. Same content → same codes on every export.
-export function deriveExamIdentity(pool, answerLetters) {
-    const setId = fnv1a((pool || []).map((q) => q.id || q.text || '').join('|'));
-    const keyVersion = fnv1a((answerLetters || []).join(''));
-    return { setId, keyVersion };
-}
-
-// Stable SET letter from the set id (was a random label regenerated every
-// export: useless for matching a filled sheet to its key).
-export function setLabelFor(setId) {
-    const idx = [...String(setId || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 4;
-    return 'SET ' + letterOf(idx);
-}
-
-const PART = ['I', 'II', 'III', 'IV', 'V'];
-/** "Part II" for the second section of a mixed paper. */
-export const partLabel = (index) => `Part ${PART[index] || index + 1}`;
-
-const MANILA_DATE = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-});
-const MANILA_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
-/** "Tuesday, October 20, 2026": the paper's date, in Manila. */
-export const formatPaperDate = (iso) => MANILA_DATE.format(iso ? new Date(iso) : new Date());
-/** "2026-10-20": the paper's date for file names, in Manila. */
-export const paperDay = (iso) => MANILA_DAY.format(iso ? new Date(iso) : new Date());
 
 // jsPDF page formats. PH long bond is 8.5 x 13 in.
 const JSPDF_FORMAT = { a4: 'a4', letter: 'letter', long: [215.9, 330.2] };
@@ -258,7 +65,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
     const unmatched = draw.items.filter((it) => !(it.answerIndex >= 0)).length;
     const { setId, keyVersion } = draw;
     const setLabel = draw.setLabel || setLabelFor(setId);
-    const idLine = `Set ${setId} · Key v${keyVersion}`;
+    const idLine = `Set ${setId} \u00B7 Key v${keyVersion}`;
 
     let y = M;
     let started = false;
@@ -330,7 +137,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
             const stemLines = doc.splitTextToSize(`${it.n}. ${it.stem}`, contentW);
 
             // Two-column options: the left half (A,B) stacks over the right half
-            // (C,D), so row r pairs left[r] with right[r] — matching real board papers.
+            // (C,D), so row r pairs left[r] with right[r] - matching real board papers.
             setFont(oPT, 'normal');
             const n = it.options.length;
             const leftCount = Math.ceil(n / 2);
@@ -373,7 +180,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
         startPart();
         // QR (top-right): encodes setId + keyVersion so a grader can scan a filled
         // sheet and match it to the correct printed ANSWER KEY page. It never
-        // contains the answers themselves. Best-effort — a QR failure must not abort
+        // contains the answers themselves. Best-effort - a QR failure must not abort
         // the whole PDF.
         try {
             const mod = await import('qrcode');
@@ -388,7 +195,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
                 doc.text('Scan to verify set', pageW - M - qrSize / 2, M + qrSize + 2.5, { align: 'center' });
                 doc.setTextColor(0);
             }
-        } catch { /* qrcode unavailable — the sheet still prints without the QR */ }
+        } catch { /* qrcode unavailable - the sheet still prints without the QR */ }
 
         setFont(13, 'bold');
         doc.text('ANSWER SHEET', pageW / 2, y + 4, { align: 'center' });
@@ -424,7 +231,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
             if (p > 0) {
                 doc.addPage();
                 setFont(10, 'bold');
-                doc.text(`ANSWER SHEET (continued) — ${code}   ${setLabel}`, M, M + 4);
+                doc.text(`ANSWER SHEET (continued) \u2014 ${code}   ${setLabel}`, M, M + 4);
                 setFont(8, 'normal');
                 doc.text(`Items ${page.from}-${page.to}     Name: ____________________________`, M, M + 9.5);
                 gridY = M + SHEET_NEXT_HEADER;
@@ -458,16 +265,16 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
         y += 4.5;
         setFont(7.5, 'normal');
         doc.setTextColor(120);
-        doc.text(`${idLine}  —  scan the answer-sheet QR to confirm a sheet matches this key`, M, y);
+        doc.text(`${idLine}  \u2014  scan the answer-sheet QR to confirm a sheet matches this key`, M, y);
         if (showSections) {
             y += 4;
-            doc.text(sections.map((s, i) => `${partLabel(i)} ${s.subject} ${s.from}-${s.to}`).join('   ·   '), M, y);
+            doc.text(sections.map((s, i) => `${partLabel(i)} ${s.subject} ${s.from}-${s.to}`).join('   \u00B7   '), M, y);
         }
         doc.setTextColor(0);
         y += 6;
 
         // Column-major (fill each column top-to-bottom), matching the answer sheet
-        // and the PH convention. 5 columns → e.g. 50 items = 5 cols of 10. Rows
+        // and the PH convention. 5 columns -> e.g. 50 items = 5 cols of 10. Rows
         // past the page continue on the next one.
         const akCols = 5;
         const akColW = contentW / akCols;
@@ -480,7 +287,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
             if (p > 0) {
                 doc.addPage();
                 setFont(10, 'bold');
-                doc.text(`ANSWER KEY (continued) — ${code}   ${setLabel}`, M, M + 4);
+                doc.text(`ANSWER KEY (continued) \u2014 ${code}   ${setLabel}`, M, M + 4);
                 startY = M + 10;
             }
             setFont(9.5, 'normal');
@@ -503,7 +310,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
         doc.setPage(p);
         setFont(7.5, 'normal');
         doc.setTextColor(120);
-        doc.text(`REE Pre-board — ${code} — ${setLabel} — ${setId}`, M, footerY);
+        doc.text(`REE Pre-board \u2014 ${code} \u2014 ${setLabel} \u2014 ${setId}`, M, footerY);
         doc.text(`Page ${p} of ${total}`, pageW - M, footerY, { align: 'right' });
         doc.setTextColor(0);
     }
@@ -513,7 +320,7 @@ export async function generateExamPaper({ draw, paper = 'a4', documents = { pape
     // an option (a silent '-' in the key) instead of shipping a broken key.
     const result = { pages: total, items: items.length, setLabel, setId, keyVersion, unmatched, filename };
     // `output` (e.g. 'arraybuffer'/'blob') returns the bytes instead of triggering
-    // a browser download — used by tests/tooling; the UI path leaves it null.
+    // a browser download - used by tests/tooling; the UI path leaves it null.
     if (output) return { ...result, data: doc.output(output) };
     doc.save(filename);
     return result;

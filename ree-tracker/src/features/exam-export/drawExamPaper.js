@@ -22,7 +22,7 @@ import {
 import { presentOptions } from '../quiz/presentOptions';
 import {
   SUBJECT_CODE, answerLetterFor, deriveExamIdentity, formatDuration, partLabel, setLabelFor,
-} from '../board-simulator/examPaper';
+} from './paperFormat';
 import { applyFocusFilter } from '../board-simulator/poolFilters';
 import { PRC_TIMES } from '../../config/examStandards';
 import { mentionsFigure } from './markdownToLatex';

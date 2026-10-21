@@ -516,7 +516,8 @@ export function sanitizeMath(input, ctx, { display = false } = {}) {
   let needsGather = false;
   const inText = () => textLevels.length > 0;
   // A piece that brings its own ^ or _ (a Unicode superscript or subscript,
-  // a degree sign, ℃, a prime) straight after a written ^ or _: x^² is
+  // a degree sign, the Celsius sign, a prime) straight after a written ^ or _:
+  // x^ then a superscript 2 is
   // x^{2}, not x^^{2}, which pdflatex reads as ^^ notation or a double
   // superscript and stops, taking the whole paper with it.
   const attach = (piece) => {
