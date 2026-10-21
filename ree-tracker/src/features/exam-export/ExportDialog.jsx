@@ -30,12 +30,15 @@ const kb = (bytes) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 export default function ExportDialog({ open = true, onClose, config }) {
   const exp = useExamExport(config);
-  const [format, setFormat] = useState('pdf');
+  // The Android app can't save a file (no Filesystem plugin): the PDF would
+  // say "saved" and land nowhere, so there it's LaTeX to copy, only.
+  const downloads = canDownloadFiles();
+  const formats = downloads ? FORMATS : FORMATS.filter((f) => f.value === 'latex');
+  const [format, setFormat] = useState(downloads ? 'pdf' : 'latex');
   const [paper, setPaper] = useState('a4');
   const [docs, setDocs] = useState({ paper: true, sheet: true, key: true });
   const [solutions, setSolutions] = useState(true);
   const hintId = useId();
-  const downloads = canDownloadFiles();
 
   const plan = exp.plan;
   const noneChosen = !docs.paper && !docs.sheet && !docs.key;
@@ -98,7 +101,7 @@ export default function ExportDialog({ open = true, onClose, config }) {
 
         <div className="flex flex-col gap-2">
           <span className="text-eyebrow" aria-hidden="true">Format</span>
-          <SegmentedControl label="Format" options={FORMATS} value={format} onChange={change(setFormat)} />
+          <SegmentedControl label="Format" options={formats} value={format} onChange={change(setFormat)} />
         </div>
 
         <div className="flex flex-col gap-2">

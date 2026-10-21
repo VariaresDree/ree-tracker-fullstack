@@ -10,12 +10,15 @@ export const FIXTURE_QUESTIONS = questions;
 export const FIXED_NOW = new Date('2026-10-20T01:00:00Z');
 export const FIXED_KEY = 'fixture-key';
 
-/** A fake bank: `limit` questions for a subject, cycling with fresh ids. */
-export function fixtureBank(pool = questions, { anySubject = false } = {}) {
+/**
+ * A fake bank: `limit` questions for a subject, cycling with fresh ids, or
+ * (`cycle: false`) just the subject's own, so a draw holds exactly them.
+ */
+export function fixtureBank(pool = questions, { anySubject = false, cycle = true } = {}) {
   return async (subject, subtopic, limit) => {
     const own = anySubject ? pool : pool.filter((q) => q.subject === subject);
     const src = own.length ? own : pool;
-    const count = anySubject ? Math.min(limit, src.length) : limit;
+    const count = anySubject || !cycle ? Math.min(limit, src.length) : limit;
     return Array.from({ length: count }, (_, i) => {
       const q = src[i % src.length];
       return i < src.length ? q : { ...q, id: `${q.id}-r${Math.floor(i / src.length)}` };
@@ -48,9 +51,9 @@ export function fixtureDraw(config, deps = {}) {
 }
 
 /** The 12-item mixed draw the template tests use. */
-export const twelveItemDraw = () => fixtureDraw(CONFIGS.custom12, { fetchQuestions: fixtureBank(TWELVE) });
+export const twelveItemDraw = () => fixtureDraw(CONFIGS.custom12, { fetchQuestions: fixtureBank(TWELVE, { cycle: false }) });
 
-/** Every tricky case in one paper (45 items, no repeats). */
+/** Every tricky case in one paper (every item, no repeats). */
 export const allTrickyDraw = () => fixtureDraw(CONFIGS.allTricky, { fetchQuestions: fixtureBank(questions, { anySubject: true }) });
 
 /** A fake QR module matrix. */

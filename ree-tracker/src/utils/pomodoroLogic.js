@@ -305,6 +305,12 @@ export function migratePomodoro(raw, now = Date.now()) {
   if (p.pausedRemaining == null && typeof r.timeLeft === 'number') p.pausedRemaining = r.timeLeft;
   if (p.pausedRemaining != null) p.pausedRemaining = Math.min(modeDurationSecs(p), Math.max(0, Math.round(p.pausedRemaining)));
 
+  // The previous version's clean-up left a block that ran out while the app
+  // was closed stopped at 0:00, already logged. Kept as it was, it showed
+  // 00:00 "in progress" (so an exam link was refused), Start ran the same
+  // mode again, and the long break never came. It is finished: move on,
+  // logging nothing more.
+  if (!p.isRunning && p.pausedRemaining === 0) return advance(p, now, null, { counted: true, autoStart: false });
   if (!p.isRunning) return { ...p, endsAt: null };
   if (p.endsAt == null) {
     // The legacy counter shape, running: nothing to date it by, so it waits paused.

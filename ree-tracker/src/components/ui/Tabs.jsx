@@ -206,14 +206,12 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
             >
               <span data-tab-label="" className="inline-flex items-center gap-2">
                 {Icon && <Icon size={16} strokeWidth={1.75} aria-hidden="true" />}
-                {/* The bold active label is as wide as the regular one: the
-                    hidden bold copy (generated content, so not part of the
-                    tab's name) sets the width, and the row doesn't shift
-                    when the active tab changes. */}
-                <span
-                  data-text={t.label}
-                  className="inline-flex flex-col items-center after:h-0 after:overflow-hidden after:invisible after:font-semibold after:select-none after:content-[attr(data-text)]"
-                >
+                {/* The bold active label is as wide as the regular one: a
+                    hidden bold copy (generated content with empty alt text,
+                    so never part of the tab's name; index.css
+                    .tab-label-width) sets the width, and the row doesn't
+                    shift when the active tab changes. */}
+                <span data-text={t.label} className="tab-label-width inline-flex flex-col items-center">
                   {t.label}
                 </span>
               </span>

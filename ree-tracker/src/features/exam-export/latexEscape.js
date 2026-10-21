@@ -515,6 +515,22 @@ export function sanitizeMath(input, ctx, { display = false } = {}) {
   let lefts = 0;
   let needsGather = false;
   const inText = () => textLevels.length > 0;
+  // A piece that brings its own ^ or _ (a Unicode superscript or subscript,
+  // a degree sign, ℃, a prime) straight after a written ^ or _: x^² is
+  // x^{2}, not x^^{2}, which pdflatex reads as ^^ notation or a double
+  // superscript and stops, taking the whole paper with it.
+  const attach = (piece) => {
+    let p = out.length - 1;
+    while (p >= 0 && !out[p].trim()) p -= 1;
+    const prev = p >= 0 ? out[p] : '';
+    if (prev !== '^' && prev !== '_') return piece;
+    out.length = p + 1;
+    if (piece[0] === prev) {
+      const rest = piece.slice(1).trimStart();
+      return rest.startsWith('{') ? rest : `{${rest}}`;
+    }
+    return `{${piece}}`;
+  };
   const innerEnv = () => {
     for (let k = envs.length - 1; k >= 0; k -= 1) if (envs[k].as) return envs[k].as;
     return null;
@@ -552,7 +568,7 @@ export function sanitizeMath(input, ctx, { display = false } = {}) {
         continue;
       }
       if (DROP_BARE.has(name)) continue;
-      if (name === 'textdegree') { out.push('^{\\circ}'); continue; }
+      if (name === 'textdegree') { out.push(attach('^{\\circ}')); continue; }
       if (name === 'cr' || name === 'crcr' || name === 'newline') {
         if (!innerEnv() && depth === 0) needsGather = true;
         out.push('\\\\');
@@ -601,7 +617,7 @@ export function sanitizeMath(input, ctx, { display = false } = {}) {
         continue;
       }
       if (v.codePointAt(0) > 0x7E) {
-        out.push(glyph(v, !inText(), ctx));
+        out.push(inText() ? glyph(v, false, ctx) : attach(glyph(v, true, ctx)));
         continue;
       }
       // Text accents are errors in math; \( and \[ open math inside math.
@@ -643,20 +659,23 @@ export function sanitizeMath(input, ctx, { display = false } = {}) {
         i = k - 1;
         out.push(inText()
           ? `\\ensuremath{${table === SUPERSCRIPTS ? '^' : '_'}{${run}}}`
-          : `${table === SUPERSCRIPTS ? '^' : '_'}{${run}}`);
+          : attach(`${table === SUPERSCRIPTS ? '^' : '_'}{${run}}`));
         continue;
       }
       if (isPlaceholder(code)) return demote('a placeholder character');
-      out.push(glyph(v, !inText(), ctx));
+      out.push(inText() ? glyph(v, false, ctx) : attach(glyph(v, true, ctx)));
       continue;
     }
-    out.push(v);
+    out.push(v === "'" && !inText() ? attach(v) : v);
   }
 
   if (depth !== 0) return demote('unbalanced braces');
   if (envs.length) return demote('unbalanced environments');
   if (lefts !== 0) return demote('unbalanced \\left and \\right');
   let latex = out.join('').trim();
+  // The guard on what goes out, not only what came in: a script straight
+  // after a script (^^, _^, ^') stops pdflatex, so the formula prints as text.
+  if (/(?<!\\)[\^_]\s*[\^_']/.test(latex)) return demote('a double superscript or subscript');
   if (needsGather) latex = `\\begin{gathered}${latex}\\end{gathered}`;
   // The source was ASCII-checked character by character; this is the guard.
   latex = ensureAscii(latex, ctx);

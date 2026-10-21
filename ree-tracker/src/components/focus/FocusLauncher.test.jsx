@@ -25,7 +25,7 @@ const at = (variant) => render(
     </Routes>
   </MemoryRouter>,
 );
-const link = () => screen.getByRole('link', { name: 'Focus timer' });
+const link = () => screen.getByRole('link', { name: /^Focus timer/ });
 
 beforeEach(() => { state.pomodoro = freshPomodoro(); seen = null; });
 
@@ -45,11 +45,13 @@ describe('FocusLauncher', () => {
     expect(screen.queryByTestId('focus-running-dot')).toBeNull();
   });
 
-  it('the row shows the mode and the time left while a block runs', () => {
+  it('the row shows the mode and the time left while a block runs, and is named by them', () => {
     state.pomodoro = startTimer(freshPomodoro({ mode: 'exam', examSection: 'EE' }), Date.now());
     at('row');
     expect(link()).toHaveTextContent('Paper exam');
     expect(link()).toHaveTextContent(/[56]:\d\d:\d\d/);
+    // WCAG 2.5.3: the name holds what the row shows, after "Focus timer".
+    expect(link()).toHaveAccessibleName(/^Focus timer,\s*Paper exam\s*[56]:\d\d:\d\d$/);
     expect(screen.getByTestId('focus-running-dot')).toBeInTheDocument();
   });
 

@@ -111,11 +111,12 @@ describe('ExportDialog', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/^Copied REE-EE-.*-questions\.tex\.$/);
   });
 
-  it('offers only Copy in the Android app', async () => {
+  it('offers only LaTeX to copy in the Android app, where a PDF would save nowhere', async () => {
     native.value = true;
     const user = userEvent.setup();
     renderDialog();
-    await user.click(screen.getByRole('radio', { name: 'LaTeX (editable)' }));
+    expect(screen.queryByRole('radio', { name: 'PDF (print-ready)' })).toBeNull();
+    expect(screen.getByRole('radio', { name: 'LaTeX (editable)' })).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'Build LaTeX files' }));
     await screen.findAllByRole('button', { name: /^Copy REE-/ });
     expect(screen.queryByRole('button', { name: /Download/ })).toBeNull();

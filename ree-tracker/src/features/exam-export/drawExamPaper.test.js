@@ -64,7 +64,8 @@ describe('drawExamPaper', () => {
     const fetchQuestions = bank({ Mathematics: many('Mathematics', 25), ESAS: many('ESAS', 30), EE: many('EE', 45) });
     const draw = await drawExamPaper(PRC_BLENDED, { fetchQuestions, fetchWeights: async () => null, sittingKey: 'k', now: new Date('2026-10-20T00:00:00Z') });
     expect(fetchQuestions).toHaveBeenCalledTimes(3);
-    expect(fetchQuestions.mock.calls.map((c) => [c[0], c[1], c[2]])).toEqual([['Mathematics', 'All', 25], ['ESAS', 'All', 30], ['EE', 'All', 45]]);
+    // Each section asks for four times its count, to choose from.
+    expect(fetchQuestions.mock.calls.map((c) => [c[0], c[1], c[2]])).toEqual([['Mathematics', 'All', 100], ['ESAS', 'All', 120], ['EE', 'All', 180]]);
     expect(draw.sections.map((s) => [s.subject, s.from, s.to])).toEqual([['Mathematics', 1, 25], ['ESAS', 26, 55], ['EE', 56, 100]]);
     expect(draw.items.map((it) => it.n)).toEqual(Array.from({ length: 100 }, (_, i) => i + 1));
     expect(draw.items[30].subject).toBe('ESAS');
@@ -114,7 +115,7 @@ describe('drawExamPaper', () => {
   it('marks a stem that mentions a figure, unless it carries an image', async () => {
     const fetchQuestions = bank({ EE: [q('f', 'EE', { text: 'In the circuit shown below, find I.' }), q('g', 'EE', { text: 'See ![x](y.png) as shown' })] });
     const draw = await drawExamPaper(custom({ count: 2 }), { fetchQuestions });
-    expect(draw.items.map((it) => [it.id, it.figure])).toEqual([['f', true], ['g', false]]);
+    expect(draw.items.map((it) => [it.id, it.figure]).sort()).toEqual([['f', true], ['g', false]]);
   });
 
   // Moved from useSimulatorEngine.retake.test.js with the export itself.
@@ -130,8 +131,8 @@ describe('drawExamPaper', () => {
       printed.push((await drawExamPaper(custom({ count: 3 }), { fetchQuestions })).items);
     }
     for (const items of printed) {
-      expect(items.map((it) => it.id)).toEqual(['q1', 'q2', 'q3']);
-      items.forEach((it, i) => expect([...it.options].sort()).toEqual(four[i].options));
+      expect(items.map((it) => it.id).sort()).toEqual(['q1', 'q2', 'q3']);
+      items.forEach((it) => expect([...it.options].sort()).toEqual(four.find((f) => f.id === it.id).options));
       // The key's letter follows the printed order.
       items.forEach((it) => expect(it.options[it.answerIndex]).toBe(it.answer));
     }
@@ -147,8 +148,33 @@ describe('drawExamPaper', () => {
     const a = await drawExamPaper(custom({ count: 5 }), { fetchQuestions, sittingKey: 'same' });
     const b = await drawExamPaper(custom({ count: 5 }), { fetchQuestions, sittingKey: 'same' });
     expect(a.items.map((it) => it.options)).toEqual(b.items.map((it) => it.options));
-    expect(a.items[0].options).toEqual(orderOptions(many('EE', 1)[0].options, optionKey('same', 'EE-1')));
+    expect(a.items.map((it) => it.id)).toEqual(b.items.map((it) => it.id));
+    const first = a.items.find((it) => it.id === 'EE-1');
+    expect(first.options).toEqual(orderOptions(many('EE', 1)[0].options, optionKey('same', 'EE-1')));
     expect([a.setId, a.keyVersion]).toEqual([b.setId, b.keyVersion]);
+  });
+
+  // Offline the pack hands back its first rows every time, so a set that
+  // took exactly what it asked for reprinted the same questions on every
+  // "Draw a new set".
+  it('a new set draws new questions from the same pool, and the same key the same ones', async () => {
+    const pool = many('EE', 40);
+    const fetchQuestions = vi.fn(async (_s, _t, limit) => pool.slice(0, limit));
+    const ids = async (key) => (await drawExamPaper(custom({ count: 10 }), { fetchQuestions, sittingKey: key })).items.map((it) => it.id).sort();
+    expect(fetchQuestions).not.toHaveBeenCalled();
+    const first = await ids('set-1');
+    expect(await ids('set-1')).toEqual(first);
+    const others = await Promise.all(['set-2', 'set-3', 'set-4'].map(ids));
+    expect(others.some((o) => JSON.stringify(o) !== JSON.stringify(first))).toBe(true);
+    expect(fetchQuestions.mock.calls[0][2]).toBe(40);
+  });
+
+  it('a skipped duplicate is replaced from the headroom, so the paper is full', async () => {
+    const dup = many('EE', 1)[0];
+    const fetchQuestions = vi.fn(async () => [dup, dup, ...many('EE', 30).slice(1)]);
+    const draw = await drawExamPaper(custom({ count: 10 }), { fetchQuestions });
+    expect(draw.items).toHaveLength(10);
+    expect(draw.warnings.shortfall).toEqual([]);
   });
 });
 

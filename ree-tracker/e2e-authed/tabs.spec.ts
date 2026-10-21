@@ -51,3 +51,18 @@ for (const width of [360, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   });
 }
+
+test('each tab is named by its label alone, and the row keeps its widths as the active tab changes', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/progress');
+  const row = strip(page);
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  // The hidden bold copy that reserves each label's width is not read out.
+  for (const label of ORDER) await expect(row.getByRole('tab', { name: label, exact: true })).toBeVisible();
+  const widths = () => row.getByRole('tab').evaluateAll((tabs) => tabs.map((t) => t.getBoundingClientRect().width));
+  const before = await widths();
+  await row.getByRole('tab', { name: 'Habits', exact: true }).click();
+  await expect(row.getByRole('tab', { name: 'Habits', exact: true })).toHaveAttribute('aria-selected', 'true');
+  const after = await widths();
+  after.forEach((w, i) => expect(Math.abs(w - before[i]), ORDER[i]).toBeLessThan(0.5));
+});

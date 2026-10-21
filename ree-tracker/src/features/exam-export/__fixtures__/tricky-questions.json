@@ -622,5 +622,20 @@
   ],
   "answer": "$\\tfrac{1}{3}$",
   "fixedExplanation": "$$\\int_0^1 x^2\\,dx = \\left[\\frac{x^3}{3}\\right]_0^1 = \\frac{1}{3}$$"
+ },
+ {
+  "id": "t46",
+  "subject": "Mathematics",
+  "subtopic": "Algebra",
+  "text": "Superscript characters written after a caret or underscore: simplify $x^\u00b2 \\cdot x^ \u00b3$ when $V_\u2082 = 2$ and the room is at $25^\u2103$.",
+  "options": [
+   "$x^\u2075$",
+   "$x^{6}$",
+   "$x_\u00b2$",
+   "$x^\u00b9$"
+  ],
+  "answer": "$x^\u2075$",
+  "fixedExplanation": "Add the exponents: $x^\u00b2 \\cdot x^\u00b3 = x^{2+3} = x^5$.",
+  "type": "calculation"
  }
 ]

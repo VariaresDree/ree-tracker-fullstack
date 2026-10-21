@@ -263,6 +263,18 @@ describe('migratePomodoro (rehydrate)', () => {
     expect(migratePomodoro({ isWork: true }, NOW).mode).toBe('focus');
   });
 
+  // The previous version stopped such a block at 0:00 (already logged). It
+  // loaded as 00:00 "in progress": an exam link was refused, Start ran the
+  // same mode again, and the long break never came.
+  it("the previous version's block stopped at 0:00 counts as done and moves on, logging nothing more", () => {
+    const p = migratePomodoro({ workDuration: 25, breakDuration: 5, isWork: true, isRunning: false, endsAt: null, pausedRemaining: 0, focusStartedAt: null, pendingFocusLogs: [] }, NOW);
+    expect(p).toMatchObject({ mode: 'short', cycle: 1, isRunning: false, pausedRemaining: 5 * 60 });
+    expect(p.pendingFocusLogs).toEqual([]);
+    expect(isInProgress(p, NOW)).toBe(false);
+    const fromBreak = migratePomodoro({ isWork: false, isRunning: false, pausedRemaining: 0 }, NOW);
+    expect(fromBreak).toMatchObject({ mode: 'focus', pausedRemaining: 25 * 60 });
+  });
+
   it('a focus block that ran out while the app was closed is logged once and moves on, paused', () => {
     const endsAt = T0 + 25 * MIN;
     const p = migratePomodoro({ ...base({ autoStartBreaks: true }), isRunning: true, endsAt, pausedRemaining: null, focusStartedAt: T0 }, NOW);

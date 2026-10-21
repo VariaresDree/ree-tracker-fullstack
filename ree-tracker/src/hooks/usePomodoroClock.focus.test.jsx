@@ -39,6 +39,19 @@ describe('usePomodoroClock — focus blocks', () => {
     expect(useStore.getState().pomodoro.pendingFocusLogs).toEqual([]);
   });
 
+  // A 6 h paper exam sent to a server still on the 3 h limit gets a 400
+  // that no retry can fix; it used to vanish without a trace.
+  it('a block the server refuses outright goes to Sync issues, not away', async () => {
+    useStore.setState({ deadLetters: [] });
+    writeOrQueue.mockImplementationOnce(async () => { throw Object.assign(new Error('minutes too large'), { status: 400 }); });
+    renderHook(() => usePomodoroClock({ owner: true }));
+    await waitFor(() => expect(useStore.getState().deadLetters).toHaveLength(1));
+    const letter = useStore.getState().deadLetters[0];
+    expect(letter).toMatchObject({ type: 'pendingWrite', endpoint: '/api/user/focus-blocks', status: 400 });
+    expect(letter.write).toMatchObject({ endpoint: '/api/user/focus-blocks', method: 'POST', ownerUid: 'u1', body: expect.objectContaining({ clientId: block.clientId, minutes: 25 }) });
+    expect(useStore.getState().pomodoro.pendingFocusLogs).toEqual([]);
+  });
+
   it('a timer that is only shown sends nothing', () => {
     renderHook(() => usePomodoroClock());
     expect(writeOrQueue).not.toHaveBeenCalled();

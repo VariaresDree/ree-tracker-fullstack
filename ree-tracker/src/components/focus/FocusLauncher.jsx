@@ -50,17 +50,21 @@ export default function FocusLauncher({ variant = 'row' }) {
 
   if (variant === 'row') {
     return (
+      // Named by what it shows (WCAG 2.5.3, so a voice user can say what they
+      // see), with "Focus timer" spoken first while the row shows a mode.
       <Link
         to="/focus"
         state={state}
-        aria-label="Focus timer"
         className="group flex w-full items-center gap-3 rounded-[var(--radius-default)] px-3 py-2 text-sm text-textMain hover:bg-surface2 transition-colors pointer-coarse:min-h-11"
       >
         <span className="relative shrink-0 inline-flex">
           <Timer size={18} strokeWidth={1.75} aria-hidden="true" className="opacity-70 group-hover:opacity-100" />
           {running && <RunningDot mode={pomodoro.mode} className="-top-0.5 -right-0.5" />}
         </span>
-        <span className="font-medium truncate">{running ? MODE_LABEL[pomodoro.mode] : 'Focus timer'}</span>
+        <span className="font-medium truncate">
+          {running && <span className="sr-only">Focus timer, </span>}
+          {running ? MODE_LABEL[pomodoro.mode] : 'Focus timer'}
+        </span>
         <span className="ml-auto font-mono tabular-nums text-xs text-muted2">{formatClock(remainingSecs(pomodoro))}</span>
       </Link>
     );

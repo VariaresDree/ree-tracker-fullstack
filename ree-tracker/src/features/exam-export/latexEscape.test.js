@@ -141,6 +141,26 @@ describe('sanitizeMath rewrites what pdflatex rejects', () => {
     expect(math("f'^2").latex).toBe('f^{\\prime 2}');
     expect(math("f''^{n}").latex).toBe('f^{\\prime \\prime n}');
   });
+
+  // x^² compiled to x^^{2}: pdflatex read it as ^^ notation and stopped,
+  // and one such item took the whole paper with it.
+  it('a superscript character written after ^ or _ joins it, never doubles it', () => {
+    expect(math('x^\u00B2').latex).toBe('x^{2}');
+    expect(math('x^ \u00B3').latex).toBe('x^{3}');
+    expect(math('V_\u2082').latex).toBe('V_{2}');
+    expect(math('25^\u2103').latex).toBe('25^{\\circ}\\mathrm{C}');
+    expect(math('90^\\textdegree').latex).toBe('90^{\\circ}');
+    expect(math('x_\u00B2').latex).toBe('x_{^{2}}');
+    expect(math("x^'").latex).toBe("x^{'}");
+    for (const src of ['x^\u00B2', 'V_\u2082', '25^\u2103', 'a_i^\u00B2']) {
+      expect(math(src).latex, src).not.toMatch(/(?<!\\)[\^_]\s*[\^_']/);
+    }
+  });
+
+  it('what still has a script straight after a script prints as text', () => {
+    expect(math('x__2')).toMatchObject({ ok: false });
+    expect(math('x^_2')).toMatchObject({ ok: false });
+  });
 });
 
 describe('sanitizeMath demotes what it cannot make safe', () => {

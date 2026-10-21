@@ -126,8 +126,9 @@ describe('desktop shell', () => {
     it('the sidebar links to the full-screen focus timer, expanded and collapsed', () => {
         desktop();
         at('/');
-        expect(screen.getByRole('link', { name: 'Focus timer' })).toHaveAttribute('href', '/focus');
-        expect(screen.getByRole('link', { name: 'Focus timer' })).toHaveTextContent('25:00');
+        // The row is named by what it shows (WCAG 2.5.3): "Focus timer 25:00".
+        const row = screen.getByRole('link', { name: /^Focus timer\s*25:00$/ });
+        expect(row).toHaveAttribute('href', '/focus');
         fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
         const collapsed = screen.getByRole('link', { name: 'Focus timer' });
         expect(collapsed).toHaveAttribute('href', '/focus');

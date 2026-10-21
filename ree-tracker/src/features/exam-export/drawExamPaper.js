@@ -17,13 +17,13 @@
 // keyed by a fresh sitting key), and the key's letters follow that order.
 import {
   PRC_EXAM_FORMAT, DEFAULT_SYLLABUS_WEIGHTS, apportionItems, boardPaceSeconds, matchOption,
-  newSittingKey, normalizeSubject,
+  newSittingKey, normalizeSubject, shuffleWithKey,
 } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
 import {
   SUBJECT_CODE, answerLetterFor, deriveExamIdentity, formatDuration, partLabel, setLabelFor,
 } from '../board-simulator/examPaper';
-import { applyFocusFilter, stratifiedSample } from '../board-simulator/poolFilters';
+import { applyFocusFilter } from '../board-simulator/poolFilters';
 import { PRC_TIMES } from '../../config/examStandards';
 import { mentionsFigure } from './markdownToLatex';
 
@@ -139,6 +139,26 @@ const defaultFetchQuestions = (subject, subtopic, limit) => import('../../servic
   .then((m) => m.fetchVaultQuestions(subject, subtopic, limit));
 const defaultFetchWeights = () => import('../../services/dbQueries').then((m) => m.fetchSyllabusWeights());
 
+// A set's questions: spread across subtopics like the sitting's sample, but
+// seeded by the set's key, so the same key reprints the same paper and
+// "Draw a new set" (a new key) brings new questions, offline too.
+function pickForSet(pool, count, key) {
+  const shuffled = shuffleWithKey(pool, key);
+  if (shuffled.length <= count) return shuffled;
+  const buckets = new Map();
+  for (const q of shuffled) {
+    const k = q?.subtopic || 'General';
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(q);
+  }
+  const groups = [...buckets.values()];
+  const picked = [];
+  while (picked.length < count) {
+    for (const g of groups) if (g.length && picked.length < count) picked.push(g.shift());
+  }
+  return picked;
+}
+
 /**
  * Draw a printed set.
  * @param {object} config  the setup screen's config
@@ -156,16 +176,17 @@ export async function drawExamPaper(config, {
     try { weights = (await fetchWeights()) || DEFAULT_SYLLABUS_WEIGHTS; } catch { weights = DEFAULT_SYLLABUS_WEIGHTS; }
   }
   const plan = resolveExportPlan(config, weights);
-  const filtering = plan.cognitiveFocus !== 'mixed';
   const warnings = { unmatched: [], shortfall: [], focusFallback: false };
   const seen = new Set();
   const items = [];
   const sections = [];
 
   for (const section of plan.sections) {
-    // A focus filter needs room to choose from; without one the server's
-    // random sample is the paper.
-    const limit = filtering ? Math.min(2000, section.count * 4) : section.count;
+    // Fetched with room to choose, and always sampled. Offline the pack hands
+    // back its first N every time, so taking exactly N printed the same
+    // questions on every "Draw a new set"; and a duplicate or unprintable
+    // item skipped below left the paper short with nothing to replace it.
+    const limit = Math.min(2000, section.count * 4);
     const raw = (await fetchQuestions(section.subject, section.subtopic, limit)) || [];
     const { pool, fallback } = applyFocusFilter(raw.filter(printable), plan.cognitiveFocus);
     if (fallback) warnings.focusFallback = true;
@@ -177,7 +198,7 @@ export async function drawExamPaper(config, {
       local.add(k);
       unique.push(q);
     }
-    const picked = filtering ? stratifiedSample(unique, section.count) : unique.slice(0, section.count);
+    const picked = pickForSet(unique, section.count, `${sittingKey}|${section.subject}`);
     picked.forEach((q) => seen.add(keyOf(q)));
     if (picked.length < section.count) {
       warnings.shortfall.push({ subject: section.subject, requested: section.count, drawn: picked.length });

@@ -103,7 +103,9 @@ export function usePomodoroClock({ owner = false } = {}) {
 
     // Logged focus blocks go out once: taken off the timer's list, then sent
     // or put in the offline queue (which replays them; the server keeps one
-    // per block id). One the server refuses outright is dropped. A block
+    // per block id). One the server refuses outright goes to Sync issues,
+    // where it can be retried: a 4-6 h paper exam sent to a server still on
+    // the old 3 h limit used to vanish here. A block
     // stamped with another account (one that signed out without the timer
     // being cleared) is dropped, never sent under this account's token.
     useEffect(() => {
@@ -114,7 +116,9 @@ export function usePomodoroClock({ owner = false } = {}) {
         clearFocusLogs(batch.map((b) => b.clientId));
         for (const b of batch) {
             if (b.ownerUid != null && b.ownerUid !== uid) continue;
-            writeOrQueue(FOCUS_BLOCKS_ENDPOINT, 'POST', toPayload(b), { queueKey: FOCUS_BLOCKS_ENDPOINT }).catch(() => {});
+            const payload = toPayload(b);
+            writeOrQueue(FOCUS_BLOCKS_ENDPOINT, 'POST', payload, { queueKey: FOCUS_BLOCKS_ENDPOINT })
+                .catch((err) => useStore.getState().quarantineWrite(FOCUS_BLOCKS_ENDPOINT, 'POST', payload, err));
         }
     }, [owner, pendingFocusLogs, clearFocusLogs]);
 

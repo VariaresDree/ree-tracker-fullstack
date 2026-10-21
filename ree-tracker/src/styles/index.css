@@ -895,6 +895,21 @@ body {
   }
   .interactive-card:active { transform: scale(0.99); }
 
+  /* Tabs: the hidden bold copy that reserves an active label's width
+     (components/ui/Tabs.jsx). The empty alt text after the slash keeps it
+     out of the tab's accessible name in every browser; one that doesn't know
+     the syntax keeps the first `content`. */
+  .tab-label-width::after {
+    content: attr(data-text);
+    content: attr(data-text) / "";
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    font-weight: 600;
+    user-select: none;
+    pointer-events: none;
+  }
+
   /* GLASS SURFACES: page cards (<Card>, <Panel>, <KpiTile>) and the
      sidebar. The card colour at --glass-alpha (per theme, beside its
      texture) over the page, so the theme's glow and pattern show through,

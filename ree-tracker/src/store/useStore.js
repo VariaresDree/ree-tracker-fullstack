@@ -546,6 +546,20 @@ export const useStore = create(
         }));
       },
 
+      // A write the server refused outright, kept in Sync issues (where it
+      // can be retried) instead of lost: a focus block longer than an older
+      // server accepts, sent before the server that does was deployed.
+      quarantineWrite: (endpoint, method, body, err) => {
+        const ownerUid = auth.currentUser?.uid || getStore().ownerUid || null;
+        const write = { id: newId(), endpoint, method: method || 'POST', body, ownerUid, createdAt: new Date().toISOString() };
+        set((state) => ({
+          deadLetters: [
+            ...state.deadLetters,
+            { id: newId(), type: 'pendingWrite', endpoint, write, status: err?.status, error: err?.message || String(err), at: Date.now() },
+          ].slice(-MAX_DEAD_LETTERS),
+        }));
+      },
+
       // Replays queued writes one at a time on reconnect. apiRequest attaches a
       // stable Idempotency-Key, and each write is removed only on success, so a
       // replay lands at-least-once (practically exactly-once for our writes).
@@ -875,22 +889,27 @@ export const useStore = create(
           if (state.theme) localStorage.setItem('ree-theme', state.theme);
           localStorage.setItem('ree-texture', state.plainBackground ? 'off' : 'on');
         } catch { /* storage unavailable: the store still applies them */ }
-        // Legacy pomodoro shape ({ timeLeft } counter) → timestamp model, and
-        // clean up a block that expired while the app was closed.
-        state.pomodoro = stampFocusLogs(state.pomodoro, migratePomodoro(state.pomodoro), auth.currentUser?.uid || state.ownerUid || null);
+        // Legacy pomodoro shape ({ timeLeft } counter, isWork) → the current
+        // timer, and a block that expired while the app was closed moved on.
+        const pomodoro = stampFocusLogs(state.pomodoro, migratePomodoro(state.pomodoro), auth.currentUser?.uid || state.ownerUid || null);
+        let syncQueue = state.syncQueue;
         try {
           const raw = localStorage.getItem(OFFLINE_MIRROR_KEY);
           if (raw) {
             const recovered = JSON.parse(raw);
             if (Array.isArray(recovered) && recovered.length) {
-              const seen = new Set((state.syncQueue || []).map((a) => a?.id));
-              const merged = [...(state.syncQueue || [])];
+              const seen = new Set((syncQueue || []).map((a) => a?.id));
+              const merged = [...(syncQueue || [])];
               for (const a of recovered) if (a && a.id && !seen.has(a.id)) merged.push(a);
-              state.syncQueue = merged.slice(-MAX_SYNC_QUEUE);
+              syncQueue = merged.slice(-MAX_SYNC_QUEUE);
             }
           }
         } catch { /* corrupt mirror — ignore */ }
         try { localStorage.removeItem(OFFLINE_MIRROR_KEY); } catch { /* best effort */ }
+        // Published, not assigned onto `state`: the restored state has already
+        // rendered, and an assignment reached no subscriber, so after an
+        // upgrade the timer showed its old saved shape until the next change.
+        useStore.setState({ pomodoro, syncQueue });
       }
     }
   )
