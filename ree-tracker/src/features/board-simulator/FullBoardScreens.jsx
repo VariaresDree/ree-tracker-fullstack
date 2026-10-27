@@ -32,7 +32,7 @@ export function FullBoardBreak({ board, hasDraft, loading, onContinue, onResumeD
         </Button>
       )}
       <PageHeader title={done === 0 ? 'Ready when you are' : `Section ${done} of ${FULL_BOARD_SECTIONS.length} complete`} />
-      <Card elevated grain padding="lg" className="flex flex-col gap-6">
+      <Card variant="hero" className="flex flex-col gap-6">
         <div className="flex items-center gap-3">
           <IconChip icon={Landmark} size="lg" />
           <span className="text-eyebrow">Full PRC board</span>
@@ -101,7 +101,7 @@ export function FullBoardResults({ board }) {
   return (
     <>
       <PageHeader title="Full PRC board result" />
-      <Card elevated glow padding="lg" className="flex flex-col gap-5">
+      <Card variant="hero" className="flex flex-col gap-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-display text-5xl text-textMain tabular-nums">{summary.generalAverage.toFixed(1)}%</p>

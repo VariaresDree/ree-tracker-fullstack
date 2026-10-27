@@ -63,6 +63,23 @@ every feature add, change, or removal, not on a schedule.
   - The header's sync pill is gone (the shell's connection badge covers it), and the skeleton matches the new page (`TodaySkeleton`).
   - **Shared stats** (`hooks/useDashboardStats.js`): the reconciled aggregate Today and Progress both read, lifted from the Dashboard. The payload lives in `services/analyticsSync`, and both pages subscribe to it (`useSyncExternalStore`). Moving between them shows the last numbers at once instead of a skeleton, and the app-wide sync refresh reaches them. The Dashboard used to refetch on its own after every sync as well, doubling that request. The cached payload is keyed by account, so signing in as someone else never shows the previous account's numbers.
 - [x] **Exams hub** (`pages/Exams.jsx`) — tabs Mock board · Gauntlet · Battles · Rankings · **Past sittings** in `?tab=` (`hooks/useTabParam.js`, which replaces history so Back leaves the page). Mock board lists the four formats (`features/exams/MockBoardTab.jsx`, from `features/board-simulator/profiles.js`), each opening `/simulator?profile=<id>` with that format chosen. Past sittings is the mock-board ledger that used to close the Dashboard. The Gauntlet, Battles and Rankings tabs are their own modules (`features/exams/{GauntletTab,BattlesTab,HostBattleModal,RankingsTab}.jsx`, each a lazy chunk), split out of the 700-line `pages/Arena.jsx`, which is deleted. The Gauntlet's ladder rules are pure and tested (`gauntletTierState.js`), and its cooldown is derived from a ticking clock instead of set from an effect. Battle formats take their names and icons from the mock-board profiles (`battleModes.js`). Section headings are h2 under the hub's h1; Arena's were h3. Rankings opens with **Your rank** (`features/exams/YourRankCard.jsx`, one `/leaderboard/me` request), which used to be a ring labelled "Global Matrix Ranking" in Profile. When you're in the list below, the card uses your place in it: `/me` and the list are separate requests that can straddle a snapshot rebuild, and once showed #2 above a list with you at #1. The list no longer numbers the server's leading "you are here" row as #1 when you're outside the first page.
+  - **Card layout (2026-10 card overhaul):** each tab has one hero (`Card variant="hero"`) and the rest are the standard cards.
+    - **Mock board:** the **Full PRC board** leads as the hero ("The real thing", badges *PRC standard* and *3 sections · 300 items*, one primary Set up). Then **Mixed paper · One subject (PRC clock) · Custom mock**, closest to the board first, as choice cards (`variant="interactive"`), each with a *Blended*, *PRC standard* or *Custom* badge. All four had equal weight.
+    - **Gauntlet:** the intro is the hero, with Current tier and Questions answered on the tiles grid. The inline accent border and blurred blob are gone. Tier cards space by gap, with `.text-h3` names, instead of margins, `relative z-10` and an ad-hoc `text-xl`.
+    - **Battles:** Join and Host are matching cards. Join is the hero and holds the one primary button; Host has a secondary one. They used to have a red border and a blurred blob on one, and three different shadows between them. The battles-in-progress rows are inset wells.
+    - **Rankings:**
+      - **Your rank** is the hero and adds "top N%".
+      - The list loads as skeleton rows (it was a centred spinner).
+      - It is as tall as its rows, up to 70% of the screen. It was a fixed 65vh, at least 500px, so a short list left a tall empty card.
+      - Row labels use `text-micro` instead of 10px.
+    - **Past sittings:**
+      - The three figures are placeholders until the first list arrives; they read "0", "0%" and "0 of 0" while it loaded.
+      - The chart skeleton fits its panel.
+      - The ledger has its own History icon (it shared the trend's chart icon).
+      - A failed load is an empty state.
+      - The outside-score subject tiles are inset wells.
+    - **Mode guide:** it marks the current tab "You're here" on Mock board, Gauntlet and Battles.
+  - **The last hand-made heroes moved** (the full board's break and result, the placement result). `layoutGuards.test.js` › hero cards now allows no `<Card elevated glow>` anywhere.
 - [x] **Progress** (`pages/Progress.jsx`) — one question per tab, in `?tab=`, each tab its own chunk (recharts loads only where a chart is drawn):
   - **Overview** — KPIs, the ability trend (θ) with its day/week/month range, the PRC-rule forecast card, and the **AI board report** (`features/progress/{OverviewTab,AiBoardReport}.jsx`).
   - **Topics** — the mastery heatmap (each tile starts a drill) and accuracy by subject.

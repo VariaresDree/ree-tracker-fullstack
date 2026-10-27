@@ -222,7 +222,7 @@ function PlacementResult({ result, sessionId }) {
   // A fragment: the result's sections sit straight in the page, at its gap.
   return (
     <>
-      <Card elevated glow padding="lg" className="flex flex-col gap-2">
+      <Card variant="hero" className="flex flex-col gap-2">
         <span className="text-eyebrow">Projected general weighted average</span>
         <span className="text-display text-5xl text-textMain tabular-nums">{Number(gwa || 0).toFixed(1)}%</span>
         <p className="text-sm text-muted2">

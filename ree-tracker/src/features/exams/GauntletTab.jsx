@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
-import { Badge, Button, Card, Grid, KpiTile, Skeleton, StatusPill } from '../../components/ui';
+import { Badge, Button, Card, CardWatermark, Grid, KpiTile, Skeleton, StatusPill } from '../../components/ui';
 import { Lock, Shield, Swords, Trophy } from '../../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../../config/examStandards';
 import { cooldownLabel, formatLimit, tierState } from './gauntletTierState';
@@ -17,7 +17,7 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
   return (
     <Card
       padding="md"
-      className={`flex flex-col transition-[opacity,border-color] relative overflow-hidden ${isLocked ? 'opacity-60' : ''}`}
+      className={`flex flex-col gap-4 transition-[opacity,border-color] ${isLocked ? 'opacity-60' : ''}`}
       style={{
         borderColor: isCleared
           ? 'color-mix(in srgb, var(--accent-success) 30%, transparent)'
@@ -26,7 +26,7 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
             : 'var(--border-main)',
       }}
     >
-      <div className="flex justify-between items-start mb-4 relative z-10">
+      <div className="flex justify-between items-start">
         <Badge tone={isCleared ? 'success' : isUnlocked ? 'velocity' : 'neutral'}>
           {subject ? tier.subject : `Tier ${tier.level}`}
         </Badge>
@@ -39,11 +39,11 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
         </span>
       </div>
 
-      <h3 className={`text-xl font-semibold tracking-tight mb-2 relative z-10 ${isPassed || isUnlocked ? 'text-textMain' : 'text-muted'}`}>
+      <h3 className={`text-h3 ${isPassed || isUnlocked ? 'text-textMain' : 'text-muted'}`}>
         {tier.name}
       </h3>
 
-      <ul className="flex flex-col gap-1.5 text-xs font-mono text-muted mb-6 relative z-10">
+      <ul className="flex flex-col gap-1.5 text-xs font-mono text-muted">
         <li className="flex justify-between"><span>Questions</span> <span className="font-bold text-textMain tabular-nums">{tier.items}</span></li>
         <li className="flex justify-between"><span>Time limit</span> <span className="font-bold text-textMain tabular-nums">{formatLimit(tier.timeLimitSecs)}</span></li>
         {!subject && (
@@ -56,7 +56,7 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
         )}
       </ul>
 
-      <div className="mt-auto relative z-10 flex flex-col items-center gap-3">
+      <div className="mt-auto pt-2 flex flex-col items-center gap-3">
         {subject && isCleared && <StatusPill tone="success">Cleared</StatusPill>}
         {isPassed ? (
           <StatusPill tone="success">Cleared</StatusPill>
@@ -132,32 +132,28 @@ export default function GauntletTab() {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
-      <Card
-        padding="lg"
-        className="shadow-sm relative overflow-hidden flex flex-col justify-center"
-        style={{ borderColor: 'color-mix(in srgb, var(--accent) 30%, transparent)' }}
-      >
-        <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}></div>
-        <h2 className="text-h2 text-textMain mb-2 relative z-10 flex items-center gap-3">
+      <Card variant="hero" className="flex flex-col gap-3">
+        <CardWatermark icon={Shield} />
+        <h2 className="text-h2 text-textMain flex items-center gap-3">
           <Shield size={24} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--accent-text)' }} /> The Gauntlet
         </h2>
-        <p className="text-sm text-muted2 relative z-10 leading-relaxed max-w-2xl">
+        <p className="text-sm text-muted2 leading-relaxed max-w-2xl">
           Clear the four blended tiers to rank up. Once all four are cleared, the per-subject
           board exams (Math, ESAS, EE) unlock at their real board time. Failing any exam locks
           the Gauntlet for 12 hours.
         </p>
-        <div className="mt-4 flex gap-3 relative z-10 flex-wrap">
+        <Grid kind="tiles" gap="sm" className="pt-2 max-w-md">
           <KpiTile compact label="Current tier" value={`Level ${currentLevel}`} />
           <KpiTile compact label="Questions answered" value={totalAnswered} />
-        </div>
+        </Grid>
       </Card>
 
-      <div>
-        <p className="text-eyebrow mb-3">Blended tiers</p>
+      <div className="flex flex-col gap-3">
+        <p className="text-eyebrow">Blended tiers</p>
         <Grid kind="pair">{GAUNTLET_TIERS.filter((t) => !isSubjectTier(t)).map(card)}</Grid>
       </div>
-      <div>
-        <p className="text-eyebrow mb-3 flex items-center gap-2">
+      <div className="flex flex-col gap-3">
+        <p className="text-eyebrow flex items-center gap-2">
           Subject boards — 100 items each at board time
           {!subjectsUnlocked && <Lock size={12} strokeWidth={2} className="text-muted" aria-hidden="true" />}
         </p>

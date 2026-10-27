@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { fetchPaginatedLeaderboard } from '../../services/dbQueries';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Badge, Button, Card, CardEyebrow, CardHeader, CardTitle, EmptyState, Grid, StatusPill } from '../../components/ui';
+import { Badge, Button, Card, CardEyebrow, CardHeader, CardTitle, EmptyState, Grid, Skeleton, StatusPill } from '../../components/ui';
 import { ChevronDown, ChevronUp, Flame, Trophy } from '../../components/ui/icons';
 import YourRankCard from './YourRankCard';
 
@@ -31,7 +31,7 @@ function RankDetailStat({ label, value, accent }) {
   return (
     <div className="flex flex-col items-center rounded-[var(--radius-default)] bg-surface2/40 border border-border2/50 py-2">
       <span className={`text-base font-bold tabular-nums ${accent ? '' : 'text-textMain'}`} style={accent ? { color: `var(--accent-${accent})` } : undefined}>{value}</span>
-      <span className="text-[10px] text-muted uppercase tracking-wide mt-0.5 text-center px-1">{label}</span>
+      <span className="text-micro text-muted uppercase tracking-wide mt-0.5 text-center px-1">{label}</span>
     </div>
   );
 }
@@ -75,11 +75,11 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
           <span className="text-sm font-bold tabular-nums inline-flex items-center gap-1" style={{ color: 'var(--color-reeAmber-text)' }}>
             <Flame size={13} strokeWidth={2} aria-hidden="true" />{agent.streak || 0}
           </span>
-          <span className="text-[10px] text-muted uppercase tracking-wide">Streak</span>
+          <span className="text-micro text-muted uppercase tracking-wide">Streak</span>
         </div>
         <div className="shrink-0 w-14 flex flex-col items-end">
           <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(2)}</span>
-          <span className="text-[10px] text-muted uppercase tracking-wide">θ</span>
+          <span className="text-micro text-muted uppercase tracking-wide">θ</span>
         </div>
         <div className="shrink-0 flex justify-end text-muted">
           {open ? <ChevronUp size={18} strokeWidth={2} aria-hidden="true" /> : <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />}
@@ -221,7 +221,10 @@ export default function RankingsTab() {
     <div className="flex flex-col gap-6">
       <YourRankCard listRank={myListRank} />
 
-      <Card className="shadow-sm overflow-hidden flex flex-col min-h-[500px] h-[65vh] animate-in fade-in slide-in-from-bottom-2">
+      {/* As tall as the list, up to 70% of the screen, then it scrolls. It
+          was a fixed 65vh (500px at least), so a short list left a tall
+          empty card. */}
+      <Card elevated className="overflow-hidden flex flex-col max-h-[70vh] animate-in fade-in slide-in-from-bottom-2">
         <CardHeader className="border-b border-border shrink-0">
           <div className="min-w-0">
             <CardEyebrow>Rankings</CardEyebrow>
@@ -232,11 +235,12 @@ export default function RankingsTab() {
           <StatusPill tone={isOnline ? 'signal' : 'danger'}>{isOnline ? 'Live' : 'Offline'}</StatusPill>
         </CardHeader>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 stagger-fade-in">
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-2 stagger-fade-in">
           {showLoading ? (
-            <div role="status" className="flex flex-col items-center justify-center h-full gap-4 py-20 text-[var(--color-reeAmber)]">
-              <span className="telemetry-spinner !w-8 !h-8 border-t-transparent"></span>
-              <span className="text-xs font-bold text-muted2 uppercase tracking-widest animate-pulse">Loading rankings…</span>
+            // Rows in the list's own shape, not a spinner in the middle.
+            <div role="status" className="flex flex-col gap-2 p-1">
+              <span className="sr-only">Loading rankings…</span>
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
             </div>
           ) : (leaderboard || []).length === 0 ? (
             loadError && isOnline ? (

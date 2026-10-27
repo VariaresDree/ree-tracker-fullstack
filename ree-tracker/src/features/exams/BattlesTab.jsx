@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { fetchMultiplayerBattle } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Button, Card, CardTitle, cn, FormField, Grid, Input } from '../../components/ui';
+import { Button, Card, CardTitle, CardWatermark, cn, FormField, Grid, Input } from '../../components/ui';
 import { Check, Swords } from '../../components/ui/icons';
 import HostBattleModal from './HostBattleModal';
 import ActiveBattles from './ActiveBattles';
@@ -50,20 +50,20 @@ export default function BattlesTab() {
       {/* A battle you left part-way, with a way back in. */}
       <ActiveBattles />
       <Grid kind="pair">
-        <Card
-          padding="lg"
-          className="shadow-xl relative overflow-hidden flex flex-col justify-between"
-          style={{ borderColor: 'color-mix(in srgb, var(--color-reeRed) 30%, transparent)' }}
-        >
-          <div className="absolute top-0 right-0 w-48 h-48 bg-reeRed/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-          <div>
-            <CardTitle size="lg" className="mb-1 relative z-10">Join a battle</CardTitle>
-            <p className="text-sm text-muted2 mb-6 relative z-10 leading-relaxed">
+        {/* Join and Host: the same card, side by side. Join is the tab's
+            hero (a code from a friend is the usual way in) and holds the one
+            primary button; Host's is secondary. They had a red border and a
+            blurred blob on one, and three different shadows between them. */}
+        <Card variant="hero" className="flex flex-col gap-6">
+          <CardWatermark icon={Swords} corner="top" />
+          <div className="flex flex-col gap-1">
+            <CardTitle size="lg">Join a battle</CardTitle>
+            <p className="text-sm text-muted2 leading-relaxed">
               Enter the 6-character code from the host to join their lobby.
             </p>
           </div>
 
-          <form onSubmit={handleJoinBattle} className="flex flex-col gap-3 relative z-10 w-full mt-auto">
+          <form onSubmit={handleJoinBattle} className="flex flex-col gap-3 w-full mt-auto">
             <FormField
               label="Battle code"
               hint={
@@ -93,16 +93,16 @@ export default function BattlesTab() {
           </form>
         </Card>
 
-        <Card padding="lg" className="shadow-sm flex flex-col">
-          <div>
-            <CardTitle size="lg" className="mb-1">Host a battle</CardTitle>
-            <p className="text-sm text-muted2 mb-5 leading-relaxed">
+        <Card elevated padding="lg" className="flex flex-col gap-6">
+          <div className="flex flex-col gap-1">
+            <CardTitle size="lg">Host a battle</CardTitle>
+            <p className="text-sm text-muted2 leading-relaxed">
               Set the subject, length, and time limit, then share your code with other reviewers.
             </p>
           </div>
           {/* The formats the dialog offers, so the card isn't empty beside the
               join form. */}
-          <ul className="flex flex-col gap-2.5 mb-6">
+          <ul className="flex flex-col gap-2.5">
             {BATTLE_MODES.map((m) => {
               const Icon = m.icon;
               return (

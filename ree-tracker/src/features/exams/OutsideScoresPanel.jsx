@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { outsideScorePercent, outsideScoreSummary, retestDelta } from '@ree/shared';
-import { Panel, Button, Grid, Modal, EmptyState, StatusPill, Sparkline, Skeleton } from '../../components/ui';
+import { Card, Panel, Button, Grid, Modal, EmptyState, StatusPill, Sparkline, Skeleton } from '../../components/ui';
 import { ClipboardList, Plus, Pencil, Trash2, ShieldAlert, CloudOff, RotateCcw } from '../../components/ui/icons';
 import { useOutsideScores } from './useOutsideScores';
 import OutsideScoreForm from './OutsideScoreForm';
@@ -22,7 +22,7 @@ const fmtDate = (day) => new Date(`${day}T00:00:00+08:00`).toLocaleDateString('e
 
 function SubjectTile({ s }) {
   return (
-    <div className="rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3.5 flex flex-col gap-1 min-w-0">
+    <Card variant="inset" className="p-3.5 flex flex-col gap-1 min-w-0">
       <span className="text-eyebrow">{subjectLabel(s.subject)}</span>
       <span className="text-2xl text-display tabular-nums">{fmtPct(s.average)}</span>
       <span className="text-xs text-muted2">
@@ -34,7 +34,7 @@ function SubjectTile({ s }) {
           <span className="text-xs tabular-nums text-muted2">{fmtPts(s.change)} since first</span>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 

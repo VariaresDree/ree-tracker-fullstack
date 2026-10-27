@@ -58,7 +58,7 @@ export default function ActiveBattles() {
         {shown.map((b) => {
           const timeUp = b.endsAt <= now;
           return (
-            <li key={b.battleId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[var(--radius-lg)] bg-surface2 border border-border">
+            <Card as="li" variant="inset" key={b.battleId} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
               <div className="flex items-center gap-3 min-w-0">
                 <Swords size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0" style={{ color: 'var(--accent-danger)' }} />
                 <div className="min-w-0">
@@ -84,7 +84,7 @@ export default function ActiveBattles() {
                   Return to battle <ArrowRight size={14} strokeWidth={1.75} aria-hidden="true" />
                 </Button>
               )}
-            </li>
+            </Card>
           );
         })}
       </ul>

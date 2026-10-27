@@ -61,14 +61,10 @@ describe('layout standard', () => {
 // A screen's hero is <Card variant="hero">: the accent wash, the elevation
 // and the large inset in one, held to contrast in every theme. It had been
 // assembled by hand from `elevated glow` (and sometimes `grain`) a different
-// way on each screen. The listed files are the heroes still to move; each
-// leaves this list in the PR that redraws its page.
+// way on each screen.
 describe('hero cards', () => {
   it('a hero is variant="hero", not an elevated glow card', () => {
-    expect(scan(/<Card\b[^>]*\belevated glow\b/, {
-      'features/board-simulator/FullBoardScreens.jsx': 'Exams PR',
-      'pages/Diagnostic.jsx': 'Exams PR',
-    })).toEqual([]);
+    expect(scan(/<Card\b[^>]*\belevated glow\b/)).toEqual([]);
   });
 });
 
