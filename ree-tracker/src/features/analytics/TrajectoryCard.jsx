@@ -84,7 +84,7 @@ export function TrajectoryCard() {
   return (
     <MotionConfig reducedMotion="user">
       <motion.div {...cardEnter}>
-        <Card elevated grain className="overflow-hidden">
+        <Card elevated grain className="overflow-hidden min-w-0">
           <CardHeader>
             <div>
               <CardEyebrow>Board forecast</CardEyebrow>

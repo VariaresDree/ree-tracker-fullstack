@@ -39,7 +39,7 @@ export default function WeakSignalsPanel({ data }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <Card elevated className="p-5 flex flex-col gap-3">
+      <Card elevated padding="md" className="flex flex-col gap-3">
         <div>
           <CardTitle>Blind spots</CardTitle>
           <p className="text-xs text-muted2">Topics you answered confidently and got wrong. Fix these first — you don&apos;t know you don&apos;t know them.</p>
@@ -63,7 +63,7 @@ export default function WeakSignalsPanel({ data }) {
         )}
       </Card>
 
-      <Card elevated className="p-5 flex flex-col gap-3">
+      <Card elevated padding="md" className="flex flex-col gap-3">
         <div>
           <CardTitle>Time sinks</CardTitle>
           <p className="text-xs text-muted2">Topics whose median answer runs past the {Math.round(TIME_SINK_MS / 60000)}-minute board pace.</p>
@@ -91,7 +91,7 @@ export default function WeakSignalsPanel({ data }) {
       </Card>
 
       {recent.length > 0 && (
-        <Card elevated className="p-5 flex flex-col gap-3">
+        <Card elevated padding="md" className="flex flex-col gap-3">
           <CardTitle>Recently answered confidently wrong</CardTitle>
           <ul className="flex flex-col gap-2">
             {/* The question renders its maths (it printed the raw "$\\frac{…}$"),

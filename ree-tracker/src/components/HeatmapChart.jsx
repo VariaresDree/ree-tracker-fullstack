@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { toDisplaySubject, masteryBand, boardPaceSeconds } from '@ree/shared';
 import { useStore } from '../store/useStore';
-import { Panel, SegmentedControl } from './ui';
-import { Flame, Timer, Target } from './ui/icons';
+import { EmptyState, Panel, SegmentedControl } from './ui';
+import { Flame, LayoutGrid, Timer, Target } from './ui/icons';
 
 const normKey = (s) => String(s || '').trim().toLowerCase();
 
@@ -193,6 +193,9 @@ function HeatmapChart({ stats, onDrillTopic }) {
             <div key={item.name} className={tileClass}>{tileBody}</div>
           );
         })}
+        {displayedTopics.length === 0 && (
+          <EmptyState compact icon={LayoutGrid} title="No topics for this subject yet" description="They appear once the syllabus for it loads." />
+        )}
       </div>
     </Panel>
   );

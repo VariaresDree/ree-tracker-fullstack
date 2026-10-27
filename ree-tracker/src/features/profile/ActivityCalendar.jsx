@@ -1,6 +1,7 @@
 // src/features/profile/ActivityCalendar.jsx
 import { useRef, useState } from 'react';
-import { CardTitle } from '../../components/ui';
+import { Button, Card, CardTitle } from '../../components/ui';
+import { ChevronLeft, ChevronRight } from '../../components/ui/icons';
 import { todayManila } from '../../utils/manilaDate';
 import { CALENDAR_LEVELS, calendarLevel, levelFill } from './calendarLevels';
 
@@ -72,9 +73,11 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
   ];
 
   return (
-    <div className="bg-surface border border-border2 p-6 md:p-8 rounded-[var(--radius-lg)] shadow-sm w-full flex flex-col relative">
+    // A Card like the rest of the page (it was a solid hand-made frame), and
+    // its header goes side by side by the card's own width, not the window's.
+    <Card elevated padding="lg" className="@container w-full flex flex-col">
       {/* Header */}
-      <div className="w-full flex flex-col md:flex-row md:justify-between md:items-end mb-6 border-b border-border2 pb-4 gap-3">
+      <div className="w-full flex flex-col @2xl:flex-row @2xl:justify-between @2xl:items-end mb-6 border-b border-border2 pb-4 gap-3">
         <div>
           <CardTitle size="lg">Study calendar</CardTitle>
           <p className="text-sm text-muted mt-1">Questions answered each day, against your daily target of {targetQuota}.</p>
@@ -84,12 +87,16 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
         </div>
 
         {/* Month Navigation */}
-        <div className="flex items-center gap-4 bg-bg border border-border2 px-2 py-1.5 rounded-lg shadow-inner">
-           <button onClick={prevMonth} aria-label="Previous month" className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black touch-target inline-flex items-center justify-center">&lt;</button>
+        <div className="self-start flex items-center gap-2 bg-bg border border-border2 px-1 py-1 rounded-[var(--radius-default)]">
+           <Button variant="ghost" size="icon" className="touch-target" onClick={prevMonth} aria-label="Previous month">
+             <ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />
+           </Button>
            <div className="w-40 text-center font-bold text-sm uppercase tracking-widest text-textMain">
               {currentDate.toLocaleString('default', { month: 'long' })} {currentDate.getFullYear()}
            </div>
-           <button onClick={nextMonth} disabled={atCurrentMonth} aria-label="Next month" className="p-1 text-muted hover:text-textMain transition-colors cursor-pointer text-xl font-black disabled:opacity-30 disabled:cursor-not-allowed touch-target inline-flex items-center justify-center">&gt;</button>
+           <Button variant="ghost" size="icon" className="touch-target" onClick={nextMonth} disabled={atCurrentMonth} aria-label="Next month">
+             <ChevronRight size={18} strokeWidth={2} aria-hidden="true" />
+           </Button>
         </div>
       </div>
 
@@ -164,6 +171,6 @@ export default function ActivityCalendar({ activityCalendar = {}, targetQuota = 
             ))}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -48,7 +48,7 @@ const TabSkeleton = () => (
   </div>
 );
 
-function TabBody({ tab, stats, kpi, currentUser }) {
+function TabBody({ tab, stats, kpi, today, currentUser }) {
   switch (tab) {
     case 'topics': return <TopicsTab stats={stats} />;
     case 'weak-spots': return <WeakSpotsTab />;
@@ -57,7 +57,7 @@ function TabBody({ tab, stats, kpi, currentUser }) {
     // The exam date only feeds the pace line, so the tab doesn't wait for the aggregate.
     case 'syllabus': return <SyllabusTab examDate={stats?.examDate ?? null} />;
     case 'plan': return <StrategicPlannerTab currentUser={currentUser} />;
-    default: return <OverviewTab stats={stats} kpi={kpi} />;
+    default: return <OverviewTab stats={stats} kpi={kpi} today={today} />;
   }
 }
 
@@ -67,7 +67,7 @@ const NEEDS_STATS = new Set(['overview', 'topics', 'confidence', 'habits']);
 
 export default function Progress() {
   const { currentUser } = useAuth();
-  const { activeStats, loading, unavailable, retry, kpi } = useDashboardStats();
+  const { activeStats, loading, unavailable, retry, kpi, today } = useDashboardStats();
   const [tab, setTab] = useTabParam(TABS.map((t) => t.id), 'overview');
   const label = TABS.find((t) => t.id === tab)?.label;
 
@@ -85,7 +85,7 @@ export default function Progress() {
             <StatsUnavailable onRetry={retry} />
           ) : (
             <Suspense fallback={<TabSkeleton />}>
-              <TabBody tab={tab} stats={activeStats} kpi={kpi} currentUser={currentUser} />
+              <TabBody tab={tab} stats={activeStats} kpi={kpi} today={today} currentUser={currentUser} />
             </Suspense>
           )}
         </ErrorBoundary>
