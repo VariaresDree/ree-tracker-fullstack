@@ -48,7 +48,9 @@ async function seed() {
             fixedExplanation: `Why ${n}: A is right, since $V = IR$.`, type: 'conceptual',
         });
         await prisma.question.createMany({
-            data: [question(1, 'EE', 'Protection'), question(2, 'Mathematics', 'Calculus'), question(3, 'ESAS', 'Chemistry')],
+            // Question 4 is never answered, bookmarked or in a battle: with it a
+            // printed mixed paper has one item per subject (scanSheet.spec).
+            data: [question(1, 'EE', 'Protection'), question(2, 'Mathematics', 'Calculus'), question(3, 'ESAS', 'Chemistry'), question(4, 'ESAS', 'Physics')],
         });
         // Due for review now (EE), and an open mistake (Math): today's loop.
         await prisma.sRSCard.create({ data: { userId: uid, questionId: Q(1), nextReviewDate: new Date(Date.now() - 3600_000) } });

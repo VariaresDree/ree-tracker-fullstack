@@ -13,7 +13,7 @@ const tabs = (path: string, ids: string[]) => ids.map((id) => `${path}?tab=${id}
 const SCREENS = [
   '/',
   '/practice',
-  ...tabs('/exams', ['mock', 'gauntlet', 'battles', 'rankings', 'history']),
+  ...tabs('/exams', ['mock', 'gauntlet', 'battles', 'rankings', 'history', 'paper']),
   ...tabs('/progress', ['overview', 'topics', 'weak-spots', 'confidence', 'habits', 'syllabus', 'plan']),
   ...tabs('/library', ['formulas', 'handouts', 'bookmarks', 'notebook', 'quizzes']),
   '/account',
@@ -21,6 +21,7 @@ const SCREENS = [
   '/simulator',
   '/diagnostic',
   '/focus',
+  '/scan',
 ];
 
 test('every screen and tab opens without an error', async ({ page }) => {

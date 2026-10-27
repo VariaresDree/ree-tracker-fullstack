@@ -14,7 +14,7 @@ import { isPassingVerdict, VERDICT } from '@ree/shared';
 import { sittingKindLabel } from '../features/board-simulator/profiles';
 import { SkeletonChart } from './SkeletonLoaders';
 import { Panel, DataTable, StatusPill, Button, Modal, EmptyState, Grid, KpiTile } from './ui';
-import { BarChart3, RefreshCw, Trash2, ShieldAlert, CloudOff } from './ui/icons';
+import { BarChart3, RefreshCw, Trash2, ShieldAlert, CloudOff, ScanLine } from './ui/icons';
 import OutsideScoresPanel from '../features/exams/OutsideScoresPanel';
 
 // Mock history is SERVER-authoritative (GET /api/analytics/deep/mock-history):
@@ -314,7 +314,16 @@ export default function MockBoardAnalytics() {
       </Panel>
 
       {/* Scores from outside the app, beside (never inside) the in-app ones. */}
-      <OutsideScoresPanel inAppAverage={totalRuns > 0 ? Math.round(avgScore) : null} inAppCount={totalRuns} />
+      {/* A paper mock checked with the scanner lands here as an outside score. */}
+      <OutsideScoresPanel
+        inAppAverage={totalRuns > 0 ? Math.round(avgScore) : null}
+        inAppCount={totalRuns}
+        extraAction={(
+          <Button as={Link} to="/scan?for=self" size="sm" variant="secondary">
+            <ScanLine size={14} strokeWidth={1.75} aria-hidden="true" /> Check a paper sheet
+          </Button>
+        )}
+      />
 
       <Modal
         open={deleteModal.isOpen}

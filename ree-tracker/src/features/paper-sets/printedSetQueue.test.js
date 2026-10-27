@@ -2,7 +2,8 @@
 // or edited offline shows as it will be once the queue replays.
 import { describe, it, expect } from 'vitest';
 import {
-  PRINTED_SETS_ENDPOINT, isCreateQueued, overlaySet, overlaySetList, parseEndpoint, queuedSetWrites, queuedSheetDelta,
+  PRINTED_SETS_ENDPOINT, isCreateQueued, overlaySet, overlaySetList, overlaySheets, parseEndpoint, queuedSetWrites,
+  queuedSheetDelta,
 } from './printedSetQueue';
 
 const ID = 'K7P29QXAM3TD';
@@ -64,5 +65,22 @@ describe('printed-set queue overlay', () => {
     const gone = overlaySetList(value, [w(SET, 'DELETE', null)], 'u1', 'u1').value;
     expect(gone.map((s) => s.id)).toEqual(['OLD000000000']);
     expect(overlaySetList(null, writes, 'u1', 'u1').value).toBeNull();
+  });
+
+  it('a set\u2019s sheets show their queued scans, corrections and deletes, once each', () => {
+    const base = [{ id: 's1', takerName: 'Ana', answers: 'AB' }, { id: 's2', takerName: 'Ben', answers: 'BB' }];
+    const writes = [
+      w(`${SET}/sheets`, 'POST', { id: 's3', takerName: 'Cy', answers: 'AA' }),
+      w(`${SET}/sheets/s1`, 'PATCH', { answers: 'BA', takerName: undefined }),
+      w(`${SET}/sheets/s2`, 'DELETE', null),
+      w(`${PRINTED_SETS_ENDPOINT}/OTHER0000000/sheets/s1`, 'DELETE', null),
+    ];
+    const list = overlaySheets(base, ID, writes);
+    expect(list.map((s) => [s.id, s.takerName, s.answers])).toEqual([['s3', 'Cy', 'AA'], ['s1', 'Ana', 'BA']]);
+    expect(list[0].createdAt).toBe('2026-10-21T02:00:00.000Z');
+    // Applied again (a cached copy that already has them): the same.
+    expect(overlaySheets(list, ID, writes)).toEqual(list);
+    expect(overlaySheets(base, ID, [w(SET, 'DELETE', null)])).toEqual([]);
+    expect(overlaySheets(null, ID, writes)).toBeNull();
   });
 });

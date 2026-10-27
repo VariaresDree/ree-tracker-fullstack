@@ -82,6 +82,32 @@ export function queuedSheetDelta(writes, id) {
   }, 0);
 }
 
+/**
+ * A set's scanned sheets with their queued writes applied: a new sheet (once,
+ * by its id), a correction or a new name (merged), and a delete. A delete of
+ * the set itself empties the list. Null stays null (nothing loaded yet).
+ */
+export function overlaySheets(base, id, writes) {
+  if (base == null) return null;
+  let list = base;
+  for (const w of writesForSet(writes, id)) {
+    const at = parseEndpoint(w.endpoint);
+    if (!at.sheets) {
+      if (w.method === 'DELETE' && at.setId) list = [];
+      continue;
+    }
+    if (w.method === 'POST' && !at.sheetId && w.body?.id) {
+      if (!list.some((s) => s.id === w.body.id)) list = [{ ...w.body, createdAt: w.createdAt }, ...list];
+    } else if (w.method === 'PATCH' && at.sheetId) {
+      const patch = Object.fromEntries(Object.entries(w.body || {}).filter(([, v]) => v !== undefined));
+      list = list.map((s) => (s.id === at.sheetId ? { ...s, ...patch } : s));
+    } else if (w.method === 'DELETE' && at.sheetId) {
+      list = list.filter((s) => s.id !== at.sheetId);
+    }
+  }
+  return list;
+}
+
 const byNewest = (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
 const sheetsOf = (s) => s?._count?.sheets ?? s?.sheetCount ?? 0;
 const withSheets = (s, n) => ({ ...s, _count: { ...(s._count || {}), sheets: Math.max(0, n) } });

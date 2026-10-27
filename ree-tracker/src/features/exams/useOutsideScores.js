@@ -114,8 +114,10 @@ export function useOutsideScores() {
     return target?.retestOfId || id;
   }, [items]);
 
+  // `entry.id` when the caller made the id first (a paper self-check names
+  // its history entry on the scanned sheet before either is saved).
   const add = useCallback((entry) => {
-    const id = newEntryId();
+    const id = entry.id || newEntryId();
     const body = { ...entry, id, retestOfId: firstTryOf(entry.retestOfId) };
     return change({ type: 'upsert', item: { ...body, createdAt: new Date().toISOString() } }, OUTSIDE_SCORES_ENDPOINT, 'POST', body, false);
   }, [change, firstTryOf]);

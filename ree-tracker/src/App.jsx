@@ -37,6 +37,11 @@ const Focus = lazy(() => import('./pages/Focus'));
 // A printed paper set's print preview: full screen, outside the shell, lazy
 // with its own stylesheet (the sheets, and what printing shows).
 const PrintSet = lazy(() => import('./pages/PrintSet'));
+// The answer-sheet scanner: full screen, outside the shell, lazy with its own
+// stylesheet (the camera, the review and the score). A set's results page
+// sits inside the shell (Exams > Paper sets > Results).
+const ScanSheet = lazy(() => import('./pages/ScanSheet'));
+const PaperSetResults = lazy(() => import('./pages/PaperSetResults'));
 
 // The app shell as a layout route: the navigation stays on screen while a page
 // chunk loads, and only the page area shows the loading state.
@@ -91,6 +96,8 @@ const SecureAppTerminal = () => {
             <Route path="exams" element={page('Exams', <Exams />)} />
             {/* A finished sitting, item by item (Exams › Past sittings › Review). */}
             <Route path="exams/sittings/:sessionId" element={page('Sitting review', <SittingReview />)} />
+            {/* A printed set's scanned sheets: scores, item analysis, CSV. */}
+            <Route path="exams/paper-sets/:setId" element={page('Paper set results', <PaperSetResults />)} />
             <Route path="progress" element={page('Progress', <Progress />)} />
             <Route path="library" element={page('Library', <Library />)} />
             <Route path="account" element={page('Account', <Account />)} />
@@ -119,6 +126,9 @@ const SecureAppTerminal = () => {
           <Route path="/focus" element={<ErrorBoundary name="Focus timer"><Focus /></ErrorBoundary>} />
           {/* A printed set's pages, to edit and print (pages/PrintSet.jsx). */}
           <Route path="/print/:setId" element={<ErrorBoundary name="Print preview"><PrintSet /></ErrorBoundary>} />
+          {/* Photograph answer sheets and score them (pages/ScanSheet.jsx). */}
+          <Route path="/scan" element={<ErrorBoundary name="Scanner"><ScanSheet /></ErrorBoundary>} />
+          <Route path="/scan/:setId" element={<ErrorBoundary name="Scanner"><ScanSheet /></ErrorBoundary>} />
           <Route path="/gauntlet/:level" element={<ErrorBoundary name="Gauntlet"><Gauntlet /></ErrorBoundary>} />
           {/* Placement test — owns its layout like the Simulator: MainLayout
               for the intro and result, ExamLayout while answering. */}

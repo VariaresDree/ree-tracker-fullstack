@@ -10,6 +10,7 @@ vi.mock('../features/exams/GauntletTab', () => ({ default: () => <p>exams:gauntl
 vi.mock('../features/exams/BattlesTab', () => ({ default: () => <p>exams:battles</p> }));
 vi.mock('../features/exams/RankingsTab', () => ({ default: () => <p>exams:rankings</p> }));
 vi.mock('../components/MockBoardAnalytics', () => ({ default: () => <p>past-sittings</p> }));
+vi.mock('../features/paper-sets/PaperSetsTab', () => ({ default: () => <section><h2>Paper sets</h2><p>exams:paper</p></section> }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1' }, isAdmin: false }) }));
 vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../features/reference/ReferenceBrowser', () => ({
@@ -50,12 +51,12 @@ describe('Exams', () => {
         ]);
     });
 
-    it.each(['gauntlet', 'battles', 'rankings'])('?tab=%s shows that section', async (tab) => {
+    it.each(['gauntlet', 'battles', 'rankings', 'paper'])('?tab=%s shows that section', async (tab) => {
         at(`/exams?tab=${tab}`, Exams);
         expect(await screen.findByText(`exams:${tab}`)).toBeInTheDocument();
     });
 
-    it.each(['mock', 'gauntlet', 'battles', 'rankings', 'history'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['mock', 'gauntlet', 'battles', 'rankings', 'history', 'paper'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/exams?tab=${tab}`, Exams);
         if (tab !== 'mock') await screen.findByText(tab === 'history' ? 'past-sittings' : `exams:${tab}`);
         expectNoSkippedLevels(container);
@@ -64,8 +65,14 @@ describe('Exams', () => {
     it('past sittings (the mock-board ledger, from the old dashboard) is its own tab', async () => {
         at('/exams?tab=history', Exams);
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Mock board', 'Gauntlet', 'Battles', 'Rankings', 'Past sittings']);
+        expect(tabs).toEqual(['Mock board', 'Gauntlet', 'Battles', 'Rankings', 'Past sittings', 'Paper sets']);
         expect(await screen.findByText('past-sittings')).toBeInTheDocument();
+    });
+
+    it('paper sets (printed mock boards, their scanned sheets and results) is its own tab', async () => {
+        at('/exams?tab=paper', Exams);
+        expect(screen.getByRole('tab', { name: /paper sets/i })).toHaveAttribute('aria-selected', 'true');
+        expect(await screen.findByText('exams:paper')).toBeInTheDocument();
     });
 });
 

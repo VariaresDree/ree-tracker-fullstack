@@ -79,7 +79,9 @@ function EntryRow({ entry, firstTry, onEdit, onDelete }) {
  * @param {{ inAppAverage?: number|null, inAppCount?: number }} props
  *   the app's own mock boards, for the one-line comparison.
  */
-export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0 }) {
+// `extraAction`: another button beside Add score (Past sittings puts "Check a
+// paper sheet" there: a scanned self-check lands in this list).
+export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0, extraAction = null }) {
   const { items, status, queuedCount, add, update, remove, reload } = useOutsideScores();
   // `key` makes each opening a fresh form, starting from the entry being edited.
   const [form, setForm] = useState({ open: false, entry: null, key: 0 });
@@ -126,9 +128,12 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
       eyebrow="Self-reported"
       title="Outside scores"
       action={
-        <Button size="sm" onClick={() => openForm()}>
-          <Plus size={14} strokeWidth={2} aria-hidden="true" /> Add score
-        </Button>
+        <>
+          {extraAction}
+          <Button size="sm" onClick={() => openForm()}>
+            <Plus size={14} strokeWidth={2} aria-hidden="true" /> Add score
+          </Button>
+        </>
       }
       bodyClassName="flex flex-col gap-4"
     >
