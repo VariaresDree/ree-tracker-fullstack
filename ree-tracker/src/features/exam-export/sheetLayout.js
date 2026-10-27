@@ -1,8 +1,9 @@
 // src/features/exam-export/sheetLayout.js
 //
 // Where the answer sheet's bubble rows go, worked out once and shared by the
-// PDF (board-simulator/examPaper.js) and the LaTeX sheet (buildExamTex.js), so
-// the two agree and no row is ever dropped off the bottom of a page.
+// print preview (paper-sets/print/AnswerSheet.jsx), the LaTeX sheet
+// (buildExamTex.js) and the scanner (features/omr), so all three agree and no
+// row is ever dropped off the bottom of a page.
 //
 // Rows are column-major within each page (fill a column top to bottom, then
 // move right), the PH answer-sheet convention the key also follows. A page

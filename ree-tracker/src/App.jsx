@@ -34,6 +34,9 @@ const QuizRunPage = lazy(() => import('./features/quiz-launcher/QuizRunPage'));
 // The full-screen focus timer: outside the app shell, and lazy (only the
 // sidebar's small launcher is in the first download).
 const Focus = lazy(() => import('./pages/Focus'));
+// A printed paper set's print preview: full screen, outside the shell, lazy
+// with its own stylesheet (the sheets, and what printing shows).
+const PrintSet = lazy(() => import('./pages/PrintSet'));
 
 // The app shell as a layout route: the navigation stays on screen while a page
 // chunk loads, and only the page area shows the loading state.
@@ -114,6 +117,8 @@ const SecureAppTerminal = () => {
           {/* The focus timer, full screen: no navigation, the theme's
               background, and the timer's own clock (pages/Focus.jsx). */}
           <Route path="/focus" element={<ErrorBoundary name="Focus timer"><Focus /></ErrorBoundary>} />
+          {/* A printed set's pages, to edit and print (pages/PrintSet.jsx). */}
+          <Route path="/print/:setId" element={<ErrorBoundary name="Print preview"><PrintSet /></ErrorBoundary>} />
           <Route path="/gauntlet/:level" element={<ErrorBoundary name="Gauntlet"><Gauntlet /></ErrorBoundary>} />
           {/* Placement test — owns its layout like the Simulator: MainLayout
               for the intro and result, ExamLayout while answering. */}

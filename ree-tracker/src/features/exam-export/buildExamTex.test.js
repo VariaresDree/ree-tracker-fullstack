@@ -1,10 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { unzipSync, strFromU8 } from 'fflate';
 import { effectiveItems, keyVersionOf } from '@ree/shared';
 import {
-  README, TEX_PARTS, buildExamTex, buildExamTexDocument, buildExamTexDocumentSync, loadQrEncoder, mergeWarnings,
-  texDocumentName, texFileName, texWarningLines, zipFileName, zipTexFiles,
+  buildExamTexDocument, buildExamTexDocumentSync, loadQrEncoder, mergeWarnings,
+  texDocumentName, texWarningLines,
 } from './buildExamTex';
 import { PART_MACROS, PRACTICE_LINE, answerSheetPage, mm, qrModuleRuns } from './texTemplates';
 import { escapeText } from './latexEscape';
@@ -410,44 +409,5 @@ describe('the answer key part', () => {
     expect(missing).toBeGreaterThan(0);
     expect(countOf(tex, /No worked solution is stored for this item yet\./g)).toBe(missing);
     expect(buildExamTexDocumentSync(draw, { documents: { key: true }, includeSolutions: false }).content).not.toContain('Worked solutions');
-  });
-});
-
-describe('the old three-file export (until the dialog is deleted)', () => {
-  let files;
-  beforeAll(async () => {
-    ({ files } = await buildExamTex(draw, { paper: 'a4', includeSolutions: true, qr: FAKE_QR }));
-  });
-  const file = (kind) => files.find((f) => f.kind === kind);
-
-  it('is each part as its own one-part document', () => {
-    expect(files.map((f) => f.kind)).toEqual(TEX_PARTS);
-    for (const f of files) {
-      expect(countOf(f.content, /\\documentclass/g)).toBe(1);
-      expect(f.content).toBe(buildExamTexDocumentSync(draw, { paper: 'a4', documents: { [f.kind]: true }, includeSolutions: true, qr: FAKE_QR }).content);
-      expect(f.name).toBe(texFileName(draw, f.kind));
-      expect(f.bytes).toBe(f.content.length);
-    }
-    expect(file('sheet').content).toContain('remember picture');
-  });
-
-  it('names files by code, set and Manila date', () => {
-    expect(file('paper').name).toBe(`REE-BLENDED-${draw.setLabel.replace(' ', '')}-2026-10-20-questions.tex`);
-    expect(file('sheet').name).toMatch(/-answer-sheet\.tex$/);
-    expect(file('key').name).toMatch(/-key\.tex$/);
-    expect(zipFileName(draw)).toMatch(/^REE-BLENDED-SET[A-D]-2026-10-20-latex\.zip$/);
-  });
-
-  it('builds only the documents asked for', async () => {
-    const { files: some } = await buildExamTex(draw, { documents: { paper: false, sheet: false, key: true }, qr: null });
-    expect(some.map((f) => f.kind)).toEqual(['key']);
-  });
-
-  it('zips the files with the README', async () => {
-    const entries = unzipSync(await zipTexFiles(files));
-    expect(Object.keys(entries).sort()).toEqual([...files.map((f) => f.name), 'README.txt'].sort());
-    expect(strFromU8(entries['README.txt'])).toBe(README);
-    expect(README).toContain('-no-shell-escape');
-    expect(strFromU8(entries[file('paper').name])).toBe(file('paper').content);
   });
 });

@@ -45,7 +45,7 @@ async function seed() {
         await prisma.user.create({ data: { id: adminUid, email: ADMIN_EMAIL, displayName: 'E2E Admin', role: 'ADMIN' } });
         const question = (n, subject, subtopic) => ({
             id: Q(n), subject, subtopic, text: `E2E question ${n}: pick A`, options: ['A', 'B', 'C', 'D'], answer: 'A',
-            fixedExplanation: `Why ${n}: A is right.`, type: 'conceptual',
+            fixedExplanation: `Why ${n}: A is right, since $V = IR$.`, type: 'conceptual',
         });
         await prisma.question.createMany({
             data: [question(1, 'EE', 'Protection'), question(2, 'Mathematics', 'Calculus'), question(3, 'ESAS', 'Chemistry')],

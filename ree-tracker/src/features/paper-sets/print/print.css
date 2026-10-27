@@ -1,0 +1,336 @@
+/* src/features/paper-sets/print/print.css
+ *
+ * The print preview (/print/:setId). Loaded with its page, never eagerly.
+ * Sheets are always black on white at their real size; the screen around
+ * them follows the app's theme. Printing shows the sheets and nothing else.
+ */
+
+/* ---------- Screen: the page around the sheets ---------- */
+.ree-print-root {
+  padding: 12px 16px 48px;
+  color: var(--text-main);
+}
+.ree-print-screen {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ree-toolbar { flex-direction: column; align-items: stretch; }
+.ree-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  width: 100%;
+  min-width: 0;
+}
+.ree-include {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.ree-include > legend {
+  float: left;
+  padding: 0;
+  margin-right: 4px;
+}
+.ree-more { position: relative; }
+.ree-more-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-default);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+}
+.ree-more-panel > * { justify-content: flex-start; }
+.ree-print-notice { max-width: 1120px; }
+.ree-print-status {
+  max-width: 560px;
+  margin: 15vh auto 0;
+}
+
+.ree-sheets {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding-top: 20px;
+}
+.ree-sheet-frame {
+  position: relative;
+  flex: none;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3), 0 10px 30px rgb(0 0 0 / 0.2);
+}
+
+/* ---------- The sheet ---------- */
+.ree-sheet-type {
+  font-family: KaTeX_Main, 'Times New Roman', serif;
+  font-size: 10pt;
+  line-height: 1.3;
+  color: #000;
+  overflow-wrap: anywhere;
+}
+.ree-sheet {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  transform-origin: 0 0;
+  box-sizing: border-box;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.ree-sheet-type .math-text,
+.ree-sheet-type .math-text-inline { overflow-wrap: anywhere; }
+.ree-sheet-type .math-text p { margin: 0 0 1mm; line-height: 1.3; }
+.ree-sheet-type .math-text p:last-child { margin-bottom: 0; }
+.ree-sheet-type .math-text .katex { font-size: 1.05em; line-height: 1.2; }
+.ree-sheet-type .math-text .katex-display {
+  overflow: hidden;
+  margin: 1mm 0;
+  padding: 0.5mm 0;
+}
+.ree-sheet-type .math-text .katex-display > .katex { font-size: 1.08em; }
+/* Too wide even at 70%: the formula breaks after its operators (KaTeX sets
+   each piece in its own box), left-aligned, as the LaTeX paper does. */
+.ree-sheet-type .katex-display.ree-display-wrap > .katex,
+.ree-sheet-type .katex-display.ree-display-wrap .katex-html {
+  white-space: normal;
+  text-align: left;
+}
+/* A formula that doesn't render shows its source: dark red on screen (the
+   toolbar names the item), black on paper. */
+.ree-sheet-type { --accent-danger: #b00020; }
+.ree-sheet-type .katex-error { color: #b00020 !important; }
+
+.ree-body {
+  position: absolute;
+  top: 14mm;
+  left: 14mm;
+  right: 14mm;
+  bottom: 18mm;
+  display: flex;
+  flex-direction: column;
+}
+.ree-footer {
+  position: absolute;
+  left: 14mm;
+  right: 14mm;
+  bottom: 8mm;
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  font-size: 7pt;
+  line-height: 1;
+  color: #555;
+}
+
+/* Masthead (question paper, page 1) */
+.ree-masthead { display: flex; flex-direction: column; gap: 2.5mm; }
+.ree-mast-center { text-align: center; line-height: 1.25; }
+.ree-small { font-size: 8.5pt; }
+.ree-mast-prc { font-size: 12pt; font-weight: 700; }
+.ree-mast-board { font-weight: 700; margin-top: 1mm; }
+.ree-mast-title { font-size: 14pt; font-weight: 700; margin-top: 1.5mm; }
+.ree-practice { font-size: 8pt; font-style: italic; margin-top: 1mm; }
+.ree-mast-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  font-size: 9pt;
+}
+.ree-mast-meta > :nth-child(2) { text-align: center; }
+.ree-mast-set { text-align: right; }
+.ree-set-box {
+  display: inline-block;
+  border: 0.8pt solid #000;
+  padding: 0.6mm 2.5mm;
+  font-size: 12pt;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ree-applicant {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 6mm;
+  row-gap: 3mm;
+  font-size: 9pt;
+}
+.ree-field { display: flex; align-items: flex-end; gap: 1.5mm; }
+.ree-field-line { flex: 1; border-bottom: 0.5pt solid #000; height: 4mm; }
+.ree-instructions {
+  border: 0.6pt solid #000;
+  padding: 1.8mm 2.5mm;
+  font-size: 8.5pt;
+}
+
+/* Two columns with a thin rule between them */
+.ree-columns {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 6mm;
+  overflow: hidden;
+}
+.ree-columns::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 0.3pt solid #000;
+}
+.ree-columns-one { grid-template-columns: 1fr; }
+.ree-columns-one::before { content: none; }
+.ree-col { display: flex; flex-direction: column; min-width: 0; }
+.ree-block-scaled { overflow: hidden; }
+.ree-block-scaled > div { transform-origin: 0 0; }
+
+/* Items */
+.ree-part { font-size: 11pt; font-weight: 700; }
+.ree-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 7mm minmax(0, 1fr);
+}
+.ree-item-n { font-weight: 700; }
+.ree-item-body { min-width: 0; display: flex; flex-direction: column; gap: 1.2mm; }
+.ree-figure {
+  height: 26mm;
+  border: 0.6pt dashed #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8pt;
+}
+.ree-options { display: grid; grid-auto-flow: column; column-gap: 3mm; row-gap: 0.6mm; }
+.ree-opt { display: grid; grid-template-columns: 6.5mm minmax(0, 1fr); min-width: 0; }
+
+/* Edit mode: each item is a button over itself */
+.ree-edit-hit {
+  position: absolute;
+  inset: -1mm;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+.ree-edit-hit:hover,
+.ree-edit-hit:focus-visible {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-style: solid;
+}
+.ree-edited-tag {
+  font: 600 7pt/1 system-ui, sans-serif;
+  color: #fff;
+  background: #4b3fb5;
+  padding: 0.6mm 1.2mm;
+  border-radius: 1mm;
+  transform: translateY(-50%);
+}
+
+/* Answer key */
+.ree-key-head { display: flex; flex-direction: column; gap: 1mm; font-size: 9pt; }
+.ree-key-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1mm; }
+.ree-key-title { font-size: 16pt; font-weight: 700; }
+.ree-key-parts { margin-top: 1mm; }
+.ree-key-table {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: 6mm;
+  font-size: 10pt;
+  line-height: 1.55;
+}
+.ree-key-row { display: flex; gap: 2mm; }
+.ree-key-n { display: inline-block; min-width: 8mm; text-align: right; }
+.ree-solution { display: flex; flex-direction: column; gap: 1mm; }
+.ree-sol-head { display: flex; justify-content: space-between; gap: 4mm; }
+.ree-sol-topic { font-variant: small-caps; }
+
+/* Hidden measuring layer: the same type, at the widths the blocks print at */
+.ree-measure {
+  position: absolute;
+  top: 0;
+  left: -100000px;
+  visibility: hidden;
+  pointer-events: none;
+  contain: layout style;
+}
+.ree-measure > div { display: flex; flex-direction: column; }
+
+/* ---------- The editor's previews (in a dialog, outside the sheets) ---------- */
+.ree-edit-preview {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm, 6px);
+  background: #fff;
+  color: #000;
+  font-family: KaTeX_Main, 'Times New Roman', serif;
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ree-edit-preview .katex-display { overflow-x: auto; overflow-y: hidden; }
+.ree-edit-preview-label {
+  display: inline-block;
+  margin-right: 6px;
+  font: 600 11px/1 system-ui, sans-serif;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ree-edit-preview-empty { color: #666; font-style: italic; }
+
+/* ---------- Print: the sheets, nothing else ---------- */
+@media print {
+  html.ree-printing-page,
+  html.ree-printing-page body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body > :not(.ree-print-root) { display: none !important; }
+  .ree-screen-only,
+  .ree-measure { display: none !important; }
+  .ree-print-root { padding: 0 !important; }
+  .ree-sheets { display: block; padding: 0; gap: 0; }
+  .ree-sheet-frame {
+    width: auto !important;
+    height: auto !important;
+    box-shadow: none !important;
+    break-after: page;
+    page-break-after: always;
+  }
+  .ree-sheet-frame:last-child { break-after: auto; page-break-after: auto; }
+  .ree-sheet { transform: none !important; }
+  .ree-sheet-type { --accent-danger: #000; }
+  .ree-sheet-type .katex-error { color: #000 !important; }
+}
+
+/* A phone: the toolbar wraps to several rows, so it scrolls away. */
+@media (max-width: 639px) {
+  .ree-toolbar { position: static; }
+}

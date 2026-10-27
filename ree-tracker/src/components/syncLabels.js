@@ -4,6 +4,17 @@
 // used to show the raw endpoint ("/api/user/mistakes/q123") and the server's
 // own error text, which told a learner nothing about what they'd lose by
 // discarding it. Matched by path prefix; the first match wins.
+
+// Printed paper sets nest their scanned sheets under the set's path.
+const printedSetLabel = (m, path) => {
+  if (/\/sheets(\/|$)/.test(path)) {
+    if (m === 'DELETE') return 'Deleting a scanned answer sheet';
+    return m === 'PATCH' ? 'A correction to a scanned answer sheet' : 'A scanned answer sheet';
+  }
+  if (m === 'DELETE') return 'Deleting a printed paper set';
+  return m === 'PATCH' ? 'Changes to a printed paper set' : 'A printed paper set';
+};
+
 const LABELS = [
   ['/api/analytics/telemetry-bulk', () => 'Answers from a mock board'],
   ['/api/analytics/study-sessions', () => 'A practice session'],
@@ -16,6 +27,7 @@ const LABELS = [
   ['/api/user/focus-blocks', (m) => (m === 'DELETE' ? 'Deleting a focus block' : 'A focus block')],
   ['/api/user/syllabus', () => 'A syllabus check-off'],
   ['/api/user/outside-scores', (m) => (m === 'DELETE' ? 'Deleting an outside score' : 'An outside score')],
+  ['/api/user/printed-sets', printedSetLabel],
   ['/api/user/reminders', () => 'Your reminder time'],
   ['/api/user/settings', () => 'Your exam date and daily target'],
   ['/api/materials/folders', () => 'A folder change'],
@@ -26,7 +38,7 @@ const LABELS = [
 export function syncActionLabel(endpoint, method) {
   const path = String(endpoint || '');
   const hit = LABELS.find(([prefix]) => path.startsWith(prefix));
-  return hit ? hit[1](String(method || '').toUpperCase()) : 'A saved change';
+  return hit ? hit[1](String(method || '').toUpperCase(), path) : 'A saved change';
 }
 
 // Why it stopped, in words: the HTTP status says whether retrying can help.

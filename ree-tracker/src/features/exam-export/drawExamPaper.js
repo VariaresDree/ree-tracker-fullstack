@@ -1,8 +1,8 @@
 // src/features/exam-export/drawExamPaper.js
 //
-// One printed set, drawn once and rendered by both exports (the PDF in
-// board-simulator/examPaper.js and the LaTeX in buildExamTex.js), so a set's
-// question paper, answer sheet and key always agree.
+// One printed set, drawn once and rendered by both outputs (the print preview
+// in paper-sets/print and the LaTeX in buildExamTex.js), so a set's question
+// paper, answer sheet and key always agree.
 //
 // The draw follows the setup screen:
 //   - a mixed paper is drawn per section by board weight (Mathematics 25,

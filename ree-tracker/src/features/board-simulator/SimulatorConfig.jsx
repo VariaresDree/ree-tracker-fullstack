@@ -1,5 +1,6 @@
 // src/features/board-simulator/SimulatorConfig.jsx
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Card, Button, FormField, Grid, IconChip, PageHeader, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
@@ -7,6 +8,7 @@ import { FileText, TriangleAlert } from '../../components/ui/icons';
 import { PRC_TIMES } from '../../config/examStandards';
 import { SIM_PROFILES, configForProfile } from './profiles';
 import { prcSectionSeconds } from '@ree/shared';
+import { AI_SOURCE_MESSAGE } from '../exam-export/drawExamPaper';
 
 const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60]
   .map((n) => String(n).padStart(2, '0')).join(':');
@@ -14,16 +16,19 @@ const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), 
 
 const FULL_BOARD_ROWS = [['Mathematics', 'Mathematics'], ['ESAS', 'ESAS'], ['EE', 'Electrical Engineering']];
 
-// The print/export dialog and everything behind it (the draw, jsPDF, the LaTeX
-// writer, fflate, qrcode) load only when it is opened.
-const ExportDialog = lazy(() => import('../exam-export/ExportDialog'));
+// "Print this paper" draws a set, saves it to the account and opens its
+// print preview (/print/<id>). The draw and the save load only when asked.
+const loadPrintedSets = () => import('../paper-sets/printedSetsApi');
+const PRINT_HINT = 'A print preview: the question paper, an answer sheet you can scan to score, and the answer key. Edit any question before you print, or open it as LaTeX.';
 
 export default function SimulatorConfig({ config, setConfig, session, startSimulation, engine, onStartFullBoard, initialProfile }) {
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = dynamicTOS || {};
   const isOnline = useNetworkStatus();
   const [showNewExamGuard, setShowNewExamGuard] = useState(false);
-  const [showExport, setShowExport] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState(null);
+  const navigate = useNavigate();
   // A profile chosen in the Exams hub arrives as /simulator?profile=<id>.
   const [fullBoardSelected, setFullBoardSelected] = useState(() => initialProfile === 'prc_full');
 
@@ -47,6 +52,21 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
     const next = configForProfile(initialProfile, config);
     if (next) setConfig(next);
   }, [initialProfile, config, setConfig]);
+
+  // A custom mock written by AI has no fixed questions to print.
+  const aiSource = isCustom && config.source === 'ai';
+  const printPaper = async () => {
+    setPrinting(true);
+    setPrintError(null);
+    try {
+      const { createPrintedSetFromConfig } = await loadPrintedSets();
+      const { set } = await createPrintedSetFromConfig(config);
+      navigate(`/print/${set.id}`);
+    } catch (err) {
+      setPrintError(err?.name === 'ExportError' ? err.message : `Couldn\u2019t make the paper. ${err?.message || 'Try again.'}`);
+      setPrinting(false);
+    }
+  };
 
   // Starting a new exam silently discards any saved one — make that a
   // deliberate choice instead of an accident.
@@ -244,26 +264,23 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             </Button>
             <Button
               variant="ghost"
-              disabled={session?.loading || fullBoardSelected}
-              onClick={() => setShowExport(true)}
+              loading={printing}
+              disabled={session?.loading || fullBoardSelected || aiSource || printing}
+              aria-describedby="sim-print-hint"
+              onClick={printPaper}
             >
               <FileText size={16} strokeWidth={1.75} aria-hidden="true" />
-              {'Print or export\u2026'}
+              Print this paper
             </Button>
           </div>
-          <p className="text-micro text-muted2">
+          <p id="sim-print-hint" className="text-micro text-muted2">
             {fullBoardSelected
               ? 'Print one section at a time: choose One subject (PRC clock) or Mixed paper.'
-              : 'A question paper, a bubble answer sheet and the answer key, as a print-ready PDF or as LaTeX files to edit.'}
+              : aiSource ? AI_SOURCE_MESSAGE : PRINT_HINT}
           </p>
+          {printError && <p role="alert" className="text-sm text-[var(--accent-danger)] [overflow-wrap:anywhere]">{printError}</p>}
         </div>
       </Card>
-
-      {showExport && (
-        <Suspense fallback={null}>
-          <ExportDialog open onClose={() => setShowExport(false)} config={config} />
-        </Suspense>
-      )}
 
       <Modal
         open={showNewExamGuard}

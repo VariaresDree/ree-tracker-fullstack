@@ -3,8 +3,7 @@
 // The small, pure helpers every printed form of a paper shares: the question
 // paper, the answer sheet and the key, whether they come out as LaTeX
 // (buildExamTex.js) or as the print preview's HTML. Moved here from
-// board-simulator/examPaper.js (the old jsPDF export), which re-exports them
-// until it is deleted.
+// board-simulator/examPaper.js, the old jsPDF export, now deleted.
 //
 // Every non-ASCII character is a \u escape, so this source stays ASCII.
 import { formatPrintId, stripChoicePrefix } from '@ree/shared';

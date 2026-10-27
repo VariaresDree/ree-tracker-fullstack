@@ -10,7 +10,6 @@ import {
   setCodeFor, setLabelFor, sheetGeometryFor,
 } from './paperFormat';
 import { answerSheetGeometry, parseQrPayload } from './sheetLayout';
-import * as oldHome from '../board-simulator/examPaper';
 
 const isWinAnsiSafe = (s) => [...s].every((c) => c.charCodeAt(0) <= 0xFF);
 
@@ -240,16 +239,5 @@ describe('the QR encoder', () => {
     expect(modules.size).toBeGreaterThanOrEqual(21);
     expect(typeof modules.get(0, 0)).not.toBe('undefined');
     expect((await loadQrModules('REE2:K7P29QXAM3TD:P1/1:A4:KABC12')).size).toBe(modules.size);
-  });
-});
-
-describe('examPaper.js re-exports the moved helpers', () => {
-  it('until the old dialog is deleted', () => {
-    for (const name of ['mathToText', 'SUBJECT_CODE', 'formatDuration', 'columnMajorPosition', 'answerLetterFor',
-      'deriveExamIdentity', 'setLabelFor', 'partLabel', 'formatPaperDate', 'paperDay', 'letterOf', 'chooseOptionLayout']) {
-      expect(oldHome[name], name).toBeDefined();
-    }
-    expect(oldHome.mathToText).toBe(mathToText);
-    expect(typeof oldHome.generateExamPaper).toBe('function');
   });
 });
