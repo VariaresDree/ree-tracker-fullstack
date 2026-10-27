@@ -466,6 +466,29 @@ every feature add, change, or removal, not on a schedule.
   - **Routes** (under `/api/user`): `GET/POST /printed-sets`; `GET/PATCH/DELETE /printed-sets/:id`; and `GET/POST /printed-sets/:id/sheets`, `PATCH/DELETE /printed-sets/:id/sheets/:sheetId`. The app makes the ids, so an offline write replayed later lands once.
   - **Camera:** the web app's `Permissions-Policy` now allows it on its own pages (`camera=(self)`), and the Android app declares the `CAMERA` permission (not required, so devices without a camera can still install it). Both are for the answer-sheet scanner.
   - **Deploy note:** the migration and routes must ship with or before the app. The Android app needs `cap sync` and a rebuild for the camera permission.
+- [x] **Answer-sheet scanner engine (OMR)** (`features/omr/`). It reads a photo of a printed answer sheet and returns the taker's answers. It runs entirely on the device, in pure JavaScript with no libraries, so **photos never leave the phone**. It runs in a module Web Worker (`omr.worker.js`) and falls back to the main thread if a worker can't start (`createOmrClient`).
+  - **Finding the sheet:**
+    - an adaptive threshold copes with uneven light;
+    - connected components find the four 7 mm corner squares, rejecting filled bubbles, the QR code's finder rings and text by size, solidity and square-not-disc shape;
+    - the best convex quadrilateral is chosen by matching sizes, a skew limit and a paper's proportions.
+  - **Straightening:** a 4-point homography maps the photo onto the sheet's own geometry (`answerSheetGeometry`, the same one the printed HTML and LaTeX sheets are drawn from).
+  - **Which page and which way up:** the ID strip along the bottom edge is decoded in each orientation (0°, 90°, 180°, 270°) until its guard and parity bits check. It gives the paper size, the page number and a layout hash, so a sheet from another set, or one printed before the options changed, is refused.
+  - **Paper curl:** each group of rows is re-centred on its printed bubble rings, within ±1.2 mm.
+  - **Reading the bubbles:**
+    - each bubble's fill is its inner disc against the white around it;
+    - fills are normalised per page against the empty and the marked bubbles, so pencil, pen and dim light all read;
+    - each row is a **single** mark (with a confidence), **blank**, **two marks** (invalid and scored wrong, as on the PRC sheet), or **unsure** (faint, or a possible erasure), which is flagged for a person to check.
+  - **When it can't read, it says why**, with a hint for the person holding the phone:
+    - no sheet ("Fit all four black squares inside the frame");
+    - too small, too skewed, blurry;
+    - unreadable ID strip;
+    - wrong set, layout changed, wrong page, page already read.
+  - **Live use:** a fast corner check on a 640 px frame (about 10 ms) drives the viewfinder. The full read at up to 2,400 px takes about 0.1 s.
+  - **Tests (87):** a pure-JS synthetic sheet renderer "photographs" real sheet layouts with perspective, blur, noise, a lighting gradient, a hard shadow, vignette, paper curl and rotation.
+    - On 40 seeded sheets (4, 5 and 6 options; one and two pages; A4, Letter and long bond), the test requires 99.5% of rows read exactly; the current run reads all 3,880. Every double mark must be caught, and no blank may be read as a mark.
+    - A faint mark reads as unsure or blank, never as a confident wrong answer. A hard shadow edge flags the rows it crosses instead of misreading them.
+    - With 2 or 3 mm of curl, 99% of rows or more still read exactly with refinement on. Without it, 3 mm of curl drops the read below 90%.
+    - Every refusal reason is covered, as are the homography maths and the ID strip round trip.
 - [x] **Placement test (diagnostic CAT)** — a ~20-minute adaptive sitting: Mathematics 5 / ESAS 6 / EE 8 items at most (15–19 in all, roughly 25/30/45), each subject stopping early once its estimate reaches SE ≤ 0.45 after three items. The server picks every item at the learner's current per-subject estimate — Fisher information, discounted for topics already covered, then a random pick among the best three — grades it, and reveals nothing until the end, so the endpoint cannot be used to fish for an answer key and only the item currently being asked can be answered. The result projects each subject through the bank's characteristic curve (Board-ready ≥70 / Developing ≥50 / Foundation) and the weighted average against the PRC marks; for an account with fewer than 30 prior answers it **seeds** per-subject abilities and θ, so practice, drills and the forecast start calibrated instead of from the θ = 0 every new account shared — an established account's placement is reported, not imposed. Resumable for 7 days (state lives in `ExamSession.config`, mode `DIAGNOSTIC`, no schema change); attempts are recorded once at the end with deterministic ids, and finishing is idempotent. Prompted on Today while an account is new or a sitting is unfinished — skippable, "Not now" remembered per account — and retakeable from Account → Placement test (`pages/Diagnostic.jsx`, `features/diagnostic/PlacementPrompt.jsx`, `routes/diagnosticRoutes.js`, `services/diagnosticService.js`, `engine/cat.js`)
 - [x] **CAT item selection** — `POST /api/exams/next-item` and the placement test draw from one candidate query (`services/catCandidates.js`): a random sample windowed around θ (calibrated items within ±1.5; uncalibrated items placed by author rating), with recently seen and in-session items excluded in SQL and subjects matched by every stored spelling. It used to read `take: 80` unordered rows — the same rows every call — match the subject by raw equality, and always serve the single most informative item, so every learner at a given θ got the identical first question
 - [x] **Onboarding: where to start, and a first-run exam plan** (2026-10)
