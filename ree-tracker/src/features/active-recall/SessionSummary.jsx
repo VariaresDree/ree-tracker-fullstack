@@ -6,8 +6,8 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import LatexRenderer from '../../components/LatexRenderer';
-import { Button, Card, Grid, KpiTile, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
-import { Crosshair, RotateCcw } from '../../components/ui/icons';
+import { Button, Card, CardWatermark, Grid, KpiTile, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
+import { CheckCircle2, Crosshair, RotateCcw } from '../../components/ui/icons';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
 import NotificationOptIn from '../../components/NotificationOptIn';
@@ -45,7 +45,9 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
         meta={total > 0 ? <StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill> : null}
       />
 
-      <Card elevated glow padding="md" className="flex flex-col gap-4">
+      {/* The screen's hero: the score, what it means, and what to do next. */}
+      <Card variant="hero" padding="md" className="flex flex-col gap-4">
+        <CardWatermark icon={CheckCircle2} />
         {total > 0 && (
           <Grid kind="tiles" gap="sm">
             <KpiTile compact label="Score" value={`${correct}/${total}`} hint={`${accuracy}% correct`} />
@@ -75,12 +77,12 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
         )}
 
         {cardsNext > 0 && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
+          <Card variant="inset" className="flex flex-col sm:flex-row sm:items-center gap-3 p-3">
             <p className="text-sm text-textMain flex-1 min-w-0">
               {cardsRated > 0 ? `${cardsNext} more formula card${cardsNext === 1 ? '' : 's'}` : `Next in today’s loop: ${cardsNext} formula card${cardsNext === 1 ? '' : 's'}`} due for review.
             </p>
-            <Button as={Link} to="/library?tab=formulas" className="w-full sm:w-auto">Review cards</Button>
-          </div>
+            <Button variant="secondary" as={Link} to="/library?tab=formulas" className="w-full sm:w-auto">Review cards</Button>
+          </Card>
         )}
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
