@@ -55,7 +55,7 @@ function MistakeCard({ item, expanded, onToggle, onTag, isOnline, ai }) {
   const resolved = isMarkedFixed(item);
 
   return (
-    <Card as="li" className="p-4 sm:p-5 flex flex-col gap-4">
+    <Card as="li" padding="md" className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap gap-2 items-center text-xs text-muted2 min-w-0">
           <Badge tone="signal">{toDisplaySubject(item.subject) || 'General'}</Badge>
