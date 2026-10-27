@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { fetchLeaderboardMe } from '../../services/dbQueries';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Card, IconChip, Skeleton } from '../../components/ui';
+import { Card, CardWatermark, IconChip, Skeleton } from '../../components/ui';
 import { Trophy } from '../../components/ui/icons';
 
 export default function YourRankCard({ listRank = null }) {
@@ -40,6 +40,7 @@ export default function YourRankCard({ listRank = null }) {
       <p className="flex items-baseline gap-2">
         <span className="text-display text-3xl text-textMain tabular-nums">#{rank}</span>
         {total && <span className="text-sm text-muted2">of {total} reviewer{total === 1 ? '' : 's'}</span>}
+        {total > 1 && <span className="text-sm text-accent-text tabular-nums">· top {Math.max(1, Math.ceil((rank / total) * 100))}%</span>}
       </p>
     );
   } else if (me) {
@@ -49,7 +50,9 @@ export default function YourRankCard({ listRank = null }) {
   }
 
   return (
-    <Card elevated padding="md" className="flex items-center gap-4">
+    // The tab's hero: where you stand, above the full list.
+    <Card variant="hero" padding="md" className="flex items-center gap-4">
+      <CardWatermark icon={Trophy} />
       <IconChip icon={Trophy} tone="amber" size="lg" round />
       <div className="min-w-0 flex flex-col gap-1">
         <h2 className="text-eyebrow">Your rank</h2>

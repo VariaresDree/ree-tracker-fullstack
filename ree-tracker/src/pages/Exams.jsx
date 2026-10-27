@@ -34,13 +34,17 @@ const TABS = [
   { id: 'paper', label: 'Paper sets', icon: ScanLine },
 ];
 
+// The mode guide's own names for the tabs it describes, so it can say
+// "You're here".
+const GUIDE_HERE = { mock: 'mock', gauntlet: 'gauntlet', battles: 'battles' };
+
 export default function Exams() {
   const [tab, setTab] = useTabParam(TABS.map((t) => t.id), 'mock');
 
   return (
     <Page>
       <PageHeader title="Exams" subtitle="Timed tests under board conditions: mock boards, the Gauntlet ladder, and battles with friends." />
-      <ModeGuide folded />
+      <ModeGuide folded here={GUIDE_HERE[tab]} />
       <Tabs id="exams" label="Exam types" active={tab} onChange={setTab} tabs={TABS} />
 
       <TabPanel id="exams" active={tab}>

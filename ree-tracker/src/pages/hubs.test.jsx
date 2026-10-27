@@ -46,8 +46,9 @@ describe('Exams', () => {
         expect(screen.getByRole('tab', { name: /mock board/i })).toHaveAttribute('aria-selected', 'true');
         const setups = screen.getAllByRole('link', { name: /set up/i }).map((a) => a.getAttribute('href'));
         expect(setups).toEqual([
-            '/simulator?profile=custom', '/simulator?profile=prc_subject',
-            '/simulator?profile=prc_blended', '/simulator?profile=prc_full',
+            // The full board leads (the tab's hero), then closest to it.
+            '/simulator?profile=prc_full', '/simulator?profile=prc_blended',
+            '/simulator?profile=prc_subject', '/simulator?profile=custom',
         ]);
     });
 

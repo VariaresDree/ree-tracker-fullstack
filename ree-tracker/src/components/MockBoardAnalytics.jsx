@@ -13,8 +13,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { isPassingVerdict, VERDICT } from '@ree/shared';
 import { sittingKindLabel } from '../features/board-simulator/profiles';
 import { SkeletonChart } from './SkeletonLoaders';
-import { Panel, DataTable, StatusPill, Button, Modal, EmptyState, Grid, KpiTile } from './ui';
-import { BarChart3, RefreshCw, Trash2, ShieldAlert, CloudOff, ScanLine } from './ui/icons';
+import { Panel, DataTable, StatusPill, Button, Modal, EmptyState, Grid, KpiTile, Skeleton } from './ui';
+import { BarChart3, History, RefreshCw, Trash2, ShieldAlert, CloudOff, ScanLine } from './ui/icons';
 import OutsideScoresPanel from '../features/exams/OutsideScoresPanel';
 
 // Mock history is SERVER-authoritative (GET /api/analytics/deep/mock-history):
@@ -231,15 +231,23 @@ export default function MockBoardAnalytics() {
         }
         bodyClassName="flex flex-col gap-5"
       >
-        {/* Over the latest 20 sittings, which is what the list holds. */}
+        {/* Over the latest 20 sittings, which is what the list holds. Until
+            the first list arrives they are placeholders: they used to read
+            "0", "0%" and "0 of 0" while it loaded. */}
         <Grid kind="tiles" gap="sm">
-          <MiniStat label="Sittings (last 20)" value={totalRuns} />
-          <MiniStat label="Average" value={`${avgScore}%`} tone={avgScore >= 70 ? 'success' : 'amber'} />
-          <MiniStat label="Passed" value={`${passCount} of ${totalRuns}`} tone={passRate >= 70 ? 'success' : 'danger'} />
+          {loading && history.length === 0 ? (
+            [0, 1, 2].map((i) => <Skeleton key={i} className="h-[5.5rem] rounded-[var(--radius-lg)]" />)
+          ) : (
+            <>
+              <MiniStat label="Sittings (last 20)" value={totalRuns} />
+              <MiniStat label="Average" value={`${avgScore}%`} tone={avgScore >= 70 ? 'success' : 'amber'} />
+              <MiniStat label="Passed" value={`${passCount} of ${totalRuns}`} tone={passRate >= 70 ? 'success' : 'danger'} />
+            </>
+          )}
         </Grid>
 
         {loading ? (
-          <div className="h-[320px] flex items-center justify-center"><SkeletonChart /></div>
+          <SkeletonChart className="h-[320px]" />
         ) : loadError ? (
           <EmptyState
             compact
@@ -292,16 +300,16 @@ export default function MockBoardAnalytics() {
 
       {/* Ledger table */}
       <Panel
-        icon={BarChart3}
+        icon={History}
         eyebrow="History"
         title="Past sittings"
         action={<span className="text-micro text-muted2 tabular-nums">{history.length} sitting{history.length === 1 ? '' : 's'}</span>}
         bodyClassName="max-h-[520px] overflow-y-auto custom-scrollbar"
       >
         {loading ? (
-          <div className="py-8"><SkeletonChart /></div>
+          <SkeletonChart className="h-64" />
         ) : loadError ? (
-          <p className="text-sm text-muted2 py-4">Your sittings will show here once they load.</p>
+          <EmptyState compact icon={CloudOff} title="Your sittings will show here once they load" />
         ) : (
           <DataTable
             columns={columns}
