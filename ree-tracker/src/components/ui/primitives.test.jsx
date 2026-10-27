@@ -3,7 +3,7 @@
 // per-tone ink, and DataTable's clickable rows from the keyboard.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Badge, Button, Card, CardTitle, DataTable, Grid, IconChip, KpiTile, Page, PageHeader, QuestionSurface, SectionHeader, StickyToolbar } from './index';
+import { Badge, Button, Card, CardTitle, CardWatermark, DataTable, Disclosure, Grid, IconChip, KpiTile, Page, PageHeader, QuestionSurface, SectionHeader, StickyToolbar } from './index';
 import { Target } from './icons';
 
 describe('Page', () => {
@@ -54,6 +54,67 @@ describe('Card', () => {
   });
 });
 
+describe('Card variants', () => {
+  it('every page card carries the top-edge rim; a well inside a card does not', () => {
+    const { container, rerender } = render(<Card>x</Card>);
+    expect(container.firstChild).toHaveClass('card-edge');
+    rerender(<Card variant="inset">x</Card>);
+    expect(container.firstChild).not.toHaveClass('card-edge');
+  });
+
+  it('a hero is solid, washed in the accent, elevated, and takes the large inset', () => {
+    const { container, rerender } = render(<Card variant="hero">x</Card>);
+    const hero = container.firstChild;
+    expect(hero).toHaveClass('card-hero', 'elevate-2', 'relative', 'isolate', 'card-edge');
+    // .card-hero paints it; a card colour class would fight it.
+    expect(hero).not.toHaveClass('surface-glass');
+    expect(hero).not.toHaveClass('bg-surface');
+    expect(hero.className).toMatch(/\bp-6 sm:p-8\b/);
+    rerender(<Card variant="hero" padding="md">x</Card>);
+    expect(container.firstChild.className).toMatch(/\bp-5\b/);
+    expect(container.firstChild.className).not.toMatch(/p-6/);
+  });
+
+  it('an interactive card lifts on hover and stays glass', () => {
+    const { container } = render(<Card variant="interactive">x</Card>);
+    expect(container.firstChild).toHaveClass('card-interactive', 'surface-glass', 'isolate');
+  });
+
+  it('an inset well is solid, half-strength panel colour, on the smaller radius', () => {
+    const { container } = render(<Card variant="inset">x</Card>);
+    expect(container.firstChild).toHaveClass('bg-surface2/50', 'rounded-[var(--radius-default)]');
+    expect(container.firstChild).not.toHaveClass('surface-glass');
+  });
+
+  it('the watermark is decoration only, behind the content', () => {
+    const { container } = render(<Card variant="hero"><CardWatermark icon={Target} /><p>Up next</p></Card>);
+    const mark = container.querySelector('[data-watermark]');
+    expect(mark).toHaveAttribute('aria-hidden', 'true');
+    expect(mark).toHaveClass('-z-10', 'pointer-events-none', 'overflow-hidden');
+  });
+});
+
+describe('Disclosure', () => {
+  it('opens and closes its body from a real button that says whether it is open', () => {
+    render(<Disclosure title="Custom session" description="Choose it yourself.">body</Disclosure>);
+    const toggle = screen.getByRole('button', { name: /Custom session/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('body')).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('body').id).toBe(toggle.getAttribute('aria-controls'));
+  });
+
+  it('follows `open` when the parent holds the state', () => {
+    const onToggle = vi.fn();
+    render(<Disclosure title="More" open onToggle={onToggle}>body</Disclosure>);
+    expect(screen.getByText('body')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    expect(onToggle).toHaveBeenCalledWith(false);
+    expect(screen.getByText('body')).toBeInTheDocument();
+  });
+});
+
 describe('Grid', () => {
   it('sets its columns by the room it has (container queries), not the window', () => {
     const { container, rerender } = render(<Grid kind="kpi"><i /><i /></Grid>);
@@ -63,6 +124,8 @@ describe('Grid', () => {
     expect(grid.className).not.toMatch(/(^|\s)(sm|md|lg|xl):grid-cols/);
     rerender(<Grid kind="cards" gap="lg" className="stagger-fade-in"><i /></Grid>);
     expect(container.firstChild.firstChild.className).toMatch(/grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-6 stagger-fade-in/);
+    rerender(<Grid kind="bento"><i /></Grid>);
+    expect(container.firstChild.firstChild.className).toMatch(/grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-4/);
   });
 });
 

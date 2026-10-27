@@ -8,7 +8,7 @@ export function Stat({ value, suffix = '', precision = 0, label, className, coun
   return (
     <div className={cn('flex flex-col gap-1', className)}>
       {label && (
-        <span className="text-micro font-mono uppercase tracking-[0.18em] text-muted">
+        <span className="text-eyebrow">
           {label}
         </span>
       )}

@@ -53,8 +53,24 @@ describe('layout standard', () => {
       'features/exams/HostBattleModal.jsx': 'a dialog',
       'features/reference/ReferenceAdminV2.jsx': 'admin forms',
       'features/admin/ai/QuestionGenerator.jsx': 'admin form',
-      'features/admin/ai/AiStatusPanel.jsx': 'admin panel',
       'features/account/SecuritySettings.jsx': 'a form',
+    })).toEqual([]);
+  });
+});
+
+// A screen's hero is <Card variant="hero">: the accent wash, the elevation
+// and the large inset in one, held to contrast in every theme. It had been
+// assembled by hand from `elevated glow` (and sometimes `grain`) a different
+// way on each screen. The listed files are the heroes still to move; each
+// leaves this list in the PR that redraws its page.
+describe('hero cards', () => {
+  it('a hero is variant="hero", not an elevated glow card', () => {
+    expect(scan(/<Card\b[^>]*\belevated glow\b/, {
+      'features/today/TodayPanel.jsx': 'Today PR',
+      'features/diagnostic/PlacementPrompt.jsx': 'Today PR',
+      'features/active-recall/SessionSummary.jsx': 'Practice PR',
+      'features/board-simulator/FullBoardScreens.jsx': 'Exams PR',
+      'pages/Diagnostic.jsx': 'Exams PR',
     })).toEqual([]);
   });
 });

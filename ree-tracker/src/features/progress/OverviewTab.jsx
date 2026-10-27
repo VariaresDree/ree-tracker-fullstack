@@ -52,7 +52,7 @@ export default function OverviewTab({ stats, kpi }) {
             </div>
           }
         >
-          <Suspense fallback={<SkeletonChart />}>
+          <Suspense fallback={<SkeletonChart className="h-full" />}>
             <ThetaVelocityChart history={stats?.thetaHistory} range={range} />
           </Suspense>
         </Panel>
