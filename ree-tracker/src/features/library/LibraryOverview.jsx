@@ -432,14 +432,15 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           { label: 'ESAS', value: serverStats?.esas || 0, accent: TRACK_ACCENT.ESAS },
           { label: 'EE', value: serverStats?.ee || 0, accent: TRACK_ACCENT.EE },
         ].map((s) => (
-          <div
+          <Card
             key={s.label}
-            className="p-4 bg-bg border rounded-[var(--radius-default)] text-center min-w-0"
+            variant="inset"
+            className="p-4 text-center min-w-0"
             style={{ borderColor: s.accent ? `color-mix(in srgb, ${s.accent} 20%, transparent)` : 'var(--border-light)' }}
           >
             <div className="text-display text-3xl tabular-nums" style={{ color: s.accent || 'var(--text-main)' }}>{s.value}</div>
             <div className="text-eyebrow mt-1">{s.label}</div>
-          </div>
+          </Card>
         ))}
       </Grid>
 
@@ -449,12 +450,13 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           const safeSubj = toDisplaySubject(s);
 
           return (
-            <div key={s} className="p-4 bg-surface2 border rounded-[var(--radius-default)] flex flex-col h-[280px] min-w-0" style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}>
+            // Up to 280px, then the topic list scrolls; a short list no
+            // longer leaves a fixed 280px box mostly empty.
+            <Card key={s} variant="inset" className="p-4 flex flex-col max-h-[280px] min-w-0" style={{ borderColor: `color-mix(in srgb, ${accent} 20%, transparent)` }}>
               <div className="border-b border-border2 pb-3 mb-3 shrink-0">
                 <div className="text-eyebrow" style={{ color: accent }}>{s}</div>
               </div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2">
-                {/* 🚀 FIXED: Maps directly over the dynamic store array */}
+              <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2">
                 {(dynamicTOS[s] || []).map(sub => {
                   const count = vaultMetadata ? vaultMetadata[`${safeSubj}_${sub}`] || 0 : 0;
                   return (
@@ -470,7 +472,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                   );
                 })}
               </div>
-            </div>
+            </Card>
           );
         })}
       </Grid>

@@ -52,7 +52,6 @@ describe('layout standard', () => {
       'features/library/ManualIngestionForm.jsx': 'a form',
       'features/exams/HostBattleModal.jsx': 'a dialog',
       'features/reference/ReferenceAdminV2.jsx': 'admin forms',
-      'features/admin/ai/QuestionGenerator.jsx': 'admin form',
       'features/account/SecuritySettings.jsx': 'a form',
     })).toEqual([]);
   });
