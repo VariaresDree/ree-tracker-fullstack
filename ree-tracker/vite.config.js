@@ -109,7 +109,7 @@ export default defineConfig(async ({ mode, command }) => {
           // NO manual chunk for the PDF/screenshot export path (jspdf,
           // html2canvas). Naming a chunk here forces rolldown to emit it as a
           // STATIC import of the entry, which cancels the `await import()` in
-          // pdfEngine/certificateEngine/examPaper and made index.html
+          // pdfEngine/certificateEngine and made index.html
           // modulepreload 183 kB (606 kB raw) of export-only code on EVERY
           // route. Verified against the deployed bundle: with this rule the
           // entry contained `from"./pdf-export-*.js"`; without it the chunk

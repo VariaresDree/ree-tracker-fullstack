@@ -1,7 +1,7 @@
 // src/config/examStandards.js
 // Single source of truth for PRC board-exam standards (per-subject time limits)
 // and the Gauntlet tier progression. These times were previously hard-coded
-// inline in several files (useSimulatorEngine, SimulatorConfig, examPaper, Arena)
+// inline in several files (useSimulatorEngine, SimulatorConfig, the exam paper, Arena)
 // and GAUNTLET_TIERS was duplicated in Arena (minutes) + useGauntletEngine
 // (seconds) with different shapes — a change-one-forget-the-other trap.
 

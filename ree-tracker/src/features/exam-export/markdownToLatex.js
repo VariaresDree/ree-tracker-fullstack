@@ -15,6 +15,7 @@
 //   inline (options): one line; lists and tables are flattened, a display
 //          formula is $\displaystyle ...$
 import { createWarnings, escapeText, ensureAscii, mathSegment, prepareField, splitMath } from './latexEscape';
+import { isTableRow, isTableStart, parseAlign, splitRow } from '../../utils/pipeTable';
 
 // Placeholders: inline math U+E000 n U+E001, display math U+E002 n U+E003.
 const INLINE_PH = (i) => `\uE000${i}\uE001`;
@@ -31,7 +32,6 @@ export function mentionsFigure(text) {
 
 const MD_PUNCT = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~';
 const LIST_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
-const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const FENCE = /^\s*(```|~~~)/;
 const HEADING = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 const HR = /^\s{0,3}([-*_])(\s*\1){2,}\s*$/;
@@ -39,29 +39,10 @@ const QUOTE = /^\s{0,3}>\s?/;
 
 const indentOf = (line) => (/^\s*/.exec(line)[0].replace(/\t/g, '    ').length);
 
-const isTableStart = (lines, i) => lines[i].includes('|') && i + 1 < lines.length
-  && lines[i + 1].includes('|') && TABLE_SEP.test(lines[i + 1]);
-
 function startsBlock(lines, i) {
   const line = lines[i];
   return FENCE.test(line) || HEADING.test(line) || HR.test(line) || QUOTE.test(line)
     || LIST_ITEM.test(line) || DISPLAY_LINE.test(line) || isTableStart(lines, i);
-}
-
-/** Split a table row on unescaped pipes. */
-function splitRow(line) {
-  let s = line.trim();
-  if (s.startsWith('|')) s = s.slice(1);
-  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
-  const cells = [];
-  let cell = '';
-  for (let i = 0; i < s.length; i += 1) {
-    if (s[i] === '\\' && s[i + 1] === '|') { cell += '\\|'; i += 1; continue; }
-    if (s[i] === '|') { cells.push(cell.trim()); cell = ''; continue; }
-    cell += s[i];
-  }
-  cells.push(cell.trim());
-  return cells;
 }
 
 function parseList(lines, start) {
@@ -146,16 +127,10 @@ function parseLines(lines) {
     if (HR.test(line)) { blocks.push({ type: 'hr' }); i += 1; continue; }
     if (isTableStart(lines, i)) {
       const header = splitRow(line);
-      const align = splitRow(lines[i + 1]).map((c) => {
-        const left = c.startsWith(':');
-        const right = c.endsWith(':');
-        if (left && right) return 'c';
-        if (right) return 'r';
-        return 'l';
-      });
+      const align = parseAlign(lines[i + 1]);
       const rows = [];
       i += 2;
-      while (i < lines.length && lines[i].trim() && lines[i].includes('|')) { rows.push(splitRow(lines[i])); i += 1; }
+      while (i < lines.length && isTableRow(lines[i])) { rows.push(splitRow(lines[i])); i += 1; }
       blocks.push({ type: 'table', header, align, rows });
       continue;
     }

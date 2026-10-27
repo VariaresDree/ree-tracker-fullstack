@@ -49,6 +49,8 @@ const MUST_NOT_MATCH = [
     '/api/readinessX',      // segment equality, not a prefix test
     '/api/user/outside-scores', // per-user, edited offline: never served from the SW cache
     '/api/user/syllabus',
+    '/api/user/printed-sets', // printed paper sets: per-user, edited offline
+    '/api/user/printed-sets/K7P29QXAM3TD',
     '/api',
     '/',
 ];

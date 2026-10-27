@@ -77,6 +77,12 @@ describe('MockBoardAnalytics', () => {
     expect(links.map((a) => a.getAttribute('href'))).toEqual(expect.arrayContaining(['/exams/sittings/s1', '/exams/sittings/b1']));
   });
 
+  it('offers to check a paper sheet: a scanned self-check lands in the outside scores', async () => {
+    fetchMockHistory.mockResolvedValue(ROWS);
+    render(<MockBoardAnalytics />);
+    expect(await screen.findByRole('link', { name: 'Check a paper sheet' })).toHaveAttribute('href', '/scan?for=self');
+  });
+
   it('asks the server again on every visit, so a sitting just finished is listed', async () => {
     fetchMockHistory.mockResolvedValueOnce(ROWS);
     const first = render(<MockBoardAnalytics />);

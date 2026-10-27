@@ -45,10 +45,12 @@ async function seed() {
         await prisma.user.create({ data: { id: adminUid, email: ADMIN_EMAIL, displayName: 'E2E Admin', role: 'ADMIN' } });
         const question = (n, subject, subtopic) => ({
             id: Q(n), subject, subtopic, text: `E2E question ${n}: pick A`, options: ['A', 'B', 'C', 'D'], answer: 'A',
-            fixedExplanation: `Why ${n}: A is right.`, type: 'conceptual',
+            fixedExplanation: `Why ${n}: A is right, since $V = IR$.`, type: 'conceptual',
         });
         await prisma.question.createMany({
-            data: [question(1, 'EE', 'Protection'), question(2, 'Mathematics', 'Calculus'), question(3, 'ESAS', 'Chemistry')],
+            // Question 4 is never answered, bookmarked or in a battle: with it a
+            // printed mixed paper has one item per subject (scanSheet.spec).
+            data: [question(1, 'EE', 'Protection'), question(2, 'Mathematics', 'Calculus'), question(3, 'ESAS', 'Chemistry'), question(4, 'ESAS', 'Physics')],
         });
         // Due for review now (EE), and an open mistake (Math): today's loop.
         await prisma.sRSCard.create({ data: { userId: uid, questionId: Q(1), nextReviewDate: new Date(Date.now() - 3600_000) } });

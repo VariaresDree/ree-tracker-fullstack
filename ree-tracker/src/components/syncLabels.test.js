@@ -11,6 +11,15 @@ describe('sync labels', () => {
     expect(syncActionLabel(undefined)).toBe('A saved change');
   });
 
+  it('names printed paper sets and their scanned sheets', () => {
+    expect(syncActionLabel('/api/user/printed-sets', 'POST')).toBe('A printed paper set');
+    expect(syncActionLabel('/api/user/printed-sets/K7P29QXAM3TD', 'PATCH')).toBe('Changes to a printed paper set');
+    expect(syncActionLabel('/api/user/printed-sets/K7P29QXAM3TD', 'DELETE')).toBe('Deleting a printed paper set');
+    expect(syncActionLabel('/api/user/printed-sets/K7P29QXAM3TD/sheets', 'POST')).toBe('A scanned answer sheet');
+    expect(syncActionLabel('/api/user/printed-sets/K7P29QXAM3TD/sheets/s1', 'PATCH')).toBe('A correction to a scanned answer sheet');
+    expect(syncActionLabel('/api/user/printed-sets/K7P29QXAM3TD/sheets/s1', 'DELETE')).toBe('Deleting a scanned answer sheet');
+  });
+
   it('says why it stopped, from the status', () => {
     expect(syncFailureReason({ status: 500 })).toMatch(/Retrying usually works/);
     expect(syncFailureReason({ status: 409 })).toBe('It clashed with a newer change.');

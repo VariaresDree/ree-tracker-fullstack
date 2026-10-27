@@ -530,3 +530,61 @@ describe('shared contract — the order answer choices are shown in', () => {
         expect(shared.OPTION_ORDER_VERSION).toBe('seeded-v1');
     });
 });
+
+describe('shared contract — printed paper sets', () => {
+    // The API re-scores every scanned sheet and recomputes the key version
+    // with these functions; the app shows its instant result and prints the
+    // key version in the QR with the same ones. Pinned values, so the two
+    // sides can't drift apart.
+    const paperItem = (n, subject, answerIndex) => ({ n, subject, text: `Q${n}`, options: ['a', 'b', 'c', 'd'], answer: '', answerIndex });
+    const PAPER_ITEMS = [paperItem(1, 'Mathematics', 0), paperItem(2, 'ESAS', 1), paperItem(3, 'EE', 2), paperItem(4, 'EE', -1)];
+    const PAPER_SECTIONS = [{ subject: 'Mathematics', from: 1, to: 1 }, { subject: 'ESAS', from: 2, to: 2 }, { subject: 'EE', from: 3, to: 4 }];
+
+    it('has one set of limits and one id format', () => {
+        expect(shared.PAPER_SET_LIMITS).toEqual({
+            items: 150, options: 6, stem: 8000, option: 1500, explanation: 16000, title: 120, takerName: 80,
+            bytes: 1000000, perUser: 300, sheetsPerSet: 1000,
+        });
+        expect(shared.PAPER_PROFILES).toEqual(['prc_subject', 'prc_blended', 'custom']);
+        expect(shared.PAPER_KINDS).toEqual(['a4', 'letter', 'long']);
+        expect(shared.PRINT_ID_ALPHABET).toBe('0123456789ABCDEFGHJKMNPQRSTVWXYZ');
+        expect(shared.PRINT_ID_RE.test('K7P29QXAM3TD')).toBe(true);
+        expect(shared.PRINT_ID_RE.test('K7P29QXAM3TU')).toBe(false);
+        expect(shared.formatPrintId('K7P29QXAM3TD')).toBe('K7P2-9QXA-M3TD');
+        expect(shared.normalizePrintId('k7p2 9qxa m3td')).toBe('K7P29QXAM3TD');
+        expect(['AB*-', 'ab', 'G', ''].map((a) => shared.ANSWER_RE.test(a))).toEqual([true, false, false, false]);
+    });
+
+    it('hashes the key the same way: the version moves with an answer letter, not with wording', () => {
+        expect(shared.keyVersionOf(shared.effectiveItems(PAPER_ITEMS, {}))).toBe('1sy8h82');
+        expect(shared.paperSetHash('ABC-')).toBe('1sy8h82');
+        expect(shared.keyVersionOf(shared.effectiveItems(PAPER_ITEMS, { 1: { text: 'Reworded' } }))).toBe('1sy8h82');
+        expect(shared.keyVersionOf(shared.effectiveItems(PAPER_ITEMS, { 3: { answerIndex: 0 } }))).toBe('117kqgk');
+    });
+
+    it('scores a sheet the same way: blank and double marks score 0, an unmatched key is not scored', () => {
+        const items = shared.effectiveItems(PAPER_ITEMS, {});
+        expect(shared.scorePaperSheet({ items, sections: PAPER_SECTIONS, profile: 'prc_blended' }, 'A-CB')).toEqual({
+            correct: 2, scored: 3, total: 4, percent: 66.7,
+            sections: [
+                { subject: 'Mathematics', correct: 1, total: 1, percent: 100 },
+                { subject: 'ESAS', correct: 0, total: 1, percent: 0 },
+                { subject: 'EE', correct: 1, total: 1, percent: 100 },
+            ],
+            generalAverage: 70,
+            verdict: 'CONDITIONAL PASS',
+            perItem: ['right', 'blank', 'right', 'unscored'],
+        });
+        const custom = shared.scorePaperSheet({ items, sections: PAPER_SECTIONS, profile: 'custom' }, 'AB*A');
+        expect(custom).toMatchObject({ correct: 2, scored: 3, generalAverage: null, verdict: null });
+        expect(custom.perItem).toEqual(['right', 'right', 'multiple', 'unscored']);
+    });
+
+    it('lays edits over the drawn items and checks them the same way', () => {
+        const [first, second] = shared.effectiveItems(PAPER_ITEMS, { 2: { options: ['x', 'y'], answerIndex: 1 } });
+        expect(first).toMatchObject({ edited: false, answerLetter: 'A' });
+        expect(second).toMatchObject({ edited: true, options: ['x', 'y'], answer: 'y', answerLetter: 'B' });
+        expect(shared.itemEditErrors({ text: 'Fine', explanation: null })).toEqual({});
+        expect(Object.keys(shared.itemEditErrors({ text: ' ', options: ['a', 'a'] })).sort()).toEqual(['answerIndex', 'options', 'text']);
+    });
+});

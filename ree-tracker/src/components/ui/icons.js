@@ -107,4 +107,13 @@ export {
   // Notebook (mistakes, personal notes)
   NotebookPen,
   StickyNote,
+  // Paper sets: the answer-sheet scanner and results
+  ScanLine,
+  Camera,
+  CameraOff,
+  Images,
+  Flashlight,
+  FlashlightOff,
+  Printer,
+  QrCode,
 } from 'lucide-react';

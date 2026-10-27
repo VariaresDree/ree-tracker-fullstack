@@ -11,7 +11,7 @@ import { lazy, Suspense } from 'react';
 import useTabParam from '../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
 import ModeGuide from '../features/exams/ModeGuide';
-import { Zap, Shield, Swords, Trophy, History } from '../components/ui/icons';
+import { Zap, Shield, Swords, Trophy, History, ScanLine } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 import MockBoardTab from '../features/exams/MockBoardTab';
 
@@ -22,6 +22,8 @@ const RankingsTab = lazy(() => import('../features/exams/RankingsTab'));
 // The mock-board ledger (score trend, verdicts, reviews). It was the last card
 // on the old Dashboard.
 const MockBoardAnalytics = lazy(() => import('../components/MockBoardAnalytics'));
+// Mock boards printed on paper, their scanned answer sheets and results.
+const PaperSetsTab = lazy(() => import('../features/paper-sets/PaperSetsTab'));
 
 const TABS = [
   { id: 'mock', label: 'Mock board', icon: Zap },
@@ -29,6 +31,7 @@ const TABS = [
   { id: 'battles', label: 'Battles', icon: Swords },
   { id: 'rankings', label: 'Rankings', icon: Trophy },
   { id: 'history', label: 'Past sittings', icon: History },
+  { id: 'paper', label: 'Paper sets', icon: ScanLine },
 ];
 
 export default function Exams() {
@@ -50,6 +53,7 @@ export default function Exams() {
             {tab === 'battles' && <BattlesTab />}
             {tab === 'rankings' && <RankingsTab />}
             {tab === 'history' && <MockBoardAnalytics />}
+            {tab === 'paper' && <PaperSetsTab />}
           </Suspense>
         </ErrorBoundary>
       )}

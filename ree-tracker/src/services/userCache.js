@@ -9,12 +9,20 @@
 //
 // The store's persisted stats live in the same database (idb-keyval's
 // keyval-store); these sit beside them under their own keys.
-import { get, set, del } from 'idb-keyval';
+//
+// Printed paper sets keep one entry per set as well as the list
+// (`printedSet:<id>`, `printedSheets:<id>`), so the names aren't all known in
+// advance: sign-out sweeps every key under the prefix.
+import { get, set, del, keys, delMany } from 'idb-keyval';
 
 const PREFIX = 'ree-user-cache-v1:';
 
-// Every cache name, so a sign-out can clear them without listing the store.
-export const USER_CACHE_NAMES = ['outsideScores', 'syllabus', 'mistakes', 'notes', 'cardReviews', 'placement', 'battleHistory'];
+// Every fixed cache name, so a sign-out can clear them without listing the store.
+export const USER_CACHE_NAMES = ['outsideScores', 'syllabus', 'mistakes', 'notes', 'cardReviews', 'placement', 'battleHistory', 'printedSets'];
+
+/** A printed set's own entries: the full set, and its scanned sheets. */
+export const printedSetCacheName = (id) => `printedSet:${id}`;
+export const printedSheetsCacheName = (id) => `printedSheets:${id}`;
 
 /**
  * The cached entry for this account, { value, savedAt }, or null (none,
@@ -50,7 +58,19 @@ export async function writeUserCache(uid, name, value, savedAt = Date.now()) {
   }
 }
 
+/** Forget one entry (a deleted printed set's). Best effort. */
+export async function deleteUserCache(name) {
+  try {
+    await del(PREFIX + name);
+  } catch { /* nothing to forget */ }
+}
+
 /** Called on sign-out and account deletion (resetStore). */
 export async function clearUserCaches() {
   await Promise.all(USER_CACHE_NAMES.map((name) => del(PREFIX + name).catch(() => {})));
+  // Then every other entry under the prefix (the per-set ones).
+  try {
+    const ours = (await keys()).filter((k) => typeof k === 'string' && k.startsWith(PREFIX));
+    if (ours.length) await delMany(ours);
+  } catch { /* storage unavailable: nothing was cached there either */ }
 }

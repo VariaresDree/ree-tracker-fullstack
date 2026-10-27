@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { normalizeMathDelimiters } from '../utils/mathDelimiters';
+import remarkPipeTables from '../utils/remarkPipeTables';
 import 'katex/dist/katex.min.css'; // CRITICAL: The stylesheet that makes the math render beautifully
 
 // Fallback boundary: if KaTeX/markdown throws while rendering a malformed
@@ -32,7 +33,10 @@ class LatexErrorBoundary extends React.Component {
     }
 }
 
-const REMARK_PLUGINS = [remarkMath];
+// Pipe tables are block-only: an option or inline value is a span, and a table
+// can't sit in one, so there it stays as text.
+const REMARK_PLUGINS = [remarkMath, remarkPipeTables];
+const INLINE_REMARK_PLUGINS = [remarkMath];
 // throwOnError:false → KaTeX renders an invalid expression in the danger color
 // instead of throwing; the boundary above catches anything that still escapes.
 const KATEX = [rehypeKatex, { throwOnError: false, errorColor: 'var(--accent-danger)' }];
@@ -44,6 +48,9 @@ const BlockP = ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-rela
 // a <strong> or a struck-through answer without breaking the line.
 // eslint-disable-next-line no-unused-vars
 const InlineP = ({ node, ...props }) => <span {...props} />;
+// A table wider than the card scrolls on its own, as a display formula does.
+// eslint-disable-next-line no-unused-vars
+const Table = ({ node, ...props }) => <div className="math-table"><table {...props} /></div>;
 
 /**
  * Renders markdown + LaTeX as ONE flowing piece of text.
@@ -51,6 +58,7 @@ const InlineP = ({ node, ...props }) => <span {...props} />;
  * - default: a block (`div.math-text`). Inline `$…$` sits on the text baseline
  *   inside its paragraph; a display formula (`$$…$$`) that is wider than the
  *   card scrolls on its own, so the surrounding text never gets a scrollbar.
+ *   A Markdown pipe table renders as a <table> (utils/remarkPipeTables).
  * - `inline`: a `span`, for an answer or value that sits inside a sentence.
  * - `compact`: kept for the formula-card variable rows; same as default.
  * - `rehypePlugins` / `components`: extra hast passes run after KaTeX (used by
@@ -66,9 +74,9 @@ const LatexRenderer = ({ content, className = "", compact = false, inline = fals
         <Tag className={`${base}${compact ? ' math-text-compact' : ''} ${className}`.trim()}>
             <LatexErrorBoundary content={content}>
                 <ReactMarkdown
-                    remarkPlugins={REMARK_PLUGINS}
+                    remarkPlugins={inline ? INLINE_REMARK_PLUGINS : REMARK_PLUGINS}
                     rehypePlugins={rehypePlugins ? [KATEX, ...rehypePlugins] : [KATEX]}
-                    components={{ p: inline ? InlineP : BlockP, ...components }}
+                    components={{ p: inline ? InlineP : BlockP, table: Table, ...components }}
                 >
                     {normalizeMathDelimiters(content)}
                 </ReactMarkdown>

@@ -1242,6 +1242,31 @@ body {
 .math-text .katex-display > .katex {
   font-size: 1.12em;
 }
+/* Pipe tables (utils/remarkPipeTables). The wrapper scrolls a table wider than
+   the card, as a display formula does; the cells take the theme's text colour
+   and hairline border, so they read on every theme. */
+.math-text .math-table {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  scrollbar-width: thin;
+}
+.math-text table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.math-text th,
+.math-text td {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border-light);
+  color: inherit;
+  text-align: left;
+  vertical-align: top;
+}
+.math-text th {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--text-main) 6%, transparent);
+}
 /* ==========================================================================
    UNIVERSAL DEEP DARK SCROLLBARS (For Dashboards, Ledgers, Library)
    ========================================================================== */

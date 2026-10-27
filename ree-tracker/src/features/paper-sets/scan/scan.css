@@ -1,0 +1,239 @@
+/* src/features/paper-sets/scan/scan.css
+ *
+ * The answer-sheet scanner (/scan, /scan/:setId). Loaded with its page,
+ * never eagerly. Phone first: one column, the viewfinder as large as the
+ * screen allows; the review goes two columns (the sheet beside the list) on
+ * a wide screen.
+ */
+
+.ree-scan {
+  min-height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--text-main);
+}
+.ree-scan > * {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}
+.ree-scan > .ree-scan-wide { max-width: 1040px; }
+
+.ree-scan-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ree-scan-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted2);
+}
+.ree-scan-privacy > svg { flex: none; margin-top: 1px; }
+
+/* ---------- Taking the picture ---------- */
+.ree-scan-capture,
+.ree-scan-finder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ree-scan-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: 62dvh;
+  background: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.ree-scan-frame-qr { aspect-ratio: 4 / 3; max-height: 40dvh; }
+@media (min-width: 720px) and (orientation: landscape) {
+  .ree-scan-frame { aspect-ratio: 4 / 3; }
+}
+.ree-scan-frame video,
+.ree-scan-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ree-scan-frame video { object-fit: contain; display: block; }
+.ree-scan-overlay { pointer-events: none; }
+
+.ree-scan-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 1.5em;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-main);
+}
+.ree-scan-shutter-row { display: flex; justify-content: center; }
+.ree-scan-shutter {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+}
+.ree-scan-photo-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ree-scan-photo-row > button { min-height: 44px; }
+.ree-scan-notice {
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-default);
+  background: var(--bg-surface2);
+  font-size: 0.875rem;
+  color: var(--text-main);
+}
+.ree-scan-notice-warn {
+  border-color: color-mix(in srgb, var(--color-reeAmber) 55%, transparent);
+}
+
+/* ---------- Review ---------- */
+/* A heading focused for screen readers when the screen changes: not a control. */
+.ree-scan-focus:focus { outline: none; }
+.ree-scan-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .ree-scan-review { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+}
+.ree-scan-review-images {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ree-scan-sheet {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  border-radius: var(--radius-default);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+}
+.ree-scan-sheet canvas,
+.ree-scan-sheet svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.ree-scan-review-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.ree-scan-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ree-scan-flag {
+  justify-content: flex-start;
+  width: 100%;
+  height: auto;
+  min-height: 2.5rem;
+  padding-block: 6px;
+  text-align: left;
+  white-space: normal;
+  gap: 0;
+}
+.ree-scan-all > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.ree-scan-all > summary::-webkit-details-marker { display: none; }
+.ree-scan-all > summary > svg { flex: none; transform: rotate(-90deg); }
+.ree-scan-all[open] > summary > svg { transform: none; }
+.ree-scan-answers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: 4px;
+  padding-top: 4px;
+}
+.ree-scan-answers button { width: 100%; justify-content: flex-start; gap: 0; }
+.ree-scan-name {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ree-scan-name > img {
+  width: 100%;
+  max-width: 520px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-default);
+  background: #fff;
+}
+
+/* The correction dialog's choices: radio buttons as large tap targets. */
+.ree-scan-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.ree-scan-choices > legend { float: left; width: 100%; padding: 0; }
+.ree-scan-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-default);
+  font-size: 0.875rem;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.ree-scan-choice:has(input:checked) {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.ree-scan-choice > input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* ---------- Result ---------- */
+.ree-scan-result {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ree-scan-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.ree-scan-score > .text-display { font-size: 2.25rem; line-height: 1.1; }
+.ree-scan-score > .text-muted2 { font-size: 1.25rem; }
+.ree-scan-missed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
