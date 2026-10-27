@@ -106,6 +106,24 @@
   padding: 0.5mm 0;
 }
 .ree-sheet-type .math-text .katex-display > .katex { font-size: 1.08em; }
+/* Pipe tables: black rules on white paper whatever the theme (the editor's
+   preview is paper too), and never a scrollbar on a sheet (a fixed width; the
+   cells wrap). */
+.ree-sheet-type .math-text .math-table { overflow: visible; margin: 1mm 0; }
+.ree-edit-preview .math-text .math-table { margin: 4px 0; }
+.ree-sheet-type .math-text table,
+.ree-edit-preview .math-text table { max-width: 100%; color: #000; background: transparent; }
+.ree-sheet-type .math-text th,
+.ree-sheet-type .math-text td,
+.ree-edit-preview .math-text th,
+.ree-edit-preview .math-text td {
+  padding: 0.4mm 1.6mm;
+  border: 0.75pt solid #000;
+  color: #000;
+  line-height: 1.25;
+}
+.ree-sheet-type .math-text th,
+.ree-edit-preview .math-text th { background: none; font-weight: 700; }
 /* Too wide even at 70%: the formula breaks after its operators (KaTeX sets
    each piece in its own box), left-aligned, as the LaTeX paper does. */
 .ree-sheet-type .katex-display.ree-display-wrap > .katex,
