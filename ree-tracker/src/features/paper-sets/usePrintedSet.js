@@ -210,8 +210,12 @@ export function usePrintedSet(id) {
     change({ prefs });
   }, [change]);
 
+  // Once per screen: Print, the browser's afterprint and a .tex export can
+  // all say so within one render.
+  const printedAsked = useRef(false);
   const markPrinted = useCallback(() => {
-    if (setRef.current?.printedAt) return;
+    if (setRef.current?.printedAt || printedAsked.current) return;
+    printedAsked.current = true;
     change({ printed: true }, { now: true });
   }, [change]);
 

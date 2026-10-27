@@ -196,10 +196,23 @@ function Preview({ ps, onBack }) {
 
   const nothing = !docs.paper && !docs.sheet && !docs.key;
   const laidOut = !!heights && current && (!docs.sheet || qr.ready);
-  const printHint = native && ps.createQueued ? 'Connect to the internet first: the set must reach your account before the browser can open it.' : null;
+  // The browser prints the account's copy, so the app's changes must be there.
+  const synced = !ps.createQueued && ps.syncState === 'saved';
+  let printHint = null;
+  if (native && ps.createQueued) printHint = 'Connect to the internet first: the set must reach your account before the browser can open it.';
+  else if (native && ps.syncState === 'queued') printHint = 'Connect to the internet first: your latest changes must reach your account before the browser can print them.';
+
+  // Printed from the browser's own menu (Ctrl+P) counts too: the sheets in
+  // hand mean Draw a new set must keep this one.
+  const { markPrinted } = ps;
+  useEffect(() => {
+    window.addEventListener('afterprint', markPrinted);
+    return () => window.removeEventListener('afterprint', markPrinted);
+  }, [markPrinted]);
 
   const print = async () => {
     if (native) {
+      await ps.flush();
       window.location.href = `${APP_URL}/print/${set.id}`;
       return;
     }
@@ -223,6 +236,7 @@ function Preview({ ps, onBack }) {
         if (now) {
           openInOverleaf(now);
           setMessage('Opened in Overleaf, in a new tab.');
+          markPrinted();
           return;
         }
       } catch (err) {
@@ -239,10 +253,13 @@ function Preview({ ps, onBack }) {
       } else if (mode === 'copy') {
         const ok = await copyText(file.content);
         setMessage(ok ? `Copied ${file.name}.` : `Couldn\u2019t copy ${file.name}.`);
+        if (!ok) return;
       } else {
         downloadBlob(new Blob([file.content], { type: 'application/x-tex' }), file.name);
         setMessage(`Downloaded ${file.name}.`);
       }
+      // The LaTeX is for printing: Draw a new set must keep this set.
+      markPrinted();
     } catch (err) {
       setMessage(err?.message || 'The LaTeX file couldn\u2019t be made.');
     } finally {
@@ -264,7 +281,9 @@ function Preview({ ps, onBack }) {
       const unused = isUnusedSet(set, ps.sheetCount);
       const { set: next } = await createPrintedSetFromConfig(set.config || {});
       navigate(`/print/${next.id}`, { replace: true });
-      if (unused) deletePrintedSet(set.id).catch(() => {});
+      // The server deletes it only if it is still unused: this device's copy
+      // may be behind (printed or scanned elsewhere).
+      if (unused) deletePrintedSet(set.id, { ifUnused: true }).catch(() => {});
     } catch (err) {
       setMessage(err?.message || 'A new set couldn\u2019t be drawn.');
       setDrawBusy(false);
@@ -313,7 +332,7 @@ function Preview({ ps, onBack }) {
           onToggleEdit={() => setEditing((e) => !e)}
           onPrint={print}
           printBusy={printing}
-          printDisabled={nothing || printing || (native ? ps.createQueued : !laidOut)}
+          printDisabled={nothing || printing || (native ? !synced : !laidOut)}
           native={native}
           printHint={printHint}
           downloads={downloads}

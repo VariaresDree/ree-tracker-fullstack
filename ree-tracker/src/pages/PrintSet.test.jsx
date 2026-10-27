@@ -191,6 +191,24 @@ describe('Print preview', () => {
     print.mockRestore();
   });
 
+  it('printing from the browser\u2019s own menu marks the set printed too, once', async () => {
+    renderPage();
+    await ready();
+    act(() => { window.dispatchEvent(new Event('afterprint')); });
+    act(() => { window.dispatchEvent(new Event('afterprint')); });
+    await waitFor(() => expect(calls('PATCH', SET_URL)).toEqual([[SET_URL, 'PATCH', { printed: true }]]));
+  });
+
+  it('in the Android app, Print waits for queued changes to reach the account', async () => {
+    native.value = true;
+    useStore.setState({ pendingWrites: [{ id: 'w2', endpoint: SET_URL, method: 'PATCH', body: { edits: { 1: { text: 'Queued wording' } } }, ownerUid: 'u1', createdAt: SET.createdAt }] });
+    routes[`PATCH ${SET_URL}`] = () => { throw new Error('[OFFLINE]'); };
+    renderPage();
+    const button = await screen.findByRole('button', { name: 'Print in your browser' });
+    await waitFor(() => expect(button).toHaveAccessibleDescription(/your latest changes must reach your account/));
+    expect(button).toBeDisabled();
+  });
+
   it('in the Android app, Print opens the set in the browser, once the set has synced', async () => {
     native.value = true;
     const user = userEvent.setup();
@@ -255,6 +273,8 @@ describe('Print preview', () => {
     await user.click(screen.getByRole('button', { name: 'More' }));
     await user.click(screen.getByRole('button', { name: 'Download .tex' }));
     await waitFor(() => expect(screen.getByText('Downloaded REE-EE-SETA-2026-10-21.tex.')).toBeInTheDocument());
+    // The LaTeX is for printing, so the set counts as printed.
+    await waitFor(() => expect(calls('PATCH', SET_URL)).toEqual([[SET_URL, 'PATCH', { printed: true }]]));
     const [draw, opts] = buildExamTexDocumentSync.mock.calls[0];
     expect(draw).toMatchObject({ printId: ID, setLabel: 'SET A' });
     expect(opts).toMatchObject({ paper: 'a4', documents: { paper: true, sheet: true, key: true }, includeSolutions: true, printId: ID, setCode: 'K7P2-9QXA-M3TD' });
@@ -268,6 +288,7 @@ describe('Print preview', () => {
       fields: { encoded_snip: encodeURIComponent(buildExamTexDocumentSync.mock.results[1].value.content), snip_name: 'REE-EE-SETA-2026-10-21', engine: 'pdflatex' },
     }]);
     expect(document.querySelector('form[action]')).toBeNull();
+    expect(calls('PATCH', SET_URL)).toHaveLength(1);
     submit.mockRestore();
   });
 
@@ -282,7 +303,10 @@ describe('Print preview', () => {
     expect(next).toMatch(/^[0-9A-HJKMNP-TV-Z]{12}$/);
     const created = calls('POST', '/api/user/printed-sets')[0][2];
     expect(created).toMatchObject({ id: next, config: SET.config, code: 'EE' });
-    await waitFor(() => expect(calls('DELETE', SET_URL)).toHaveLength(1));
+    // Deleted only if the server agrees it is still unused (it may have been
+    // printed or scanned from another device).
+    await waitFor(() => expect(calls('DELETE', `${SET_URL}?ifUnused=1`)).toHaveLength(1));
+    expect(calls('DELETE', SET_URL)).toHaveLength(0);
     await waitFor(() => expect(within(sheets()).getAllByText(/New question/).length).toBeGreaterThan(0));
   });
 
@@ -297,7 +321,7 @@ describe('Print preview', () => {
     expect(dialog).toHaveTextContent('2 answer sheets are already scanned for this set.');
     await user.click(within(dialog).getByRole('button', { name: 'Draw a new set' }));
     await waitFor(() => expect(screen.getByTestId('where').textContent).not.toBe(`/print/${ID}`));
-    expect(calls('DELETE', SET_URL)).toHaveLength(0);
+    expect(calls('DELETE')).toHaveLength(0);
   });
 
   it('says so when the set isn\u2019t in the account, and Back leaves', async () => {

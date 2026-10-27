@@ -16,8 +16,9 @@ const SET = `${PRINTED_SETS_ENDPOINT}/${ID}`;
 
 describe('printed-set queue overlay', () => {
   it('reads printed-set endpoints, and only those', () => {
-    expect(parseEndpoint(PRINTED_SETS_ENDPOINT)).toEqual({ setId: null, sheets: false, sheetId: null });
-    expect(parseEndpoint(`${SET}/sheets/s-1`)).toEqual({ setId: ID, sheets: true, sheetId: 's-1' });
+    expect(parseEndpoint(PRINTED_SETS_ENDPOINT)).toEqual({ setId: null, sheets: false, sheetId: null, ifUnused: false });
+    expect(parseEndpoint(`${SET}/sheets/s-1`)).toEqual({ setId: ID, sheets: true, sheetId: 's-1', ifUnused: false });
+    expect(parseEndpoint(`${SET}?ifUnused=1`)).toEqual({ setId: ID, sheets: false, sheetId: null, ifUnused: true });
     expect(parseEndpoint('/api/user/printed-setsX')).toBeNull();
     expect(parseEndpoint('/api/user/outside-scores')).toBeNull();
   });
@@ -41,6 +42,20 @@ describe('printed-set queue overlay', () => {
     expect(overlaySet(set, ID, [...writes, w(SET, 'DELETE', null)])).toBeNull();
     // Another set's writes don't touch it.
     expect(overlaySet(null, ID, [w(PRINTED_SETS_ENDPOINT, 'POST', body('AAAAAAAAAAAA'))])).toBeNull();
+  });
+
+  it('a delete if unused (Draw a new set) hides only a set still unused here', () => {
+    const replace = w(`${SET}?ifUnused=1`, 'DELETE', null);
+    expect(overlaySet(body(), ID, [replace])).toBeNull();
+    expect(overlaySet({ ...body(), printedAt: '2026-10-21T01:00:00.000Z' }, ID, [replace])).not.toBeNull();
+    expect(overlaySet({ ...body(), edits: { 1: { text: 'x' } } }, ID, [replace])).not.toBeNull();
+    expect(overlaySheets([{ id: 's1' }], ID, [replace])).toEqual([{ id: 's1' }]);
+    const list = [
+      { id: ID, createdAt: '2026-10-02T00:00:00.000Z', printedAt: null, _count: { sheets: 0 } },
+      { id: 'OLD000000000', createdAt: '2026-10-01T00:00:00.000Z', printedAt: null, _count: { sheets: 2 } },
+    ];
+    const old = w(`${PRINTED_SETS_ENDPOINT}/OLD000000000?ifUnused=1`, 'DELETE', null);
+    expect(overlaySetList(list, [replace, old], 'u1', 'u1').value.map((s) => s.id)).toEqual(['OLD000000000']);
   });
 
   it('counts queued sheets: added minus deleted', () => {

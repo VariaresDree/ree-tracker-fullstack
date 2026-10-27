@@ -10,7 +10,9 @@
 //
 // After a picture is taken it won't take another of the same sheet by
 // itself: the sheet has to leave the frame first, or (for a sheet of several
-// pages) a page not yet read has to come into it.
+// pages) a page not yet read has to come into it. The same holds when it
+// opens again for the next sheet (`startArmed` false): the sheet just scored
+// is usually still under the phone.
 //
 // The status line is polite and changes at most every 0.7 s, so a screen
 // reader isn't flooded. The video and its overlay are hidden from assistive
@@ -35,18 +37,18 @@ function bracket(c, dx, dy, len) {
  * @param {{
  *   cameraStatus: string, attachVideo: (el) => void, capture: (maxSide: number) => ImageData|null,
  *   omr: object|null, active: boolean, expectHash: string, readPages: Set<number>,
- *   nextPageIndex: number|null, armKey: number, reading: boolean,
+ *   nextPageIndex: number|null, armKey: number, startArmed?: boolean, reading: boolean,
  *   onCapture: (img: ImageData, how: 'auto'|'shutter') => Promise<void>,
  * }} props  the camera from useCamera, the engine from createOmrClient
  */
 export default function Viewfinder({
-  cameraStatus, attachVideo, capture, omr, active, expectHash, readPages, nextPageIndex, armKey, reading, onCapture,
+  cameraStatus, attachVideo, capture, omr, active, expectHash, readPages, nextPageIndex, armKey, startArmed = true, reading, onCapture,
 }) {
   const [view, setView] = useState({ w: 480, h: 640, result: null });
   const [line, setLine] = useState(VIEW_TEXT.fit);
   const lineRef = useRef({ text: VIEW_TEXT.fit, at: 0 });
   const history = useRef([]);
-  const armed = useRef(true);
+  const armed = useRef(startArmed);
   const lost = useRef(0);
   const capturing = useRef(false);
   const latest = useRef({});

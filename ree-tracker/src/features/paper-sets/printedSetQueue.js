@@ -9,18 +9,27 @@
 // create. Applying a queued write twice is harmless (edits replace per item,
 // prefs replace, printedAt is set once), so a copy cached with the queue
 // already applied can have it applied again.
-import { applySetPatch, summaryOf } from './printedSetModel';
+import { applySetPatch, isUnusedSet, summaryOf } from './printedSetModel';
 
 export const PRINTED_SETS_ENDPOINT = '/api/user/printed-sets';
 
-/** { setId, sheets, sheetId } from a printed-set endpoint, or null for anything else. */
+/**
+ * { setId, sheets, sheetId, ifUnused } from a printed-set endpoint, or null
+ * for anything else. `ifUnused`: a delete the server carries out only while
+ * the set is unused (Draw a new set).
+ */
 export function parseEndpoint(endpoint) {
-  const path = String(endpoint || '');
+  const [path, query = ''] = String(endpoint || '').split('?');
   if (path !== PRINTED_SETS_ENDPOINT && !path.startsWith(`${PRINTED_SETS_ENDPOINT}/`)) return null;
   const parts = path.slice(PRINTED_SETS_ENDPOINT.length).split('/').filter(Boolean).map((p) => {
     try { return decodeURIComponent(p); } catch { return p; }
   });
-  return { setId: parts[0] || null, sheets: parts[1] === 'sheets', sheetId: parts[2] || null };
+  return {
+    setId: parts[0] || null,
+    sheets: parts[1] === 'sheets',
+    sheetId: parts[2] || null,
+    ifUnused: new URLSearchParams(query).get('ifUnused') === '1',
+  };
 }
 
 /**
@@ -57,7 +66,8 @@ const fromCreate = (w) => ({
 
 /**
  * One set with its queued writes applied: the create (when there is no copy
- * yet), the edits, and a delete (null). Sheet writes don't change the set.
+ * yet), the edits, and a delete (null; a delete if unused only while this
+ * copy is unused). Sheet writes don't change the set.
  */
 export function overlaySet(base, id, writes) {
   let set = base;
@@ -66,7 +76,7 @@ export function overlaySet(base, id, writes) {
     if (at.sheets) continue;
     if (w.method === 'POST' && !at.setId) set = set || fromCreate(w);
     else if (w.method === 'PATCH' && set) set = applySetPatch(set, w.body, w.createdAt);
-    else if (w.method === 'DELETE') set = null;
+    else if (w.method === 'DELETE' && (!at.ifUnused || isUnusedSet(set))) set = null;
   }
   return set;
 }
@@ -93,7 +103,8 @@ export function overlaySheets(base, id, writes) {
   for (const w of writesForSet(writes, id)) {
     const at = parseEndpoint(w.endpoint);
     if (!at.sheets) {
-      if (w.method === 'DELETE' && at.setId) list = [];
+      // A delete if unused never takes sheets: a set with sheets is kept.
+      if (w.method === 'DELETE' && at.setId && !at.ifUnused) list = [];
       continue;
     }
     if (w.method === 'POST' && !at.sheetId && w.body?.id) {
@@ -127,7 +138,10 @@ export function applyListWrite(list, w) {
     if (current || !w.body?.id) return list;
     return [...list, withSheets(summaryOf(fromCreate(w)), 0)].sort(byNewest);
   }
-  if (w.method === 'DELETE') return list.filter((s) => s.id !== id);
+  if (w.method === 'DELETE') {
+    const unused = current && !current.printedAt && !current.edited && !sheetsOf(current);
+    return at.ifUnused && !unused ? list : list.filter((s) => s.id !== id);
+  }
   if (w.method === 'PATCH' && current) {
     const edits = w.body?.edits ? Object.values(w.body.edits) : [];
     const next = applySetPatch(current, { prefs: w.body?.prefs, printed: w.body?.printed }, w.createdAt);

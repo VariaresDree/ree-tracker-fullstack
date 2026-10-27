@@ -118,6 +118,11 @@ async function rescoreSheets(tx, set, userId) {
 // transaction more than Prisma's 5 s default before it is rolled back.
 const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
+// The caller's set row, locked until the transaction ends: two changes to one
+// set (an edit sent while another is still on its way, two devices) apply one
+// after the other, so neither merges over a copy the other just replaced.
+const lockSet = (tx, id, userId) => tx.$queryRaw`SELECT "id" FROM "PrintedSet" WHERE "id" = ${id} AND "userId" = ${userId} FOR UPDATE`;
+
 // ── Sets ──────────────────────────────────────────────────────────────────
 
 router.get('/printed-sets', authMiddleware, async (req, res) => {
@@ -211,6 +216,7 @@ router.patch('/printed-sets/:id', authMiddleware, validate(printedSetPatchSchema
     try {
         const out = await prisma.$transaction(async (tx) => {
             // 1. The caller's set, or nothing.
+            await lockSet(tx, id, req.user.id);
             const set = await tx.printedSet.findFirst({ where: { id, userId: req.user.id } });
             if (!set) throw new PaperSetError(404, SET_NOT_FOUND);
 
@@ -265,9 +271,24 @@ router.patch('/printed-sets/:id', authMiddleware, validate(printedSetPatchSchema
 // Always 200, even when nothing matched: a delete replayed from the offline
 // queue after it already happened must not land in Sync issues. The set's
 // sheets go with it (the foreign key cascades).
+//
+// `?ifUnused=1` (Draw a new set, replacing the set on screen) deletes it only
+// while nothing has happened to it: never printed, never edited, no sheets.
+// The device asking may have an old copy (printed from another device, from
+// the browser's own menu, or sheets scanned elsewhere), so the server decides.
 router.delete('/printed-sets/:id', authMiddleware, async (req, res) => {
+    const where = { id: req.params.id, userId: req.user.id };
     try {
-        const { count } = await prisma.printedSet.deleteMany({ where: { id: req.params.id, userId: req.user.id } });
+        if (req.query.ifUnused === '1') {
+            const deleted = await prisma.$transaction(async (tx) => {
+                await lockSet(tx, where.id, where.userId);
+                const set = await tx.printedSet.findFirst({ where, include: WITH_SHEET_COUNT });
+                const unused = set && !set.printedAt && !Object.keys(set.edits || {}).length && !set._count?.sheets;
+                return unused ? (await tx.printedSet.deleteMany({ where })).count : 0;
+            }, TX_OPTIONS);
+            return res.status(200).json({ success: true, deleted });
+        }
+        const { count } = await prisma.printedSet.deleteMany({ where });
         res.status(200).json({ success: true, deleted: count });
     } catch (error) {
         logger.error('Paper set delete failed', { error: error.message });

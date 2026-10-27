@@ -158,6 +158,8 @@ function installFakeDb() {
         return { count };
     });
     vi.spyOn(prisma, '$transaction').mockImplementation(async (fn) => fn(prisma));
+    // The row lock (SELECT ... FOR UPDATE): nothing to lock in memory.
+    vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
 }
 
 // Every call the routes made on these tables named the caller in its where.
@@ -357,6 +359,16 @@ describe('PATCH /printed-sets/:id', () => {
         expect(prisma.printedSet.findFirst.mock.calls[0][0].where).toEqual({ id: SET, userId: OTHER });
     });
 
+    it('locks the caller’s set row before reading it, so two changes apply one after the other', async () => {
+        seedSet();
+        const res = await patch({ edits: { 1: { text: 'Locked wording' } } });
+        expect(res.status).toBe(200);
+        const [sql, ...params] = prisma.$queryRaw.mock.calls[0];
+        expect(sql.join('?')).toMatch(/FROM "PrintedSet" WHERE "id" = \? AND "userId" = \? FOR UPDATE$/);
+        expect(params).toEqual([SET, UID]);
+        expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(prisma.printedSet.findFirst.mock.invocationCallOrder[0]);
+    });
+
     it('merges edits per item: a new edit replaces that item’s whole, null reverts it, the rest stay', async () => {
         seedSet({ edits: { 1: { text: 'First wording' }, 2: { text: 'Second', explanation: null } } });
         const res = await patch({ edits: { 1: null, 2: { text: 'Second, again' }, 4: { explanation: 'New solution' } } });
@@ -463,6 +475,35 @@ describe('DELETE /printed-sets/:id', () => {
         expect(res.body).toEqual({ success: true, deleted: 1 });
         expect(prisma.printedSet.deleteMany).toHaveBeenLastCalledWith({ where: { id: SET, userId: UID } });
         expect(db.sheets.size).toBe(0);
+    });
+
+    // Draw a new set replaces the set on screen only while nothing has
+    // happened to it, whatever the asking device's copy says.
+    const ifUnused = (uid = UID) => request(makeApp()).delete(`/api/user/printed-sets/${SET}?ifUnused=1`).set(as(uid));
+
+    it('?ifUnused=1 deletes a set never printed, edited or scanned', async () => {
+        seedSet();
+        let res = await ifUnused(OTHER);
+        expect(res.body).toEqual({ success: true, deleted: 0 });
+        expect(db.sets.has(SET)).toBe(true);
+        res = await ifUnused();
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ success: true, deleted: 1 });
+        expect(db.sets.has(SET)).toBe(false);
+        expect(prisma.$queryRaw).toHaveBeenCalled();
+    });
+
+    it.each([
+        ['printed', () => seedSet({ printedAt: new Date() })],
+        ['edited', () => seedSet({ edits: { 2: { text: 'Reworded' } } })],
+        ['scanned', () => { seedSet(); seedSheet(); }],
+    ])('?ifUnused=1 keeps a set that was %s, and still answers 200', async (_, seed) => {
+        seed();
+        const res = await ifUnused();
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ success: true, deleted: 0 });
+        expect(db.sets.has(SET)).toBe(true);
+        expect(prisma.printedSet.deleteMany).not.toHaveBeenCalled();
     });
 });
 

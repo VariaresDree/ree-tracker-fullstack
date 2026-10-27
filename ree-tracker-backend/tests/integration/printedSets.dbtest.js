@@ -107,4 +107,37 @@ describe('printed sets', () => {
         expect((await request(app).delete(`/api/user/printed-sets/${SET}`).set(as(A))).body.deleted).toBe(1);
         expect(await prisma.scannedSheet.count({ where: { setId: SET } })).toBe(0);
     });
+
+    it('edits sent at once to two items both land; a set replaced only while unused', async () => {
+        const app = makeApp();
+        const id = Array.from({ length: 12 }, (_, i) => PRINT_ID_ALPHABET[(Date.now() + i * 11 + 5) % 32]).join('');
+        const setUrl = `/api/user/printed-sets/${id}`;
+        expect((await request(app).post('/api/user/printed-sets').set(as(A)).send({ ...body, id })).status).toBe(201);
+
+        // Unused: Draw a new set's delete removes it.
+        expect((await request(app).delete(`${setUrl}?ifUnused=1`).set(as(A))).body.deleted).toBe(1);
+        expect((await request(app).post('/api/user/printed-sets').set(as(A)).send({ ...body, id })).status).toBe(201);
+
+        // Two edits in flight together (row-locked, so neither merges over the other).
+        const [one, two] = await Promise.all([
+            request(app).patch(setUrl).set(as(A)).send({ edits: { 1: { text: 'First, reworded' } } }),
+            request(app).patch(setUrl).set(as(A)).send({ edits: { 3: { text: 'Third, reworded' } } }),
+        ]);
+        expect([one.status, two.status]).toEqual([200, 200]);
+        const stored = await prisma.printedSet.findFirst({ where: { id, userId: A } });
+        expect(Object.keys(stored.edits).sort()).toEqual(['1', '3']);
+
+        // Edited, printed elsewhere, or scanned: kept.
+        expect((await request(app).delete(`${setUrl}?ifUnused=1`).set(as(A))).body.deleted).toBe(0);
+        await request(app).patch(setUrl).set(as(A)).send({ edits: { 1: null, 3: null } });
+        await request(app).patch(setUrl).set(as(A)).send({ printed: true });
+        expect((await request(app).delete(`${setUrl}?ifUnused=1`).set(as(A))).body.deleted).toBe(0);
+        await prisma.printedSet.update({ where: { id }, data: { printedAt: null } });
+        const sheet = { id: crypto.randomUUID(), takerName: 'Ana', isSelf: false, answers: 'ABCD', scannedAt: new Date().toISOString() };
+        expect((await request(app).post(`${setUrl}/sheets`).set(as(A)).send(sheet)).status).toBe(201);
+        expect((await request(app).delete(`${setUrl}?ifUnused=1`).set(as(A))).body.deleted).toBe(0);
+        expect(await prisma.printedSet.count({ where: { id } })).toBe(1);
+
+        expect((await request(app).delete(setUrl).set(as(A))).body.deleted).toBe(1);
+    });
 });

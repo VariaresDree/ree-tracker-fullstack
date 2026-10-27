@@ -121,8 +121,14 @@ export async function fetchPrintedSet(id) {
 /** Edits, prefs and "printed": a delta the server merges. */
 export const patchPrintedSet = (id, delta) => writeOrQueue(setEndpoint(id), 'PATCH', delta, QUEUE);
 
-/** Delete a set (and its scanned sheets). */
-export async function deletePrintedSet(id) {
+/**
+ * Delete a set (and its scanned sheets). `ifUnused` (Draw a new set): the
+ * server deletes it only if it was never printed, edited or scanned, which
+ * this device can't know for sure (it may have been printed or scanned
+ * elsewhere), so this device keeps its copy until the server says.
+ */
+export async function deletePrintedSet(id, { ifUnused = false } = {}) {
+  if (ifUnused) return writeOrQueue(`${setEndpoint(id)}?ifUnused=1`, 'DELETE', null, QUEUE);
   await forgetSet(id);
   return writeOrQueue(setEndpoint(id), 'DELETE', null, QUEUE);
 }

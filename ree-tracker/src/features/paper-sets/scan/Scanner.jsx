@@ -113,6 +113,9 @@ function ScanFlow({ set, draw, who, camera, sheetsApi }) {
   const [reading, setReading] = useState(false);
   const [notice, setNotice] = useState(null);
   const [armKey, setArmKey] = useState(0);
+  // Whether the viewfinder may take a steady sheet as soon as it opens: not
+  // for the next sheet, while the one just scored is still under the phone.
+  const [startArmed, setStartArmed] = useState(true);
   const [corrections, setCorrections] = useState({});
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState(null);
@@ -200,7 +203,9 @@ function ScanFlow({ set, draw, who, camera, sheetsApi }) {
     await readImage(img);
   }, [readImage]);
 
-  const reset = () => {
+  /** Back to the camera: `nextSheet` for a new sheet, else the same one again. */
+  const reset = ({ nextSheet = false } = {}) => {
+    setStartArmed(!nextSheet);
     setReads({});
     setCorrections({});
     setName('');
@@ -294,6 +299,7 @@ function ScanFlow({ set, draw, who, camera, sheetsApi }) {
               readPages={readIndexes}
               nextPageIndex={upNext}
               armKey={armKey}
+              startArmed={startArmed}
               reading={reading}
               onCapture={readImage}
             />
@@ -334,14 +340,14 @@ function ScanFlow({ set, draw, who, camera, sheetsApi }) {
             onScore={score}
             saving={saving}
             saveError={saveError}
-            onRescan={reset}
+            onRescan={() => reset()}
           />
         </div>
       )}
 
       {phase === 'result' && result && (
         <div ref={topRef}>
-          <ScanResult draw={draw} result={result} onNext={reset} resultsTo={resultsTo} />
+          <ScanResult draw={draw} result={result} onNext={() => reset({ nextSheet: true })} resultsTo={resultsTo} />
         </div>
       )}
 
