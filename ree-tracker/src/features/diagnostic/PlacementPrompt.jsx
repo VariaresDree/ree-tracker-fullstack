@@ -30,9 +30,10 @@ export default function PlacementPrompt({ status, answered = 0, dismissed = fals
 
   // In a row only when the card is wide enough for one (a container query):
   // beside the sidebar on a tablet the window said `sm`, and the text was
-  // left a 150px column between the icon and the buttons.
+  // left a 150px column between the icon and the buttons. A plain elevated
+  // card: Today's hero below it is the one that glows.
   return (
-    <Card elevated glow padding="md" className="@container">
+    <Card elevated padding="md" className="@container">
       <div className="flex flex-col @2xl:flex-row @2xl:items-center gap-4">
         <IconChip icon={Compass} size="lg" />
         <div className="flex-1 min-w-0">

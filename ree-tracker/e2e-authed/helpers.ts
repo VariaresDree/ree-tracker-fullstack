@@ -16,5 +16,7 @@ export async function signIn(page: Page, who: keyof typeof ACCOUNTS = 'learner')
   await page.getByLabel(/Email address/i).fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Where you stand, and what to do next' })).toBeVisible({ timeout: 20_000 });
+  // Today has settled: its "Up next" hero shows once every source that can
+  // lead has answered (until then it is a skeleton with no text).
+  await expect(page.getByText('Up next', { exact: true })).toBeVisible({ timeout: 20_000 });
 }

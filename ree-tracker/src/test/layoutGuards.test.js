@@ -66,8 +66,6 @@ describe('layout standard', () => {
 describe('hero cards', () => {
   it('a hero is variant="hero", not an elevated glow card', () => {
     expect(scan(/<Card\b[^>]*\belevated glow\b/, {
-      'features/today/TodayPanel.jsx': 'Today PR',
-      'features/diagnostic/PlacementPrompt.jsx': 'Today PR',
       'features/active-recall/SessionSummary.jsx': 'Practice PR',
       'features/board-simulator/FullBoardScreens.jsx': 'Exams PR',
       'pages/Diagnostic.jsx': 'Exams PR',

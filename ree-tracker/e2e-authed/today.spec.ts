@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
-const todaysLoop = (page) => page.getByRole('listitem').filter({ hasText: "Start today's loop" });
+const todaysLoop = (page) => page.getByRole('region', { name: "Start today's loop" }); // Today's "Up next" hero
 
 test("Today leads with today's loop and runs it, heaviest subject first", async ({ page }) => {
   const loop = todaysLoop(page);

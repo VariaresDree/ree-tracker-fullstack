@@ -1,13 +1,19 @@
 // src/features/today/TodayPanel.jsx
 //
-// The Today page's one card: where the learner stands (readiness index, PRC
-// pass probability, today's target split by subject) and an ordered shortlist
-// of what to do next, today's study-plan task included. The charts and
-// breakdowns that used to follow it on the old dashboard live in Progress.
+// The Today page, top to bottom: the one thing to do next (a hero card with a
+// single Start), where the learner stands in three tiles (readiness index,
+// PRC pass probability, today's target split by subject), and the rest of
+// the shortlist, today's study-plan task included. The charts and breakdowns
+// that used to follow it on the old dashboard live in Progress.
+//
+// It was one card holding all of that, with three equal 4xl numbers above a
+// numbered list, so nothing said which was the thing to do; and the list
+// reordered as each source arrived. The lead now waits until every source
+// that can claim it has answered (or LEAD_WAIT_MS has passed).
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchReadinessHistory } from '../../services/dbQueries';
-import { Badge, Card, Button, Grid, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
+import { Badge, Card, CardTitle, CardWatermark, Button, Grid, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useCardReviewSummary } from '../../hooks/useCardReviewSummary';
@@ -24,7 +30,7 @@ import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './
 import { usePlanToday } from './usePlanToday';
 import { launchPractice } from '../active-recall/presets';
 import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
-import { ArrowRight } from '../../components/ui/icons';
+import { ArrowRight, CalendarCheck, Compass, Crosshair, Layers, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
 
 const BREAKDOWN = [
   // "Topics practised", not "Coverage": the syllabus checklist's coverage
@@ -38,13 +44,20 @@ const BREAKDOWN = [
 // Beside a number that is still mostly the starting guess (earlyEstimate.js).
 const EarlyBadge = () => <Badge tone="signal">Early estimate</Badge>;
 
-function ReadinessBlock({ readiness, trend, settled, isOnline, early }) {
+// A tile's heading: the eyebrow style, at the h2 level under the page's h1.
+function TileTitle({ children, badge }) {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="flex flex-wrap items-center gap-2">
-        <span className="text-eyebrow">Board readiness index</span>
-        {readiness && early && <EarlyBadge />}
-      </span>
+    <span className="flex flex-wrap items-center gap-2">
+      <h2 className="text-eyebrow">{children}</h2>
+      {badge}
+    </span>
+  );
+}
+
+function ReadinessTile({ readiness, trend, settled, isOnline, early }) {
+  return (
+    <Card padding="md" className="flex flex-col gap-2 min-w-0">
+      <TileTitle badge={readiness && early && <EarlyBadge />}>Board readiness index</TileTitle>
       {readiness ? (
         <>
           <span className="text-display text-4xl text-textMain tabular-nums">
@@ -54,14 +67,14 @@ function ReadinessBlock({ readiness, trend, settled, isOnline, early }) {
             <div className="flex items-center gap-2">
               <Sparkline scores={trend.scores} />
               {trend.delta !== null && (
-                <span className="text-xs tabular-nums" style={{ color: trend.delta >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                <span className={`text-xs tabular-nums ${trend.delta >= 0 ? 'text-success' : 'text-danger'}`}>
                   {trend.delta >= 0 ? '+' : '−'}{Math.abs(trend.delta)} this week
                 </span>
               )}
             </div>
           )}
           {readiness.breakdown && (
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <dl className="mt-auto pt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
               {BREAKDOWN.map(([key, label]) => (
                 <div key={key} className="flex justify-between gap-2">
                   <dt className="text-muted2">{label}</dt>
@@ -77,18 +90,15 @@ function ReadinessBlock({ readiness, trend, settled, isOnline, early }) {
       ) : (
         <Skeleton className="h-16 w-32" />
       )}
-    </div>
+    </Card>
   );
 }
 
-function PassBlock({ snapshot, loading, isOnline, early }) {
+function PassTile({ snapshot, loading, isOnline, early }) {
   const projection = snapshot?.subjectForecasts;
   return (
-    <div className="flex flex-col gap-2">
-      <span className="flex flex-wrap items-center gap-2">
-        <span className="text-eyebrow">Pass probability</span>
-        {snapshot && early && <EarlyBadge />}
-      </span>
+    <Card padding="md" className="flex flex-col gap-2 min-w-0">
+      <TileTitle badge={snapshot && early && <EarlyBadge />}>Pass probability</TileTitle>
       {snapshot ? (
         <>
           <span className="text-display text-4xl text-textMain tabular-nums">
@@ -100,7 +110,7 @@ function PassBlock({ snapshot, loading, isOnline, early }) {
               : 'Under the PRC rule: 70% weighted average, no subject below 50%'}
           </span>
           {projection?.conditionalProbability >= 0.05 && (
-            <span className="text-xs" style={{ color: 'var(--color-reeAmber-text)' }}>
+            <span className="text-xs text-reeAmber-text">
               {Math.round(projection.conditionalProbability * 100)}% risk of a subject under the floor
             </span>
           )}
@@ -110,7 +120,7 @@ function PassBlock({ snapshot, loading, isOnline, early }) {
       ) : (
         <span className="text-sm text-muted2">{isOnline ? 'Forecast unavailable right now.' : 'Unavailable offline.'}</span>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -122,13 +132,16 @@ const SUBJECT_ROWS = [
   ['EE', 'dailyEE', 'var(--color-reePurple)'],
 ];
 
-function TargetBlock({ daily }) {
+// `leading`: the target is the hero's action, which already says how many
+// are left, so the tile doesn't repeat it.
+function TargetTile({ daily, leading }) {
   const met = daily.done >= daily.target;
+  const remaining = daily.target - daily.done;
   const split = apportionItems(daily.target, DEFAULT_SYLLABUS_WEIGHTS);
   return (
-    <div className="flex flex-col gap-2">
+    <Card padding="md" className="flex flex-col gap-2 min-w-0">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-eyebrow">Today’s target</span>
+        <h2 className="text-eyebrow">Today’s target</h2>
         <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2" aria-label="Change your daily target">Change</Link>
       </div>
       <span className="text-display text-4xl text-textMain tabular-nums">
@@ -140,8 +153,8 @@ function TargetBlock({ daily }) {
           const cur = daily.counts[key];
           const goal = split[label] || 0;
           return (
-            <div key={label} className="grid grid-cols-[6.5rem_1fr] items-center gap-x-3 gap-y-1">
-              <dt className="text-muted2 flex justify-between gap-2">
+            <div key={label} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1">
+              <dt className="text-muted2 flex justify-between gap-2 min-w-[5.5rem]">
                 <span>{label}</span>
                 <span className="text-textMain tabular-nums">{cur}/{goal}</span>
               </dt>
@@ -152,8 +165,53 @@ function TargetBlock({ daily }) {
           );
         })}
       </dl>
-      <span className="text-xs text-muted2">{met ? 'Target met — anything more is a bonus.' : 'Split by the board’s subject weights.'}</span>
-    </div>
+      <span className="mt-auto text-xs text-muted2">
+        {met ? 'Target met — anything more is a bonus.'
+          : leading ? 'Split by the board’s subject weights.'
+            : `${remaining} more to hit today’s target`}
+      </span>
+    </Card>
+  );
+}
+
+// The hero's corner icon, by what the lead action is.
+const LEAD_ICON = { loop: RotateCcw, srs: RotateCcw, cards: Layers, plan: CalendarCheck, fix: Crosshair, floor: Shield, start: Compass, target: Target, mock: Timer };
+
+// How long the lead waits for a slow source before showing what it has. The
+// backend wakes slowly on its free tier; a late reorder beats a blank hero.
+const LEAD_WAIT_MS = 3500;
+
+function ActionButton({ action, navigate, primary = false, size = 'sm', className }) {
+  const variant = primary ? 'primary' : 'secondary';
+  return action.to ? (
+    <Button size={size} variant={variant} as={Link} to={action.to} className={className}>{action.cta}</Button>
+  ) : (
+    <Button size={size} variant={variant} className={className} onClick={() => launchPractice(navigate, action.preset)}>{action.cta}</Button>
+  );
+}
+
+function LeadCard({ action, navigate }) {
+  return (
+    <Card as="section" variant="hero" aria-labelledby="today-lead" className="flex flex-col gap-3">
+      <CardWatermark icon={LEAD_ICON[action.key] || Target} />
+      <p className="text-eyebrow">Up next</p>
+      <h2 id="today-lead" className="text-h2 text-textMain text-pretty [overflow-wrap:anywhere]">{action.title}</h2>
+      <p className="text-sm text-muted2 max-w-prose">{action.detail}</p>
+      <div className="pt-2">
+        <ActionButton action={action} navigate={navigate} primary size="lg" className="w-full sm:w-auto" />
+      </div>
+    </Card>
+  );
+}
+
+function LeadSkeleton() {
+  return (
+    <Card variant="hero" aria-busy="true" aria-label="Finding your next step" className="flex flex-col gap-3">
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="h-7 w-2/3" />
+      <Skeleton className="h-4 w-full max-w-prose" />
+      <Skeleton className="h-11 w-full sm:w-32 mt-2" />
+    </Card>
   );
 }
 
@@ -161,7 +219,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   const navigate = useNavigate();
   const isOnline = useNetworkStatus();
   const { snapshot, loading } = useForecast();
-  const { summary: srs } = useSrsSummary({ enabled: isOnline });
+  const { summary: srs, loading: srsLoading } = useSrsSummary({ enabled: isOnline });
   const cards = useCardReviewSummary({ enabled: isOnline });
   const loop = useTodayLoop({ enabled: isOnline });
   const planTask = usePlanToday({ enabled: isOnline });
@@ -175,6 +233,11 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     fetchReadinessHistory().then((r) => { if (live) setHistory(r?.items || []); }).catch(() => {});
     return () => { live = false; };
   }, [isOnline]);
+  const [waitedOut, setWaitedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWaitedOut(true), LEAD_WAIT_MS);
+    return () => clearTimeout(t);
+  }, []);
   const trend = readinessTrend(history);
   const placement = usePlacement({ uid, answered });
   const early = isEarlyEstimate({ snapshot, answered });
@@ -201,52 +264,55 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     answered,
   });
 
+  // Every source that can put an action first: the loop, due reviews,
+  // formula cards, the plan task, the forecast (a fix, a floor) and the
+  // placement plan. Undefined means still loading.
+  const settled = waitedOut || (
+    loop !== undefined && cards !== undefined && planTask !== undefined
+    && !srsLoading && !loading && placement.settled !== false
+  );
+  const [lead, ...rest] = actions;
+  // The target tile already says how many are left, so the target action is
+  // listed only when it leads.
+  const also = rest.filter((a) => a.key !== 'target');
+
   return (
-    <section aria-labelledby="today-heading" className="flex flex-col gap-4">
+    <section aria-label="Today" className="flex flex-col gap-6">
       <PlacementPrompt status={placement.status} answered={answered} dismissed={placement.dismissed} onDismiss={placement.dismiss} />
       <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
 
-      <Card elevated glow grain padding="lg" className="flex flex-col gap-6">
-        <h2 id="today-heading" className="text-h2 text-textMain">Where you stand, and what to do next</h2>
+      {!settled ? <LeadSkeleton /> : lead && <LeadCard action={lead} navigate={navigate} />}
 
-        {/* Three blocks side by side as soon as they fit (42rem): the cards
-            grid reaches three only at 56rem, which left the third alone. */}
-        <Grid kind="cards" gap="lg" className="@2xl:grid-cols-3">
-          <ReadinessBlock readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />
-          <PassBlock snapshot={snapshot} loading={loading} isOnline={isOnline} early={early} />
-          <TargetBlock daily={daily} />
-        </Grid>
+      {/* Three tiles side by side as soon as they fit (42rem): the cards
+          grid reaches three only at 56rem, which left the third alone. */}
+      <Grid kind="cards" className="@2xl:grid-cols-3">
+        <ReadinessTile readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />
+        <PassTile snapshot={snapshot} loading={loading} isOnline={isOnline} early={early} />
+        <TargetTile daily={daily} leading={settled && lead?.key === 'target'} />
+      </Grid>
 
-        <div className="flex flex-col gap-2">
-          <h3 className="text-eyebrow">Next best actions</h3>
+      {settled && also.length > 0 && (
+        <Card as="section" padding="md" aria-labelledby="today-also" className="flex flex-col gap-3">
+          <CardTitle id="today-also">Also today</CardTitle>
           <ol className="flex flex-col gap-2">
-            {actions.map((a, i) => (
-              <li key={a.key} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-3 rounded-[var(--radius-default)] bg-surface2 border border-border">
-                <span aria-hidden="true" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums bg-surface3 text-textMain">
-                  {i + 1}
-                </span>
+            {also.map((a) => (
+              <Card as="li" variant="inset" key={a.key} className="p-3 flex flex-wrap sm:flex-nowrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-textMain [overflow-wrap:anywhere]">{a.title}</p>
                   <p className="text-xs text-muted2 line-clamp-2">{a.detail}</p>
                 </div>
                 {/* Full width under the text on a phone, where a long title
                     squeezed the button to a sliver beside it. */}
-                {a.to ? (
-                  <Button size="sm" variant="secondary" as={Link} to={a.to} className="w-full sm:w-auto">{a.cta}</Button>
-                ) : (
-                  <Button size="sm" variant={i === 0 ? 'primary' : 'secondary'} className="w-full sm:w-auto" onClick={() => launchPractice(navigate, a.preset)}>
-                    {a.cta}
-                  </Button>
-                )}
-              </li>
+                <ActionButton action={a} navigate={navigate} className="w-full sm:w-auto" />
+              </Card>
             ))}
           </ol>
-        </div>
+        </Card>
+      )}
 
-        <Link to="/progress" className="self-start inline-flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
-          Charts, topics and your study plan are in Progress <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
-        </Link>
-      </Card>
+      <Link to="/progress" className="self-start inline-flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
+        Charts, topics and your study plan are in Progress <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
+      </Link>
     </section>
   );
 }
