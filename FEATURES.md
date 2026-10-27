@@ -351,9 +351,23 @@ every feature add, change, or removal, not on a schedule.
   - **AI questions on "All subjects"** pick one real subject and one of its topics per batch; they asked the model for subject "All", topic "General".
   - With no live syllabus loaded (a new device offline), the subject and topic lists fall back to the built-in syllabus instead of being empty.
   - The per-question clock is labelled "This question" and stops pulsing when it passes three minutes (it turns red).
-  - The summary's three figures stack on a narrow phone. The mode guide marks Practice "You're here" instead of linking to the page it's on.
-  - **Setup:** due reviews, then four one-tap presets: **Quick 20 · Weak spots · Flashcards · Bookmarks**. "Weak spots" is the one learner entry to the adaptive drill. It used to be offered three ways: that preset, a "Weak points" scope, and a "Smart drill" source that silently ignored the chosen subject.
-  - **Custom session:** mode, focus, scope (**all subjects / one subject / one topic**), length, and source (**Question bank / My bookmarks / AI generated**). A preset's config left in the form (a drill, the due queue) shows and starts as a question-bank session over every subject (`features/active-recall/customView.js`).
+  - The end-of-session summary card is the screen's hero (`variant="hero"`, a check-mark watermark). "Practise again" is its one primary button, and the formula-cards row is an inset well with a secondary Review cards. The summary's three figures stack on a narrow phone. The mode guide marks Practice "You're here" instead of linking to the page it's on.
+  - **Setup** (`features/active-recall/ReviewSetup.jsx`), top to bottom:
+    - **One hero** (`Card variant="hero"`) with the one primary Start:
+      - **When questions are due:** the due reviews ("42 questions due for review", Review 30 now).
+      - **Otherwise:** **Quick 20**. A "Review queue is clear · Next review tomorrow" line appears once there is a queue.
+      - While the queue loads, a hero-shaped skeleton holds its place, so the page no longer jumps when the due card arrives.
+      - Offline, there's no queue to wait for and Quick 20 leads at once.
+    - **The other one-tap presets** as choice cards (`variant="interactive"`, with an icon watermark and a secondary Start). The presets are **Quick 20 · Adaptive set · Weak spots · Flashcards · Bookmarks**.
+      - With all five (reviews due), Quick 20 spans two of three columns, so the rows read 2+1 and 1+1+1. With four, they sit two by two, then four across.
+      - A preset that needs a connection says so in a badge beside its name.
+      - Each preset name is an h2.
+      - A session is never offered twice: Quick 20 leaves the grid when it is the hero.
+    - **Weak spots** is the one learner entry to the adaptive drill. It used to be offered three ways: that preset, a "Weak points" scope, and a "Smart drill" source that silently ignored the chosen subject.
+  - **Custom session** (the shared `Disclosure`), in two groups.
+    - **What to practise:** mode, focus, and scope (**all subjects / one subject / one topic**) with the subject and topic.
+    - **How much:** length, and source (**Question bank / My bookmarks / AI generated**).
+    - The mode guide and the placement-test link now sit together under it, as the place to turn when unsure; they used to sit above the presets, with a negative margin. A preset's config left in the form (a drill, the due queue) shows and starts as a question-bank session over every subject (`features/active-recall/customView.js`).
   - **A fixed set** (`itemsPreset`): practises exactly the questions handed over — a past sitting's misses from its review — offline too, and "Practise again" repeats the set. The list never stays in the custom form's config.
   - **Bookmarks source:** practises up to 100 saved questions (`fetchBookmarks({ limit })`), filtered by subject under any stored spelling and topic, and shown as bookmarked. Bookmarks could be saved but never practised. Library › Bookmarks has a **Practise bookmarks** button.
   - **Session summary** (`features/active-recall/{buildSessionSummary.js,SessionSummary.jsx}`): when a session ends, the score, time and time per question; answers wrong while sure and right while unsure; accuracy by topic, worst first; up to ten missed questions with their answers (confident misses first). Next steps: **Practise again** (the same session, a drill's target included), **Drill** the weakest topic, **See your progress**, **Done**. Built from the recorded attempts before they are cleared; nothing is shown after a session with no answers. A session used to end on a toast and drop back to setup.

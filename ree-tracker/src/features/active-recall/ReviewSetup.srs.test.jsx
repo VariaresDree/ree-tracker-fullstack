@@ -24,12 +24,13 @@ beforeEach(() => {
 });
 
 describe('ReviewSetup — due for review', () => {
-  it('offers the due queue as a session, capped at 30', async () => {
+  it('leads with the due queue as a session, capped at 30, and keeps every preset below it', async () => {
     fetchSrsSummary.mockResolvedValue({ due: 42, overdue: 5, total: 60, bySubject: {}, nextDueAt: null });
     const props = baseProps();
     render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
 
-    expect(await screen.findByText('42 questions due for review')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: '42 questions due for review' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(5);
     expect(screen.getByText(/5 overdue/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Review 30 now' }));
     expect(props.startSession).toHaveBeenCalledWith(expect.objectContaining({ source: 'srs-due', count: 30, subject: 'All' }));
@@ -60,12 +61,17 @@ describe('ReviewSetup — presets and the custom form', () => {
     fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 0, bySubject: {}, nextDueAt: null });
   });
 
-  it('five presets: Quick 20, Adaptive set, Weak spots (the drill), Flashcards, Bookmarks', () => {
+  it('five presets: Quick 20 leads when nothing is due, then Adaptive set, Weak spots (the drill), Flashcards, Bookmarks', async () => {
     const props = baseProps();
     render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1, name: 'Practice' })).toBeInTheDocument();
-    const names = ['Quick 20', 'Adaptive set', 'Weak spots', 'Flashcards', 'Bookmarks'];
-    names.forEach((n) => expect(screen.getByText(n)).toBeInTheDocument());
+    // The hero waits for the review queue, then holds Quick 20.
+    expect(screen.getByLabelText('Checking your review queue')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Quick 20' })).toBeInTheDocument();
+    const names = ['Adaptive set', 'Weak spots', 'Flashcards', 'Bookmarks'];
+    names.forEach((n) => expect(screen.getByRole('heading', { level: 2, name: n })).toBeInTheDocument());
+    // Offered once: in the hero, not again in the grid.
+    expect(screen.getAllByText('Quick 20')).toHaveLength(1);
 
     const starts = screen.getAllByRole('button', { name: 'Start' });
     fireEvent.click(starts[1]);
@@ -81,9 +87,11 @@ describe('ReviewSetup — presets and the custom form', () => {
     expect(screen.getByRole('link', { name: 'Take the placement test' })).toHaveAttribute('href', '/diagnostic');
   });
 
-  it('offline, the drill and bookmarks presets say they need a connection', () => {
+  it('offline, the drill and bookmarks presets say they need a connection, and Quick 20 leads at once', () => {
     render(<MemoryRouter><ReviewSetup {...baseProps()} isOnline={false} /></MemoryRouter>);
     expect(screen.getAllByText('Needs a connection')).toHaveLength(2);
+    // No queue to wait for offline.
+    expect(screen.getByRole('heading', { level: 2, name: 'Quick 20' })).toBeInTheDocument();
   });
 
   it('the custom form has one way to drill: none. Scope is all, one subject or one topic', () => {

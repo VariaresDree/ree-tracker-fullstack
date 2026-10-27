@@ -1,10 +1,12 @@
 // src/features/active-recall/ReviewSetup.jsx
 //
-// Practice's setup screen: due reviews, five one-tap presets, and a custom
-// session behind a disclosure.
+// Practice's setup screen, top to bottom: one hero (the due reviews when any
+// are due, otherwise Quick 20), the other one-tap presets as cards, a custom
+// session behind a disclosure, and where to turn when unsure (the mode guide
+// and the placement test).
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Button, Disclosure, FormField, Grid, IconChip, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
+import { Badge, Card, CardTitle, CardWatermark, Button, Disclosure, FormField, Grid, IconChip, Select, SegmentedControl, Skeleton, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
 import { Shuffle, Crosshair, Gauge, Layers, Bookmark, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
@@ -99,8 +101,12 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   };
 
   const customDisabled = session.loading || (!isOnline && view.source !== 'library');
-  const { summary: srs } = useSrsSummary({ enabled: isOnline });
+  const { summary: srs, loading: srsLoading } = useSrsSummary({ enabled: isOnline });
   const dueCount = srs?.due || 0;
+  // The hero is the due reviews when any are due; otherwise Quick 20, which
+  // then leaves the grid so no session is offered twice.
+  const leadPreset = dueCount > 0 ? null : PRESETS[0];
+  const gridPresets = leadPreset ? PRESETS.slice(1) : PRESETS;
   const startDue = () => {
     setLaunchingPreset('srs-due');
     startSession(dueReviewPreset(Math.min(dueCount, DUE_SESSION_MAX)));
@@ -109,49 +115,84 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
   return (
     <Page>
       <PageHeader title="Practice" subtitle="Pick a preset or build your own session." />
-      <ModeGuide folded here="practice" />
-      <p className="text-sm text-muted2 -mt-2">
-        Not sure where to start?{' '}
-        <Link to="/diagnostic" className="text-[var(--accent-text)] underline underline-offset-2 inline-flex items-center pointer-coarse:min-h-11">Take the placement test</Link>
-      </p>
-
-      {/* Spaced review — what the schedule says is due today. Shown only once
-          there is a queue: every miss and every low-confidence answer starts a
-          card, so it fills from ordinary practice. */}
-      {srs && srs.total > 0 && (
-        <Card elevated padding="md" className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <IconChip icon={RotateCcw} tone="success" />
-          <div className="flex-1 min-w-0">
-            <p className="text-textMain font-semibold">
-              {dueCount > 0 ? `${dueCount} question${dueCount === 1 ? '' : 's'} due for review` : 'Review queue is clear'}
+      {srsLoading ? (
+        // Holds the hero's place while the queue loads, so the page doesn't
+        // jump when it arrives.
+        <Card variant="hero" aria-busy="true" aria-label="Checking your review queue" className="flex flex-col gap-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-7 w-2/3" />
+          <Skeleton className="h-4 w-full max-w-prose" />
+          <Skeleton className="h-11 w-full sm:w-40 mt-2" />
+        </Card>
+      ) : leadPreset ? (
+        <Card as="section" variant="hero" aria-labelledby="practice-lead" className="flex flex-col gap-3">
+          <CardWatermark icon={leadPreset.icon} />
+          <p className="text-eyebrow">Start here</p>
+          <h2 id="practice-lead" className="text-h2 text-textMain">{leadPreset.name}</h2>
+          <p className="text-sm text-muted2 max-w-prose">{leadPreset.meta}.</p>
+          {/* Spaced review: shown once there is a queue (every miss and every
+              low-confidence answer starts a card), and nothing is due. */}
+          {srs && srs.total > 0 && (
+            <p className="text-xs text-muted2">
+              <span>Review queue is clear</span> · Next review {relativeDay(srs.nextDueAt) || 'once you practise more'}.
             </p>
-            <p className="text-xs text-muted2 mt-0.5">
-              {dueCount > 0
-                ? `Spaced review of what you missed or weren't sure of${srs.overdue > 0 ? ` · ${srs.overdue} overdue` : ''}.`
-                : `Next review ${relativeDay(srs.nextDueAt) || 'once you practise more'}.`}
-            </p>
+          )}
+          <div className="pt-2">
+            <Button
+              size="lg"
+              className="w-full sm:w-auto"
+              loading={session.loading && launchingPreset === leadPreset.id}
+              disabled={session.loading}
+              onClick={() => launchPreset(leadPreset)}
+            >
+              Start
+            </Button>
           </div>
-          {dueCount > 0 && (
-            <Button loading={session.loading && launchingPreset === 'srs-due'} disabled={session.loading} onClick={startDue}>
+        </Card>
+      ) : (
+        // Spaced review: what the schedule says is due today.
+        <Card as="section" variant="hero" aria-labelledby="practice-lead" className="flex flex-col gap-3">
+          <CardWatermark icon={RotateCcw} />
+          <p className="text-eyebrow">Due today</p>
+          <h2 id="practice-lead" className="text-h2 text-textMain">
+            {dueCount} question{dueCount === 1 ? '' : 's'} due for review
+          </h2>
+          <p className="text-sm text-muted2 max-w-prose">
+            Spaced review of what you missed or weren't sure of{srs.overdue > 0 ? ` · ${srs.overdue} overdue` : ''}.
+          </p>
+          <div className="pt-2">
+            <Button size="lg" className="w-full sm:w-auto" loading={session.loading && launchingPreset === 'srs-due'} disabled={session.loading} onClick={startDue}>
               Review {Math.min(dueCount, DUE_SESSION_MAX)} now
             </Button>
-          )}
+          </div>
         </Card>
       )}
 
-      {/* One-click presets */}
-      <Grid kind="cards" className="stagger-fade-in">
-        {PRESETS.map((preset) => {
+      {/* One-tap presets. With all five, Quick 20 takes two columns of three,
+          so the rows read 2+1 and 1+1+1; with four, two by two, then four
+          across. */}
+      <Grid kind={gridPresets.length === 4 ? 'kpi' : 'cards'} className="stagger-fade-in">
+        {gridPresets.map((preset, i) => {
           const offline = preset.needsConnection && !isOnline;
           const Icon = preset.icon;
           return (
-            <Card key={preset.id} elevated padding="md" className="flex flex-col gap-3 hover-glow">
+            <Card
+              key={preset.id}
+              variant="interactive"
+              padding="md"
+              className={cn('flex flex-col gap-3', gridPresets.length === 5 && i === 0 && '@4xl:col-span-2')}
+            >
+              <CardWatermark icon={Icon} corner="top" />
               <IconChip icon={Icon} />
-              <div className="flex-1 min-w-0">
-                <p className="text-textMain font-semibold">{preset.name}</p>
-                <p className="text-xs text-muted2 mt-0.5">{preset.meta}</p>
+              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <CardTitle className="flex flex-wrap items-center gap-2">
+                  {preset.name}
+                  {offline && <Badge>Needs a connection</Badge>}
+                </CardTitle>
+                <p className="text-xs text-muted2">{preset.meta}</p>
               </div>
               <Button
+                variant="secondary"
                 fullWidth
                 loading={session.loading && launchingPreset === preset.id}
                 disabled={offline || session.loading}
@@ -159,7 +200,6 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
               >
                 Start
               </Button>
-              {offline && <p className="text-xs text-muted text-center">Needs a connection</p>}
             </Card>
           );
         })}
@@ -173,6 +213,8 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
         onToggle={setShowCustom}
         bodyClassName="flex flex-col gap-5"
       >
+        <fieldset className="flex flex-col gap-5 min-w-0">
+        <legend className="text-sm font-semibold text-textMain mb-3">What to practise</legend>
         <div className="flex flex-col gap-1.5">
           <span className="text-eyebrow">Mode</span>
           <SegmentedControl
@@ -238,6 +280,12 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           </div>
         )}
 
+        </fieldset>
+
+        <hr className="border-border" />
+
+        <fieldset className="flex flex-col gap-5 min-w-0">
+        <legend className="text-sm font-semibold text-textMain mb-3">How much</legend>
         <div className="flex flex-col gap-1.5">
           <span className="text-eyebrow">Length</span>
           <SegmentedControl
@@ -265,6 +313,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
             ]}
           />
         </div>
+        </fieldset>
 
         {/* Sticky above the mobile bottom nav so the CTA never scrolls out
             of reach on a tall form. The offset comes from the layout, so a
@@ -281,6 +330,15 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           </Button>
         </div>
       </Disclosure>
+
+      {/* Where to turn when unsure: one quiet block under the sessions. */}
+      <div className="flex flex-col gap-2">
+        <ModeGuide folded here="practice" />
+        <p className="text-sm text-muted2">
+          Not sure where to start?{' '}
+          <Link to="/diagnostic" className="text-[var(--accent-text)] underline underline-offset-2 inline-flex items-center pointer-coarse:min-h-11">Take the placement test</Link>
+        </p>
+      </div>
     </Page>
   );
 }
