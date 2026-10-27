@@ -18,7 +18,7 @@ function NoteCard({ note }) {
   const [editing, setEditing] = useState(false);
   const isCard = note.targetType === 'card';
   return (
-    <Card as="li" className="p-4 sm:p-5 flex flex-col gap-3">
+    <Card as="li" padding="md" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted2">
         <Badge tone={isCard ? 'velocity' : 'signal'}>{isCard ? 'Formula card' : 'Question'}</Badge>
         {note.target?.subject && <span>{toDisplaySubject(note.target.subject)}</span>}

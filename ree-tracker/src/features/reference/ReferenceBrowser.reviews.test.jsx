@@ -27,8 +27,13 @@ describe('ReferenceBrowser — card reviews', () => {
       { cardId: 'c', nextReviewDate: past },
       { cardId: 'b', nextReviewDate: new Date(Date.now() + 5 * 86400_000).toISOString() },
     ];
-    render(<ReferenceBrowser />);
+    const { container } = render(<ReferenceBrowser />);
     expect(screen.getByText('2 formula cards due for review')).toBeInTheDocument();
+    // Due cards lead the tab, as its hero.
+    expect(screen.getByText('2 formula cards due for review').closest('.card-hero')).not.toBeNull();
+    // The subject tiles below it are choice cards (real buttons).
+    const tiles = [...container.querySelectorAll('button.card-interactive')];
+    expect(tiles.length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Review now' }));
     expect(screen.getByText('Review 1 / 2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Exit review/ })).toBeInTheDocument();

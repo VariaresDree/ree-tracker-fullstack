@@ -292,18 +292,21 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           {visibleFolders.map(f => {
             const isDropTarget = dragOverFolderId === f.id;
             return (
-              <div
+              // A choice card like the rest of the app's. A folder a file is
+              // dragged over takes an accent ring (it was a fixed blue border
+              // that also scaled the tile up).
+              <Card
                 key={f.id}
+                variant="interactive"
+                padding="sm"
                 draggable={isAdmin ? "true" : "false"}
                 onDragStart={(e) => handleDragStart(e, f, 'folder')}
                 onDragOver={(e) => handleDragOver(e, f.id)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, f.id)}
                 onClick={() => navigateToFolder(f.id, f.name)}
-                className={`p-4 rounded-[var(--radius-lg)] transition cursor-pointer flex justify-between items-start group shadow-sm min-h-[72px] h-auto ${
-                  isDropTarget
-                    ? 'bg-reeBlue/20 border-2 border-reeBlue shadow-lg scale-105 z-10'
-                    : 'bg-surface border border-border2 hover:border-reeBlue/40 hover:bg-surface2'
+                className={`cursor-pointer flex justify-between items-start group min-h-[72px] ${
+                  isDropTarget ? 'ring-2 ring-[color-mix(in_srgb,var(--accent)_70%,transparent)]' : ''
                 }`}
               >
                 <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0 pointer-events-none">
@@ -334,16 +337,17 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                     <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
           {visibleMaterials.map(m => (
             <Card
               key={m.id}
+              variant="interactive"
               padding="md"
               draggable={isAdmin ? "true" : "false"}
               onDragStart={(e) => handleDragStart(e, m, 'material')}
-              className={`flex flex-col justify-between h-auto min-h-[150px] hover:border-reeCyan/40 group shadow-sm transition-colors ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
+              className={`flex flex-col justify-between group ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
             >
               <div className="flex justify-between items-start">
                 <span className={`px-2 py-0.5 bg-bg border border-border2 text-micro font-mono rounded-[var(--radius-sm)] uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>

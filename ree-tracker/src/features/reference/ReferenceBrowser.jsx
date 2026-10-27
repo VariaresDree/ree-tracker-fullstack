@@ -23,7 +23,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
-import { Input, FormField, SegmentedControl, EmptyState, Button, Card, Grid, Skeleton, StatusPill } from '../../components/ui';
+import { Input, FormField, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
 import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import NotedFlashcard from './NotedFlashcard';
@@ -75,13 +75,19 @@ const VIEW_OPTIONS = (groupNoun) => [
 // One clickable browse tile — a Subject, Topic, or Subtopic — showing its name
 // and how many cards it holds. Reused at every hierarchy level so the visual
 // language stays consistent as you drill down.
+// A choice card (Card variant="interactive"), as a real button: it lifts and
+// takes the accent edge on hover and focus, like the presets and mock formats.
+// An empty one is dimmed and takes no pointer, so it doesn't lift either.
 function BrowseTile({ label, count, onClick, eyebrow, detail }) {
   return (
-    <button
+    <Card
+      as="button"
       type="button"
+      variant="interactive"
+      padding="sm"
       onClick={onClick}
       disabled={count === 0}
-      className="text-left bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 shadow-sm transition hover:border-[var(--accent)]/50 hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border2 disabled:hover:shadow-sm"
+      className="text-left flex flex-col gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
     >
       <div className="flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0">
@@ -94,13 +100,13 @@ function BrowseTile({ label, count, onClick, eyebrow, detail }) {
         <StatusPill tone="neutral" dot={false}>{countLabel(count)}</StatusPill>
         {detail && <span className="text-xs text-muted2">{detail}</span>}
       </div>
-    </button>
+    </Card>
   );
 }
 
 function SheetFallback() {
   return (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
       {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-40" />)}
     </div>
   );
@@ -308,7 +314,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
 
   if (loading) {
     return (
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
         {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-32" />)}
       </div>
     );
@@ -355,15 +361,17 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
       </div>
 
       {!studying && dueCards.length > 0 && (
-        <Card padding="sm" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" aria-live="polite">
+        // The tab's hero while cards are due: the one thing to do here first.
+        <Card variant="hero" padding="md" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" aria-live="polite">
+          <CardWatermark icon={History} />
           <div className="flex items-start gap-3 min-w-0">
-            <History size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5" style={{ color: 'var(--accent-text)' }} />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-textMain">{dueCards.length} formula card{dueCards.length === 1 ? '' : 's'} due for review</p>
-              <p className="text-xs text-muted2">Each comes back just before you'd forget it. Flip, then rate how well you knew it.</p>
+            <IconChip icon={History} />
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <p className="text-lg font-semibold text-textMain">{dueCards.length} formula card{dueCards.length === 1 ? '' : 's'} due for review</p>
+              <p className="text-sm text-muted2">Each comes back just before you'd forget it. Flip, then rate how well you knew it.</p>
             </div>
           </div>
-          <Button size="sm" className="shrink-0" onClick={() => startStudying(dueCards, 'review')}>Review now</Button>
+          <Button className="shrink-0 w-full sm:w-auto" onClick={() => startStudying(dueCards, 'review')}>Review now</Button>
         </Card>
       )}
       {!studying && dueCards.length === 0 && reviews.items.length > 0 && nextDue && (
@@ -387,7 +395,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
         ) : (
           <>
             <p className="text-eyebrow">{countLabel(searchResults.length)} matching "{deferredSearch.trim()}"</p>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
               {searchResults.map((card) => <NotedFlashcard key={card.id} card={card} />)}
             </div>
           </>
@@ -498,7 +506,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
               <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study these {leafCards.length}
             </Button>
           </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
             {leafCards.map((card) => <NotedFlashcard key={card.id} card={card} />)}
           </div>
         </>

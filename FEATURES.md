@@ -123,6 +123,16 @@ every feature add, change, or removal, not on a schedule.
 - [x] **Honest logout** — the confirm (`components/LogoutConfirm.jsx`, shared by the account menu and Account) states how many unsynced answers a logout would discard, because `resetStore` clears the queue. Profile's old confirm promised nothing would be lost if the backup said "Backed up".
 - [x] **One offline-pack download at a time** — concurrent `refreshOfflinePack()` calls share one in-flight build. The phone header and Account each mount a status badge.
 - [x] **Learner Library** (`pages/Library.jsx`, was Materials) — Formula cards (default) · Handouts (read-only) · Bookmarks · Notebook · Imported quizzes.
+  - **Card layout (2026-10 card overhaul):**
+    - **Formula cards:** cards due for review lead the tab as its hero (`variant="hero"`, an icon chip and watermark, Review now). It was a small strip.
+      - The subject, topic and subtopic tiles are choice cards (`variant="interactive"`, still real buttons). An empty tile is dimmed and doesn't lift.
+      - The card grids keep one column when there is less than 280px of room, instead of overflowing a narrow phone (`minmax(min(100%,280px),1fr)`).
+    - **Handouts:**
+      - Folder tiles are choice cards; they were hand-made frames with a fixed blue hover.
+      - A folder a file is dragged over takes an accent ring instead of a blue border that also scaled it up.
+      - File cards are choice cards sized by their content. They had a fixed 150px minimum and a cyan hover.
+    - **Bookmarks and Notebook:** the bookmark, mistake and note cards use the standard `md` inset.
+    - **Imported quizzes:** the loaded files are a labelled list.
   - **An open handout is in the URL** (`?material=<id>`): Back closes it (it used to leave Library), and a reload or a shared link reopens it once the handouts load. The viewer and the media inside it size to the dynamic viewport (`dvh`), so a phone's address bar doesn't cut off the bottom.
   - **Formula cards › All cards in a subject** (`features/reference/{SubjectCardSheet,groupCards}`, lazy-loaded): open a subject and switch **By topic / All cards** to see every one of its flip cards on one page, under topic headings (syllabus order) and subtopic subheadings (A–Z, "General" last), constants then formulas then concepts. A row of topic chips with counts jumps to a topic; **Fronts / Backs** flips every card at once for a read-through of meanings, variables and board traps; each topic folds away (**Collapse all / Expand all**) and has its own **Study** button, beside **Study all N**. The same switch is on a topic that has subtopics (By subtopic / All cards). Cards used to be reachable only one subtopic at a time. Off-screen topic sections skip layout (`content-visibility`), so a subject with hundreds of cards stays quick.
   - **Formula cards › browsing:** subject and topic tiles say what they hold ("12 formulas · 4 constants · 3 concepts") when all kinds are shown; a topic offers **Study all N** before you pick a subtopic; the tab has a heading and a description like the other Library tabs. **Where you were is kept** for the browser session (subject, topic, subtopic and view, in `sessionStorage`), so switching tabs and coming back no longer drops you at the subject list; a deep link with a search starts fresh.

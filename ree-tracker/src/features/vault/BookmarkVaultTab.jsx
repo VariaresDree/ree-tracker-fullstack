@@ -36,7 +36,7 @@ function BookmarkCard({ item, expanded, onToggle, onRemove, isOnline, ai, sittin
   const options = presentOptions(item, sittingKey)?.options;
   const savedOn = item.bookmarkedAt ? new Date(item.bookmarkedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null;
   return (
-    <Card as="li" className="p-4 sm:p-5 flex flex-col gap-4">
+    <Card as="li" padding="md" className="flex flex-col gap-4">
       <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
         <div className="flex flex-col gap-2 flex-1 min-w-0">
           <div className="flex flex-wrap gap-2 items-center text-xs text-muted2">

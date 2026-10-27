@@ -65,9 +65,10 @@ export default function QuizLauncherTab() {
 
       {entries.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-eyebrow">Loaded files</p>
+          <p id="loaded-quiz-files" className="text-eyebrow">Loaded files</p>
+          <ul aria-labelledby="loaded-quiz-files" className="flex flex-col gap-2">
           {entries.map((entry) => (
-            <Card key={entry.id} padding="sm" className="flex items-center gap-3">
+            <Card as="li" key={entry.id} padding="sm" className="flex items-center gap-3">
               <IconChip icon={FileText} tone="muted" size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-textMain truncate" title={entry.fileName}>{entry.fileName}</p>
@@ -99,6 +100,7 @@ export default function QuizLauncherTab() {
               </div>
             </Card>
           ))}
+          </ul>
         </div>
       )}
     </div>
