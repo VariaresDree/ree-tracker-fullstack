@@ -1,4 +1,4 @@
-import { Grid, Page } from './ui';
+import { Card, Grid, Page } from './ui';
 
 // Pure-decoration placeholders — hidden from assistive tech; the parent
 // container carries the single role="status" loading announcement.
@@ -15,24 +15,31 @@ export function SkeletonChart({ className = 'h-[350px]' }) {
 export function TodaySkeleton() {
   return (
     <Page role="status" aria-live="polite" aria-label="Loading Today">
-      {/* Mirrors the real page: the header with its chips, then the Today
-          card's three figures and its action rows, so nothing jumps on load. */}
+      {/* Mirrors the real page, so nothing jumps on load: the header with its
+          chips, the "Up next" hero, the three tiles, and the "Also today"
+          rows. */}
       <div className="flex flex-col gap-2">
         <div className="skeleton-shimmer h-8 w-40 rounded-lg" />
         <div className="skeleton-shimmer h-4 w-56 rounded" />
       </div>
-      <div aria-hidden="true" className="rounded-[var(--radius-lg)] border border-border p-6 sm:p-8 flex flex-col gap-6">
-        <div className="skeleton-shimmer h-7 w-72 max-w-full rounded-lg" />
-        <Grid kind="cards" gap="lg" className="@2xl:grid-cols-3">
+      <div aria-hidden="true" className="flex flex-col gap-6">
+        <Card variant="hero" className="flex flex-col gap-3">
+          <div className="skeleton-shimmer h-3 w-16" />
+          <div className="skeleton-shimmer h-7 w-72 max-w-full" />
+          <div className="skeleton-shimmer h-4 w-full max-w-prose" />
+          <div className="skeleton-shimmer h-11 w-full sm:w-32 mt-2" />
+        </Card>
+        <Grid kind="cards" className="@2xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonCard key={i} className="h-28" />
+            <SkeletonCard key={i} className="h-40" />
           ))}
         </Grid>
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="skeleton-shimmer h-14 rounded-[var(--radius-default)]" />
+        <Card padding="md" className="flex flex-col gap-3">
+          <div className="skeleton-shimmer h-5 w-28" />
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="skeleton-shimmer h-14" />
           ))}
-        </div>
+        </Card>
       </div>
     </Page>
   );

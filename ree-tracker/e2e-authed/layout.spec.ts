@@ -8,7 +8,7 @@ import { signIn } from './helpers';
 // timer link opens the full-screen timer (/focus), and Escape comes back.
 
 const sidewaysOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-const todaysLoop = (page: Page) => page.getByRole('listitem').filter({ hasText: "Start today's loop" });
+const todaysLoop = (page: Page) => page.getByRole('region', { name: "Start today's loop" }); // Today's "Up next" hero
 const SCREENS = ['/', '/practice', '/exams', '/progress', '/library', '/account', '/simulator', '/focus'];
 
 test.beforeEach(async ({ page }) => {
