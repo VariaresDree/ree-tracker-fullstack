@@ -6,8 +6,10 @@ export function SkeletonCard({ className = '' }) {
   return <div aria-hidden="true" className={`skeleton-shimmer h-32 rounded-[var(--radius-lg)] ${className}`} />;
 }
 
-export function SkeletonChart({ className = '' }) {
-  return <div aria-hidden="true" className={`skeleton-shimmer h-[350px] rounded-[var(--radius-lg)] ${className}`} />;
+// `className` sets the height (default 350px): a chart panel passes its own,
+// so the placeholder fills the panel instead of spilling out of it.
+export function SkeletonChart({ className = 'h-[350px]' }) {
+  return <div aria-hidden="true" className={`skeleton-shimmer rounded-[var(--radius-lg)] ${className}`} />;
 }
 
 export function TodaySkeleton() {

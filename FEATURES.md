@@ -276,6 +276,25 @@ every feature add, change, or removal, not on a schedule.
     - `layoutGuards.test.js` scans the source for hand-rolled page frames, `max-w-5xl`, `rounded-xl`/`2xl` and viewport 3–4 column grids, allowing forms and dialogs.
     - `e2e-authed/layout.spec.ts`, at 360, 390 and 820 px, checks that no main screen scrolls sideways, that a page ends clear of the bottom bar and focus timer, and that the account menu opens over a session toolbar.
     - `e2e-authed/visual-sweep.spec.ts` (`VISUAL_SWEEP=1`) screenshots every theme on the main screens at four widths.
+- [x] **Card surfaces** (`components/ui/Card.jsx` `variant`, `CardWatermark`; `styles/index.css` › CARD SURFACES): four kinds of card instead of hand-mixed props. This is the foundation of the 2026-10 card overhaul; each page moves onto it in its own PR.
+  - **`default`**: the glass page card, now with a one-pixel light rim along its top edge for depth. The rim travels inside every elevation shadow and Tailwind `shadow-*`, and does not inherit, so a control inside a card is not rimmed. It is off in forced colours, print and on exam screens.
+  - **`hero`**: the one card a screen leads with. It is solid, laid on `--hero-base` and washed with the theme's accent from the top-left, with an accent glow top-right. It is elevated and takes the large inset.
+    - `--hero-base` is the page colour on the dark themes, a step deeper than a card. Status pills and the accent tint already sit near 4.5:1 on the card colour, so any accent over it pushed them under.
+    - Light and paper keep the card colour with a fainter wash, and sakura a fainter wash, in their own theme blocks.
+    - `themeContrast.test.js` › hero cards re-checks everything that sits on a card on the base, the wash and the peak, in all 13 themes.
+  - **`interactive`**: a card that is itself a choice (a preset, a mock profile). It lifts a pixel and takes the accent edge on hover, and the accent edge while anything inside has focus. There is no lift under reduced motion.
+  - **`inset`**: a well or row inside a card. The panel colour at half strength, the smaller radius, no rim, never glass.
+  - **`CardWatermark`**: a large faint icon in a hero or choice card's corner (`corner="top"` above a full-width button). It is decoration only, clipped to the card, and gone under a 22rem card, in forced colours and in print.
+  - **Also in the foundation:**
+    - `Grid kind="bento"`: 1, then 2, then 4 columns by the room the grid has, with documented spans.
+    - `Disclosure`: one fold-out card with a real `aria-expanded` button. Practice's custom session uses it in place of a hand-rolled button.
+    - `Panel` icons sit in an `IconChip` like KpiTile's.
+    - `Stat` labels use `.text-eyebrow`.
+    - `.hover-glow` takes the theme accent instead of a fixed blue.
+    - Skeletons use the default radius.
+    - The light, paper and sakura themes get softer slate shadows.
+    - `SkeletonChart` takes the height of its panel, so Progress › Overview's chart placeholder no longer spills out of its card.
+  - **Guard:** `layoutGuards.test.js` › hero cards fails on a new `<Card elevated glow>` hero. The heroes still to move are listed there by the page PR that moves them.
 - [x] **Type scale** (`styles/index.css` › Headings, `components/ui/SectionHeader.jsx`): one size per heading level, everywhere. Page and section titles were set by hand at six sizes.
   - **Page title:** `.text-h1` (Fraunces, 1.5–1.875 rem, balanced lines), from `PageHeader`.
   - **Section on the page:** `.text-h2` (Fraunces, 1.25–1.5 rem), from the new `SectionHeader` (title, description, actions). The Notebook, Bookmarks and Admin › AI models headers use it. Hero cards' titles (Today's "Where you stand", the Gauntlet) use it too.
@@ -657,6 +676,13 @@ every feature add, change, or removal, not on a schedule.
   - **Picked backups** (`provider:@pick:kw1|kw2` in the chains, resolved by `modelCatalog.resolveChain`): the first choice of each chain is an exact model (Groq `gpt-oss-20b`/`gpt-oss-120b`, Gemini Flash), and the backups after it are picked from the provider's current list: for each keyword in order, the shortest id containing it, at most two per slot. OpenRouter picks are free models only (`freeOnly`; paid routes would bill the account), vision picks only models that read images, and guard, speech, embedding and image-generation models never qualify. Added after the first live check on 2026-10-13 found nine of the exact backup ids (Groq Llama 3.3 70B and Llama 4 Scout, every OpenRouter free route, Gemini 3.1 Pro) no longer offered. A last `*` keyword takes the largest remaining model by the size in its name (24B or more), and a pick never repeats a model already earlier in the chain, so a slot still fills when none of the named families is offered (the first live resolution matched no Groq or OpenRouter name). The keywords follow what was offered on 2026-10-13, so the live chains are: board report on Groq `gpt-oss-20b`, then Qwen3.8 27B and `gpt-oss-120b` on Groq, then OpenRouter's free Nemotron 3 Super and Gemma 4 31B, then Gemini Flash-Lite; Explain and practice on Groq `gpt-oss-120b`, Qwen3.8, then free Nemotron 3 Ultra 550B and Super, then Gemini Flash; admin writing on Groq `gpt-oss-120b`, then Nemotron 3 Ultra and Super, then Gemini 3.5 Flash and Pro; image extraction on Gemini, then free Gemma 4. `/healthz` reports each feature's models in the order it tries them (`aiChains`) and the chat models Groq and OpenRouter (free) offer (`aiOffered`), and the AI models tab marks picked models.
   - **The app says so:** the AI board report's confirm, the question generator, image extraction and the formula-card generator show a line when their AI is slow, on a backup model, down, or not set up (`components/AiStatusNote.jsx`, `hooks/useAiStatus.js`). A timed-out or exhausted request says the AI took too long or is unavailable, not that you're offline.
   - **Admin › AI models** (`features/admin/ai/AiStatusPanel.jsx`): which providers have keys, and for each feature the model answering now and its whole chain with speed, success rate and last failure, plus **Test all models**.
+    - **Layout:** each chain row is a grid on the list's own width.
+      - On a narrow list: the number and model name, with provider, speed and state wrapping under the name.
+      - From 42rem: one line with the columns lined up row to row.
+      - A failure always takes its own line under the name.
+    - **The bug it fixes:** the row used to be a single-line flex row from the window's `sm:`, so beside the sidebar a long id with a failure line (`google/gemma-4-31b-it:free`) collapsed to a one-character column.
+    - **Cards:** the providers sit on the shared `Grid`, and the provider and feature cards are `Card`s.
+    - **Test:** `AiStatusPanel.test.jsx`.
 - [x] **AI question generator** (Admin › Question bank, `features/admin/ai/{QuestionGenerator,useQuestionGenerator}.jsx`, prompts in `services/aiPrompts.js`) — replaces the fixed five questions (two conceptual, three calculation) that went straight to the queue.
   - **Settings:** subject, topic (or all topics), an optional finer focus, **how many** (1–30, presets 5/10/20/30), **question type** (Mixed with a calculation-share slider, Conceptual only, or Calculation only), **difficulty** (Board mix 30/50/20, Easy, Medium, Hard), and under More options free-text instructions for the writer and **Double-check answers with a second model** (on by default).
   - **How it runs:** the run is planned into batches of up to five with exact counts per type and difficulty, dealt across batches (`planBatches`), and two batches are written at a time with a progress bar and Stop. Each batch is told the stems already written so nothing repeats.

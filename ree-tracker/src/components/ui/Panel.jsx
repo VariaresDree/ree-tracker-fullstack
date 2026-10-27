@@ -1,4 +1,5 @@
 import { Card, CardHeader, CardTitle, CardEyebrow, CardBody } from './Card';
+import { IconChip } from './IconChip';
 import { cn } from './cn';
 
 // Convenience wrapper enforcing the dashboard panel contract:
@@ -20,12 +21,10 @@ export function Panel({
     <Card elevated={elevated} className={cn('flex flex-col min-w-0', className)} {...rest}>
       {hasHeader && (
         <CardHeader>
-          <div className="min-w-0 flex items-start gap-2.5">
-            {Icon && (
-              <span className="mt-0.5 text-muted2 shrink-0" aria-hidden="true">
-                <Icon size={18} strokeWidth={1.75} />
-              </span>
-            )}
+          <div className="min-w-0 flex items-center gap-3">
+            {/* The same icon chip KpiTile and EmptyState use (it was a bare
+                grey glyph here, the one place an icon had no chip). */}
+            {Icon && <IconChip icon={Icon} size="sm" />}
             <div className="min-w-0">
               {eyebrow && <CardEyebrow>{eyebrow}</CardEyebrow>}
               {/* Wraps, never truncates: a long title ("Questions you missed

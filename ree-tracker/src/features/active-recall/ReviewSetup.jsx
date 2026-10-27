@@ -4,9 +4,9 @@
 // session behind a disclosure.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Button, FormField, Grid, IconChip, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
+import { Card, Button, Disclosure, FormField, Grid, IconChip, Select, SegmentedControl, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
-import { Shuffle, Crosshair, Gauge, Layers, Bookmark, ChevronDown, ChevronUp, RotateCcw } from '../../components/ui/icons';
+import { Shuffle, Crosshair, Gauge, Layers, Bookmark, RotateCcw } from '../../components/ui/icons';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { adaptivePreset, bookmarksPreset, drillPreset, dueReviewPreset, quickReviewPreset } from './presets';
 import { customView, SCOPES } from './customView';
@@ -166,134 +166,121 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
       </Grid>
 
       {/* Custom session — progressive disclosure */}
-      <Card elevated>
-        <button
-          type="button"
-          onClick={() => setShowCustom((v) => !v)}
-          aria-expanded={showCustom}
-          className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left cursor-pointer hover:bg-surface2 rounded-[var(--radius-lg)] transition-colors"
-        >
-          <div className="min-w-0">
-            <p className="text-textMain font-semibold">Custom session</p>
-            <p className="text-xs text-muted2 mt-0.5">Choose the mode, focus, scope, length and source yourself.</p>
-          </div>
-          {showCustom
-            ? <ChevronUp size={18} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0" />
-            : <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0" />}
-        </button>
+      <Disclosure
+        title="Custom session"
+        description="Choose the mode, focus, scope, length and source yourself."
+        open={showCustom}
+        onToggle={setShowCustom}
+        bodyClassName="flex flex-col gap-5"
+      >
+        <div className="flex flex-col gap-1.5">
+          <span className="text-eyebrow">Mode</span>
+          <SegmentedControl
+            label="Session mode"
+            value={view.sessionMode}
+            onChange={(v) => setConfig({ ...view, sessionMode: v })}
+            options={[
+              { value: 'mcq', label: 'Multiple choice' },
+              { value: 'flashcard', label: 'Flashcards', hint: 'best for definitions and facts' },
+            ]}
+          />
+        </div>
 
-        {showCustom && (
-          <div className="px-5 pb-5 flex flex-col gap-5 animate-in fade-in slide-in-from-top-2">
-            <div className="flex flex-col gap-1.5">
-              <span className="text-eyebrow">Mode</span>
-              <SegmentedControl
-                label="Session mode"
-                value={view.sessionMode}
-                onChange={(v) => setConfig({ ...view, sessionMode: v })}
-                options={[
-                  { value: 'mcq', label: 'Multiple choice' },
-                  { value: 'flashcard', label: 'Flashcards', hint: 'best for definitions and facts' },
-                ]}
-              />
-            </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-eyebrow">Focus</span>
+          <SegmentedControl
+            label="Focus"
+            value={view.cognitiveFocus}
+            onChange={(v) => setConfig({ ...view, cognitiveFocus: v })}
+            options={[
+              { value: 'mixed', label: 'Mixed' },
+              { value: 'conceptual', label: 'Theory' },
+              { value: 'calculation', label: 'Calculation' },
+            ]}
+          />
+        </div>
 
-            <div className="flex flex-col gap-1.5">
-              <span className="text-eyebrow">Focus</span>
-              <SegmentedControl
-                label="Focus"
-                value={view.cognitiveFocus}
-                onChange={(v) => setConfig({ ...view, cognitiveFocus: v })}
-                options={[
-                  { value: 'mixed', label: 'Mixed' },
-                  { value: 'conceptual', label: 'Theory' },
-                  { value: 'calculation', label: 'Calculation' },
-                ]}
-              />
-            </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-eyebrow">Scope</span>
+          <SegmentedControl
+            label="Study scope"
+            value={view.studyMode}
+            onChange={handleScopeChange}
+            options={SCOPES}
+          />
+        </div>
 
-            <div className="flex flex-col gap-1.5">
-              <span className="text-eyebrow">Scope</span>
-              <SegmentedControl
-                label="Study scope"
-                value={view.studyMode}
-                onChange={handleScopeChange}
-                options={SCOPES}
-              />
-            </div>
-
-            {['subject', 'subtopic'].includes(view.studyMode) && (
-              <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-top-2">
-                <FormField label="Subject" className="flex-1">
-                  <Select
-                    value={view.subject}
-                    onChange={(e) => setConfig({
-                      ...view,
-                      subject: e.target.value,
-                      // Keep 'All' unless the user is explicitly picking a topic.
-                      subtopic: view.studyMode === 'subtopic' ? (safeTOS[e.target.value]?.[0] || 'All') : 'All',
-                    })}
-                  >
-                    {Object.keys(safeTOS).map((s) => <option key={s} value={s}>{s}</option>)}
-                  </Select>
-                </FormField>
-                {view.studyMode === 'subtopic' && (
-                  <FormField label="Topic" className="flex-1">
-                    <Select
-                      value={view.subtopic}
-                      onChange={(e) => setConfig({ ...view, subtopic: e.target.value })}
-                    >
-                      {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
-                    </Select>
-                  </FormField>
-                )}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1.5">
-              <span className="text-eyebrow">Length</span>
-              <SegmentedControl
-                label="Number of questions"
-                value={view.count}
-                onChange={(v) => setConfig({ ...view, count: v })}
-                columns={2}
-                className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
-                options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n} questions` }))}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <span className="text-eyebrow">Source</span>
-              <SegmentedControl
-                label="Question source"
-                value={view.source}
-                onChange={(v) => setConfig({ ...view, source: v })}
-                columns={1}
-                className="sm:[grid-template-columns:repeat(3,minmax(0,1fr))]"
-                options={[
-                  { value: 'library', label: 'Question bank' },
-                  { value: 'bookmarks', label: 'My bookmarks', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
-                  { value: 'ai', label: 'AI generated', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
-                ]}
-              />
-            </div>
-
-            {/* Sticky above the mobile bottom nav so the CTA never scrolls out
-                of reach on a tall form. The offset comes from the layout, so a
-                phone's home-indicator inset can't push it under the bar. */}
-            <div className={cn('sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+var(--fab-space,0px)+1.25rem)] md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
-              <Button
-                size="lg"
-                fullWidth
-                loading={session.loading && !launchingPreset}
-                disabled={customDisabled}
-                onClick={() => { setLaunchingPreset(null); startSession(view); }}
+        {['subject', 'subtopic'].includes(view.studyMode) && (
+          <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-top-2">
+            <FormField label="Subject" className="flex-1">
+              <Select
+                value={view.subject}
+                onChange={(e) => setConfig({
+                  ...view,
+                  subject: e.target.value,
+                  // Keep 'All' unless the user is explicitly picking a topic.
+                  subtopic: view.studyMode === 'subtopic' ? (safeTOS[e.target.value]?.[0] || 'All') : 'All',
+                })}
               >
-                Start session
-              </Button>
-            </div>
+                {Object.keys(safeTOS).map((s) => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            </FormField>
+            {view.studyMode === 'subtopic' && (
+              <FormField label="Topic" className="flex-1">
+                <Select
+                  value={view.subtopic}
+                  onChange={(e) => setConfig({ ...view, subtopic: e.target.value })}
+                >
+                  {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </FormField>
+            )}
           </div>
         )}
-      </Card>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-eyebrow">Length</span>
+          <SegmentedControl
+            label="Number of questions"
+            value={view.count}
+            onChange={(v) => setConfig({ ...view, count: v })}
+            columns={2}
+            className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
+            options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n} questions` }))}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-eyebrow">Source</span>
+          <SegmentedControl
+            label="Question source"
+            value={view.source}
+            onChange={(v) => setConfig({ ...view, source: v })}
+            columns={1}
+            className="sm:[grid-template-columns:repeat(3,minmax(0,1fr))]"
+            options={[
+              { value: 'library', label: 'Question bank' },
+              { value: 'bookmarks', label: 'My bookmarks', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+              { value: 'ai', label: 'AI generated', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+            ]}
+          />
+        </div>
+
+        {/* Sticky above the mobile bottom nav so the CTA never scrolls out
+            of reach on a tall form. The offset comes from the layout, so a
+            phone's home-indicator inset can't push it under the bar. */}
+        <div className={cn('sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+var(--fab-space,0px)+1.25rem)] md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
+          <Button
+            size="lg"
+            fullWidth
+            loading={session.loading && !launchingPreset}
+            disabled={customDisabled}
+            onClick={() => { setLaunchingPreset(null); startSession(view); }}
+          >
+            Start session
+          </Button>
+        </div>
+      </Disclosure>
     </Page>
   );
 }

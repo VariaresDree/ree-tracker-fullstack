@@ -1,5 +1,5 @@
 export { Button } from './Button';
-export { Card, CardHeader, CardTitle, CardEyebrow, CardBody, CardFooter } from './Card';
+export { Card, CardHeader, CardTitle, CardEyebrow, CardBody, CardFooter, CardWatermark } from './Card';
 export { Badge } from './Badge';
 export { Skeleton } from './Skeleton';
 export { KBD } from './KBD';
@@ -17,6 +17,7 @@ export { PageHeader } from './PageHeader';
 export { SectionHeader } from './SectionHeader';
 export { Page } from './Page';
 export { Grid } from './Grid';
+export { Disclosure } from './Disclosure';
 export { StickyToolbar } from './StickyToolbar';
 export { QuestionSurface } from './QuestionSurface';
 export { IconChip } from './IconChip';

@@ -373,3 +373,46 @@ describe('glass cards', () => {
         });
     }
 });
+
+// Hero cards (index.css, .card-hero): --hero-base (the page colour unless a
+// theme says otherwise) washed with the accent from the top-left
+// (--hero-wash) and an accent glow in the top-right (--hero-glow). Everything
+// that sits on a card is re-checked on the plain base, the wash, and the
+// strongest point, where the glow sits over the wash, in every theme.
+describe('hero cards', () => {
+    const all = themes();
+    const share = (t, name) => {
+        const fallback = css.match(new RegExp(String.raw`var\(${name}, (\d+)%\)`))?.[1];
+        return Number(String(t[name] ?? `${fallback}%`).replace('%', '')) / 100;
+    };
+
+    it('the wash and the glow are each a light share of the accent', () => {
+        for (const [name, t] of Object.entries(all)) {
+            for (const token of ['--hero-wash', '--hero-glow']) {
+                expect(share(t, token), `${name} ${token}`).toBeGreaterThan(0);
+                expect(share(t, token), `${name} ${token}`).toBeLessThanOrEqual(0.2);
+            }
+        }
+    });
+
+    for (const name of Object.keys(all)) {
+        it(`${name}: what sits on a hero reads at its strongest accent`, () => {
+            const t = all[name];
+            const c = (token) => resolve(t, t[token]);
+            const base = resolve(t, t['--hero-base'] ?? 'var(--bg-primary)');
+            const wash = mix(c('--accent'), base, share(t, '--hero-wash'));
+            const peak = mix(c('--accent'), wash, share(t, '--hero-glow'));
+            expect(peak).toMatch(/^#[0-9a-f]{6}$/);
+            const failures = [base, wash, peak].flatMap((card) => [
+                ...['--text-main', '--text-muted', '--text-muted2', '--accent-text', '--accent-success', '--accent-danger'].map((k) => [k, c(k), card, 4.5]),
+                ...['--accent-success', '--accent-danger'].map((k) => [`${k} pill`, c(k), tint(c(k), card), 4.5]),
+                ['--accent-text on a 15% accent tint', c('--accent-text'), mix(c('--accent'), card, 0.15), 4.5],
+                ...Object.entries(TONE_TEXT).map(([tone, colour]) => [`${tone} button label`, resolve(t, colour), card, 4.5]),
+                ['--focus-ring-color', c('--focus-ring-color'), card, 3],
+            ])
+                .map(([what, fg, bg, min]) => ({ what, bg, ratio: +contrast(fg, bg).toFixed(2), min }))
+                .filter((r) => r.ratio < r.min);
+            expect(failures).toEqual([]);
+        });
+    }
+});

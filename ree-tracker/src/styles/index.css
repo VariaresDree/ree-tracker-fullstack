@@ -68,6 +68,13 @@
   --tw-enter-translate-x: calc(var(--spacing) * --value(integer));
 }
 
+/* The card rim (CARD SURFACES) stays on the card: a control inside it with
+   an elevation shadow is not rimmed too. */
+@property --card-edge {
+  syntax: '*';
+  inherits: false;
+}
+
 @utility touch-target {
   @media (pointer: coarse) {
     min-width: 2.75rem;
@@ -244,6 +251,10 @@
 
 /* 2. LIGHT MODE (PRC STANDARD) */
 [data-theme="light"] {
+  /* Hero cards: the card colour, and a faint wash (see .card-hero). */
+  --hero-base: var(--bg-surface);
+  --hero-wash: 2%;
+  --hero-glow: 1%;
   --logo-ink: #0b0f1a;
   --logo-keyline: #b45309;
   --logo-veil: 0.85;
@@ -299,6 +310,10 @@
 
 /* 4. PAPER (WARM SEPIA) */
 [data-theme="paper"] {
+  /* Hero cards: the card colour, and a faint wash (see .card-hero). */
+  --hero-base: var(--bg-surface);
+  --hero-wash: 2%;
+  --hero-glow: 1%;
   --logo-ink: #0b0f1a;
   --logo-keyline: #b45309;
   --logo-veil: 0.85;
@@ -432,6 +447,9 @@
 
 /* 9. SAKURA / UME (SOFT CHERRY BLOSSOM) */
 [data-theme="sakura"] {
+  /* Hero cards: a fainter wash (see .card-hero). */
+  --hero-wash: 3%;
+  --hero-glow: 3%;
   --logo-ink: #0b0f1a;
   --logo-keyline: #b45309;
   --logo-veil: 0.85;
@@ -565,6 +583,13 @@
    [data-theme="x"] followed by its brace) don't read it as a theme. */
 html { color-scheme: dark; accent-color: var(--accent); }
 html:is([data-theme="light"], [data-theme="paper"], [data-theme="sakura"]) { color-scheme: light; }
+/* The light themes' shadows: the black ones drawn for a dark page read as
+   smudges on paper. Same three steps, a slate ink at a third the strength. */
+html:is([data-theme="light"], [data-theme="paper"], [data-theme="sakura"]) {
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --shadow-2: 0 4px 14px rgba(15, 23, 42, 0.09), 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-3: 0 18px 40px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.08);
+}
 
 /* ==========================================================================
    PAGE TEXTURES
@@ -865,7 +890,7 @@ body {
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
-    border-radius: 8px;
+    border-radius: var(--radius-default);
   }
   @keyframes shimmer {
     0% { background-position: 200% 0; }
@@ -946,6 +971,73 @@ body {
     }
   }
 
+  /* CARD SURFACES (Card.jsx `variant`). Every card but a well carries a
+     one-pixel light rim along its top edge (--card-edge), the depth cue the
+     flat glass lacked. It travels inside each elevation shadow below, so an
+     elevated card keeps it, and it does not inherit: a button inside a card
+     is not rimmed. Off where depth is drawn by the system or not at all. */
+  .card-edge {
+    --card-edge: inset 0 1px 0 color-mix(in srgb, var(--text-main) 7%, transparent);
+    /* Tailwind's shadow-* utilities compose this slot, so a card given
+       shadow-sm keeps its rim as well. */
+    --tw-inset-shadow: var(--card-edge);
+    box-shadow: var(--card-edge);
+  }
+  .exam-environment .card-edge { --card-edge: 0 0 #0000; }
+  @media (forced-colors: active), print {
+    .card-edge { --card-edge: 0 0 #0000; }
+  }
+
+  /* The hero: the one card a screen leads with, washed with the theme's
+     accent from the top-left and lit by an accent glow in the top-right (the
+     gradient is its texture, so it is never glass). It is laid on the page
+     colour (--hero-base), a step deeper than a card on the dark themes: the
+     status pills and the accent tint already sit near 4.5:1 on the card
+     colour, so any accent over it would push them under, while the page
+     colour leaves room for the wash. The light themes, where the page is the
+     darker of the two, keep the card colour and a fainter wash in their own
+     blocks. themeContrast.test.js ("hero cards") re-checks everything that
+     sits on a card at the strongest point, where the glow meets the wash. */
+  .card-hero {
+    background-color: var(--hero-base, var(--bg-primary));
+    background-image:
+      radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--accent) var(--hero-glow, 6%), transparent), transparent 60%),
+      linear-gradient(135deg, color-mix(in srgb, var(--accent) var(--hero-wash, 6%), var(--hero-base, var(--bg-primary))), var(--hero-base, var(--bg-primary)) 70%);
+  }
+  @media (forced-colors: active), print {
+    .card-hero { background-image: none; }
+  }
+
+  /* A card that is itself a choice (a preset, a mock profile, a topic to
+     open): it lifts a pixel and takes the accent edge under the pointer, and
+     the accent edge while anything inside it has focus. */
+  .card-interactive {
+    transition-property: translate, box-shadow, border-color;
+    transition-duration: var(--duration-base);
+    transition-timing-function: var(--ease-out-quart);
+  }
+  @media (hover: hover) {
+    .card-interactive:hover {
+      translate: 0 -1px;
+      border-color: color-mix(in srgb, var(--accent) 40%, var(--border-light));
+      box-shadow: var(--card-edge, 0 0 #0000), var(--shadow-2);
+    }
+  }
+  .card-interactive:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border-light));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card-interactive:hover { translate: none; }
+  }
+
+  /* CardWatermark: a large faint icon in a hero or choice card's corner. */
+  .card-watermark {
+    color: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  @media (forced-colors: active), print {
+    .card-watermark { display: none; }
+  }
+
   /* Hover glow */
   .hover-glow {
     transition-property: box-shadow, transform, border-color, background-color;
@@ -956,7 +1048,7 @@ body {
      lifted and glowing until the next tap elsewhere. */
   @media (hover: hover) {
     .hover-glow:hover {
-      box-shadow: 0 0 20px color-mix(in srgb, var(--brand-blue, #3b82f6) 15%, transparent);
+      box-shadow: var(--card-edge, 0 0 #0000), 0 0 20px color-mix(in srgb, var(--accent) 15%, transparent);
       transform: translateY(-1px);
     }
   }
@@ -1163,10 +1255,10 @@ body {
   }
 
   /* Editorial elevation classes (token-driven) */
-  .elevate-1 { box-shadow: var(--shadow-1); }
-  .elevate-2 { box-shadow: var(--shadow-2); }
-  .elevate-3 { box-shadow: var(--shadow-3); }
-  .elevate-glow { box-shadow: var(--shadow-glow-velocity); }
+  .elevate-1 { box-shadow: var(--card-edge, 0 0 #0000), var(--shadow-1); }
+  .elevate-2 { box-shadow: var(--card-edge, 0 0 #0000), var(--shadow-2); }
+  .elevate-3 { box-shadow: var(--card-edge, 0 0 #0000), var(--shadow-3); }
+  .elevate-glow { box-shadow: var(--card-edge, 0 0 #0000), var(--shadow-glow-velocity); }
 
   /* Subtle grain overlay for hero panels (4% noise) */
   .grain-overlay {
