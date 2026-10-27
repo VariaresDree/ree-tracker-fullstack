@@ -51,8 +51,12 @@ const renderTab = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('Progress tabs', () => {
   it('Overview: KPIs, ability trend, forecast and the AI report', async () => {
-    const { container } = renderTab(<OverviewTab stats={stats} kpi={kpi} />);
-    expect(screen.getByText('Questions answered')).toBeInTheDocument();
+    const { container } = renderTab(<OverviewTab stats={stats} kpi={kpi} today="2026-10-08" />);
+    // The figures and the report lead the tab in one hero.
+    const hero = screen.getByRole('region', { name: 'Your review so far' });
+    expect(hero).toHaveTextContent('Questions answered');
+    expect(hero).toHaveTextContent('30 this week · 0 last week');
+    expect(hero).toContainElement(screen.getByRole('button', { name: /AI board report/ }));
     expect(screen.getByRole('heading', { level: 2, name: 'Ability trend (θ)' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /AI board report/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /past mock sittings/ })).toHaveAttribute('href', '/exams?tab=history');
@@ -70,7 +74,8 @@ describe('Progress tabs', () => {
 
   it('Weak spots: the drills, blind spots and recommended fixes', async () => {
     const { container } = renderTab(<WeakSpotsTab />);
-    expect(screen.getByRole('button', { name: /Weak-spot drill/ })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Fix what’s costing you points' })).toContainElement(screen.getByRole('button', { name: /Weak-spot drill/ }));
+    expect(screen.getByRole('button', { name: 'Blind-spot drill' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { level: 2, name: 'Blind spots' })).toBeInTheDocument();
     expect(screen.getByText('Recommended fixes')).toBeInTheDocument();
     expectNoSkippedLevels(container);
@@ -83,9 +88,16 @@ describe('Progress tabs', () => {
     expectNoSkippedLevels(container);
   });
 
+  it('Confidence: before any rated answer, says how the matrix fills instead of four zeros', () => {
+    renderTab(<ConfidenceTab stats={{ ...stats, matrix: { hc: 0, hw: 0, lc: 0, lw: 0 } }} />);
+    expect(screen.getByText('No rated answers yet')).toBeInTheDocument();
+    expect(screen.queryByText('High confidence · correct')).not.toBeInTheDocument();
+  });
+
   it('Habits: the study calendar, study time and time per topic', async () => {
     const { container } = renderTab(<HabitsTab stats={stats} />);
     expect(screen.getByRole('heading', { level: 2, name: 'Study calendar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous month' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Active days (last 14)')).toBeInTheDocument());
     expect(await screen.findByText('95s')).toBeInTheDocument();
     expectNoSkippedLevels(container);

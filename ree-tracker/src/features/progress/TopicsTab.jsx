@@ -11,7 +11,10 @@ export default function TopicsTab({ stats }) {
   const navigate = useNavigate();
   return (
     <div className="flex flex-col gap-6">
-      <div className="min-h-[380px] lg:h-[460px]">
+      {/* A set height for the tile list to scroll in: 460px, or less of a
+          short screen, never under 380px. It took `lg:` (the window) to set
+          one, so below 1024px the list grew to its full length. */}
+      <div className="h-[min(460px,75dvh)] min-h-[380px]">
         <HeatmapChart stats={stats} onDrillTopic={(topic, subject) => launchPractice(navigate, drillPreset({ topic, subject }))} />
       </div>
       <SubjectAccuracy />

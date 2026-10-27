@@ -143,18 +143,18 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
       </fieldset>
 
       <Grid kind="tiles" gap="sm" as="dl">
-        <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3 text-center">
+        <Card variant="inset" className="p-3 text-center">
           <dt className="text-eyebrow">Topics</dt>
           <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{topicsToGenerate.length}</dd>
-        </div>
-        <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3 text-center">
+        </Card>
+        <Card variant="inset" className="p-3 text-center">
           <dt className="text-eyebrow">Days left</dt>
           <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{daysUntilExam ?? '—'}</dd>
-        </div>
-        <div className="rounded-[var(--radius-default)] bg-surface2 border border-border p-3 text-center">
+        </Card>
+        <Card variant="inset" className="p-3 text-center">
           <dt className="text-eyebrow">Days planned</dt>
           <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{daysUntilExam ? Math.min(daysUntilExam, PLAN_DAYS) : '—'}</dd>
-        </div>
+        </Card>
       </Grid>
 
       {(builtFrom || focusLine) && (

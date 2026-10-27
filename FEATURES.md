@@ -88,6 +88,15 @@ every feature add, change, or removal, not on a schedule.
   - **Weak spots** — the weak-spot and blind-spot drills, the cross-session blind spots and time sinks, and **Recommended fixes** (the prescription panel; its routing is `features/progress/prescriptionRouting.js`).
   - **Habits** — the **study calendar**, study time over the last 14 days, and time per question by topic. "Minutes per day, last 14 days" shows all 14; the list's 12-row cap cut the two newest, today and yesterday, off an oldest-first list (`sections/shared.jsx` `BarList limit`).
   - **Study plan** — the planner.
+  - **Card layout (2026-10 card overhaul):**
+    - **Overview** leads with one hero, **Your review so far**: the four figures and the AI board report button together. They were a floating intro line and button above four separate tiles.
+      - Questions answered says "N this week · N last week". That is the last seven Manila days, today included, against the seven before, from the study calendar (`features/progress/weeklyAnswers.js`).
+      - The forecast card keeps its width beside the chart.
+    - **Topics:** the mastery map has a set height to scroll in (460px, or less of a short screen, at least 380px). It took the window's `lg:` to get one, so below 1024px the list grew to full length. A subject with no topics says so instead of an empty box.
+    - **Confidence:** before any rated answer, the matrix explains how it fills instead of showing four zeros. Its cells are inset wells; the blurred blobs and hover lift are gone.
+    - **Weak spots** leads with a hero, **Fix what's costing you points**, with the weak-spot drill (primary) and the blind-spot drill. They were a row of small buttons.
+    - **Habits:** the study calendar is a Card (it was a solid hand-made frame). Its header goes side by side by the card's width, not the window's, and the month arrows are icon buttons instead of `<` and `>` text.
+    - **Study plan:** the three plan figures are inset wells, and stay a `<dl>`.
   - **The order** goes from where you stand (Overview, Topics, how much of the syllabus is covered) to why (Confidence, Weak spots, Habits) to what next (Study plan). Syllabus used to sit sixth. The `?tab=` ids are unchanged, so every link to a tab still works.
   - These were spread over the Dashboard, Profile's "Comparative analytics" and "Deep analytics" (`features/analytics/AnalyticsDeepDive.jsx`, now split into `useDeepAnalytics.js` and `features/analytics/sections/*`), and the planner. Each section has an h2 heading under the page's h1 (they were h3, with emoji). **Dropped:** the deep dive's "Score history" tab (the same sittings as Exams → Past sittings) and the "Active Network Agents" online list.
   - `useDeepAnalytics` keeps each result per account for the session: a tab shown again appears at once and refreshes in the background after two minutes. A failed fetch shows an error with Try again, never "no data".
