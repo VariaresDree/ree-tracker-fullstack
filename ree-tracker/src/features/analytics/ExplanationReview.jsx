@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchPendingExplanations, updateExplanationStatus, bulkApproveExplanations } from '../../services/dbQueries';
-import { Button, Card, Modal } from '../../components/ui';
+import { Button, Card, EmptyState, Modal, Skeleton } from '../../components/ui';
 import { Check, CheckCircle2, X } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
@@ -83,23 +83,23 @@ export default function ExplanationReview() {
     };
 
     if (loading) {
+        // Cards in the queue's own shape, not a spinner.
         return (
-            <div className="flex items-center justify-center py-12">
-                <div className="telemetry-spinner !w-6 !h-6" />
-                <span className="ml-3 text-muted text-sm">Loading review queue...</span>
+            <div role="status" className="flex flex-col gap-3">
+                <span className="sr-only">Loading review queue…</span>
+                {[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 rounded-[var(--radius-lg)]" />)}
             </div>
         );
     }
 
     if (questions.length === 0) {
         return (
-            <div className="text-center py-12">
-                <CheckCircle2 size={36} strokeWidth={1.5} aria-hidden="true" className="mx-auto mb-3" style={{ color: 'var(--accent-success)' }} />
-                <p className="text-muted text-sm font-medium">No pending explanations to review</p>
-                <button onClick={loadPending} className="mt-4 text-xs text-reeBlue-text hover:underline cursor-pointer">
-                    Refresh
-                </button>
-            </div>
+            <EmptyState
+                icon={CheckCircle2}
+                title="No pending explanations to review"
+                description="New AI explanations wait here until an admin approves them."
+                action={<Button size="sm" variant="secondary" onClick={loadPending}>Refresh</Button>}
+            />
         );
     }
 

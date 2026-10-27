@@ -12,7 +12,7 @@ import { planBatches, calculationCount, QUESTION_TYPES, DIFFICULTY_MIXES, MAX_QU
 import { useAiStatus } from '../../../hooks/useAiStatus';
 import AiStatusNote from '../../../components/AiStatusNote';
 import LatexRenderer from '../../../components/LatexRenderer';
-import { Button, FormField, Input, Select, Textarea, SegmentedControl, Badge, ProgressIndicator, StatusPill } from '../../../components/ui';
+import { Button, Card, FormField, Input, Select, Textarea, SegmentedControl, Badge, ProgressIndicator, StatusPill } from '../../../components/ui';
 import { Sparkles, X, Check, TriangleAlert, ChevronDown } from '../../../components/ui/icons';
 import { useQuestionGenerator } from './useQuestionGenerator';
 
@@ -56,7 +56,10 @@ export default function QuestionGenerator({ isOnline = true, onSaved }) {
   };
 
   return (
-    <section className="p-5 sm:p-6 bg-surface border border-border rounded-[var(--radius-lg)] shadow-sm flex flex-col gap-5" aria-labelledby="qgen-title">
+    // A Card like every other section (it was a hand-made frame). Its form
+    // grids follow the card's own width: beside the sidebar the window's
+    // sm:/lg: put three fields in a 430px row.
+    <Card as="section" elevated padding="md" className="@container flex flex-col gap-5" aria-labelledby="qgen-title">
       <header className="flex flex-col gap-1">
         <h3 id="qgen-title" className="text-h3 text-textMain flex items-center gap-2">
           <Sparkles size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> AI question generator
@@ -69,7 +72,7 @@ export default function QuestionGenerator({ isOnline = true, onSaved }) {
 
       <fieldset disabled={busy} className="flex flex-col gap-5 min-w-0">
         <legend className="sr-only">Generation settings</legend>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 @xl:grid-cols-2 @3xl:grid-cols-3 gap-3">
           <FormField label="Subject">
             <Select value={spec.subject} onChange={(e) => update({ subject: e.target.value, topic: 'All' })}>
               {Object.keys(dynamicTOS).map((s) => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
@@ -81,12 +84,12 @@ export default function QuestionGenerator({ isOnline = true, onSaved }) {
               {(dynamicTOS[spec.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
             </Select>
           </FormField>
-          <FormField label="Specific focus (optional)" className="sm:col-span-2 lg:col-span-1">
+          <FormField label="Specific focus (optional)" className="@xl:col-span-2 @3xl:col-span-1">
             <Input value={spec.focus} onChange={(e) => update({ focus: e.target.value })} placeholder="e.g. transformer efficiency, PEC grounding" />
           </FormField>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5">
           <div className="flex flex-col gap-2">
             <FormField label="How many questions" hint={`1 to ${MAX_QUESTIONS}. Written in batches of up to 5, two at a time.`}>
               {(a11y) => (
@@ -191,7 +194,7 @@ export default function QuestionGenerator({ isOnline = true, onSaved }) {
       {(phase === 'review' || phase === 'saving' || (phase !== 'idle' && items.length > 0)) && (
         <GeneratedList g={g} currentUser={currentUser} selectedCount={selectedCount} runInfo={runInfo} />
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -265,7 +268,7 @@ function GeneratedItem({ q, idx, g, disabled }) {
           <LatexRenderer content={q.text} />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 @xl:grid-cols-2 gap-2">
           {q.options.map((opt, i) => {
             const isAnswer = opt === q.answer;
             const isCheckPick = i === checkIndex && !isAnswer;

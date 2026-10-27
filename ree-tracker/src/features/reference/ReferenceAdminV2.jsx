@@ -15,7 +15,7 @@ import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'rea
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
 import {
-    Button, Modal, FormField, Input, Select, Textarea,
+    Button, Card, Modal, FormField, Input, Select, Textarea,
     SegmentedControl, Badge, StatusPill, EmptyState, Skeleton,
 } from '../../components/ui';
 import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search } from '../../components/ui/icons';
@@ -429,7 +429,7 @@ export default function ReferenceAdminV2() {
     }, [live, deferredLiveSearch, liveSort]);
 
     const cardRow = (card, actions) => (
-        <div key={card.id} className="bg-surface border border-border2 rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 min-w-0 transition-[border-color,box-shadow] hover:border-[var(--accent)]/40 hover:shadow-md">
+        <Card key={card.id} padding="sm" className="flex flex-col gap-2 min-w-0">
             <div className="flex items-start justify-between gap-3 min-w-0">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -456,7 +456,7 @@ export default function ReferenceAdminV2() {
             <div className="text-xs text-muted2 line-clamp-2 [overflow-wrap:anywhere] [&_p]:!m-0">
                 <LatexRenderer content={card.description} />
             </div>
-        </div>
+        </Card>
     );
 
     return (
@@ -621,7 +621,7 @@ export default function ReferenceAdminV2() {
                     ) : (
                         <div className="flex flex-col gap-2">
                             {sources.map((s) => (
-                                <div key={s.id} className="flex items-center justify-between gap-3 bg-surface border border-border2 rounded-[var(--radius-default)] px-4 py-2.5 min-w-0">
+                                <Card key={s.id} variant="inset" className="flex items-center justify-between gap-3 px-4 py-2.5 min-w-0">
                                     <div className="min-w-0">
                                         <span className="text-sm font-bold text-textMain truncate block" title={s.title}>{s.title}{s.edition ? ` (${s.edition})` : ''}</span>
                                         <span className="text-eyebrow">{[s.kind, s.section].filter(Boolean).join(' • ') || '—'}</span>
@@ -630,7 +630,7 @@ export default function ReferenceAdminV2() {
                                         onClick={async () => { if (window.confirm(`Delete source "${s.title}"? Cards keep living without the citation.`)) { await deleteReferenceSource(s.id).catch(() => toast.error('Delete failed.')); setSources(await fetchReferenceSources()); } }}>
                                         <X size={14} strokeWidth={1.75} aria-hidden="true" />
                                     </Button>
-                                </div>
+                                </Card>
                             ))}
                         </div>
                     )}

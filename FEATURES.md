@@ -142,6 +142,16 @@ every feature add, change, or removal, not on a schedule.
     - **A card review ends on questions:** the done screen offers **Practise these topics**, two questions on each topic rated (up to five topics), drawn like any Practice set (the offline pack when there's no connection) and run as a fixed set. "No questions on these topics yet" when there are none; leaving before the draw finishes stays left.
   - **Formula cards:** each card's button is described by the face on show, so a screen reader hears the formula or the details, not only "press to reveal details"; **study mode** takes focus when it opens, so the arrow keys and Escape work straight away.
 - [x] **Admin area** (`pages/admin/Admin.jsx`, admins only) — Question bank (`pages/admin/QuestionBank.jsx`: AI question generator, PDF/image extraction, manual entry, review queue, syllabus, grid) · Explanation review · Formula-card management · Handout uploads · **AI models** (see AI model routing).
+  - **Card layout (2026-10 card overhaul):**
+    - **Question bank:**
+      - Its title is a `SectionHeader`; it was a hand-sized h2.
+      - The AI question generator and Answer positions are elevated Cards; they were hand-made frames.
+      - The generator's form grids follow the card's own width, not the window's. Beside the sidebar the window's `sm:`/`lg:` put three fields in a ~430px row. It is off `layoutGuards.test.js`' list of exceptions.
+    - **Library overview:**
+      - The question-count figures and the per-subject topic lists are inset wells.
+      - A topic list is as tall as it needs, up to 280px. It was a fixed 280px box.
+    - **Explanation review:** the queue loads as skeleton cards (it was a spinner). An empty queue is an empty state with Refresh (`ExplanationReview.test.jsx`).
+    - **Formula-card admin:** card rows are Cards, and source rows are inset wells.
   - **Learners no longer see the AI/PDF ingestion tools**; the server's contribution review gate is unchanged.
   - `routes/AdminRoute.jsx` waits for the role (`roleResolved` in `contexts/AuthContext.jsx`), so a real admin opening `/admin` on a cold start isn't bounced. A learner is sent home, and nobody is bounced while offline. The server stays the real gate, and every tab is lazy, so learners never download it.
 - [x] **Old URLs redirect, keeping router state** (`routes/LegacyRedirect.jsx`, `routes/legacyRoutes.js`):

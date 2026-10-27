@@ -21,7 +21,7 @@ import { useRef, useState } from 'react';
 import { fetchOptionAudit, fixOptionKeys, fetchQuestionById, updateQuestionInBank } from '../../services/dbQueries';
 import QuestionEditModal from '../library/QuestionEditModal';
 import LatexRenderer from '../../components/LatexRenderer';
-import { Button, ProgressIndicator } from '../../components/ui';
+import { Button, Card, ProgressIndicator } from '../../components/ui';
 import { ListChecks } from '../../components/ui/icons';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
@@ -146,7 +146,7 @@ export default function AnswerPositions() {
   const p = audit?.positions;
 
   return (
-    <section className="p-5 sm:p-6 bg-surface border border-border rounded-[var(--radius-lg)] shadow-sm flex flex-col gap-4" aria-labelledby="answer-positions-title">
+    <Card as="section" elevated padding="md" className="flex flex-col gap-4" aria-labelledby="answer-positions-title">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1 min-w-0">
           <h3 id="answer-positions-title" className="text-base font-semibold text-textMain flex items-center gap-2">
@@ -217,6 +217,6 @@ export default function AnswerPositions() {
           </ul>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

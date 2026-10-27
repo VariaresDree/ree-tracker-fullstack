@@ -18,6 +18,7 @@ import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
 import AnswerPositions from '../../features/admin/AnswerPositions';
+import { SectionHeader } from '../../components/ui';
 
 export default function QuestionBank() {
   const isOnline = useNetworkStatus();
@@ -54,10 +55,10 @@ export default function QuestionBank() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-display text-2xl text-textMain tracking-tight">Question bank</h2>
-        <p className="text-sm text-muted2 mt-1">Generate, import, review and edit the shared questions. Everything the AI writes waits in the review queue until an admin approves it.</p>
-      </div>
+      <SectionHeader
+        title="Question bank"
+        description="Generate, import, review and edit the shared questions. Everything the AI writes waits in the review queue until an admin approves it."
+      />
 
       <QuestionGenerator isOnline={isOnline} onSaved={initializeVault} />
 
