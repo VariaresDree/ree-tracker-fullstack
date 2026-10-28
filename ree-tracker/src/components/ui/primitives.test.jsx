@@ -180,6 +180,21 @@ describe('DataTable', () => {
   });
 });
 
+describe('PageHeader', () => {
+  it('goes side by side by its own width, and the chips wrap rather than squeeze the title', () => {
+    const { container } = render(<PageHeader title="Today" subtitle="Welcome back, Variares." meta={<span>165 days to the exam</span>} />);
+    const outer = container.firstChild;
+    expect(outer).toHaveClass('@container', 'border-b');
+    const row = outer.firstChild;
+    expect(row.className).toMatch(/@2xl:flex-row/);
+    expect(row.className).not.toMatch(/(^|\s)md:flex-row/);
+    const [title, chips] = row.children;
+    expect(title.className).toMatch(/@2xl:min-w-\[16rem\]/);
+    expect(chips).toHaveClass('flex-wrap', 'min-w-0');
+    expect(chips).not.toHaveClass('shrink-0');
+  });
+});
+
 describe('type scale', () => {
   it('one size per heading level: the page title, a section title, a card title', () => {
     render(<>

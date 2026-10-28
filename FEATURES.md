@@ -340,6 +340,8 @@ every feature add, change, or removal, not on a schedule.
     - Skeletons use the default radius.
     - The light, paper and sakura themes get softer slate shadows.
     - `SkeletonChart` takes the height of its panel, so Progress › Overview's chart placeholder no longer spills out of its card.
+  - **Page header** (`components/ui/PageHeader.jsx`, found in the 2026-10-28 live check): every page's header goes side by side by its own width (42rem, a container query), and then the title keeps at least 16rem while the chips wrap.
+    - It switched at the window's `md:` with chips that couldn't shrink. On a tablet beside the sidebar, Today's three chips took the row and left "Welcome back, …" a 22px column, a word or two per line. It now stacks there.
   - **Guard:** `layoutGuards.test.js` › hero cards fails on a new `<Card elevated glow>` hero. The heroes still to move are listed there by the page PR that moves them.
 - [x] **Type scale** (`styles/index.css` › Headings, `components/ui/SectionHeader.jsx`): one size per heading level, everywhere. Page and section titles were set by hand at six sizes.
   - **Page title:** `.text-h1` (Fraunces, 1.5–1.875 rem, balanced lines), from `PageHeader`.
@@ -758,6 +760,7 @@ every feature add, change, or removal, not on a schedule.
       - A failure always takes its own line under the name.
     - **The bug it fixes:** the row used to be a single-line flex row from the window's `sm:`, so beside the sidebar a long id with a failure line (`google/gemma-4-31b-it:free`) collapsed to a one-character column.
     - **Cards:** the providers sit on the shared `Grid`, and the provider and feature cards are `Card`s.
+    - **Key names on a phone:** a provider's key name wraps at its underscores (`<wbr>` hints, so it still copies exactly). Two to a row on a phone, `GROQ_API_KEY` had broken as "GROQ_API_K / EY".
     - **Test:** `AiStatusPanel.test.jsx`.
 - [x] **AI question generator** (Admin › Question bank, `features/admin/ai/{QuestionGenerator,useQuestionGenerator}.jsx`, prompts in `services/aiPrompts.js`) — replaces the fixed five questions (two conceptual, three calculation) that went straight to the queue.
   - **Settings:** subject, topic (or all topics), an optional finer focus, **how many** (1–30, presets 5/10/20/30), **question type** (Mixed with a calculation-share slider, Conceptual only, or Calculation only), **difficulty** (Board mix 30/50/20, Easy, Medium, Hard), and under More options free-text instructions for the writer and **Double-check answers with a second model** (on by default).

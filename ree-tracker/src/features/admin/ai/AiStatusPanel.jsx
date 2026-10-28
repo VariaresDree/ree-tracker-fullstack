@@ -32,6 +32,12 @@ const ERROR_KIND = {
   other: 'error',
 };
 
+// An env key name with a line-break hint after each underscore, so a narrow
+// card wraps GROQ_API_KEY at its underscores, not as "GROQ_API_K / EY".
+// <wbr>, not a zero-width space: the name copies exactly, for pasting into
+// the server's environment.
+const keyName = (key) => String(key || '').split('_').flatMap((part, i, all) => (i < all.length - 1 ? [part, '_', <wbr key={i} />] : [part]));
+
 const secs = (ms) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
 
 function Pill({ state }) {
@@ -94,7 +100,7 @@ export default function AiStatusPanel() {
                 : <X size={18} strokeWidth={2} aria-hidden="true" className="shrink-0 mt-0.5 text-muted" />}
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-textMain">{p.label}</div>
-                <div className="text-xs text-muted2 font-mono [overflow-wrap:anywhere]">{p.envKey}</div>
+                <div data-env-key className="text-xs text-muted2 font-mono [overflow-wrap:break-word]">{keyName(p.envKey)}</div>
                 <div className="text-xs text-muted2 mt-0.5">
                   {!p.configured ? 'No key on the server'
                     : p.catalog?.ok ? `Key works · ${p.catalog.models} models offered${p.catalog.free != null ? `, ${p.catalog.free} free` : ''}`
