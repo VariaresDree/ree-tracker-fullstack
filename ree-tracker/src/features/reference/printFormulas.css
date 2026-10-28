@@ -1,0 +1,45 @@
+/* Library › Formula cards › Print weak formulas (/print/formulas): the cards
+   you last rated Again or Hard, as a sheet for the wall. On screen it sits on
+   white like paper; printed, only the sheet prints, two columns, no card split
+   across a page. */
+.pf-sheet {
+  background: #fff;
+  color: #111;
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 12mm;
+  border-radius: 6px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.25);
+}
+.pf-sheet h1 { font-size: 18pt; font-weight: 700; margin: 0 0 2mm; }
+.pf-sheet .pf-meta { font-size: 9pt; color: #555; margin: 0 0 6mm; }
+.pf-cards { column-count: 2; column-gap: 8mm; }
+.pf-card {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  padding: 3mm 4mm;
+  margin: 0 0 4mm;
+}
+.pf-card h2 { font-size: 11pt; font-weight: 700; margin: 0 0 1mm; }
+.pf-card .pf-topic { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; color: #555; margin: 0 0 2mm; }
+.pf-card .pf-formula { font-size: 12pt; margin: 2mm 0; overflow-x: auto; }
+.pf-card .pf-vars { font-size: 9pt; margin: 1mm 0 0; padding: 0; list-style: none; }
+.pf-card .pf-tip { font-size: 9pt; margin: 2mm 0 0; color: #333; }
+.pf-sheet .katex-error { color: #111 !important; }
+
+@media (max-width: 639px) {
+  .pf-sheet { padding: 6mm; }
+  .pf-cards { column-count: 1; }
+}
+
+@media print {
+  @page { margin: 12mm; }
+  html, body { background: #fff !important; }
+  body::before, body::after { display: none !important; }
+  .pf-screen-only { display: none !important; }
+  .pf-page { padding: 0 !important; }
+  .pf-sheet { box-shadow: none; padding: 0; max-width: none; border-radius: 0; }
+  .pf-cards { column-count: 2; }
+}

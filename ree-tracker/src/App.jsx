@@ -37,6 +37,8 @@ const Focus = lazy(() => import('./pages/Focus'));
 // A printed paper set's print preview: full screen, outside the shell, lazy
 // with its own stylesheet (the sheets, and what printing shows).
 const PrintSet = lazy(() => import('./pages/PrintSet'));
+// The weak-formula sheet (CELE round): the same kind of full-screen print page.
+const PrintFormulas = lazy(() => import('./pages/PrintFormulas'));
 // The answer-sheet scanner: full screen, outside the shell, lazy with its own
 // stylesheet (the camera, the review and the score). A set's results page
 // sits inside the shell (Exams > Paper sets > Results).
@@ -125,6 +127,8 @@ const SecureAppTerminal = () => {
               background, and the timer's own clock (pages/Focus.jsx). */}
           <Route path="/focus" element={<ErrorBoundary name="Focus timer"><Focus /></ErrorBoundary>} />
           {/* A printed set's pages, to edit and print (pages/PrintSet.jsx). */}
+          {/* The formula cards you still miss, to print (pages/PrintFormulas.jsx). */}
+          <Route path="/print/formulas" element={<ErrorBoundary name="Weak formulas"><PrintFormulas /></ErrorBoundary>} />
           <Route path="/print/:setId" element={<ErrorBoundary name="Print preview"><PrintSet /></ErrorBoundary>} />
           {/* Photograph answer sheets and score them (pages/ScanSheet.jsx). */}
           <Route path="/scan" element={<ErrorBoundary name="Scanner"><ScanSheet /></ErrorBoundary>} />

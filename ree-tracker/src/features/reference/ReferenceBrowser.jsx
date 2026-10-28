@@ -21,14 +21,16 @@
 // kept for the browser session, so leaving the tab and coming back doesn't
 // drop you at the top again.
 import { lazy, Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
+import { Link } from 'react-router-dom';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
 import { Input, FormField, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
-import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers } from '../../components/ui/icons';
+import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import NotedFlashcard from './NotedFlashcard';
 import ReferenceStudyMode from './ReferenceStudyMode';
 import { dueCardIds, useCardReviews } from './useCardReviews';
+import { pickRecallTopic, weakCards } from './weakCards';
 import { normalizeSubject } from '@ree/shared';
 
 // The server's topic key (trim + lowercase): a topic named by another screen
@@ -191,6 +193,16 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     return later.length ? Math.min(...later) : null;
   }, [reviews.items, cardById, now]);
   const leaveStudy = () => { setStudying(false); setNow(Date.now()); };
+
+  // The CELE tips: a wall of only the formulas you still miss (printed), and
+  // a topic drawn at random whose formulas you recall cold.
+  const weak = useMemo(() => weakCards(cards, reviews.items), [cards, reviews.items]);
+  const [recall, setRecall] = useState(null);
+  // The draw happens here, in the click, never in a render or a state updater.
+  const drawTopic = () => {
+    const roll = Math.random();
+    setRecall((prev) => pickRecallTopic(cards, reviews.items, roll, prev?.key ?? null));
+  };
 
   const kindFiltered = useMemo(
     () => (kind === 'all' ? cards : cards.filter((c) => c.kind === kind)),
@@ -372,6 +384,32 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
             </div>
           </div>
           <Button className="shrink-0 w-full sm:w-auto" onClick={() => startStudying(dueCards, 'review')}>Review now</Button>
+        </Card>
+      )}
+      {!studying && cards.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={drawTopic}>
+            <Shuffle size={14} strokeWidth={1.75} aria-hidden="true" /> Random topic
+          </Button>
+          {weak.length > 0 ? (
+            <Button size="sm" variant="secondary" as={Link} to="/print/formulas">
+              <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print weak formulas ({weak.length})
+            </Button>
+          ) : (
+            <p className="text-xs text-muted2 self-center">Rate cards in a review to print the ones you still miss.</p>
+          )}
+        </div>
+      )}
+      {!studying && recall && (
+        <Card variant="inset" padding="md" className="flex flex-col gap-3" aria-live="polite">
+          <p className="text-eyebrow">Random topic · {recall.subject}</p>
+          <p className="text-lg font-semibold text-textMain">Recall every formula for: {recall.topic}</p>
+          <p className="text-sm text-muted2">Say or write each one before you look: {recall.cards.length} card{recall.cards.length === 1 ? '' : 's'} in this topic.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => { const r = recall; setRecall(null); startStudying(r.cards, 'browse'); }}>Check with the cards</Button>
+            <Button size="sm" variant="secondary" onClick={drawTopic}>Another topic</Button>
+            <Button size="sm" variant="ghost" onClick={() => setRecall(null)}>Done</Button>
+          </div>
         </Card>
       )}
       {!studying && dueCards.length === 0 && reviews.items.length > 0 && nextDue && (

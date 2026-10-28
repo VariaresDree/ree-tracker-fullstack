@@ -60,14 +60,16 @@ const CARD_RATING_QUALITY = { again: 1, hard: 3, good: 4, easy: 5 };
 
 /**
  * A formula card's schedule after one rating at `at`:
- * { easeFactor, interval, repetitions, nextReviewDate, lastReviewed }.
+ * { easeFactor, interval, repetitions, nextReviewDate, lastReviewed, lastRating }.
+ * `lastRating` is the rating itself, kept so the cards last rated Again or
+ * Hard can be listed (Library › Formula cards › Print weak formulas).
  */
 function rateCard(card, rating, at = new Date()) {
     const quality = CARD_RATING_QUALITY[rating];
     if (quality == null) throw new Error(`Unknown rating: ${rating}`);
     const when = at instanceof Date ? at : new Date(at);
     const next = scheduleNext(card || NEW_CARD, quality);
-    return { ...next, nextReviewDate: manilaDueInstant(when, next.interval), lastReviewed: when };
+    return { ...next, nextReviewDate: manilaDueInstant(when, next.interval), lastReviewed: when, lastRating: rating };
 }
 
 module.exports = {

@@ -19,7 +19,7 @@ const { manilaDateOf, manilaMidnight } = require('../utils/manilaDate');
 // the future or from more than a week back (a wrong device clock).
 const MAX_BACKDATE_MS = 7 * 24 * 60 * 60 * 1000;
 const REVIEW_SELECT = {
-    cardId: true, easeFactor: true, interval: true, repetitions: true, nextReviewDate: true, lastReviewed: true,
+    cardId: true, easeFactor: true, interval: true, repetitions: true, nextReviewDate: true, lastReviewed: true, lastRating: true,
 };
 // Only cards still in the library count.
 const LIVE = { card: { status: 'LIVE' } };
