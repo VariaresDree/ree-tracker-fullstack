@@ -15,7 +15,7 @@ import { PRC_EXAM_FORMAT, toDisplaySubject } from '@ree/shared';
 import { Button, KBD, Modal, SegmentedControl, cn } from '../../components/ui';
 import { Maximize2, Minimize2, Pause, Play, RotateCcw, Settings2, SkipForward, X } from '../../components/ui/icons';
 import useMediaQuery from '../../hooks/useMediaQuery';
-import { EXAM_SECTIONS, MODE_LABEL, isInProgress } from '../../utils/pomodoroLogic';
+import { EXAM_SECTIONS, MODE_LABEL, inShadingTime, isInProgress } from '../../utils/pomodoroLogic';
 import { formatClock, formatTimeOfDay } from '../../utils/time';
 import ProgressRing from './ProgressRing';
 import FocusSettings from './FocusSettings';
@@ -201,6 +201,9 @@ export default function FocusView({ pomodoro: p, remaining, duration, progress, 
             {formatClock(remaining, { pad: true })}
           </div>
           <p className="mt-3 text-sm text-muted2 tabular-nums">{subLine(p)}</p>
+          {inShadingTime(p) && (
+            <p className="mt-2 text-sm font-semibold text-[var(--color-reeAmber-text)]">Shading time: transfer your answers</p>
+          )}
         </ProgressRing>
 
         <div className="flex items-center justify-center gap-4">

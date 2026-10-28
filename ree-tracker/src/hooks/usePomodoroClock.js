@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { auth } from '../config/firebaseDb';
 import { useStore } from '../store/useStore';
-import { completionMessage, modeDurationSecs, progressOf, remainingSecs } from '../utils/pomodoroLogic';
+import { completionMessage, modeDurationSecs, progressOf, remainingSecs, shadeDue, shadeMessage } from '../utils/pomodoroLogic';
 import { playChime } from '../utils/chime';
 import { writeOrQueue } from '../services/writeOrQueue';
 
@@ -100,6 +100,20 @@ export function usePomodoroClock({ owner = false } = {}) {
         if (notificationsEnabled) notifySessionOver(message, { url: '/focus' });
         if (before.sound) playChime(before.mode === 'exam' ? 'exam' : 'end');
     }, [owner, pomodoro.isRunning, remaining, completePomodoro, notificationsEnabled]);
+
+    // The shading reminder (paper exam): once a section reaches its last N
+    // minutes, say so once, with the notification and a chime. The mark is
+    // on the persisted timer, so a reload or another owner can't say it twice.
+    useEffect(() => {
+        if (!owner || !pomodoro.isRunning || !shadeDue(pomodoro)) return;
+        const before = useStore.getState().pomodoro;
+        useStore.getState().markShadeReminded();
+        if (useStore.getState().pomodoro === before) return;
+        const message = shadeMessage(before);
+        toast(message);
+        if (notificationsEnabled) notifySessionOver(message, { url: '/focus' });
+        if (before.sound) playChime('shade');
+    }, [owner, pomodoro, remaining, notificationsEnabled]);
 
     // Logged focus blocks go out once: taken off the timer's list, then sent
     // or put in the offline queue (which replays them; the server keeps one

@@ -10,7 +10,7 @@ import { FOCUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { Button, FormField, Input, Modal, Select } from '../../components/ui';
 import { Settings2, Volume2 } from '../../components/ui/icons';
 import {
-  MAX_LONG_EVERY, MAX_MINUTES, MIN_LONG_EVERY, MIN_MINUTES, clampLongEvery, clampMinutes,
+  MAX_LONG_EVERY, MAX_MINUTES, MIN_LONG_EVERY, MIN_MINUTES, SHADE_REMINDER_OPTIONS, clampLongEvery, clampMinutes,
 } from '../../utils/pomodoroLogic';
 import { playChime, primeChime } from '../../utils/chime';
 
@@ -34,6 +34,7 @@ const draftOf = (p) => ({
   autoStartFocus: !!p.autoStartFocus,
   sound: p.sound !== false,
   subject: p.subject || 'General',
+  shadeReminder: String(p.shadeReminder ?? 30),
 });
 
 function Toggle({ id, label, hint, checked, onChange }) {
@@ -69,6 +70,7 @@ function SettingsForm({ pomodoro, onSave, onClose }) {
       autoStartFocus: draft.autoStartFocus,
       sound: draft.sound,
       subject: draft.subject,
+      shadeReminder: Number(draft.shadeReminder),
     };
     const changed = Object.fromEntries(Object.entries(next).filter(([k, v]) => v !== pomodoro[k]));
     onClose();
@@ -122,6 +124,12 @@ function SettingsForm({ pomodoro, onSave, onClose }) {
             </Button>
           </div>
         </div>
+
+        <FormField label="Shading reminder" hint="In a paper exam, a reminder to transfer your answers to the sheet before the section ends.">
+          <Select value={draft.shadeReminder} onChange={(e) => set('shadeReminder')(e.target.value)}>
+            {SHADE_REMINDER_OPTIONS.map((m) => <option key={m} value={String(m)}>{m === 0 ? 'Off' : `${m} minutes before the end`}</option>)}
+          </Select>
+        </FormField>
 
         <FormField label="Focus on" hint="What your focus blocks count toward in Progress › Habits.">
           <Select value={draft.subject} onChange={(e) => set('subject')(e.target.value)}>

@@ -35,6 +35,7 @@ const CACHE_NAME = 'api-user-data';
 const MUST_MATCH = [
     '/api/analytics/dashboard/3H85pFRd7XWFkabcdefghij',
     '/api/analytics/deep/time-analysis',
+    '/api/analytics/deep/time-of-day',
     '/api/readiness',
     '/api/readiness/history',
     '/api/forecast',
