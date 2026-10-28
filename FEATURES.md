@@ -92,7 +92,11 @@ every feature add, change, or removal, not on a schedule.
     - **Overview** leads with one hero, **Your review so far**: the four figures and the AI board report button together. They were a floating intro line and button above four separate tiles.
       - Questions answered says "N this week · N last week". That is the last seven Manila days, today included, against the seven before, from the study calendar (`features/progress/weeklyAnswers.js`).
       - The forecast card keeps its width beside the chart.
-    - **Topics:** the mastery map has a set height to scroll in (460px, or less of a short screen, at least 380px). It took the window's `lg:` to get one, so below 1024px the list grew to full length. A subject with no topics says so instead of an empty box.
+    - **Topics:** "Mastery by subtopic" is a list of compact rows that grows with the page (`components/HeatmapChart.jsx`).
+      - Each row is about 48px, a touch target, and holds the name, its band (Mastered, Proficient, Developing, Novice, or "No data yet") and the figure. Tapping it still starts a drill.
+      - The first 12 rows show, then **Show all N topics** / **Show fewer**. Each subject remembers whether its list is open.
+      - It was 72px tiles in a box that scrolled on its own, with room for four or five topics on a phone.
+      - A subject with no topics says so instead of an empty box.
     - **Confidence:** before any rated answer, the matrix explains how it fills instead of showing four zeros. Its cells are inset wells; the blurred blobs and hover lift are gone.
     - **Weak spots** leads with a hero, **Fix what's costing you points**, with the weak-spot drill (primary) and the blind-spot drill. They were a row of small buttons.
     - **Habits:** the study calendar is a Card (it was a solid hand-made frame). Its header goes side by side by the card's width, not the window's, and the month arrows are icon buttons instead of `<` and `>` text.
