@@ -21,14 +21,14 @@ import { planTopics } from './planTopics';
 import { useDeepAnalytics } from '../analytics/useDeepAnalytics';
 import { focusGapLine } from '../analytics/sections/focusGap';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
-import { Badge, Button, Card, CardTitle, Modal } from '../../components/ui';
+import { Badge, Button, Card, CardTitle, Modal, cn } from '../../components/ui';
 import { CalendarDays, Check, TriangleAlert } from '../../components/ui/icons';
 
 const PLAN_DAYS = 42;
 // One empty syllabus for every render (a fresh `{}` re-ran the topic memo).
 const NO_TOS = {};
 
-export default function StudyPlanGenerator({ onPlanGenerated }) {
+export default function StudyPlanGenerator({ onPlanGenerated, className }) {
   const { dynamicTOS, stats } = useStore(
     useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats })),
   );
@@ -91,7 +91,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
   const daysTone = daysUntilExam === null ? null : daysUntilExam <= 30 ? 'danger' : daysUntilExam <= 90 ? 'amber' : 'success';
 
   return (
-    <Card padding="md" className="flex flex-col gap-4">
+    <Card padding="md" className={cn('flex flex-col gap-4', className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <CardTitle size="lg">Study plan</CardTitle>
@@ -163,6 +163,7 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
 
       <Button
         fullWidth
+        className="mt-auto"
         size="lg"
         onClick={handleGenerate}
         loading={isGenerating}

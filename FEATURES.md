@@ -111,7 +111,9 @@ every feature add, change, or removal, not on a schedule.
     - **Study plan:**
       - **Setup card:** a two-line description, and one line, "Plans the next N days across M topics", in place of three figure tiles. The "Days left" tile repeated the badge beside the exam date.
       - **Grouped task list:** sections read Overdue, Today, Next 7 days and No due date. Later and Done fold behind "Show N later tasks" and "Show N done tasks" (`groupTasks` in `features/profile/plannerTasks.js`). A six-week plan used to put 40-odd rows in one list that ran far past the calendar.
-      - **Calendar:** stays in view (sticky) beside the list on a wide page. Under it are a legend for the open-task dots and the Overdue, Today and Next 7 days counts.
+      - **Layout:** on a wide page the calendar sits beside the plan setup card, the two the same height, and **Your tasks** runs the full width below them. The calendar used to sit beside the list, which a six-week plan stretched far past it. On a phone they stack: plan, calendar, tasks.
+      - **Calendar:** a legend for the open-task dots, with the Overdue, Today and Next 7 days counts at its foot.
+      - **"N/50 today" only on today's task.** A drill due on a later day used to read "0/50 today" all week.
       - **Calendar day:** picking a day still shows only that day's tasks.
       - **Task rows:** each row lays out by the list's own width. On a phone, Start sits under the task's name and the name wraps whole; it used to be squeezed to two clipped lines.
   - **The order** goes from where you stand (Overview, Topics, how much of the syllabus is covered) to why (Confidence, Weak spots, Habits) to what next (Study plan). Syllabus used to sit sixth. The `?tab=` ids are unchanged, so every link to a tab still works.

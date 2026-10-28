@@ -9,10 +9,10 @@
 // labels, and the list grows with its content instead of a fixed 600px box.
 //
 // The list is grouped the way it's read: Overdue, Today, Next 7 days and No
-// due date, with Later and Done folded behind a "Show" button. A six-week plan
-// put 40-odd rows in one list that ran far past the calendar beside it; the
-// calendar now also stays in view beside the list (sticky), with the counts
-// under it.
+// due date, with Later and Done folded behind a "Show" button. On a wide page
+// the calendar sits beside the plan, the two one height, and the list runs
+// the full width below them; it sat beside the list, which a six-week plan
+// stretched far past it.
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -57,7 +57,7 @@ function MonthCalendar({ month, onMonth, tasks, selectedDay, onSelectDay, counts
   }
 
   return (
-    <Card padding="sm" className="flex flex-col gap-3">
+    <Card padding="sm" className="h-full flex flex-col gap-3">
       <div className="flex justify-between items-center">
         <Button size="icon" variant="ghost" aria-label="Previous month" onClick={() => onMonth(new Date(year, m - 1, 1))}>
           <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -108,7 +108,8 @@ function MonthCalendar({ month, onMonth, tasks, selectedDay, onSelectDay, counts
         <span aria-hidden="true" className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-reeAmber)' }} />
         A day with open tasks. Pick a day to see only its tasks.
       </p>
-      <dl className="grid grid-cols-3 gap-2 border-t border-border pt-3 text-center" aria-label="Open tasks">
+      {/* At the card's foot, level with the plan's Generate button beside it. */}
+      <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-border pt-3 text-center" aria-label="Open tasks">
         {[['Overdue', counts.overdue], ['Today', counts.today], ['Next 7 days', counts.week]].map(([label, n]) => (
           <div key={label}>
             <dt className="text-micro text-muted2">{label}</dt>
@@ -152,7 +153,9 @@ function TaskRow({ task, today, onToggle, onDelete, onStart }) {
           <span className={`text-sm font-medium [overflow-wrap:anywhere] ${done ? 'line-through text-muted' : 'text-textMain'}`}>{task.text}</span>
           <span className="flex items-center gap-x-2 flex-wrap text-micro text-muted2">
             {label && <span>{label}</span>}
-            {task.progress && !done && <span className="tabular-nums">{task.progress.count}/{task.progress.target} today</span>}
+            {/* The day's count belongs to today's task only: a drill due
+                Thursday read "0/50 today" all week. */}
+            {task.progress && !done && dueToday && <span className="tabular-nums">{task.progress.count}/{task.progress.target} today</span>}
             {task.progress?.done && !task.completed && <span style={{ color: 'var(--accent-success)' }}>Done from your answers</span>}
             {!dueToday && task.dueDate && <span className="tabular-nums">{dayLabel(task.dueDate)}</span>}
           </span>
@@ -312,51 +315,51 @@ export default function StrategicPlannerTab({ currentUser }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <StudyPlanGenerator onPlanGenerated={reload} />
+      {/* The setup row: the plan and the calendar side by side, one height,
+          on a wide page; stacked on a phone. The task list runs the full
+          width below, so a long list no longer leaves a short calendar
+          stranded beside it. */}
+      <Grid kind="split" data-plan-setup>
+        <StudyPlanGenerator onPlanGenerated={reload} className="@4xl:col-span-2" />
+        <MonthCalendar
+          month={month}
+          onMonth={setMonth}
+          tasks={tasks}
+          selectedDay={selectedDay}
+          onSelectDay={setSelectedDay}
+          counts={{ overdue: groups.overdue.length, today: groups.today.length, week: groups.week.length }}
+        />
+      </Grid>
 
-      <Grid kind="split" className="items-start">
-        {/* Beside the list it stays in view as the list scrolls. */}
-        <div className="@4xl:sticky @4xl:top-[var(--sticky-top,0.75rem)]">
-          <MonthCalendar
-            month={month}
-            onMonth={setMonth}
-            tasks={tasks}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-            counts={{ overdue: groups.overdue.length, today: groups.today.length, week: groups.week.length }}
-          />
+      <Card padding="md" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle size="lg">Your tasks</CardTitle>
+            <p className="text-sm text-muted2 mt-1">Your plan's tasks and your own. Start one, or tick it off when it's done.</p>
+          </div>
+          {selectedDay && (
+            <Button size="sm" variant="secondary" onClick={() => setSelectedDay(null)}>
+              {dayLabel(selectedDay)} <X size={14} strokeWidth={1.75} aria-hidden="true" />
+              <span className="sr-only">— show every task</span>
+            </Button>
+          )}
         </div>
 
-        <Card padding="md" className="@4xl:col-span-2 flex flex-col gap-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle size="lg">Your tasks</CardTitle>
-              <p className="text-sm text-muted2 mt-1">Your plan's tasks and your own. Start one, or tick it off when it's done.</p>
-            </div>
-            {selectedDay && (
-              <Button size="sm" variant="secondary" onClick={() => setSelectedDay(null)}>
-                {dayLabel(selectedDay)} <X size={14} strokeWidth={1.75} aria-hidden="true" />
-                <span className="sr-only">— show every task</span>
-              </Button>
-            )}
-          </div>
+        <form onSubmit={handleAddTask} className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <FormField label="New task" className="flex-1">
+            <Input type="text" value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="e.g. Redo the transformer problems" maxLength={200} />
+          </FormField>
+          <FormField label="Due (optional)">
+            <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
+          </FormField>
+          <Button type="submit" disabled={!newTask.trim()} loading={adding}>
+            <Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Add
+          </Button>
+        </form>
 
-          <form onSubmit={handleAddTask} className="flex flex-col sm:flex-row sm:items-end gap-3">
-            <FormField label="New task" className="flex-1">
-              <Input type="text" value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="e.g. Redo the transformer problems" maxLength={200} />
-            </FormField>
-            <FormField label="Due (optional)">
-              <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} />
-            </FormField>
-            <Button type="submit" disabled={!newTask.trim()} loading={adding}>
-              <Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Add
-            </Button>
-          </form>
-
-          {/* The rows lay out by the list's own width. */}
-          <div className="@container">{list}</div>
-        </Card>
-      </Grid>
+        {/* The rows lay out by the list's own width. */}
+        <div className="@container">{list}</div>
+      </Card>
     </div>
   );
 }
