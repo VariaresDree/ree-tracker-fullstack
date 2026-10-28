@@ -27,6 +27,8 @@ const LABELS = [
   ['/api/user/focus-blocks', (m) => (m === 'DELETE' ? 'Deleting a focus block' : 'A focus block')],
   ['/api/user/syllabus', () => 'A syllabus check-off'],
   ['/api/user/outside-scores', (m) => (m === 'DELETE' ? 'Deleting an outside score' : 'An outside score')],
+  ['/api/user/key-dates', (m) => (m === 'DELETE' ? 'Deleting a key date' : 'A key date')],
+  ['/api/user/plan-prefs', () => 'Your rest days'],
   ['/api/user/printed-sets', printedSetLabel],
   ['/api/user/reminders', () => 'Your reminder time'],
   ['/api/user/settings', () => 'Your exam date and daily target'],

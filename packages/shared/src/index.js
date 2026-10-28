@@ -43,4 +43,5 @@ module.exports = {
     ...require('./optionOrder'),
     ...require('./paperSets'),
     ...require('./boardRating'),
+    ...require('./keyDates'),
 };

@@ -690,3 +690,35 @@ describe('shared contract — the outside-score assessment log', () => {
         ]);
     });
 });
+
+describe('shared contract — key dates and rest days', () => {
+    const pb = { kind: 'preboard', title: 'RC Preboard 2', startsOn: '2026-11-07' };
+
+    it('checks a key date the same way on both sides', () => {
+        expect(shared.keyDateErrors(pb)).toEqual({});
+        expect(shared.keyDateErrors({ ...pb, kind: 'coaching', endsOn: '2026-11-09', subject: 'ALL', topicIds: ['t1'] })).toEqual({});
+        expect(Object.keys(shared.keyDateErrors({ ...pb, kind: 'party' }))).toEqual(['kind']);
+        expect(Object.keys(shared.keyDateErrors({ ...pb, endsOn: '2026-11-06' }))).toEqual(['endsOn']);
+        expect(Object.keys(shared.keyDateErrors({ ...pb, endsOn: '2026-12-08' }))).toEqual(['endsOn']); // over 31 days
+        expect(shared.KEY_DATE_KINDS).toEqual(['preboard', 'coaching', 'deadline', 'rest', 'personal']);
+    });
+
+    it('checks the plan preferences: distinct weekdays 0-6, at least one study day', () => {
+        expect(shared.planPrefsErrors({ restWeekdays: [0, 6], reviewMode: 'self' })).toEqual({});
+        expect(Object.keys(shared.planPrefsErrors({ restWeekdays: [0, 0], reviewMode: 'self' }))).toEqual(['restWeekdays']);
+        expect(Object.keys(shared.planPrefsErrors({ restWeekdays: [0, 1, 2, 3, 4, 5, 6], reviewMode: 'center' }))).toEqual(['restWeekdays']);
+        expect(Object.keys(shared.planPrefsErrors({ restWeekdays: [], reviewMode: 'x' }))).toEqual(['reviewMode']);
+    });
+
+    it('expands spans day by day, reads the weekday from the date, and finds the next date', () => {
+        const map = shared.keyDayMap([{ kind: 'coaching', startsOn: '2026-10-30', endsOn: '2026-11-02' }, { kind: 'rest', startsOn: '2026-11-05' }], '2026-10-31', '2026-11-30');
+        expect([...map.keys()]).toEqual(['2026-10-31', '2026-11-01', '2026-11-02', '2026-11-05']);
+        expect(shared.weekdayOf('2026-11-01')).toBe(0); // a Sunday
+        expect(shared.isRestDay('2026-11-01', [0], map)).toBe(true);
+        expect(shared.isRestDay('2026-11-05', [], map)).toBe(true);
+        expect(shared.isRestDay('2026-11-03', [0], map)).toBe(false);
+        expect(shared.nextKeyDate([pb, { kind: 'rest', startsOn: '2026-10-29' }], '2026-10-28')).toEqual({ entry: pb, inDays: 10 });
+        expect(shared.nextKeyDate([{ ...pb, startsOn: '2026-10-25', endsOn: '2026-10-30' }], '2026-10-28').inDays).toBe(0);
+        expect(shared.nextKeyDate([{ ...pb, startsOn: '2026-10-01' }], '2026-10-28')).toBeNull();
+    });
+});

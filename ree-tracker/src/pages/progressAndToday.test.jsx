@@ -28,6 +28,8 @@ vi.mock('../features/progress/ConfidenceTab', () => ({ default: () => <p>confide
 vi.mock('../features/progress/HabitsTab', () => ({ default: () => <p>habits</p> }));
 vi.mock('../features/profile/StrategicPlannerTab', () => ({ default: ({ currentUser }) => <p>planner uid={currentUser.uid}</p> }));
 vi.mock('../features/syllabus/SyllabusTab', () => ({ default: ({ examDate }) => <p>syllabus exam={String(examDate)}</p> }));
+const calendarState = { items: [], prefs: { restWeekdays: [], reviewMode: 'self' } };
+vi.mock('../features/study-plan/usePlanCalendar', () => ({ usePlanCalendar: () => calendarState }));
 vi.mock('../features/syllabus/SyllabusCoverageLink', () => ({ default: () => <a href="/progress?tab=syllabus">Syllabus 42% covered</a> }));
 
 const { default: Today } = await import('./Today');

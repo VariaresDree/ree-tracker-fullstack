@@ -13,27 +13,31 @@
 // the calendar sits beside the plan, the two one height, and the list runs
 // the full width below them; it sat beside the list, which a six-week plan
 // stretched far past it.
+//
+// Key dates and rest days (CELE round, 2026-10) sit between the two: the
+// calendar marks them, a picked day lists its key dates, and a change offers
+// to re-plan, since the plan already made doesn't follow on its own.
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { apiRequest } from '../../services/dbQueries';
 import { Button, Card, CardTitle, EmptyState, FormField, Grid, Input, Skeleton } from '../../components/ui';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ListChecks, Plus, TriangleAlert, X } from '../../components/ui/icons';
+import { Check, ChevronDown, ListChecks, Plus, TriangleAlert, X } from '../../components/ui/icons';
 import { groupTasks, isTaskDone, kindLabel, taskLaunch } from './plannerTasks';
 import { launchPractice } from '../active-recall/presets';
 import StudyPlanGenerator from '../study-plan/StudyPlanGenerator';
+import PlanCalendar from '../study-plan/PlanCalendar';
+import KeyDatesCard from '../study-plan/KeyDatesCard';
+import { usePlanCalendar } from '../study-plan/usePlanCalendar';
+import { KIND_LABEL, dayLabel } from '../study-plan/keyDateLabels';
 import { todayManila } from '../../utils/manilaDate';
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 // Row tints for overdue and due-today tasks (fills and borders only; the
 // section heading says which).
 const ROW_FILL = {
   overdue: { borderColor: 'color-mix(in srgb, var(--accent-danger) 45%, transparent)', background: 'color-mix(in srgb, var(--accent-danger) 5%, var(--bg-surface))' },
   today: { borderColor: 'color-mix(in srgb, var(--color-reeAmber) 45%, transparent)', background: 'color-mix(in srgb, var(--color-reeAmber) 5%, var(--bg-surface))' },
 };
-const isoDay = (year, month, day) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-const dayLabel = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-
 // The list's sections, in reading order. `folded` ones open on "Show".
 const SECTIONS = [
   { key: 'overdue', title: 'Overdue' },
@@ -43,83 +47,6 @@ const SECTIONS = [
   { key: 'later', title: 'Later', folded: true },
   { key: 'done', title: 'Done', folded: true },
 ];
-
-function MonthCalendar({ month, onMonth, tasks, selectedDay, onSelectDay, counts }) {
-  const year = month.getFullYear();
-  const m = month.getMonth();
-  const daysInMonth = new Date(year, m + 1, 0).getDate();
-  const firstDay = new Date(year, m, 1).getDay();
-  // Manila "today", like every daily boundary in the app.
-  const today = todayManila();
-  const openByDay = new Map();
-  for (const t of tasks) {
-    if (t.dueDate && !isTaskDone(t)) openByDay.set(t.dueDate, (openByDay.get(t.dueDate) || 0) + 1);
-  }
-
-  return (
-    <Card padding="sm" className="h-full flex flex-col gap-3">
-      <div className="flex justify-between items-center">
-        <Button size="icon" variant="ghost" aria-label="Previous month" onClick={() => onMonth(new Date(year, m - 1, 1))}>
-          <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
-        </Button>
-        <h3 className="text-h3 text-textMain" aria-live="polite">
-          {month.toLocaleString(undefined, { month: 'long', year: 'numeric' })}
-        </h3>
-        <Button size="icon" variant="ghost" aria-label="Next month" onClick={() => onMonth(new Date(year, m + 1, 1))}>
-          <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" />
-        </Button>
-      </div>
-      <div>
-        <div className="grid grid-cols-7 gap-1 text-center text-micro font-semibold text-muted mb-1" aria-hidden="true">
-          {WEEKDAYS.map((d) => <div key={d}>{d}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-1 text-center">
-          {Array.from({ length: firstDay }, (_, i) => <div key={`blank-${i}`} />)}
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
-            const iso = isoDay(year, m, d);
-            const open = openByDay.get(iso) || 0;
-            const isToday = iso === today;
-            const selected = iso === selectedDay;
-            return (
-              <button
-                key={d}
-                type="button"
-                onClick={() => onSelectDay(selected ? null : iso)}
-                aria-pressed={selected}
-                aria-label={`${dayLabel(iso)}${isToday ? ', today' : ''}${open ? `, ${open} open ${open === 1 ? 'task' : 'tasks'}` : ''}`}
-                className={`relative h-9 pointer-coarse:h-11 rounded-[var(--radius-sm)] text-xs tabular-nums cursor-pointer transition-colors ${
-                  selected ? 'font-semibold text-[var(--on-accent)]' : isToday ? 'font-semibold text-textMain' : 'text-textMain hover:bg-surface2'
-                }`}
-                // Selected: the accent button's fill (white on the raw accent read 4.35:1).
-                style={selected
-                  ? { background: 'color-mix(in srgb, var(--accent) 88%, black)' }
-                  : isToday ? { boxShadow: 'inset 0 0 0 1.5px var(--accent)' } : undefined}
-              >
-                {d}
-                {open > 0 && (
-                  <span aria-hidden="true" className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: selected ? 'currentColor' : 'var(--color-reeAmber)' }} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <p className="flex items-center gap-2 text-micro text-muted2">
-        <span aria-hidden="true" className="shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-reeAmber)' }} />
-        A day with open tasks. Pick a day to see only its tasks.
-      </p>
-      {/* At the card's foot, level with the plan's Generate button beside it. */}
-      <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-border pt-3 text-center" aria-label="Open tasks">
-        {[['Overdue', counts.overdue], ['Today', counts.today], ['Next 7 days', counts.week]].map(([label, n]) => (
-          <div key={label}>
-            <dt className="text-micro text-muted2">{label}</dt>
-            <dd className={`text-lg font-semibold tabular-nums ${label === 'Overdue' && n > 0 ? 'text-reeRed-text' : 'text-textMain'}`}>{n}</dd>
-          </div>
-        ))}
-      </dl>
-    </Card>
-  );
-}
 
 function TaskRow({ task, today, onToggle, onDelete, onStart }) {
   const done = isTaskDone(task);
@@ -189,6 +116,9 @@ export default function StrategicPlannerTab({ currentUser }) {
   const [selectedDay, setSelectedDay] = useState(null);
   // Folded sections the learner opened ('later', 'done').
   const [opened, setOpened] = useState(() => new Set());
+  const calendar = usePlanCalendar();
+  // Key dates or rest days changed since the plan was made (this visit).
+  const [calendarChanged, setCalendarChanged] = useState(false);
 
   const launch = (task) => {
     const target = taskLaunch(task);
@@ -210,6 +140,7 @@ export default function StrategicPlannerTab({ currentUser }) {
   }, [currentUser, attempt]);
 
   const reload = () => setAttempt((n) => n + 1);
+  const planGenerated = () => { setCalendarChanged(false); reload(); };
   const retry = () => { setIsLoading(true); reload(); };
 
   const handleAddTask = async (e) => {
@@ -281,10 +212,22 @@ export default function StrategicPlannerTab({ currentUser }) {
   } else if (selectedDay) {
     // One day picked on the calendar: its tasks, open first.
     const dayTasks = tasks.filter((t) => t.dueDate === selectedDay).sort((a, b) => isTaskDone(a) - isTaskDone(b));
-    list = dayTasks.length === 0 ? (
-      <EmptyState compact icon={ListChecks} title={`Nothing due ${dayLabel(selectedDay)}`} action={<Button variant="secondary" onClick={() => setSelectedDay(null)}>Show every task</Button>} />
-    ) : (
-      <ul className="flex flex-col gap-2">{dayTasks.map(row)}</ul>
+    const dayDates = (calendar.items || []).filter((e) => e.startsOn <= selectedDay && (e.endsOn || e.startsOn) >= selectedDay);
+    list = (
+      <div className="flex flex-col gap-3">
+        {dayDates.length > 0 && (
+          <ul className="flex flex-col gap-1" aria-label={`Key dates on ${dayLabel(selectedDay)}`}>
+            {dayDates.map((e) => (
+              <li key={e.id} className="text-sm text-textMain"><span className="text-eyebrow mr-2">{KIND_LABEL[e.kind]}</span>{e.title}</li>
+            ))}
+          </ul>
+        )}
+        {dayTasks.length === 0 ? (
+          <EmptyState compact icon={ListChecks} title={`Nothing due ${dayLabel(selectedDay)}`} action={<Button variant="secondary" onClick={() => setSelectedDay(null)}>Show every task</Button>} />
+        ) : (
+          <ul className="flex flex-col gap-2">{dayTasks.map(row)}</ul>
+        )}
+      </div>
     );
   } else if (tasks.length === 0) {
     list = <EmptyState compact icon={ListChecks} title="No tasks yet" description="Generate a plan above, or add your own." />;
@@ -320,16 +263,20 @@ export default function StrategicPlannerTab({ currentUser }) {
           width below, so a long list no longer leaves a short calendar
           stranded beside it. */}
       <Grid kind="split" data-plan-setup>
-        <StudyPlanGenerator onPlanGenerated={reload} className="@4xl:col-span-2" />
-        <MonthCalendar
+        <StudyPlanGenerator onPlanGenerated={planGenerated} calendarChanged={calendarChanged} className="@4xl:col-span-2" />
+        <PlanCalendar
           month={month}
           onMonth={setMonth}
           tasks={tasks}
+          keyDates={calendar.items}
+          restWeekdays={calendar.prefs.restWeekdays}
           selectedDay={selectedDay}
           onSelectDay={setSelectedDay}
           counts={{ overdue: groups.overdue.length, today: groups.today.length, week: groups.week.length }}
         />
       </Grid>
+
+      <KeyDatesCard calendar={calendar} onChanged={() => setCalendarChanged(true)} />
 
       <Card padding="md" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">

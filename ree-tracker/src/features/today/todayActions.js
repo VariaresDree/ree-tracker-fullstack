@@ -76,6 +76,10 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
  *   the same rule on the forecast's projections (forecastPlan), or the
  *   placement's while the forecast is still an early estimate
  * @param {number} [input.answered]  questions answered so far
+ * @param {{ rest?: boolean, preboard?: object|null }} [input.calendar]
+ *   today on the learner's own calendar (Study plan › Key dates): a rest day,
+ *   or a preboard. A preboard leads with logging its score; a rest day leads
+ *   with saying so, its one button a secondary "Practise anyway".
  *
  * Order: today's loop (due reviews and open mistakes in one session; it
  * replaces the due-review action), due reviews (questions, then formula cards), today's plan task, the forecast's top fix, today's
@@ -93,7 +97,7 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
  * on its own, gets an adaptive set on that subject right after the loop.
  * Nothing is added while every subject clears the floor.
  */
-export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays, start = null, floor = null, answered = Infinity } = {}) {
+export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays, start = null, floor = null, answered = Infinity, calendar = null } = {}) {
   const actions = [];
 
   const inLoop = loop?.items?.length || 0;
@@ -195,7 +199,32 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
 
   if (answered < NEW_LEARNER_MAX) followPlacement(actions, start);
   else liftFloor(actions, floor);
+  onTheCalendar(actions, calendar);
   return actions.slice(0, MAX_ACTIONS);
+}
+
+// Today on the learner's own calendar goes first: a preboard's score to log,
+// or a rest day (said plainly, practice still one tap away).
+function onTheCalendar(actions, calendar) {
+  if (calendar?.preboard) {
+    const pb = calendar.preboard;
+    actions.unshift({
+      key: 'preboard',
+      title: `Log your ${pb.title} score`,
+      detail: 'Once you’ve sat it, log it beside your mock boards, with the time you took and the topics to work on next.',
+      cta: 'Log score',
+      to: `/exams?tab=history&log=${encodeURIComponent(pb.id)}`,
+    });
+  } else if (calendar?.rest) {
+    actions.unshift({
+      key: 'rest',
+      title: 'Rest day',
+      detail: 'Nothing is planned today. Rest is part of the plan, so come back fresh tomorrow.',
+      cta: 'Practise anyway',
+      preset: quickReviewPreset(20),
+      secondary: true,
+    });
+  }
 }
 
 function liftFloor(actions, floor) {

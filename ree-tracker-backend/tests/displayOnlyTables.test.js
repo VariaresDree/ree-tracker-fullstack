@@ -26,6 +26,8 @@ const DISPLAY_ONLY = {
     focusBlock: ['services/focusTime.js'],
     // Printed paper sets and their scanned sheets: scores on the learner's
     // own printouts, marked from photos, never θ, readiness or the rankings.
+    // Key dates and rest days shape the study plan's days, and nothing else.
+    keyDate: ['routes/keyDateRoutes.js', 'services/planCalendar.js'],
     printedSet: ['routes/printedSetRoutes.js'],
     scannedSheet: ['routes/printedSetRoutes.js'],
 };
@@ -61,13 +63,15 @@ describe('display-only tables', () => {
     // Self-reported signals may raise a topic in the study plan, and nowhere
     // else: only the planner route may require the service that reads them,
     // and the plan engine never reaches the database itself.
-    it('selfReportSignals is required only by the planner route', () => {
-        const re = /require\(['"][^'"]*\/selfReportSignals['"]\)/;
-        const users = sourceFiles(SRC)
-            .filter((file) => re.test(readFileSync(file, 'utf8')))
-            .map((file) => relative(SRC, file).replace(/\\/g, '/'));
-        expect(users).toEqual(['routes/plannerRoutes.js']);
-    });
+    for (const name of ['selfReportSignals', 'planCalendar']) {
+        it(`${name} is required only by the planner route`, () => {
+            const re = new RegExp(`require\\(['"][^'"]*/${name}['"]\\)`);
+            const users = sourceFiles(SRC)
+                .filter((file) => re.test(readFileSync(file, 'utf8')))
+                .map((file) => relative(SRC, file).replace(/\\/g, '/'));
+            expect(users).toEqual(['routes/plannerRoutes.js']);
+        });
+    }
 
     it('engine/plan.js stays pure', () => {
         expect(readFileSync(join(SRC, 'engine/plan.js'), 'utf8')).not.toMatch(/config\/db|@prisma/);

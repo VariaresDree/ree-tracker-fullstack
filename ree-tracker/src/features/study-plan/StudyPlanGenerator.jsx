@@ -28,7 +28,9 @@ const PLAN_DAYS = 42;
 // One empty syllabus for every render (a fresh `{}` re-ran the topic memo).
 const NO_TOS = {};
 
-export default function StudyPlanGenerator({ onPlanGenerated, className }) {
+// `calendarChanged`: key dates or rest days changed since the plan was made,
+// so the plan offers to re-plan (a plan doesn't follow them on its own).
+export default function StudyPlanGenerator({ onPlanGenerated, calendarChanged = false, className }) {
   const { dynamicTOS, stats } = useStore(
     useShallow((s) => ({ dynamicTOS: s.dynamicTOS, stats: s.stats })),
   );
@@ -62,7 +64,12 @@ export default function StudyPlanGenerator({ onPlanGenerated, className }) {
     setIsGenerating(true);
     try {
       const result = await generateStudyPlan(examDate, topicsToGenerate);
-      setBuiltFrom({ openMistakes: result.openMistakes || 0, cardsDue: result.cardsDue || 0 });
+      setBuiltFrom({
+        openMistakes: result.openMistakes || 0,
+        cardsDue: result.cardsDue || 0,
+        restDays: result.restDays || 0,
+        keyDates: result.keyDates || 0,
+      });
       toast.success(`Added ${result.tasksCreated} study tasks.`);
       onPlanGenerated?.();
     } catch (error) {
@@ -146,6 +153,14 @@ export default function StudyPlanGenerator({ onPlanGenerated, className }) {
           {builtFrom && (
             <p className="text-textMain">
               Built from your mastery, {builtFrom.openMistakes} open mistake{builtFrom.openMistakes === 1 ? '' : 's'} and {builtFrom.cardsDue} formula card{builtFrom.cardsDue === 1 ? '' : 's'} due in the next two weeks.
+              {(builtFrom.restDays > 0 || builtFrom.keyDates > 0) && (
+                <>
+                  {' '}Planned around {[
+                    builtFrom.restDays > 0 && `${builtFrom.restDays} rest day${builtFrom.restDays === 1 ? '' : 's'}`,
+                    builtFrom.keyDates > 0 && `${builtFrom.keyDates} key date${builtFrom.keyDates === 1 ? '' : 's'}`,
+                  ].filter(Boolean).join(' and ')}.
+                </>
+              )}
             </p>
           )}
           {focusLine && <p className="text-muted2">From your focus time: {focusLine}</p>}
@@ -161,6 +176,12 @@ export default function StudyPlanGenerator({ onPlanGenerated, className }) {
         </p>
       )}
 
+      {calendarChanged && (
+        <p role="status" className="text-sm text-[var(--color-reeAmber-text)]">
+          Your key dates or rest days changed. Re-plan so the plan works around them.
+        </p>
+      )}
+
       <Button
         fullWidth
         className="mt-auto"
@@ -170,7 +191,7 @@ export default function StudyPlanGenerator({ onPlanGenerated, className }) {
         disabled={isGenerating || !examDate || daysUntilExam <= 0 || topicsToGenerate.length === 0}
       >
         {!isGenerating && <CalendarDays size={16} strokeWidth={1.75} aria-hidden="true" />}
-        {isGenerating ? 'Generating…' : 'Generate study plan'}
+        {isGenerating ? 'Generating…' : calendarChanged ? 'Re-plan' : 'Generate study plan'}
       </Button>
 
       <Modal

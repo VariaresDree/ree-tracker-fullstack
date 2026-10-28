@@ -31,7 +31,16 @@ const TOPICS = [
 vi.mock('../syllabus/useSyllabus', () => ({ useSyllabus: () => ({ topics: TOPICS }) }));
 
 const navigateFn = vi.fn();
-vi.mock('react-router-dom', async (orig) => ({ ...(await orig()), useNavigate: () => navigateFn }));
+let searchParams = new URLSearchParams();
+const setSearchParams = vi.fn((update) => { searchParams = update(new URLSearchParams(searchParams)); });
+vi.mock('react-router-dom', async (orig) => ({
+  ...(await orig()),
+  useNavigate: () => navigateFn,
+  useSearchParams: () => [searchParams, setSearchParams],
+}));
+// Today's "Log your preboard score" opens the form from a key date.
+const KEY_DATES = [{ id: 'kd-1', kind: 'preboard', title: 'RC Preboard 4', startsOn: '2026-10-01', subject: 'EE' }];
+vi.mock('../study-plan/usePlanCalendar', () => ({ usePlanCalendar: () => ({ items: KEY_DATES, prefs: { restWeekdays: [] } }) }));
 
 const toastFn = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() });
 vi.mock('react-hot-toast', () => ({ default: toastFn }));
@@ -279,6 +288,19 @@ describe('the assessment log (CELE round)', () => {
     const body = lastBody('PUT');
     expect(body.score).toBe(65);
     for (const key of ['parts', 'minutesUsed', 'guessed', 'skipped', 'improveTopicIds']) expect(body).not.toHaveProperty(key);
+  });
+
+  it('opens the form filled in from a preboard on the calendar (?log=), once', async () => {
+    searchParams = new URLSearchParams('tab=history&log=kd-1');
+    render(<OutsideScoresPanel />);
+    const form = await screen.findByRole('dialog', { name: 'Add an outside score' });
+    expect(within(form).getByLabelText(/^Name/)).toHaveValue('RC Preboard 4');
+    expect(within(form).getByRole('radio', { name: 'EE' })).toBeChecked();
+    fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(searchParams.get('log')).toBeNull();
+    expect(searchParams.get('tab')).toBe('history');
+    searchParams = new URLSearchParams();
   });
 
   it('the rating calculator saves its scores as an all-three entry', async () => {

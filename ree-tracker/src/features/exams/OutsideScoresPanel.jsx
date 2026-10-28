@@ -13,7 +13,7 @@
 // board verdict, or where one subject stands), the time used against the
 // board's pace, the items guessed and skipped, and the topics to improve.
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   VERDICT, flaggedTopics, outsidePace, outsideScorePercent, outsideScoreRemark, outsideScoreSummary, retestDelta, todayManila,
@@ -26,6 +26,7 @@ import RatingCalculator from './RatingCalculator';
 import { subjectLabel } from './outsideScoreLabels';
 import { useSyllabus } from '../syllabus/useSyllabus';
 import { drillPreset, launchPractice } from '../active-recall/presets';
+import { usePlanCalendar } from '../study-plan/usePlanCalendar';
 
 const fmtPct = (n) => (n == null ? '—' : `${Number.isInteger(n) ? n : n.toFixed(1)}%`);
 const fmtPts = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)} pt${Math.abs(n) === 1 ? '' : 's'}`;
@@ -155,6 +156,17 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
   // The syllabus topics name the "to improve" chips and feed the form's picker.
   const { topics } = useSyllabus({ fetchIfOlderThanMs: SYLLABUS_FRESH_MS });
   const navigate = useNavigate();
+  // `?log=<key date id>` (Today's "Log your preboard score") opens the form
+  // filled in from that preboard, once.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const logId = searchParams.get('log');
+  const calendar = usePlanCalendar({ fetchIfOlderThanMs: SYLLABUS_FRESH_MS });
+  const [handledLog, setHandledLog] = useState(null);
+  const logDate = logId && handledLog !== logId ? (calendar.items || []).find((e) => e.id === logId) || null : null;
+  const closeLog = () => {
+    setHandledLog(logId);
+    setSearchParams((params) => { params.delete('log'); return params; }, { replace: true });
+  };
   // `key` makes each opening a fresh form, starting from the entry being edited.
   const [form, setForm] = useState({ open: false, entry: null, prefill: null, key: 0 });
   const [confirm, setConfirm] = useState(null);
@@ -317,6 +329,29 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
           topics={topics}
           onClose={closeForm}
           onSave={save}
+        />
+      )}
+
+      {logDate && !form.open && (
+        <OutsideScoreForm
+          key={`log-${logDate.id}`}
+          open
+          prefill={{
+            title: logDate.title,
+            takenOn: logDate.startsOn < todayManila() ? logDate.startsOn : todayManila(),
+            subject: logDate.subject || 'ALL',
+          }}
+          entries={list}
+          topics={topics}
+          onClose={closeLog}
+          onSave={async (payload) => {
+            try {
+              saved(await add(payload));
+            } catch (err) {
+              explain(err, 'save the score');
+              throw err;
+            }
+          }}
         />
       )}
 
