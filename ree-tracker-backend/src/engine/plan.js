@@ -22,6 +22,10 @@
 //     preboard day gets none either and counts as that stretch's timed
 //     sitting (the next one is seven study days after it), and a coaching day
 //     is light review. Rest days don't count toward the sitting's seven.
+//   • review-center mode (2026-10, the CELE "Topic schedule"): the day after
+//     a topic's lecture drills it, and a topic with few answers isn't drilled
+//     before its lecture (followLectures). The quotas and pacing above are
+//     left as they are; this only moves drill days between topics.
 //   • tasks carry topic, subject and a question target, so they can be launched
 //     and can complete themselves (taskProgress).
 //   • days with CARD_DAY_MIN or more formula cards due get a "formula cards"
@@ -47,6 +51,9 @@ const FLAG_BOOST = 0.25;
 const FLAG_CAP = 2;
 const BOOST_CAP = 1.5;
 const CARD_DAY_MIN = 5;
+// A topic with this many answers is known well enough to drill before its lecture.
+const LECTURE_READY_ANSWERS = 10;
+const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const CARD_WINDOW_DAYS = 14;
 
 const DAY_MS = 86400000;
@@ -172,14 +179,78 @@ function dayKinds({ today, days, daysToExam, restDays = new Set(), eventDays = n
 }
 
 /**
+ * Line the drill days up with a review center's lectures.
+ *
+ *   1. Pin: the first drill day after a topic's lecture drills that topic,
+ *      swapped in from another of its days (later ones first), or taking the
+ *      day when it has none.
+ *   2. Hold: a topic whose lecture is still ahead, with fewer than
+ *      LECTURE_READY_ANSWERS answers, swaps with the nearest later day whose
+ *      topic may go now; with none, its day becomes review (null).
+ * Swaps keep each topic's number of days; pinned days don't move again.
+ *
+ * @param {{ dates: string[], assigned: Array<object|null>, lectures: Array<{topicId: string, on: string}>,
+ *   topics: object[], today: string }} input
+ *   dates: each drill day's date, in order; assigned: its topic (interleave's order)
+ * @returns {{ assigned: Array<object|null>, pinned: Map<number, string> }}  pinned: slot → lecture date
+ */
+function followLectures({ dates, assigned: initial, lectures = [], topics = [], today }) {
+    const assigned = initial.slice();
+    const pinned = new Map();
+    // Each topic's first lecture from today on (one already given doesn't hold it back).
+    const lectureOf = new Map();
+    for (const l of lectures) {
+        if (!l?.topicId || !l.on || l.on < today) continue;
+        if (!lectureOf.has(l.topicId) || l.on < lectureOf.get(l.topicId)) lectureOf.set(l.topicId, l.on);
+    }
+    if (lectureOf.size === 0) return { assigned, pinned };
+    const byId = new Map(topics.filter((t) => t.topicId).map((t) => [t.topicId, t]));
+    const mayGo = (t, date) => {
+        if (!t?.topicId) return true;
+        const on = lectureOf.get(t.topicId);
+        return !on || date > on || (Number(t.attempts) || 0) >= LECTURE_READY_ANSWERS;
+    };
+    const swap = (a, b) => { [assigned[a], assigned[b]] = [assigned[b], assigned[a]]; };
+
+    // 1. Pin, lectures in date order.
+    for (const [topicId, on] of [...lectureOf.entries()].sort((a, b) => (a[1] < b[1] ? -1 : 1))) {
+        const s = dates.findIndex((d, i) => d > on && !pinned.has(i));
+        const t = byId.get(topicId);
+        if (s < 0 || !t) continue;
+        if (assigned[s]?.topicId !== topicId) {
+            const later = assigned.findIndex((x, j) => j > s && !pinned.has(j) && x?.topicId === topicId);
+            const earlier = later >= 0 ? -1 : assigned.findIndex((x, j) => j < s && !pinned.has(j) && x?.topicId === topicId && mayGo(assigned[s], dates[j]));
+            const j = later >= 0 ? later : earlier;
+            if (j >= 0) swap(s, j);
+            else assigned[s] = t;
+        }
+        pinned.set(s, on);
+    }
+
+    // 2. Hold topics back until their lecture.
+    for (let i = 0; i < assigned.length; i++) {
+        const t = assigned[i];
+        if (!t || pinned.has(i) || mayGo(t, dates[i])) continue;
+        let k = -1;
+        for (let j = i + 1; j < assigned.length && k < 0; j++) {
+            if (!pinned.has(j) && assigned[j] && mayGo(assigned[j], dates[i])) k = j;
+        }
+        if (k >= 0) swap(i, k);
+        else assigned[i] = null;
+    }
+    return { assigned, pinned };
+}
+
+/**
  * @param {object} input
  * @param {string} input.today        YYYY-MM-DD (Manila)
  * @param {string} input.examDate     YYYY-MM-DD
  * @param {number} [input.dailyTarget]
  * @param {Array<{topic, subject, topicId?, masteryEffective?, openMistakes?, flags?, flaggedBy?}>} input.topics
  * @param {object} [input.weights]
- * @param {{ restDays?: Set<string>, eventDays?: Map<string, string> }} [input.calendar]
- *   the learner's rest days and key dates (services/planCalendar.js)
+ * @param {{ restDays?: Set<string>, eventDays?: Map<string, string>, lectures?: Array<{topicId, on}> }} [input.calendar]
+ *   the learner's rest days and key dates, and in review-center mode the
+ *   lectures (services/planCalendar.js)
  * @returns {Array<{dueDate, kind, subject, topic, topicId, targetCount, text}>}
  */
 function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weights = DEFAULT_SYLLABUS_WEIGHTS, horizonDays = PLAN_HORIZON_DAYS, calendar = {} }) {
@@ -211,17 +282,30 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
     const reviewTarget = sessionSized(REVIEW_SHARE);
     const lightTarget = Math.max(10, Math.round(reviewTarget / 2));
     const plan = [];
+    // The drill days in order, and each one's topic, lined up with any lectures.
+    const drillSlots = kinds.map((k, i) => (k === 'drill' ? i : -1)).filter((i) => i >= 0);
+    const { assigned, pinned } = followLectures({
+        dates: drillSlots.map((i) => toYmd(toUtc(today) + i * DAY_MS)),
+        assigned: drillSlots.map((_, n) => drillOrder[n] || null),
+        lectures: calendar.lectures,
+        topics: ranked,
+        today,
+    });
     let drillIdx = 0;
     let mockIdx = 0;
     for (let i = 0; i < days; i++) {
         const dueDate = toYmd(toUtc(today) + i * DAY_MS);
         const kind = kinds[i];
-        if (kind === 'drill' && drillOrder[drillIdx]) {
-            const t = drillOrder[drillIdx++];
+        const slot = kind === 'drill' ? drillIdx++ : -1;
+        if (kind === 'drill' && assigned[slot]) {
+            const t = assigned[slot];
+            const lecture = pinned.get(slot);
             // The open-mistakes note stays last.
             const flagged = t.flags > 0 && t.flaggedBy ? ` (flagged after ${t.flaggedBy})` : '';
             const open = t.openMistakes > 0 ? ` (${t.openMistakes} open mistake${t.openMistakes === 1 ? '' : 's'})` : '';
-            plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: drillTarget, text: `Drill ${t.topic} — ${drillTarget} questions${flagged}${open}` });
+            plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: drillTarget, text: lecture
+                ? `Drill ${WEEKDAY[new Date(toUtc(lecture)).getUTCDay()]}’s lecture: ${t.topic} — ${drillTarget} questions${flagged}${open}`
+                : `Drill ${t.topic} — ${drillTarget} questions${flagged}${open}` });
         } else if (kind === 'mock') {
             const subject = MOCK_ROTATION[mockIdx++ % MOCK_ROTATION.length];
             plan.push({ dueDate, kind, subject, topic: null, topicId: null, targetCount: 1, text: `Timed ${SUBJECT_LABEL[subject]} sitting on the PRC clock` });
@@ -299,4 +383,4 @@ function taskProgress(tasks, answered, mockDays, cardDays = []) {
         });
 }
 
-module.exports = { buildStudyPlan, dayKinds, cardTasks, taskProgress, PLAN_HORIZON_DAYS, MOCK_EVERY, FINAL_REVIEW_DAYS, CARD_DAY_MIN };
+module.exports = { buildStudyPlan, dayKinds, followLectures, LECTURE_READY_ANSWERS, cardTasks, taskProgress, PLAN_HORIZON_DAYS, MOCK_EVERY, FINAL_REVIEW_DAYS, CARD_DAY_MIN };

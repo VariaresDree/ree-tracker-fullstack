@@ -18,8 +18,12 @@
 
 const { isIsoDay } = require('./manilaDate');
 
-/** The kinds, in the order the form offers them. */
-const KEY_DATE_KINDS = ['preboard', 'coaching', 'deadline', 'rest', 'personal'];
+/**
+ * The kinds, in the order the form offers them. 'lecture' is a review
+ * center's lecture on one or more syllabus topics (the CELE tracker's "Topic
+ * schedule"); the app offers it only in review-center mode (step 2b).
+ */
+const KEY_DATE_KINDS = ['preboard', 'coaching', 'deadline', 'rest', 'personal', 'lecture'];
 
 const KEY_DATE_SUBJECTS = ['Mathematics', 'ESAS', 'EE', 'ALL'];
 
@@ -85,6 +89,9 @@ function keyDateErrors(entry) {
         } else if (new Set(ids).size > KEY_DATE_LIMITS.topics) {
             errors.topicIds = `Pick up to ${KEY_DATE_LIMITS.topics} topics.`;
         }
+    }
+    if (e.kind === 'lecture' && !errors.topicIds && !(Array.isArray(e.topicIds) && e.topicIds.length > 0)) {
+        errors.topicIds = 'Pick the topic the lecture covers.';
     }
     if (text(e.note).length > KEY_DATE_LIMITS.note) errors.note = `Keep notes under ${KEY_DATE_LIMITS.note} characters.`;
     return errors;

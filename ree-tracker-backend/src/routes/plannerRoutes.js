@@ -200,7 +200,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             // A calendar that can't be read plans as before rather than not at all.
             loadPlanCalendar(req.user.id, today, span).catch((error) => {
                 logger.warn('Plan calendar unavailable', { error: error.message });
-                return { restDays: new Set(), eventDays: new Map(), keyDates: 0 };
+                return { restDays: new Set(), eventDays: new Map(), lectures: [], keyDates: 0 };
             }),
         ]);
         // Open mistakes per topic, by name (the plan's topics are names).
@@ -257,6 +257,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             flaggedTopics: flaggedByTopic.size,
             restDays: calendar.restDays.size,
             keyDates: calendar.keyDates,
+            lectures: new Set((calendar.lectures || []).map((l) => l.on)).size,
             message: `Planned ${span} days of review`,
         });
     } catch (error) {
