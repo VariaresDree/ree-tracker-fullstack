@@ -100,6 +100,8 @@ every feature add, change, or removal, not on a schedule.
     - **Confidence:** before any rated answer, the matrix explains how it fills instead of showing four zeros. Its cells are inset wells; the blurred blobs and hover lift are gone.
     - **Weak spots** leads with a hero, **Fix what's costing you points**, with the weak-spot drill (primary) and the blind-spot drill. They were a row of small buttons.
     - **Habits › Study time:** the last 14 days are vertical columns (`DayColumns` in `features/analytics/sections/StudyTime.jsx`). It was a list of horizontal bars.
+      - Every day prints its minutes above its column (0 included), and its weekday ("Today" for today) and date below. A legend names the dashed average line and the best day.
+      - A card narrower than 32rem (a phone) shows one week of 7 columns at a time, latest first, with a picker for the 7 days before; both weeks share one scale. Fourteen columns on a phone were 20px each, too narrow for the figures.
       - Each day has a rounded track filled from the bottom in the theme's accent: today solid, earlier days a softer gradient.
       - The minutes are above each column and the weekday and date below. Today's labels are in accent text.
       - A dashed line marks the average active day, named in a legend under the chart.
