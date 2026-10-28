@@ -760,3 +760,16 @@ describe('shared contract — the learner’s own topic rating', () => {
         expect(Object.keys(shared.syllabusProgressErrors({ ...ok, confidence: 30, dread: 7 })).sort()).toEqual(['confidence', 'dread']);
     });
 });
+
+describe('shared contract — review phases', () => {
+    it('names the phase from the days left, the same on both sides', () => {
+        expect([200, 121, 120, 61, 60, 15, 14, 4, 3, 1, 0].map((d) => shared.reviewPhase(d).id))
+            .toEqual(['foundations', 'foundations', 'practice', 'practice', 'refresher', 'refresher', 'final', 'final', 'eve', 'eve', 'exam']);
+        expect(shared.reviewPhase(-1)).toBeNull();
+        expect(shared.reviewPhase(null)).toBeNull();
+    });
+
+    it('brings the timed sittings closer as the exam nears', () => {
+        expect(shared.PHASE_MOCK_EVERY).toEqual({ foundations: 7, practice: 7, refresher: 5, final: 4, eve: null, exam: null });
+    });
+});

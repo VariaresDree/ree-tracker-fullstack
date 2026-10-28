@@ -78,6 +78,23 @@ describe('Today', () => {
     vi.useRealTimers();
   });
 
+  it('the countdown names the review phase and opens its playbook', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-08T02:00:00Z'));
+    statsState = loaded({ examDate: '2026-11-17' }); // 40 days: the refresher
+    at('/', Today);
+    const pill = screen.getByRole('button', { name: /Refresher phase, 40 days to the exam\. Open the review playbook/ });
+    expect(pill).toHaveTextContent('Refresher · 40 days to the exam');
+    fireEvent.click(pill);
+    const dialog = screen.getByRole('dialog', { name: 'Refresher phase' });
+    expect(within(dialog).getByText(/leave at least 30 minutes of each section for shading/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/a timed PRC sitting every 5 study days/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Refresher').closest('li')).toHaveAttribute('aria-current', 'step');
+    // The review-center tip shows only in that mode.
+    expect(within(dialog).queryByText(/trust your review center/)).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
   it('links to the syllabus checklist from the header', () => {
     at('/', Today);
     expect(screen.getByRole('link', { name: 'Syllabus 42% covered' })).toHaveAttribute('href', '/progress?tab=syllabus');

@@ -27,6 +27,10 @@ const TIPS = [
   'Spaced repetition beats re-reading. Recall it before you review it.',
   'Rate your confidence honestly — calibration is half of exam technique.',
   'The PRC blend is roughly 25% Math, 30% ESAS, 45% EE. Weight your practice.',
+  // From the CELE tracker's tips (CELE round, 2026-10).
+  'Leave at least 30 minutes of each section to shade your answer sheet.',
+  'Take preboards seriously: they are made harder than the board on purpose.',
+  'In the last month, study at board hours and wake up for the 8 AM start.',
 ];
 
 const TIP_AFTER_MS = 900;

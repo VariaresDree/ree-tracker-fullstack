@@ -18,7 +18,10 @@
 //     too (×1.25 a flag, two at most), within the same 1.5× cap;
 //   • so does one they rated low themselves (not sure, or dreaded; the CELE
 //     "Meta topics"), ×1.25, while it is still below Proficient;
-//   • every seventh study day is a timed PRC sitting, rotating the subject;
+//   • a timed PRC sitting every seventh study day, rotating the subject, and
+//     closer together as the exam nears: every fifth in the refresher (60
+//     days out), every fourth in the final stretch (two weeks out), by the
+//     shared review phases (PHASE_MOCK_EVERY in @ree/shared);
 //   • the last three days before the exam are light review;
 //   • the learner's calendar (CELE round, 2026-10): a rest day gets no task, a
 //     preboard day gets none either and counts as that stretch's timed
@@ -37,7 +40,7 @@
 
 'use strict';
 
-const { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, SMART_DRILL_MAX_ITEMS } = require('@ree/shared');
+const { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, SMART_DRILL_MAX_ITEMS, reviewPhase, PHASE_MOCK_EVERY } = require('@ree/shared');
 const { DEFAULT_BKT } = require('../config/bktParams');
 
 const PLAN_HORIZON_DAYS = 42;
@@ -152,14 +155,16 @@ function interleave(topics, counts) {
 
 /**
  * What each day of the plan is, from today: 'drill' | 'mock' | 'review' |
- * 'coaching' | 'rest' | 'preboard'. With an empty calendar it is exactly the
- * old rule (a mock every seventh day, the last FINAL_REVIEW_DAYS review).
+ * 'coaching' | 'rest' | 'preboard'. The sitting comes every N study days,
+ * N by the review phase of that day (or `mockEvery` when given). With an
+ * empty calendar and the exam more than 120 days off, it is exactly the old
+ * rule (a mock every seventh day, the last FINAL_REVIEW_DAYS review).
  *
  * @param {{ today: string, days: number, daysToExam: number,
  *   restDays?: Set<string>, eventDays?: Map<string, string> }} input
  *   eventDays: YYYY-MM-DD → 'preboard' | 'coaching'
  */
-function dayKinds({ today, days, daysToExam, restDays = new Set(), eventDays = new Map(), mockEvery = MOCK_EVERY }) {
+function dayKinds({ today, days, daysToExam, restDays = new Set(), eventDays = new Map(), mockEvery = null }) {
     const kinds = [];
     let sinceMock = 0;
     for (let i = 0; i < days; i++) {
@@ -174,7 +179,8 @@ function dayKinds({ today, days, daysToExam, restDays = new Set(), eventDays = n
         if (daysToExam - i <= FINAL_REVIEW_DAYS) { kinds.push('review'); continue; }
         if (event === 'coaching') { kinds.push('coaching'); continue; }
         sinceMock += 1;
-        if (sinceMock >= mockEvery) {
+        const cadence = mockEvery ?? PHASE_MOCK_EVERY[reviewPhase(daysToExam - i)?.id] ?? MOCK_EVERY;
+        if (sinceMock >= cadence) {
             kinds.push('mock');
             sinceMock = 0;
         } else {

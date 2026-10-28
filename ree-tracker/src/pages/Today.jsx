@@ -8,6 +8,10 @@
 // average appeared twice, today's target three times, and "Next best actions"
 // overlapped "Today's prescription". The analytics moved to Progress, the past
 // sittings to Exams, and the daily-target editor to Account.
+//
+// The countdown names the review phase (CELE round, 2026-10), and opens the
+// review playbook for it.
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useDashboardStats } from '../hooks/useDashboardStats';
@@ -16,7 +20,8 @@ import SyllabusCoverageLink from '../features/syllabus/SyllabusCoverageLink';
 import { daysToExam } from '../features/today/todayActions';
 import { usePlanCalendar } from '../features/study-plan/usePlanCalendar';
 import { inDaysLabel } from '../features/study-plan/keyDateLabels';
-import { nextKeyDate, todayManila } from '@ree/shared';
+import { nextKeyDate, reviewPhase, todayManila } from '@ree/shared';
+import ReviewPlaybook from '../features/today/ReviewPlaybook';
 import { TodaySkeleton } from '../components/SkeletonLoaders';
 import StatsUnavailable from '../components/StatsUnavailable';
 import { Page, PageHeader, StatusPill } from '../components/ui';
@@ -34,8 +39,10 @@ const CALENDAR_FRESH_MS = 30 * 60 * 1000;
 /** "Preboard 2 in 5 days", "Final coaching today": the next date on the learner's calendar. */
 const nextDateText = (next) => (next ? `${next.entry.title} ${inDaysLabel(next.inDays)}` : null);
 
-function ExamCountdown({ examDate, next }) {
+function ExamCountdown({ examDate, next, reviewMode }) {
+  const [open, setOpen] = useState(false);
   const days = daysToExam(examDate);
+  const phase = reviewPhase(days);
   if (days == null) {
     return (
       <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">
@@ -44,10 +51,25 @@ function ExamCountdown({ examDate, next }) {
     );
   }
   const { tone, text } = examLabel(days);
-  return (
+  const pill = (
     <StatusPill tone={tone} dot={false}>
-      <CalendarDays size={13} strokeWidth={2} aria-hidden="true" /> {text}{next ? ` · ${next}` : ''}
+      <CalendarDays size={13} strokeWidth={2} aria-hidden="true" /> {phase ? `${phase.label} · ` : ''}{text}{next ? ` · ${next}` : ''}
     </StatusPill>
+  );
+  if (!phase) return pill;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-label={`${phase.label} phase, ${text}${next ? `, ${next}` : ''}. Open the review playbook`}
+        className="touch-target inline-flex items-center rounded-full cursor-pointer hover:opacity-90"
+      >
+        {pill}
+      </button>
+      {open && <ReviewPlaybook open phase={phase} daysLeft={days} reviewMode={reviewMode} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -75,7 +97,7 @@ export default function Today() {
         subtitle={`${greeting}, ${currentUser?.displayName || 'Reviewer'}.`}
         meta={
           <>
-            <ExamCountdown examDate={activeStats.examDate} next={nextDateText(nextKeyDate(calendar.items, today || todayManila()))} />
+            <ExamCountdown examDate={activeStats.examDate} next={nextDateText(nextKeyDate(calendar.items, today || todayManila()))} reviewMode={calendar.prefs.reviewMode} />
             <SyllabusCoverageLink />
             {kpi.streak > 0 && (
               <StatusPill tone="amber" dot={false}>

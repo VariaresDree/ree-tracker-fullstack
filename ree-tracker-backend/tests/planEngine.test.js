@@ -38,10 +38,12 @@ describe('buildStudyPlan', () => {
         for (let i = 1; i < drills.length; i++) expect(drills[i]).not.toBe(drills[i - 1]);
     });
 
-    it('puts a timed PRC sitting in every seventh day, rotating the subject', () => {
+    it('puts a timed PRC sitting in every seventh day, closer together in the refresher, rotating the subject', () => {
+        // Rewritten on purpose with the review phases (step 5a): 2026-11-01 is
+        // 60 days out, the refresher, where a sitting comes every fifth study day.
         const plan = buildStudyPlan({ ...base, examDate: '2026-12-31', topics: [topic('A', 'EE', 0.3)] });
         const mocks = plan.filter((t) => t.kind === 'mock');
-        expect(mocks.map((m) => m.dueDate)).toEqual(['2026-10-07', '2026-10-14', '2026-10-21', '2026-10-28', '2026-11-04', '2026-11-11']);
+        expect(mocks.map((m) => m.dueDate)).toEqual(['2026-10-07', '2026-10-14', '2026-10-21', '2026-10-28', '2026-11-02', '2026-11-07']);
         expect(new Set(mocks.map((m) => m.subject)).size).toBe(3);
     });
 

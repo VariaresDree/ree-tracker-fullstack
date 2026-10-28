@@ -16,7 +16,7 @@ describe('BootSequence — escalating disclosure', () => {
     expect(screen.getByText(/preparing your session/i)).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'REE.ai' })).toBeInTheDocument();
     // Nothing that would flash-and-vanish on a sub-second resolve.
-    expect(screen.queryByText(/blind spots|interleaving|spaced repetition|calibration|PRC blend/i))
+    expect(screen.queryByText(/blind spots|interleaving|spaced repetition|calibration|PRC blend|shade|preboards|board hours/i))
       .not.toBeInTheDocument();
     expect(screen.queryByText(/taking longer than usual/i)).not.toBeInTheDocument();
   });
@@ -24,7 +24,7 @@ describe('BootSequence — escalating disclosure', () => {
   it('surfaces a board-exam tip once the wait is long enough to be worth filling', () => {
     render(<BootSequence />);
     act(() => { vi.advanceTimersByTime(1000); });
-    expect(screen.getByText(/blind spots|interleaving|spaced repetition|calibration|PRC blend/i))
+    expect(screen.getByText(/blind spots|interleaving|spaced repetition|calibration|PRC blend|shade|preboards|board hours/i))
       .toBeInTheDocument();
     // Still not claiming anything is wrong yet.
     expect(screen.queryByText(/taking longer than usual/i)).not.toBeInTheDocument();
