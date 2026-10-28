@@ -90,6 +90,7 @@ every feature add, change, or removal, not on a schedule.
   - **Study plan** — the planner.
   - **Card layout (2026-10 card overhaul):**
     - **Overview** leads with one hero, **Your review so far**: the four figures and the AI board report button together. They were a floating intro line and button above four separate tiles.
+    - **Overview's ability trend and board forecast line up.** Side by side, the trend card stretches to the forecast's height and its chart grows to fill it; the forecast used to hang about 250px below a card that stopped short. Stacked (tablet, phone), the chart has a minimum height of 260px, or 300px once the card is 36rem wide. Its old fixed height was never applied, because the card body is a flex item, so the chart sat at its own 220px floor.
       - Questions answered says "N this week · N last week". That is the last seven Manila days, today included, against the seven before, from the study calendar (`features/progress/weeklyAnswers.js`).
       - The forecast card keeps its width beside the chart.
     - **Topics:** "Mastery by subtopic" is a list of compact rows that grows with the page (`components/HeatmapChart.jsx`).
@@ -100,6 +101,8 @@ every feature add, change, or removal, not on a schedule.
     - **Confidence:** before any rated answer, the matrix explains how it fills instead of showing four zeros. Its cells are inset wells; the blurred blobs and hover lift are gone.
     - **Weak spots** leads with a hero, **Fix what's costing you points**, with the weak-spot drill (primary) and the blind-spot drill. They were a row of small buttons.
     - **Habits › Study time:** the last 14 days are vertical columns (`DayColumns` in `features/analytics/sections/StudyTime.jsx`). It was a list of horizontal bars.
+      - Every day prints its minutes above its column (0 included), and its weekday ("Today" for today) and date below. A legend names the dashed average line and the best day.
+      - A card narrower than 32rem (a phone) shows one week of 7 columns at a time, latest first, with a picker for the 7 days before; both weeks share one scale. Fourteen columns on a phone were 20px each, too narrow for the figures.
       - Each day has a rounded track filled from the bottom in the theme's accent: today solid, earlier days a softer gradient.
       - The minutes are above each column and the weekday and date below. Today's labels are in accent text.
       - A dashed line marks the average active day, named in a legend under the chart.

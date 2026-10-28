@@ -1,6 +1,7 @@
 // src/features/analytics/sections/StudyTime.jsx
 // Daily study time over the last 14 Manila days (deep/study-time).
-import { Grid, KpiTile } from '../../../components/ui';
+import { useState } from 'react';
+import { Grid, KpiTile, SegmentedControl } from '../../../components/ui';
 import { useDeepAnalytics } from '../useDeepAnalytics';
 import { DeepStatus, SectionCard } from './shared';
 import { formatDuration as fmtDuration } from '../../../utils/time';
@@ -31,60 +32,94 @@ const weekday = (isoDate) => {
   return WEEKDAY[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 };
 
+// 'Oct 15' and 'Oct 21' → 'Oct 15–21'; across a month, 'Sep 28–Oct 4'.
+const range = (from, to) => (from.slice(0, 3) === to.slice(0, 3) ? `${from}–${to.slice(4)}` : `${from}–${to}`);
+
 // The last 14 days as columns: a rounded track per day, filled from the
-// bottom in the accent (today solid, the rest a softer gradient), the minutes
-// above and the weekday and date below, and a dashed line at the average
-// active day. It was a list of horizontal bars. On a narrow card only today's
-// and the best day's minutes are printed above, so the figures don't crowd;
-// every day's figure is in the screen-reader list.
+// bottom in the accent (today solid, the rest a softer gradient), every day's
+// minutes above and the weekday and date below, and a dashed line at the
+// average active day. It was a list of horizontal bars.
+//
+// A card narrower than 32rem (a phone) shows one week at a time, with a picker
+// for the week before. Fourteen columns there were 20px each: the minutes
+// didn't fit above them, so only two days were labelled, and the weekday was a
+// single letter. Seven columns give every day its figure and its full name.
+// Both weeks share one scale, so they compare. Every day is in the
+// screen-reader list whichever week shows.
 export function DayColumns({ days, average }) {
+  // 1: the latest seven days, today last; 0: the seven before.
+  const [week, setWeek] = useState(1);
   const max = Math.max(...days.map((d) => d.minutes), 1);
   const best = days.reduce((b, d) => (d.minutes > b.minutes ? d : b), days[0]);
   const today = days[days.length - 1];
-  const height = (min) => (min > 0 ? Math.max(6, (min / max) * 100) : 0);
+  const height = (min) => (min > 0 ? Math.max(4, (min / max) * 100) : 0);
+  // Out of the week on show: gone on a narrow card, there on a wide one.
+  const off = (i) => (Math.floor(i / 7) === week ? '' : '@max-lg:hidden');
+  const cols = 'grid grid-cols-7 @lg:grid-cols-14 gap-1.5 @lg:gap-2';
   return (
-    <div className="@container flex flex-col gap-2">
-      <div aria-hidden="true" className="grid grid-cols-14 gap-1 @md:gap-2">
-        {days.map((d) => (
-          <span
-            key={d.date}
-            className={`text-micro tabular-nums text-center truncate ${d === today ? 'text-accent-text font-semibold' : 'text-muted2'} ${d === today || (d === best && d.minutes > 0) ? '' : '@max-lg:invisible'}`}
-          >
-            {d.minutes > 0 ? d.minutes : ''}
-          </span>
-        ))}
-      </div>
-      <div aria-hidden="true" className="relative h-40 @lg:h-48">
-        {average > 0 && (
-          <div className="absolute inset-x-0 border-t border-dashed border-muted2/60 z-10 pointer-events-none" style={{ bottom: `${(average / max) * 100}%` }} />
-        )}
-        <div className="grid grid-cols-14 gap-1 @md:gap-2 h-full">
-          {days.map((d) => (
-            <span key={d.date} className="flex items-end justify-center h-full">
-              <span className="relative w-full max-w-9 h-full rounded-full bg-surface3 overflow-hidden flex items-end">
-                <span
-                  className="w-full rounded-full transition-[height] duration-500 motion-reduce:transition-none"
-                  style={{ height: `${height(d.minutes)}%`, background: d === today ? 'var(--accent)' : PAST_FILL }}
-                />
+    <div className="@container flex flex-col gap-3">
+      <SegmentedControl
+        className="@lg:hidden"
+        size="sm"
+        fullWidth
+        label="Week shown"
+        value={week}
+        onChange={setWeek}
+        options={[
+          { value: 0, label: range(days[0].shortDate, days[6].shortDate) },
+          { value: 1, label: range(days[7].shortDate, today.shortDate) },
+        ]}
+      />
+      <div aria-hidden="true" className="flex flex-col gap-1.5">
+        <div className={cols}>
+          {days.map((d, i) => (
+            <span
+              key={d.date}
+              data-day-value
+              className={`text-xs tabular-nums text-center ${d === today ? 'text-accent-text font-semibold' : d.minutes > 0 ? 'text-textMain font-medium' : 'text-muted2'} ${off(i)}`}
+            >
+              {d.minutes}
+            </span>
+          ))}
+        </div>
+        <div className="relative h-40 @lg:h-48">
+          {average > 0 && (
+            <div className="absolute inset-x-0 border-t border-dashed border-muted2/70 z-10 pointer-events-none" style={{ bottom: `${(average / max) * 100}%` }} />
+          )}
+          <div className={`${cols} h-full`}>
+            {days.map((d, i) => (
+              <span key={d.date} className={`flex items-end justify-center h-full ${off(i)}`}>
+                <span className="w-full max-w-10 h-full rounded-full bg-surface3 overflow-hidden flex items-end">
+                  <span
+                    data-day-fill
+                    className="w-full rounded-full transition-[height] duration-500 motion-reduce:transition-none"
+                    style={{ height: `${height(d.minutes)}%`, background: d === today ? 'var(--accent)' : PAST_FILL }}
+                  />
+                </span>
               </span>
+            ))}
+          </div>
+        </div>
+        <div className={cols}>
+          {days.map((d, i) => (
+            <span key={d.date} className={`flex flex-col items-center leading-tight ${d === today ? 'text-accent-text font-semibold' : 'text-muted2'} ${off(i)}`}>
+              <span className="text-xs">{d === today ? 'Today' : weekday(d.date)}</span>
+              <span className="text-micro tabular-nums">{d.shortDate.slice(4)}</span>
             </span>
           ))}
         </div>
       </div>
-      <div aria-hidden="true" className="grid grid-cols-14 gap-1 @md:gap-2">
-        {days.map((d) => (
-          <span key={d.date} className={`flex flex-col items-center leading-tight text-micro ${d === today ? 'text-accent-text font-semibold' : 'text-muted2'}`}>
-            <span>{weekday(d.date).slice(0, 1)}<span className="@max-md:hidden">{weekday(d.date).slice(1)}</span></span>
-            <span className="tabular-nums">{Number(d.date.slice(8))}</span>
-          </span>
-        ))}
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted2 tabular-nums">
+        {average > 0 && (
+          <p className="flex items-center gap-2">
+            <span aria-hidden="true" className="w-5 border-t border-dashed border-muted2/70" />
+            Average active day: {average} min
+          </p>
+        )}
+        {best.minutes > 0 && (
+          <p>Best day: {weekday(best.date)} {best.shortDate}, {best.minutes} min</p>
+        )}
       </div>
-      {average > 0 && (
-        <p className="flex items-center gap-2 text-micro text-muted2 tabular-nums">
-          <span aria-hidden="true" className="w-5 border-t border-dashed border-muted2/60" />
-          Average active day: {average} min
-        </p>
-      )}
       <ol className="sr-only">
         {days.map((d) => (
           <li key={d.date}>{weekday(d.date)} {d.shortDate}{d === today ? ' (today)' : ''}: {d.minutes} minutes</li>
