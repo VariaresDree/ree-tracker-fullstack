@@ -16,8 +16,12 @@
 //     drill says how many are open;
 //   • a topic the learner flagged "to improve" on an outside score raises it
 //     too (×1.25 a flag, two at most), within the same 1.5× cap;
-//   • every seventh day is a timed PRC sitting, rotating the subject;
+//   • every seventh study day is a timed PRC sitting, rotating the subject;
 //   • the last three days before the exam are light review;
+//   • the learner's calendar (CELE round, 2026-10): a rest day gets no task, a
+//     preboard day gets none either and counts as that stretch's timed
+//     sitting (the next one is seven study days after it), and a coaching day
+//     is light review. Rest days don't count toward the sitting's seven.
 //   • tasks carry topic, subject and a question target, so they can be launched
 //     and can complete themselves (taskProgress).
 //   • days with CARD_DAY_MIN or more formula cards due get a "formula cards"
@@ -134,25 +138,57 @@ function interleave(topics, counts) {
 }
 
 /**
+ * What each day of the plan is, from today: 'drill' | 'mock' | 'review' |
+ * 'coaching' | 'rest' | 'preboard'. With an empty calendar it is exactly the
+ * old rule (a mock every seventh day, the last FINAL_REVIEW_DAYS review).
+ *
+ * @param {{ today: string, days: number, daysToExam: number,
+ *   restDays?: Set<string>, eventDays?: Map<string, string> }} input
+ *   eventDays: YYYY-MM-DD → 'preboard' | 'coaching'
+ */
+function dayKinds({ today, days, daysToExam, restDays = new Set(), eventDays = new Map(), mockEvery = MOCK_EVERY }) {
+    const kinds = [];
+    let sinceMock = 0;
+    for (let i = 0; i < days; i++) {
+        const day = toYmd(toUtc(today) + i * DAY_MS);
+        const event = eventDays.get(day);
+        if (event === 'preboard') {
+            kinds.push('preboard');
+            sinceMock = 0;
+            continue;
+        }
+        if (restDays.has(day)) { kinds.push('rest'); continue; }
+        if (daysToExam - i <= FINAL_REVIEW_DAYS) { kinds.push('review'); continue; }
+        if (event === 'coaching') { kinds.push('coaching'); continue; }
+        sinceMock += 1;
+        if (sinceMock >= mockEvery) {
+            kinds.push('mock');
+            sinceMock = 0;
+        } else {
+            kinds.push('drill');
+        }
+    }
+    return kinds;
+}
+
+/**
  * @param {object} input
  * @param {string} input.today        YYYY-MM-DD (Manila)
  * @param {string} input.examDate     YYYY-MM-DD
  * @param {number} [input.dailyTarget]
  * @param {Array<{topic, subject, topicId?, masteryEffective?, openMistakes?, flags?, flaggedBy?}>} input.topics
  * @param {object} [input.weights]
+ * @param {{ restDays?: Set<string>, eventDays?: Map<string, string> }} [input.calendar]
+ *   the learner's rest days and key dates (services/planCalendar.js)
  * @returns {Array<{dueDate, kind, subject, topic, topicId, targetCount, text}>}
  */
-function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weights = DEFAULT_SYLLABUS_WEIGHTS, horizonDays = PLAN_HORIZON_DAYS }) {
+function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weights = DEFAULT_SYLLABUS_WEIGHTS, horizonDays = PLAN_HORIZON_DAYS, calendar = {} }) {
     const daysToExam = Math.round((toUtc(examDate) - toUtc(today)) / DAY_MS);
     if (!Number.isFinite(daysToExam) || daysToExam <= 0) return [];
     const days = Math.min(horizonDays, daysToExam);
     const w = normalizeWeights(weights);
 
-    const kinds = Array.from({ length: days }, (_, i) => {
-        if (daysToExam - i <= FINAL_REVIEW_DAYS) return 'review';
-        if ((i + 1) % MOCK_EVERY === 0) return 'mock';
-        return 'drill';
-    });
+    const kinds = dayKinds({ today, days, daysToExam, restDays: calendar.restDays, eventDays: calendar.eventDays });
     const drillDays = kinds.filter((k) => k === 'drill').length;
 
     const ranked = (topics || [])
@@ -173,6 +209,7 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
     const sessionSized = (share) => Math.min(SMART_DRILL_MAX_ITEMS, Math.max(10, Math.round(dailyTarget * share)));
     const drillTarget = sessionSized(DRILL_SHARE);
     const reviewTarget = sessionSized(REVIEW_SHARE);
+    const lightTarget = Math.max(10, Math.round(reviewTarget / 2));
     const plan = [];
     let drillIdx = 0;
     let mockIdx = 0;
@@ -188,9 +225,13 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         } else if (kind === 'mock') {
             const subject = MOCK_ROTATION[mockIdx++ % MOCK_ROTATION.length];
             plan.push({ dueDate, kind, subject, topic: null, topicId: null, targetCount: 1, text: `Timed ${SUBJECT_LABEL[subject]} sitting on the PRC clock` });
-        } else {
+        } else if (kind === 'coaching') {
+            plan.push({ dueDate, kind: 'review', subject: null, topic: null, topicId: null, targetCount: lightTarget, text: `Light review on a coaching day — ${lightTarget} questions from your due queue` });
+        } else if (kind === 'review' || kind === 'drill') {
+            // A drill day with no topic left falls back to review.
             plan.push({ dueDate, kind: 'review', subject: null, topic: null, topicId: null, targetCount: reviewTarget, text: `Review — ${reviewTarget} questions from your due queue and weak spots` });
         }
+        // A rest day or a preboard day gets no task.
     }
     return plan;
 }
@@ -201,17 +242,19 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
  * its current due date (overdue counts today); a rating moves it, so later
  * days are a forecast, and re-planning refreshes it.
  *
- * @param {{ today: string, days: number, dueDates: string[] }} input  YYYY-MM-DD (Manila)
+ * @param {{ today: string, days: number, dueDates: string[], restDays?: Set<string> }} input  YYYY-MM-DD (Manila)
  * @returns {Array<{dueDate, kind: 'cards', subject: null, topic: null, topicId: null, targetCount, text}>}
  */
-function cardTasks({ today, days, dueDates = [], min = CARD_DAY_MIN, windowDays = CARD_WINDOW_DAYS }) {
+function cardTasks({ today, days, dueDates = [], min = CARD_DAY_MIN, windowDays = CARD_WINDOW_DAYS, restDays = new Set() }) {
     const span = Math.min(days, windowDays);
     if (!(span > 0)) return [];
     const last = toYmd(toUtc(today) + (span - 1) * DAY_MS);
     const perDay = new Map();
     for (const d of dueDates) {
         if (!d) continue;
-        const day = d < today ? today : d;
+        let day = d < today ? today : d;
+        // A card due on a rest day waits for the next study day.
+        for (let guard = 0; restDays.has(day) && guard < 7; guard++) day = toYmd(toUtc(day) + DAY_MS);
         if (day > last) continue;
         perDay.set(day, (perDay.get(day) || 0) + 1);
     }
@@ -256,4 +299,4 @@ function taskProgress(tasks, answered, mockDays, cardDays = []) {
         });
 }
 
-module.exports = { buildStudyPlan, cardTasks, taskProgress, PLAN_HORIZON_DAYS, MOCK_EVERY, FINAL_REVIEW_DAYS, CARD_DAY_MIN };
+module.exports = { buildStudyPlan, dayKinds, cardTasks, taskProgress, PLAN_HORIZON_DAYS, MOCK_EVERY, FINAL_REVIEW_DAYS, CARD_DAY_MIN };

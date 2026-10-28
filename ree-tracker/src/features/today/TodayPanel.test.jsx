@@ -20,6 +20,9 @@ vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true })
 vi.mock('../diagnostic/PlacementPrompt', () => ({ default: () => <div>placement-prompt</div> }));
 let placement;
 vi.mock('../diagnostic/usePlacement', () => ({ usePlacement: () => placement, NEW_LEARNER_MAX: 30 }));
+// The learner's calendar (Study plan › Key dates): none unless a test sets one.
+let planCalendar = { items: [], prefs: { restWeekdays: [], reviewMode: 'self' } };
+vi.mock('../study-plan/usePlanCalendar', () => ({ usePlanCalendar: () => planCalendar }));
 vi.mock('../onboarding/FirstRunCard', () => ({ default: ({ show }) => (show ? <div>first-run-card</div> : null) }));
 let historyItems = [];
 let plannerItems = [];

@@ -46,6 +46,11 @@ model User {
   // across the subjects by syllabus weight on screen. Display only, like the
   // focus blocks it's measured against. Null = no goal.
   weeklyFocusMinutes Int?
+  // The study plan's calendar (CELE round, 2026-10): days of the week with no
+  // task (0 = Sunday), and how the learner reviews ('self' | 'center').
+  // Changed only through PUT /api/user/plan-prefs.
+  restWeekdays       Int[]   @default([])
+  reviewMode         String  @default("self")
 
   // V1 Relations
   sessions         ExamSession[]
@@ -85,6 +90,7 @@ model User {
   // --- V7: Phase 4.2 — FCM push (Capacitor native app) ---
   deviceTokens       DeviceToken[]
   outsideScores      OutsideScore[]
+  keyDates           KeyDate[]
   syllabusProgress   SyllabusProgress[]
   mistakeTags        MistakeTag[]
   notes              UserNote[]
@@ -1065,4 +1071,25 @@ model QuestionFlag {
   @@unique([questionId, userId])
   @@index([questionId])
   @@index([userId, createdAt])
+}
+
+// The learner's own calendar (Progress › Study plan › Key dates): preboards,
+// coaching, deadlines, rest days, personal events. The CELE tracker's
+// "Important events". Read by the study plan (services/planCalendar.js) and
+// its own route; never θ, readiness, the forecast or the rankings.
+model KeyDate {
+  id        String   @id // made on the device
+  userId    String
+  kind      String   // 'preboard' | 'coaching' | 'deadline' | 'rest' | 'personal'
+  title     String
+  startsOn  String   // Manila YYYY-MM-DD
+  endsOn    String?  // last day of a span, inclusive
+  subject   String?  // 'Mathematics' | 'ESAS' | 'EE' | 'ALL'
+  topicIds  String[] @default([])
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startsOn])
 }

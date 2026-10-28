@@ -209,3 +209,24 @@ describe('readinessTrend', () => {
     expect(readinessTrend(null, now)).toEqual({ scores: [], delta: null });
   });
 });
+
+describe('today on the learner’s calendar (key dates and rest days)', () => {
+  const daily = { done: 0, target: 50 };
+
+  it('a preboard day leads with logging its score', () => {
+    const actions = buildTodayActions({ daily, calendar: { rest: false, preboard: { id: 'kd 1', title: 'RC Preboard 2' } } });
+    expect(actions[0]).toMatchObject({ key: 'preboard', title: 'Log your RC Preboard 2 score', cta: 'Log score', to: '/exams?tab=history&log=kd%201' });
+  });
+
+  it('a rest day leads with saying so, its button a secondary "Practise anyway"', () => {
+    const actions = buildTodayActions({ daily, calendar: { rest: true, preboard: null } });
+    expect(actions[0]).toMatchObject({ key: 'rest', title: 'Rest day', cta: 'Practise anyway', secondary: true });
+    expect(actions[0].preset).toBeTruthy();
+    expect(actions.length).toBeLessThanOrEqual(4);
+  });
+
+  it('a preboard on a rest day is still the preboard; no calendar changes nothing', () => {
+    expect(buildTodayActions({ daily, calendar: { rest: true, preboard: { id: 'k', title: 'PB' } } })[0].key).toBe('preboard');
+    expect(buildTodayActions({ daily })).toEqual(buildTodayActions({ daily, calendar: { rest: false, preboard: null } }));
+  });
+});

@@ -14,6 +14,9 @@ import { useDashboardStats } from '../hooks/useDashboardStats';
 import TodayPanel from '../features/today/TodayPanel';
 import SyllabusCoverageLink from '../features/syllabus/SyllabusCoverageLink';
 import { daysToExam } from '../features/today/todayActions';
+import { usePlanCalendar } from '../features/study-plan/usePlanCalendar';
+import { inDaysLabel } from '../features/study-plan/keyDateLabels';
+import { nextKeyDate, todayManila } from '@ree/shared';
 import { TodaySkeleton } from '../components/SkeletonLoaders';
 import StatsUnavailable from '../components/StatsUnavailable';
 import { Page, PageHeader, StatusPill } from '../components/ui';
@@ -25,7 +28,13 @@ function examLabel(days) {
   return { tone: days <= 14 ? 'amber' : 'success', text: `${days} day${days === 1 ? '' : 's'} to the exam` };
 }
 
-function ExamCountdown({ examDate }) {
+// The calendar is read at most this often here (Today is the boot screen).
+const CALENDAR_FRESH_MS = 30 * 60 * 1000;
+
+/** "Preboard 2 in 5 days", "Final coaching today": the next date on the learner's calendar. */
+const nextDateText = (next) => (next ? `${next.entry.title} ${inDaysLabel(next.inDays)}` : null);
+
+function ExamCountdown({ examDate, next }) {
   const days = daysToExam(examDate);
   if (days == null) {
     return (
@@ -37,7 +46,7 @@ function ExamCountdown({ examDate }) {
   const { tone, text } = examLabel(days);
   return (
     <StatusPill tone={tone} dot={false}>
-      <CalendarDays size={13} strokeWidth={2} aria-hidden="true" /> {text}
+      <CalendarDays size={13} strokeWidth={2} aria-hidden="true" /> {text}{next ? ` · ${next}` : ''}
     </StatusPill>
   );
 }
@@ -45,6 +54,7 @@ function ExamCountdown({ examDate }) {
 export default function Today() {
   const { currentUser } = useAuth();
   const { activeStats, readiness, readinessSettled, loading, unavailable, retry, kpi, today } = useDashboardStats({ withReadiness: true });
+  const calendar = usePlanCalendar({ fetchIfOlderThanMs: CALENDAR_FRESH_MS });
 
   if (loading) return <TodaySkeleton />;
   if (unavailable) {
@@ -65,7 +75,7 @@ export default function Today() {
         subtitle={`${greeting}, ${currentUser?.displayName || 'Reviewer'}.`}
         meta={
           <>
-            <ExamCountdown examDate={activeStats.examDate} />
+            <ExamCountdown examDate={activeStats.examDate} next={nextDateText(nextKeyDate(calendar.items, today || todayManila()))} />
             <SyllabusCoverageLink />
             {kpi.streak > 0 && (
               <StatusPill tone="amber" dot={false}>

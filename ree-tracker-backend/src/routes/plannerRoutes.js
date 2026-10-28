@@ -8,10 +8,11 @@ const logger = require('../utils/logger');
 const { Prisma } = require('@prisma/client');
 const { todayManila, manilaDateOf, manilaDaySql, manilaMidnight } = require('../utils/manilaDate');
 const { normalizeSubject } = require('@ree/shared');
-const { buildStudyPlan, cardTasks, taskProgress } = require('../engine/plan');
+const { buildStudyPlan, cardTasks, taskProgress, PLAN_HORIZON_DAYS } = require('../engine/plan');
 const { loadMistakes } = require('../services/mistakeList');
 const { loadTopicSignals } = require('../services/topicSignals');
 const { loadFlaggedTopics } = require('../services/selfReportSignals');
+const { loadPlanCalendar } = require('../services/planCalendar');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { resolveTopic } = require('../services/topicResolver');
 
@@ -171,9 +172,11 @@ router.delete('/tasks/:id', authMiddleware, async (req, res) => {
 // Auto-generate a study plan (engine/plan.js): drill days shared out by
 // (1 − decayed mastery) × syllabus weight, raised by the topic's open
 // mistakes and by topics flagged "to improve" on outside scores, and
-// interleaved; a timed PRC sitting every seventh day; light
+// interleaved; a timed PRC sitting every seventh study day; light
 // review in the final three days; and formula-card days where five or more
-// cards fall due. Re-planning replaces the previous plan's tasks, never the
+// cards fall due. The learner's calendar shapes the days: no task on a rest
+// day or a preboard day (the preboard is that stretch's sitting), light review
+// on a coaching day. Re-planning replaces the previous plan's tasks, never the
 // learner's own.
 router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSchema), async (req, res) => {
     try {
@@ -181,7 +184,10 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         const exam = new Date(examDate).toISOString().slice(0, 10);
 
         const today = todayManila();
-        const [user, practised, weights, mistakes, cardsDue, flaggedByTopic] = await Promise.all([
+        const daysToExam = Math.round((Date.parse(exam) - Date.parse(today)) / 86400000);
+        if (!(daysToExam > 0)) return res.status(400).json({ error: 'Set an exam date in the future.' });
+        const span = Math.min(PLAN_HORIZON_DAYS, daysToExam);
+        const [user, practised, weights, mistakes, cardsDue, flaggedByTopic, calendar] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.user.id }, select: { dailyTarget: true } }),
             loadTopicSignals(req.user.id),
             getSyllabusWeights(),
@@ -191,6 +197,11 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
                 select: { nextReviewDate: true },
             }),
             loadFlaggedTopics(req.user.id, today).catch(() => new Map()),
+            // A calendar that can't be read plans as before rather than not at all.
+            loadPlanCalendar(req.user.id, today, span).catch((error) => {
+                logger.warn('Plan calendar unavailable', { error: error.message });
+                return { restDays: new Set(), eventDays: new Map(), keyDates: 0 };
+            }),
         ]);
         // Open mistakes per topic, by name (the plan's topics are names).
         const openByTopic = new Map();
@@ -224,9 +235,11 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             dailyTarget: user?.dailyTarget || 50,
             topics: planTopics,
             weights,
+            calendar,
         });
-        if (days.length === 0) return res.status(400).json({ error: 'Set an exam date in the future.' });
-        const plan = [...days, ...cardTasks({ today, days: days.length, dueDates: cardsDue.map((c) => manilaDateOf(c.nextReviewDate)) })];
+        // The card window is the plan's span, not its task count: rest and
+        // preboard days have no task, so the count would cut the window short.
+        const plan = [...days, ...cardTasks({ today, days: span, dueDates: cardsDue.map((c) => manilaDateOf(c.nextReviewDate)), restDays: calendar.restDays })];
 
         const [, created] = await prisma.$transaction([
             prisma.plannerTask.deleteMany({ where: { userId: req.user.id, OR: PLANNED_TASKS } }),
@@ -238,11 +251,13 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         res.status(201).json({
             success: true,
             tasksCreated: created.count,
-            totalDays: days.length,
+            totalDays: span,
             openMistakes: [...openByTopic.values()].reduce((a, b) => a + b, 0),
             cardsDue: cardsDue.length,
             flaggedTopics: flaggedByTopic.size,
-            message: `Planned ${days.length} days of review`,
+            restDays: calendar.restDays.size,
+            keyDates: calendar.keyDates,
+            message: `Planned ${span} days of review`,
         });
     } catch (error) {
         logger.error('Study plan generation error', { error: error.message, stack: error.stack });

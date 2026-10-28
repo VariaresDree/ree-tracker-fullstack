@@ -18,7 +18,7 @@ import { get, set, del, keys, delMany } from 'idb-keyval';
 const PREFIX = 'ree-user-cache-v1:';
 
 // Every fixed cache name, so a sign-out can clear them without listing the store.
-export const USER_CACHE_NAMES = ['outsideScores', 'syllabus', 'mistakes', 'notes', 'cardReviews', 'placement', 'battleHistory', 'printedSets'];
+export const USER_CACHE_NAMES = ['outsideScores', 'keyDates', 'syllabus', 'mistakes', 'notes', 'cardReviews', 'placement', 'battleHistory', 'printedSets'];
 
 /** A printed set's own entries: the full set, and its scanned sheets. */
 export const printedSetCacheName = (id) => `printedSet:${id}`;

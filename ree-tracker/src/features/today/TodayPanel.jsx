@@ -28,9 +28,24 @@ import { forecastPlan } from '../exams/startingPlan';
 const withSource = (plan, source) => (plan ? { ...plan, source } : null);
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
 import { usePlanToday } from './usePlanToday';
+import { usePlanCalendar } from '../study-plan/usePlanCalendar';
+import { todayManila } from '../../utils/manilaDate';
 import { launchPractice } from '../active-recall/presets';
-import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS } from '@ree/shared';
-import { ArrowRight, CalendarCheck, Compass, Crosshair, Layers, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
+import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS, isRestDay, keyDayMap } from '@ree/shared';
+import { ArrowRight, CalendarCheck, ClipboardList, Compass, Crosshair, Layers, Pause, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
+
+// The calendar is read at most this often here: Today is the boot screen.
+const CALENDAR_FRESH_MS = 30 * 60 * 1000;
+
+/** Today on the learner's own calendar: a rest day, or a preboard (the first, if two). */
+function calendarToday(calendar, today) {
+  if (!calendar.items) return null;
+  const onToday = keyDayMap(calendar.items, today, today).get(today) || [];
+  return {
+    rest: isRestDay(today, calendar.prefs.restWeekdays, new Map([[today, onToday]])),
+    preboard: onToday.find((e) => e.kind === 'preboard') || null,
+  };
+}
 
 const BREAKDOWN = [
   // "Topics practised", not "Coverage": the syllabus checklist's coverage
@@ -175,7 +190,7 @@ function TargetTile({ daily, leading }) {
 }
 
 // The hero's corner icon, by what the lead action is.
-const LEAD_ICON = { loop: RotateCcw, srs: RotateCcw, cards: Layers, plan: CalendarCheck, fix: Crosshair, floor: Shield, start: Compass, target: Target, mock: Timer };
+const LEAD_ICON = { preboard: ClipboardList, rest: Pause, loop: RotateCcw, srs: RotateCcw, cards: Layers, plan: CalendarCheck, fix: Crosshair, floor: Shield, start: Compass, target: Target, mock: Timer };
 
 // How long the lead waits for a slow source before showing what it has. The
 // backend wakes slowly on its free tier; a late reorder beats a blank hero.
@@ -198,7 +213,8 @@ function LeadCard({ action, navigate }) {
       <h2 id="today-lead" className="text-h2 text-textMain text-pretty [overflow-wrap:anywhere]">{action.title}</h2>
       <p className="text-sm text-muted2 max-w-prose">{action.detail}</p>
       <div className="pt-2">
-        <ActionButton action={action} navigate={navigate} primary size="lg" className="w-full sm:w-auto" />
+        {/* A rest day's button is secondary: the day's point is not to. */}
+        <ActionButton action={action} navigate={navigate} primary={!action.secondary} size="lg" className="w-full sm:w-auto" />
       </div>
     </Card>
   );
@@ -223,6 +239,8 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   const cards = useCardReviewSummary({ enabled: isOnline });
   const loop = useTodayLoop({ enabled: isOnline });
   const planTask = usePlanToday({ enabled: isOnline });
+  const calendar = usePlanCalendar({ fetchIfOlderThanMs: CALENDAR_FRESH_MS });
+  const todayOnCalendar = calendarToday(calendar, today || todayManila());
   const daily = dailyProgress(stats, today);
   // One readiness snapshot per Manila day is recorded server-side; the last
   // 30 draw the trend.
@@ -262,13 +280,15 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
       ? (placement.plan ? { ...placement.plan, source: 'placement' } : null)
       : withSource(forecastPlan(snapshot?.subjectForecasts), 'forecast'),
     answered,
+    calendar: todayOnCalendar,
   });
 
   // Every source that can put an action first: the loop, due reviews,
-  // formula cards, the plan task, the forecast (a fix, a floor) and the
-  // placement plan. Undefined means still loading.
+  // formula cards, the plan task, the forecast (a fix, a floor), the
+  // placement plan and the learner's calendar (a rest day, a preboard).
+  // Undefined (null for the calendar) means still loading.
   const settled = waitedOut || (
-    loop !== undefined && cards !== undefined && planTask !== undefined
+    loop !== undefined && cards !== undefined && planTask !== undefined && todayOnCalendar !== null
     && !srsLoading && !loading && placement.settled !== false
   );
   const [lead, ...rest] = actions;

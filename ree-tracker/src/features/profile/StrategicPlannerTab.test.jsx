@@ -17,6 +17,14 @@ vi.mock('../../services/dbQueries', () => ({
 }));
 const state = { stats: { examDate: '2027-04-01' }, dynamicTOS: { Mathematics: ['Calculus'], ESAS: ['Statics'], EE: ['Machines'] } };
 vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel(state) }));
+// The key dates and rest days (their own tests are KeyDatesCard.test.jsx).
+const planCalendar = {
+  items: [{ id: 'k1', kind: 'preboard', title: 'RC Preboard 2', startsOn: manilaToday(), endsOn: null }],
+  prefs: { restWeekdays: [], reviewMode: 'self' },
+  status: 'ready', queuedCount: 0, add: vi.fn(), update: vi.fn(), remove: vi.fn(), savePrefs: vi.fn(), reload: vi.fn(),
+};
+vi.mock('../study-plan/usePlanCalendar', () => ({ usePlanCalendar: () => planCalendar }));
+function manilaToday() { return new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); }
 
 const { default: StrategicPlannerTab } = await import('./StrategicPlannerTab');
 
@@ -53,8 +61,10 @@ describe('StrategicPlannerTab', () => {
     });
     renderTab();
     await screen.findByText('Due today');
-    fireEvent.click(screen.getByRole('button', { name: /, today, 1 open task$/ }));
+    // The day names its key date as well as its tasks, and lists it when picked.
+    fireEvent.click(screen.getByRole('button', { name: /, today, Preboard: RC Preboard 2, 1 open task$/ }));
     expect(screen.getByText('Due today')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: /^Key dates on / })).getByText('RC Preboard 2')).toBeInTheDocument();
     expect(screen.queryByText('No date')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /show every task/ }));
     expect(screen.getByText('No date')).toBeInTheDocument();
