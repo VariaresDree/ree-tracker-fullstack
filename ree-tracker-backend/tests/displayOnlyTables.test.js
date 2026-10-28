@@ -28,6 +28,9 @@ const DISPLAY_ONLY = {
     // own printouts, marked from photos, never θ, readiness or the rankings.
     // Key dates and rest days shape the study plan's days, and nothing else.
     keyDate: ['routes/keyDateRoutes.js', 'services/planCalendar.js'],
+    // Sets to finish and personal links (CELE round): display only, every way.
+    practiceSet: ['routes/practiceSetRoutes.js'],
+    userLink: ['routes/userLinkRoutes.js'],
     printedSet: ['routes/printedSetRoutes.js'],
     scannedSheet: ['routes/printedSetRoutes.js'],
 };

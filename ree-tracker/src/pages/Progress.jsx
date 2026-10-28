@@ -27,7 +27,8 @@ const TopicsTab = lazy(() => import('../features/progress/TopicsTab'));
 const WeakSpotsTab = lazy(() => import('../features/progress/WeakSpotsTab'));
 const ConfidenceTab = lazy(() => import('../features/progress/ConfidenceTab'));
 const HabitsTab = lazy(() => import('../features/progress/HabitsTab'));
-const SyllabusTab = lazy(() => import('../features/syllabus/SyllabusTab'));
+// Topics and Sets, one switch apart (the tab id stays 'syllabus').
+const SyllabusTab = lazy(() => import('../features/syllabus/ChecklistTab'));
 const StrategicPlannerTab = lazy(() => import('../features/profile/StrategicPlannerTab'));
 
 const TABS = [

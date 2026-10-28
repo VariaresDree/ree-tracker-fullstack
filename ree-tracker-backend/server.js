@@ -316,6 +316,8 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/plannerRoutes'));
     app.use('/api/user', require('./src/routes/outsideScoreRoutes'));
     app.use('/api/user', require('./src/routes/keyDateRoutes'));
+    app.use('/api/user', require('./src/routes/practiceSetRoutes'));
+    app.use('/api/user', require('./src/routes/userLinkRoutes'));
     app.use('/api/user', require('./src/routes/syllabusRoutes'));
     app.use('/api/user', require('./src/routes/mistakeRoutes'));
     app.use('/api/user', require('./src/routes/noteRoutes'));

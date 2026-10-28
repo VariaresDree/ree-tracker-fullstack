@@ -44,4 +44,5 @@ module.exports = {
     ...require('./paperSets'),
     ...require('./boardRating'),
     ...require('./keyDates'),
+    ...require('./setsAndLinks'),
 };

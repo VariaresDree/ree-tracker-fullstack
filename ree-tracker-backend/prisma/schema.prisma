@@ -91,6 +91,8 @@ model User {
   deviceTokens       DeviceToken[]
   outsideScores      OutsideScore[]
   keyDates           KeyDate[]
+  practiceSets       PracticeSet[]
+  userLinks          UserLink[]
   syllabusProgress   SyllabusProgress[]
   mistakeTags        MistakeTag[]
   notes              UserNote[]
@@ -1092,4 +1094,44 @@ model KeyDate {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, startsOn])
+}
+
+// Sets to finish (Progress › Syllabus › Sets): papers the learner means to get
+// through — past boards, a review center's numbered sets — ticked off, and
+// optionally pointing at the outside score they were logged as (a plain id,
+// like ScannedSheet.outsideScoreId: deleting the score leaves the set). The
+// CELE tracker's "Progress check". Display only.
+model PracticeSet {
+  id             String   @id // made on the device
+  userId         String
+  collection     String
+  title          String
+  subject        String   // 'Mathematics' | 'ESAS' | 'EE' | 'ALL'
+  status         String   @default("todo") // 'todo' | 'done'
+  doneOn         String?  // Manila YYYY-MM-DD
+  outsideScoreId String?
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, collection])
+}
+
+// The learner's own links (Library › Links): Drive folders, videos, flashcard
+// decks, quizzes, by subject. The CELE tracker's "Useful links". Display only.
+model UserLink {
+  id        String   @id // made on the device
+  userId    String
+  title     String
+  url       String
+  subject   String   // 'Mathematics' | 'ESAS' | 'EE' | 'ALL'
+  topicId   String?
+  pinned    Boolean  @default(false)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
