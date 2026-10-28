@@ -123,6 +123,13 @@ describe('the self-check in your history', () => {
       // Math 100, ESAS 0, EE 50: 25 + 0 + 22.5 = 47.5.
       note: 'Printed set K7P2-9QXA-M3TD. Math 2/2, ESAS 0/1, EE 1/2. 47.5% weighted, FAILED.',
       retestOfId: null,
+      // The assessment log: the blank item, and each subject's score.
+      skipped: 1,
+      parts: [
+        { subject: 'Mathematics', score: 2, total: 2 },
+        { subject: 'ESAS', score: 0, total: 1 },
+        { subject: 'EE', score: 1, total: 2 },
+      ],
     });
   });
 
@@ -135,6 +142,8 @@ describe('the self-check in your history', () => {
     expect(entry.title).toHaveLength(80);
     expect(entry.note).toBe('Printed set K7P2-9QXA-M3TD. EE 1/2. 50%.');
     expect(entry.retestOfId).toBe('first');
+    expect(entry).not.toHaveProperty('parts');
+    expect(entry.skipped).toBe(0);
     expect(selfCheckSubject([{ subject: 'Mathematics' }, { subject: 'Mathematics' }])).toBe('Mathematics');
   });
 

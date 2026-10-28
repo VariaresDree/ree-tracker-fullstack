@@ -628,6 +628,13 @@ model OutsideScore {
   score      Float
   total      Int
   note       String?
+  // The assessment log (CELE round, 2026-10). All optional: an older app
+  // never sends them, and a PUT that leaves one out keeps the stored value.
+  parts           Json?    // ALL entries: [{ subject, score, total }]; score/total are their sums
+  minutesUsed     Int?
+  guessed         Int?
+  skipped         Int?
+  improveTopicIds String[] @default([])
   // A retest points at the FIRST try (never at another retest). Deleting the
   // first try leaves its retests as ordinary entries.
   retestOfId String?

@@ -14,20 +14,58 @@ const idempotency = require('../middlewares/idempotency');
 const { outsideScoreCreateSchema, outsideScoreUpdateSchema } = require('../schemas/outsideScoreSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { OUTSIDE_SCORE_LIMITS } = require('@ree/shared');
+const { Prisma } = require('@prisma/client');
+const { OUTSIDE_SCORE_LIMITS, outsidePartsTotals } = require('@ree/shared');
 
 // The stored row minus the owner id, which the caller already is.
 const view = ({ userId: _userId, ...row }) => row;
 
-const fieldsOf = (body) => ({
-    title: body.title,
-    source: body.source,
-    takenOn: body.takenOn,
-    subject: body.subject,
-    score: body.score,
-    total: body.total,
-    note: body.note,
-});
+// The assessment log's fields (2026-10). A key the body leaves out is not
+// written, so the stored value stays: an older app's edit, or a write queued
+// before these existed, can't wipe them. An explicit null clears one.
+const LOG_FIELDS = ['parts', 'minutesUsed', 'guessed', 'skipped', 'improveTopicIds'];
+
+const fieldsOf = (body) => {
+    const data = {
+        title: body.title,
+        source: body.source,
+        takenOn: body.takenOn,
+        subject: body.subject,
+        score: body.score,
+        total: body.total,
+        note: body.note,
+    };
+    for (const field of LOG_FIELDS) {
+        if (body[field] !== undefined) data[field] = body[field];
+    }
+    if (data.improveTopicIds !== undefined) data.improveTopicIds = [...new Set(data.improveTopicIds || [])];
+    // An all-three entry's score and total are its parts' sums.
+    const sums = outsidePartsTotals(data.parts);
+    if (sums) Object.assign(data, sums);
+    if (data.parts !== undefined) data.parts = data.parts === null ? Prisma.DbNull : data.parts;
+    return data;
+};
+
+/**
+ * A PUT merges over the stored row, so kept log fields can stop fitting what
+ * the body changed. Drop those quietly (a 400 would strand a queued write in
+ * Sync issues): parts once the entry isn't all three subjects, or once its
+ * score or total no longer match them; guessed and skipped past the total.
+ */
+function reconcile(data, stored) {
+    const kept = (field) => data[field] === undefined;
+    if (kept('parts') && stored.parts != null) {
+        const sums = outsidePartsTotals(stored.parts);
+        if (data.subject !== 'ALL' || !sums || sums.score !== data.score || sums.total !== data.total) data.parts = Prisma.DbNull;
+    }
+    const guessed = kept('guessed') ? stored.guessed : data.guessed;
+    const skipped = kept('skipped') ? stored.skipped : data.skipped;
+    if ((guessed || 0) + (skipped || 0) > data.total) {
+        if (kept('guessed')) data.guessed = null;
+        if (kept('skipped')) data.skipped = null;
+    }
+    return data;
+}
 
 /**
  * The retest link as stored: always the user's FIRST try, in the same subject,
@@ -105,7 +143,7 @@ router.put('/outside-scores/:id', authMiddleware, validate(outsideScoreUpdateSch
     try {
         const existing = await prisma.outsideScore.findFirst({
             where: { id, userId },
-            select: { id: true, subject: true, _count: { select: { retests: true } } },
+            select: { id: true, subject: true, parts: true, guessed: true, skipped: true, _count: { select: { retests: true } } },
         });
         if (!existing) return res.status(404).json({ error: 'Outside score not found.' });
 
@@ -121,7 +159,7 @@ router.put('/outside-scores/:id', authMiddleware, validate(outsideScoreUpdateSch
 
         const row = await prisma.outsideScore.update({
             where: { id, userId: req.user.id },
-            data: { ...fieldsOf(req.body), retestOfId: link.retestOfId },
+            data: { ...reconcile(fieldsOf(req.body), existing), retestOfId: link.retestOfId },
         });
         res.status(200).json({ item: view(row) });
     } catch (error) {

@@ -22,6 +22,19 @@ const fields = {
     total: z.number(),
     note: optionalText(LIMITS.note),
     retestOfId: z.string().uuid().nullable().optional().transform((v) => v ?? null),
+    // The assessment log's fields. A bare .nullable().optional(): a key left
+    // out stays undefined (the route then keeps the stored value, so an older
+    // app's edit or a write queued before these existed can't wipe them), and
+    // an explicit null clears it. Never a helper that maps undefined to null.
+    parts: z.array(z.object({
+        subject: z.string().max(20),
+        score: z.number(),
+        total: z.number(),
+    }).strip()).max(3).nullable().optional(),
+    minutesUsed: z.number().int().nullable().optional(),
+    guessed: z.number().int().nullable().optional(),
+    skipped: z.number().int().nullable().optional(),
+    improveTopicIds: z.array(z.string().max(LIMITS.topicId)).max(LIMITS.maxTopics).nullable().optional(),
 };
 
 const checkEntry = (entry, ctx) => {
