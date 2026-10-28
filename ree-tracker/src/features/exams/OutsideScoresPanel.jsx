@@ -11,9 +11,10 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { outsideScorePercent, outsideScoreSummary, retestDelta } from '@ree/shared';
 import { Card, Panel, Button, Grid, Modal, EmptyState, StatusPill, Sparkline, Skeleton } from '../../components/ui';
-import { ClipboardList, Plus, Pencil, Trash2, ShieldAlert, CloudOff, RotateCcw } from '../../components/ui/icons';
+import { ClipboardList, Plus, Pencil, Trash2, ShieldAlert, CloudOff, RotateCcw, Calculator } from '../../components/ui/icons';
 import { useOutsideScores } from './useOutsideScores';
 import OutsideScoreForm from './OutsideScoreForm';
+import RatingCalculator from './RatingCalculator';
 import { subjectLabel } from './outsideScoreLabels';
 
 const fmtPct = (n) => (n == null ? '—' : `${Number.isInteger(n) ? n : n.toFixed(1)}%`);
@@ -86,6 +87,8 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
   // `key` makes each opening a fresh form, starting from the entry being edited.
   const [form, setForm] = useState({ open: false, entry: null, key: 0 });
   const [confirm, setConfirm] = useState(null);
+  // Mounted per opening, so the calculator starts empty each time.
+  const [calc, setCalc] = useState({ open: false, key: 0 });
 
   const openForm = (entry = null) => setForm((f) => ({ open: true, entry, key: f.key + 1 }));
   const closeForm = () => setForm((f) => ({ ...f, open: false }));
@@ -140,6 +143,15 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
       <p className="text-xs text-muted2 leading-relaxed">
         Review-center preboards, book drills and other mocks. These are yours to track: they don’t count toward your readiness, forecast or rankings.
       </p>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="text-xs text-muted2 leading-relaxed min-w-0 flex-1 basis-56">
+          Got a preboard’s three scores? Rate them the PRC way, or see what the subject you haven’t sat needs.
+        </p>
+        <Button size="sm" variant="secondary" onClick={() => setCalc((c) => ({ open: true, key: c.key + 1 }))}>
+          <Calculator size={14} strokeWidth={1.75} aria-hidden="true" /> Rating calculator
+        </Button>
+      </div>
 
       {(queuedCount > 0 || status === 'offline' || status === 'unreachable' || (status === 'error' && list.length > 0)) && (
         <p role="status" className="flex items-center gap-2 text-xs text-muted2">
@@ -214,6 +226,10 @@ export default function OutsideScoresPanel({ inAppAverage = null, inAppCount = 0
           onClose={closeForm}
           onSave={save}
         />
+      )}
+
+      {calc.open && (
+        <RatingCalculator key={calc.key} open={calc.open} onClose={() => setCalc((c) => ({ ...c, open: false }))} />
       )}
 
       <Modal

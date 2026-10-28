@@ -588,3 +588,58 @@ describe('shared contract — printed paper sets', () => {
         expect(Object.keys(shared.itemEditErrors({ text: ' ', options: ['a', 'a'] })).sort()).toEqual(['answerIndex', 'options', 'text']);
     });
 });
+
+describe('shared contract — the board rating calculator', () => {
+    const part = (subject, score, total = 100) => ({ subject, score, total });
+
+    it('rates a full board on the weighted average, with the verdict gradeBoardExam gives', () => {
+        const rating = shared.rateBoard([part('EE', 64), part('Mathematics', 90), part('ESAS', 60)]);
+        expect(rating).toEqual({
+            subjects: [
+                { subject: 'Mathematics', percent: 90, belowFloor: false },
+                { subject: 'ESAS', percent: 60, belowFloor: false },
+                { subject: 'EE', percent: 64, belowFloor: false },
+            ],
+            generalAverage: 69.3,
+            verdict: 'FAILED',
+            complete: true,
+        });
+        expect(rating.generalAverage).toBe(shared.gradeBoardExam({ Mathematics: 90, ESAS: 60, EE: 64 }).generalAverage);
+        expect(shared.rateBoard([part('Math', 100), part('ESAS', 100), part('EE', 45)]))
+            .toMatchObject({ generalAverage: 75.25, verdict: 'CONDITIONAL PASS' });
+        expect(shared.rateBoard([part('Mathematics', 30, 40), part('ESAS', 70), part('EE', 80)]).subjects[0].percent).toBe(75);
+    });
+
+    it('gives no rating until all three subjects are in', () => {
+        expect(shared.rateBoard([part('EE', 64)])).toEqual({
+            subjects: [{ subject: 'EE', percent: 64, belowFloor: false }],
+            generalAverage: null,
+            verdict: null,
+            complete: false,
+        });
+        expect(shared.rateBoard([part('EE', 101), part('ESAS', 70), part('Mathematics', 70)]).complete).toBe(false);
+        expect(shared.rateBoard([])).toMatchObject({ subjects: [], complete: false });
+    });
+
+    it('finds the smallest whole score that passes outright, on the same rounding', () => {
+        expect(shared.scoreNeeded({ known: [part('Mathematics', 72), part('ESAS', 65)], subject: 'EE' }))
+            .toEqual({ items: 73, of: 100, percent: 73 });
+        // 12.5 + 15 + 0.45x >= 70 needs x >= 94.4
+        expect(shared.scoreNeeded({ known: [part('Mathematics', 50), part('ESAS', 50)], subject: 'EE' }))
+            .toEqual({ items: 95, of: 100, percent: 95 });
+        // Already past the average: the floor is what's left to clear.
+        expect(shared.scoreNeeded({ known: [part('Mathematics', 95), part('ESAS', 95)], subject: 'EE' }))
+            .toEqual({ items: 50, of: 100, percent: 50 });
+        expect(shared.scoreNeeded({ known: [part('Mathematics', 80), part('ESAS', 80)], subject: 'EE', items: 50 }))
+            .toEqual({ items: 29, of: 50, percent: 58 });
+    });
+
+    it('says when no score can pass, and why', () => {
+        expect(shared.scoreNeeded({ known: [part('ESAS', 50), part('EE', 50)], subject: 'Mathematics' }))
+            .toEqual({ unreachable: true, of: 100 });
+        expect(shared.scoreNeeded({ known: [part('Mathematics', 40), part('ESAS', 49.5)], subject: 'EE' }))
+            .toEqual({ blockedBy: ['Mathematics', 'ESAS'] });
+        expect(shared.scoreNeeded({ known: [part('Mathematics', 72)], subject: 'EE' })).toBeNull();
+        expect(shared.scoreNeeded({ known: [part('Mathematics', 72), part('ESAS', 65)], subject: 'Physics' })).toBeNull();
+    });
+});
