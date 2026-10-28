@@ -11,7 +11,7 @@ const { normalizeSubject } = require('@ree/shared');
 const { buildStudyPlan, cardTasks, taskProgress, PLAN_HORIZON_DAYS } = require('../engine/plan');
 const { loadMistakes } = require('../services/mistakeList');
 const { loadTopicSignals } = require('../services/topicSignals');
-const { loadFlaggedTopics } = require('../services/selfReportSignals');
+const { loadFlaggedTopics, loadSelfRatings } = require('../services/selfReportSignals');
 const { loadPlanCalendar } = require('../services/planCalendar');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { resolveTopic } = require('../services/topicResolver');
@@ -187,7 +187,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         const daysToExam = Math.round((Date.parse(exam) - Date.parse(today)) / 86400000);
         if (!(daysToExam > 0)) return res.status(400).json({ error: 'Set an exam date in the future.' });
         const span = Math.min(PLAN_HORIZON_DAYS, daysToExam);
-        const [user, practised, weights, mistakes, cardsDue, flaggedByTopic, calendar] = await Promise.all([
+        const [user, practised, weights, mistakes, cardsDue, flaggedByTopic, calendar, ratedLow] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.user.id }, select: { dailyTarget: true } }),
             loadTopicSignals(req.user.id),
             getSyllabusWeights(),
@@ -202,6 +202,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
                 logger.warn('Plan calendar unavailable', { error: error.message });
                 return { restDays: new Set(), eventDays: new Map(), lectures: [], keyDates: 0 };
             }),
+            loadSelfRatings(req.user.id).catch(() => new Set()),
         ]);
         // Open mistakes per topic, by name (the plan's topics are names).
         const openByTopic = new Map();
@@ -226,7 +227,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             .map((t) => {
                 const key = String(t.topic || '').trim().toLowerCase();
                 const flag = flaggedByTopic.get(key);
-                return { ...t, openMistakes: openByTopic.get(key) || 0, flags: flag?.flags || 0, flaggedBy: flag?.flaggedBy || null };
+                return { ...t, openMistakes: openByTopic.get(key) || 0, flags: flag?.flags || 0, flaggedBy: flag?.flaggedBy || null, ratedLow: ratedLow.has(key) };
             });
 
         const days = buildStudyPlan({
@@ -255,6 +256,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             openMistakes: [...openByTopic.values()].reduce((a, b) => a + b, 0),
             cardsDue: cardsDue.length,
             flaggedTopics: flaggedByTopic.size,
+            ratedLow: ratedLow.size,
             restDays: calendar.restDays.size,
             keyDates: calendar.keyDates,
             lectures: new Set((calendar.lectures || []).map((l) => l.on)).size,

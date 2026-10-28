@@ -137,3 +137,57 @@ describe('PUT /syllabus/:topicId', () => {
         expect(update).toHaveBeenCalledWith({ where: { userId_topicId: { userId: UID, topicId: 't-ee-1' } }, data: state() });
     });
 });
+
+describe('the learner’s own rating and the high-yield flag (step 4)', () => {
+    it('a PUT that leaves the rating out keeps the stored one; null clears it', async () => {
+        const upsert = vi.spyOn(prisma.syllabusProgress, 'upsert').mockImplementation(async ({ create }) => ({ id: 'row', ...create }));
+        await request(makeApp()).put('/api/user/syllabus/t-ee-1').set(as(UID)).send(state());
+        expect(upsert.mock.calls[0][0].update.confidence).toBeUndefined();
+        expect(upsert.mock.calls[0][0].update.dread).toBeUndefined();
+        await request(makeApp()).put('/api/user/syllabus/t-ee-1').set(as(UID)).send(state({ confidence: 25, dread: null }));
+        expect(upsert.mock.calls[1][0].update).toMatchObject({ confidence: 25, dread: null });
+    });
+
+    it('refuses a rating off the scale', async () => {
+        const upsert = vi.spyOn(prisma.syllabusProgress, 'upsert');
+        for (const bad of [{ confidence: 30 }, { dread: 5 }]) {
+            const res = await request(makeApp()).put('/api/user/syllabus/t-ee-1').set(as(UID)).send(state(bad));
+            expect(res.status).toBe(400);
+        }
+        expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it('rows carry the rating, the flag and the decayed mastery (the best of the rows on a topic)', () => {
+        const now = new Date('2026-10-28T00:00:00Z');
+        const rows = buildSyllabusRows({
+            topics: [{ ...topic('t-ee-1', 'EE', 'Machines', 1), highYield: true }],
+            progress: [{ topicId: 't-ee-1', read: false, watched: false, drilled: false, confidence: 75, dread: 3 }],
+            performance: [
+                { topicId: 't-ee-1', subject: 'EE', topic: 'Machines', attempts: 12, pMastery: 0.8, masteryN: 12, lastPracticedAt: '2026-10-27T00:00:00Z' },
+                { topicId: 't-ee-1', subject: 'EE', topic: 'Machines', attempts: 3, pMastery: 0.9, masteryN: 3, lastPracticedAt: '2026-01-01T00:00:00Z' },
+            ],
+            index: buildResolverIndex([]),
+            now,
+        });
+        expect(rows[0]).toMatchObject({ confidence: 75, dread: 3, highYield: true, attempts: 15 });
+        // The older row decays further than the fresh one, so the fresh one stands.
+        expect(rows[0].masteryEffective).toBeGreaterThan(0.7);
+        expect(rows[0].masteryEffective).toBeLessThan(0.9);
+    });
+});
+
+describe('admin: the high-yield flag', () => {
+    function configApp() {
+        delete require.cache[require.resolve('../src/routes/configRoutes')];
+        const app = express();
+        app.use(express.json());
+        app.use('/api/config', require('../src/routes/configRoutes'));
+        return app;
+    }
+
+    it('a learner can neither list nor set it', async () => {
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ role: 'USER' });
+        expect((await request(configApp()).get('/api/config/topics').set(as(UID))).status).toBe(403);
+        expect((await request(configApp()).put('/api/config/topics/t1').set(as(UID)).send({ highYield: true })).status).toBe(403);
+    });
+});

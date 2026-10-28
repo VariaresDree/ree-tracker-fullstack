@@ -5,6 +5,8 @@
 // improve" column per preboard; outside scores carry the same as
 // improveTopicIds. A topic flagged in the last FLAG_WINDOW_DAYS gets drilled
 // sooner (engine/plan.js), the way open mistakes already raise a topic.
+// The learner's own rating of a topic (the CELE "Meta topics": how sure, how
+// much they dread it) is read here too; the engine decides what it's worth.
 //
 // Self-reported tables stay out of θ, the forecast, readiness and the
 // rankings: tests/displayOnlyTables.test.js allows this file to read them and
@@ -51,4 +53,21 @@ async function loadFlaggedTopics(userId, today) {
     return out;
 }
 
-module.exports = { loadFlaggedTopics, FLAG_WINDOW_DAYS };
+/** A rating that asks for the topic sooner: sure 25% or less, or dread 3 ("Very") or more. */
+const LOW_CONFIDENCE = 25;
+const HIGH_DREAD = 3;
+
+/**
+ * Topics the learner rated low (not sure of, or dreaded), keyed by lowercased
+ * topic name: Set<name>. Raw flags only; engine/plan.js applies them while
+ * the topic is still below Proficient.
+ */
+async function loadSelfRatings(userId) {
+    const rows = await prisma.syllabusProgress.findMany({
+        where: { userId, OR: [{ confidence: { lte: LOW_CONFIDENCE } }, { dread: { gte: HIGH_DREAD } }] },
+        select: { topic: { select: { name: true } } },
+    });
+    return new Set(rows.map((r) => r.topic?.name?.trim().toLowerCase()).filter(Boolean));
+}
+
+module.exports = { loadFlaggedTopics, loadSelfRatings, FLAG_WINDOW_DAYS };

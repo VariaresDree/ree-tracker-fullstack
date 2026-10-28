@@ -15,6 +15,8 @@ vi.mock('../../store/useStore', async () => {
   return { useStore: store };
 });
 vi.mock('../../hooks/useForecast', () => ({ useForecast: () => ({ snapshot: null, loading: false, error: true }) }));
+// The rating-vs-answers section reads the syllabus (its own tests are SelfVsData.test.jsx).
+vi.mock('../syllabus/useSyllabus', () => ({ useSyllabus: () => ({ topics: [] }) }));
 vi.mock('../../components/ThetaVelocityChart', () => ({ default: () => <p>theta-chart</p> }));
 vi.mock('../analytics/CalibrationCurve', () => ({
   CalibrationCurve: () => <section><h2>How well does your confidence match your accuracy?</h2></section>,

@@ -15,6 +15,12 @@ const syllabusProgressSchema = z.object({
     startedOn: day,
     finishedOn: day,
     note: z.string().max(SYLLABUS_NOTE_MAX).nullable().optional().transform((v) => (v && v.trim() ? v.trim() : null)),
+    // The learner's own rating (CELE round). A bare .nullable().optional():
+    // a key left out stays undefined and the route keeps the stored value, so
+    // an older app's tick, or one queued before these existed, can't wipe it;
+    // an explicit null clears it.
+    confidence: z.number().int().nullable().optional(),
+    dread: z.number().int().nullable().optional(),
 }).strip().superRefine((state, ctx) => {
     for (const [path, message] of Object.entries(syllabusProgressErrors(state))) {
         ctx.addIssue({ code: 'custom', path: [path], message });

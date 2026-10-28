@@ -9,6 +9,7 @@
 
 const { normalizeSubject, SYLLABUS_SUBJECTS, isAutoDrilled } = require('@ree/shared');
 const { resolveInIndex } = require('./topicResolver');
+const { effectiveMastery } = require('./masteryView');
 
 const SUBJECT_ORDER = new Map(SYLLABUS_SUBJECTS.map((s, i) => [s, i]));
 
@@ -19,27 +20,30 @@ const SUBJECT_ORDER = new Map(SYLLABUS_SUBJECTS.map((s, i) => [s, i]));
  * land on one topic (a renamed label and its new id): attempts add up, and the
  * best stored mastery stands.
  */
-function performanceByTopic(performance, index) {
+function performanceByTopic(performance, index, now = new Date()) {
     const out = new Map();
     for (const p of performance || []) {
         const topicId = p.topicId || resolveInIndex(index, p.subject, p.topic)?.id;
         if (!topicId) continue;
-        const prev = out.get(topicId) || { attempts: 0, pMastery: null };
+        const prev = out.get(topicId) || { attempts: 0, pMastery: null, masteryEffective: null };
         const mastery = p.pMastery == null ? prev.pMastery : Math.max(prev.pMastery ?? 0, p.pMastery);
-        out.set(topicId, { attempts: prev.attempts + (Number(p.attempts) || 0), pMastery: mastery });
+        // Each row decays on its own clock before the best is kept.
+        const decayed = p.pMastery == null ? null : effectiveMastery(p, now).masteryEffective;
+        const effective = decayed == null ? prev.masteryEffective : Math.max(prev.masteryEffective ?? 0, decayed);
+        out.set(topicId, { attempts: prev.attempts + (Number(p.attempts) || 0), pMastery: mastery, masteryEffective: effective });
     }
     return out;
 }
 
 /**
- * @param {{ topics, progress, performance, index }} input
+ * @param {{ topics, progress, performance, index, now? }} input
  *   topics: active Topic rows; progress: the learner's SyllabusProgress rows;
  *   performance: their UserTopicPerformance rows; index: buildResolverIndex(topics)
  * @returns {Array<object>} one row per topic, Mathematics → ESAS → EE, then TOS order
  */
-function buildSyllabusRows({ topics, progress, performance, index }) {
+function buildSyllabusRows({ topics, progress, performance, index, now = new Date() }) {
     const ticks = new Map((progress || []).map((p) => [p.topicId, p]));
-    const answered = performanceByTopic(performance, index);
+    const answered = performanceByTopic(performance, index, now);
     return (topics || [])
         .map((t) => ({ ...t, subject: normalizeSubject(t.subject) }))
         .filter((t) => SUBJECT_ORDER.has(t.subject))
@@ -48,7 +52,7 @@ function buildSyllabusRows({ topics, progress, performance, index }) {
             || a.name.localeCompare(b.name))
         .map((t) => {
             const mine = ticks.get(t.id);
-            const perf = answered.get(t.id) || { attempts: 0, pMastery: null };
+            const perf = answered.get(t.id) || { attempts: 0, pMastery: null, masteryEffective: null };
             return {
                 topicId: t.id,
                 subject: t.subject,
@@ -62,6 +66,11 @@ function buildSyllabusRows({ topics, progress, performance, index }) {
                 startedOn: mine?.startedOn ?? null,
                 finishedOn: mine?.finishedOn ?? null,
                 note: mine?.note ?? null,
+                // The learner's own rating, and the decayed mastery it is set against.
+                confidence: mine?.confidence ?? null,
+                dread: mine?.dread ?? null,
+                highYield: !!t.highYield,
+                masteryEffective: perf.masteryEffective,
             };
         });
 }

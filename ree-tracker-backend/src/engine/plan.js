@@ -16,6 +16,8 @@
 //     drill says how many are open;
 //   • a topic the learner flagged "to improve" on an outside score raises it
 //     too (×1.25 a flag, two at most), within the same 1.5× cap;
+//   • so does one they rated low themselves (not sure, or dreaded; the CELE
+//     "Meta topics"), ×1.25, while it is still below Proficient;
 //   • every seventh study day is a timed PRC sitting, rotating the subject;
 //   • the last three days before the exam are light review;
 //   • the learner's calendar (CELE round, 2026-10): a rest day gets no task, a
@@ -50,6 +52,10 @@ const MISTAKE_CAP = 10;
 const FLAG_BOOST = 0.25;
 const FLAG_CAP = 2;
 const BOOST_CAP = 1.5;
+const SELF_RATED_BOOST = 0.25;
+// Below Proficient (MASTERY_BANDS in @ree/shared): a topic rated low but
+// already known well isn't pushed forward.
+const PROFICIENT = 0.65;
 const CARD_DAY_MIN = 5;
 // A topic with this many answers is known well enough to drill before its lecture.
 const LECTURE_READY_ANSWERS = 10;
@@ -246,7 +252,7 @@ function followLectures({ dates, assigned: initial, lectures = [], topics = [], 
  * @param {string} input.today        YYYY-MM-DD (Manila)
  * @param {string} input.examDate     YYYY-MM-DD
  * @param {number} [input.dailyTarget]
- * @param {Array<{topic, subject, topicId?, masteryEffective?, openMistakes?, flags?, flaggedBy?}>} input.topics
+ * @param {Array<{topic, subject, topicId?, masteryEffective?, openMistakes?, flags?, flaggedBy?, ratedLow?}>} input.topics
  * @param {object} [input.weights]
  * @param {{ restDays?: Set<string>, eventDays?: Map<string, string>, lectures?: Array<{topicId, on}> }} [input.calendar]
  *   the learner's rest days and key dates, and in review-center mode the
@@ -270,7 +276,8 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
             const flags = Math.max(0, Number(t.flags) || 0);
             const boost = Math.min(BOOST_CAP, 1
                 + MISTAKE_BOOST * (Math.min(open, MISTAKE_CAP) / MISTAKE_CAP)
-                + FLAG_BOOST * Math.min(flags, FLAG_CAP));
+                + FLAG_BOOST * Math.min(flags, FLAG_CAP)
+                + (t.ratedLow && p < PROFICIENT ? SELF_RATED_BOOST : 0));
             return { ...t, openMistakes: open, flags, priority: Math.max(0, 1 - p) * (w[t.subject] ?? 0.1) * boost };
         })
         .filter((t) => t.priority > 0)

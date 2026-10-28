@@ -760,3 +760,14 @@ describe('shared contract — sets to finish and personal links', () => {
         expect(Object.keys(shared.userLinkErrors({ title: 'x', url: 'mailto:a@b.c', subject: 'EE' }))).toEqual(['url']);
     });
 });
+
+describe('shared contract — the learner’s own topic rating', () => {
+    it('takes how sure in five steps and dread from 0 to 4, both optional', () => {
+        expect(shared.SELF_CONFIDENCE_LEVELS).toEqual([0, 25, 50, 75, 100]);
+        expect(shared.DREAD_LEVELS).toEqual([0, 1, 2, 3, 4]);
+        const ok = { read: false, watched: false, drilled: false };
+        expect(shared.syllabusProgressErrors(ok)).toEqual({});
+        expect(shared.syllabusProgressErrors({ ...ok, confidence: 75, dread: 0 })).toEqual({});
+        expect(Object.keys(shared.syllabusProgressErrors({ ...ok, confidence: 30, dread: 7 })).sort()).toEqual(['confidence', 'dread']);
+    });
+});
