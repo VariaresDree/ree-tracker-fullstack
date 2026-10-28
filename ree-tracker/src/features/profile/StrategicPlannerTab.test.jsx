@@ -99,12 +99,33 @@ describe('StrategicPlannerTab', () => {
     expect(rowEl.closest('.\\@container')).not.toBeNull();
   });
 
-  it('keeps the calendar in view beside the list on a wide page', async () => {
+  it('puts the calendar beside the plan, and the task list full width below them', async () => {
     api.apiRequest.mockResolvedValueOnce({ items: [] });
     renderTab();
     await screen.findByText('No tasks yet');
-    const cal = screen.getByRole('button', { name: 'Previous month' }).closest('[class*="@4xl:sticky"]');
-    expect(cal.className).toMatch(/@4xl:sticky @4xl:top-\[var\(--sticky-top,0\.75rem\)\]/);
+    const setup = document.querySelector('[data-plan-setup]');
+    // The plan takes two of three columns on a wide page; the calendar the third.
+    const plan = within(setup).getByRole('heading', { name: 'Study plan' }).closest('.card-edge');
+    expect(plan.className).toMatch(/@4xl:col-span-2/);
+    expect(within(setup).getByRole('button', { name: 'Previous month' })).toBeInTheDocument();
+    // The task list is not in that row.
+    expect(within(setup).queryByRole('heading', { name: 'Your tasks' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Your tasks' })).toBeInTheDocument();
+  });
+
+  it("shows the day's count on today's task only", async () => {
+    const [y, m, d] = today.split('-').map(Number);
+    const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+    api.apiRequest.mockResolvedValueOnce({
+      items: [
+        { id: 'a', kind: 'drill', text: 'Today drill', completed: false, dueDate: today, progress: { count: 3, target: 50 } },
+        { id: 'b', kind: 'drill', text: 'Tomorrow drill', completed: false, dueDate: tomorrow, progress: { count: 3, target: 50 } },
+      ],
+    });
+    renderTab();
+    await screen.findByText('Today drill');
+    expect(screen.getByText('Today drill').closest('li')).toHaveTextContent('3/50 today');
+    expect(screen.getByText('Tomorrow drill').closest('li')).not.toHaveTextContent('today');
   });
 
   it('adds a task from labelled fields', async () => {
