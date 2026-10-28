@@ -99,6 +99,11 @@ every feature add, change, or removal, not on a schedule.
       - A subject with no topics says so instead of an empty box.
     - **Confidence:** before any rated answer, the matrix explains how it fills instead of showing four zeros. Its cells are inset wells; the blurred blobs and hover lift are gone.
     - **Weak spots** leads with a hero, **Fix what's costing you points**, with the weak-spot drill (primary) and the blind-spot drill. They were a row of small buttons.
+    - **Habits › Study time:** the last 14 days are vertical columns (`DayColumns` in `features/analytics/sections/StudyTime.jsx`). It was a list of horizontal bars.
+      - Each day has a rounded track filled from the bottom in the theme's accent: today solid, earlier days a softer gradient.
+      - The minutes are above each column and the weekday and date below. Today's labels are in accent text.
+      - A dashed line marks the average active day, named in a legend under the chart.
+      - On a narrow card, only today's and the best day's minutes are printed, and weekdays shorten to one letter. Every day's figure is in a screen-reader list.
     - **Habits:** the study calendar is a Card (it was a solid hand-made frame). Its header goes side by side by the card's width, not the window's, and the month arrows are icon buttons instead of `<` and `>` text.
     - **Study plan:** the three plan figures are inset wells, and stay a `<dl>`.
   - **The order** goes from where you stand (Overview, Topics, how much of the syllabus is covered) to why (Confidence, Weak spots, Habits) to what next (Study plan). Syllabus used to sit sixth. The `?tab=` ids are unchanged, so every link to a tab still works.

@@ -14,9 +14,20 @@ const { default: StudyTime } = await import('./StudyTime');
 describe('StudyTime', () => {
   it('lists all 14 days with today last', () => {
     render(<StudyTime />);
-    const list = screen.getByRole('heading', { name: /Minutes per day/ }).parentElement.querySelector('ul');
+    const list = screen.getByRole('heading', { name: /Minutes per day/ }).parentElement.querySelector('ol');
     const rows = within(list).getAllByRole('listitem');
     expect(rows).toHaveLength(14);
     expect(rows[13]).toHaveTextContent('30');
+    expect(rows[13]).toHaveTextContent('(today)');
+  });
+
+  it('draws the days as vertical columns, today solid and tallest, with the average line', () => {
+    const { container } = render(<StudyTime />);
+    const fills = [...container.querySelectorAll('.grid-cols-14 .rounded-full > span')];
+    expect(fills).toHaveLength(14);
+    expect(fills[13].style.height).toBe('100%');
+    expect(fills[13].style.background).toBe('var(--accent)');
+    expect(fills[0].style.height).toBe('0%');
+    expect(screen.getByText('Average active day: 30 min')).toBeInTheDocument();
   });
 });
