@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { toDisplaySubject, masteryBand, boardPaceSeconds } from '@ree/shared';
 import { useStore } from '../store/useStore';
-import { EmptyState, Panel, SegmentedControl } from './ui';
-import { Flame, LayoutGrid, Timer, Target } from './ui/icons';
+import { Button, EmptyState, Panel, SegmentedControl } from './ui';
+import { ChevronDown, Flame, LayoutGrid, Timer, Target } from './ui/icons';
 
 const normKey = (s) => String(s || '').trim().toLowerCase();
 
@@ -20,10 +20,20 @@ const MASTERY_STYLE = {
   novice: { bg: 'bg-reeRed/10 border-reeRed/40', text: 'text-reeRed-text' },
 };
 
-// `onDrillTopic(topic, subject)` makes each tile a button that starts a
+// Rows shown before "Show all": a phone screen's worth and then some.
+const FIRST_ROWS = 12;
+
+// `onDrillTopic(topic, subject)` makes each row a button that starts a
 // targeted drill on that topic.
+//
+// One compact row per topic (name and status on the left, the figure on the
+// right), in a list that grows with the page, the first 12 and then "Show all".
+// They were 72px tiles in a box that scrolled on its own inside the page: on a
+// phone the panel's header and pickers left it room for four or five topics.
 function HeatmapChart({ stats, onDrillTopic }) {
   const [activeTab, setActiveTab] = useState('Mathematics');
+  // Which subject has its whole list open; another subject opens folded.
+  const [openFor, setOpenFor] = useState(null);
   // BKT P(mastery) is the headline signal (roadmap 3.5) — default view.
   const [viewMode, setViewMode] = useState('mastery');
 
@@ -71,8 +81,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
       icon={VIEW_ICON[viewMode]}
       eyebrow="Topic mastery"
       title={title}
-      className="h-full"
-      bodyClassName="flex flex-col gap-3 min-h-0"
+      bodyClassName="flex flex-col gap-3"
       action={
         <div className="flex gap-1 shrink-0" role="group" aria-label="Heatmap metric">
           {VIEW_MODES.map((mode) => {
@@ -107,8 +116,8 @@ function HeatmapChart({ stats, onDrillTopic }) {
         className="shrink-0"
       />
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1.5 flex flex-col gap-2 min-h-0 stagger-fade-in">
-        {displayedTopics.map((item) => {
+      <ul className="flex flex-col gap-1.5" aria-label={`${toDisplaySubject(activeTab)} topics`}>
+        {(openFor === activeTab ? displayedTopics : displayedTopics.slice(0, FIRST_ROWS)).map((item) => {
           const hasData = item.data.attempts > 0;
           const pct = hasData ? Math.round((item.data.correct / item.data.attempts) * 100) : 0;
           // Average over ONLY the attempts that had plausible timing (corrupt
@@ -168,35 +177,51 @@ function HeatmapChart({ stats, onDrillTopic }) {
 
           const tileBody = (
             <>
-              <div className="flex flex-col min-w-0 pr-4">
-                <div className={`text-sm font-semibold truncate ${tileActive ? 'text-textMain' : 'text-muted'}`} title={item.name}>
+              <span className="min-w-0 flex flex-col">
+                <span className={`text-sm font-medium leading-snug line-clamp-1 [overflow-wrap:anywhere] ${tileActive ? 'text-textMain' : 'text-muted'}`} title={item.name}>
                   {item.name}
-                </div>
-                <div className={`text-micro uppercase tracking-wider mt-0.5 font-medium ${textClass}`}>{subLabel}</div>
-              </div>
-              <div className={`text-2xl text-display tabular-nums shrink-0 ${textClass}`}>{metricDisplay}</div>
+                </span>
+                <span className={`text-micro uppercase tracking-wider font-medium ${textClass}`}>{subLabel}</span>
+              </span>
+              <span className={`text-base font-semibold tabular-nums ${textClass}`}>{metricDisplay}</span>
             </>
           );
-          const tileClass = `p-3.5 rounded-[var(--radius-default)] border flex justify-between items-center transition-colors shrink-0 ${bgClass}`;
+          // 44px tall at least (a touch target), two short lines.
+          const tileClass = `min-h-11 px-3 py-1.5 rounded-[var(--radius-default)] border grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 transition-colors ${bgClass}`;
 
-          return onDrillTopic ? (
-            <button
-              key={item.name}
-              type="button"
-              onClick={() => onDrillTopic(item.name, activeTab)}
-              aria-label={`Drill ${item.name}: ${subLabel}, ${metricDisplay}`}
-              className={`${tileClass} w-full text-left cursor-pointer hover:brightness-110`}
-            >
-              {tileBody}
-            </button>
-          ) : (
-            <div key={item.name} className={tileClass}>{tileBody}</div>
+          return (
+            <li key={item.name}>
+              {onDrillTopic ? (
+                <button
+                  type="button"
+                  onClick={() => onDrillTopic(item.name, activeTab)}
+                  aria-label={`Drill ${item.name}: ${subLabel}, ${metricDisplay}`}
+                  className={`${tileClass} w-full text-left cursor-pointer hover:brightness-110`}
+                >
+                  {tileBody}
+                </button>
+              ) : (
+                <div className={tileClass}>{tileBody}</div>
+              )}
+            </li>
           );
         })}
-        {displayedTopics.length === 0 && (
-          <EmptyState compact icon={LayoutGrid} title="No topics for this subject yet" description="They appear once the syllabus for it loads." />
-        )}
-      </div>
+      </ul>
+      {displayedTopics.length > FIRST_ROWS && (
+        <Button
+          variant="ghost"
+          size="sm"
+          fullWidth
+          aria-expanded={openFor === activeTab}
+          onClick={() => setOpenFor(openFor === activeTab ? null : activeTab)}
+        >
+          {openFor === activeTab ? 'Show fewer' : `Show all ${displayedTopics.length} topics`}
+          <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className={`transition-[rotate] duration-200 motion-reduce:transition-none ${openFor === activeTab ? 'rotate-180' : ''}`} />
+        </Button>
+      )}
+      {displayedTopics.length === 0 && (
+        <EmptyState compact icon={LayoutGrid} title="No topics for this subject yet" description="They appear once the syllabus for it loads." />
+      )}
     </Panel>
   );
 }
