@@ -45,4 +45,5 @@ module.exports = {
     ...require('./boardRating'),
     ...require('./keyDates'),
     ...require('./setsAndLinks'),
+    ...require('./reviewPhase'),
 };

@@ -15,8 +15,8 @@ const day = (n) => new Date(Date.UTC(2026, 9, 1 + n)).toISOString().slice(0, 10)
 afterEach(() => vi.restoreAllMocks());
 
 describe('dayKinds', () => {
-    it('with an empty calendar, is the old rule for every distance to the exam', () => {
-        for (let daysToExam = 1; daysToExam <= 60; daysToExam++) {
+    it('with an empty calendar and the exam over 120 days past the plan, is the old rule', () => {
+        for (let daysToExam = 163; daysToExam <= 230; daysToExam++) {
             const days = Math.min(42, daysToExam);
             const old = Array.from({ length: days }, (_, i) => {
                 if (daysToExam - i <= FINAL_REVIEW_DAYS) return 'review';
@@ -25,6 +25,16 @@ describe('dayKinds', () => {
             });
             expect(dayKinds({ today: '2026-10-01', days, daysToExam })).toEqual(old);
         }
+    });
+
+    it('sittings come closer as the exam nears: every 7, then 5 in the refresher, then 4', () => {
+        const kinds = dayKinds({ today: '2026-10-01', days: 42, daysToExam: 42 });
+        // 42 days out is the refresher (every 5th study day) until 14 days out (every 4th).
+        const mocks = kinds.map((k, i) => (k === 'mock' ? i : -1)).filter((i) => i >= 0);
+        expect(mocks).toEqual([4, 9, 14, 19, 24, 28, 32, 36]);
+        expect(kinds.slice(-3)).toEqual(['review', 'review', 'review']);
+        // A given cadence still wins (the old fixed rule).
+        expect(dayKinds({ today: '2026-10-01', days: 14, daysToExam: 42, mockEvery: 7 }).indexOf('mock')).toBe(6);
     });
 
     it('a rest day is skipped and doesn’t count toward the seven study days to a sitting', () => {
