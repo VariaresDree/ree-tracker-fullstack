@@ -21,7 +21,7 @@ import { planTopics } from './planTopics';
 import { useDeepAnalytics } from '../analytics/useDeepAnalytics';
 import { focusGapLine } from '../analytics/sections/focusGap';
 import { TOS_WEIGHTS } from '../../utils/tosWeights';
-import { Badge, Button, Card, CardTitle, Grid, Modal } from '../../components/ui';
+import { Badge, Button, Card, CardTitle, Modal } from '../../components/ui';
 import { CalendarDays, Check, TriangleAlert } from '../../components/ui/icons';
 
 const PLAN_DAYS = 42;
@@ -96,9 +96,8 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
         <div className="min-w-0">
           <CardTitle size="lg">Study plan</CardTitle>
           <p className="text-sm text-muted2 mt-1 max-w-prose">
-            Plans the next six weeks from your mastery and the PRC weights: a targeted drill most days (topics with
-            open mistakes come up more), a timed sitting each week, light review before the exam, and a formula-card
-            review on days five or more cards are due. Tasks tick themselves off from your answers.
+            Six weeks of tasks from your mastery and the PRC weights: a drill most days, a timed sitting each week,
+            and formula cards when they're due. Tasks tick themselves off as you answer.
           </p>
         </div>
         <Button size="sm" variant="ghost" tone="danger" onClick={() => setConfirmClear(true)} loading={isClearing}>
@@ -142,21 +141,6 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
         </div>
       </fieldset>
 
-      <Grid kind="tiles" gap="sm" as="dl">
-        <Card variant="inset" className="p-3 text-center">
-          <dt className="text-eyebrow">Topics</dt>
-          <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{topicsToGenerate.length}</dd>
-        </Card>
-        <Card variant="inset" className="p-3 text-center">
-          <dt className="text-eyebrow">Days left</dt>
-          <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{daysUntilExam ?? '—'}</dd>
-        </Card>
-        <Card variant="inset" className="p-3 text-center">
-          <dt className="text-eyebrow">Days planned</dt>
-          <dd className="text-xl font-semibold tabular-nums text-textMain mt-1">{daysUntilExam ? Math.min(daysUntilExam, PLAN_DAYS) : '—'}</dd>
-        </Card>
-      </Grid>
-
       {(builtFrom || focusLine) && (
         <div className="flex flex-col gap-1 text-sm">
           {builtFrom && (
@@ -166,6 +150,15 @@ export default function StudyPlanGenerator({ onPlanGenerated }) {
           )}
           {focusLine && <p className="text-muted2">From your focus time: {focusLine}</p>}
         </div>
+      )}
+
+      {/* One line instead of three tiles: "Days left" repeated the badge
+          beside the exam date. */}
+      {daysUntilExam > 0 && topicsToGenerate.length > 0 && (
+        <p className="text-sm text-muted2 tabular-nums" data-plan-scope>
+          Plans the next <span className="font-semibold text-textMain">{Math.min(daysUntilExam, PLAN_DAYS)} days</span> across{' '}
+          <span className="font-semibold text-textMain">{topicsToGenerate.length} topics</span>.
+        </p>
       )}
 
       <Button

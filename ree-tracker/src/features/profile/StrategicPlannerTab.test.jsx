@@ -60,6 +60,53 @@ describe('StrategicPlannerTab', () => {
     expect(screen.getByText('No date')).toBeInTheDocument();
   });
 
+  it('groups the list into Overdue, Today and Next 7 days, with Later and Done folded', async () => {
+    const shift = (n) => {
+      const [y, m, d] = today.split('-').map(Number);
+      return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+    };
+    api.apiRequest.mockResolvedValueOnce({
+      items: [
+        { id: 'a', text: 'Missed drill', completed: false, dueDate: shift(-2) },
+        { id: 'b', text: 'Today drill', completed: false, dueDate: today },
+        { id: 'c', text: 'Soon drill', completed: false, dueDate: shift(3) },
+        { id: 'd', text: 'Far drill 1', completed: false, dueDate: shift(20) },
+        { id: 'e', text: 'Far drill 2', completed: false, dueDate: shift(30) },
+        { id: 'f', text: 'Old drill', completed: true, dueDate: shift(-5) },
+      ],
+    });
+    renderTab();
+    await screen.findByText('Today drill');
+    const section = (name) => screen.getByRole('heading', { level: 3, name: new RegExp(`^${name}`) }).closest('section');
+    expect(within(section('Overdue')).getByText('Missed drill')).toBeInTheDocument();
+    expect(within(section('Today')).getByText('Today drill')).toBeInTheDocument();
+    expect(within(section('Next 7 days')).getByText('Soon drill')).toBeInTheDocument();
+    // Later and Done are folded until asked for.
+    expect(screen.queryByText('Far drill 1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Old drill')).not.toBeInTheDocument();
+    const later = screen.getByRole('button', { name: /Show 2 later tasks/ });
+    expect(later).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(later);
+    expect(within(section('Later')).getByText('Far drill 1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Hide later tasks/ })).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /Show 1 done task/ }));
+    expect(screen.getByText('Old drill')).toBeInTheDocument();
+    // The counts sit under the calendar.
+    expect(screen.getByLabelText('Open tasks')).toHaveTextContent('Overdue1Today1Next 7 days1');
+    // A row lays out by the list's width: Start under the name when narrow.
+    const rowEl = screen.getByText('Today drill').closest('[data-task-row]');
+    expect(rowEl.className).toMatch(/grid-cols-\[auto_minmax\(0,1fr\)_auto\] @lg:grid-cols-\[auto_minmax\(0,1fr\)_auto_auto\]/);
+    expect(rowEl.closest('.\\@container')).not.toBeNull();
+  });
+
+  it('keeps the calendar in view beside the list on a wide page', async () => {
+    api.apiRequest.mockResolvedValueOnce({ items: [] });
+    renderTab();
+    await screen.findByText('No tasks yet');
+    const cal = screen.getByRole('button', { name: 'Previous month' }).closest('[class*="@4xl:sticky"]');
+    expect(cal.className).toMatch(/@4xl:sticky @4xl:top-\[var\(--sticky-top,0\.75rem\)\]/);
+  });
+
   it('adds a task from labelled fields', async () => {
     api.apiRequest.mockResolvedValueOnce({ items: [] });
     renderTab();
