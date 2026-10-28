@@ -704,6 +704,9 @@ model CardReview {
   nextReviewDate DateTime
   lastReviewed   DateTime
   lastReviewId   String?
+  // The latest rating ('again' | 'hard' | 'good' | 'easy'), for the weak-
+  // formula sheet; null on rows rated before it was kept (CELE round).
+  lastRating     String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
