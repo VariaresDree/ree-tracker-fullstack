@@ -42,4 +42,5 @@ module.exports = {
     ...require('./reminders'),
     ...require('./optionOrder'),
     ...require('./paperSets'),
+    ...require('./boardRating'),
 };

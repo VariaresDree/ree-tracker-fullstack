@@ -188,3 +188,24 @@ _Value: med · Effort: S · Deps: PWA notifications (shipped), W2 · Deploy: fro
 ## 5. Suggested sequencing
 **W0 → (W1 + W3 in parallel) → W2 → W4 → W5/W6/W7/W8.** W1 and W3 deliver the most direct
 "test/assess/analyze" value on the existing engine; W2 compounds them; W5–W8 harden and polish.
+
+## 6. Spreadsheet round 2 — the CELE tracker, adapted for REE (2026-10-28)
+
+A civil-engineering board tracker (`[ CELE TRACKER 2027 ].xlsx`, 11 sheets) was read against the app.
+Most of it already existed: the countdown, the topic checklist (Progress › Syllabus), the assessment
+log (Outside scores), the study-plan calendar, the PRC verdict and the terms flashcards (formula
+cards). What it adds, adapted for the REE board, ships one PR at a time. Self-reported data may raise
+**study-plan** priority only, never θ, readiness, the forecast or the rankings. Review-center features
+are optional: a self-reviewer never sees them.
+
+| Step | CELE source | REE feature | Status |
+|---|---|---|---|
+| 1a | RCE › Computing rating | Rating calculator: the PRC rating and the score you need to pass | This PR |
+| 1b | Assessments (time, skipped, guessed, need to improve) | Outside scores gain per-subject parts, time used, guessed and skipped counts, topics to improve | Planned |
+| 2a | Important events, refresher calendar, rest days | Key dates and rest days on the calendar, Today and the plan | Planned |
+| 2b | Topic schedule | Optional review-center mode: a lecture schedule the plan follows | Planned |
+| 3 | Progress check, useful links | Sets to finish (past boards, RC sets) linked to outside scores; personal links in Library | Planned |
+| 4 | Meta topics (confidence, intimidating) | Topic self-rating against measured mastery; an admin high-yield flag | Planned |
+| 5a | Tips (concepts first, preboards, rest, board hours) | Review phases, a playbook, a phase-aware mock cadence | Planned |
+| 5b | Tips (30 minutes for shading), night-owl habits | Shading reminder on the paper-exam timer; accuracy by time of day | Planned |
+| 6 | Tips (formula wall), "POGS" recall | Printable weak-formula sheet; random-topic recall | Planned |
