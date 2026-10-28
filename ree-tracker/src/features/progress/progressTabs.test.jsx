@@ -57,7 +57,13 @@ describe('Progress tabs', () => {
     expect(hero).toHaveTextContent('Questions answered');
     expect(hero).toHaveTextContent('30 this week · 0 last week');
     expect(hero).toContainElement(screen.getByRole('button', { name: /AI board report/ }));
-    expect(screen.getByRole('heading', { level: 2, name: 'Ability trend (θ)' })).toBeInTheDocument();
+    const trend = screen.getByRole('heading', { level: 2, name: 'Ability trend (θ)' });
+    // Beside the forecast, the trend card stretches to the row's height (it
+    // stopped ~250px short); stacked, its chart keeps a set height.
+    const row = trend.closest('.grid');
+    expect(row.className).not.toMatch(/items-start/);
+    // A min height (a flex item ignores `height`), the chart filling it.
+    expect(row.querySelector('[class*="@xl:min-h-"]').className).toMatch(/flex flex-col min-h-\[260px\] @xl:min-h-\[300px\] \[&>\*\]:flex-1/);
     expect(screen.getByRole('button', { name: /AI board report/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /past mock sittings/ })).toHaveAttribute('href', '/exams?tab=history');
     expect(screen.getByRole('link', { name: /past mock sittings/ }).className).toMatch(/pointer-coarse:min-h-11/);

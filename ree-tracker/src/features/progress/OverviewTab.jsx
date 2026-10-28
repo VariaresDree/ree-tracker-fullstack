@@ -55,13 +55,20 @@ export default function OverviewTab({ stats, kpi, today }) {
         </Grid>
       </Card>
 
-      <Grid kind="split" className="items-start">
+      {/* Side by side, the two cards share the row's height: the chart grows
+          to the forecast's height rather than stopping short of it (it was
+          `items-start` with a fixed 300px chart, so the forecast hung ~250px
+          below it). Stacked, the chart keeps a set height. That is a min
+          height, with the chart flexing to fill the body: the body is a flex
+          item (flex-1, basis 0), so a plain `h-[300px]` was ignored and the
+          chart sat at its own 220px floor. */}
+      <Grid kind="split">
         <Panel
           icon={AudioWaveform}
           eyebrow="Ability"
           title="Ability trend (θ)"
           className="@4xl:col-span-2"
-          bodyClassName="h-[260px] sm:h-[300px]"
+          bodyClassName="flex flex-col min-h-[260px] @xl:min-h-[300px] [&>*]:flex-1"
           action={
             <div className="flex items-center gap-2">
               <Badge tone="velocity" className="hidden sm:inline-flex tabular-nums">θ {theta.toFixed(2)}</Badge>
