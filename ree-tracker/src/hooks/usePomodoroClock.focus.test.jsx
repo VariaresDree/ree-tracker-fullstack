@@ -140,3 +140,31 @@ describe('usePomodoroClock — the end of a block', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('usePomodoroClock — the shading reminder', () => {
+  it('the owner says it once when a paper-exam section reaches its shading time', async () => {
+    const now = Date.now();
+    useStore.setState({ pomodoro: {
+      ...freshPomodoro({ mode: 'exam', examSection: 'ESAS' }),
+      isRunning: true, endsAt: now + 20 * 60_000, focusStartedAt: now - 3 * 3600_000, pausedRemaining: null, pendingFocusLogs: [],
+    } });
+    const a = renderHook(() => usePomodoroClock({ owner: true }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('30 minutes left in ESAS. Transfer your answers to the sheet now.'));
+    expect(playChime).toHaveBeenCalledWith('shade');
+    a.unmount();
+    renderHook(() => usePomodoroClock({ owner: true })); // another owner, or a reload
+    await act(async () => {});
+    expect(toast).toHaveBeenCalledTimes(1);
+  });
+
+  it('a clock that isn’t the owner says nothing', async () => {
+    const now = Date.now();
+    useStore.setState({ pomodoro: {
+      ...freshPomodoro({ mode: 'exam', examSection: 'EE' }),
+      isRunning: true, endsAt: now + 10 * 60_000, focusStartedAt: now - 3600_000, pausedRemaining: null, pendingFocusLogs: [],
+    } });
+    renderHook(() => usePomodoroClock());
+    await act(async () => {});
+    expect(toast).not.toHaveBeenCalled();
+  });
+});

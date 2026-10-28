@@ -206,6 +206,6 @@ are optional: a self-reviewer never sees them.
 | 2b | Topic schedule | Optional review-center mode: a lecture schedule the plan follows | Done (#179) |
 | 3 | Progress check, useful links | Sets to finish (past boards, RC sets) linked to outside scores; personal links in Library | Done (#180) |
 | 4 | Meta topics (confidence, intimidating) | Topic self-rating against measured mastery; an admin high-yield flag | Done (#181) |
-| 5a | Tips (concepts first, preboards, rest, board hours) | Review phases, a playbook, a phase-aware mock cadence | This PR |
-| 5b | Tips (30 minutes for shading), night-owl habits | Shading reminder on the paper-exam timer; accuracy by time of day | Planned |
+| 5a | Tips (concepts first, preboards, rest, board hours) | Review phases, a playbook, a phase-aware mock cadence | Done (#182) |
+| 5b | Tips (30 minutes for shading), night-owl habits | Shading reminder on the paper-exam timer; accuracy by time of day | This PR |
 | 6 | Tips (formula wall), "POGS" recall | Printable weak-formula sheet; random-topic recall | Planned |

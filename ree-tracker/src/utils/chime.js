@@ -28,6 +28,8 @@ export function primeChime() {
 const TONES = {
   end: [[660, 0], [880, 0.2]],
   exam: [[523.25, 0], [659.25, 0.25], [783.99, 0.5]],
+  // The paper exam's shading reminder: two falling notes, unlike the end.
+  shade: [[783.99, 0], [587.33, 0.3]],
   test: [[660, 0], [880, 0.2]],
 };
 

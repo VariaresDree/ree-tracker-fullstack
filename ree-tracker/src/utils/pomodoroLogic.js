@@ -87,14 +87,44 @@ export function isInProgress(p, now = Date.now()) {
 const SETTING_DEFAULTS = {
   workDuration: 25, breakDuration: 5, longBreakDuration: 15, longEvery: 4,
   autoStartBreaks: false, autoStartFocus: false, sound: true,
+  // Paper exam: minutes before a section ends to say "transfer your answers
+  // to the sheet" (the CELE tips: keep at least 30 minutes for shading). 0 = off.
+  shadeReminder: 30,
 };
+
+/** The shading reminder's choices, in minutes (0 = off). */
+export const SHADE_REMINDER_OPTIONS = [0, 15, 30, 45];
+const shadeOr = (v, fallback) => (SHADE_REMINDER_OPTIONS.includes(Number(v)) ? Number(v) : fallback);
+
+/** True from the moment the section's shading time starts until it ends (paper exam, reminder on). */
+export function inShadingTime(p, now = Date.now()) {
+  if (p.mode !== 'exam' || !(p.shadeReminder > 0)) return false;
+  const left = remainingSecs(p, now);
+  return left > 0 && left <= p.shadeReminder * 60 && modeDurationSecs(p) > p.shadeReminder * 60;
+}
+
+/**
+ * Is the shading reminder due now: a running paper-exam section has reached
+ * its shading time, and this section (by when it started) hasn't been told.
+ * The mark lives on the persisted timer (`shadeAlertedFor`), since the owning
+ * clock moves between components and a reload must not say it twice.
+ */
+export function shadeDue(p, now = Date.now()) {
+  return !!p.isRunning && p.focusStartedAt != null && p.shadeAlertedFor !== p.focusStartedAt && inShadingTime(p, now);
+}
+
+/** The timer, marked as having given this section's shading reminder. */
+export const markShadeAlerted = (p) => ({ ...p, shadeAlertedFor: p.focusStartedAt });
+
+/** "30 minutes left in EE. Transfer your answers to the sheet now." */
+export const shadeMessage = (p) => `${p.shadeReminder} minutes left in ${p.examSection}. Transfer your answers to the sheet now.`;
 
 /** A timer at rest in focus mode, with `prefs` laid over the defaults. */
 export function freshPomodoro(prefs = {}) {
   const p = {
     ...SETTING_DEFAULTS,
     mode: 'focus', cycle: 0, examSection: 'Mathematics', examFullBoard: false, subject: 'General',
-    isRunning: false, endsAt: null, pausedRemaining: null, focusStartedAt: null, pendingFocusLogs: [],
+    isRunning: false, endsAt: null, pausedRemaining: null, focusStartedAt: null, pendingFocusLogs: [], shadeAlertedFor: null,
     ...prefs,
   };
   return { ...p, pausedRemaining: prefs.pausedRemaining ?? modeDurationSecs(p) };
@@ -230,6 +260,7 @@ export function updateSettings(p, patch = {}, now = Date.now()) {
     if (patch[key] != null) next[key] = !!patch[key];
   }
   if (FOCUS_SUBJECTS.includes(patch.subject)) next.subject = patch.subject;
+  if (patch.shadeReminder != null) next.shadeReminder = shadeOr(patch.shadeReminder, p.shadeReminder);
   next.cycle = Math.min(next.cycle || 0, next.longEvery - 1);
 
   if (modeDurationSecs(next) === modeDurationSecs(p)) return next;
@@ -291,6 +322,8 @@ export function migratePomodoro(raw, now = Date.now()) {
     autoStartBreaks: !!r.autoStartBreaks,
     autoStartFocus: !!r.autoStartFocus,
     sound: r.sound === undefined ? SETTING_DEFAULTS.sound : !!r.sound,
+    shadeReminder: shadeOr(r.shadeReminder, SETTING_DEFAULTS.shadeReminder),
+    shadeAlertedFor: finiteOr(r.shadeAlertedFor, null),
     mode: MODES.includes(r.mode) ? r.mode : (r.isWork === false ? 'short' : 'focus'),
     cycle: Math.min(longEvery - 1, Math.max(0, Math.floor(finiteOr(r.cycle, 0)))),
     examSection: EXAM_SECTIONS.includes(r.examSection) ? r.examSection : 'Mathematics',

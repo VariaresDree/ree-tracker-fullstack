@@ -11,7 +11,9 @@ const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subject
 const { normalizeSubject } = require('../utils/subject');
 // Manila calendar date of an instant — same helper telemetryService keys
 // ActivityLog on, so "a study day" means the same thing everywhere.
-const { manilaDateOf } = require('../utils/manilaDate');
+const { manilaDateOf, manilaHourSql } = require('../utils/manilaDate');
+const { summarizeTimeOfDay, BAND_WINDOW_DAYS } = require('../services/timeOfDay');
+const { Prisma } = require('@prisma/client');
 
 // GET /api/analytics/deep/time-analysis — time-per-question by topic.
 // Excludes corrupt timing rows (0ms/inflated) so the averages are truthful.
@@ -44,6 +46,33 @@ router.get('/time-analysis', authMiddleware, async (req, res) => {
         res.status(200).json({ items: result });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch time analysis.' });
+    }
+});
+
+// GET /api/analytics/deep/time-of-day — accuracy and pace by Manila hour band
+// over the last BAND_WINDOW_DAYS (CELE round): whether the learner answers
+// better at some hours, set against board hours (8 AM–5 PM). The answer's own
+// time (answeredAt, device-stamped and clamped) or, for older rows, when it
+// reached the server.
+router.get('/time-of-day', authMiddleware, async (req, res) => {
+    try {
+        const at = Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`;
+        const since = new Date(Date.now() - BAND_WINDOW_DAYS * 86400000);
+        const rows = await prisma.$queryRaw`
+            SELECT
+                ${manilaHourSql(at)} AS "hour",
+                COUNT(*)::int AS "answers",
+                COUNT(*) FILTER (WHERE qa."isCorrect")::int AS "correct",
+                COALESCE(SUM(qa."timeSpentMs") FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS}), 0)::bigint AS "timedMs",
+                COUNT(*) FILTER (WHERE qa."timeSpentMs" BETWEEN ${TIME_MIN_MS} AND ${TIME_MAX_MS})::int AS "timed"
+            FROM "QuestionAttempt" qa
+            WHERE qa."userId" = ${req.user.id}
+              AND ${at} >= ${since}
+            GROUP BY 1
+        `;
+        res.status(200).json(summarizeTimeOfDay(rows.map((r) => ({ ...r, timedMs: Number(r.timedMs) }))));
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to load accuracy by time of day.' });
     }
 });
 

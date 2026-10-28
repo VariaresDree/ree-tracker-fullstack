@@ -14,6 +14,7 @@ import { clearUserCaches } from '../services/userCache';
 import {
   freshPomodoro, migratePomodoro, remainingSecs, resetForSignOut,
   startTimer, pauseTimer, resetTimer, skipTimer, completeTimer, setMode, setExamSection, setExamFullBoard, updateSettings,
+  shadeDue, markShadeAlerted,
 } from '../utils/pomodoroLogic';
 import { applyTexture, applyTheme } from '../theme/applyAppearance';
 
@@ -796,6 +797,9 @@ export const useStore = create(
       // happens unless the block is running and at zero, so two calls for one
       // ending move the timer on once.
       completePomodoro: () => setPomodoro(set, (p, now) => (p.isRunning && remainingSecs(p, now) === 0 ? completeTimer(p, now) : p)),
+      // A paper-exam section reached its shading time (the owning clock calls
+      // this). Idempotent: marks the section once, so the reminder fires once.
+      markShadeReminded: () => setPomodoro(set, (p, now) => (shadeDue(p, now) ? markShadeAlerted(p) : p)),
       setPomodoroMode: (mode) => setPomodoro(set, (p, now) => setMode(p, mode, now)),
       setPomodoroExamSection: (section) => setPomodoro(set, (p, now) => setExamSection(p, section, now)),
       setPomodoroExamFullBoard: (on) => setPomodoro(set, (p) => setExamFullBoard(p, on)),

@@ -8,7 +8,7 @@ import {
   remainingSecs, progressOf, modeDurationSecs, isInProgress, freshPomodoro,
   startTimer, pauseTimer, resetTimer, completeTimer, skipTimer, setMode, setExamSection, setExamFullBoard,
   updateSettings, resetForSignOut, completionMessage, migratePomodoro, clampMinutes, clampLongEvery,
-  MIN_MINUTES, MAX_MINUTES,
+  MIN_MINUTES, MAX_MINUTES, inShadingTime, shadeDue, markShadeAlerted, shadeMessage, SHADE_REMINDER_OPTIONS,
 } from './pomodoroLogic';
 
 const T0 = 1_700_000_000_000;
@@ -303,5 +303,45 @@ describe('migratePomodoro (rehydrate)', () => {
     });
     const p = migratePomodoro({ mode: 'nap', examSection: 'Chemistry', workDuration: 0, longEvery: 40, cycle: 99, pausedRemaining: 99_999, sound: 0 }, NOW);
     expect(p).toMatchObject({ mode: 'focus', examSection: 'Mathematics', workDuration: 25, longEvery: 8, cycle: 7, pausedRemaining: 25 * 60, sound: false });
+  });
+});
+
+describe('the shading reminder (paper exam, CELE round)', () => {
+  const exam = (over = {}) => startTimer(setMode(base({ examSection: 'EE', ...over }), 'exam', T0), T0); // EE: 6 h
+
+  it('is due once the section reaches its last N minutes, and not before', () => {
+    const p = exam();
+    expect(p.shadeReminder).toBe(30);
+    expect(shadeDue(p, p.endsAt - 31 * MIN)).toBe(false);
+    expect(shadeDue(p, p.endsAt - 30 * MIN)).toBe(true);
+    expect(inShadingTime(p, p.endsAt - 10 * MIN)).toBe(true);
+    expect(shadeMessage(p)).toBe('30 minutes left in EE. Transfer your answers to the sheet now.');
+  });
+
+  it('fires once per section: the mark is the section’s start', () => {
+    const p = markShadeAlerted(exam());
+    expect(shadeDue(p, p.endsAt - 10 * MIN)).toBe(false);
+    // A new section starts a new mark.
+    const next = startTimer({ ...p, isRunning: false, endsAt: null, focusStartedAt: null, pausedRemaining: null }, T0 + 7 * 60 * MIN);
+    expect(shadeDue(next, next.endsAt - 5 * MIN)).toBe(true);
+  });
+
+  it('off, paused, a focus block, or a section shorter than the reminder: never due', () => {
+    const p = exam();
+    expect(shadeDue(updateSettings(p, { shadeReminder: 0 }), p.endsAt - MIN)).toBe(false);
+    expect(shadeDue(pauseTimer(p, p.endsAt - 5 * MIN), p.endsAt - 5 * MIN)).toBe(false);
+    const focus = startTimer(base(), T0);
+    expect(shadeDue(focus, focus.endsAt - MIN)).toBe(false);
+  });
+
+  it('the setting takes only the offered choices, and survives a reload', () => {
+    expect(SHADE_REMINDER_OPTIONS).toEqual([0, 15, 30, 45]);
+    expect(updateSettings(base(), { shadeReminder: 20 }).shadeReminder).toBe(30);
+    expect(updateSettings(base(), { shadeReminder: 45 }).shadeReminder).toBe(45);
+    const marked = markShadeAlerted(exam({ shadeReminder: 15 }));
+    const back = migratePomodoro(JSON.parse(JSON.stringify(marked)), T0 + MIN);
+    expect(back.shadeReminder).toBe(15);
+    expect(back.shadeAlertedFor).toBe(marked.focusStartedAt);
+    expect(migratePomodoro({}, T0).shadeReminder).toBe(30);
   });
 });

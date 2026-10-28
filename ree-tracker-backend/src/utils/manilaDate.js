@@ -40,10 +40,15 @@ function manilaDaySql(columnExpr) {
     return Prisma.sql`to_char(${columnExpr} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD')`;
 }
 
+/** The Manila hour (0-23) of a naive-UTC timestamp column, as an int (same two-step as manilaDaySql). */
+function manilaHourSql(columnExpr) {
+    return Prisma.sql`EXTRACT(HOUR FROM ${columnExpr} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::int`;
+}
+
 /** UTC instant of Manila midnight `offsetDays` after a YYYY-MM-DD date. */
 function manilaMidnight(ymd, offsetDays = 0) {
     const [y, m, d] = ymd.split('-').map(Number);
     return new Date(Date.UTC(y, m - 1, d + offsetDays) - 8 * 3600 * 1000);
 }
 
-module.exports = { todayManila, yesterdayManila, manilaDateOf, manilaDaySql, manilaMidnight };
+module.exports = { todayManila, yesterdayManila, manilaDateOf, manilaDaySql, manilaHourSql, manilaMidnight };
