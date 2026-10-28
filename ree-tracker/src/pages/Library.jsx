@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
-import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen } from '../components/ui/icons';
+import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen, ArrowUpRight } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
@@ -25,12 +25,15 @@ import MaterialViewer from '../features/materials/MaterialViewer';
 // Lazy, not eagerly imported like the tabs above: this pulls in fflate and
 // the CAQ parser, which most Library visitors will never touch.
 const QuizLauncherTab = lazy(() => import('../features/quiz-launcher/QuizLauncherTab'));
+// The learner's own links (CELE round): lazy, like the quizzes.
+const LinksTab = lazy(() => import('../features/links/LinksTab'));
 
 const TABS = [
   { id: 'formulas', label: 'Formula cards', icon: BookOpen },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
   { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
   { id: 'notebook', label: 'Notebook', icon: NotebookPen },
+  { id: 'links', label: 'Links', icon: ArrowUpRight },
   { id: 'quizzes', label: 'Imported quizzes', icon: FileUp },
 ];
 
@@ -70,7 +73,7 @@ export default function Library() {
 
   return (
     <Page>
-      <PageHeader title="Library" subtitle="Your study material in one place: formula cards, handouts, bookmarked questions, your mistakes and notes, and imported quizzes." />
+      <PageHeader title="Library" subtitle="Your study material in one place: formula cards, handouts, bookmarked questions, your mistakes and notes, your own links, and imported quizzes." />
 
       <Tabs id="library" label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
 
@@ -107,6 +110,14 @@ export default function Library() {
 
       {tab === 'notebook' && (
         <NotebookTab currentUser={currentUser} isOnline={isOnline} />
+      )}
+
+      {tab === 'links' && (
+        <ErrorBoundary name="Links">
+          <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+            <LinksTab />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {tab === 'quizzes' && (

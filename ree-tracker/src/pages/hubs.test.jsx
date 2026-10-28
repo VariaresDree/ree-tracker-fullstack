@@ -28,6 +28,7 @@ vi.mock('../features/materials/MaterialViewer', () => ({ default: ({ material, o
 vi.mock('../features/vault/BookmarkVaultTab', () => ({ default: () => <p>bookmarks</p> }));
 vi.mock('../features/notebook/NotebookTab', () => ({ default: () => <section><h2>Notebook</h2><p>notebook</p></section> }));
 vi.mock('../features/quiz-launcher/QuizLauncherTab', () => ({ default: () => <p>quizzes</p> }));
+vi.mock('../features/links/LinksTab', () => ({ default: () => <><h2>Links</h2><p>links</p></> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
 vi.mock('../features/analytics/ExplanationReview', () => ({ default: () => <p>explanation-review</p> }));
 vi.mock('../features/reference/ReferenceAdminV2', () => ({ default: () => <p>reference-admin</p> }));
@@ -88,16 +89,16 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Formula cards', 'Handouts', 'Bookmarks', 'Notebook', 'Imported quizzes']);
+        expect(tabs).toEqual(['Formula cards', 'Handouts', 'Bookmarks', 'Notebook', 'Links', 'Imported quizzes']);
     });
 });
 
 describe('Library headings', () => {
     // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
     // formula-card panels check their outlines in their own tests.
-    it.each(['formulas', 'handouts', 'bookmarks', 'notebook', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['formulas', 'handouts', 'bookmarks', 'notebook', 'links', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/library?tab=${tab}`, Library);
-        if (tab === 'quizzes') await screen.findByText('quizzes');
+        if (tab === 'quizzes' || tab === 'links') await screen.findByText(tab);
         expectNoSkippedLevels(container);
     });
 });

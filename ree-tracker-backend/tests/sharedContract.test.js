@@ -725,3 +725,38 @@ describe('shared contract — key dates and rest days', () => {
         expect(shared.nextKeyDate([{ ...pb, startsOn: '2026-10-01' }], '2026-10-28')).toBeNull();
     });
 });
+
+describe('shared contract — sets to finish and personal links', () => {
+    it('checks a set the same way on both sides', () => {
+        const s = { collection: 'Past boards', title: 'April 2025', subject: 'ALL', status: 'todo' };
+        expect(shared.practiceSetErrors(s)).toEqual({});
+        expect(Object.keys(shared.practiceSetErrors({ ...s, status: 'maybe', subject: 'Physics' })).sort()).toEqual(['status', 'subject']);
+        expect(Object.keys(shared.practiceSetErrors({ ...s, collection: '', title: ' ' })).sort()).toEqual(['collection', 'title']);
+    });
+
+    it('makes numbered and past-board sets, newest board first, capped per template', () => {
+        expect(shared.numberedSets({ collection: 'RC refresher', to: 3 }).map((x) => x.title)).toEqual(['Set 1', 'Set 2', 'Set 3']);
+        expect(shared.numberedSets({ collection: 'X', from: 1, to: 500 })).toHaveLength(shared.PRACTICE_SET_LIMITS.bulk);
+        expect(shared.pastBoardSets({ fromYear: 2024, toYear: 2025, months: [4, 9] }).map((x) => x.title))
+            .toEqual(['September 2025', 'April 2025', 'September 2024', 'April 2024']);
+        expect(shared.pastBoardSets({ fromYear: 2024, toYear: 2025, months: [] })).toEqual([]);
+    });
+
+    it('groups sets by collection with a done count', () => {
+        const groups = shared.setCollections([
+            { collection: 'A', title: 'Set 2', sortOrder: 2, status: 'done' },
+            { collection: 'B', title: 'x', sortOrder: 0, status: 'todo' },
+            { collection: 'A', title: 'Set 1', sortOrder: 1, status: 'todo' },
+        ]);
+        expect(groups.map((g) => [g.collection, g.sets.map((x) => x.title), g.done])).toEqual([['A', ['Set 1', 'Set 2'], 1], ['B', ['x'], 0]]);
+    });
+
+    it('takes only web addresses, and names what a link points at', () => {
+        expect(shared.linkUrl('drive.google.com/drive/folders/x')).toBe('https://drive.google.com/drive/folders/x');
+        expect(shared.linkUrl('javascript:alert(1)')).toBeNull();
+        expect(shared.linkUrl('ftp://example.com')).toBeNull();
+        expect(['https://docs.google.com/forms/d/x', 'forms.gle/x', 'https://docs.google.com/document/d/x', 'youtu.be/x', 'https://quizlet.com/1', 'example.com']
+            .map(shared.linkKind)).toEqual(['quiz', 'quiz', 'drive', 'video', 'flashcards', 'link']);
+        expect(Object.keys(shared.userLinkErrors({ title: 'x', url: 'mailto:a@b.c', subject: 'EE' }))).toEqual(['url']);
+    });
+});
