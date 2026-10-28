@@ -5,12 +5,26 @@
 // they rest. The CELE tracker's "Important events" list and the REST cells of
 // its refresher calendar. The study plan works around both; Today shows the
 // next date and a rest day.
+//
+// Review-center mode (step 2b) is a switch here, off by default: it adds the
+// lecture kind and "Add lecture schedule" (the CELE "Topic schedule"), and the
+// plan then drills each topic after its lecture. A self-reviewer never sees
+// either.
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { daysBetween, todayManila } from '@ree/shared';
-import { Button, Card, CardTitle, EmptyState, IconChip, Modal, Skeleton } from '../../components/ui';
-import { CalendarDays, CloudOff, Pencil, Plus, ShieldAlert, Trash2, Check } from '../../components/ui/icons';
+import { Button, Card, CardTitle, EmptyState, IconChip, Modal, SegmentedControl, Skeleton } from '../../components/ui';
+import { BookOpen, CalendarDays, CloudOff, Pencil, Plus, ShieldAlert, Trash2, Check } from '../../components/ui/icons';
 import KeyDateForm from './KeyDateForm';
+import LectureScheduleForm from './LectureScheduleForm';
+import { useSyllabus } from '../syllabus/useSyllabus';
+
+const REVIEW_MODES = [
+  { value: 'self', label: 'On my own' },
+  { value: 'center', label: 'With a review center' },
+];
+// The syllabus topics (for lectures) are read at most this often here.
+const SYLLABUS_FRESH_MS = 30 * 60 * 1000;
 import { KIND_ICON, KIND_LABEL, WEEKDAY_LONG, WEEKDAY_SHORT, dateRange, inDaysLabel } from './keyDateLabels';
 
 const lastDay = (e) => (e.endsOn && e.endsOn > e.startsOn ? e.endsOn : e.startsOn);
@@ -50,6 +64,10 @@ export default function KeyDatesCard({ calendar, onChanged }) {
   const [form, setForm] = useState({ open: false, entry: null, key: 0 });
   const [confirm, setConfirm] = useState(null);
   const [showPast, setShowPast] = useState(false);
+  const [schedule, setSchedule] = useState({ open: false, key: 0 });
+  const center = prefs.reviewMode === 'center';
+  // Lectures name syllabus topics; only center mode needs the list.
+  const { topics } = useSyllabus({ fetchIfOlderThanMs: SYLLABUS_FRESH_MS });
   const today = todayManila();
 
   const explain = (err, action) => toast.error(err?.message ? `Couldn’t ${action}: ${err.message}` : `Couldn’t ${action}. Try again.`);
@@ -75,6 +93,32 @@ export default function KeyDatesCard({ calendar, onChanged }) {
       onChanged?.();
     } catch (err) {
       explain(err, 'delete the date');
+    }
+  };
+
+  // Each lecture is its own key date, saved in turn.
+  const saveSchedule = async (entries) => {
+    try {
+      let result = 'sent';
+      for (const entry of entries) {
+        if ((await add(entry)) === 'queued') result = 'queued';
+      }
+      queued(result);
+      toast.success(`Added ${entries.length} lecture${entries.length === 1 ? '' : 's'}. Re-plan to follow them.`);
+      onChanged?.();
+    } catch (err) {
+      explain(err, 'save the schedule');
+      throw err;
+    }
+  };
+
+  const setMode = async (reviewMode) => {
+    if (reviewMode === prefs.reviewMode) return;
+    try {
+      queued(await savePrefs({ reviewMode }));
+      onChanged?.();
+    } catch (err) {
+      explain(err, 'save how you’re reviewing');
     }
   };
 
@@ -106,9 +150,26 @@ export default function KeyDatesCard({ calendar, onChanged }) {
             Preboards, coaching, deadlines and days off. Your plan works around them: no task on a rest day, and a preboard counts as that week’s timed sitting.
           </p>
         </div>
-        <Button size="sm" onClick={() => setForm((f) => ({ open: true, entry: null, key: f.key + 1 }))}>
-          <Plus size={14} strokeWidth={2} aria-hidden="true" /> Add date
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {center && (
+            <Button size="sm" variant="secondary" onClick={() => setSchedule((x) => ({ open: true, key: x.key + 1 }))}>
+              <BookOpen size={14} strokeWidth={1.75} aria-hidden="true" /> Add lecture schedule
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setForm((f) => ({ open: true, entry: null, key: f.key + 1 }))}>
+            <Plus size={14} strokeWidth={2} aria-hidden="true" /> Add date
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-eyebrow" aria-hidden="true">How you’re reviewing</span>
+        <SegmentedControl label="How you’re reviewing" options={REVIEW_MODES} value={prefs.reviewMode} onChange={setMode} />
+        <p className="text-xs text-muted2">
+          {center
+            ? 'Add your review center’s lectures: the plan drills each topic the day after it’s taught, and holds off on a topic you’ve barely practised until then.'
+            : 'Reviewing with a review center? Switch to follow its lecture schedule.'}
+        </p>
       </div>
 
       <fieldset className="flex flex-col gap-2">
@@ -162,6 +223,9 @@ export default function KeyDatesCard({ calendar, onChanged }) {
         />
       ) : (
         <div className="flex flex-col gap-3">
+          {!center && upcoming.some((e) => e.kind === 'lecture') && (
+            <p className="text-xs text-muted2">Your lectures are kept, but the plan follows them only in review-center mode.</p>
+          )}
           {upcoming.length > 0
             ? <ul className="flex flex-col gap-2" aria-label="Upcoming key dates">{upcoming.map(row)}</ul>
             : <p className="text-sm text-muted2">Nothing coming up.</p>}
@@ -177,7 +241,11 @@ export default function KeyDatesCard({ calendar, onChanged }) {
       )}
 
       {form.open && (
-        <KeyDateForm key={form.key} open entry={form.entry} onClose={() => setForm((f) => ({ ...f, open: false }))} onSave={save} />
+        <KeyDateForm key={form.key} open entry={form.entry} reviewMode={prefs.reviewMode} topics={topics} onClose={() => setForm((f) => ({ ...f, open: false }))} onSave={save} />
+      )}
+
+      {schedule.open && (
+        <LectureScheduleForm key={schedule.key} open topics={topics} onClose={() => setSchedule((x) => ({ ...x, open: false }))} onSave={saveSchedule} />
       )}
 
       <Modal

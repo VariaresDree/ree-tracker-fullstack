@@ -689,7 +689,10 @@ describe('shared contract — key dates and rest days', () => {
         expect(Object.keys(shared.keyDateErrors({ ...pb, kind: 'party' }))).toEqual(['kind']);
         expect(Object.keys(shared.keyDateErrors({ ...pb, endsOn: '2026-11-06' }))).toEqual(['endsOn']);
         expect(Object.keys(shared.keyDateErrors({ ...pb, endsOn: '2026-12-08' }))).toEqual(['endsOn']); // over 31 days
-        expect(shared.KEY_DATE_KINDS).toEqual(['preboard', 'coaching', 'deadline', 'rest', 'personal']);
+        expect(shared.KEY_DATE_KINDS).toEqual(['preboard', 'coaching', 'deadline', 'rest', 'personal', 'lecture']);
+        // A lecture (review-center mode) names the topic it covers.
+        expect(Object.keys(shared.keyDateErrors({ ...pb, kind: 'lecture' }))).toEqual(['topicIds']);
+        expect(shared.keyDateErrors({ ...pb, kind: 'lecture', topicIds: ['t1'] })).toEqual({});
     });
 
     it('checks the plan preferences: distinct weekdays 0-6, at least one study day', () => {

@@ -1,5 +1,5 @@
 // How each kind of key date is named and drawn, and how a date reads.
-import { ClipboardList, Flag, GraduationCap, Pause, CalendarDays } from '../../components/ui/icons';
+import { BookOpen, ClipboardList, Flag, GraduationCap, Pause, CalendarDays } from '../../components/ui/icons';
 
 export const KIND_LABEL = {
   preboard: 'Preboard',
@@ -7,6 +7,7 @@ export const KIND_LABEL = {
   deadline: 'Deadline',
   rest: 'Rest day',
   personal: 'Personal',
+  lecture: 'Lecture',
 };
 
 export const KIND_ICON = {
@@ -15,6 +16,7 @@ export const KIND_ICON = {
   deadline: Flag,
   rest: Pause,
   personal: CalendarDays,
+  lecture: BookOpen,
 };
 
 // What the plan does with each kind, said once in the form.
@@ -24,6 +26,7 @@ export const KIND_HINT = {
   deadline: 'Shown on your calendar and Today; the plan carries on.',
   rest: 'No task that day.',
   personal: 'Shown on your calendar and Today; the plan carries on.',
+  lecture: 'The plan drills the topic the day after, and holds off on a topic you’ve barely practised until it’s been taught.',
 };
 
 export const KIND_TITLE_HINT = {
@@ -32,6 +35,7 @@ export const KIND_TITLE_HINT = {
   deadline: 'e.g. PRC application deadline',
   rest: 'e.g. Family day',
   personal: 'e.g. My birthday',
+  lecture: 'e.g. Lecture: Transformers',
 };
 
 export const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

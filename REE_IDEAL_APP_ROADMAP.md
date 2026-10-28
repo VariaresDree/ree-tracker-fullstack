@@ -202,8 +202,8 @@ are optional: a self-reviewer never sees them.
 |---|---|---|---|
 | 1a | RCE › Computing rating | Rating calculator: the PRC rating and the score you need to pass | Done (#176) |
 | 1b | Assessments (time, skipped, guessed, need to improve) | Outside scores gain per-subject parts, time used, guessed and skipped counts, topics to improve | Done (#177) |
-| 2a | Important events, refresher calendar, rest days | Key dates and rest days on the calendar, Today and the plan | This PR |
-| 2b | Topic schedule | Optional review-center mode: a lecture schedule the plan follows | Planned |
+| 2a | Important events, refresher calendar, rest days | Key dates and rest days on the calendar, Today and the plan | Done (#178) |
+| 2b | Topic schedule | Optional review-center mode: a lecture schedule the plan follows | This PR |
 | 3 | Progress check, useful links | Sets to finish (past boards, RC sets) linked to outside scores; personal links in Library | Planned |
 | 4 | Meta topics (confidence, intimidating) | Topic self-rating against measured mastery; an admin high-yield flag | Planned |
 | 5a | Tips (concepts first, preboards, rest, board hours) | Review phases, a playbook, a phase-aware mock cadence | Planned |

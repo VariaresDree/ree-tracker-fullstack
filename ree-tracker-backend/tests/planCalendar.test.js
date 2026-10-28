@@ -89,3 +89,68 @@ describe('loadPlanCalendar', () => {
         expect(cal.keyDates).toBe(2);
     });
 });
+
+describe('review-center mode: the plan follows the lectures', () => {
+    const { followLectures, LECTURE_READY_ANSWERS } = require('../src/engine/plan');
+    const T = (name, id, attempts = 0) => ({ topic: name, subject: 'EE', topicId: id, attempts, masteryEffective: 0.3 });
+    const machines = T('Machines', 'm');
+    const protection = T('Protection', 'p');
+    const dates = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06'];
+
+    it('the first drill day after a lecture drills that topic, swapped in from a later day', () => {
+        const assigned = [protection, protection, protection, machines, protection, machines];
+        const out = followLectures({ dates, assigned, lectures: [{ topicId: 'm', on: '2026-10-02' }], topics: [machines, protection], today: '2026-10-01' });
+        expect(out.assigned[2]).toBe(machines);
+        expect(out.pinned.get(2)).toBe('2026-10-02');
+        // Each topic keeps its number of days.
+        expect(out.assigned.filter((t) => t === machines)).toHaveLength(2);
+    });
+
+    it('a topic with few answers waits for its lecture; one known well enough doesn’t', () => {
+        const assigned = [machines, protection, protection, protection];
+        const held = followLectures({ dates: dates.slice(0, 4), assigned, lectures: [{ topicId: 'm', on: '2026-10-03' }], topics: [machines, protection], today: '2026-10-01' });
+        expect(held.assigned[0]).toBe(protection);
+        expect(held.assigned.indexOf(machines)).toBe(3); // pinned on the first day after the lecture
+        const ready = T('Machines', 'm', LECTURE_READY_ANSWERS);
+        const known = followLectures({ dates: dates.slice(0, 2), assigned: [ready, protection], lectures: [{ topicId: 'm', on: '2026-10-05' }], topics: [ready, protection], today: '2026-10-01' });
+        expect(known.assigned[0]).toBe(ready);
+    });
+
+    it('a day with nothing that may go becomes review (null)', () => {
+        const out = followLectures({ dates: dates.slice(0, 2), assigned: [machines, machines], lectures: [{ topicId: 'm', on: '2026-12-01' }], topics: [machines], today: '2026-10-01' });
+        expect(out.assigned).toEqual([null, null]);
+    });
+
+    it('with no lectures, nothing moves; a lecture already given holds nothing back', () => {
+        const assigned = [machines, protection];
+        expect(followLectures({ dates, assigned, lectures: [], topics: [machines], today: '2026-10-01' }).assigned).toEqual(assigned);
+        expect(followLectures({ dates, assigned, lectures: [{ topicId: 'm', on: '2026-09-20' }], topics: [machines], today: '2026-10-01' }).assigned).toEqual(assigned);
+    });
+
+    it('in a plan, the lecture’s drill is named for its day', () => {
+        const topics = [{ ...machines, topicId: 'm' }, { ...protection }];
+        const plan = buildStudyPlan({ ...base, topics, calendar: { lectures: [{ topicId: 'm', on: '2026-10-06' }] } });
+        // 2026-10-07 is the week's timed sitting, so the first drill day after is the 8th.
+        expect(plan.find((t) => t.dueDate === '2026-10-07').kind).toBe('mock');
+        const after = plan.find((t) => t.dueDate === '2026-10-08');
+        expect(after).toMatchObject({ kind: 'drill', topic: 'Machines' });
+        expect(after.text).toMatch(/^Drill Tuesday’s lecture: Machines — /);
+        expect(plan.filter((t) => t.topic === 'Machines' && t.dueDate <= '2026-10-06')).toEqual([]);
+    });
+
+    it('loadPlanCalendar reads lectures only in review-center mode', async () => {
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ restWeekdays: [], reviewMode: 'center' });
+        const findMany = vi.spyOn(prisma.keyDate, 'findMany')
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([{ startsOn: '2026-10-06', topicIds: ['m', 'p'] }]);
+        const cal = await loadPlanCalendar('uid', '2026-10-01', 14);
+        expect(findMany.mock.calls[1][0].where).toEqual({ userId: 'uid', kind: 'lecture', startsOn: { gte: '2026-10-01' } });
+        expect(cal.lectures).toEqual([{ topicId: 'm', on: '2026-10-06' }, { topicId: 'p', on: '2026-10-06' }]);
+        expect(cal.reviewMode).toBe('center');
+
+        prisma.user.findUnique.mockResolvedValue({ restWeekdays: [], reviewMode: 'self' });
+        findMany.mockReset().mockResolvedValue([]);
+        expect((await loadPlanCalendar('uid', '2026-10-01', 14)).lectures).toEqual([]);
+        expect(findMany).toHaveBeenCalledTimes(1);
+    });
+});

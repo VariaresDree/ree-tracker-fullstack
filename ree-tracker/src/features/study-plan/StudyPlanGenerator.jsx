@@ -69,6 +69,7 @@ export default function StudyPlanGenerator({ onPlanGenerated, calendarChanged = 
         cardsDue: result.cardsDue || 0,
         restDays: result.restDays || 0,
         keyDates: result.keyDates || 0,
+        lectures: result.lectures || 0,
       });
       toast.success(`Added ${result.tasksCreated} study tasks.`);
       onPlanGenerated?.();
@@ -153,12 +154,13 @@ export default function StudyPlanGenerator({ onPlanGenerated, calendarChanged = 
           {builtFrom && (
             <p className="text-textMain">
               Built from your mastery, {builtFrom.openMistakes} open mistake{builtFrom.openMistakes === 1 ? '' : 's'} and {builtFrom.cardsDue} formula card{builtFrom.cardsDue === 1 ? '' : 's'} due in the next two weeks.
-              {(builtFrom.restDays > 0 || builtFrom.keyDates > 0) && (
+              {(builtFrom.restDays > 0 || builtFrom.keyDates > 0 || builtFrom.lectures > 0) && (
                 <>
                   {' '}Planned around {[
                     builtFrom.restDays > 0 && `${builtFrom.restDays} rest day${builtFrom.restDays === 1 ? '' : 's'}`,
                     builtFrom.keyDates > 0 && `${builtFrom.keyDates} key date${builtFrom.keyDates === 1 ? '' : 's'}`,
-                  ].filter(Boolean).join(' and ')}.
+                    builtFrom.lectures > 0 && `${builtFrom.lectures} lecture day${builtFrom.lectures === 1 ? '' : 's'}`,
+                  ].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' and $1')}.
                 </>
               )}
             </p>

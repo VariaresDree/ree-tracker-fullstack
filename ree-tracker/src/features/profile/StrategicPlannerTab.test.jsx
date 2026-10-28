@@ -24,6 +24,7 @@ const planCalendar = {
   status: 'ready', queuedCount: 0, add: vi.fn(), update: vi.fn(), remove: vi.fn(), savePrefs: vi.fn(), reload: vi.fn(),
 };
 vi.mock('../study-plan/usePlanCalendar', () => ({ usePlanCalendar: () => planCalendar }));
+vi.mock('../syllabus/useSyllabus', () => ({ useSyllabus: () => ({ topics: [] }) }));
 function manilaToday() { return new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); }
 
 const { default: StrategicPlannerTab } = await import('./StrategicPlannerTab');
