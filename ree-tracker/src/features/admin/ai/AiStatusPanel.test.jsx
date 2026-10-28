@@ -80,6 +80,14 @@ describe('AiStatusPanel', () => {
     expect(within(providers).getByText(/Set CEREBRAS_API_KEY/)).toBeInTheDocument();
   });
 
+  it('wraps a key name at its underscores, and it still reads (and copies) exactly', () => {
+    const { container } = render(<AiStatusPanel />);
+    const key = [...container.querySelectorAll('[data-env-key]')].find((el) => el.textContent === 'OPENROUTER_API_KEY');
+    expect(key).toBeTruthy();
+    expect(key.querySelectorAll('wbr')).toHaveLength(2);
+    expect(key.className).not.toMatch(/overflow-wrap:anywhere/);
+  });
+
   it('lets a long model id wrap in the "answering now" line', () => {
     render(<AiStatusPanel />);
     expect(screen.getByText(/Answering now:/).className).toMatch(/\[overflow-wrap:anywhere\]/);
