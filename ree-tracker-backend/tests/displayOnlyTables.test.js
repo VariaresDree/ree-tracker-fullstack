@@ -18,7 +18,8 @@ const DISPLAY_ONLY = {
     // selfReportSignals reads the topics flagged "to improve" for the study
     // planner only (the test below pins who may require it).
     outsideScore: ['routes/outsideScoreRoutes.js', 'services/selfReportSignals.js'],
-    syllabusProgress: ['routes/syllabusRoutes.js'],
+    // selfReportSignals reads the learner's own topic ratings for the planner only.
+    syllabusProgress: ['routes/syllabusRoutes.js', 'services/selfReportSignals.js'],
     // The notebook's reads live in services/mistakeList.js (shared with the
     // Today loop, which only picks which questions to practise).
     mistakeTag: ['routes/mistakeRoutes.js', 'services/mistakeList.js'],

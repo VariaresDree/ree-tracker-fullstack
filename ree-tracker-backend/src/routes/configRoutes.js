@@ -161,4 +161,38 @@ router.put('/flags/:key', authMiddleware, requireAdmin, async (req, res) => {
     }
 });
 
+// The high-yield flag on a syllabus topic (CELE round, 2026-10; the CELE
+// tracker's "Meta topics"): set by admins in Admin › Question bank, shown as a
+// badge in the learner's syllabus checklist. It changes no engine. The TOS
+// sync (PUT /tos) leaves it alone.
+router.get('/topics', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const topics = await prisma.topic.findMany({
+            where: { active: true },
+            select: { id: true, subject: true, name: true, sortOrder: true, highYield: true },
+            orderBy: [{ subject: 'asc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+        });
+        res.status(200).json({ topics });
+    } catch (error) {
+        logger.error('Topic list error', { error: error.message });
+        res.status(500).json({ error: 'Failed to load the topics.' });
+    }
+});
+
+router.put('/topics/:id', authMiddleware, requireAdmin, async (req, res) => {
+    if (typeof req.body?.highYield !== 'boolean') return res.status(400).json({ error: 'Expected { highYield: boolean }.' });
+    try {
+        const topic = await prisma.topic.update({
+            where: { id: String(req.params.id).slice(0, 64) },
+            data: { highYield: req.body.highYield },
+            select: { id: true, subject: true, name: true, highYield: true },
+        });
+        return res.status(200).json({ topic });
+    } catch (error) {
+        if (error.code === 'P2025') return res.status(404).json({ error: 'Topic not found.' });
+        logger.error('Topic high-yield update error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to update the topic.' });
+    }
+});
+
 module.exports = router;

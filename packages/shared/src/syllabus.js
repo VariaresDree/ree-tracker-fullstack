@@ -89,6 +89,14 @@ function syllabusCoverage(rows, weights = DEFAULT_SYLLABUS_WEIGHTS) {
  * client sends the topic's FULL state on every change (so a queued write can
  * replace an older one), and the server checks it with this same rule.
  */
+/**
+ * The learner's own rating of a topic (CELE round, 2026-10; the CELE
+ * tracker's "Meta topics" sheet): how sure they are (0-100%, five steps) and
+ * how much they dread it (0 "bring it on" … 4 "I'd skip it"). Both optional.
+ */
+const SELF_CONFIDENCE_LEVELS = [0, 25, 50, 75, 100];
+const DREAD_LEVELS = [0, 1, 2, 3, 4];
+
 function syllabusProgressErrors(state) {
     const s = state || {};
     const errors = {};
@@ -104,6 +112,8 @@ function syllabusProgressErrors(state) {
     if (s.note != null && (typeof s.note !== 'string' || s.note.length > SYLLABUS_NOTE_MAX)) {
         errors.note = `Keep notes under ${SYLLABUS_NOTE_MAX} characters.`;
     }
+    if (s.confidence != null && !SELF_CONFIDENCE_LEVELS.includes(s.confidence)) errors.confidence = 'Pick how sure you are.';
+    if (s.dread != null && !DREAD_LEVELS.includes(s.dread)) errors.dread = 'Pick how much you dread it.';
     return errors;
 }
 
@@ -117,4 +127,6 @@ module.exports = {
     isTopicCovered,
     syllabusCoverage,
     syllabusProgressErrors,
+    SELF_CONFIDENCE_LEVELS,
+    DREAD_LEVELS,
 };

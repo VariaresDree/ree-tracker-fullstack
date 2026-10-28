@@ -274,3 +274,45 @@ describe('useSyllabus changes', () => {
     expect(result.current.topics.find((t) => t.topicId === 'e1')).toMatchObject({ read: true, watched: true });
   });
 });
+
+describe('your own rating of a topic, and high-yield (CELE round)', () => {
+  const rated = [
+    row('m1', 'Mathematics', 'Calculus', { confidence: 75, dread: null, highYield: true }),
+    row('m2', 'Mathematics', 'Differential Equations', { confidence: null, dread: 4 }),
+    row('m3', 'Mathematics', 'Probability', {}),
+  ];
+  const serve = (topics) => apiRequest.mockImplementation(async (endpoint, method = 'GET', body) => (method === 'GET' ? { weights: WEIGHTS, topics } : { item: body }));
+  const item = (name) => screen.getByRole('heading', { level: 3, name }).closest('li');
+
+  it('a pick saves the topic’s full state with the rating; clearing sends null', async () => {
+    serve(rated);
+    renderTab();
+    await screen.findByRole('heading', { level: 3, name: 'Calculus' });
+    fireEvent.change(within(item('Calculus')).getByLabelText('Dread'), { target: { value: '3' } });
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ read: false, confidence: 75, dread: 3 })));
+    fireEvent.change(within(item('Calculus')).getByLabelText('How sure'), { target: { value: '' } });
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ confidence: null })));
+  });
+
+  it('a row from before the rating existed sends no rating keys', async () => {
+    serve([row('m3', 'Mathematics', 'Probability')]); // no confidence/dread keys at all
+    renderTab();
+    await screen.findByRole('heading', { level: 3, name: 'Probability' });
+    fireEvent.click(within(item('Probability')).getByRole('button', { name: /Read/ }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m3`, 'PUT', expect.anything()));
+    const body = apiRequest.mock.calls.find((c) => c[1] === 'PUT')[2];
+    expect(body).not.toHaveProperty('confidence');
+    expect(body).not.toHaveProperty('dread');
+  });
+
+  it('marks high-yield topics, filters to them, and sorts by dread', async () => {
+    serve(rated);
+    renderTab();
+    await screen.findByRole('heading', { level: 3, name: 'Calculus' });
+    expect(within(item('Calculus')).getByText('High-yield')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Sort'), { target: { value: 'dread' } });
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)[0]).toBe('Differential Equations');
+    fireEvent.click(screen.getByRole('button', { name: /High-yield only/ }));
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Calculus']);
+  });
+});

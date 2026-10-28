@@ -22,9 +22,16 @@ import { writeOrQueue } from '../../services/writeOrQueue';
 export const SYLLABUS_ENDPOINT = '/api/user/syllabus';
 const CACHE = 'syllabus';
 const FIELDS = ['read', 'watched', 'drilled', 'startedOn', 'finishedOn', 'note'];
+// The learner's own rating (CELE round). Sent only when the row has it: a row
+// from a copy saved before the rating existed must not clear one set on
+// another device (the server keeps a field the PUT leaves out).
+const RATING_FIELDS = ['confidence', 'dread'];
 
-/** A topic's checklist state, the six fields the PUT carries. */
-export const topicState = (row) => Object.fromEntries(FIELDS.map((f) => [f, row?.[f] ?? (f === 'read' || f === 'watched' || f === 'drilled' ? false : null)]));
+/** A topic's checklist state, the fields the PUT carries. */
+export const topicState = (row) => ({
+  ...Object.fromEntries(FIELDS.map((f) => [f, row?.[f] ?? (f === 'read' || f === 'watched' || f === 'drilled' ? false : null)])),
+  ...Object.fromEntries(RATING_FIELDS.filter((f) => row && f in row && row[f] !== undefined).map((f) => [f, row[f]])),
+});
 
 /**
  * The newest queued state per topic, for this account (an unstamped write

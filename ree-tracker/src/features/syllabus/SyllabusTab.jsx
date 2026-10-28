@@ -13,10 +13,11 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { SYLLABUS_NOTE_MAX, SYLLABUS_SUBJECTS, isTopicCovered, syllabusCoverage, todayManila } from '@ree/shared';
 import {
-  Panel, Button, SegmentedControl, ProgressIndicator, StatusPill, EmptyState, Skeleton, FormField, Input, Textarea, cn,
+  Panel, Button, SegmentedControl, ProgressIndicator, StatusPill, EmptyState, Skeleton, FormField, Input, Select, Textarea, cn,
 } from '../../components/ui';
 import { ListChecks, BookOpen, CloudOff, RotateCcw, ChevronDown, Crosshair, Check, Plus } from '../../components/ui/icons';
 import { useSyllabus } from './useSyllabus';
+import { CONFIDENCE_OPTIONS, DREAD_OPTIONS } from './selfRating';
 import { daysToExam } from '../today/todayActions';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 import { paceLine } from './syllabusPace';
@@ -99,12 +100,18 @@ const TopicRow = memo(function TopicRow({ row, onSave, onDrill }) {
     if (err?.fields) toast.error(err.message);
   });
   const answers = `${row.attempts} ${row.attempts === 1 ? 'answer' : 'answers'}`;
+  const rate = (field, value) => onSave(row.topicId, { [field]: value === '' ? null : Number(value) }).catch((err) => {
+    if (err?.fields) toast.error(err.message);
+  });
 
   return (
     <li className="rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3.5 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-h3 text-textMain break-words">{row.name}</h3>
-        {isTopicCovered(row) && <StatusPill tone="success" dot={false}>Covered</StatusPill>}
+        <div className="flex flex-wrap justify-end gap-1.5 shrink-0">
+          {row.highYield && <StatusPill tone="velocity" dot={false}>High-yield</StatusPill>}
+          {isTopicCovered(row) && <StatusPill tone="success" dot={false}>Covered</StatusPill>}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`${row.name}: checklist`}>
         <Tick pressed={row.read} onClick={() => tick('read')}>Read</Tick>
@@ -126,6 +133,19 @@ const TopicRow = memo(function TopicRow({ row, onSave, onDrill }) {
           Dates and note
           <ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" className={cn('transition-transform', open && 'rotate-180')} />
         </button>
+      </div>
+      {/* Your own rating (the CELE "Meta topics"): saved as you pick. */}
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="How sure">
+          <Select value={row.confidence == null ? '' : String(row.confidence)} onChange={(e) => rate('confidence', e.target.value)}>
+            {CONFIDENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Dread">
+          <Select value={row.dread == null ? '' : String(row.dread)} onChange={(e) => rate('dread', e.target.value)}>
+            {DREAD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </FormField>
       </div>
       {/* Keyed on the saved values: when they change underneath an open form
           (a refetch, another device), the form starts again from them
@@ -162,6 +182,9 @@ export default function SyllabusTab({ examDate = null }) {
   const navigate = useNavigate();
   const { topics, weights, status, queuedCount, saveTopic, reload } = useSyllabus();
   const [subject, setSubject] = useState('Mathematics');
+  // Narrow the list: high-yield topics only, and sort by your own rating.
+  const [highYieldOnly, setHighYieldOnly] = useState(false);
+  const [sortBy, setSortBy] = useState('board');
 
   // Rows are memoised, so they get a callback that never changes identity.
   // The ref is refreshed in a LAYOUT effect, during the commit: a passive
@@ -182,7 +205,13 @@ export default function SyllabusTab({ examDate = null }) {
   }, [navigate]);
 
   const coverage = useMemo(() => syllabusCoverage(topics || [], weights || undefined), [topics, weights]);
-  const visible = useMemo(() => (topics || []).filter((t) => t.subject === subject), [topics, subject]);
+  const visible = useMemo(() => {
+    const list = (topics || []).filter((t) => t.subject === subject && (!highYieldOnly || t.highYield));
+    if (sortBy === 'dread') return list.slice().sort((a, b) => (b.dread ?? -1) - (a.dread ?? -1));
+    if (sortBy === 'unsure') return list.slice().sort((a, b) => (a.confidence ?? 101) - (b.confidence ?? 101));
+    return list;
+  }, [topics, subject, highYieldOnly, sortBy]);
+  const anyHighYield = (topics || []).some((t) => t.highYield);
 
   if (!topics && status === 'error') {
     return (
@@ -268,8 +297,22 @@ export default function SyllabusTab({ examDate = null }) {
           onChange={setSubject}
           fullWidth
         />
+        <div className="flex flex-wrap items-end gap-3">
+          {anyHighYield && (
+            <Button type="button" size="sm" variant={highYieldOnly ? 'outline' : 'secondary'} aria-pressed={highYieldOnly} onClick={() => setHighYieldOnly((v) => !v)}>
+              {highYieldOnly && <Check size={14} strokeWidth={2} aria-hidden="true" />} High-yield only
+            </Button>
+          )}
+          <FormField label="Sort" className="min-w-40">
+            <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="board">Board order</option>
+              <option value="dread">Most dreaded first</option>
+              <option value="unsure">Least sure first</option>
+            </Select>
+          </FormField>
+        </div>
         {visible.length === 0 ? (
-          <p className="text-sm text-muted2">No topics in this subject yet.</p>
+          <p className="text-sm text-muted2">{highYieldOnly ? 'No high-yield topics in this subject.' : 'No topics in this subject yet.'}</p>
         ) : (
           <ul className="flex flex-col gap-2" aria-label={`${subject} topics`}>
             {visible.map((row) => <TopicRow key={row.topicId} row={row} onSave={onSave} onDrill={onDrill} />)}

@@ -24,12 +24,12 @@ router.get('/syllabus', authMiddleware, async (req, res) => {
         const [topics, progress, performance, weights] = await Promise.all([
             prisma.topic.findMany({
                 where: { active: true },
-                select: { id: true, subject: true, name: true, normKey: true, aliases: true, sortOrder: true, active: true },
+                select: { id: true, subject: true, name: true, normKey: true, aliases: true, sortOrder: true, active: true, highYield: true },
             }),
             prisma.syllabusProgress.findMany({ where: { userId } }),
             prisma.userTopicPerformance.findMany({
                 where: { userId },
-                select: { topic: true, topicId: true, subject: true, attempts: true, pMastery: true },
+                select: { topic: true, topicId: true, subject: true, attempts: true, pMastery: true, masteryN: true, lastPracticedAt: true },
             }),
             getSyllabusWeights(),
         ]);
@@ -57,6 +57,9 @@ router.put('/syllabus/:topicId', authMiddleware, validate(syllabusProgressSchema
         startedOn: req.body.startedOn,
         finishedOn: req.body.finishedOn,
         note: req.body.note,
+        // Undefined (left out) is skipped by Prisma, so the stored rating stays.
+        confidence: req.body.confidence,
+        dread: req.body.dread,
     };
     try {
         const row = await prisma.syllabusProgress.upsert({

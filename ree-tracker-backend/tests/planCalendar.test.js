@@ -154,3 +154,28 @@ describe('review-center mode: the plan follows the lectures', () => {
         expect(findMany).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('topics the learner rated low themselves (step 4)', () => {
+    const t = (name, mastery, extra = {}) => ({ topic: name, subject: 'EE', masteryEffective: mastery, topicId: null, ...extra });
+    const days = (plan, name) => plan.filter((x) => x.topic === name).length;
+
+    it('a topic rated low gets more drill days while below Proficient', () => {
+        const plan = buildStudyPlan({ ...base, topics: [t('Machines', 0.4, { ratedLow: true }), t('Protection', 0.4)] });
+        expect(days(plan, 'Machines')).toBeGreaterThan(days(plan, 'Protection'));
+    });
+
+    it('not once it is known well; and it shares the 1.5× cap', () => {
+        const strong = buildStudyPlan({ ...base, topics: [t('Machines', 0.8, { ratedLow: true }), t('Protection', 0.8)] });
+        expect(days(strong, 'Machines')).toBe(days(strong, 'Protection'));
+        const capped = buildStudyPlan({ ...base, topics: [t('A', 0.4, { ratedLow: true, openMistakes: 10 }), t('B', 0.4)] });
+        const mistakesOnly = buildStudyPlan({ ...base, topics: [t('A', 0.4, { openMistakes: 10 }), t('B', 0.4)] });
+        expect(days(capped, 'A')).toBe(days(mistakesOnly, 'A'));
+    });
+
+    it('loadSelfRatings reads the low ratings by topic name', async () => {
+        const { loadSelfRatings } = require('../src/services/selfReportSignals');
+        const findMany = vi.spyOn(prisma.syllabusProgress, 'findMany').mockResolvedValue([{ topic: { name: 'Machines ' } }, { topic: null }]);
+        expect([...await loadSelfRatings('uid')]).toEqual(['machines']);
+        expect(findMany.mock.calls[0][0].where).toEqual({ userId: 'uid', OR: [{ confidence: { lte: 25 } }, { dread: { gte: 3 } }] });
+    });
+});
