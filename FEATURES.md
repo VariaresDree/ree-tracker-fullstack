@@ -108,7 +108,12 @@ every feature add, change, or removal, not on a schedule.
       - A dashed line marks the average active day, named in a legend under the chart.
       - On a narrow card, only today's and the best day's minutes are printed, and weekdays shorten to one letter. Every day's figure is in a screen-reader list.
     - **Habits:** the study calendar is a Card (it was a solid hand-made frame). Its header goes side by side by the card's width, not the window's, and the month arrows are icon buttons instead of `<` and `>` text.
-    - **Study plan:** the three plan figures are inset wells, and stay a `<dl>`.
+    - **Study plan:**
+      - **Setup card:** a two-line description, and one line, "Plans the next N days across M topics", in place of three figure tiles. The "Days left" tile repeated the badge beside the exam date.
+      - **Grouped task list:** sections read Overdue, Today, Next 7 days and No due date. Later and Done fold behind "Show N later tasks" and "Show N done tasks" (`groupTasks` in `features/profile/plannerTasks.js`). A six-week plan used to put 40-odd rows in one list that ran far past the calendar.
+      - **Calendar:** stays in view (sticky) beside the list on a wide page. Under it are a legend for the open-task dots and the Overdue, Today and Next 7 days counts.
+      - **Calendar day:** picking a day still shows only that day's tasks.
+      - **Task rows:** each row lays out by the list's own width. On a phone, Start sits under the task's name and the name wraps whole; it used to be squeezed to two clipped lines.
   - **The order** goes from where you stand (Overview, Topics, how much of the syllabus is covered) to why (Confidence, Weak spots, Habits) to what next (Study plan). Syllabus used to sit sixth. The `?tab=` ids are unchanged, so every link to a tab still works.
   - These were spread over the Dashboard, Profile's "Comparative analytics" and "Deep analytics" (`features/analytics/AnalyticsDeepDive.jsx`, now split into `useDeepAnalytics.js` and `features/analytics/sections/*`), and the planner. Each section has an h2 heading under the page's h1 (they were h3, with emoji). **Dropped:** the deep dive's "Score history" tab (the same sittings as Exams → Past sittings) and the "Active Network Agents" online list.
   - `useDeepAnalytics` keeps each result per account for the session: a tab shown again appears at once and refreshes in the background after two minutes. A failed fetch shows an error with Try again, never "no data".
