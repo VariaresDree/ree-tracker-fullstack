@@ -200,8 +200,8 @@ are optional: a self-reviewer never sees them.
 
 | Step | CELE source | REE feature | Status |
 |---|---|---|---|
-| 1a | RCE › Computing rating | Rating calculator: the PRC rating and the score you need to pass | This PR |
-| 1b | Assessments (time, skipped, guessed, need to improve) | Outside scores gain per-subject parts, time used, guessed and skipped counts, topics to improve | Planned |
+| 1a | RCE › Computing rating | Rating calculator: the PRC rating and the score you need to pass | Done (#176) |
+| 1b | Assessments (time, skipped, guessed, need to improve) | Outside scores gain per-subject parts, time used, guessed and skipped counts, topics to improve | This PR |
 | 2a | Important events, refresher calendar, rest days | Key dates and rest days on the calendar, Today and the plan | Planned |
 | 2b | Topic schedule | Optional review-center mode: a lecture schedule the plan follows | Planned |
 | 3 | Progress check, useful links | Sets to finish (past boards, RC sets) linked to outside scores; personal links in Library | Planned |

@@ -225,3 +225,74 @@ describe('DELETE /outside-scores/:id', () => {
         expect(deleteMany).toHaveBeenCalledWith({ where: { id: ID, userId: UID } });
     });
 });
+
+describe('the assessment log fields (CELE round, 2026-10)', () => {
+    const { Prisma } = require('@prisma/client');
+    const PARTS = [
+        { subject: 'Mathematics', score: 70, total: 100 },
+        { subject: 'ESAS', score: 60.5, total: 100 },
+        { subject: 'EE', score: 80, total: 100 },
+    ];
+    const body = (over = {}) => { const { id: _id, ...rest } = entry(over); return rest; };
+    const stored = (over = {}) => ({ id: ID, subject: 'ALL', parts: PARTS, guessed: 4, skipped: 2, _count: { retests: 0 }, ...over });
+    const put = (b) => request(makeApp()).put(`/api/user/outside-scores/${ID}`).set(as(UID)).send(b);
+    const updated = () => prisma.outsideScore.update.mock.calls[0][0].data;
+    const mockUpdate = () => vi.spyOn(prisma.outsideScore, 'update').mockImplementation(async ({ data }) => ({ id: ID, userId: UID, ...data }));
+
+    it('an all-three entry stores its parts, with score and total as their sums', async () => {
+        const res = await request(makeApp()).post('/api/user/outside-scores').set(as(UID))
+            .send(entry({ subject: 'ALL', score: 1, total: 300, parts: PARTS, minutesUsed: 600, guessed: 4, skipped: 2, improveTopicIds: ['t1', 't2', 't1'] }));
+        expect(res.status).toBe(201);
+        expect(prisma.outsideScore.create.mock.calls[0][0].data).toMatchObject({
+            parts: PARTS, score: 210.5, total: 300, minutesUsed: 600, guessed: 4, skipped: 2, improveTopicIds: ['t1', 't2'],
+        });
+    });
+
+    it('refuses parts on a one-subject entry, and guessed plus skipped past the total', async () => {
+        let res = await request(makeApp()).post('/api/user/outside-scores').set(as(UID)).send(entry({ parts: PARTS }));
+        expect(res.status).toBe(400);
+        res = await request(makeApp()).post('/api/user/outside-scores').set(as(UID)).send(entry({ guessed: 60, skipped: 50 }));
+        expect(res.status).toBe(400);
+        expect(prisma.outsideScore.create).not.toHaveBeenCalled();
+    });
+
+    it('a PUT that leaves the log fields out keeps them (an older app, or a write queued before them)', async () => {
+        vi.spyOn(prisma.outsideScore, 'findFirst').mockResolvedValueOnce(stored({ subject: 'EE', parts: null }));
+        mockUpdate();
+        const res = await put(body({ score: 80 }));
+        expect(res.status).toBe(200);
+        for (const field of ['parts', 'minutesUsed', 'guessed', 'skipped', 'improveTopicIds']) expect(updated()).not.toHaveProperty(field);
+    });
+
+    it('an explicit null clears a field; a null parts is the database null, a null topic list is empty', async () => {
+        vi.spyOn(prisma.outsideScore, 'findFirst').mockResolvedValueOnce(stored());
+        mockUpdate();
+        await put(body({ subject: 'ALL', score: 200, total: 300, parts: null, minutesUsed: null, improveTopicIds: null }));
+        expect(updated()).toMatchObject({ parts: Prisma.DbNull, minutesUsed: null, improveTopicIds: [] });
+    });
+
+    it('drops kept parts that no longer fit: the subject changed, or the score was edited without them', async () => {
+        vi.spyOn(prisma.outsideScore, 'findFirst').mockResolvedValueOnce(stored());
+        mockUpdate();
+        await put(body({ subject: 'EE', score: 80, total: 100 }));
+        expect(updated().parts).toBe(Prisma.DbNull);
+
+        prisma.outsideScore.update.mockClear();
+        vi.spyOn(prisma.outsideScore, 'findFirst').mockResolvedValueOnce(stored());
+        await put(body({ subject: 'ALL', score: 199, total: 300 }));
+        expect(updated().parts).toBe(Prisma.DbNull);
+
+        prisma.outsideScore.update.mockClear();
+        vi.spyOn(prisma.outsideScore, 'findFirst').mockResolvedValueOnce(stored());
+        await put(body({ subject: 'ALL', score: 210.5, total: 300 }));
+        expect(updated()).not.toHaveProperty('parts');
+    });
+
+    it('clears kept guessed and skipped counts the new total can’t hold, never answering 400', async () => {
+        vi.spyOn(prisma.outsideScore, 'findFirst').mockResolvedValueOnce(stored({ subject: 'EE', parts: null, guessed: 30, skipped: 20 }));
+        mockUpdate();
+        const res = await put(body({ score: 20, total: 40 }));
+        expect(res.status).toBe(200);
+        expect(updated()).toMatchObject({ guessed: null, skipped: null });
+    });
+});

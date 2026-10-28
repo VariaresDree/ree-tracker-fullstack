@@ -643,3 +643,50 @@ describe('shared contract — the board rating calculator', () => {
         expect(shared.scoreNeeded({ known: [part('Mathematics', 72), part('ESAS', 65)], subject: 'Physics' })).toBeNull();
     });
 });
+
+describe('shared contract — the outside-score assessment log', () => {
+    const parts = [
+        { subject: 'Mathematics', score: 70, total: 100 },
+        { subject: 'ESAS', score: 60, total: 100 },
+        { subject: 'EE', score: 80, total: 100 },
+    ];
+    const board = { title: 'PB 3', takenOn: '2026-10-01', subject: 'ALL', score: 210, total: 300, parts };
+
+    it('checks the log fields the same way on both sides; absent or null is "not recorded"', () => {
+        expect(shared.outsideScoreErrors({ ...board, minutesUsed: 600, guessed: 5, skipped: 3, improveTopicIds: ['t1'] }, '2026-10-28')).toEqual({});
+        expect(shared.outsideScoreErrors({ ...board, parts: null, minutesUsed: null }, '2026-10-28')).toEqual({});
+        expect(Object.keys(shared.outsideScoreErrors({ ...board, subject: 'EE' }, '2026-10-28'))).toEqual(['parts']);
+        expect(Object.keys(shared.outsideScoreErrors({ ...board, parts: [parts[0], parts[0]] }, '2026-10-28'))).toEqual(['parts']);
+        expect(Object.keys(shared.outsideScoreErrors({ ...board, minutesUsed: 901 }, '2026-10-28'))).toEqual(['minutesUsed']);
+        expect(Object.keys(shared.outsideScoreErrors({ ...board, guessed: 200, skipped: 101 }, '2026-10-28'))).toEqual(['skipped']);
+        const eleven = Array.from({ length: 11 }, (_, i) => `t${i}`);
+        expect(Object.keys(shared.outsideScoreErrors({ ...board, improveTopicIds: eleven }, '2026-10-28'))).toEqual(['improveTopicIds']);
+    });
+
+    it('sums the parts, and remarks: a verdict for all three, a mark for one subject', () => {
+        expect(shared.outsidePartsTotals([{ subject: 'EE', score: 80.5, total: 100 }, parts[0]])).toEqual({ score: 150.5, total: 200 });
+        expect(shared.outsidePartsTotals([])).toBeNull();
+        expect(shared.outsideScoreRemark(board)).toEqual({ kind: 'verdict', verdict: 'PASSED', generalAverage: 71.5 });
+        expect(shared.outsideScoreRemark({ ...board, parts: parts.slice(0, 2) })).toBeNull();
+        expect(['72', '69', '49'].map((score) => shared.outsideScoreRemark({ subject: 'EE', score: Number(score), total: 100 }).kind))
+            .toEqual(['mark', 'under', 'floor']);
+    });
+
+    it('holds the pace to the board: per subject, or the whole board for all three', () => {
+        expect(shared.outsidePace({ subject: 'EE', total: 100, minutesUsed: 300 })).toEqual({ perItem: 3, boardPerItem: 3.6 });
+        expect(shared.outsidePace({ ...board, minutesUsed: 725 })).toEqual({ perItem: 2.4, boardPerItem: 3 });
+        expect(shared.outsidePace({ subject: 'EE', total: 100 })).toBeNull();
+    });
+
+    it('ranks the topics flagged to improve, most flagged first, within a window', () => {
+        const entries = [
+            { takenOn: '2026-10-01', improveTopicIds: ['a', 'b'] },
+            { takenOn: '2026-10-20', improveTopicIds: ['b', 'b'] },
+            { takenOn: '2026-08-01', improveTopicIds: ['c'] },
+        ];
+        expect(shared.flaggedTopics(entries, '2026-09-01')).toEqual([
+            { topicId: 'b', count: 2, lastTakenOn: '2026-10-20' },
+            { topicId: 'a', count: 1, lastTakenOn: '2026-10-01' },
+        ]);
+    });
+});

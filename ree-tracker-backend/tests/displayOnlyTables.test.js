@@ -15,7 +15,9 @@ const SRC = resolve(__dirname, '..', 'src');
 
 // model accessor / SQL table name -> the only files allowed to use it
 const DISPLAY_ONLY = {
-    outsideScore: ['routes/outsideScoreRoutes.js'],
+    // selfReportSignals reads the topics flagged "to improve" for the study
+    // planner only (the test below pins who may require it).
+    outsideScore: ['routes/outsideScoreRoutes.js', 'services/selfReportSignals.js'],
     syllabusProgress: ['routes/syllabusRoutes.js'],
     // The notebook's reads live in services/mistakeList.js (shared with the
     // Today loop, which only picks which questions to practise).
@@ -55,6 +57,21 @@ describe('display-only tables', () => {
             expect(users.sort()).toEqual([...allowed].sort());
         });
     }
+
+    // Self-reported signals may raise a topic in the study plan, and nowhere
+    // else: only the planner route may require the service that reads them,
+    // and the plan engine never reaches the database itself.
+    it('selfReportSignals is required only by the planner route', () => {
+        const re = /require\(['"][^'"]*\/selfReportSignals['"]\)/;
+        const users = sourceFiles(SRC)
+            .filter((file) => re.test(readFileSync(file, 'utf8')))
+            .map((file) => relative(SRC, file).replace(/\\/g, '/'));
+        expect(users).toEqual(['routes/plannerRoutes.js']);
+    });
+
+    it('engine/plan.js stays pure', () => {
+        expect(readFileSync(join(SRC, 'engine/plan.js'), 'utf8')).not.toMatch(/config\/db|@prisma/);
+    });
 
     it('would catch an engine reading the table', () => {
         expect(usesTable('const rows = await tx.outsideScore.findMany({})', 'outsideScore')).toBe(true);

@@ -161,3 +161,27 @@ describe('taskProgress — tasks complete themselves', () => {
         expect(taskProgress([{ id: 'x', kind: null, dueDate: day }], answered, [])).toEqual([]);
     });
 });
+
+describe('topics flagged on outside scores', () => {
+    const base = { today: '2026-10-01', dailyTarget: 50, examDate: '2026-12-31' };
+
+    it('a flagged topic gets more drill days, and its drill names the paper that flagged it', () => {
+        const plan = buildStudyPlan({ ...base, topics: [{ ...topic('Machines', 'EE', 0.4), flags: 1, flaggedBy: 'RC Preboard 2' }, topic('Protection', 'EE', 0.4)] });
+        const days = (name) => plan.filter((t) => t.topic === name).length;
+        expect(days('Machines')).toBeGreaterThan(days('Protection'));
+        expect(plan.find((t) => t.topic === 'Machines').text).toMatch(/\(flagged after RC Preboard 2\)$/);
+    });
+
+    it('the open-mistakes note stays last, and flags share the 1.5× cap with mistakes', () => {
+        const both = buildStudyPlan({ ...base, topics: [{ ...topic('A', 'EE', 0.4), openMistakes: 10, flags: 2, flaggedBy: 'PB 1' }, topic('B', 'EE', 0.4)] });
+        const mistakesOnly = buildStudyPlan({ ...base, topics: [{ ...topic('A', 'EE', 0.4), openMistakes: 10 }, topic('B', 'EE', 0.4)] });
+        expect(both.find((t) => t.topic === 'A').text).toMatch(/\(flagged after PB 1\) \(10 open mistakes\)$/);
+        expect(both.filter((t) => t.topic === 'A').length).toBe(mistakesOnly.filter((t) => t.topic === 'A').length);
+    });
+
+    it('two flags is the most that counts', () => {
+        const two = buildStudyPlan({ ...base, topics: [{ ...topic('A', 'EE', 0.4), flags: 2 }, topic('B', 'EE', 0.4)] });
+        const five = buildStudyPlan({ ...base, topics: [{ ...topic('A', 'EE', 0.4), flags: 5 }, topic('B', 'EE', 0.4)] });
+        expect(five.filter((t) => t.topic === 'A').length).toBe(two.filter((t) => t.topic === 'A').length);
+    });
+});

@@ -11,6 +11,7 @@ const { normalizeSubject } = require('@ree/shared');
 const { buildStudyPlan, cardTasks, taskProgress } = require('../engine/plan');
 const { loadMistakes } = require('../services/mistakeList');
 const { loadTopicSignals } = require('../services/topicSignals');
+const { loadFlaggedTopics } = require('../services/selfReportSignals');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { resolveTopic } = require('../services/topicResolver');
 
@@ -169,7 +170,8 @@ router.delete('/tasks/:id', authMiddleware, async (req, res) => {
 
 // Auto-generate a study plan (engine/plan.js): drill days shared out by
 // (1 − decayed mastery) × syllabus weight, raised by the topic's open
-// mistakes, and interleaved; a timed PRC sitting every seventh day; light
+// mistakes and by topics flagged "to improve" on outside scores, and
+// interleaved; a timed PRC sitting every seventh day; light
 // review in the final three days; and formula-card days where five or more
 // cards fall due. Re-planning replaces the previous plan's tasks, never the
 // learner's own.
@@ -179,7 +181,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         const exam = new Date(examDate).toISOString().slice(0, 10);
 
         const today = todayManila();
-        const [user, practised, weights, mistakes, cardsDue] = await Promise.all([
+        const [user, practised, weights, mistakes, cardsDue, flaggedByTopic] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.user.id }, select: { dailyTarget: true } }),
             loadTopicSignals(req.user.id),
             getSyllabusWeights(),
@@ -188,6 +190,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
                 where: { userId: req.user.id, card: { status: 'LIVE' }, nextReviewDate: { lt: manilaMidnight(today, 15) } },
                 select: { nextReviewDate: true },
             }),
+            loadFlaggedTopics(req.user.id, today).catch(() => new Map()),
         ]);
         // Open mistakes per topic, by name (the plan's topics are names).
         const openByTopic = new Map();
@@ -209,7 +212,11 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
                 return { topic: t.subtopic, subject, topicId: row?.id ?? null, masteryEffective: null };
             }));
         const planTopics = [...practised, ...untouched]
-            .map((t) => ({ ...t, openMistakes: openByTopic.get(String(t.topic || '').trim().toLowerCase()) || 0 }));
+            .map((t) => {
+                const key = String(t.topic || '').trim().toLowerCase();
+                const flag = flaggedByTopic.get(key);
+                return { ...t, openMistakes: openByTopic.get(key) || 0, flags: flag?.flags || 0, flaggedBy: flag?.flaggedBy || null };
+            });
 
         const days = buildStudyPlan({
             today,
@@ -234,6 +241,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             totalDays: days.length,
             openMistakes: [...openByTopic.values()].reduce((a, b) => a + b, 0),
             cardsDue: cardsDue.length,
+            flaggedTopics: flaggedByTopic.size,
             message: `Planned ${days.length} days of review`,
         });
     } catch (error) {

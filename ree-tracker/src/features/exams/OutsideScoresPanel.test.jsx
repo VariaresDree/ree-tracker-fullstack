@@ -23,6 +23,16 @@ vi.mock('idb-keyval', () => ({
   del: async (k) => { idbMem.delete(k); },
 }));
 
+// The syllabus topics name the 'to improve' chips; read once, from here.
+const TOPICS = [
+  { topicId: 'topic-machines', subject: 'EE', name: 'Machines' },
+  { topicId: 'topic-calculus', subject: 'Mathematics', name: 'Calculus' },
+];
+vi.mock('../syllabus/useSyllabus', () => ({ useSyllabus: () => ({ topics: TOPICS }) }));
+
+const navigateFn = vi.fn();
+vi.mock('react-router-dom', async (orig) => ({ ...(await orig()), useNavigate: () => navigateFn }));
+
 const toastFn = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() });
 vi.mock('react-hot-toast', () => ({ default: toastFn }));
 
@@ -197,6 +207,90 @@ describe('OutsideScoresPanel', () => {
     render(<OutsideScoresPanel />);
     expect(await screen.findByText(/Couldn’t reach the server/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 3, name: FIRST.title })).toBeInTheDocument();
+  });
+});
+
+describe('the assessment log (CELE round)', () => {
+  const PARTS = [
+    { subject: 'Mathematics', score: 70, total: 100 },
+    { subject: 'ESAS', score: 60, total: 100 },
+    { subject: 'EE', score: 80, total: 100 },
+  ];
+  const BOARD = {
+    ...FIRST, id: '33333333-3333-4333-8333-333333333333', title: 'RC Preboard 3', subject: 'ALL', score: 210, total: 300,
+    parts: PARTS, minutesUsed: 725, guessed: 6, skipped: 2, improveTopicIds: ['topic-machines', 'topic-gone'],
+  };
+  const lastBody = (method) => apiRequest.mock.calls.filter((c) => c[1] === method).pop()[2];
+
+  it('shows the rating, each subject, the pace, guessed and skipped, and the topics to improve with Drill', async () => {
+    serverItems = [BOARD];
+    render(<OutsideScoresPanel />);
+    expect(await screen.findByText('Passed · rating 71.5')).toBeInTheDocument(); // 17.5 + 18 + 36
+    expect(screen.getByText('Math 70/100 · ESAS 60/100 · EE 80/100 · 12h 05m, 2.4 min an item (board pace 3) · 6 guessed · 2 skipped')).toBeInTheDocument();
+    const topics = screen.getByRole('list', { name: 'Topics to improve after RC Preboard 3' });
+    expect(within(topics).getAllByRole('listitem')).toHaveLength(1); // a retired topic is left out
+    fireEvent.click(within(topics).getByRole('button', { name: 'Drill Machines' }));
+    expect(navigateFn).toHaveBeenCalledWith('/practice', expect.objectContaining({ state: { preset: expect.objectContaining({ drillTopicId: 'topic-machines', drillTopic: 'Machines', drillSubject: 'EE' }) } }));
+    expect(screen.getByRole('list', { name: 'Topics you flag most' })).toHaveTextContent('Machines (1)');
+  });
+
+  it('a one-subject entry gets a mark, not a verdict', async () => {
+    serverItems = [{ ...FIRST, score: 45 }];
+    render(<OutsideScoresPanel />);
+    expect(await screen.findByText('Under the 50% floor')).toBeInTheDocument();
+  });
+
+  it('adds an all-three entry by subject, sending the parts with their sums and the details set', async () => {
+    render(<OutsideScoresPanel />);
+    await screen.findByText('No outside scores yet');
+    fireEvent.click(screen.getByRole('button', { name: /Add score/ }));
+    const dialog = await screen.findByRole('dialog');
+    fill('Name', 'RC Preboard 3');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /All three/ }));
+    const score = (subject) => within(within(dialog).getByRole('group', { name: subject })).getByLabelText('Score');
+    fireEvent.change(score('Mathematics'), { target: { value: '70' } });
+    fireEvent.change(score('EE'), { target: { value: '80.5' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /More details/ }));
+    fill('Hours used', '4');
+    fill('Minutes', '30');
+    fill('Items skipped', '3');
+    fireEvent.change(within(dialog).getByLabelText('Topics to improve'), { target: { value: 'topic-machines' } });
+    expect(within(dialog).getByRole('button', { name: 'Remove Machines' })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save score' }));
+
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(KEY, 'POST', expect.anything()));
+    const body = lastBody('POST');
+    expect(body).toMatchObject({
+      subject: 'ALL', score: 150.5, total: 200,
+      parts: [{ subject: 'Mathematics', score: 70, total: 100 }, { subject: 'EE', score: 80.5, total: 100 }],
+      minutesUsed: 270, skipped: 3, improveTopicIds: ['topic-machines'],
+    });
+    expect(body).not.toHaveProperty('guessed'); // never touched, so not sent
+  });
+
+  it('an edit opened from an entry saved before the log sends none of its keys', async () => {
+    serverItems = [FIRST]; // no log fields: a copy from before they existed
+    render(<OutsideScoresPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: /Edit RC Preboard 1/ }));
+    await screen.findByRole('dialog');
+    fill('Your score', '65');
+    fireEvent.click(screen.getByRole('button', { name: 'Save score' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/${FIRST.id}`, 'PUT', expect.anything()));
+    const body = lastBody('PUT');
+    expect(body.score).toBe(65);
+    for (const key of ['parts', 'minutesUsed', 'guessed', 'skipped', 'improveTopicIds']) expect(body).not.toHaveProperty(key);
+  });
+
+  it('the rating calculator saves its scores as an all-three entry', async () => {
+    render(<OutsideScoresPanel />);
+    await screen.findByText('No outside scores yet');
+    fireEvent.click(screen.getByRole('button', { name: /Rating calculator/ }));
+    const calc = await screen.findByRole('dialog', { name: 'Rating calculator' });
+    fireEvent.change(within(within(calc).getByRole('group', { name: 'ESAS' })).getByLabelText('Score'), { target: { value: '66' } });
+    fireEvent.click(within(calc).getByRole('button', { name: 'Save as outside score' }));
+    const form = await screen.findByRole('dialog', { name: 'Add an outside score' });
+    expect(within(within(form).getByRole('group', { name: 'ESAS' })).getByLabelText('Score')).toHaveValue(66);
+    expect(within(form).getByRole('radio', { name: /All three/ })).toBeChecked();
   });
 });
 

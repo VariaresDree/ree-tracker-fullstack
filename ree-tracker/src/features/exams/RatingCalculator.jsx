@@ -127,13 +127,16 @@ function Result({ checks }) {
 }
 
 /**
- * @param {{ open: boolean, onClose: () => void }} props
+ * @param {{ open: boolean, onClose: () => void, onSaveAsScore?: (parts: object[]) => void }} props
  *   The caller mounts it per opening, so the rows start empty each time.
+ *   `onSaveAsScore` gets the subjects entered, for an outside score.
  */
-export default function RatingCalculator({ open, onClose }) {
+export default function RatingCalculator({ open, onClose, onSaveAsScore }) {
   const [rows, setRows] = useState(blankRows);
   const set = (subject, field) => (e) => setRows((r) => ({ ...r, [subject]: { ...r[subject], [field]: e.target.value } }));
   const checks = Object.fromEntries(CANONICAL_SUBJECTS.map((s) => [s, checkRow(s, rows[s])]));
+  const parts = CANONICAL_SUBJECTS.map((s) => checks[s].part).filter(Boolean);
+  const hasErrors = CANONICAL_SUBJECTS.some((s) => Object.keys(checks[s].errors).length > 0 && !checks[s].empty);
 
   return (
     <Modal
@@ -146,6 +149,11 @@ export default function RatingCalculator({ open, onClose }) {
         <>
           <Button type="button" variant="ghost" size="sm" onClick={() => setRows(blankRows())}>Clear</Button>
           <Button type="button" variant="secondary" size="sm" onClick={onClose}>Done</Button>
+          {onSaveAsScore && (
+            <Button type="button" size="sm" disabled={parts.length === 0 || hasErrors} onClick={() => onSaveAsScore(parts)}>
+              Save as outside score
+            </Button>
+          )}
         </>
       )}
     >

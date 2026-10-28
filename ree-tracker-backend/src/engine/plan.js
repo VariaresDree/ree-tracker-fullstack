@@ -14,6 +14,8 @@
 //     (SMART_DRILL_MAX_ITEMS), so Start can always finish it;
 //   • a topic's open mistakes raise its priority (up to 1.5× at ten), and its
 //     drill says how many are open;
+//   • a topic the learner flagged "to improve" on an outside score raises it
+//     too (×1.25 a flag, two at most), within the same 1.5× cap;
 //   • every seventh day is a timed PRC sitting, rotating the subject;
 //   • the last three days before the exam are light review;
 //   • tasks carry topic, subject and a question target, so they can be launched
@@ -37,6 +39,9 @@ const MOCK_ROTATION = ['EE', 'ESAS', 'Mathematics'];
 const SUBJECT_LABEL = { Mathematics: 'Mathematics', ESAS: 'ESAS', EE: 'EE' };
 const MISTAKE_BOOST = 0.5;
 const MISTAKE_CAP = 10;
+const FLAG_BOOST = 0.25;
+const FLAG_CAP = 2;
+const BOOST_CAP = 1.5;
 const CARD_DAY_MIN = 5;
 const CARD_WINDOW_DAYS = 14;
 
@@ -133,7 +138,7 @@ function interleave(topics, counts) {
  * @param {string} input.today        YYYY-MM-DD (Manila)
  * @param {string} input.examDate     YYYY-MM-DD
  * @param {number} [input.dailyTarget]
- * @param {Array<{topic, subject, topicId?, masteryEffective?}>} input.topics
+ * @param {Array<{topic, subject, topicId?, masteryEffective?, openMistakes?, flags?, flaggedBy?}>} input.topics
  * @param {object} [input.weights]
  * @returns {Array<{dueDate, kind, subject, topic, topicId, targetCount, text}>}
  */
@@ -155,8 +160,11 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         .map((t) => {
             const p = Number.isFinite(t.masteryEffective) ? t.masteryEffective : DEFAULT_BKT.pInit;
             const open = Math.max(0, Number(t.openMistakes) || 0);
-            const boost = 1 + MISTAKE_BOOST * (Math.min(open, MISTAKE_CAP) / MISTAKE_CAP);
-            return { ...t, openMistakes: open, priority: Math.max(0, 1 - p) * (w[t.subject] ?? 0.1) * boost };
+            const flags = Math.max(0, Number(t.flags) || 0);
+            const boost = Math.min(BOOST_CAP, 1
+                + MISTAKE_BOOST * (Math.min(open, MISTAKE_CAP) / MISTAKE_CAP)
+                + FLAG_BOOST * Math.min(flags, FLAG_CAP));
+            return { ...t, openMistakes: open, flags, priority: Math.max(0, 1 - p) * (w[t.subject] ?? 0.1) * boost };
         })
         .filter((t) => t.priority > 0)
         .sort((a, b) => b.priority - a.priority);
@@ -173,8 +181,10 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         const kind = kinds[i];
         if (kind === 'drill' && drillOrder[drillIdx]) {
             const t = drillOrder[drillIdx++];
+            // The open-mistakes note stays last.
+            const flagged = t.flags > 0 && t.flaggedBy ? ` (flagged after ${t.flaggedBy})` : '';
             const open = t.openMistakes > 0 ? ` (${t.openMistakes} open mistake${t.openMistakes === 1 ? '' : 's'})` : '';
-            plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: drillTarget, text: `Drill ${t.topic} — ${drillTarget} questions${open}` });
+            plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: drillTarget, text: `Drill ${t.topic} — ${drillTarget} questions${flagged}${open}` });
         } else if (kind === 'mock') {
             const subject = MOCK_ROTATION[mockIdx++ % MOCK_ROTATION.length];
             plan.push({ dueDate, kind, subject, topic: null, topicId: null, targetCount: 1, text: `Timed ${SUBJECT_LABEL[subject]} sitting on the PRC clock` });

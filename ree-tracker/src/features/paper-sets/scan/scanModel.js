@@ -223,17 +223,37 @@ export function selfCheckEntry({ set, draw, score, takenOn, id, retestOfId = nul
     : `${oneDecimal(score.percent ?? 0)}%.`;
   const note = [`Printed set ${formatPrintId(set.id)}.`, parts.length ? `${parts.join(', ')}.` : '', result]
     .filter(Boolean).join(' ').slice(0, L.note);
-  return {
+  const subject = selfCheckSubject(draw?.sections || set?.sections);
+  const entry = {
     id,
     title,
     source: 'REE.ai paper set',
-    subject: selfCheckSubject(draw?.sections || set?.sections),
+    subject,
     score: score.correct,
     total: score.scored,
     takenOn,
     note,
     retestOfId,
+    // Items left blank: the assessment log's skipped count.
+    skipped: (score.perItem || []).filter((state) => state === 'blank').length,
   };
+  // A mixed paper keeps each subject's score (sections of one subject added
+  // up), so its history entry gets the board rating when all three are in it.
+  if (subject === 'ALL') {
+    const bySubject = new Map();
+    for (const s of score.sections || []) {
+      const key = normalizeOutsideSubject(s.subject);
+      if (!key || key === 'ALL' || !(s.total > 0)) continue;
+      const part = bySubject.get(key) || { subject: key, score: 0, total: 0 };
+      part.score += s.correct;
+      part.total += s.total;
+      bySubject.set(key, part);
+    }
+    const order = ['Mathematics', 'ESAS', 'EE'];
+    const parts = [...bySubject.values()].sort((a, b) => order.indexOf(a.subject) - order.indexOf(b.subject));
+    if (parts.length > 0) entry.parts = parts;
+  }
+  return entry;
 }
 
 /**

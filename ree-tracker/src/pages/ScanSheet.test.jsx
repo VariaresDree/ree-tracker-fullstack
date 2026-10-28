@@ -321,6 +321,7 @@ describe('Scanner: my own sheet', () => {
       takenOn: todayManila(),
       note: 'Printed set K7P2-9QXA-M3TD. EE 1/3. 33.3%.',
       retestOfId: FIRST,
+      skipped: 0, // two marks on item 3 is wrong, not skipped
     });
     expect(screen.getByText('Saved to your history.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Past sittings/ })).toHaveAttribute('href', '/exams?tab=history');

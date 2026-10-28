@@ -15,6 +15,9 @@
 'use strict';
 
 const { isIsoDay } = require('./manilaDate');
+const { CANONICAL_SUBJECTS } = require('./subject');
+const { PRC_EXAM_FORMAT, boardPaceSeconds } = require('./exam');
+const { rateBoard } = require('./boardRating');
 
 /** 'ALL' is a whole-board mock (all three subjects in one score). */
 const OUTSIDE_SCORE_SUBJECTS = ['Mathematics', 'ESAS', 'EE', 'ALL'];
@@ -27,6 +30,11 @@ const OUTSIDE_SCORE_LIMITS = Object.freeze({
     // Per account. A review season is a few dozen entries; the cap only stops
     // a runaway client.
     perUser: 500,
+    // The CELE tracker's assessment log (2026-10): time used (the whole board
+    // is 15 hours), and at most this many topics to improve.
+    maxMinutes: 900,
+    maxTopics: 10,
+    topicId: 64,
 });
 
 const SUBJECT_ALIASES = {
@@ -79,7 +87,115 @@ function outsideScoreErrors(entry, today) {
     else if (totalOk && score > total) errors.score = 'Your score can’t be more than the number of items.';
 
     if (text(e.note).length > OUTSIDE_SCORE_LIMITS.note) errors.note = `Keep notes under ${OUTSIDE_SCORE_LIMITS.note} characters.`;
+
+    // The log's extra fields are optional: absent or null is "not recorded".
+    const parts = partsErrors(e);
+    if (parts) errors.parts = parts;
+    if (e.minutesUsed != null && !isWhole(e.minutesUsed, 1, OUTSIDE_SCORE_LIMITS.maxMinutes)) {
+        errors.minutesUsed = `Enter the time in minutes, 1 to ${OUTSIDE_SCORE_LIMITS.maxMinutes}.`;
+    }
+    for (const field of ['guessed', 'skipped']) {
+        if (e[field] != null && !isWhole(e[field], 0, OUTSIDE_SCORE_LIMITS.maxTotal)) errors[field] = 'Enter a whole number, 0 or more.';
+    }
+    if (!errors.guessed && !errors.skipped && totalOk && (Number(e.guessed) || 0) + (Number(e.skipped) || 0) > total) {
+        errors.skipped = 'Guessed and skipped can’t add up to more than the number of items.';
+    }
+    if (e.improveTopicIds != null) {
+        const ids = e.improveTopicIds;
+        if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || !id || id.length > OUTSIDE_SCORE_LIMITS.topicId)) {
+            errors.improveTopicIds = 'Pick topics from the list.';
+        } else if (new Set(ids).size > OUTSIDE_SCORE_LIMITS.maxTopics) {
+            errors.improveTopicIds = `Pick up to ${OUTSIDE_SCORE_LIMITS.maxTopics} topics.`;
+        }
+    }
     return errors;
+}
+
+const isWhole = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
+
+/**
+ * A whole-board entry's per-subject scores: [{ subject, score, total }], one
+ * per board subject, 1 to 3 of them. Only an ALL entry has parts; its own
+ * score and total are their sums (outsidePartsTotals).
+ */
+function partsErrors(e) {
+    if (e.parts == null) return null;
+    if (!Array.isArray(e.parts) || e.parts.length === 0 || e.parts.length > CANONICAL_SUBJECTS.length) return 'Enter each subject’s score.';
+    if (e.subject !== 'ALL') return 'Per-subject scores are for an all-three entry.';
+    const seen = new Set();
+    for (const part of e.parts) {
+        const total = Number(part?.total);
+        const score = Number(part?.score);
+        if (!CANONICAL_SUBJECTS.includes(part?.subject) || seen.has(part.subject)) return 'Each subject once: Mathematics, ESAS or EE.';
+        seen.add(part.subject);
+        if (!Number.isInteger(total) || total < 1 || total > OUTSIDE_SCORE_LIMITS.maxTotal) return `Each subject’s items: 1 to ${OUTSIDE_SCORE_LIMITS.maxTotal}.`;
+        if (part.score === '' || part.score == null || !Number.isFinite(score) || score < 0 || score > total) return `Check the ${part.subject} score: 0 to its number of items.`;
+    }
+    return null;
+}
+
+/** An all-three entry's score and total, summed from its parts; null without parts. */
+function outsidePartsTotals(parts) {
+    if (!Array.isArray(parts) || parts.length === 0) return null;
+    return {
+        score: Math.round(parts.reduce((a, p) => a + Number(p.score), 0) * 2) / 2,
+        total: parts.reduce((a, p) => a + Number(p.total), 0),
+    };
+}
+
+/**
+ * What a score means on the board, as the CELE log's "Remarks":
+ *   { kind: 'verdict', verdict, generalAverage }  an all-three entry with every subject's score;
+ *   { kind: 'mark' | 'under' | 'floor' }           one subject: 70 or more, under 70, under the 50% floor.
+ * A single subject never passes or fails the board on its own, so it gets a
+ * mark, not a verdict. Null for an all-three entry without per-subject scores.
+ */
+function outsideScoreRemark(entry) {
+    if (entry?.subject === 'ALL') {
+        const rating = rateBoard(entry.parts || []);
+        return rating.complete ? { kind: 'verdict', verdict: rating.verdict, generalAverage: rating.generalAverage } : null;
+    }
+    const pct = outsideScorePercent(entry);
+    if (pct == null) return null;
+    return { kind: pct >= 70 ? 'mark' : pct >= 50 ? 'under' : 'floor' };
+}
+
+/**
+ * Minutes per item against the board's pace: { perItem, boardPerItem }, both
+ * to one decimal. An all-three entry is held to the whole board (900 minutes
+ * for 300 items). Null without a time.
+ */
+function outsidePace(entry) {
+    const minutes = Number(entry?.minutesUsed);
+    const total = Number(entry?.total);
+    if (!Number.isFinite(minutes) || minutes <= 0 || !(total > 0)) return null;
+    let board = null;
+    if (entry.subject === 'ALL') {
+        const f = Object.values(PRC_EXAM_FORMAT);
+        board = f.reduce((a, x) => a + x.minutes, 0) / f.reduce((a, x) => a + x.items, 0);
+    } else {
+        const secs = boardPaceSeconds(entry.subject);
+        board = secs == null ? null : secs / 60;
+    }
+    return { perItem: round1(minutes / total), boardPerItem: board == null ? null : round1(board) };
+}
+
+/**
+ * The topics flagged "to improve" most often, newest flag first on a tie:
+ * [{ topicId, count, lastTakenOn }]. `since` (YYYY-MM-DD) leaves out older entries.
+ */
+function flaggedTopics(entries, since = null) {
+    const byId = new Map();
+    for (const e of entries || []) {
+        if (since && e.takenOn < since) continue;
+        for (const id of new Set(e.improveTopicIds || [])) {
+            const t = byId.get(id) || { topicId: id, count: 0, lastTakenOn: '' };
+            t.count += 1;
+            if (e.takenOn > t.lastTakenOn) t.lastTakenOn = e.takenOn;
+            byId.set(id, t);
+        }
+    }
+    return [...byId.values()].sort((a, b) => b.count - a.count || (a.lastTakenOn < b.lastTakenOn ? 1 : -1));
 }
 
 /** Score as a percentage, to one decimal place; null when it can't be computed. */
@@ -142,4 +258,8 @@ module.exports = {
     outsideScorePercent,
     outsideScoreSummary,
     retestDelta,
+    outsidePartsTotals,
+    outsideScoreRemark,
+    outsidePace,
+    flaggedTopics,
 };
