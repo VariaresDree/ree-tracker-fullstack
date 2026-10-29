@@ -46,10 +46,11 @@ const fromEntry = (e) => ({
   retestOfId: e.retestOfId || '',
 });
 
-const logFrom = (e) => ({
-  // A new all-three entry starts on per-subject scores; an older one without
-  // them stays a single score until the learner switches.
-  byPart: e ? Array.isArray(e.parts) && e.parts.length > 0 : true,
+const logFrom = (e, editing) => ({
+  // A new all-three entry starts on per-subject scores, prefilled or not (a
+  // preboard logged from Today, a set from the checklist); an older entry
+  // without them stays a single score until the learner switches.
+  byPart: editing ? Array.isArray(e.parts) && e.parts.length > 0 : true,
   parts: partsFrom(e?.parts),
   hours: e?.minutesUsed != null ? String(Math.floor(e.minutesUsed / 60)) : '',
   minutes: e?.minutesUsed != null ? String(e.minutesUsed % 60) : '',
@@ -72,7 +73,7 @@ const countOrNull = (v) => (String(v).trim() === '' ? null : Number(v));
 export default function OutsideScoreForm({ open, onClose, entry = null, prefill = null, entries = [], topics = null, onSave }) {
   const start = entry || prefill;
   const [form, setForm] = useState(() => (start ? fromEntry(start) : blank()));
-  const [log, setLog] = useState(() => logFrom(start));
+  const [log, setLog] = useState(() => logFrom(start, !!entry));
   // Log fields changed here, or brought by a prefill: sent even on a new entry.
   const [touched, setTouched] = useState(() => new Set(prefill ? LOG_FIELDS.filter((f) => prefill[f] != null) : []));
   const [errors, setErrors] = useState({});

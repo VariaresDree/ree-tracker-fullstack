@@ -104,6 +104,9 @@ describe('SetsPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Log the score for April 2025' }));
     const form = await screen.findByRole('dialog', { name: 'Add an outside score' });
     expect(within(form).getByLabelText(/^Name/)).toHaveValue('Past boards: April 2025');
+    // An all-three set starts on per-subject scores; this one logs a total.
+    expect(within(form).getByRole('group', { name: 'Mathematics' })).toBeInTheDocument();
+    fireEvent.click(within(form).getByRole('button', { name: 'Only have the total?' }));
     fill(form, 'Your score', '210');
     fill(form, 'Number of items', '300');
     fireEvent.click(within(form).getByRole('button', { name: 'Save score' }));
