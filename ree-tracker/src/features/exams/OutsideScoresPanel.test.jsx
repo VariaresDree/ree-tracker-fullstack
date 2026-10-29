@@ -296,10 +296,23 @@ describe('the assessment log (CELE round)', () => {
     const form = await screen.findByRole('dialog', { name: 'Add an outside score' });
     expect(within(form).getByLabelText(/^Name/)).toHaveValue('RC Preboard 4');
     expect(within(form).getByRole('radio', { name: 'EE' })).toBeChecked();
+
     fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(searchParams.get('log')).toBeNull();
     expect(searchParams.get('tab')).toBe('history');
+    searchParams = new URLSearchParams();
+  });
+
+  it('a preboard with no subject opens as all three, on per-subject scores', async () => {
+    KEY_DATES[0].subject = null;
+    searchParams = new URLSearchParams('tab=history&log=kd-1');
+    render(<OutsideScoresPanel />);
+    const form = await screen.findByRole('dialog', { name: 'Add an outside score' });
+    expect(within(form).getByRole('radio', { name: /All three/ })).toBeChecked();
+    expect(within(form).getByRole('group', { name: 'EE' })).toBeInTheDocument();
+    expect(within(form).queryByLabelText('Your score', { exact: false })).not.toBeInTheDocument();
+    KEY_DATES[0].subject = 'EE';
     searchParams = new URLSearchParams();
   });
 
