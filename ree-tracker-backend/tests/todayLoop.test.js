@@ -106,7 +106,7 @@ describe('GET /api/user/today-loop', () => {
         expect(res.body.items[1]).toMatchObject({ answer: 'A', text: 'miss-math' });
         expect(res.body).toMatchObject({ counts: { due: 1, mistakes: 1 }, cardsDue: 3, more: 0 });
         expect(srs.mock.calls[0][0].where.userId).toBe('uid-loop');
-        expect(cards.mock.calls[0][0].where).toMatchObject({ userId: 'uid-loop', card: { status: 'LIVE' } });
+        expect(cards.mock.calls[0][0].where).toMatchObject({ userId: 'uid-loop', card: { status: 'LIVE', kind: { in: ['formula', 'constant'] } } });
     });
 
     it('with ?cards=1, the due cards come in the session; without it, nothing changes for an older app', async () => {

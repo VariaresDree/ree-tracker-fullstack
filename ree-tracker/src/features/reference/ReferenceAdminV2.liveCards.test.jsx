@@ -23,10 +23,15 @@ const CARDS = [
   { id: '3', kind: 'constant', name: 'Mu Constant', symbol: 'k', subject: 'EE', subtopicTag: 'Thermo', description: 'Relates energy to temperature.', variables: [], createdAt: '2026-02-01T00:00:00Z', topic: null },
 ];
 
+const RETIRED = [
+  { id: '9', kind: 'concept', name: 'Skin effect', subject: 'EE', description: 'Current crowds to the surface.', variables: [], createdAt: '2026-01-05T00:00:00Z', topic: null },
+];
+
 vi.mock('../../services/dbQueries', () => ({
   fetchReferenceCards: vi.fn(() => Promise.resolve(CARDS)),
   fetchPendingReferenceCards: vi.fn(() => Promise.resolve([])),
   fetchReferenceCardDebt: vi.fn(() => Promise.resolve({ items: [], checked: 0 })),
+  fetchRetiredReferenceCards: vi.fn(() => Promise.resolve(RETIRED)),
   fetchReferenceSources: vi.fn(() => Promise.resolve([])),
   createReferenceCard: vi.fn(),
   updateReferenceCard: vi.fn(),
@@ -91,5 +96,19 @@ describe('ReferenceAdminV2 — Live Cards search + sort', () => {
     // so this proves the sort runs, not a specific ordering among ties.
     fireEvent.change(screen.getByLabelText(/sort live cards/i), { target: { value: 'attention' } });
     await waitFor(() => expect(cardNamesInOrder().length).toBe(3));
+  });
+});
+
+describe('ReferenceAdminV2 — retired concept cards', () => {
+  it('lists them apart from the live cards, to re-type or delete', async () => {
+    await openLivePanel();
+    expect(screen.getByText(/1 concept card/)).toBeInTheDocument();
+    expect(screen.getByText('Skin effect')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Re-type' }));
+    // Opens the editor as a formula; concept is no longer a choice.
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    const kind = screen.getByLabelText('Kind', { selector: 'select' });
+    expect(kind).toHaveValue('formula');
+    expect([...kind.options].map((o) => o.value)).toEqual(['formula', 'constant']);
   });
 });

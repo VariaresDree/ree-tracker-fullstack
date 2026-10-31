@@ -1,9 +1,11 @@
 // src/features/reference/ReferenceBrowser.jsx
-// Hierarchical Subject → Topic → Subtopic → cards navigation for the reference
-// flashcard vault, replacing the old flat filter-dropdowns-over-a-grid layout
-// (ReferenceCardsTab) that read as "cards floating" with no context. Every
-// level shows how many constants/formulas/concepts it holds, so the hierarchy
-// is informative on its own — not just a menu to click through blindly.
+// Library › Formula cards: the formulas and constants for Math, ESAS and EE.
+// Two levels, Subject → Topic, each tile saying how many formulas and
+// constants it holds. A topic shows its cards under subtopic headings (there
+// is no third level to drill into any more), and any subject or topic can
+// switch to its Quick sheet: every formula and constant as one scannable
+// reviewer (QuickSheet). Simplified on 2026-10-31 from three levels, a concept
+// kind, an "All cards" sheet with Fronts/Backs, and a note under every card.
 //
 // Search is deliberately NOT part of the hierarchy: typing bypasses browsing
 // entirely and searches every card at once (name/symbol/subtopic tag/
@@ -14,12 +16,8 @@
 // the Library syllabus manager and heatmap use — not a parallel one. The
 // Subtopic level groups on ReferenceCard.subtopicTag, a free-text label.
 //
-// A subject (or a topic) can also be shown as ONE page: "All cards" lays out
-// every card in it under topic/subtopic headings (SubjectCardSheet), so a
-// learner can review a whole subject's formulas without opening each
-// subtopic in turn. Where you are (subject, topic, subtopic, which view) is
-// kept for the browser session, so leaving the tab and coming back doesn't
-// drop you at the top again.
+// Where you are (subject, topic, which view) is kept for the browser session,
+// so leaving the tab and coming back doesn't drop you at the top again.
 import { Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
@@ -28,7 +26,8 @@ import { useStore } from '../../store/useStore';
 import { Input, FormField, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
 import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
-import NotedFlashcard from './NotedFlashcard';
+import Flashcard from './Flashcard';
+import { GENERAL, groupCards } from './groupCards';
 import ReferenceStudyMode from './ReferenceStudyMode';
 import { dueCardIds, useCardReviews } from './useCardReviews';
 import { pickRecallTopic, weakCards } from './weakCards';
@@ -38,20 +37,19 @@ import { normalizeSubject } from '@ree/shared';
 // (a learner's stats row) can differ from the card's label in case or spaces.
 const topicKey = (s) => String(s ?? '').trim().toLowerCase();
 
-const SubjectCardSheet = lazy(() => import('./SubjectCardSheet'));
+const QuickSheet = lazy(() => import('./QuickSheet'));
 
 const KIND_OPTIONS = [
   { value: 'all', label: 'All' },
-  { value: 'constant', label: 'Constants' },
   { value: 'formula', label: 'Formulas' },
-  { value: 'concept', label: 'Concepts' },
+  { value: 'constant', label: 'Constants' },
 ];
-const UNTAGGED = '__untagged__'; // bucket key for cards with a topic but no subtopicTag
+const KINDS = new Set(KIND_OPTIONS.map((o) => o.value));
 
 const countLabel = (n) => `${n} card${n === 1 ? '' : 's'}`;
 
-// "12 formulas · 4 constants · 3 concepts" — what a subject/topic tile holds.
-const KIND_NOUNS = [['formula', 'formula', 'formulas'], ['constant', 'constant', 'constants'], ['concept', 'concept', 'concepts']];
+// "12 formulas · 4 constants" — what a subject/topic tile holds.
+const KIND_NOUNS = [['formula', 'formula', 'formulas'], ['constant', 'constant', 'constants']];
 function kindBreakdown(counts) {
   if (!counts) return '';
   return KIND_NOUNS
@@ -70,10 +68,32 @@ function writePosition(pos) {
   try { sessionStorage.setItem(POSITION_KEY, JSON.stringify(pos)); } catch { /* storage unavailable */ }
 }
 
-const VIEW_OPTIONS = (groupNoun) => [
-  { value: 'browse', label: `By ${groupNoun}`, icon: LayoutGrid },
-  { value: 'all', label: 'All cards', icon: Layers },
+// A subject: its topics, or its quick sheet. A topic: its cards, or its quick sheet.
+const VIEW_OPTIONS = (browseLabel) => [
+  { value: 'browse', label: browseLabel, icon: LayoutGrid },
+  { value: 'sheet', label: 'Quick sheet', icon: Layers },
 ];
+
+// A topic's cards, under its subtopic headings when it has any.
+function TopicCards({ cards }) {
+  const groups = groupCards(cards, { by: 'subtopic' });
+  const grid = (list) => (
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
+      {list.map((card) => <Flashcard key={card.id} card={card} />)}
+    </div>
+  );
+  if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards);
+  return (
+    <div className="flex flex-col gap-5">
+      {groups.map((g) => (
+        <section key={g.label} aria-label={g.label} className="flex flex-col gap-3">
+          <p className="text-eyebrow">{g.label} · {g.cards.length}</p>
+          {grid(g.cards)}
+        </section>
+      ))}
+    </div>
+  );
+}
 
 // One clickable browse tile — a Subject, Topic, or Subtopic — showing its name
 // and how many cards it holds. Reused at every hierarchy level so the visual
@@ -146,7 +166,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const dynamicTOS = useStore((s) => s.dynamicTOS);
   const safeTOS = useMemo(() => dynamicTOS || {}, [dynamicTOS]);
 
-  const [kind, setKind] = useState(initialKind);
+  const [kind, setKind] = useState(KINDS.has(initialKind) ? initialKind : 'all');
   const [search, setSearch] = useState(initialSearch);
   const deferredSearch = useDeferredValue(search);
 
@@ -157,13 +177,12 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const [saved] = useState(() => deepTopic || (initialSearch ? {} : readPosition()));
   const [selectedSubject, setSelectedSubject] = useState(saved.subject ?? null);
   const [selectedTopic, setSelectedTopic] = useState(saved.subject ? saved.topic ?? null : null);
-  const [selectedSubtopic, setSelectedSubtopic] = useState(saved.topic ? saved.subtopic ?? null : null); // may be UNTAGGED
-  // 'browse' = tiles for the next level down; 'all' = every card in the
-  // subject (or topic) on one page.
-  const [view, setView] = useState(saved.view === 'all' ? 'all' : 'browse');
+  // 'browse' = the topics (or a topic's cards); 'sheet' = the quick sheet.
+  // ('all' is the old name, kept so a saved position still opens.)
+  const [view, setView] = useState(saved.view === 'sheet' || saved.view === 'all' ? 'sheet' : 'browse');
   useEffect(() => {
-    writePosition({ subject: selectedSubject, topic: selectedTopic, subtopic: selectedSubtopic, view });
-  }, [selectedSubject, selectedTopic, selectedSubtopic, view]);
+    writePosition({ subject: selectedSubject, topic: selectedTopic, view });
+  }, [selectedSubject, selectedTopic, view]);
   const [studying, setStudying] = useState(false);
   // Which cards a study session covers. Was hardcoded to `leafCards`, so
   // studying was only ever reachable after drilling all the way to a single
@@ -266,35 +285,11 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     [cardsInSubject, selectedTopic],
   );
 
-  // Subtopic tiles only exist if the topic's cards actually carry a
-  // subtopicTag — a topic with none of those skips straight to its card list
-  // (see handleSelectTopic) rather than showing a pointless single "General" tile.
-  const subtopicCounts = useMemo(() => {
-    const counts = {};
-    for (const c of cardsInTopic) {
-      const key = c.subtopicTag || UNTAGGED;
-      counts[key] = (counts[key] || 0) + 1;
-    }
-    return counts;
-  }, [cardsInTopic]);
-  const hasSubtopics = Object.keys(subtopicCounts).some((k) => k !== UNTAGGED);
-
-  const cardsInSubtopic = useMemo(() => {
-    if (!selectedTopic) return [];
-    if (!hasSubtopics) return cardsInTopic;
-    if (!selectedSubtopic) return [];
-    return cardsInTopic.filter((c) => (c.subtopicTag || UNTAGGED) === selectedSubtopic);
-  }, [cardsInTopic, hasSubtopics, selectedTopic, selectedSubtopic]);
-
-  const atLeaf = isSearching
-    ? true
-    : selectedTopic != null && (!hasSubtopics || selectedSubtopic != null);
-  const leafCards = isSearching ? searchResults : cardsInSubtopic;
+  const leafCards = isSearching ? searchResults : cardsInTopic;
 
   const resetHierarchy = () => {
     setSelectedSubject(null);
     setSelectedTopic(null);
-    setSelectedSubtopic(null);
     setStudying(false);
     setView('browse');
   };
@@ -302,25 +297,22 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const handleSelectSubject = (s) => {
     setSelectedSubject(s);
     setSelectedTopic(null);
-    setSelectedSubtopic(null);
+    setView('browse');
   };
 
   const handleSelectTopic = (t) => {
     setSelectedTopic(t);
-    setSelectedSubtopic(null);
     setView('browse');
   };
 
   const breadcrumbItems = [{ label: 'Formula cards' }];
   if (selectedSubject) breadcrumbItems.push({ label: selectedSubject });
   if (selectedTopic) breadcrumbItems.push({ label: selectedTopic });
-  if (selectedSubtopic) breadcrumbItems.push({ label: selectedSubtopic === UNTAGGED ? 'General' : selectedSubtopic });
 
   const navigateBreadcrumb = (index) => {
     setStudying(false);
     if (index === 0) resetHierarchy();
-    else if (index === 1) { setSelectedTopic(null); setSelectedSubtopic(null); setView('browse'); }
-    else if (index === 2) setSelectedSubtopic(null);
+    else if (index === 1) { setSelectedTopic(null); setView('browse'); }
   };
 
   const clearFilters = () => { setSearch(''); setKind('all'); };
@@ -435,7 +427,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           <>
             <p className="text-eyebrow">{countLabel(searchResults.length)} matching "{deferredSearch.trim()}"</p>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-              {searchResults.map((card) => <NotedFlashcard key={card.id} card={card} />)}
+              {searchResults.map((card) => <Flashcard key={card.id} card={card} />)}
             </div>
           </>
         )
@@ -456,24 +448,17 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           <EmptyState icon={BookOpen} title="No topics configured" description="This subject has no syllabus topics yet." />
         ) : (
           <>
-            {/* Study the WHOLE subject in one session — previously the only
-                entry point into study mode was after drilling to a single
-                subtopic, so studying everything under e.g. EE meant either
-                repeating a session per subtopic or never doing it at all.
-                "All cards" shows the whole subject on one page. */}
             {cardsInSubject.length > 0 && (
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <SegmentedControl label={`How to show ${selectedSubject}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('topic')} />
-                {view === 'browse' && (
-                  <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInSubject)}>
-                    <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study all {cardsInSubject.length}
-                  </Button>
-                )}
+                <SegmentedControl label={`How to show ${selectedSubject}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('Topics')} />
+                <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInSubject)}>
+                  <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study all {cardsInSubject.length}
+                </Button>
               </div>
             )}
-            {view === 'all' && cardsInSubject.length > 0 ? (
+            {view === 'sheet' && cardsInSubject.length > 0 ? (
               <Suspense fallback={<SheetFallback />}>
-                <SubjectCardSheet
+                <QuickSheet
                   cards={cardsInSubject}
                   scopeLabel={selectedSubject}
                   by="topic"
@@ -496,58 +481,28 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
             )}
           </>
         )
-      ) : !atLeaf ? (
-        <>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <SegmentedControl label={`How to show ${selectedTopic}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('subtopic')} />
-            {view === 'browse' && (
-              <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInTopic)}>
-                <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study all {cardsInTopic.length}
-              </Button>
-            )}
-          </div>
-          {view === 'all' ? (
-            <Suspense fallback={<SheetFallback />}>
-              <SubjectCardSheet cards={cardsInTopic} scopeLabel={selectedTopic} by="subtopic" onStudy={(set) => startStudying(set)} />
-            </Suspense>
-          ) : (
-            <Grid kind="cards">
-              {Object.entries(subtopicCounts)
-                .filter(([key]) => key !== UNTAGGED)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([tag, count]) => (
-                  <BrowseTile key={tag} label={tag} count={count} onClick={() => setSelectedSubtopic(tag)} />
-                ))}
-              {subtopicCounts[UNTAGGED] > 0 && (
-                <BrowseTile
-                  key={UNTAGGED}
-                  label="General"
-                  eyebrow="Not tied to a specific subtopic"
-                  count={subtopicCounts[UNTAGGED]}
-                  onClick={() => setSelectedSubtopic(UNTAGGED)}
-                />
-              )}
-            </Grid>
-          )}
-        </>
       ) : leafCards.length === 0 ? (
         <EmptyState
           icon={BookOpen}
           title="No cards here yet"
-          description={kind === 'all' ? 'Check back once more content passes review.' : 'None of this kind under this topic. Show every kind, or check back once more content passes review.'}
-          action={kind === 'all' ? undefined : <Button size="sm" variant="secondary" onClick={() => setKind('all')}>Show every kind</Button>}
+          description={kind === 'all' ? 'Check back once more content passes review.' : 'None of this kind under this topic. Show both, or check back once more content passes review.'}
+          action={kind === 'all' ? undefined : <Button size="sm" variant="secondary" onClick={() => setKind('all')}>Show formulas and constants</Button>}
         />
       ) : (
         <>
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-eyebrow">{countLabel(leafCards.length)}</p>
+            <SegmentedControl label={`How to show ${selectedTopic}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('Cards')} />
             <Button size="sm" variant="secondary" onClick={() => startStudying(leafCards)}>
               <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study these {leafCards.length}
             </Button>
           </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-            {leafCards.map((card) => <NotedFlashcard key={card.id} card={card} />)}
-          </div>
+          {view === 'sheet' ? (
+            <Suspense fallback={<SheetFallback />}>
+              <QuickSheet cards={leafCards} scopeLabel={selectedTopic} by="subtopic" onStudy={(set) => startStudying(set)} />
+            </Suspense>
+          ) : (
+            <TopicCards cards={leafCards} />
+          )}
         </>
       )}
     </div>

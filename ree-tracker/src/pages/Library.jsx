@@ -83,12 +83,12 @@ export default function Library() {
         <div className="animate-in fade-in slide-in-from-bottom-2 flex flex-col gap-4">
           {/* The tab and the location trail below already say "Formula cards":
               no visible title repeating them. The heading stays for screen
-              readers' heading list, and the topic headings of "All cards"
-              (h3) sit under it. */}
+              readers' heading list, and the topic headings of the quick
+              sheet (h3) sit under it. */}
           <h2 className="sr-only">Formula cards</h2>
           <p className="text-muted2 text-sm max-w-prose">
-            Every constant, formula and concept as a flip card. Open a subject to see all of its cards on one page,
-            or narrow it down by topic and subtopic. Search finds any card directly.
+            The formulas and constants for Math, ESAS and EE. Open a subject, then a topic, and flip the cards,
+            or switch to its quick sheet to see every one at a glance.
           </p>
           <ReferenceBrowser
             // A new deep link opens afresh, even with Formula cards already open.

@@ -138,3 +138,13 @@ describe('card schemas', () => {
         expect(aiIntakeSchema.safeParse({ cards: Array.from({ length: 51 }, () => ({})) }).success).toBe(false);
     });
 });
+
+describe('card kinds — formulas and constants only', () => {
+    it('refuses a new concept card, and an edit that would make one', () => {
+        expect(referenceCardCreateSchema.safeParse(completeFormulaCard).success).toBe(true);
+        expect(referenceCardCreateSchema.safeParse({ ...completeFormulaCard, kind: 'concept' }).success).toBe(false);
+        expect(referenceCardUpdateSchema.safeParse({ kind: 'concept' }).success).toBe(false);
+        // An old concept card can still be re-typed.
+        expect(referenceCardUpdateSchema.safeParse({ kind: 'formula' }).success).toBe(true);
+    });
+});
