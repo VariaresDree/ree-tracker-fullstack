@@ -214,6 +214,16 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
                 <span data-text={t.label} className="tab-label-width inline-flex flex-col items-center">
                   {t.label}
                 </span>
+                {/* A short marker after the label ("Soon"): part of the
+                    tab's name, so a screen reader hears it too. */}
+                {/* The space keeps the name "Unit conversion Soon", not one word;
+                    the flex gap swallows it visually. */}
+                {t.badge && ' '}
+                {t.badge && (
+                  <span className="rounded-full border border-border2 bg-surface2 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted2">
+                    {t.badge}
+                  </span>
+                )}
               </span>
             </button>
           );

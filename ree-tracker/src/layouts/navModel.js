@@ -15,7 +15,7 @@ export const PRIMARY_NAV = [
   { id: 'practice', to: '/practice', label: 'Practice', icon: BrainCircuit, desc: 'Questions, flashcards, due reviews', segments: ['practice', 'review'] },
   { id: 'exams', to: '/exams', label: 'Exams', icon: Zap, desc: 'Mock boards, Gauntlet, battles', segments: ['exams', 'simulator', 'gauntlet', 'battle', 'arena'] },
   { id: 'progress', to: '/progress', label: 'Progress', icon: TrendingUp, desc: 'Readiness, topics, study plan', segments: ['progress'] },
-  { id: 'library', to: '/library', label: 'Library', icon: Library, desc: 'Formula cards, handouts, bookmarks', segments: ['library', 'materials'] },
+  { id: 'library', to: '/library', label: 'Library', icon: Library, desc: 'Handouts, formula cards, notebook', segments: ['library', 'materials'] },
 ];
 
 export const ACCOUNT_NAV = { id: 'account', to: '/account', label: 'Account', icon: User, segments: ['account', 'profile'] };

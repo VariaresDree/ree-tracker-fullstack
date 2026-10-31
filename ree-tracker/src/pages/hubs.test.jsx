@@ -28,7 +28,7 @@ vi.mock('../features/materials/MaterialViewer', () => ({ default: ({ material, o
 vi.mock('../features/vault/BookmarkVaultTab', () => ({ default: () => <p>bookmarks</p> }));
 vi.mock('../features/notebook/NotebookTab', () => ({ default: () => <section><h2>Notebook</h2><p>notebook</p></section> }));
 vi.mock('../features/quiz-launcher/QuizLauncherTab', () => ({ default: () => <p>quizzes</p> }));
-vi.mock('../features/links/LinksTab', () => ({ default: () => <><h2>Links</h2><p>links</p></> }));
+vi.mock('../features/links/LinksTab', () => ({ default: ({ embedded }) => <><h2>{embedded ? 'Your links' : 'Links'}</h2><p>links</p></> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
 vi.mock('../features/analytics/ExplanationReview', () => ({ default: () => <p>explanation-review</p> }));
 vi.mock('../features/reference/ReferenceAdminV2', () => ({ default: () => <p>reference-admin</p> }));
@@ -79,7 +79,31 @@ describe('Exams', () => {
 });
 
 describe('Library (learner)', () => {
-    it('opens on formula cards; an old /materials deep link keeps its search', () => {
+    it('opens on Handouts, with your own links under them', async () => {
+        at('/library', Library);
+        expect(screen.getByRole('tab', { name: /^Handouts/ })).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: 'Your links' })).toBeInTheDocument();
+    });
+
+    it('the old Links tab lands on Handouts, at your links', async () => {
+        at('/library?tab=links', Library);
+        expect(screen.getByRole('tab', { name: /^Handouts/ })).toHaveAttribute('aria-selected', 'true');
+        expect(await screen.findByRole('heading', { name: 'Your links' })).toBeInTheDocument();
+    });
+
+    it('a deep link into the formula cards with no tab still opens them', () => {
+        at({ pathname: '/library', state: { subject: 'EE', topic: 'Machines' } }, Library);
+        expect(screen.getByRole('tab', { name: /^Formula cards/ })).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('unit conversion is marked as coming next', () => {
+        at('/library?tab=conversion', Library);
+        expect(screen.getByRole('tab', { name: 'Unit conversion Soon' })).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByText('Unit conversion is coming next')).toBeInTheDocument();
+    });
+
+    it('opens formula cards from an old /materials deep link, keeping its search', () => {
         at({ pathname: '/library', search: '?tab=formulas', state: { search: 'Ohm', kind: 'formula' } }, Library);
         expect(screen.getByRole('heading', { level: 1, name: 'Library' })).toBeInTheDocument();
         expect(screen.getByText('formula-cards search=Ohm kind=formula')).toBeInTheDocument();
@@ -89,16 +113,17 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Formula cards', 'Handouts', 'Bookmarks', 'Notebook', 'Links', 'Imported quizzes']);
+        expect(tabs).toEqual(['Handouts', 'Formula cards', 'Unit conversion Soon', 'Notebook', 'Bookmarks', 'Imported quizzes']);
     });
 });
 
 describe('Library headings', () => {
     // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
     // formula-card panels check their outlines in their own tests.
-    it.each(['formulas', 'handouts', 'bookmarks', 'notebook', 'links', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['handouts', 'formulas', 'conversion', 'notebook', 'bookmarks', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/library?tab=${tab}`, Library);
-        if (tab === 'quizzes' || tab === 'links') await screen.findByText(tab);
+        if (tab === 'quizzes') await screen.findByText(tab);
+        if (tab === 'handouts') await screen.findByText('links');
         expectNoSkippedLevels(container);
     });
 });
