@@ -4,6 +4,18 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// The build's identity: the commit on Vercel, else the build time. Inlined as
+// __APP_VERSION__ and written to /version.json, which the app compares with
+// the build it is running (services/appUpdate) to spot a device left behind.
+const APP_VERSION = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || `b${Date.now().toString(36)}`;
+const versionFile = () => ({
+  name: 'ree-version-file',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ id: APP_VERSION, builtAt: new Date().toISOString() }) });
+  },
+});
+
 export default defineConfig(async ({ mode, command }) => {
   // VITE_* values are INLINED at build time, so a missing VITE_BACKEND_URL does
   // not fail — it silently ships a production bundle pointing at
@@ -23,6 +35,9 @@ export default defineConfig(async ({ mode, command }) => {
   }
 
   return {
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   // @ree/shared holds the business rules that must agree with the API (verdict
   // bands, subject naming, syllabus weights, Manila day bucketing). It is a
   // linked workspace package authored in CommonJS so the CJS backend can
@@ -149,12 +164,15 @@ export default defineConfig(async ({ mode, command }) => {
             }),
         ]
       : []),
+    versionFile(),
     VitePWA({
-      // 'prompt', not 'autoUpdate': autoUpdate reloaded the page the moment a
-      // new version activated, mid-question or mid-exam. Now the new version
-      // waits: it applies on the next launch, or now from the "new version"
-      // toast (main.jsx).
-      registerType: 'prompt',
+      // 'autoUpdate': a new service worker takes over as soon as it installs.
+      // 'prompt' (PR #187) left new versions waiting until every tab and
+      // installed-app window closed, so devices stayed on old builds for
+      // hours. The page reload that autoUpdate used to do the moment it took
+      // over is now ours (main.jsx onNeedReload → services/appUpdate): it
+      // waits for a safe moment, never mid-exam.
+      registerType: 'autoUpdate',
       // The icons are drawn from the mark's geometry by
       // scripts/brand/build-icons.mjs; "any" icons keep their rounded tile,
       // maskable ones fill the square with the mark inside the safe circle.

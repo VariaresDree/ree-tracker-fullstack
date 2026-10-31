@@ -119,6 +119,18 @@ else if (appName[1] !== CACHE_NAME) {
     problems.push(`  cache name drift: sw.js "${CACHE_NAME}" vs apiCache.js "${appName[1]}"`);
 }
 
+// A new version must take over as soon as it installs. With a waiting worker
+// ('prompt' mode) PRs #188 and #189 sat unused on devices for hours, because
+// the update waited for every app window to close (services/appUpdate.js).
+// The page reload is ours to time; the worker's takeover is not optional.
+if (!/self\.skipWaiting\(\)/.test(sw) || !/clientsClaim\(\)/.test(sw)) {
+    problems.push("  sw.js must call self.skipWaiting() and clientsClaim() (registerType: 'autoUpdate'), or new versions wait for every tab to close");
+}
+// The version beacon the app compares itself with (services/appUpdate.js).
+const beacon = path.join(path.dirname(SW), 'version.json');
+if (!fs.existsSync(beacon)) problems.push('  dist/version.json is missing (versionFile plugin in vite.config.js)');
+else if (/version\.json/.test(sw)) problems.push('  version.json must not be precached: the app could never see a newer one');
+
 if (problems.length) {
     console.error(`\n✗ Service-worker route check FAILED:\n${problems.join('\n')}\n`);
     console.error(`  matcher as built: ${source}\n`);

@@ -25,6 +25,7 @@ import OfflineSyncSettings from '../features/account/OfflineSyncSettings';
 import Milestones from '../features/account/Milestones';
 import DataSettings from '../features/account/DataSettings';
 import SecuritySettings from '../features/account/SecuritySettings';
+import AppVersion from '../features/account/AppVersion';
 
 // Jump links to each section: Account is nine sections long, and on a phone
 // "Sign-in & security" was a long scroll down with no way to see what was there.
@@ -159,6 +160,10 @@ export default function Account() {
 
       <Section id="security" title="Sign-in & security">
         <SecuritySettings />
+      </Section>
+
+      <Section id="about" title="About this app">
+        <AppVersion />
       </Section>
 
       {isAdmin && (

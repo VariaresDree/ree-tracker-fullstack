@@ -5,6 +5,7 @@ import App from './App';
 import './styles/index.css';
 import { wakeBackend } from './services/wakeBackend';
 import { startConnectionWatch } from './services/connection';
+import { startUpdateWatch, onNewVersionReady } from './services/appUpdate';
 
 // PWA Service Worker Registration
 import { registerSW } from 'virtual:pwa-register';
@@ -32,24 +33,30 @@ window.addEventListener('vite:preloadError', (event) => {
   window.location.reload();
 });
 
-// Background caching. A new deployment waits (registerType 'prompt' in
-// vite.config.js): it applies on the next launch, or now from this toast.
-const updateSW = registerSW({
-  // A toast with Reload, not a blocking confirm(): the dialog stopped
-  // whatever the learner was doing (mid-question, mid-exam) to ask.
-  onNeedRefresh() {
-    toast((t) => (
-      <span className="flex items-center gap-3">
-        A new version of REE.ai is ready.
-        <button
-          type="button"
-          className="touch-target px-3 py-1.5 rounded-[var(--radius-default)] bg-surface2 border border-border text-textMain text-sm font-medium cursor-pointer"
-          onClick={() => { toast.dismiss(t.id); updateSW(true); }}
-        >
-          Reload
-        </button>
-      </span>
-    ), { id: 'app-update', duration: Infinity });
+// A toast with Reload, not a blocking confirm(): the dialog stopped whatever
+// the learner was doing (mid-question, mid-exam) to ask. The reload also
+// happens by itself at the next safe moment (services/appUpdate).
+const offerReload = () => {
+  toast((t) => (
+    <span className="flex items-center gap-3">
+      REE.ai has been updated.
+      <button
+        type="button"
+        className="touch-target px-3 py-1.5 rounded-[var(--radius-default)] bg-surface2 border border-border text-textMain text-sm font-medium cursor-pointer"
+        onClick={() => { toast.dismiss(t.id); window.location.reload(); }}
+      >
+        Reload
+      </button>
+    </span>
+  ), { id: 'app-update', duration: Infinity });
+};
+
+// A new deployment's service worker takes over as soon as it installs
+// (registerType 'autoUpdate'); the page moves onto it at a safe moment.
+registerSW({
+  onNeedReload: onNewVersionReady,
+  onRegisteredSW(_url, registration) {
+    startUpdateWatch({ registration, notify: offerReload });
   },
   onOfflineReady() {
     console.log('REE.ai is ready to work offline.');

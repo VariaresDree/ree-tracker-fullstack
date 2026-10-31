@@ -907,7 +907,19 @@ every feature add, change, or removal, not on a schedule.
     - A later drop shows the can't-connect screen after 10 s instead of spinning.
     - That screen's **Reconnect** opens a new connection instead of reloading the page.
   - **Screens whose code fails to load** (`utils/lazyWithRetry.js`): every lazy screen retries its import twice. A chunk that's really gone after a deploy reloads the page once (`vite:preloadError`, guarded to once a minute). Before, React kept the failed import and "Try again" failed the same way.
-  - **Updates no longer reload mid-question:** the service worker is `registerType: 'prompt'`. A new version applies on the next launch, or now from the "new version" toast, which never showed under `autoUpdate`.
+  - **New versions reach every device, never mid-exam** (2026-10-31, `services/appUpdate.js`). PR #187 set the service worker to `prompt` so an update wouldn't reload the page mid-question, but then a new version waited until every tab and installed-app window was closed, or for a toast that was easy to miss. PRs #188 and #189 were live on Vercel for hours while devices kept running #187. Now:
+    - **The new service worker takes over as soon as it installs** (`registerType: 'autoUpdate'`). `check:sw` fails the build if `sw.js` stops calling `skipWaiting()` and `clientsClaim()`.
+    - **The page reload is timed by the app** (`onNeedReload` → `onNewVersionReady`):
+      - at once if the app opened in the last 10 s, or is in the background;
+      - otherwise on the next move to a calm screen (`MainLayout`) or when the app goes to the background.
+      - Never on an exam, practice, focus, scan, battle or imported-quiz screen.
+      - A toast, "REE.ai has been updated · Reload", offers it now.
+    - **The app asks for updates itself:** every 15 min while in view, on coming back to it, and on coming back online. The browser only looked on a page load, which an installed app rarely does.
+    - **Version beacon:**
+      - The build writes `/version.json` (the commit, or the build time; never precached, served `no-store`) and inlines the same id as `__APP_VERSION__`.
+      - If the server's id differs for 3 checks in a row and no worker is installing or waiting, the worker is stuck: the app unregisters it, clears its precache and reloads, once per version.
+    - **Account › About this app** shows the version running and has **Check for updates**.
+    - **Tests:** `services/appUpdate.test.js`.
   - **Tests:** `services/connection.test.js`, `hooks/useForecast.reconnect.test.js`, `utils/lazyWithRetry.test.js`, `hooks/useBattleSocket.test.jsx`.
 - [x] **Offline-first sync** — Zustand store with IndexedDB persistence, optimistic local writes reconciled against server-authoritative totals. Account-scoped: the persisted queue records its owning user, `resetStore()` wipes all local state on logout/account deletion, and a queue whose owner does not match the signed-in user is quarantined to dead letters rather than flushed under the wrong identity (`store/useStore.js`, `store/slices.js`, `services/analyticsSync.js`)
 - [x] **Sync retry policy** — one classifier decides whether a failed sync is offline, permanently rejected, or worth retrying, plus a capped exponential backoff; both are pure and unit-tested, and shared by the telemetry flush and the write outbox instead of being restated in each. 408, **409** (the idempotency layer's "same key in flight", produced by a pagehide keepalive racing the debounced flush) and 429 are retryable, not quarantined (`services/syncPolicy.js`)
