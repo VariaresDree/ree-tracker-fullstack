@@ -10,6 +10,7 @@ const { TASKS, PROVIDERS, isProviderConfigured } = require('../../config/aiModel
 const { callModel, classifyError } = require('./providers');
 const health = require('./aiHealth');
 const catalog = require('./modelCatalog');
+const { parseModelJson } = require('@ree/shared');
 
 class AiUnavailableError extends Error {
     constructor(message, tried, reason) {
@@ -78,17 +79,25 @@ async function runTask(
                 signal,
                 env,
             }), timeoutMs);
-            if (wantJson && !/[[{]/.test(text)) {
-                const err = new Error('response was not JSON');
-                err.kind = 'bad_output';
-                throw err;
+            // A JSON task's answer must be readable here, or the next model
+            // gets the turn: a cut-off or malformed answer used to count as a
+            // success and fail in the browser with nothing else tried.
+            let answer = text;
+            if (wantJson) {
+                const parsed = parseModelJson(text);
+                if (!parsed.ok) {
+                    const err = new Error(parsed.message);
+                    err.kind = 'bad_output';
+                    throw err;
+                }
+                answer = parsed.text;
             }
             const latencyMs = now() - t0;
             health.record(m.id, { ok: true, latencyMs }, now());
             tried.push({ model: m.model, provider: m.provider, status: 'ok', latencyMs });
             logger?.info?.('AI model success', { task: taskId, model: m.id, latencyMs });
             return {
-                text,
+                text: answer,
                 model: m.model,
                 provider: m.provider,
                 providerLabel: PROVIDERS[m.provider].label,
@@ -99,6 +108,9 @@ async function runTask(
         } catch (error) {
             const latencyMs = now() - t0;
             const kind = classifyError(error);
+            // Listed but refused (a retired model kept for old keys): out of
+            // every chain until the catalog is next checked, not just cooled.
+            if (kind === 'not_found') catalog.markRefused(m.provider, m.model);
             health.record(m.id, { ok: false, kind, latencyMs, error: error.message }, now());
             tried.push({ model: m.model, provider: m.provider, status: kind, latencyMs, error: String(error.message).slice(0, 200) });
             logger?.warn?.('AI model fallback', { task: taskId, model: m.id, kind, latencyMs, error: error.message });

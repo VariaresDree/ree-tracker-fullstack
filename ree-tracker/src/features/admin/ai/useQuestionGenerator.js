@@ -33,22 +33,28 @@ export const DEFAULT_SPEC = {
 const CONCURRENCY = 2;
 const VERIFY_CHUNK = 10;
 
-/** Run async jobs with at most `limit` in flight; results keep their order. */
+/**
+ * Run async jobs with at most `limit` in flight; results keep their order.
+ * After the first failure the rest run one at a time: on free-tier keys a
+ * failure is usually a rate limit, and two requests at once make it worse.
+ */
 export async function runPool(jobs, limit, onSettled) {
   const results = new Array(jobs.length);
   let next = 0;
-  const worker = async () => {
-    while (next < jobs.length) {
+  let width = limit;
+  const worker = async (w) => {
+    while (next < jobs.length && w < width) {
       const i = next++;
       try {
         results[i] = { ok: true, value: await jobs[i]() };
       } catch (error) {
         results[i] = { ok: false, error };
+        width = 1;
       }
       onSettled?.(i, results[i]);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, (_, w) => worker(w)));
   return results;
 }
 

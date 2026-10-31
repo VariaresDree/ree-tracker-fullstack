@@ -129,6 +129,8 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         if (typeof errorData.code === 'string') err.code = errorData.code;
         // When a sitting still in progress opens (a running battle's review).
         if (typeof errorData.opensAt === 'string') err.opensAt = errorData.opensAt;
+        // What each AI model did when every one of them failed (AI_EXHAUSTED).
+        if (Array.isArray(errorData.triedModels)) err.triedModels = errorData.triedModels;
         throw err;
     }
 

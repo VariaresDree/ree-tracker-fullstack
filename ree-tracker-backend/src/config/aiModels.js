@@ -80,9 +80,11 @@ const PICK_MAX = 2;
 const PICK_MIN_B = 24;
 
 // Gemini IDs, lightest first and strongest first. The pro model only has a
-// small free quota, so it sits behind the newest flash.
+// small free quota, so it sits behind the newest flash. gemini-2.5-pro left the
+// pick on 2026-10-31: Gemini still lists it but refuses it to new keys ("no
+// longer available to new users"), which the catalog can't see.
 const GEMINI_FAST = ['gemini:gemini-3.1-flash-lite', 'gemini:gemini-2.5-flash-lite', 'gemini:gemini-2.5-flash'];
-const GEMINI_STRONG = ['gemini:gemini-3.5-flash', 'gemini:@pick:gemini-3.1-pro|gemini-3-pro|gemini-2.5-pro', 'gemini:gemini-2.5-flash'];
+const GEMINI_STRONG = ['gemini:gemini-3.5-flash', 'gemini:@pick:gemini-3.1-pro|gemini-3-pro', 'gemini:gemini-2.5-flash'];
 
 // Backups picked from each provider's live list (see the note at the top).
 // Keywords follow what was offered on 2026-10-13 (Groq: gpt-oss and Qwen3.8;
@@ -159,11 +161,14 @@ const TASKS = {
         audience: 'admin',
         tier: 'accurate',
         json: true,
-        perModelTimeoutMs: 75_000,
+        // About 40% of the budget per model, so a model that stalls leaves
+        // time for two more. Medium effort: gpt-oss counts its reasoning
+        // against maxTokens, and on high it ran out before the answer ended.
+        perModelTimeoutMs: 45_000,
         budgetMs: 110_000,
-        maxTokens: 12_000,
+        maxTokens: 16_000,
         temperature: 0.4,
-        reasoningEffort: 'high',
+        reasoningEffort: 'medium',
         chain: [
             'groq:openai/gpt-oss-120b',
             'cerebras:gpt-oss-120b',
@@ -178,7 +183,7 @@ const TASKS = {
         audience: 'admin',
         tier: 'accurate',
         json: true,
-        perModelTimeoutMs: 60_000,
+        perModelTimeoutMs: 35_000,
         budgetMs: 100_000,
         maxTokens: 8_000,
         temperature: 0,
@@ -198,7 +203,7 @@ const TASKS = {
         tier: 'accurate',
         json: true,
         vision: true,
-        perModelTimeoutMs: 75_000,
+        perModelTimeoutMs: 50_000,
         budgetMs: 110_000,
         maxTokens: 10_000,
         temperature: 0.1,

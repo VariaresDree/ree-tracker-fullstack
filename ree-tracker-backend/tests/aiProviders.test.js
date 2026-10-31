@@ -52,6 +52,26 @@ describe('OpenAI-compatible providers', () => {
         expect(body.reasoning_effort).toBeUndefined();
     });
 
+    it('repairs the answer Groq rejected in JSON mode instead of failing', async () => {
+        const failed = String.raw`{"items":[{"formula":"\sqrt{3} V_L I_L"}]}`;
+        const fetchImpl = vi.fn().mockResolvedValue({
+            ok: false, status: 400,
+            text: async () => JSON.stringify({ error: { message: 'Failed to validate JSON. Please adjust your prompt.', code: 'json_validate_failed', failed_generation: failed } }),
+        });
+        const out = await callModel({ provider: 'groq', model: 'openai/gpt-oss-120b', contents: 'a', json: true, env: { GROQ_API_KEY: 'k' }, fetchImpl });
+        expect(JSON.parse(out.text)).toEqual({ items: [{ formula: '\\sqrt{3} V_L I_L' }] });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks once more without JSON mode when the rejected answer cannot be repaired', async () => {
+        const fetchImpl = vi.fn()
+            .mockResolvedValueOnce({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'Failed to validate JSON.', code: 'json_validate_failed', failed_generation: '{"items":[' } }) })
+            .mockResolvedValueOnce(okResponse('{"items":[]}'));
+        const out = await callModel({ provider: 'groq', model: 'openai/gpt-oss-120b', contents: 'a', json: true, env: { GROQ_API_KEY: 'k' }, fetchImpl });
+        expect(out.text).toBe('{"items":[]}');
+        expect(JSON.parse(fetchImpl.mock.calls[1][1].body).response_format).toBeUndefined();
+    });
+
     it('classifies HTTP failures so the router knows what to do', async () => {
         const fetchImpl = vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => '{"error":{"message":"The model does not exist"}}' });
         await expect(callModel({ provider: 'cerebras', model: 'x', contents: 'a', env: { CEREBRAS_API_KEY: 'k' }, fetchImpl }))

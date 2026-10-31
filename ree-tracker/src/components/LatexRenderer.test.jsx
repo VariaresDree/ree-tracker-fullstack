@@ -1,7 +1,7 @@
 // LaTeX renderer: every question, option and explanation goes through it, so a
 // bad formula must degrade to text, never blank the question (2026-10-02 audit:
 // "no malformed-LaTeX test"; "the memo ignores compact").
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import LatexRenderer from './LatexRenderer';
 import { normalizeMathDelimiters } from '../utils/mathDelimiters';
@@ -46,6 +46,18 @@ describe('LatexRenderer', () => {
         expect(container.querySelectorAll('.katex')).toHaveLength(2);
         expect(container.querySelector('.katex-display')).not.toBeNull();
         expect(container.textContent).not.toContain('\\(');
+    });
+
+    it('draws a peso sign inside math with KaTeX glyphs, with no console warnings', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+            const { container } = render(<LatexRenderer content={'Cost: $\u20B1 5{,}000 \\times 3$ and \u20B1 200 in text.'} />);
+            expect(warn).not.toHaveBeenCalled();
+            expect(container.querySelector('.katex-error')).toBeNull();
+            expect(container.textContent).toContain('\u20B1 200 in text');
+        } finally {
+            warn.mockRestore();
+        }
     });
 
     it('carries no classes from the typography plugin this app does not install', () => {

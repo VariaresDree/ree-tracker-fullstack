@@ -4,6 +4,7 @@
 // Both take the same request shape and return { text }, or throw an Error
 // whose `kind` the router uses to decide what to do next.
 const { GoogleGenAI } = require('@google/genai');
+const { parseModelJson } = require('@ree/shared');
 const { PROVIDERS } = require('../../config/aiModels');
 
 class AiCallError extends Error {
@@ -61,7 +62,24 @@ function stripThinking(text) {
     return String(text).replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
-async function callOpenAICompatible({ provider, model, system, contents, json, maxTokens, temperature, reasoningEffort, signal, env = process.env, fetchImpl = fetch }) {
+async function callOpenAICompatible(req) {
+    try {
+        return await requestOpenAICompatible(req);
+    } catch (err) {
+        if (!err.jsonRejected) throw err;
+        // The host's JSON mode threw the answer away (Groq: json_validate_failed),
+        // usually over single-backslash LaTeX. The rejected text comes back
+        // with the error; repaired, it is almost always fine.
+        if (err.failedGeneration) {
+            const salvaged = parseModelJson(err.failedGeneration);
+            if (salvaged.ok) return { text: salvaged.text };
+        }
+        // Otherwise ask once more without JSON mode; the router checks the result.
+        return requestOpenAICompatible({ ...req, json: false });
+    }
+}
+
+async function requestOpenAICompatible({ provider, model, system, contents, json, maxTokens, temperature, reasoningEffort, signal, env = process.env, fetchImpl = fetch }) {
     const p = PROVIDERS[provider];
     const { text, images } = splitContents(contents);
     const userContent = images.length
@@ -105,8 +123,17 @@ async function callOpenAICompatible({ provider, model, system, contents, json, m
     if (!res.ok) {
         const errText = await res.text().catch(() => '');
         let message = errText;
-        try { message = JSON.parse(errText)?.error?.message || errText; } catch { /* plain text */ }
-        throw new AiCallError(`${p.label} ${res.status}: ${String(message).slice(0, 300)}`, kindForStatus(res.status, message), res.status);
+        let detail = null;
+        try {
+            detail = JSON.parse(errText)?.error || null;
+            message = detail?.message || errText;
+        } catch { /* plain text */ }
+        const err = new AiCallError(`${p.label} ${res.status}: ${String(message).slice(0, 300)}`, kindForStatus(res.status, message), res.status);
+        if (body.response_format && res.status === 400 && (detail?.code === 'json_validate_failed' || /failed to validate json/i.test(message))) {
+            err.jsonRejected = true;
+            if (typeof detail?.failed_generation === 'string') err.failedGeneration = detail.failed_generation;
+        }
+        throw err;
     }
     const data = await res.json();
     const raw = data?.choices?.[0]?.message?.content;

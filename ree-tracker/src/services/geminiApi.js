@@ -9,76 +9,22 @@
 //   author    Admin question and flashcard writing  strongest open model
 //   verify    Admin answer double-check             a second model family
 //   vision    Admin image extraction                multimodal model
+import { parseModelJson, repairJsonEscapes } from '@ree/shared';
 import { apiRequest } from './dbQueries';
 import { useStore } from '../store/useStore';
 import { sanitizeGeneratedBatch } from '../utils/sanitizeOptions';
 import { BOARD_EXAM_SYSTEM, VERIFY_SYSTEM, buildQuestionPrompt, buildVerifyPrompt, applyVerification } from './aiPrompts';
 
-const cleanJsonPayload = (text) => {
-    let clean = text.trim();
-    const bt3 = String.fromCharCode(96, 96, 96);
-    if (clean.startsWith(bt3 + "json")) clean = clean.slice(7);
-    else if (clean.startsWith(bt3)) clean = clean.slice(3);
-    if (clean.endsWith(bt3)) clean = clean.slice(0, -3);
-    return clean.trim();
-};
+// Reading a model's JSON lives in @ree/shared (modelJson.js): the server
+// already checked the answer with the same routine before passing it on, so
+// this mostly takes the fast path. Re-exported for the tests and importers.
+export { repairJsonEscapes };
 
-// Gemini is instructed to double-escape LaTeX inside JSON strings (\\times),
-// but it regularly emits single backslashes. Two failure classes:
-//   1. ILLEGAL JSON escapes (\pi, \sqrt, \() — JSON.parse crashes with
-//      "Bad escaped character" (the reported AI-generation outage).
-//   2. LaTeX that COLLIDES with legal escapes (\times → tab+"imes",
-//      \frac → formfeed+"rac") — parses fine but silently corrupts the math.
-// Repair rules (domain-tuned for board-exam LaTeX):
-//   • \" \\ \/ and \uXXXX are always kept (never LaTeX).
-//   • \t \f \r \b followed by a LETTER are LaTeX commands (\times, \frac,
-//     \rho, \beta …) — literal tab/formfeed/CR/backspace immediately followed
-//     by a letter never occurs intentionally in this content. Doubled.
-//   • \n is kept: real newlines in explanations are frequent and usually
-//     followed by a letter, so it stays ambiguous — the rare \nabla/\neq
-//     degrades to a newline rather than risking every multi-line explanation.
-//   • Any other \x (illegal escape) is doubled.
-// Compliant payloads (already double-escaped) come out byte-identical.
-// Exported for tests.
-const KEEP_ALWAYS = new Set(['"', '\\', '/', 'n']);
-const CONTROL_VS_LATEX = new Set(['t', 'f', 'r', 'b']);
-export const repairJsonEscapes = (text) => {
-    let out = '';
-    for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
-        if (ch !== '\\') { out += ch; continue; }
-        const next = text[i + 1];
-        if (KEEP_ALWAYS.has(next)) {
-            out += ch + next;
-            i += 1;
-        } else if (next === 'u' && /^[0-9a-fA-F]{4}$/.test(text.slice(i + 2, i + 6))) {
-            out += text.slice(i, i + 6);
-            i += 5;
-        } else if (CONTROL_VS_LATEX.has(next) && !/[a-zA-Z]/.test(text[i + 2] ?? '')) {
-            out += ch + next; // genuine control escape (e.g. "\t" before a digit/quote)
-            i += 1;
-        } else {
-            // LaTeX command or illegal escape — keep the literal backslash.
-            out += '\\\\';
-        }
-    }
-    return out;
-};
-
-// Parse Gemini's JSON output: try as-is first (a compliant payload must never
-// be altered), then retry with repaired escapes before giving up with a
-// message the UI can toast meaningfully.
+// Parse an AI answer, or throw with a message the UI can toast.
 export const parseAiJson = (rawText) => {
-    const clean = cleanJsonPayload(rawText);
-    try {
-        return JSON.parse(clean);
-    } catch (firstErr) {
-        try {
-            return JSON.parse(repairJsonEscapes(clean));
-        } catch {
-            throw new Error(`AI returned malformed JSON (${firstErr.message}). Regenerate and try again.`);
-        }
-    }
+    const result = parseModelJson(rawText);
+    if (result.ok) return result.value;
+    throw new Error(`AI returned malformed JSON (${result.message}). Regenerate and try again.`);
 };
 
 // Unwraps the { "items": [...] } envelope the JSON-mode prompts ask for
@@ -112,6 +58,35 @@ const AI_TIMEOUT_MS = {
 
 const OFFLINE_MESSAGE = 'Cannot connect to AI while offline.';
 
+// Admin tasks are long and run on free-tier keys, where a whole chain can fail
+// in a bad minute (every model rate limited at once). One more try a few
+// seconds later usually lands; learner tasks fail fast instead.
+const RETRY_TASKS = new Set(['author', 'verify', 'vision']);
+export const AI_RETRY_DELAY_MS = 4_000;
+
+// Why each model failed, in the words of Admin › AI status.
+const FAILURE_WORDS = {
+    not_found: 'retired',
+    auth: 'key rejected',
+    rate_limited: 'rate limited',
+    timeout: 'timed out',
+    unavailable: 'unavailable',
+    bad_output: 'unusable answer',
+    too_large: 'too large',
+};
+
+/** "gpt-oss-120b timed out, gemini-3.5-flash rate limited" from an AI_EXHAUSTED error. */
+export function describeTriedModels(tried) {
+    if (!Array.isArray(tried) || !tried.length) return '';
+    return tried
+        .filter((t) => t?.status && t.status !== 'ok')
+        .map((t) => `${String(t.model || '').split('/').pop()} ${FAILURE_WORDS[t.status] || 'failed'}`)
+        .join(', ');
+}
+
+const isRetryable = (err) => err?.code === 'AI_EXHAUSTED' || err?.message === '[TIMEOUT]';
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
 /**
  * One AI request for a feature (`task`). Returns { text, model, provider,
  * providerLabel, latencyMs, fallbacks }. Throws with a readable message.
@@ -121,17 +96,31 @@ export async function callAITask(task, contents, { system, json = false, tempera
     const config = {};
     if (temperature !== undefined) config.temperature = temperature;
     if (maxTokens !== undefined) config.maxOutputTokens = maxTokens;
+    const send = () => apiRequest('/api/ai/generate', 'POST', {
+        task,
+        contents,
+        ...(system ? { system } : {}),
+        ...(json ? { json: true } : {}),
+        ...(Object.keys(config).length ? { config } : {}),
+    }, { timeoutMs: AI_TIMEOUT_MS[task] || AI_TIMEOUT_MS.general });
     try {
-        return await apiRequest('/api/ai/generate', 'POST', {
-            task,
-            contents,
-            ...(system ? { system } : {}),
-            ...(json ? { json: true } : {}),
-            ...(Object.keys(config).length ? { config } : {}),
-        }, { timeoutMs: AI_TIMEOUT_MS[task] || AI_TIMEOUT_MS.general });
+        try {
+            return await send();
+        } catch (err) {
+            if (!RETRY_TASKS.has(task) || !isRetryable(err)) throw err;
+            await wait(AI_RETRY_DELAY_MS);
+            return await send();
+        }
     } catch (err) {
         if (err?.message === '[TIMEOUT]') throw new Error('The AI took too long to answer. Try again, or try fewer items.', { cause: err });
         if (err?.message === '[OFFLINE]') throw new Error(OFFLINE_MESSAGE, { cause: err });
+        if (err?.status === 413) throw new Error('That upload is too large. Send fewer or smaller images.', { cause: err });
+        if (err?.code === 'AI_EXHAUSTED') {
+            const why = describeTriedModels(err.triedModels);
+            const retried = RETRY_TASKS.has(task) ? ', twice' : '';
+            const message = `Every AI model failed${retried}. Try again in a minute.${why ? ` Last try: ${why}.` : ''}`;
+            throw Object.assign(new Error(message, { cause: err }), { code: err.code, triedModels: err.triedModels });
+        }
         throw err;
     }
 }
@@ -375,9 +364,36 @@ export const fileToDataUrl = (file) => new Promise((resolve, reject) => {
     reader.readAsDataURL(file);
 });
 
+// A phone photo is 3-8 MB; as base64 in the request it went over the server's
+// 2 MB limit. Scaled to 1600 px on the long side as JPEG it is a few hundred
+// KB and still sharp enough to read printed math.
+export const MAX_IMAGE_EDGE = 1600;
+const JPEG_QUALITY = 0.82;
+
+/** The image as a data URL, scaled down to MAX_IMAGE_EDGE (or as-is when the browser can't scale it). */
+export async function shrinkImage(file) {
+    try {
+        if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return await fileToDataUrl(file);
+        const bitmap = await createImageBitmap(file);
+        const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { bitmap.close?.(); return await fileToDataUrl(file); }
+        ctx.fillStyle = '#fff'; // transparent PNG areas would turn black in JPEG
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close?.();
+        return canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+    } catch {
+        return fileToDataUrl(file);
+    }
+}
+
 export const generateQuestionsFromImages = async (images, subject, subtopic, count = 3) => {
     const list = Array.isArray(images) ? images : [images];
-    const dataUrls = await Promise.all(list.map((img) => (typeof img === 'string' ? img : fileToDataUrl(img))));
+    const dataUrls = await Promise.all(list.map((img) => (typeof img === 'string' ? img : shrinkImage(img))));
     const imageParts = dataUrls.map((url) => {
         const [head, data] = String(url).split(',');
         const mimeType = /data:([^;]+)/.exec(head)?.[1] || 'image/jpeg';

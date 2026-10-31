@@ -46,4 +46,5 @@ module.exports = {
     ...require('./keyDates'),
     ...require('./setsAndLinks'),
     ...require('./reviewPhase'),
+    ...require('./modelJson'),
 };

@@ -26,6 +26,15 @@ const TIMEOUT_MS = 15_000;
 // provider -> { checkedAt, ok, error?, count?, ids?: Set, meta?: Map<id, { free, image }> }
 let catalogs = {};
 let timer = null;
+// `provider:model` ids a provider lists but refused with "not found" (Gemini
+// keeps retired models in its list for old keys, "no longer available to new
+// users"). Treated as unlisted until the next catalog check, which clears this.
+let refused = new Set();
+
+/** A listed model answered "not found": skip it, and let picks choose another, until the next check. */
+function markRefused(provider, model) {
+    refused.add(`${provider}:${model}`);
+}
 
 async function fetchJson(url, headers, fetchImpl) {
     const controller = new AbortController();
@@ -92,6 +101,7 @@ async function refreshCatalog({ env = process.env, fetchImpl = fetch, logger = n
         }
     }));
     catalogs = next;
+    refused = new Set();
     const missing = missingModels(env);
     logger?.info?.('AI model catalog checked', { providers: summary().providers, missing });
     return { providers: summary().providers, missing };
@@ -110,7 +120,7 @@ function isListed(provider, model) {
     return c.ids.has(model);
 }
 
-const isUnavailable = (provider, model) => isListed(provider, model) === false;
+const isUnavailable = (provider, model) => refused.has(`${provider}:${model}`) || isListed(provider, model) === false;
 
 function readsImages(provider, id, info) {
     if (PROVIDERS[provider].vision || VISION_MODELS.has(`${provider}:${id}`)) return true;
@@ -132,6 +142,7 @@ function usable(provider, { vision = false } = {}) {
     const freeOnly = !!PROVIDERS[provider].freeOnly;
     return [...c.meta.entries()]
         .filter(([id, info]) => !PICK_EXCLUDE.test(id)
+            && !refused.has(`${provider}:${id}`)
             && (!freeOnly || info.free)
             && (!vision || readsImages(provider, id, info)))
         .map(([id]) => id);
@@ -244,11 +255,12 @@ function startCatalogRefresh(opts = {}) {
 
 function resetCatalog() {
     catalogs = {};
+    refused = new Set();
     if (timer) clearInterval(timer);
     timer = null;
 }
 
 module.exports = {
-    refreshCatalog, startCatalogRefresh, isListed, isUnavailable, missingModels, summary, resetCatalog,
+    refreshCatalog, startCatalogRefresh, isListed, isUnavailable, markRefused, missingModels, summary, resetCatalog,
     expandPick, resolveChain, chains, offered, sizeInName,
 };
