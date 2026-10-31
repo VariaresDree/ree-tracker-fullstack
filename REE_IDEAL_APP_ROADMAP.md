@@ -209,3 +209,7 @@ are optional: a self-reviewer never sees them.
 | 5a | Tips (concepts first, preboards, rest, board hours) | Review phases, a playbook, a phase-aware mock cadence | Done (#182) |
 | 5b | Tips (30 minutes for shading), night-owl habits | Shading reminder on the paper-exam timer; accuracy by time of day | Done (#183) |
 | 6 | Tips (formula wall), "POGS" recall | Printable weak-formula sheet; random-topic recall | This PR |
+
+## 7. Reliability round and update delivery (2026-10-31)
+
+PRs #186–#190: admin AI that finishes (JSON checked on the server, retired models skipped), back online without a reload, formula cards as formulas and constants with a Quick sheet and cards from a file, the Library tab order, and new versions that reach every device without reloading mid-exam. Status, what's verified live, owner actions and the prioritised backlog are in [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md) §0.

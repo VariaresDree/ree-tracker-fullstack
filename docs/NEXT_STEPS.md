@@ -1,12 +1,114 @@
 # REE Tracker: where things stand, and what's next
 
-Handoff notes for the next planning session. Written 2026-10-13, after
+Handoff notes for the next planning session. **Section 0 is the latest (2026-10-31).** First written 2026-10-13, after
 [#143](https://github.com/VariaresDree/ree-tracker-fullstack/pull/143) and
 [#144](https://github.com/VariaresDree/ree-tracker-fullstack/pull/144) were merged;
 updated for the three releases that followed (branch `claude/jolly-cerf-yz78he`,
 section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
+
+## 0. Handover, 2026-10-31 (read this first)
+
+Main is at `74647df` (#190), live on Vercel and Render. Fifteen PRs merged since 2026-10-28, in two rounds.
+
+### What shipped
+
+| PRs | Round | What |
+|---|---|---|
+| #176–#185 | CELE tracker → REE | Rating calculator; fuller outside-score log; key dates and rest days; optional review-center mode with lectures; sets to finish; your own links; topic self-rating and high-yield; review phases and playbook; shading reminder; accuracy by time of day; printable weak formulas and random topic. Mapping in `REE_IDEAL_APP_ROADMAP.md` §6. |
+| #186 | Reliability A | Admin AI finishes. The server parses every JSON answer (`parseModelJson`, `@ree/shared`), Groq's `json_validate_failed` is salvaged, models that are listed but refused are skipped, each admin model gets about 45% of the budget, and the client retries once. Photos are scaled to 1600 px; ₱ renders inside math. |
+| #187 | Reliability B | Back online without a reload: a half-open breaker and a reconnect key (`services/connection.js`), screens fetch again on recovery, a **Reconnecting…** pill, a fresh socket token, `lazyWithRetry`. |
+| #188 | Reliability C | Formula cards are formulas and constants only (concept cards retired, re-typed in Admin). No note button. Subject → Topic browsing, a **Quick sheet**, a plainer card face, and Admin **From a file**. |
+| #189 | Reliability D | Library tabs: Handouts (default, with **Your links** under it), Formula cards, Unit conversion (**Soon**), Notebook, Bookmarks, Imported quizzes. |
+| #190 | Update delivery | New versions reach every device, never mid-exam (`services/appUpdate.js`). See the incident below. |
+
+### Incident: merged and deployed, but not on devices
+
+**What happened.** #187 set the service worker to `prompt` so that an update wouldn't reload the page mid-question. A new version then waited until every tab and installed-app window was closed, so #188 and #189 sat unused for hours.
+
+**Fixed in #190:**
+- **Takeover:** `registerType: 'autoUpdate'` again.
+- **Reload timing is the app's** (`onNeedReload` → `onNewVersionReady`): calm screens only, never exam or practice screens.
+- **Update checks:** every 15 minutes, on returning to the app, and on coming back online.
+- **Self-heal:** a `/version.json` beacon is compared with the build that's running; a stuck worker is cleared, once per version.
+- **Visible version:** Account › About this app shows it, with **Check for updates**.
+- **Guard:** `check:sw` fails the build if `sw.js` loses `skipWaiting()`/`clientsClaim()`, or if the beacon is missing or precached.
+
+**Rules from this:**
+- Never go back to `prompt`.
+- When something is "merged but not live", first compare the live chunk on Vercel with Account › About this app on the device.
+
+### Verified live today (2026-10-31, signed in as admin in the app's browser pane)
+
+- **Version and update path.** `/version.json` is `74647df`, served `no-store`. The live `sw.js` has `self.skipWaiting()` and `clientsClaim()`. One `registration.update()` moved a #189 tab to the new worker with no waiting step, and the next load showed **Version 74647df**. **Check for updates** works.
+- **Library.** The tab order is right, Handouts is the default, and **Your links** sits under the handouts.
+- **Formula cards.** The kinds are All / Formulas / Constants: EE 11 + 3, ESAS 8 + 6, Math 12 + 6. There is no "Add a note". The EE Quick sheet renders topic headings, 14 rows and no KaTeX errors.
+- **Admin › Formula cards.** **From a file** and its file input are there. No retired concept cards are listed.
+- **Admin › AI models.**
+  - Groq: 11 models. OpenRouter: 420 (19 free). Gemini: 60. Cerebras: **no key**.
+  - Every feature's first model works.
+  - `gemini-2.5-pro` is out of every chain. The picks resolve to current models (Qwen3.8, Nemotron 3 Ultra, Gemma 4 31B, Gemini 3.1 Pro preview), so no keyword update is needed yet.
+  - Two backups are rate limited on free quota: Gemini 3.1 Pro preview and OpenRouter's Gemma 4 26B.
+
+### Not verified yet (do these first next session)
+
+1. **Admin AI end to end on Render:** generate 10 questions with the double-check, extract from a full-size phone photo, and **From a file** on a short reviewer (photos and a PDF). Each must finish without a 502. This step was skipped this session because it spends shared free quota.
+2. **Offline drill:** with DevTools offline for about 20 s, Today, Progress and Library heal without a reload. Also do a cold start after more than 15 minutes idle.
+3. **The update path on a phone:** the installed app reaches the next deploy by itself, and the reload waits while on `/simulator`.
+4. **Learner screens on a phone** (375 px): Quick sheet, Your links under Handouts, the Unit conversion tab.
+5. **Signed-in e2e passed on #190's CI;** nothing else is owed there.
+
+### Owner actions (new)
+
+- [ ] **On every device, close every REE.ai tab and the installed app once, then reopen.** A tab still on #187–#189 needs one more load to get #190's update code; after that, updates arrive by themselves.
+- [ ] **Optional: set `CEREBRAS_API_KEY` on Render** (free). It fills the second slot of the writing, explain and practice chains, which are empty now.
+- [ ] **Gemini 3.1 Pro preview is over its free quota.** It is the sixth model in admin writing, so it costs one quick 429 at worst. Either leave it, or use a paid Gemini key if you want Pro answering.
+- [ ] **Delete the test key date "LIVE CHECK preboard"** on the Variares account (Progress › Study plan › Key dates), left from the CELE live check.
+
+### Improvements and next features (prioritised)
+
+**P1: reliability and visibility**
+1. **Know who's stale:** send `X-App-Version` with every API request. The server logs it, and Admin shows the versions in use this week. The #190 incident would have been visible in minutes.
+2. **Sentry (or similar) for the client and the server.** The DSN has been open since the October audit. Unhandled errors, chunk-load failures and AI exhaustion would show up without a user report.
+3. **Long admin AI work as server jobs:** generation, from-a-file and the double-check would run as a background job with progress polling, instead of a 110 s HTTP request per batch. Batches survive a closed tab, and Render's request window stops mattering.
+4. **From a file reads PDF pages as images:** render each page with pdf.js to a canvas, then send it to the vision chain. PDF text loses fractions, subscripts and square roots, so formula sheets come out better from images.
+5. **Render cold starts** (30–60 s) remain the single biggest wait. Options:
+   - Starter plan;
+   - caching read-mostly endpoints (TOS, flags, reference cards) at the edge;
+   - an always-on keepalive while the app is open.
+6. **Multi-device:** the first answer of the day can undercount, and the streak can flicker (open since #137).
+
+**P2: UI and UX**
+1. **Quick sheet as a self-test:** a **Hide answers** toggle that blanks the formula column until tapped, and **Print this sheet** (reusing the weak-formula print styles) for a whole subject or topic.
+2. **Notebook › My notes:** card notes now live only there. Show each with its card (formula preview, a link to open the card), since the card itself no longer shows the note.
+3. **Library › Handouts:** search across handout titles and folders, and **Recently opened** at the top.
+4. **The Reconnecting… pill on phones:** it lives in the sidebar badge. Confirm the phone header shows the same state, and add it if not.
+5. **Today's density:** the countdown, phase pill, lead card and tiles compete on a phone. Consider one hero and a collapsible "More for today".
+6. **Accessibility:** the rendered-axe heading pass and a dark-theme contrast sweep (open since the October audit).
+7. **First-run tour** of the five destinations, and what to do on day one: placement test, then exam date, then plan.
+
+**P3: features**
+1. **Unit conversion** (the tab is waiting): power (kW / hp / BTU/h), wire sizes (kcmil / mm² / AWG), temperature, energy, per-unit to a new base, and Δ–Y.
+   - Offline, with pure functions in `@ree/shared`.
+   - Each conversion links to its formula card.
+2. **Local-first handouts and links:** files and links kept only on the device (IndexedDB or OPFS), working offline, with no server copy. This is the second half of the Handouts design.
+3. **Two-day board:** `User.examDate` holds one date, but the REE board runs over two. The countdown, phases and plan should know both days.
+4. **Review-center import:** a lecture schedule from CSV or an `.ics` calendar, instead of typing it in.
+5. **Formula-card recall drill:** show a card's name and ask for the formula, self-graded, feeding the same spaced review.
+
+### Working notes for the next session
+
+- **Worktree first:** in a fresh worktree run `npm ci` first. Branch each PR from a freshly pulled `main`; the user merges, then asks for the next step.
+- **Gates:**
+  - root `npm test`;
+  - in `ree-tracker`: `npm run lint:ratchet` (baseline 0); `VITE_BACKEND_URL=http://localhost:5000 npx vite build`; `npm run check:sw`; `npm run check:bundle`;
+  - in `ree-tracker-backend`: `npm run audit:auth`.
+- **Known flake:** `PrintSet` "edits an item in place" times out only under full-suite load. A test waiting on a lazy chunk needs `{ timeout: 5000 }`.
+- **Shell edits on Windows:** bash heredocs that hold Python sometimes fail to parse. Write a temp `.py` file, or use the Edit tool.
+- **FEATURES.md** is updated in every PR (`CLAUDE.md`).
+- **E2E coupling:** before changing screen copy, check `e2e-authed/` (the sign-in waits on Today's "Up next").
+- **Live checks:** use the app's browser pane, signed in. The pane can screenshot a blank main area; use `zoom` or read the DOM.
 
 ## 1. What just shipped
 
