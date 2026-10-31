@@ -16,6 +16,7 @@ import { useStore } from '../store/useStore';
 import { auth } from '../config/firebaseDb';
 import { stableBatchKey } from '../utils/contentHash';
 import { syncDashboardStats } from '../services/analyticsSync';
+import { subscribeConnection, getConnection } from '../services/connection';
 
 const KEEPALIVE_MAX_ATTEMPTS = 100; // keepalive bodies are capped at ~64KB
 
@@ -68,6 +69,14 @@ export function useSyncLifecycle() {
       if (hasPending()) flush();
     };
     window.addEventListener('online', onOnline);
+    // The server answering again after an outage is the same signal, and the
+    // one that matters when the browser never noticed being offline.
+    let wasUp = getConnection().backendUp;
+    const stopWatching = subscribeConnection(() => {
+      const { backendUp } = getConnection();
+      if (backendUp && !wasUp) onOnline();
+      wasUp = backendUp;
+    });
 
     // 3. Last-gasp flush on hide/close
     const onHide = () => {
@@ -143,6 +152,7 @@ export function useSyncLifecycle() {
     return () => {
       clearInterval(interval);
       window.removeEventListener('online', onOnline);
+      stopWatching();
       window.removeEventListener('pagehide', onHide);
       document.removeEventListener('visibilitychange', onVisibility);
     };

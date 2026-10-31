@@ -8,7 +8,8 @@
 // with this week against last under the questions answered. They were a
 // floating intro line and button above four separate tiles. No watermark:
 // the report button fills its top corner and the figures its bottom one.
-import { lazy, Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
 import { Badge, Card, Grid, KpiTile, Panel, SegmentedControl } from '../../components/ui';
 import { ArrowRight, AudioWaveform, Flame, Gauge, ListChecks, Timer } from '../../components/ui/icons';

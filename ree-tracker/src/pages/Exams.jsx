@@ -7,7 +7,8 @@
 // but which opened on battles, with the Gauntlet hidden inside it.
 // The exam runners keep their own URLs (/simulator, /gauntlet/:level,
 // /battle/:id) and light Exams in the nav.
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { lazy } from '../utils/lazyWithRetry';
 import useTabParam from '../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
 import ModeGuide from '../features/exams/ModeGuide';

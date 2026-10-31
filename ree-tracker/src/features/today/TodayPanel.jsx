@@ -19,6 +19,7 @@ import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { useCardReviewSummary } from '../../hooks/useCardReviewSummary';
 import { useTodayLoop } from '../../hooks/useTodayLoop';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { useReconnectKey } from '../../hooks/useConnection';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
 import { usePlacement } from '../diagnostic/usePlacement';
 import FirstRunCard from '../onboarding/FirstRunCard';
@@ -234,6 +235,7 @@ function LeadSkeleton() {
 export default function TodayPanel({ stats, readiness, readinessSettled = false, uid, answered = 0, today }) {
   const navigate = useNavigate();
   const isOnline = useNetworkStatus();
+  const reconnect = useReconnectKey();
   const { snapshot, loading } = useForecast();
   const { summary: srs, loading: srsLoading } = useSrsSummary({ enabled: isOnline });
   const cards = useCardReviewSummary({ enabled: isOnline });
@@ -248,9 +250,9 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   useEffect(() => {
     if (!isOnline) return undefined;
     let live = true;
-    fetchReadinessHistory().then((r) => { if (live) setHistory(r?.items || []); }).catch(() => {});
+    fetchReadinessHistory().then((r) => { if (live && r) setHistory(r.items || []); }).catch(() => {});
     return () => { live = false; };
-  }, [isOnline]);
+  }, [isOnline, reconnect]);
   const [waitedOut, setWaitedOut] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setWaitedOut(true), LEAD_WAIT_MS);

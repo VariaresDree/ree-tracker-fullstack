@@ -1,7 +1,13 @@
 // src/hooks/useNetworkStatus.js
 import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { useConnection } from './useConnection';
 
+/**
+ * Online means the browser is online AND the server is answering. A screen
+ * keyed on this fetches again when either comes back, including the server
+ * waking up, which never fires the browser's `online` event.
+ */
 export function useNetworkStatus() {
     // Initialize with the current browser state
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -30,5 +36,6 @@ export function useNetworkStatus() {
         };
     }, [flushQueueToCloud, flushPendingWrites]);
 
-    return isOnline;
+    const { backendUp } = useConnection();
+    return isOnline && backendUp;
 }

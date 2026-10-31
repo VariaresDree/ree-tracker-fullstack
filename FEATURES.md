@@ -879,6 +879,30 @@ every feature add, change, or removal, not on a schedule.
 
 ## Platform & Offline
 
+- [x] **Back online without a reload** (2026-10-31, `services/connection.js`, `hooks/useConnection.js`). After a network blip or a sleeping server the app used to stay broken until reloaded, even on a strong connection. Two causes:
+  - **The circuit breaker:** one network failure (including the 12 s timeout) blocked every API request for 30 s with an instant `[OFFLINE]`. Only a successful response cleared it, never the browser's `online` event, and many outages (a sleeping Render server, a Wi-Fi handover) never fire that event anyway.
+  - **Screens that fetch once:** a fetch that landed in that window failed, and nothing asked again.
+
+  Now:
+  - **The breaker is half-open:** after a failure, requests fail fast, but one real request goes through every 5 s. While the server is down, a light `/health` check runs by itself while the app is in view (5 s, 15 s, 30 s, then every 60 s).
+  - **The first answer brings everything back.** A reconnect key goes up, and screens fetch again by themselves:
+    - Today: forecast, readiness and its trend, reviews due, the loop and the plan;
+    - the dashboard numbers;
+    - every synced list (`useSyncedUserData`) that couldn't load.
+    The answer and change queues also flush.
+  - **Coming back online**, or returning to the app after 10 minutes away, wakes the server and does the same.
+  - **`useNetworkStatus` means "the server is answering"** (the browser is online and the backend up). So screens that wait for a connection load as soon as the server is back, not only on the browser's `online` event.
+  - **Status pill:** shows **Reconnecting…** while the device is online but the server isn't answering, and clears by itself.
+  - **Boot:** the TOS and feature-flag requests wait out a cold start like the profile does (30 s). At the 12 s default they aborted first and tripped the breaker for the whole first screen.
+  - **Expired sign-in token:** a 401 gets one retry with a freshly fetched token.
+  - **Battles:**
+    - The socket sends a current token on every reconnect. One fixed at the first connect expired after an hour, and the server refused to let it back in.
+    - A refused reconnect is tried again.
+    - A later drop shows the can't-connect screen after 10 s instead of spinning.
+    - That screen's **Reconnect** opens a new connection instead of reloading the page.
+  - **Screens whose code fails to load** (`utils/lazyWithRetry.js`): every lazy screen retries its import twice. A chunk that's really gone after a deploy reloads the page once (`vite:preloadError`, guarded to once a minute). Before, React kept the failed import and "Try again" failed the same way.
+  - **Updates no longer reload mid-question:** the service worker is `registerType: 'prompt'`. A new version applies on the next launch, or now from the "new version" toast, which never showed under `autoUpdate`.
+  - **Tests:** `services/connection.test.js`, `hooks/useForecast.reconnect.test.js`, `utils/lazyWithRetry.test.js`, `hooks/useBattleSocket.test.jsx`.
 - [x] **Offline-first sync** — Zustand store with IndexedDB persistence, optimistic local writes reconciled against server-authoritative totals. Account-scoped: the persisted queue records its owning user, `resetStore()` wipes all local state on logout/account deletion, and a queue whose owner does not match the signed-in user is quarantined to dead letters rather than flushed under the wrong identity (`store/useStore.js`, `store/slices.js`, `services/analyticsSync.js`)
 - [x] **Sync retry policy** — one classifier decides whether a failed sync is offline, permanently rejected, or worth retrying, plus a capped exponential backoff; both are pure and unit-tested, and shared by the telemetry flush and the write outbox instead of being restated in each. 408, **409** (the idempotency layer's "same key in flight", produced by a pagehide keepalive racing the debounced flush) and 429 are retryable, not quarantined (`services/syncPolicy.js`)
 - [x] **One telemetry flush at a time** — callers that find a flush in flight (end of session, the debounced timer, the sync lifecycle, the drain) wait in a loop and claim the slot with no await in between, so exactly one runs. They used to wait with a single `if`; when the flush settled they all woke and POSTed the same batch at once under the same idempotency key, and the server answered the duplicates 409 "Duplicate request already in progress" (seen live after a practice session: sync errors in the console and a backoff, though nothing was lost). If the flush they waited on fails, waiters leave the batch for the backoff instead of each retrying it (`store/useStore.js`, `useStore.syncIntegrity.test.js`)

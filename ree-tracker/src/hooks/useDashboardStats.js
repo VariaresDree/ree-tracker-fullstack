@@ -14,6 +14,7 @@ import { effectiveStreak } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 import { useManilaDay } from './useManilaDay';
+import { useReconnectKey } from './useConnection';
 import { fetchReadinessScore } from '../services/dbQueries';
 import {
   cachedDashboardStats, lastStudyDay, mergeServerIntoStats, renormalizeDashboardStats,
@@ -75,6 +76,8 @@ export function useDashboardStats({ withReadiness = false } = {}) {
   const [readinessSettled, setReadinessSettled] = useState(false);
   // Bumped by retry() to fetch again.
   const [attempt, setAttempt] = useState(0);
+  // And when the server is back after an outage (services/connection).
+  const reconnect = useReconnectKey();
 
   useEffect(() => {
     if (!uid) return undefined;
@@ -93,7 +96,7 @@ export function useDashboardStats({ withReadiness = false } = {}) {
     // re-bucketing, not a refetch. The effect below does that. A new Manila
     // day does refetch: yesterday's payload holds yesterday's daily counts.
     return () => { live = false; };
-  }, [uid, withReadiness, today, attempt]);
+  }, [uid, withReadiness, today, attempt, reconnect]);
 
   // The TOS arrived or changed: re-bucket the payload already fetched, so the
   // store (which other pages read) gets every topic's tile. No network.

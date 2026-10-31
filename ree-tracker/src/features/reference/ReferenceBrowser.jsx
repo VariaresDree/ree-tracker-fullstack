@@ -20,7 +20,8 @@
 // subtopic in turn. Where you are (subject, topic, subtopic, which view) is
 // kept for the browser session, so leaving the tab and coming back doesn't
 // drop you at the top again.
-import { lazy, Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
+import { Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
+import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';

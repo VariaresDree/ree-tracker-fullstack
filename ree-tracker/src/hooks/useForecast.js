@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchForecast, recomputeForecast } from '../services/dbQueries';
+import { useReconnectKey } from './useConnection';
 
 // useForecast — pulls the latest ForecastSnapshot for the signed-in user.
 // Returns { snapshot, loading, error, recompute, refresh }.
@@ -34,6 +35,8 @@ export function useForecast({ autoload = true } = {}) {
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(autoload);
   const [error, setError] = useState(null);
+  // Fetch again when the server is back (services/connection).
+  const reconnect = useReconnectKey();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -69,11 +72,17 @@ export function useForecast({ autoload = true } = {}) {
     if (!autoload) return undefined;
     let live = true;
     loadForecastOnce().then(
-      (data) => { if (live) { setSnapshot(data?.snapshot ?? null); setLoading(false); } },
+      (data) => {
+        if (!live) return;
+        // A failed fetch resolves to null (safeApiRequest): keep what's shown.
+        setSnapshot((prev) => (data ? data.snapshot ?? null : prev));
+        if (data) setError(null);
+        setLoading(false);
+      },
       (err) => { if (live) { setError(err?.message || String(err)); setLoading(false); } },
     );
     return () => { live = false; };
-  }, [autoload]);
+  }, [autoload, reconnect]);
 
   return { snapshot, loading, error, refresh, recompute };
 }

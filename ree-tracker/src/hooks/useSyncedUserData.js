@@ -23,6 +23,7 @@ import { useStore } from '../store/useStore';
 import { apiRequest } from '../services/dbQueries';
 import { readUserCacheEntry, writeUserCache } from '../services/userCache';
 import { classifySyncError, SYNC_OUTCOME } from '../services/syncPolicy';
+import { useReconnectKey } from './useConnection';
 
 // name -> { uid, value, at }
 const memory = new Map();
@@ -126,6 +127,17 @@ export function useSyncedUserData({
       });
   }, [uid, endpoint, fromResponse, emptyValue, setServer, setStatus]);
   useEffect(() => { loadRef.current = load; }, [load]);
+
+  // A list that couldn't load fetches again when the server is back.
+  const reconnect = useReconnectKey();
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
+  const seenReconnect = useRef(reconnect);
+  useEffect(() => {
+    if (seenReconnect.current === reconnect) return;
+    seenReconnect.current = reconnect;
+    if (enabled && (statusRef.current === 'offline' || statusRef.current === 'unreachable')) load();
+  }, [reconnect, enabled, load]);
 
   useEffect(() => {
     if (!uid || !enabled) return undefined;
