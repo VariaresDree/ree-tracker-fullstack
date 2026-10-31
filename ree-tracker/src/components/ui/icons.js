@@ -89,6 +89,7 @@ export {
   // Misc semantic
   TriangleAlert,
   Calculator,
+  ArrowLeftRight,
   Brain,
   Palette,
   Landmark,

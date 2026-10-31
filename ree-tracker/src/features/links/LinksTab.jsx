@@ -123,7 +123,7 @@ function LinkRow({ link, onPin, onEdit, onDelete }) {
   );
 }
 
-export default function LinksTab() {
+export default function LinksTab({ embedded = false } = {}) {
   const { items, status, queuedCount, add, update, remove } = useUserLinks();
   const [form, setForm] = useState({ open: false, entry: null, key: 0 });
   const [confirm, setConfirm] = useState(null);
@@ -164,7 +164,12 @@ export default function LinksTab() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 flex flex-col gap-4">
-      <h2 className="sr-only">Links</h2>
+      {/* Under the handouts (Library › Handouts), the section has a visible title. */}
+      {embedded ? (
+        <h2 className="text-fluid-lg font-bold text-textMain">Your links</h2>
+      ) : (
+        <h2 className="sr-only">Links</h2>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="text-muted2 text-sm max-w-prose">
           Your own resources, by subject: a Drive folder, a video, a flashcard deck, a quiz. Pin the ones you open most.

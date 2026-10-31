@@ -134,3 +134,11 @@ describe('Tabs', () => {
     expect(strip.scrollTo).not.toHaveBeenCalled();
   });
 });
+
+describe('Tabs badge', () => {
+  it('shows a short marker after the label, as part of the tab name', () => {
+    render(<Tabs id="b" label="Sections" active="a" onChange={() => {}} tabs={[{ id: 'a', label: 'Alpha' }, { id: 'c', label: 'Unit conversion', badge: 'Soon' }]} />);
+    expect(screen.getByRole('tab', { name: 'Unit conversion Soon' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Alpha' })).toBeInTheDocument();
+  });
+});

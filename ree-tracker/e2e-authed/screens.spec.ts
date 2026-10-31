@@ -15,7 +15,7 @@ const SCREENS = [
   '/practice',
   ...tabs('/exams', ['mock', 'gauntlet', 'battles', 'rankings', 'history', 'paper']),
   ...tabs('/progress', ['overview', 'topics', 'weak-spots', 'confidence', 'habits', 'syllabus', 'plan']),
-  ...tabs('/library', ['formulas', 'handouts', 'bookmarks', 'notebook', 'links', 'quizzes']),
+  ...tabs('/library', ['handouts', 'formulas', 'conversion', 'notebook', 'bookmarks', 'quizzes']),
   '/account',
   ...tabs('/admin', ['questions', 'explanations', 'references', 'handouts', 'ai']),
   '/simulator',

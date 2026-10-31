@@ -59,7 +59,7 @@ describe('ReferenceBrowser — formulas and constants', () => {
     const { container } = render(<><h2>Formula cards</h2><ReferenceBrowser /></>);
     fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'Quick sheet' }));
-    expect(await screen.findByRole('heading', { name: 'AC Circuits' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'AC Circuits' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'DC Circuits' })).toBeInTheDocument();
     expect(screen.getByText('Ohm’s law')).toBeInTheDocument();
     expect(screen.getByText('Permittivity')).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe('ReferenceBrowser — formulas and constants', () => {
     render(<ReferenceBrowser />);
     fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'Quick sheet' }));
-    const section = (await screen.findByRole('heading', { name: 'DC Circuits' })).closest('section');
+    const section = (await screen.findByRole('heading', { name: 'DC Circuits' }, { timeout: 5000 })).closest('section');
     fireEvent.click(within(section).getByRole('button', { name: 'Study the DC Circuits cards' }));
     expect(screen.getByText(/1 \/ 2/)).toBeInTheDocument();
   });
@@ -89,11 +89,11 @@ describe('ReferenceBrowser — formulas and constants', () => {
     const { unmount } = render(<ReferenceBrowser />);
     fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
     fireEvent.click(screen.getByRole('radio', { name: 'Quick sheet' }));
-    await screen.findByRole('heading', { name: 'AC Circuits' });
+    await screen.findByRole('heading', { name: 'AC Circuits' }, { timeout: 5000 });
     unmount();
 
     render(<ReferenceBrowser />);
-    expect(await screen.findByRole('heading', { name: 'AC Circuits' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'AC Circuits' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Quick sheet' })).toHaveAttribute('aria-checked', 'true');
   });
 

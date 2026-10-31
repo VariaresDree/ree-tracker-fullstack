@@ -1,20 +1,22 @@
 // src/pages/Library.jsx
 //
-// The learner's study material in one place: formula cards, handouts,
-// bookmarked questions, the Notebook (mistakes and notes) and imported quizzes. (This was "Materials Hub"; the old
-// "Module Library" was the question-bank authoring tool and moved to Admin.)
-// Handouts are read-only here — uploading and organising them is an Admin tab.
+// The learner's study material in one place, in this order (2026-10-31):
+// Handouts (with the learner's own links under them), Formula cards, Unit
+// conversion (coming next), Notebook, Bookmarks and Imported quizzes. (This
+// was "Materials Hub"; the old "Module Library" was the question-bank
+// authoring tool and moved to Admin.) Handouts are read-only here; uploading
+// and organising them is an Admin tab.
 // The tab lives in ?tab=; an old /materials deep link arrives with
 // { search, kind } state for the formula cards (routes/legacyRoutes.js), or
 // { subject, topic } to open them at a topic (features/reference/topicCards.js).
-import { Suspense, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazy } from '../utils/lazyWithRetry';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
-import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
-import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen, ArrowUpRight } from '../components/ui/icons';
+import { Page, PageHeader, Tabs, TabPanel, Skeleton, EmptyState } from '../components/ui';
+import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen, ArrowLeftRight } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
@@ -26,30 +28,41 @@ import MaterialViewer from '../features/materials/MaterialViewer';
 // Lazy, not eagerly imported like the tabs above: this pulls in fflate and
 // the CAQ parser, which most Library visitors will never touch.
 const QuizLauncherTab = lazy(() => import('../features/quiz-launcher/QuizLauncherTab'));
-// The learner's own links (CELE round): lazy, like the quizzes.
+// The learner's own links (CELE round), under the handouts: lazy, like the quizzes.
 const LinksTab = lazy(() => import('../features/links/LinksTab'));
 
 const TABS = [
-  { id: 'formulas', label: 'Formula cards', icon: BookOpen },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
-  { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
+  { id: 'formulas', label: 'Formula cards', icon: BookOpen },
+  { id: 'conversion', label: 'Unit conversion', icon: ArrowLeftRight, badge: 'Soon' },
   { id: 'notebook', label: 'Notebook', icon: NotebookPen },
-  { id: 'links', label: 'Links', icon: ArrowUpRight },
+  { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
   { id: 'quizzes', label: 'Imported quizzes', icon: FileUp },
 ];
 
 export default function Library() {
   const { currentUser } = useAuth();
   const isOnline = useNetworkStatus();
-  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), 'formulas');
-
   const location = useLocation();
   const deepLink = location.state || {};
+  // Library opens on Handouts. A deep link into the formula cards (a search,
+  // or a topic) that names no tab still opens them, and the old Links tab
+  // (?tab=links) is now the "Your links" part of Handouts.
+  const toCards = !!(deepLink.search || deepLink.topic);
+  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), toCards ? 'formulas' : 'handouts');
   // An open handout is in the URL (?material=<id>), pushed: Back closes it
   // (it used to leave Library), and a reload or a shared link reopens it once
   // the handouts have loaded.
   const [params, setParams] = useSearchParams();
   const materialId = params.get('material');
+  const wantsLinks = params.get('tab') === 'links' || params.get('view') === 'links';
+  const linksRef = useRef(null);
+  useEffect(() => {
+    if (!wantsLinks || tab !== 'handouts') return undefined;
+    // After the lazy section has had a moment to render.
+    const t = setTimeout(() => linksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    return () => clearTimeout(t);
+  }, [wantsLinks, tab]);
   const navigate = useNavigate();
   const [viewingMaterial, setViewingMaterial] = useState(null);
   // Whether this visit pushed the ?material= entry: then Close is Back, so
@@ -74,7 +87,7 @@ export default function Library() {
 
   return (
     <Page>
-      <PageHeader title="Library" subtitle="Your study material in one place: formula cards, handouts, bookmarked questions, your mistakes and notes, your own links, and imported quizzes." />
+      <PageHeader title="Library" subtitle="Your study material in one place: handouts and your own links, formula cards, your mistakes and notes, bookmarked questions, and imported quizzes." />
 
       <Tabs id="library" label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
 
@@ -102,7 +115,29 @@ export default function Library() {
       )}
 
       {tab === 'handouts' && (
-        <CloudVaultTab currentUser={currentUser} isAdmin={false} onViewMaterial={openMaterial} openMaterialId={materialId} />
+        <div className="flex flex-col gap-10">
+          <CloudVaultTab currentUser={currentUser} isAdmin={false} onViewMaterial={openMaterial} openMaterialId={materialId} />
+          {/* Your own links sit with the handouts: what your reviewer shares
+              above, what you keep below. */}
+          <div ref={linksRef} id="your-links" className="scroll-mt-24">
+            <ErrorBoundary name="Your links">
+              <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+                <LinksTab embedded />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        </div>
+      )}
+
+      {tab === 'conversion' && (
+        <div className="animate-in fade-in">
+          <h2 className="sr-only">Unit conversion</h2>
+          <EmptyState
+            icon={ArrowLeftRight}
+            title="Unit conversion is coming next"
+            description="Convert between the units board problems mix: kW, hp and BTU/h; kcmil, mm² and AWG; °C, °F and K; per-unit values on a new base. It will work offline, on this device."
+          />
+        </div>
       )}
 
       {tab === 'bookmarks' && (
@@ -111,14 +146,6 @@ export default function Library() {
 
       {tab === 'notebook' && (
         <NotebookTab currentUser={currentUser} isOnline={isOnline} />
-      )}
-
-      {tab === 'links' && (
-        <ErrorBoundary name="Links">
-          <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-            <LinksTab />
-          </Suspense>
-        </ErrorBoundary>
       )}
 
       {tab === 'quizzes' && (
