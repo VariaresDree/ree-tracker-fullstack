@@ -370,6 +370,12 @@ async function bootstrap() {
     app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 
     app.use((err, req, res, next) => {
+        // express.json over its limit: say so, instead of a bare 500 (an
+        // admin's photos for image extraction were the usual cause).
+        if (err?.type === 'entity.too.large') {
+            logger.warn('Request body too large', { path: req.path, length: err.length, limit: err.limit });
+            return res.status(413).json({ error: 'That upload is too large. Send fewer or smaller images.', code: 'TOO_LARGE' });
+        }
         logger.error('Unhandled error', { error: err.message, stack: err.stack, path: req.path });
         res.status(500).json({ error: 'Internal Server Error' });
     });

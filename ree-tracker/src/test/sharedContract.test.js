@@ -773,3 +773,23 @@ describe('shared contract — review phases', () => {
         expect(shared.PHASE_MOCK_EVERY).toEqual({ foundations: 7, practice: 7, refresher: 5, final: 4, eve: null, exam: null });
     });
 });
+
+describe('shared contract — reading a model’s JSON answer', () => {
+    it('takes clean JSON as it is', () => {
+        expect(shared.parseModelJson('{"items":[]}')).toEqual({ ok: true, value: { items: [] }, text: '{"items":[]}' });
+    });
+
+    it('drops fences and prose, and repairs single-backslash LaTeX', () => {
+        const fence = '`'.repeat(3);
+        const out = shared.parseModelJson(`Sure.\n${fence}json\n{"f":"\\sqrt{2}"}\n${fence}`);
+        expect(out.ok).toBe(true);
+        expect(out.value).toEqual({ f: '\\sqrt{2}' });
+        expect(JSON.parse(out.text)).toEqual({ f: '\\sqrt{2}' });
+    });
+
+    it('reports an answer cut off before it finished, and one with no JSON at all', () => {
+        expect(shared.parseModelJson('{"items":[{"q":"What is')).toMatchObject({ ok: false, reason: 'truncated' });
+        expect(shared.parseModelJson('Sorry, I cannot help.')).toMatchObject({ ok: false, reason: 'invalid' });
+        expect(shared.parseModelJson('  ')).toMatchObject({ ok: false, reason: 'empty' });
+    });
+});

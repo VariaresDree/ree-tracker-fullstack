@@ -11,7 +11,10 @@ const clock = () => {
     return { now: () => t, advance: (ms) => { t += ms; } };
 };
 
-beforeEach(() => health.reset());
+beforeEach(() => {
+    health.reset();
+    require('../src/services/ai/modelCatalog').resetCatalog();
+});
 
 describe('AI model chains', () => {
     it('every task has a non-empty chain of known providers', () => {
@@ -94,6 +97,52 @@ describe('runTask', () => {
         const out = await runTask({ task: 'author', contents: 'x' }, { env: ALL_KEYS, callModelImpl, now: c.now });
         expect(out.text).toBe('{"items":[]}');
         expect(out.tried[0].status).toBe('bad_output');
+    });
+
+    it('repairs single-backslash LaTeX and passes on clean JSON', async () => {
+        const c = clock();
+        // A sentence before the JSON and a lone backslash in \sqrt: invalid as sent.
+        const callModelImpl = async () => ({ text: String.raw`Here you go: {"items":[{"q":"Find $\sqrt{2}$"}]}` });
+        const out = await runTask({ task: 'author', contents: 'x' }, { env: ALL_KEYS, callModelImpl, now: c.now });
+        expect(JSON.parse(out.text)).toEqual({ items: [{ q: 'Find $\\sqrt{2}$' }] });
+        expect(out.fallbacks).toBe(0);
+    });
+
+    it('treats an answer cut off mid-way as bad output and asks the next model', async () => {
+        const c = clock();
+        let n = 0;
+        const callModelImpl = async () => { n += 1; return { text: n === 1 ? '{"items":[{"q":"What is' : '{"items":[]}' }; };
+        const out = await runTask({ task: 'verify', contents: 'x' }, { env: ALL_KEYS, callModelImpl, now: c.now });
+        expect(out.text).toBe('{"items":[]}');
+        expect(out.tried[0]).toMatchObject({ status: 'bad_output', error: expect.stringMatching(/cut off/) });
+    });
+
+    it('drops a listed model that answers "not found" from every chain until the catalog is checked again', async () => {
+        const catalog = require('../src/services/ai/modelCatalog');
+        const env = { GEMINI_API_KEY: 'k' };
+        const ids = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-pro-preview'];
+        const fetchImpl = async () => ({ ok: true, json: async () => ({ models: ids.map((id) => ({ name: `models/${id}` })) }) });
+        await catalog.refreshCatalog({ env, fetchImpl });
+        expect(plan('author', { env }).map((e) => e.model)).toContain('gemini-3.1-pro-preview');
+
+        const c = clock();
+        const callModelImpl = async ({ model }) => {
+            if (model === 'gemini-3.5-flash') { const e = new Error('slow'); e.kind = 'unavailable'; throw e; }
+            if (model === 'gemini-3.1-pro-preview') { const e = new Error('This model is no longer available to new users'); e.kind = 'not_found'; throw e; }
+            return { text: '{"items":[]}' };
+        };
+        await runTask({ task: 'author', contents: 'x' }, { env, callModelImpl, now: c.now });
+        expect(catalog.isUnavailable('gemini', 'gemini-3.1-pro-preview')).toBe(true);
+        expect(plan('author', { env }).map((e) => e.model)).not.toContain('gemini-3.1-pro-preview');
+
+        await catalog.refreshCatalog({ env, fetchImpl });
+        expect(catalog.isUnavailable('gemini', 'gemini-3.1-pro-preview')).toBe(false);
+    });
+
+    it('gives each admin model at most about 45% of the budget, so a stalled one leaves room for others', () => {
+        for (const id of ['author', 'verify', 'vision']) {
+            expect(TASKS[id].perModelTimeoutMs / TASKS[id].budgetMs).toBeLessThanOrEqual(0.46);
+        }
     });
 
     it('stops when the task budget is spent instead of walking the whole chain', async () => {

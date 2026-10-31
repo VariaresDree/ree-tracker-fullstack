@@ -18,3 +18,14 @@ export function normalizeMathDelimiters(content) {
     if (s.includes('$$')) s = s.replace(/\$\$([\s\S]+?)\$\$/g, toDisplay);
     return s;
 }
+
+// KaTeX's fonts have no peso sign: "₱" inside math logs two warnings per
+// render ("Unrecognized Unicode character", then "No character metrics") and
+// prints in a fallback font. Inside $…$ it becomes the \peso macro
+// (LatexRenderer's KaTeX options); outside math it is plain text and fine.
+export const PESO_MACRO = String.raw`\mathrlap{\raisebox{0.3em}{\kern-0.1em\scriptsize =}}\mathrm{P}`;
+export function pesoInMath(content) {
+    const s = String(content);
+    if (!s.includes('\u20B1')) return s;
+    return s.replace(/\$\$[\s\S]+?\$\$|\$[^$\n]+?\$/g, (math) => math.replace(/\u20B1/g, String.raw`\peso{}`));
+}

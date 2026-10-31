@@ -3,7 +3,7 @@ import React, { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { normalizeMathDelimiters } from '../utils/mathDelimiters';
+import { normalizeMathDelimiters, pesoInMath, PESO_MACRO } from '../utils/mathDelimiters';
 import remarkPipeTables from '../utils/remarkPipeTables';
 import 'katex/dist/katex.min.css'; // CRITICAL: The stylesheet that makes the math render beautifully
 
@@ -39,7 +39,15 @@ const REMARK_PLUGINS = [remarkMath, remarkPipeTables];
 const INLINE_REMARK_PLUGINS = [remarkMath];
 // throwOnError:false → KaTeX renders an invalid expression in the danger color
 // instead of throwing; the boundary above catches anything that still escapes.
-const KATEX = [rehypeKatex, { throwOnError: false, errorColor: 'var(--accent-danger)' }];
+// A character KaTeX has no glyph for still renders (in a fallback font), so
+// that one strict check stays quiet instead of warning on every render; the
+// peso sign, the common case, is drawn by \peso (utils/mathDelimiters).
+const KATEX = [rehypeKatex, {
+    throwOnError: false,
+    errorColor: 'var(--accent-danger)',
+    strict: (code) => (code === 'unknownSymbol' ? 'ignore' : 'warn'),
+    macros: { '\\peso': PESO_MACRO },
+}];
 
 // `node` is taken out so it never reaches the DOM as an attribute.
 // eslint-disable-next-line no-unused-vars
@@ -78,7 +86,7 @@ const LatexRenderer = ({ content, className = "", compact = false, inline = fals
                     rehypePlugins={rehypePlugins ? [KATEX, ...rehypePlugins] : [KATEX]}
                     components={{ p: inline ? InlineP : BlockP, table: Table, ...components }}
                 >
-                    {normalizeMathDelimiters(content)}
+                    {pesoInMath(normalizeMathDelimiters(content))}
                 </ReactMarkdown>
             </LatexErrorBoundary>
         </Tag>
