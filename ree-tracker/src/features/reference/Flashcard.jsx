@@ -1,7 +1,9 @@
 // src/features/reference/Flashcard.jsx
-// One interactive reference flashcard. FRONT: symbol + name + subject/topic
-// badges + the typeset expression. BACK: value/units, plain-language meaning,
-// the variables table, board-exam purpose/trap, and the source citation.
+// One interactive formula card. FRONT: name and symbol, the typeset formula
+// (or a constant's value), and one quiet subject · topic line. BACK: what it
+// means, the variables, the value and units, the board tip, and the source.
+// Kept plain on purpose (2026-10-31): the front used to carry a kind badge and
+// three topic badges on every card, and the back led with units.
 //
 // Flip: pure-CSS 3D rotateY (utilities in styles/index.css — grid-stacked
 // faces, reduced-motion cross-fade). Chosen over Motion deliberately: the
@@ -33,12 +35,8 @@ import { Badge } from '../../components/ui';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
 
-const KIND_TONE = { constant: 'signal', formula: 'velocity', concept: 'neutral' };
-
 // `onFlip(flipped)`: study mode offers the review ratings once the back has
-// been seen. `initialFlipped`: the subject-wide sheet's "Backs" view starts
-// every card on its back (it remounts the cards to switch, so this is only
-// read once).
+// been seen. `initialFlipped`: start on the back (read once).
 export default function Flashcard({ card, onFlip, initialFlipped = false }) {
   const [flipped, setFlipped] = useState(initialFlipped);
   // The button's label names the card; the face on show describes it. The
@@ -97,7 +95,8 @@ export default function Flashcard({ card, onFlip, initialFlipped = false }) {
                 {card.name}
               </div>
             </div>
-            <Badge tone={KIND_TONE[card.kind] || 'neutral'} className="uppercase shrink-0">{card.kind}</Badge>
+            {/* Most cards are formulas; only a constant says what it is. */}
+            {card.kind === 'constant' && <Badge tone="signal" className="shrink-0">Constant</Badge>}
           </div>
 
           {(card.formulaLatex || card.valueUnit) && (
@@ -106,32 +105,18 @@ export default function Flashcard({ card, onFlip, initialFlipped = false }) {
             </div>
           )}
 
-          <div className="mt-auto flex items-center justify-between gap-2 flex-wrap min-w-0">
-            <div className="flex gap-1.5 flex-wrap min-w-0">
-              <Badge tone="neutral">{card.subject}</Badge>
-              {card.topic?.name && <Badge tone="neutral" className="truncate max-w-[160px]" title={card.topic.name}>{card.topic.name}</Badge>}
-              {card.subtopicTag && <Badge tone="signal" className="truncate max-w-[120px]" title={card.subtopicTag}>{card.subtopicTag}</Badge>}
-            </div>
+          <div className="mt-auto flex items-center justify-between gap-2 min-w-0">
+            <span className="text-xs text-muted2 truncate min-w-0" title={[card.subject, card.topic?.name, card.subtopicTag].filter(Boolean).join(' · ')}>
+              {[card.subject, card.topic?.name].filter(Boolean).join(' · ')}
+            </span>
             <span className="text-eyebrow shrink-0">Tap to flip</span>
           </div>
         </div>
 
         {/* BACK */}
         <div ref={backRef} id={`${faceId}-back`} className={`flip-back ${faceClasses}`} aria-hidden={!flipped}>
-          {card.valueUnit && (
-            <div>
-              <div className="text-eyebrow mb-1">Value / unit</div>
-              <div className="text-fluid-base text-textMain math-scroll-mobile min-w-0 [&_p]:!mb-0">
-                <LatexRenderer content={withMathDelimiters(card.valueUnit)} />
-              </div>
-            </div>
-          )}
-          {card.dimensionless && !card.valueUnit && (
-            <div className="text-eyebrow">Dimensionless</div>
-          )}
-
           <div>
-            <div className="text-eyebrow mb-1">What it represents</div>
+            <div className="text-eyebrow mb-1">What it means</div>
             {/* Not withMathDelimiters: descriptions already carry properly
                 embedded $…$ pairs where math appears (verified against the
                 live vault — every $ is balanced), and wrapping the WHOLE
@@ -175,6 +160,18 @@ export default function Flashcard({ card, onFlip, initialFlipped = false }) {
             </div>
           )}
 
+          {card.valueUnit && (
+            <div>
+              <div className="text-eyebrow mb-1">Value and unit</div>
+              <div className="text-fluid-base text-textMain math-scroll-mobile min-w-0 [&_p]:!mb-0">
+                <LatexRenderer content={withMathDelimiters(card.valueUnit)} />
+              </div>
+            </div>
+          )}
+          {card.dimensionless && !card.valueUnit && (
+            <div className="text-eyebrow">Dimensionless</div>
+          )}
+
           {card.purposeExamTip && (
             <div
               className="rounded-[var(--radius-default)] border p-4"
@@ -183,7 +180,7 @@ export default function Flashcard({ card, onFlip, initialFlipped = false }) {
                 borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
               }}
             >
-              <div className="text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber-text)' }}>Board use & traps</div>
+              <div className="text-eyebrow mb-1" style={{ color: 'var(--color-reeAmber-text)' }}>Board tip</div>
               <div className="text-fluid-base text-muted2 leading-relaxed [overflow-wrap:anywhere] [&_p]:!m-0">
                 <LatexRenderer content={card.purposeExamTip} />
               </div>

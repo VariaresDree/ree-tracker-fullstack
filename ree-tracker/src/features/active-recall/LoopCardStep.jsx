@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { CARD_RATINGS } from '@ree/shared';
-import NotedFlashcard from '../reference/NotedFlashcard';
+import Flashcard from '../reference/Flashcard';
 import CardRatingButtons from '../reference/CardRatingButtons';
 import { useCardReviews } from '../reference/useCardReviews';
 
@@ -31,7 +31,7 @@ export default function LoopCardStep({ card, rated, onRated }) {
     <div className="flex flex-col items-center gap-5" onKeyDown={onKeyDown}>
       <p className="text-eyebrow self-start">Formula card due for review</p>
       <div className="w-full max-w-md">
-        <NotedFlashcard card={card} onFlip={(flipped) => { if (flipped) setSeen(true); }} />
+        <Flashcard card={card} onFlip={(flipped) => { if (flipped) setSeen(true); }} />
       </div>
       {rated ? (
         <p className="text-sm text-muted2 text-center">Rated. It comes back when it's due.</p>

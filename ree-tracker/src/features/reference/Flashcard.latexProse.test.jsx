@@ -43,7 +43,7 @@ describe('Flashcard — description/exam-tip/variable-meaning render as math, no
     render(<Flashcard card={CARD} />);
     fireEvent.click(screen.getByRole('button'));
 
-    const tipHeading = screen.getByText('Board use & traps');
+    const tipHeading = screen.getByText('Board tip');
     const tipBlock = tipHeading.parentElement;
     expect(tipBlock.querySelectorAll('.katex').length).toBeGreaterThan(0);
     expect(tipBlock.textContent).not.toContain('$');

@@ -21,6 +21,7 @@ const prisma = require('../config/db');
 const pushService = require('./pushService');
 const { effectiveStreak, dayBefore, manilaDateOf } = require('@ree/shared');
 const logger = require('../utils/logger');
+const { LEARNER_CARD_WHERE } = require('./referenceCardView');
 
 const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 // A run this many hours late still sends that hour's reminders (never across midnight).
@@ -111,7 +112,7 @@ async function sendDueReminders({ now = new Date() } = {}) {
         try {
             const [dueQuestions, dueCards, planTask] = await Promise.all([
                 prisma.sRSCard.count({ where: { userId: u.id, nextReviewDate: { lte: now }, question: { isFlagged: false } } }),
-                prisma.cardReview.count({ where: { userId: u.id, nextReviewDate: { lte: now }, card: { status: 'LIVE' } } }),
+                prisma.cardReview.count({ where: { userId: u.id, nextReviewDate: { lte: now }, card: LEARNER_CARD_WHERE } }),
                 prisma.plannerTask.findFirst({ where: { userId: u.id, dueDate: today, completed: false }, select: { text: true }, orderBy: { createdAt: 'asc' } }),
             ]);
             const { streak, studiedToday } = streakStatus({ globalStreak: u.globalStreak, activityDates: (u.activityLogs || []).map((a) => a.date) }, today);

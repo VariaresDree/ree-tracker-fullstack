@@ -9,7 +9,10 @@ const { z } = require('zod');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
 const { checkVariableCoverage } = require('../utils/formulaSymbols');
 
-const CARD_KINDS = ['constant', 'formula', 'concept'];
+// A card is a formula or a constant. 'concept' is retired (2026-10-31): old
+// concept rows stay in the table for admins to re-type, but no new one is made
+// and an edit can't set it.
+const CARD_KINDS = ['constant', 'formula'];
 
 const variableSchema = z.object({
     symbol: z.string().min(1).max(40),

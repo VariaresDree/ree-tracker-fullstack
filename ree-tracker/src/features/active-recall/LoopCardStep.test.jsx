@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 const rate = vi.fn(() => Promise.resolve('queued'));
 vi.mock('../reference/useCardReviews', () => ({ useCardReviews: () => ({ rowFor: () => null, rate }) }));
-vi.mock('../reference/NotedFlashcard', () => ({
+vi.mock('../reference/Flashcard', () => ({
   default: ({ card, onFlip }) => <button type="button" onClick={() => onFlip(true)}>{card.name}</button>,
 }));
 

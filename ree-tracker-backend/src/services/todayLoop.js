@@ -20,7 +20,7 @@ const { normalizeSubject } = require('@ree/shared');
 const { getSyllabusWeights, DEFAULT_SYLLABUS_WEIGHTS } = require('./questionPool');
 const { loadMistakes } = require('./mistakeList');
 const { lockedQuestionIds } = require('./answerGate');
-const { CARD_SELECT } = require('./referenceCardView');
+const { CARD_SELECT, LEARNER_CARD_WHERE } = require('./referenceCardView');
 
 const LOOP_MAX = 25;
 const CARD_MAX = 8;
@@ -107,10 +107,10 @@ async function loadTodayLoop(userId, now = new Date(), { withCards = false } = {
         }),
         loadMistakes(userId),
         getSyllabusWeights(),
-        prisma.cardReview.count({ where: { userId, nextReviewDate: { lte: now }, card: { status: 'LIVE' } } }),
+        prisma.cardReview.count({ where: { userId, nextReviewDate: { lte: now }, card: LEARNER_CARD_WHERE } }),
         withCards
             ? prisma.cardReview.findMany({
-                where: { userId, nextReviewDate: { lte: now }, card: { status: 'LIVE' } },
+                where: { userId, nextReviewDate: { lte: now }, card: LEARNER_CARD_WHERE },
                 orderBy: { nextReviewDate: 'asc' },
                 take: CARD_MAX,
                 select: { card: { select: CARD_SELECT } },

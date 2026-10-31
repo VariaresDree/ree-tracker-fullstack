@@ -15,6 +15,7 @@ const { loadFlaggedTopics, loadSelfRatings } = require('../services/selfReportSi
 const { loadPlanCalendar } = require('../services/planCalendar');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { resolveTopic } = require('../services/topicResolver');
+const { LEARNER_CARD_WHERE } = require('../services/referenceCardView');
 
 // Tasks the planner owns: v2 tasks carry a kind; v1 wrote a "[WEAK] …" text
 // prefix. Re-planning and "clear plan" touch only these.
@@ -193,7 +194,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             getSyllabusWeights(),
             loadMistakes(req.user.id).catch(() => ({ items: [] })),
             prisma.cardReview.findMany({
-                where: { userId: req.user.id, card: { status: 'LIVE' }, nextReviewDate: { lt: manilaMidnight(today, 15) } },
+                where: { userId: req.user.id, card: LEARNER_CARD_WHERE, nextReviewDate: { lt: manilaMidnight(today, 15) } },
                 select: { nextReviewDate: true },
             }),
             loadFlaggedTopics(req.user.id, today).catch(() => new Map()),

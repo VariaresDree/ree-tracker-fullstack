@@ -644,6 +644,11 @@ export const fetchPendingReferenceCards = async () => {
     return data?.items || [];
 };
 export const fetchReferenceCardDebt = async () => apiRequest('/api/reference-cards/debt');
+// Admin: live concept cards, retired from the learner view, to re-type or delete.
+export const fetchRetiredReferenceCards = async () => {
+    const data = await apiRequest('/api/reference-cards/retired');
+    return data?.items || [];
+};
 export const createReferenceCard = (body) => apiRequest('/api/reference-cards', 'POST', body);
 export const updateReferenceCard = (id, body) => apiRequest(`/api/reference-cards/${id}`, 'PUT', body);
 export const approveReferenceCard = (id) => apiRequest(`/api/reference-cards/${id}/approve`, 'PUT', {});

@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import { CARD_RATINGS } from '@ree/shared';
 import { Button, EmptyState, StatusPill } from '../../components/ui';
 import { CheckCircle2, ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
-import NotedFlashcard from './NotedFlashcard';
+import Flashcard from './Flashcard';
 import CardRatingButtons from './CardRatingButtons';
 import PractiseTopicsButton from './PractiseTopicsButton';
 import { topicsOf } from './practiseTopics';
@@ -96,10 +96,9 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
       </div>
 
       <div className="w-full max-w-md">
-        <NotedFlashcard
+        <Flashcard
           key={card.id}
           card={card}
-          showNote
           onFlip={(flipped) => { if (flipped) setSeen((prev) => (prev.has(card.id) ? prev : new Set(prev).add(card.id))); }}
         />
       </div>

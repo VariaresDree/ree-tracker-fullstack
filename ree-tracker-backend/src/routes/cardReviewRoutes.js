@@ -22,7 +22,9 @@ const REVIEW_SELECT = {
     cardId: true, easeFactor: true, interval: true, repetitions: true, nextReviewDate: true, lastReviewed: true, lastRating: true,
 };
 // Only cards still in the library count.
-const LIVE = { card: { status: 'LIVE' } };
+const { LEARNER_CARD_WHERE } = require('../services/referenceCardView');
+
+const LIVE = { card: LEARNER_CARD_WHERE };
 
 function summarize(rows, now) {
     let due = 0;

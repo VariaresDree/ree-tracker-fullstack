@@ -3,12 +3,14 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 self.onmessage = async (e) => {
     try {
-        const { arrayBuffer } = e.data;
+        // maxPages: the question extractor reads 10; making formula cards
+        // from a reviewer reads more.
+        const { arrayBuffer, maxPages = 10 } = e.data;
         
         // Execute heavy PDF parsing off the main thread
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, disableFontFace: true }).promise;
         
-        const pagesToExtract = Math.min(pdf.numPages, 10); // Extract up to 10 pages for text
+        const pagesToExtract = Math.min(pdf.numPages, maxPages);
         let fullText = '';
 
         for (let i = 1; i <= pagesToExtract; i++) {

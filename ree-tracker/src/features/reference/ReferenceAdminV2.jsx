@@ -5,10 +5,13 @@
 //   2. Add card — manual creation through the full required-field gate
 //      (taxonomy dropdowns from the SHARED dynamicTOS, dynamic variables
 //      editor, dimensionless exception, source citation).
-//   3. AI generate — schema-locked generation; rows are previewed with
+//   3. AI generate — schema-locked generation, from a topic or from a file (a
+//      reviewer's PDF or photos of its pages); rows are previewed with
 //      per-row completeness state and only complete rows can be queued
 //      (the server re-validates and rejects incomplete output pre-queue).
-//   4. Live cards — edit / re-categorize / delete published cards.
+//   4. Live cards — edit / re-categorize / delete published cards, and the
+//      retired concept cards learners no longer see, to re-type or delete.
+// Cards are formulas and constants only (2026-10-31).
 //   5. Sources — CRUD over the authoritative citations (textbook/code/PEC).
 //   6. Data debt — the Pillar-5 report of any card failing required fields.
 import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
@@ -21,21 +24,44 @@ import {
 import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
-import { generateReferenceCardsAI } from '../../services/geminiApi';
+import { generateReferenceCardsAI, generateReferenceCardsFromSource } from '../../services/geminiApi';
+import PdfWorker from '../library/pdfWorker?worker';
 import AiStatusNote from '../../components/AiStatusNote';
 import {
     fetchReferenceCards, fetchPendingReferenceCards, fetchReferenceCardDebt,
     createReferenceCard, updateReferenceCard, deleteReferenceCard,
-    approveReferenceCard, rejectReferenceCard, bulkApproveReferenceCards,
+    approveReferenceCard, rejectReferenceCard, bulkApproveReferenceCards, fetchRetiredReferenceCards,
     intakeReferenceCards, fetchReferenceSources, createReferenceSource, deleteReferenceSource,
 } from '../../services/dbQueries';
 
 const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 const KINDS = [
-    { value: 'constant', label: 'Constant' },
     { value: 'formula', label: 'Formula' },
-    { value: 'concept', label: 'Concept' },
+    { value: 'constant', label: 'Constant' },
 ];
+// AI generate: write cards for a topic, or read them out of a reviewer.
+const AI_SOURCES = [
+    { value: 'topic', label: 'From a topic' },
+    { value: 'file', label: 'From a file' },
+];
+const FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_IMAGES = 6;
+const PDF_PAGES = 40;
+const nameKey = (n) => String(n || '').toLowerCase().trim();
+
+/** A PDF's text, read off the main thread (features/library/pdfWorker). */
+function readPdfText(file, onProgress) {
+    return file.arrayBuffer().then((arrayBuffer) => new Promise((resolve, reject) => {
+        const worker = new PdfWorker();
+        worker.onmessage = (e) => {
+            const { type, text, message, error } = e.data;
+            if (type === 'progress') { onProgress?.(message); return; }
+            worker.terminate();
+            if (type === 'success') resolve(text); else reject(new Error(error || "Couldn't read the PDF."));
+        };
+        worker.postMessage({ arrayBuffer, maxPages: PDF_PAGES });
+    }));
+}
 // Live Cards toolbar. "Difficulty / Priority" was requested but ReferenceCard
 // has no such column — Type and Needs-attention are the two sorts that
 // actually read from real fields and are useful for an admin list: group by
@@ -77,9 +103,10 @@ const quickMissing = (row) => {
     return missing;
 };
 
-// Card row → form state (for editing pending/live cards).
+// Card row → form state (for editing pending/live cards). A retired concept
+// card opens as a formula: saving it re-types it.
 const cardToForm = (card) => ({
-    kind: card.kind, subject: card.subject, topic: card.topic?.name || '',
+    kind: card.kind === 'concept' ? 'formula' : card.kind, subject: card.subject, topic: card.topic?.name || '',
     name: card.name || '', symbol: card.symbol || '',
     formulaLatex: card.formulaLatex || '', valueUnit: card.valueUnit || '',
     description: card.description || '', purposeExamTip: card.purposeExamTip || '',
@@ -136,7 +163,7 @@ function CardForm({ form, setForm, sources, dynamicTOS }) {
                 </FormField>
             </div>
             {form.kind !== 'constant' && (
-                <FormField label={form.kind === 'formula' ? 'Formula (LaTeX)' : 'Defining relation (LaTeX, optional)'} required={form.kind === 'formula'}>
+                <FormField label="Formula (LaTeX)" required>
                     <Textarea value={form.formulaLatex} onChange={(e) => setF({ formulaLatex: e.target.value })} placeholder="e.g. $$X_c = \frac{1}{2\pi f C}$$" className="!min-h-16 font-mono text-xs" />
                 </FormField>
             )}
@@ -226,6 +253,12 @@ export default function ReferenceAdminV2() {
     const [aiCount, setAiCount] = useState(6);
     const [aiRows, setAiRows] = useState([]);
     const [aiSelected, setAiSelected] = useState(new Set());
+    // From a file: the reviewer, and the names already in the library (live
+    // or pending) so a draft that repeats one is flagged instead of queued.
+    const [aiSource, setAiSource] = useState('topic');
+    const [aiFiles, setAiFiles] = useState([]);
+    const [aiDuplicates, setAiDuplicates] = useState(new Set());
+    const [retired, setRetired] = useState([]);
 
     // Bulk accept
     const [showBulkConfirm, setShowBulkConfirm] = useState(false);
@@ -245,7 +278,10 @@ export default function ReferenceAdminV2() {
         let ignore = false;
         const jobs = [];
         if (panel === 'queue') jobs.push(fetchPendingReferenceCards().then((x) => { if (!ignore) setPending(x); }));
-        if (panel === 'live') jobs.push(fetchReferenceCards().then((x) => { if (!ignore) setLive(x); }));
+        if (panel === 'live') {
+            jobs.push(fetchReferenceCards().then((x) => { if (!ignore) setLive(x); }));
+            jobs.push(fetchRetiredReferenceCards().then((x) => { if (!ignore) setRetired(x); }));
+        }
         if (panel === 'debt') jobs.push(fetchReferenceCardDebt().then((x) => { if (!ignore) setDebt(x); }));
         if (panel === 'sources' || panel === 'create' || panel === 'queue') {
             jobs.push(fetchReferenceSources().then((x) => { if (!ignore) setSources(x); }));
@@ -305,6 +341,11 @@ export default function ReferenceAdminV2() {
             toast.success('Card updated.');
             setPending((p) => p.map((c) => (c.id === editing.id ? (res?.item || c) : c)));
             setLive((p) => p.map((c) => (c.id === editing.id ? (res?.item || c) : c)));
+            // A retired concept card saved as a formula or constant is live again.
+            if (editing.kind === 'concept' && res?.item) {
+                setRetired((p) => p.filter((c) => c.id !== editing.id));
+                setLive((p) => [res.item, ...p.filter((c) => c.id !== editing.id)]);
+            }
             setEditing(null);
         } catch (err) {
             toast.error(err?.body?.reasons ? `Incomplete: ${err.body.reasons.join(', ')}` : (err.message || 'Update failed.'));
@@ -316,6 +357,7 @@ export default function ReferenceAdminV2() {
             await deleteReferenceCard(card.id);
             setLive((p) => p.filter((c) => c.id !== card.id));
             setPending((p) => p.filter((c) => c.id !== card.id));
+            setRetired((p) => p.filter((c) => c.id !== card.id));
             toast.success('Card deleted.');
         } catch { toast.error('Delete failed.'); }
     };
@@ -339,10 +381,46 @@ export default function ReferenceAdminV2() {
                 (n, of) => { if (of > 1) toast.loading(`Writing cards, part ${n} of ${of}…`, { id: toastId }); });
             if (!rows.length) throw new Error('No cards returned.');
             setAiRows(rows);
+            setAiDuplicates(new Set());
             setAiSelected(new Set(rows.map((_, i) => i).filter((i) => quickMissing(rows[i]).length === 0)));
             toast.success(`Generated ${rows.length} — review and queue the complete ones.`, { id: toastId });
         } catch (err) {
             toast.error(err?.message === '[OFFLINE]' ? 'AI needs a connection.' : (err.message || 'Generation failed.'), { id: toastId });
+        } finally { setBusy(false); }
+    };
+    const pickFiles = (e) => {
+        const files = [...(e.target.files || [])].filter((f) => FILE_TYPES.includes(f.type));
+        const pdf = files.find((f) => f.type === 'application/pdf');
+        // One PDF, or up to MAX_FILE_IMAGES photos of pages.
+        setAiFiles(pdf ? [pdf] : files.slice(0, MAX_FILE_IMAGES));
+        if (!files.length && e.target.files?.length) toast.error('Use a PDF, or JPG, PNG or WebP photos.');
+    };
+    const handleFromFile = async () => {
+        if (!aiFiles.length) return toast.error('Choose a PDF or photos first.');
+        setBusy(true);
+        setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set());
+        const toastId = toast.loading('Reading the file…');
+        try {
+            const [liveCards, pendingCards] = await Promise.all([
+                live.length ? Promise.resolve(live) : fetchReferenceCards(),
+                pending.length ? Promise.resolve(pending) : fetchPendingReferenceCards(),
+            ]);
+            const existing = [...liveCards, ...pendingCards].filter((c) => c.subject === aiSubject).map((c) => c.name);
+            const isPdf = aiFiles[0].type === 'application/pdf';
+            const text = isPdf ? await readPdfText(aiFiles[0], (m) => toast.loading(m, { id: toastId })) : '';
+            const rows = await generateReferenceCardsFromSource(
+                { subject: aiSubject, topic: aiTopic || null, topics: aiTopics, text, images: isPdf ? [] : aiFiles, existingNames: existing },
+                (n, of) => toast.loading(of > 1 ? `Finding formulas and constants, part ${n} of ${of}…` : 'Finding formulas and constants…', { id: toastId }),
+            );
+            if (!rows.length) throw new Error('No formulas or constants found in that file.');
+            const known = new Set(existing.map(nameKey));
+            const dupes = new Set(rows.map((r, i) => (known.has(nameKey(r.name)) ? i : -1)).filter((i) => i >= 0));
+            setAiRows(rows);
+            setAiDuplicates(dupes);
+            setAiSelected(new Set(rows.map((_, i) => i).filter((i) => !dupes.has(i) && quickMissing(rows[i]).length === 0)));
+            toast.success(`Found ${rows.length} — review and queue the complete ones.`, { id: toastId });
+        } catch (err) {
+            toast.error(err?.message === '[OFFLINE]' ? 'AI needs a connection.' : (err.message || "Couldn't make cards from that file."), { id: toastId });
         } finally { setBusy(false); }
     };
     const handleQueueSelected = async () => {
@@ -355,7 +433,7 @@ export default function ReferenceAdminV2() {
             const queued = res?.queued?.length || 0;
             const rejected = res?.rejected?.length || 0;
             toast.success(`${queued} queued for review${rejected ? ` · ${rejected} rejected as incomplete` : ''}.`, { id: toastId });
-            setAiRows([]); setAiSelected(new Set());
+            setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set());
             if (panel === 'queue') refreshPanel();
         } catch (err) { toast.error(err.message || 'Intake failed.', { id: toastId }); }
         finally { setBusy(false); }
@@ -433,7 +511,7 @@ export default function ReferenceAdminV2() {
             <div className="flex items-start justify-between gap-3 min-w-0">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <Badge tone="velocity" className="uppercase">{card.kind}</Badge>
+                        <Badge tone={card.kind === 'concept' ? 'neutral' : 'velocity'} className="uppercase">{card.kind === 'concept' ? 'Concept (retired)' : card.kind}</Badge>
                         <span className="font-bold text-sm text-textMain line-clamp-1 [overflow-wrap:anywhere]" title={card.name}>{card.name}</span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
@@ -503,20 +581,42 @@ export default function ReferenceAdminV2() {
             {/* 3 ── AI GENERATE */}
             {!loadingPanel && panel === 'ai' && (
                 <div className="flex flex-col gap-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
-                        <FormField label="Kind"><Select value={aiKind} onChange={(e) => setAiKind(e.target.value)}>{KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}</Select></FormField>
-                        <FormField label="Subject"><Select value={aiSubject} onChange={(e) => { setAiSubject(e.target.value); setAiTopic(''); }}>{SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}</Select></FormField>
-                        <FormField label="Topic"><Select value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}><option value="">Select…</option>{aiTopics.map((t) => <option key={t} value={t}>{t}</option>)}</Select></FormField>
-                        <FormField label="Specific focus (optional)"><Input value={aiFocus} onChange={(e) => setAiFocus(e.target.value)} placeholder="e.g. Capacitance" /></FormField>
-                        <FormField label="Count"><Select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>{[3, 6, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}</Select></FormField>
-                    </div>
-                    <p className="text-xs text-muted2 max-w-2xl">
-                        Written by the most accurate model available (see Admin › AI models), told to use standard reference values and to leave out anything it isn't sure of. Every card still waits in the review queue.
-                    </p>
-                    <AiStatusNote task="author" />
-                    <Button onClick={handleGenerate} loading={busy} disabled={busy || !aiTopic} className="self-start">
-                        <Sparkles size={14} strokeWidth={1.75} aria-hidden="true" /> Generate {aiCount} {aiKind === 'constant' ? 'constant' : aiKind === 'formula' ? 'formula' : 'concept'} card{aiCount === 1 ? '' : 's'}
-                    </Button>
+                    <SegmentedControl label="Make cards" size="sm" value={aiSource} onChange={(v) => { setAiSource(v); setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set()); }} options={AI_SOURCES} className="self-start" />
+                    {aiSource === 'topic' ? (
+                        <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                                <FormField label="Kind"><Select value={aiKind} onChange={(e) => setAiKind(e.target.value)}>{KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}</Select></FormField>
+                                <FormField label="Subject"><Select value={aiSubject} onChange={(e) => { setAiSubject(e.target.value); setAiTopic(''); }}>{SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}</Select></FormField>
+                                <FormField label="Topic"><Select value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}><option value="">Select…</option>{aiTopics.map((t) => <option key={t} value={t}>{t}</option>)}</Select></FormField>
+                                <FormField label="Specific focus (optional)"><Input value={aiFocus} onChange={(e) => setAiFocus(e.target.value)} placeholder="e.g. Capacitance" /></FormField>
+                                <FormField label="Count"><Select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>{[3, 6, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}</Select></FormField>
+                            </div>
+                            <p className="text-xs text-muted2 max-w-2xl">
+                                Written by the most accurate model available (see Admin › AI models), told to use standard reference values and to leave out anything it isn't sure of. Every card still waits in the review queue.
+                            </p>
+                            <AiStatusNote task="author" />
+                            <Button onClick={handleGenerate} loading={busy} disabled={busy || !aiTopic} className="self-start">
+                                <Sparkles size={14} strokeWidth={1.75} aria-hidden="true" /> Generate {aiCount} {aiKind === 'constant' ? 'constant' : 'formula'} card{aiCount === 1 ? '' : 's'}
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                <FormField label="Subject"><Select value={aiSubject} onChange={(e) => { setAiSubject(e.target.value); setAiTopic(''); }}>{SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}</Select></FormField>
+                                <FormField label="Topic"><Select value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}><option value="">Any topic (the AI files each card)</option>{aiTopics.map((t) => <option key={t} value={t}>{t}</option>)}</Select></FormField>
+                                <FormField label="Reviewer file" hint={`One PDF (first ${PDF_PAGES} pages), or up to ${MAX_FILE_IMAGES} photos of its pages`}>
+                                    <Input type="file" accept={FILE_TYPES.join(',')} multiple onChange={pickFiles} aria-label="Reviewer file" />
+                                </FormField>
+                            </div>
+                            <p className="text-xs text-muted2 max-w-2xl">
+                                Reads every formula and constant in a reviewer you have, with its variables, units and a board tip, into draft cards. Photos of formula pages read better than a PDF, whose text loses the layout of its math. Cards already in the library are flagged, and every card still waits in the review queue.
+                            </p>
+                            <AiStatusNote task={aiFiles[0]?.type?.startsWith('image/') ? 'vision' : 'author'} />
+                            <Button onClick={handleFromFile} loading={busy} disabled={busy || !aiFiles.length} className="self-start">
+                                <Sparkles size={14} strokeWidth={1.75} aria-hidden="true" /> Make cards from {aiFiles.length > 1 ? `${aiFiles.length} photos` : aiFiles[0]?.name || 'the file'}
+                            </Button>
+                        </>
+                    )}
 
                     {aiRows.length > 0 && (
                         <div className="flex flex-col gap-3">
@@ -529,6 +629,7 @@ export default function ReferenceAdminV2() {
                             {aiRows.map((row, i) => {
                                 const missing = quickMissing(row);
                                 const selectable = missing.length === 0;
+                                const duplicate = aiDuplicates.has(i);
                                 return (
                                     <label key={i} className={`flex items-start gap-3 bg-surface border rounded-[var(--radius-lg)] p-4 min-w-0 ${selectable ? 'border-border2 cursor-pointer' : 'border-[color-mix(in_srgb,var(--accent-danger)_35%,transparent)] opacity-70'}`}>
                                         <input type="checkbox" className="mt-1" disabled={!selectable} checked={aiSelected.has(i)}
@@ -538,6 +639,8 @@ export default function ReferenceAdminV2() {
                                                 <span className="font-bold text-sm text-textMain [overflow-wrap:anywhere]">{row.name || 'Unnamed'}</span>
                                                 {row.subtopicTag && <Badge tone="signal">{row.subtopicTag}</Badge>}
                                                 {!selectable && <StatusPill tone="danger">Missing: {missing.join(', ')}</StatusPill>}
+                                                {duplicate && <StatusPill tone="warning">Already a card</StatusPill>}
+                                                {aiSource === 'file' && row.topic && <Badge tone="neutral">{row.topic}</Badge>}
                                             </div>
                                             {(row.formulaLatex || row.valueUnit) && (
                                                 <div className="mt-2 bg-bg border border-border rounded-[var(--radius-default)] px-3 py-2 math-scroll-mobile min-w-0 text-sm">
@@ -556,6 +659,21 @@ export default function ReferenceAdminV2() {
                             })}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* 4b ── RETIRED CONCEPT CARDS */}
+            {!loadingPanel && panel === 'live' && retired.length > 0 && (
+                <div className="flex flex-col gap-3 border border-border rounded-[var(--radius-lg)] p-4">
+                    <p className="text-sm text-muted2">
+                        <span className="font-semibold text-textMain">{retired.length} concept card{retired.length === 1 ? '' : 's'}</span> retired. Formula cards are formulas and constants now, so learners don't see these. Edit one to make it a formula or a constant, or delete it.
+                    </p>
+                    {retired.map((card) => cardRow(card, (
+                        <>
+                            <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Re-type</Button>
+                            <Button size="sm" variant="outline" tone="danger" onClick={() => handleDelete(card)}>Delete</Button>
+                        </>
+                    )))}
                 </div>
             )}
 

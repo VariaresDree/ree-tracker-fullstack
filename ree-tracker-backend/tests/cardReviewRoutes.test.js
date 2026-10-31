@@ -134,7 +134,7 @@ describe('GET /api/user/card-reviews', () => {
             { cardId: 'c3', nextReviewDate: new Date(now + 86400000) },
         ]);
         const res = await request(makeApp()).get('/api/user/card-reviews').set(as());
-        expect(findMany.mock.calls[0][0].where).toEqual({ userId: UID, card: { status: 'LIVE' } });
+        expect(findMany.mock.calls[0][0].where).toEqual({ userId: UID, card: { status: 'LIVE', kind: { in: ['formula', 'constant'] } } });
         expect(res.body.summary).toEqual({ due: 2, total: 3, nextDueAt: new Date(now + 86400000).toISOString() });
         expect(res.body.items).toHaveLength(3);
 

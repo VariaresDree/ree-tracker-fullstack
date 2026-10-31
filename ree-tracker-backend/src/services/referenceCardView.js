@@ -15,4 +15,10 @@ const CARD_SELECT = {
     source: { select: { id: true, title: true, edition: true, section: true } },
 };
 
-module.exports = { CARD_SELECT };
+// Formula cards are formulas and constants only (2026-10-31). Concept cards
+// stay in the table, and in Admin, but learners never see or review them.
+const LEARNER_CARD_KINDS = ['formula', 'constant'];
+/** The cards a learner sees: live, and a formula or a constant. */
+const LEARNER_CARD_WHERE = { status: 'LIVE', kind: { in: LEARNER_CARD_KINDS } };
+
+module.exports = { CARD_SELECT, LEARNER_CARD_KINDS, LEARNER_CARD_WHERE };

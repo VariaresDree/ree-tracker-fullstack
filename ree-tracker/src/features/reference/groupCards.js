@@ -1,10 +1,9 @@
 // src/features/reference/groupCards.js
 //
-// Formula cards → headed groups for the all-cards sheet (SubjectCardSheet):
+// Formula cards → headed groups for the quick sheet (QuickSheet):
 // a subject's cards by topic (in syllabus order) then subtopic, or a topic's
-// cards by subtopic. Within a group: constants, then formulas, then concepts,
-// each A–Z.
-const KIND_ORDER = { constant: 0, formula: 1, concept: 2 };
+// cards by subtopic. Within a group: formulas, then constants, each A–Z.
+const KIND_ORDER = { formula: 0, constant: 1 };
 const NO_TOPIC = 'Other cards';
 export const GENERAL = 'General';
 

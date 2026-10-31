@@ -11,6 +11,7 @@
 //   vision    Admin image extraction                multimodal model
 import { parseModelJson, repairJsonEscapes } from '@ree/shared';
 import { apiRequest } from './dbQueries';
+import { labelForGenerated } from '../utils/topicLabels';
 import { useStore } from '../store/useStore';
 import { sanitizeGeneratedBatch } from '../utils/sanitizeOptions';
 import { BOARD_EXAM_SYSTEM, VERIFY_SYSTEM, buildQuestionPrompt, buildVerifyPrompt, applyVerification } from './aiPrompts';
@@ -277,14 +278,14 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
     }
 };
 
-// Generate COMPLETE reference flashcards (constants / formulas / concepts)
+// Generate COMPLETE reference flashcards (formulas and constants)
 // shaped for POST /api/reference-cards/ai-intake. Every field is required — no
 // bare symbols; the client previews + pre-validates, and the server
 // re-validates authoritatively and queues only complete cards for HUMAN review
 // (a wrong constant value is as damaging as a wrong answer key).
-//   kind: 'constant' | 'formula' | 'concept'
+//   kind: 'constant' | 'formula'
 //   topic: an EXACT topic name from the shared taxonomy (dynamicTOS[subject]).
-export const REFERENCE_SYSTEM = `You compile the formula, constant and concept flashcards for a Philippine Registered Electrical Engineer (REE) board exam reviewer. Every value, unit and formula must be exactly right: a wrong constant teaches the wrong number. Use SI units and the values in standard references (CODATA for physical constants, the PEC 2017 for code values, standard engineering handbooks). Never round a standard constant. If you are not sure of an entry, leave it out rather than guess. Write formulas in the form reviewees will meet on the board, and name the trap reviewees fall into with each one.`;
+export const REFERENCE_SYSTEM = `You compile the formula and constant flashcards for a Philippine Registered Electrical Engineer (REE) board exam reviewer. Every value, unit and formula must be exactly right: a wrong constant teaches the wrong number. Use SI units and the values in standard references (CODATA for physical constants, the PEC 2017 for code values, standard engineering handbooks). Never round a standard constant. If you are not sure of an entry, leave it out rather than guess. Write formulas in the form reviewees will meet on the board, and name the trap reviewees fall into with each one.`;
 
 const generateReferenceCardBatch = async (kind, subject, topic, count, existingNames, specificFocus) => {
     const seed = Math.floor(Math.random() * 10000);
@@ -295,9 +296,7 @@ const generateReferenceCardBatch = async (kind, subject, topic, count, existingN
     const focusDirective = specificFocus
         ? `\nSPECIFIC FOCUS: center every card on "${specificFocus}" (a finer slice of the topic).\n`
         : '';
-    const kindNoun = kind === 'constant' ? 'engineering constants/standard values'
-        : kind === 'formula' ? 'engineering formulas'
-        : 'engineering concepts';
+    const kindNoun = kind === 'constant' ? 'engineering constants/standard values' : 'engineering formulas';
 
     const prompt = `You are compiling an authoritative FLASHCARD reference for the Philippine Registered Electrical Engineer (REE) Board Exam, built for deep comprehension — not bare-symbol memorization.
     Generate EXACTLY ${count} COMPLETE ${kindNoun} flashcards for Subject: ${subject}, Topic: ${topic}.
@@ -315,7 +314,7 @@ const generateReferenceCardBatch = async (kind, subject, topic, count, existingN
         "valueUnit": ${kind === 'constant'
             ? '"REQUIRED — the exact value WITH units as LaTeX, WRAPPED IN $ DELIMITERS (e.g. \'$8.854\\\\times10^{-12}$ F/m\'); if genuinely dimensionless set dimensionless true instead of inventing a value"'
             : '"the unit of the result WRAPPED IN $ DELIMITERS (e.g. \'$\\\\Omega$\'), or null"'},
-        "description": "REQUIRED — 1-3 plain-language sentences on what the concept represents",
+        "description": "REQUIRED — 1-3 plain-language sentences on what it represents",
         "variables": [ { "symbol": "$f$", "meaning": "frequency", "unit": "$\\\\text{Hz}$" } ],
         "purposeExamTip": "REQUIRED — how it is applied in board problem-solving, plus one common trap/mistake to watch for",
         "subject": "${subject}",
@@ -331,6 +330,84 @@ const generateReferenceCardBatch = async (kind, subject, topic, count, existingN
 
     const rows = await callAI(prompt, true, { task: 'author', system: REFERENCE_SYSTEM, temperature: 0.3 });
     return Array.isArray(rows) ? rows : [];
+};
+
+// The card shape every card prompt asks for, kind aside (see the batch prompt
+// above for the field-by-field rules).
+const CARD_FIELDS = `{
+        "kind": "formula" or "constant",
+        "symbol": "short symbol in $ delimiters (e.g. '$X_c$'), or null",
+        "name": "full name (e.g. 'Capacitive Reactance')",
+        "formulaLatex": "for a formula: the expression as LaTeX in $ delimiters (e.g. '$X_c = \\\\frac{1}{2\\\\pi f C}$'); for a constant: null",
+        "valueUnit": "for a constant: the exact value with units in $ delimiters (e.g. '$8.854\\\\times10^{-12}$ F/m'); for a formula: the unit of the result in $ delimiters, or null",
+        "description": "1-3 plain sentences on what it represents",
+        "variables": [ { "symbol": "$f$", "meaning": "frequency", "unit": "$\\\\text{Hz}$" } ],
+        "purposeExamTip": "how it is used in board problems, and one common trap",
+        "subject": "<subject>",
+        "topic": "<one of the topics listed>",
+        "subtopicTag": "a finer tag within the topic, or null",
+        "dimensionless": false
+      }`;
+
+// Long PDF text goes in parts of this many characters, at most MAX_SOURCE_PARTS.
+const SOURCE_PART_CHARS = 24_000;
+const MAX_SOURCE_PARTS = 5;
+
+/**
+ * Admin › Formula cards › From a file: the formulas and constants in a
+ * reviewer (PDF text, or photos of its pages) as draft cards, in the same
+ * shape as generated ones, for the review queue. Each card's topic is snapped
+ * to the live taxonomy. `onProgress(part, of)`.
+ */
+export const generateReferenceCardsFromSource = async ({ subject, topic = null, topics = [], text = '', images = [], existingNames = [] }, onProgress) => {
+    const scope = topic
+        ? `Every card is for Subject: ${subject}, Topic: ${topic}. Set "topic" to exactly "${topic}".`
+        : `Every card is for Subject: ${subject}. Set "topic" to the one of these topics it belongs to, spelled exactly: ${topics.join(' | ')}.`;
+    const known = (existingNames || []).filter(Boolean).slice(0, 200);
+    const skip = known.length ? `\nAlready in the library, skip these: ${known.join('; ')}.` : '';
+    const instructions = `Read the reviewer material and turn every FORMULA and CONSTANT in it into a flashcard.
+    ${scope}
+    Rules:
+    1. Return ONLY one JSON object: {"items": [ ...cards ]}. Each card:
+      ${CARD_FIELDS}
+    2. Only formulas and constants. No definitions, theories or concepts as cards.
+    3. Copy values and formulas faithfully from the material; fix only obvious typos. Use standard values where the material is unreadable, and leave out anything you can't read or aren't sure of.
+    4. For a formula, "variables" covers every symbol in it (except the defined symbol and known constants like \\pi).
+    5. All math in $ delimiters, as valid KaTeX. Write peso amounts as ₱ outside math.
+    6. At most 15 cards per answer; prefer the ones board problems use most.${skip}`;
+
+    const finish = (rows) => (Array.isArray(rows) ? rows : [])
+        .filter((r) => r && (r.kind === 'formula' || r.kind === 'constant'))
+        .map((r) => ({ ...r, subject, topic: labelForGenerated(r.topic, { target: topic || 'All', topics }) }));
+
+    if (images.length) {
+        onProgress?.(1, 1);
+        const dataUrls = await Promise.all(images.map((img) => (typeof img === 'string' ? img : shrinkImage(img))));
+        const parts = dataUrls.map((url) => {
+            const [head, data] = String(url).split(',');
+            return { inlineData: { data, mimeType: /data:([^;]+)/.exec(head)?.[1] || 'image/jpeg' } };
+        });
+        const response = await callAITask('vision', [instructions, ...parts], { system: REFERENCE_SYSTEM, json: true, temperature: 0.1 });
+        return finish(asItems(parseAiJson(response.text)));
+    }
+
+    const clean = String(text || '').replace(/[ \t]+/g, ' ').trim();
+    if (!clean) return [];
+    const chunks = [];
+    for (let i = 0; i < clean.length && chunks.length < MAX_SOURCE_PARTS; i += SOURCE_PART_CHARS) chunks.push(clean.slice(i, i + SOURCE_PART_CHARS));
+    const out = [];
+    const seen = new Set(known.map((n) => String(n).toLowerCase().trim()));
+    for (let i = 0; i < chunks.length; i += 1) {
+        onProgress?.(i + 1, chunks.length);
+        const response = await callAITask('author', `${instructions}\n\nREVIEWER MATERIAL (part ${i + 1} of ${chunks.length}):\n${chunks[i]}`, { system: REFERENCE_SYSTEM, json: true, temperature: 0.2 });
+        for (const row of finish(asItems(parseAiJson(response.text)))) {
+            const key = String(row?.name || '').toLowerCase().trim();
+            if (key && seen.has(key)) continue;
+            seen.add(key);
+            out.push(row);
+        }
+    }
+    return out;
 };
 
 // Up to 6 cards per request; a larger count runs as several requests in turn,

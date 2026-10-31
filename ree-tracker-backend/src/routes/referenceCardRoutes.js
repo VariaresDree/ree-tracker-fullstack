@@ -29,7 +29,7 @@ const {
 
 router.use(authMiddleware);
 
-const { CARD_SELECT } = require('../services/referenceCardView');
+const { CARD_SELECT, LEARNER_CARD_WHERE } = require('../services/referenceCardView');
 
 // Content snapshot for the audit trail (excludes ids/timestamps/status).
 function cardSnapshot(card) {
@@ -83,12 +83,12 @@ async function toCardData(payload) {
 
 // ── Reads ────────────────────────────────────────────────────────────────────
 
-// GET /api/reference-cards — every LIVE card (any authed user; cached client-side
-// for offline).
+// GET /api/reference-cards — every LIVE formula and constant (any authed user;
+// cached client-side for offline). Concept cards are admin-only now.
 router.get('/', async (req, res) => {
     try {
         const items = await prisma.referenceCard.findMany({
-            where: { status: 'LIVE' },
+            where: LEARNER_CARD_WHERE,
             select: CARD_SELECT,
             orderBy: [{ subject: 'asc' }, { name: 'asc' }],
         });
@@ -124,6 +124,24 @@ router.get('/pending', requireAdmin, async (req, res) => {
     } catch (error) {
         logger.error('pending cards fetch failed', { error: error.message });
         return res.status(500).json({ error: 'Failed to fetch pending cards.' });
+    }
+});
+
+// GET /api/reference-cards/retired — live concept cards, which learners no
+// longer see (formula cards are formulas and constants only). Admin › Formula
+// cards lists them so each can be re-typed as a formula or a constant, or
+// deleted.
+router.get('/retired', requireAdmin, async (req, res) => {
+    try {
+        const items = await prisma.referenceCard.findMany({
+            where: { status: 'LIVE', kind: 'concept' },
+            select: CARD_SELECT,
+            orderBy: [{ subject: 'asc' }, { name: 'asc' }],
+        });
+        return res.status(200).json({ items });
+    } catch (error) {
+        logger.error('retired cards fetch failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to fetch retired cards.' });
     }
 });
 

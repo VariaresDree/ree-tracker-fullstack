@@ -8,6 +8,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchReferenceCards, fetchReferenceSources } from '../../services/dbQueries';
 
+// Formula cards are formulas and constants. The server no longer sends concept
+// cards, but a copy cached on this device before that change may hold some.
+export const LEARNER_KINDS = ['formula', 'constant'];
+export const learnerCards = (items) => (Array.isArray(items) ? items.filter((c) => LEARNER_KINDS.includes(c?.kind)) : []);
+
 export function useReferenceCards() {
     const [cards, setCards] = useState([]);
     const [sources, setSources] = useState([]);
@@ -28,7 +33,7 @@ export function useReferenceCards() {
         // Serves the IDB cache transparently when offline; an offline user with
         // no cache yet gets [] (the tab renders its empty state).
         fetchReferenceCards()
-            .then((items) => { if (!ignore) { setCards(Array.isArray(items) ? items : []); setLoadError(false); } })
+            .then((items) => { if (!ignore) { setCards(learnerCards(items)); setLoadError(false); } })
             .catch(() => { if (!ignore) setLoadError(true); }) // online but failed — keep what we had
             .finally(() => { if (!ignore) setLoading(false); });
         // Sources are decorative (citation line) — fine without them offline.
