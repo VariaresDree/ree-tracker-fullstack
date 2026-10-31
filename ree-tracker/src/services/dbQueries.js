@@ -3,14 +3,15 @@ import { auth } from '../config/firebaseDb';
 import { invalidateDashboardSeed } from './dashboardSeed';
 import { fnv1a } from '../utils/contentHash';
 import { DEFAULT_SYLLABUS_WEIGHTS, OPTION_ORDER_VERSION, fallbackDisplayName } from '@ree/shared';
+import { shouldShortCircuit, noteNetworkFailure, noteBackendAnswered } from './connection';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
 // ============================================================================
 // API CORE: Circuit Breaker + Secure Fetch Wrapper
 // ============================================================================
-let _backendUp = true;
-let _lastCheck = 0;
-const COOLDOWN = 30_000;
+// The breaker's state lives in services/connection.js: after a network
+// failure requests fail fast, but one real request may go through every few
+// seconds, and the first answer brings the app back without a reload.
 
 // Build a stable idempotency key for a mutating request body. Same body =
 // same key — with NO time component, so a retry minutes later still replays
@@ -29,8 +30,8 @@ const idempotencyKey = (method, body) => {
 
 // Hard request timeout. Without it a stalled backend leaves loading UIs
 // hanging forever. 12s covers slow 3G round-trips; Render free-tier cold
-// starts can exceed it, but the circuit breaker's 30s cooldown + the offline
-// queue's retry absorb that — raise toward 25s if cold-start aborts show up
+// starts can exceed it, but the circuit breaker (services/connection) and the
+// offline queue's retry absorb that — raise toward 25s if cold-start aborts show up
 // in practice. Long-running endpoints (AI generation) pass their own
 // `timeoutMs`; those aborts do NOT trip the circuit breaker.
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -46,16 +47,16 @@ export const isNetworkAuthError = (err) => {
     return code === 'auth/network-request-failed' || msg.includes('network-request-failed');
 };
 
-export const getAuthToken = async (user) => {
+export const getAuthToken = async (user, forceRefresh = false) => {
     try {
-        return await user.getIdToken();
+        return await user.getIdToken(forceRefresh);
     } catch (err) {
         if (isNetworkAuthError(err)) throw new Error('[OFFLINE]', { cause: err });
         throw err;
     }
 };
 
-export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS, idempotencyKey: idempotencyKeyOverride = null } = {}) => {
+export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS, idempotencyKey: idempotencyKeyOverride = null, freshToken = false } = {}) => {
     const user = auth.currentUser;
     if (!user) throw new Error("You're signed out. Sign in again to continue.");
 
@@ -63,11 +64,11 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     // (pack fallback, outbox) understands — before auth can throw raw.
     if (!navigator.onLine) throw new Error('[OFFLINE]');
 
-    if (!_backendUp && Date.now() - _lastCheck < COOLDOWN) {
+    if (shouldShortCircuit()) {
         throw new Error('[OFFLINE]');
     }
 
-    const token = await getAuthToken(user);
+    const token = await getAuthToken(user, freshToken);
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
 
     const headers = {
@@ -102,8 +103,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     } catch {
         // A timeout on a LONG-timeout call (AI generation) means "this request
         // was slow", not "the backend is down" — surface it without tripping
-        // the circuit breaker, or one slow generation blocks every API call
-        // for the next 30 seconds.
+        // the circuit breaker, or one slow generation blocks every API call.
         if (didTimeout && timeoutMs > REQUEST_TIMEOUT_MS) {
             throw new Error('[TIMEOUT]');
         }
@@ -111,14 +111,20 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         // connection refused, default-timeout abort, etc.) — never on HTTP
         // error responses, which we surface to the caller via the normal error
         // path below. Writes are retry-safe thanks to the idempotency key.
-        _backendUp = false;
-        _lastCheck = Date.now();
+        noteNetworkFailure();
         throw new Error('[OFFLINE]');
     } finally {
         clearTimeout(timeoutHandle);
     }
 
-    _backendUp = true;
+    noteBackendAnswered();
+
+    // An ID token can be refused when it expired while the device slept or
+    // was offline (Firebase refreshes it on a timer that may not have run).
+    // One more try with a token fetched fresh, then the 401 stands.
+    if (response.status === 401 && !freshToken) {
+        return apiRequest(endpoint, method, body, { timeoutMs, idempotencyKey: idempotencyKeyOverride || idemKey, freshToken: true });
+    }
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -491,14 +497,17 @@ export const requestRematch = async (battleId) => apiRequest(`/api/battles/${enc
 // ----------------------------------------------------------------------
 // 6. System Configuration & Bookmarks
 // ----------------------------------------------------------------------
+// The TOS and the flags load at boot beside the profile, which waits out a
+// Render cold start (BOOT_TIMEOUT_MS). With the 12 s default they used to
+// abort first and trip the breaker, failing the whole first screen.
 export const fetchDynamicTOS = async () => {
-    try { return await apiRequest('/api/config/tos'); } catch { return null; }
+    try { return await apiRequest('/api/config/tos', 'GET', null, { timeoutMs: BOOT_TIMEOUT_MS }); } catch { return null; }
 };
 // Feature flags (Phase 4.1): { [key]: { enabled, payload } }. Null on failure —
 // callers keep whatever cached flags the store already holds (flags default off).
 export const fetchFeatureFlags = async () => {
     try {
-        const res = await apiRequest('/api/config/flags');
+        const res = await apiRequest('/api/config/flags', 'GET', null, { timeoutMs: BOOT_TIMEOUT_MS });
         return res?.flags ?? null;
     } catch { return null; }
 };

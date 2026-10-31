@@ -14,6 +14,8 @@ export function useBattleSocket(battleId) {
     // different battle starts clear without a reset in the effect.
     const [failedFor, setFailedFor] = useState(null);
     const connectionFailed = !!battleId && failedFor === battleId;
+    // Bumped by reconnect() to open a new connection without reloading the page.
+    const [attemptKey, setAttemptKey] = useState(0);
     const [participants, setParticipants] = useState([]);
     const [battleStatus, setBattleStatus] = useState(null);
     const [battleConfig, setBattleConfig] = useState(null);
@@ -54,16 +56,23 @@ export function useBattleSocket(battleId) {
         // If we haven't connected within 10s (offline / server unreachable),
         // surface a failure state so the UI can offer a retry.
         let failTimer = setTimeout(() => { if (!cancelled) setFailedFor(battleId); }, 10000);
+        let retryTimer = null;
 
         const connect = async () => {
             const user = auth.currentUser;
             if (!user) { clearTimeout(failTimer); if (!cancelled) setFailedFor(battleId); return; }
 
-            const token = await user.getIdToken();
+            await user.getIdToken();
             if (cancelled) return; // torn down during the await — don't open a socket
 
             const socket = io(`${BACKEND_URL}/battle`, {
-                auth: { token },
+                // A function, so every reconnect sends a current token. A token
+                // fixed at the first connect expired after an hour, the server
+                // refused the reconnect, and only a reload got back in.
+                auth: (cb) => {
+                    (auth.currentUser || user).getIdToken()
+                        .then((token) => cb({ token }), () => cb({}));
+                },
                 transports: ['websocket', 'polling']
             });
 
@@ -76,10 +85,22 @@ export function useBattleSocket(battleId) {
                 socket.emit('join-battle', { battleId });
             });
 
-            socket.on('disconnect', () => setConnected(false));
+            // Dropped after connecting: the same 10 s before saying so (the
+            // timer used to arm only once, so a later drop spun forever).
+            socket.on('disconnect', () => {
+                setConnected(false);
+                clearTimeout(failTimer);
+                failTimer = setTimeout(() => { if (!cancelled && !socket.connected) setFailedFor(battleId); }, 10000);
+            });
 
             socket.on('connect_error', () => {
                 setConnected(false);
+                // A refusal from the server (an expired token) stops socket.io's
+                // own retries; try again shortly, with a fresh token.
+                if (!socket.active && !cancelled) {
+                    clearTimeout(retryTimer);
+                    retryTimer = setTimeout(() => { if (!cancelled) socket.connect(); }, 3000);
+                }
             });
 
             const takeTiming = (t) => {
@@ -151,12 +172,19 @@ export function useBattleSocket(battleId) {
         return () => {
             cancelled = true;
             clearTimeout(failTimer);
+            clearTimeout(retryTimer);
             if (socketRef.current) {
                 socketRef.current.disconnect();
                 socketRef.current = null;
             }
         };
-    }, [battleId]);
+    }, [battleId, attemptKey]);
+
+    /** Open a new connection (the "Try again" on the can't-connect screen). */
+    const reconnect = useCallback(() => {
+        setFailedFor(null);
+        setAttemptKey((k) => k + 1);
+    }, []);
 
     const startBattle = useCallback(() => {
         socketRef.current?.emit('start-battle', { battleId });
@@ -191,6 +219,7 @@ export function useBattleSocket(battleId) {
     return {
         connected,
         connectionFailed,
+        reconnect,
         participants,
         battleStatus,
         battleConfig,

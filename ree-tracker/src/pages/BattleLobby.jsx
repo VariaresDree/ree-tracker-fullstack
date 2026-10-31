@@ -26,6 +26,7 @@ function BattleRoom({ battleId }) {
     const {
         connected,
         connectionFailed,
+        reconnect,
         participants,
         battleStatus,
         battleConfig,
@@ -117,7 +118,7 @@ function BattleRoom({ battleId }) {
                     description={isOnline
                         ? 'The live battle server is unreachable right now. Check your connection and try again.'
                         : 'Live battles need an internet connection. Reconnect, then retry.'}
-                    action={<Button onClick={() => window.location.reload()}>Retry</Button>}
+                    action={<Button onClick={reconnect}>Reconnect</Button>}
                 />
             </Page>
         );

@@ -150,7 +150,11 @@ export default defineConfig(async ({ mode, command }) => {
         ]
       : []),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt', not 'autoUpdate': autoUpdate reloaded the page the moment a
+      // new version activated, mid-question or mid-exam. Now the new version
+      // waits: it applies on the next launch, or now from the "new version"
+      // toast (main.jsx).
+      registerType: 'prompt',
       // The icons are drawn from the mark's geometry by
       // scripts/brand/build-icons.mjs; "any" icons keep their rounded tile,
       // maskable ones fill the square with the mark inside the safe circle.

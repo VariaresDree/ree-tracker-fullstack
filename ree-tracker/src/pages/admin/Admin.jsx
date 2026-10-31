@@ -8,7 +8,8 @@
 // "Module Library" — with the AI ingestion visible to every learner.
 // Reached through routes/AdminRoute; every tab body is lazy, so a learner's
 // device never downloads any of it.
-import { lazy, Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { lazy } from '../../utils/lazyWithRetry';
 import { useAuth } from '../../contexts/AuthContext';
 import useTabParam from '../../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../../components/ui';

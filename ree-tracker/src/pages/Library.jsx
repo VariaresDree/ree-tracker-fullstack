@@ -7,7 +7,8 @@
 // The tab lives in ?tab=; an old /materials deep link arrives with
 // { search, kind } state for the formula cards (routes/legacyRoutes.js), or
 // { subject, topic } to open them at a topic (features/reference/topicCards.js).
-import { lazy, Suspense, useRef, useState } from 'react';
+import { Suspense, useRef, useState } from 'react';
+import { lazy } from '../utils/lazyWithRetry';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';

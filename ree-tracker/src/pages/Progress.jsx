@@ -13,7 +13,8 @@
 // These were spread over the old Dashboard, Profile's "Comparative analytics"
 // and "Deep analytics", and the planner. The tab lives in ?tab=, and each tab
 // is its own chunk, so recharts loads only where a chart is drawn.
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { lazy } from '../utils/lazyWithRetry';
 import { useAuth } from '../contexts/AuthContext';
 import useTabParam from '../hooks/useTabParam';
 import { useDashboardStats } from '../hooks/useDashboardStats';

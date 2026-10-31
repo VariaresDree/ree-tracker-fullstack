@@ -1,10 +1,13 @@
 // src/components/OfflineStatusBadge.jsx
 // Compact connectivity + offline-readiness indicator for the app shell. Shows:
-//   • online / offline state,
+//   • online / reconnecting / offline: "Reconnecting…" when the device is
+//     online but the server isn't answering (it's waking up, or the network
+//     blipped); it clears by itself when the server answers,
 //   • how many items are cached for offline sessions (and their freshness),
 //   • a count of unsynced attempts / deferred writes still waiting to upload,
 //   • a one-tap "Download" to (re)build the offline pack.
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useConnection } from '../hooks/useConnection';
 import { useOfflinePack } from '../hooks/useOfflinePack';
 import { useStore } from '../store/useStore';
 import SyncIssues from './SyncIssues';
@@ -21,6 +24,9 @@ const relTime = (ts) => {
 
 export default function OfflineStatusBadge({ collapsed = false }) {
     const isOnline = useNetworkStatus();
+    const { backendUp } = useConnection();
+    const reconnecting = !isOnline && !backendUp && navigator.onLine;
+    const state = isOnline ? 'Online' : reconnecting ? 'Reconnecting…' : 'Offline';
     const { meta, isRefreshing, refresh } = useOfflinePack();
     // Counts, not the queues: a queue whose contents change at the same
     // length (a write replaced by a newer one) no longer re-renders the badge.
@@ -31,7 +37,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
 
     // The same words for the collapsed rail and the full badge. The rail's state
     // lived only in a hover title, which a screen reader never got.
-    const summary = `${isOnline ? 'Online' : 'Offline'} · ${ready ? `${total} questions saved for offline` : 'no offline pack'}${pending ? ` · ${pending} waiting to sync` : ''}${issues ? ` · ${issues} sync issue${issues === 1 ? '' : 's'}` : ''}`;
+    const summary = `${state} · ${ready ? `${total} questions saved for offline` : 'no offline pack'}${pending ? ` · ${pending} waiting to sync` : ''}${issues ? ` · ${issues} sync issue${issues === 1 ? '' : 's'}` : ''}`;
 
     if (collapsed) {
         return (
@@ -41,8 +47,8 @@ export default function OfflineStatusBadge({ collapsed = false }) {
             >
                 {/* Only the connection is announced as it changes; the counts
                     are there to read, not called out on every answer. */}
-                <span className="sr-only" role="status">{isOnline ? 'Online' : 'Offline'}</span>
-                <span className="sr-only">{summary.replace(/^(Online|Offline) · /, '')}</span>
+                <span className="sr-only" role="status">{state}</span>
+                <span className="sr-only">{summary.slice(state.length + 3)}</span>
                 <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-reeGreen' : 'bg-reeAmber'} ${!isOnline ? 'animate-pulse' : ''}`} />
                 {pending > 0 && (
                     <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-reeAmber text-[10px] font-bold tabular-nums text-bg flex items-center justify-center">
@@ -59,7 +65,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                 <div className="flex items-center gap-2" role="status">
                     <span aria-hidden="true" className={`w-2 h-2 rounded-full ${isOnline ? 'bg-reeGreen' : 'bg-reeAmber animate-pulse'}`} />
                     <span className="text-xs font-semibold uppercase tracking-wider text-textMain">
-                        {isOnline ? 'Online' : 'Offline'}
+                        {state}
                     </span>
                 </div>
                 {pending > 0 && (

@@ -10,12 +10,22 @@ const fakeSocket = {
   emit: vi.fn(),
   disconnect: vi.fn(),
 };
-vi.mock('socket.io-client', () => ({ io: () => fakeSocket }));
+let ioOptions = null;
+vi.mock('socket.io-client', () => ({ io: (url, opts) => { ioOptions = opts; return fakeSocket; } }));
 vi.mock('../config/firebaseDb', () => ({ auth: { currentUser: { getIdToken: async () => 'tok' } } }));
 
 const { useBattleSocket } = await import('./useBattleSocket');
 
 describe('useBattleSocket', () => {
+  it('sends a current token on every connect, not one fixed at the first', async () => {
+    renderHook(() => useBattleSocket('ABC127'));
+    await waitFor(() => expect(ioOptions).not.toBeNull());
+    expect(typeof ioOptions.auth).toBe('function');
+    const cb = vi.fn();
+    ioOptions.auth(cb);
+    await waitFor(() => expect(cb).toHaveBeenCalledWith({ token: 'tok' }));
+  });
+
   it('keeps a submit made while disconnected and sends it after rejoining', async () => {
     const { result } = renderHook(() => useBattleSocket('ABC123'));
     await waitFor(() => expect(handlers['lobby-update']).toBeDefined());

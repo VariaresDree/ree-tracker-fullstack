@@ -1,5 +1,6 @@
 // src/App.jsx
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { lazy } from './utils/lazyWithRetry';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthProvider';
 import { useAuth } from './contexts/AuthContext';

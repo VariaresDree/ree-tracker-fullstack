@@ -5,7 +5,8 @@
 // papers to get through, the CELE tracker's "Progress check"). The choice is
 // in the URL (`?view=sets`), so it survives a reload and can be linked; the
 // tab id stays `syllabus`.
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { lazy } from '../../utils/lazyWithRetry';
 import { useSearchParams } from 'react-router-dom';
 import { SegmentedControl, Skeleton } from '../../components/ui';
 import SyllabusTab from './SyllabusTab';
