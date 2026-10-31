@@ -15,11 +15,15 @@ import { useAppearance } from '../hooks/useAppearance';
 import Sidebar from './Sidebar';
 import PhoneHeader from './PhoneHeader';
 import BottomBar from './BottomBar';
+import { applyUpdateIfSafe } from '../services/appUpdate';
 
 export default function MainLayout({ children }) {
   // The theme and background (hooks/useAppearance; /focus uses it too).
   useAppearance();
   const location = useLocation();
+  // A move to a calm screen is a safe moment to load a new version of the
+  // app that has arrived (services/appUpdate); a no-op when there is none.
+  useEffect(() => { applyUpdateIfSafe({ pathname: location.pathname }); }, [location.pathname]);
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
   // A new page starts at its top — or at the section a link points to
