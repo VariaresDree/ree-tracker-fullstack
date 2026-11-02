@@ -176,7 +176,7 @@ describe('the learner’s own rating and the high-yield flag (step 4)', () => {
     });
 });
 
-describe('admin: the high-yield flag', () => {
+describe('the high-yield flag', () => {
     function configApp() {
         delete require.cache[require.resolve('../src/routes/configRoutes')];
         const app = express();
@@ -185,9 +185,10 @@ describe('admin: the high-yield flag', () => {
         return app;
     }
 
-    it('a learner can neither list nor set it', async () => {
-        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ role: 'USER' });
-        expect((await request(configApp()).get('/api/config/topics').set(as(UID))).status).toBe(403);
-        expect((await request(configApp()).put('/api/config/topics/t1').set(as(UID)).send({ highYield: true })).status).toBe(403);
+    // The admin section was removed (2026-11); the flag can't be set from the app.
+    it('has no admin routes left', async () => {
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ role: 'ADMIN' });
+        expect((await request(configApp()).get('/api/config/topics').set(as(UID))).status).toBe(404);
+        expect((await request(configApp()).put('/api/config/topics/t1').set(as(UID)).send({ highYield: true })).status).toBe(404);
     });
 });

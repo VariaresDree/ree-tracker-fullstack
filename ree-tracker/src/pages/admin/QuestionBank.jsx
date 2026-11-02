@@ -18,7 +18,6 @@ import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
 import AnswerPositions from '../../features/admin/AnswerPositions';
-import HighYieldTopics from '../../features/admin/HighYieldTopics';
 import { SectionHeader } from '../../components/ui';
 
 export default function QuestionBank() {
@@ -76,7 +75,6 @@ export default function QuestionBank() {
 
       <AnswerPositions />
 
-      <HighYieldTopics />
 
       <LibraryOverview 
         serverStats={serverStats}

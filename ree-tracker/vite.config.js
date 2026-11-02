@@ -85,8 +85,8 @@ export default defineConfig(async ({ mode, command }) => {
           // react-router (v7's core, which react-router-dom re-exports) too:
           // it used to fall outside the vendor chunk.
           if (/[\\/]react-router(-dom)?[\\/]/.test(id) || /[\\/]react(-dom)?[\\/]/.test(id)) return 'react';
-          // NO manual chunk for recharts, for the same reason as the PDF path
-          // below: naming a chunk makes rolldown emit it as a STATIC import of
+          // NO manual chunk for recharts, for the same reason as jsPDF and pdf.js:
+          // naming a chunk makes rolldown emit it as a STATIC import of
           // the entry, even when every consumer sits behind React.lazy().
           // All four do — ThetaVelocityChart and MockBoardAnalytics via
           // Dashboard.jsx, AnalyticsDeepDive via Profile.jsx, CalibrationCurve
@@ -103,7 +103,6 @@ export default defineConfig(async ({ mode, command }) => {
           // import of the entry, and Storage is used only by the handouts
           // uploader (features/materials/useFileManager), which is lazy.
           if (id.includes('firebase') && !/[\\/]@?firebase[\\/]storage/.test(id)) return 'firebase';
-          if (id.includes('pdfjs-dist')) return 'pdf';
           if (id.includes('socket.io-client')) return 'socket';
           // NO manual chunk for KaTeX + the markdown pipeline. Third time this
           // trap has been found in this file, and by far the most expensive:

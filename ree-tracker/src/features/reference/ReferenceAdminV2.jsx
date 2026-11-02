@@ -25,7 +25,7 @@ import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search 
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
 import { generateReferenceCardsAI, generateReferenceCardsFromSource } from '../../services/geminiApi';
-import PdfWorker from '../library/pdfWorker?worker';
+import { readPdfText } from '../library/readPdfText';
 import AiStatusNote from '../../components/AiStatusNote';
 import {
     fetchReferenceCards, fetchPendingReferenceCards, fetchReferenceCardDebt,
@@ -49,19 +49,6 @@ const MAX_FILE_IMAGES = 6;
 const PDF_PAGES = 40;
 const nameKey = (n) => String(n || '').toLowerCase().trim();
 
-/** A PDF's text, read off the main thread (features/library/pdfWorker). */
-function readPdfText(file, onProgress) {
-    return file.arrayBuffer().then((arrayBuffer) => new Promise((resolve, reject) => {
-        const worker = new PdfWorker();
-        worker.onmessage = (e) => {
-            const { type, text, message, error } = e.data;
-            if (type === 'progress') { onProgress?.(message); return; }
-            worker.terminate();
-            if (type === 'success') resolve(text); else reject(new Error(error || "Couldn't read the PDF."));
-        };
-        worker.postMessage({ arrayBuffer, maxPages: PDF_PAGES });
-    }));
-}
 // Live Cards toolbar. "Difficulty / Priority" was requested but ReferenceCard
 // has no such column — Type and Needs-attention are the two sorts that
 // actually read from real fields and are useful for an admin list: group by
@@ -407,7 +394,7 @@ export default function ReferenceAdminV2() {
             ]);
             const existing = [...liveCards, ...pendingCards].filter((c) => c.subject === aiSubject).map((c) => c.name);
             const isPdf = aiFiles[0].type === 'application/pdf';
-            const text = isPdf ? await readPdfText(aiFiles[0], (m) => toast.loading(m, { id: toastId })) : '';
+            const text = isPdf ? await readPdfText(aiFiles[0], { maxPages: PDF_PAGES, onProgress: (m) => toast.loading(m, { id: toastId }) }) : '';
             const rows = await generateReferenceCardsFromSource(
                 { subject: aiSubject, topic: aiTopic || null, topics: aiTopics, text, images: isPdf ? [] : aiFiles, existingNames: existing },
                 (n, of) => toast.loading(of > 1 ? `Finding formulas and constants, part ${n} of ${of}…` : 'Finding formulas and constants…', { id: toastId }),
