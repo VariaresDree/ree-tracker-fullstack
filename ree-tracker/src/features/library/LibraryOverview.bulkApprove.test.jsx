@@ -57,6 +57,7 @@ const makeQueue = (n) =>
     text: `Question ${i}`,
     options: ['A', 'B', 'C', 'D'],
     answer: 'A',
+    fixedExplanation: 'Worked.',
   }));
 
 describe('LibraryOverview — Accept All chunking', () => {

@@ -31,12 +31,14 @@ function stripFences(text) {
 // Rules (tuned for board-exam LaTeX):
 //   - \" \\ \/ and \uXXXX are always kept.
 //   - \t \f \r \b followed by a letter are LaTeX commands, so doubled.
-//   - \n is kept: real newlines are common, and the rare \nabla / \neq
-//     degrades to a newline rather than breaking every explanation.
+//   - \n is a real newline, unless it spells \neq, \nu, \nabla or \not.
 //   - Any other \x is doubled.
-// A compliant payload (already double-escaped) comes out unchanged.
-const KEEP_ALWAYS = new Set(['"', '\\', '/', 'n']);
+// A compliant payload (already double-escaped) comes out unchanged, so this
+// runs on every answer: \frac alone is legal JSON, and a parse that succeeds
+// says nothing about whether the math survived.
+const KEEP_ALWAYS = new Set(['"', '\\', '/']);
 const CONTROL_VS_LATEX = new Set(['t', 'f', 'r', 'b']);
+const LATEX_AFTER_N = /^n(?:eq|u|abla|ot)(?![a-zA-Z])/;
 
 function repairJsonEscapes(text) {
     let out = '';
@@ -47,7 +49,10 @@ function repairJsonEscapes(text) {
         if (KEEP_ALWAYS.has(next)) {
             out += ch + next;
             i += 1;
-        } else if (next === 'u' && /^[0-9a-fA-F]{4}$/.test(text.slice(i + 2, i + 6))) {
+        } else if (next === 'n' && !LATEX_AFTER_N.test(text.slice(i + 1, i + 8))) {
+            out += ch + next;
+            i += 1;
+        } else if (next === 'u' &&/^[0-9a-fA-F]{4}$/.test(text.slice(i + 2, i + 6))) {
             out += text.slice(i, i + 6);
             i += 5;
         } else if (CONTROL_VS_LATEX.has(next) && !/[a-zA-Z]/.test(text[i + 2] ?? '')) {
@@ -62,12 +67,13 @@ function repairJsonEscapes(text) {
 
 /**
  * The outermost JSON object or array in `text`, skipping prose around it.
- * Returns { json, complete }: `complete` is false when the brackets never
- * close (an answer cut off mid-way).
+ * Returns { json, complete, end }: `complete` is false when the brackets never
+ * close (an answer cut off mid-way); `end` is where to look for the next one.
  */
-function extractJson(text) {
-    const start = text.search(/[[{]/);
-    if (start === -1) return { json: '', complete: false };
+function extractJson(text, from = 0) {
+    const offset = text.slice(from).search(/[[{]/);
+    if (offset === -1) return { json: '', complete: false, end: text.length };
+    const start = from + offset;
     const stack = [];
     let inString = false;
     for (let i = start; i < text.length; i++) {
@@ -80,12 +86,26 @@ function extractJson(text) {
         if (ch === '"') inString = true;
         else if (ch === '{' || ch === '[') stack.push(ch === '{' ? '}' : ']');
         else if (ch === '}' || ch === ']') {
-            if (stack.pop() !== ch) return { json: text.slice(start, i + 1), complete: false };
-            if (stack.length === 0) return { json: text.slice(start, i + 1), complete: true };
+            if (stack.pop() !== ch) return { json: text.slice(start, i + 1), complete: false, end: i + 1 };
+            if (stack.length === 0) return { json: text.slice(start, i + 1), complete: true, end: i + 1 };
         }
     }
-    return { json: text.slice(start), complete: false };
+    return { json: text.slice(start), complete: false, end: text.length };
 }
+
+function parseRepaired(json) {
+    try {
+        return { value: JSON.parse(repairJsonEscapes(json)) };
+    } catch {
+        return null;
+    }
+}
+
+// What a model's answer is: an object, or a list of them. "[10]" in the
+// sentence before the answer is valid JSON too, and isn't one.
+const isAnswerShape = (value) => (Array.isArray(value)
+    ? value.every((item) => item && typeof item === 'object')
+    : !!value && typeof value === 'object');
 
 /**
  * Read a model's JSON answer. Returns { ok: true, value, text } where `text`
@@ -95,20 +115,33 @@ function extractJson(text) {
 function parseModelJson(raw) {
     const clean = stripFences(raw);
     if (!clean) return { ok: false, reason: 'empty', message: 'The answer was empty.' };
-    try {
-        return { ok: true, value: JSON.parse(clean), text: clean };
-    } catch (firstErr) {
-        const { json, complete } = extractJson(clean);
-        if (!json) return { ok: false, reason: 'invalid', message: 'The answer had no JSON in it.' };
-        for (const candidate of [json, repairJsonEscapes(json)]) {
-            try {
-                const value = JSON.parse(candidate);
-                return { ok: true, value, text: candidate === clean ? clean : JSON.stringify(value) };
-            } catch { /* try the next repair */ }
-        }
-        if (!complete) return { ok: false, reason: 'truncated', message: 'The answer was cut off before it finished.' };
-        return { ok: false, reason: 'invalid', message: `The answer wasn't valid JSON (${firstErr.message}).` };
+    const whole = parseRepaired(clean);
+    if (whole) return { ok: true, value: whole.value, text: repairJsonEscapes(clean) === clean ? clean : JSON.stringify(whole.value) };
+
+    let found = extractJson(clean);
+    if (!found.json) return { ok: false, reason: 'invalid', message: 'The answer had no JSON in it.' };
+    while (found.json) {
+        const part = parseRepaired(found.json);
+        if (part && isAnswerShape(part.value)) return { ok: true, value: part.value, text: JSON.stringify(part.value) };
+        if (!found.complete) return { ok: false, reason: 'truncated', message: 'The answer was cut off before it finished.' };
+        found = extractJson(clean, found.end);
     }
+    return { ok: false, reason: 'invalid', message: "The answer wasn't valid JSON." };
 }
 
-module.exports = { parseModelJson, repairJsonEscapes, stripModelJsonFences: stripFences };
+/**
+ * Put back the backslashes an earlier parse swallowed from text already stored
+ * ("\frac" saved as a form feed + "rac"). Text without such damage comes back
+ * as it went in; a lone tab or line break stays.
+ */
+function repairSwallowedLatex(value) {
+    if (typeof value !== 'string') return value;
+    return value
+        .replace(/\f/g, '\\f')
+        .replace(/[\b]/g, '\\b')
+        .replace(/\t(?=[a-zA-Z])/g, '\\t')
+        .replace(/\r(?=[a-zA-Z])/g, '\\r')
+        .replace(/\n(?=(?:eq|u|abla|ot)(?![a-zA-Z]))/g, '\\n');
+}
+
+module.exports = { parseModelJson, repairJsonEscapes, repairSwallowedLatex, stripModelJsonFences: stripFences };

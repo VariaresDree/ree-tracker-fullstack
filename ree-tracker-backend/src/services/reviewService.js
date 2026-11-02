@@ -9,7 +9,7 @@ const { randomUUID } = require('crypto');
 const { resolveQuestionTopic } = require('./topicResolver');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
 const { sanitizeOptions, stripChoicePrefix, matchOption } = require('../utils/sanitizeOptions');
-const { orderOptions } = require('@ree/shared');
+const { orderOptions, hasUnbalancedMath } = require('@ree/shared');
 
 /**
  * The order a new question's choices are stored in: an unbiased shuffle (the
@@ -154,6 +154,8 @@ function isBulkEligible(row) {
     if (!Array.isArray(options) || options.length < 2) return false;
     const answer = stripChoicePrefix(row.answer);
     if (typeof answer !== 'string' || answer.trim().length === 0) return false;
+    if (typeof row.fixedExplanation !== 'string' || row.fixedExplanation.trim().length === 0) return false;
+    if ([row.text, ...options, row.fixedExplanation].some(hasUnbalancedMath)) return false;
     return matchOption(answer, options) !== null;
 }
 

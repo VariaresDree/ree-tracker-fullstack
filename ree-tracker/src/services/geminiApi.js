@@ -14,7 +14,7 @@ import { apiRequest } from './dbQueries';
 import { labelForGenerated } from '../utils/topicLabels';
 import { useStore } from '../store/useStore';
 import { sanitizeGeneratedBatch } from '../utils/sanitizeOptions';
-import { BOARD_EXAM_SYSTEM, VERIFY_SYSTEM, buildQuestionPrompt, buildVerifyPrompt, applyVerification } from './aiPrompts';
+import { BOARD_EXAM_SYSTEM, VERIFY_SYSTEM, EXPLANATION_RULES, MATH_RULES, JSON_MATH_RULE, buildQuestionPrompt, buildVerifyPrompt, applyVerification } from './aiPrompts';
 
 // Reading a model's JSON lives in @ree/shared (modelJson.js): the server
 // already checked the answer with the same routine before passing it on, so
@@ -166,11 +166,16 @@ export const getStrictRules = (subject, targetSubtopic, topics = liveTopicsFor(s
     ${subtopicRule}
     4. The "answer" field MUST contain the EXACT full string value of the correct option.
     5. Evaluate the cognitive load of the question. Assign a "difficulty" rating: 1 (Foundational/Easy), 2 (Core/Medium), or 3 (Complex/Hard).
-    6. Format ALL mathematical formulas and variables using standard Markdown LaTeX (e.g., $V = I \\times R$).
-    7. Provide a "fixedExplanation" for EVERY question detailing the step-by-step mathematical derivation in Markdown LaTeX.
+    6. Format ALL mathematical formulas and variables as below.
+    7. Provide a "fixedExplanation" for EVERY question, as below.
     8. ZERO-HALLUCINATION POLICY: When extracting data from technical charts (especially logarithmic graphs, X/R ratios, or PEC tables), you MUST explicitly state the exact plotted intersection in the explanation. DO NOT round standard engineering constants. If a chart intersection is 37, return 37, not 40.
     9. OPTION FORMATTING: Each string in "options" — and the "answer" — MUST contain ONLY the choice's content. NEVER prefix a choice with an enumerator label such as "A.", "B)", "(C)", or "D:". The interface renders the A/B/C/D labels automatically; a baked-in label is a formatting error that renders as a duplicate ("A. A. ...").
     10. OPTION ORDER: The options are shuffled for every sitting, so their order means nothing. Put the correct option at a random position, not first. In the explanation, refer to an option by its content, NEVER by its letter or position ("option B", "the first choice"), and never write an option that names others by letter ("Both A and B").
+
+    ${EXPLANATION_RULES}
+
+    ${MATH_RULES}
+    ${JSON_MATH_RULE}
 
     JSON SCHEMA:
     {"items": [
@@ -181,7 +186,7 @@ export const getStrictRules = (subject, targetSubtopic, topics = liveTopicsFor(s
         "type": "conceptual or calculation",
         "difficulty": 1,
         "subtopic": "${targetSubtopic && targetSubtopic !== 'All' && targetSubtopic !== 'General' ? targetSubtopic : 'Must exactly match target'}",
-        "fixedExplanation": "A highly detailed, step-by-step mathematical derivation."
+        "fixedExplanation": "The explanation, in the layout above."
       }
     ]}`;
 };
@@ -220,19 +225,17 @@ export const generateQuestionsAI = async (subject, subtopic, useWeb = false, cou
     }
 };
 
-export const generateMasterExplanation = async (questionObj, isRetry = false) => {
-    const retryContext = isRetry ? `CRITICAL WARNING: Your previous attempt produced broken LaTeX. Use standard Markdown tables. DO NOT mix **bold** inside LaTeX math tags. Ensure $ delimiters are perfectly balanced.` : '';
-
+export const generateMasterExplanation = async (questionObj) => {
     const prompt = `Act as an expert Engineering Tutor. A student is reviewing the following question:
         Question: ${questionObj.text || questionObj.question || questionObj.content || ''}
         Correct Answer: ${questionObj.answer}
         Options Available: ${questionObj.options ? questionObj.options.join(', ') : 'N/A'}
 
-        Provide a "Master Explanation" with standard Markdown formatting and $$...$$ or $...$ for math.
-        ${retryContext}
+Explain how to arrive at the correct answer.
 
-        1. **Step-by-Step Derivation:** How to arrive at the correct answer.
-        2. **Option Analysis:** Briefly debunk distractors.`;
+${EXPLANATION_RULES}
+
+${MATH_RULES}`;
 
     // Throws on failure. It used to return an apology as if it were the
     // explanation, which then got saved and shown as one.
@@ -285,7 +288,10 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
 // (a wrong constant value is as damaging as a wrong answer key).
 //   kind: 'constant' | 'formula'
 //   topic: an EXACT topic name from the shared taxonomy (dynamicTOS[subject]).
-export const REFERENCE_SYSTEM = `You compile the formula and constant flashcards for a Philippine Registered Electrical Engineer (REE) board exam reviewer. Every value, unit and formula must be exactly right: a wrong constant teaches the wrong number. Use SI units and the values in standard references (CODATA for physical constants, the PEC 2017 for code values, standard engineering handbooks). Never round a standard constant. If you are not sure of an entry, leave it out rather than guess. Write formulas in the form reviewees will meet on the board, and name the trap reviewees fall into with each one.`;
+export const REFERENCE_SYSTEM = `You compile the formula and constant flashcards for a Philippine Registered Electrical Engineer (REE) board exam reviewer. Every value, unit and formula must be exactly right: a wrong constant teaches the wrong number. Use SI units and the values in standard references (CODATA for physical constants, the PEC 2017 for code values, standard engineering handbooks). Never round a standard constant. If you are not sure of an entry, leave it out rather than guess. Write formulas in the form reviewees will meet on the board, and name the trap reviewees fall into with each one.
+
+${MATH_RULES}
+${JSON_MATH_RULE}`;
 
 const generateReferenceCardBatch = async (kind, subject, topic, count, existingNames, specificFocus) => {
     const seed = Math.floor(Math.random() * 10000);

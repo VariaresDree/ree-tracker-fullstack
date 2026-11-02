@@ -12,6 +12,7 @@ import { fetchReadinessScore } from '../../services/dbQueries';
 import { Button, Modal } from '../../components/ui';
 import { Sparkles } from '../../components/ui/icons';
 import AiStatusNote from '../../components/AiStatusNote';
+import LatexRenderer from '../../components/LatexRenderer';
 
 export default function AiBoardReport({ stats }) {
   const [confirming, setConfirming] = useState(false);
@@ -67,7 +68,7 @@ export default function AiBoardReport({ stats }) {
         size="lg"
         footer={<Button size="sm" onClick={() => setReport('')}>Close</Button>}
       >
-        <div className="text-sm text-textMain leading-relaxed whitespace-pre-wrap">{report}</div>
+        <div className="text-sm text-textMain leading-relaxed"><LatexRenderer content={report} /></div>
       </Modal>
     </>
   );

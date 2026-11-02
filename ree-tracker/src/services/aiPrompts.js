@@ -83,6 +83,34 @@ const SUBJECT_SCOPE = {
   EE: 'Electrical Engineering Professional Subjects (50% of the board): DC and AC circuits, electrical machines, power systems, transmission and distribution, protection, electronics, instrumentation and control, illumination, power plant engineering, and the Philippine Electrical Code (PEC 2017).',
 };
 
+// The one definition of how the AI writes math and worked explanations. Every
+// prompt that produces either uses these; the app reads the same labels back
+// (structureExplanation, @ree/shared), so a change here changes both.
+export const MATH_RULES = `Math formatting (the app renders Markdown with KaTeX):
+- Inline math in single dollar signs ($X_L = 2\\pi f L$), a displayed equation in double dollar signs on its own line.
+- Never use \\( \\), \\[ \\], or bare LaTeX outside dollar signs. Never put **bold** inside math.
+- Write units after the number in plain text or with \\text{} inside math ($120\\ \\text{V}$).`;
+
+// Only where the answer is JSON. Elsewhere, single backslashes are right.
+export const JSON_MATH_RULE = '- The output is JSON: every LaTeX backslash must be written twice (\\\\frac, \\\\sqrt, \\\\times).';
+
+export const EXPLANATION_RULES = `Explanations, in this exact layout, with a blank line between parts:
+- Calculation:
+  **Key idea:** one sentence on the principle that solves it.
+  **Given:** the values, with units.
+  **Find:** what is asked.
+  **Solution:** numbered steps. Start each step with a short bold label saying what it does ("1. **Find the line current.**"), then the formula, the substituted numbers, and the result with its unit. Put each main equation on its own line.
+  **Answer:** the result with its unit, matching the correct option.
+  **Why the others are wrong:** the specific mistake behind each wrong option.
+  **Remember:** one line to carry into the exam.
+- Conceptual:
+  **Key idea:** one sentence.
+  **Why:** why the correct option is right, in two to four sentences.
+  **Why the others are wrong:** one short bullet for each wrong option.
+  **Remember:** one line to carry into the exam.
+- Short sentences and plain words. No paragraph longer than three sentences.
+- Name an option by its content ("the 2.4 kA option", "the answer that ignores power factor"), never by its letter or position ("option B", "the first choice"): the options are shown in a different order every sitting.`;
+
 /**
  * The system prompt for every admin question run: who the model is writing
  * for and what a good board item looks like.
@@ -104,16 +132,10 @@ Difficulty:
 - 2 (medium): two or three steps; a typical board item.
 - 3 (hard): several steps or concepts combined, or distractors that punish a common misconception.
 
-Explanations ("fixedExplanation"):
-- Calculation: **Given:** the values. **Find:** what is asked. **Solution:** numbered steps, each with the formula and the substituted numbers. **Answer:** the result with its unit, matching the correct option.
-- Conceptual: why the correct option is right in two to four sentences, then one short line on why each distractor is wrong.
-- Name an option by its content ("the 2.4 kA option", "the answer that ignores power factor"), never by its letter or position ("option B", "the first choice"): the options are shown in a different order every sitting.
+The "fixedExplanation" field. ${EXPLANATION_RULES}
 
-Math formatting (the app renders Markdown with KaTeX):
-- Inline math in single dollar signs ($X_L = 2\\pi f L$), a displayed equation in double dollar signs on its own line.
-- Never use \\( \\), \\[ \\], or bare LaTeX outside dollar signs. Never put **bold** inside math.
-- Write units after the number in plain text or with \\text{} inside math ($120\\ \\text{V}$).
-- The output is JSON: every LaTeX backslash must be written twice (\\\\frac, \\\\sqrt, \\\\times).
+${MATH_RULES}
+${JSON_MATH_RULE}
 
 Options never carry their own letter ("A.", "(b)"): the app adds the letters.`;
 

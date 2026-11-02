@@ -7,6 +7,7 @@
 // the reviewer's.
 
 import { hasUnbalancedMath as unbalancedDollars } from '@ree/shared';
+import { mathIssues } from './mathIssues';
 
 const BANNED_OPTION = /\b(all|none) of the above\b|\bboth [a-d] and [a-d]\b/i;
 
@@ -32,7 +33,9 @@ export function questionIssues(q, { expectedType } = {}) {
   if (q.type !== 'calculation' && q.type !== 'conceptual') issues.push('Type is not calculation or conceptual');
   else if (expectedType && q.type !== expectedType) issues.push(`Asked for ${expectedType}, got ${q.type}`);
   if (![1, 2, 3].includes(Number(q.difficulty))) issues.push('Difficulty is not 1, 2 or 3');
-  if (unbalancedDollars(text) || options.some(unbalancedDollars)) issues.push('Unbalanced $ in the math');
+  const fields = [text, ...options, String(q.fixedExplanation ?? '')];
+  if (fields.some(unbalancedDollars)) issues.push('Unbalanced $ in the math');
+  else issues.push(...new Set(fields.flatMap(mathIssues)));
   return issues;
 }
 

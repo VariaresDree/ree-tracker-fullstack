@@ -49,4 +49,28 @@ describe('SolutionPanel', () => {
     expect(screen.getByText(/No written solution yet/)).toBeInTheDocument();
     expect(screen.getByText('42 V')).toBeInTheDocument();
   });
+
+  const structured = { ...q, fixedExplanation: 'Given: 5 A. Solution: 1) Multiply. 2) Round. Answer: 42 V. Why the others are wrong: they drop the root.' };
+
+  it('labels each part of a solution written on one line', () => {
+    render(<SolutionPanel question={structured} isOnline aiText={null} onExplain={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show solution' }));
+    expect(screen.getByText('Given')).toBeInTheDocument();
+    expect(screen.getByText('5 A.')).toBeInTheDocument();
+    expect(screen.getByText('Answer')).toBeInTheDocument();
+  });
+
+  it('folds why the other options are wrong until asked', () => {
+    render(<SolutionPanel question={structured} isOnline aiText={null} onExplain={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show solution' }));
+    expect(screen.queryByText('they drop the root.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Why the others are wrong/ }));
+    expect(screen.getByText('they drop the root.')).toBeInTheDocument();
+  });
+
+  it('structures an AI explanation the same way', () => {
+    render(<SolutionPanel question={q} isOnline aiText="Key idea: use KVL. Answer: 42 V." onExplain={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Explain with AI' }));
+    expect(screen.getByText('Key idea')).toBeInTheDocument();
+  });
 });

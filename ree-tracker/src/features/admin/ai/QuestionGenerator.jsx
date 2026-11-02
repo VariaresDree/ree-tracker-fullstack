@@ -12,6 +12,7 @@ import { planBatches, calculationCount, QUESTION_TYPES, DIFFICULTY_MIXES, MAX_QU
 import { useAiStatus } from '../../../hooks/useAiStatus';
 import AiStatusNote from '../../../components/AiStatusNote';
 import LatexRenderer from '../../../components/LatexRenderer';
+import ExplanationBody from '../../quiz/ExplanationBody';
 import { Button, Card, FormField, Input, Select, Textarea, SegmentedControl, Badge, ProgressIndicator, StatusPill } from '../../../components/ui';
 import { Sparkles, X, Check, TriangleAlert, ChevronDown } from '../../../components/ui/icons';
 import { useQuestionGenerator } from './useQuestionGenerator';
@@ -294,7 +295,7 @@ function GeneratedItem({ q, idx, g, disabled }) {
           <details className="text-xs text-muted2">
             <summary className="cursor-pointer font-medium text-textMain">Worked explanation</summary>
             <div className="mt-2 bg-surface2/50 p-3 rounded-[var(--radius-default)] border border-border leading-relaxed math-scroll-mobile min-w-0">
-              <LatexRenderer content={q.fixedExplanation} />
+              <ExplanationBody text={q.fixedExplanation} />
             </div>
           </details>
         )}

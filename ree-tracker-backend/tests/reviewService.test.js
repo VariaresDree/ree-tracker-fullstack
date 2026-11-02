@@ -123,14 +123,23 @@ describe('createLiveQuestion — the key must be one of the options', () => {
 // Anything failing stays in the queue for individual review. (The approveBulk
 // DB loop itself follows the untested-by-convention single-approve handler —
 // this predicate is where the decision logic lives.)
+const cleanRow = { ...reviewRow, fixedExplanation: 'Worked.' };
+
 describe('isBulkEligible — the Accept-All clean-item gate', () => {
+  it('leaves an item with no explanation, or with broken math, for a person', () => {
+    expect(isBulkEligible({ ...cleanRow, fixedExplanation: null })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, fixedExplanation: '   ' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, fixedExplanation: 'Stray $x here.' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, text: 'Stray $x here?' })).toBe(false);
+  });
+
   it('leaves an item with a reviewer note (the AI answer check disagreed) for a person', () => {
-    expect(isBulkEligible({ ...reviewRow, reviewNote: 'AI answer check picked C; the key may be wrong.' })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, reviewNote: null })).toBe(true);
+    expect(isBulkEligible({ ...cleanRow, reviewNote: 'AI answer check picked C; the key may be wrong.' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, reviewNote: null })).toBe(true);
   });
 
   it('accepts a clean row', () => {
-    expect(isBulkEligible(reviewRow)).toBe(true);
+    expect(isBulkEligible(cleanRow)).toBe(true);
   });
 
   it('rejects null/undefined rows', () => {
@@ -139,34 +148,34 @@ describe('isBulkEligible — the Accept-All clean-item gate', () => {
   });
 
   it('rejects an unrecognized or missing subject (INVALID_TAXONOMY precheck)', () => {
-    expect(isBulkEligible({ ...reviewRow, subject: 'Chemistry' })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, subject: undefined })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, subject: 'Unknown' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, subject: 'Chemistry' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, subject: undefined })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, subject: 'Unknown' })).toBe(false);
   });
 
   it('rejects empty/whitespace text', () => {
-    expect(isBulkEligible({ ...reviewRow, text: '' })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, text: '   ' })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, text: null })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, text: '' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, text: '   ' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, text: null })).toBe(false);
   });
 
   it('rejects fewer than two options', () => {
-    expect(isBulkEligible({ ...reviewRow, options: ['only one'] })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, options: [] })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, options: null })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, options: ['only one'] })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, options: [] })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, options: null })).toBe(false);
   });
 
   it('rejects an answer that matches no option (exact-match grading invariant)', () => {
-    expect(isBulkEligible({ ...reviewRow, answer: '20 ohms' })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, answer: '' })).toBe(false);
-    expect(isBulkEligible({ ...reviewRow, answer: null })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, answer: '20 ohms' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, answer: '' })).toBe(false);
+    expect(isBulkEligible({ ...cleanRow, answer: null })).toBe(false);
   });
 
   it('matches the answer AFTER choice-label sanitization on both sides', () => {
     // Raw AI output with baked-in "A."/"B)" labels — sanitizer strips both
     // sides, so this row IS clean even though the raw strings differ.
     expect(isBulkEligible({
-      ...reviewRow,
+      ...cleanRow,
       options: ['A. 10 ohms', 'B) 0 ohms', '(C) Infinite'],
       answer: 'a: 10 ohms',
     })).toBe(true);

@@ -40,7 +40,7 @@ vi.mock('react-hot-toast', () => {
 const toast = (await import('react-hot-toast')).default;
 
 const item = (id, subject, subtopic) => ({
-  id, legacy: false, subject, subtopic, text: `Question ${id}`, options: ['A', 'B', 'C', 'D'], answer: 'A',
+  id, legacy: false, subject, subtopic, text: `Question ${id}`, options: ['A', 'B', 'C', 'D'], answer: 'A', fixedExplanation: 'Worked.',
 });
 
 async function openQueue(queue) {
