@@ -226,7 +226,7 @@ describe('the assessment log (CELE round)', () => {
     { subject: 'EE', score: 80, total: 100 },
   ];
   const BOARD = {
-    ...FIRST, id: '33333333-3333-4333-8333-333333333333', title: 'RC Preboard 3', subject: 'ALL', score: 210, total: 300,
+    ...FIRST, id: '33333333-3333-4333-8333-333333333333', title: 'RC Preboard 3', takenOn: todayManila(), subject: 'ALL', score: 210, total: 300, // today: stays inside the flag summary's rolling window
     parts: PARTS, minutesUsed: 725, guessed: 6, skipped: 2, improveTopicIds: ['topic-machines', 'topic-gone'],
   };
   const lastBody = (method) => apiRequest.mock.calls.filter((c) => c[1] === method).pop()[2];
