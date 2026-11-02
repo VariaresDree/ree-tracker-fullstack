@@ -13,9 +13,10 @@ import toast from 'react-hot-toast';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Button } from '../../components/ui';
 import { Sparkles, RefreshCw } from '../../components/ui/icons';
+import ExplanationBody from './ExplanationBody';
 
 const PANEL = 'p-5 sm:p-6 rounded-[var(--radius-lg)] bg-surface2/40 border shadow-inner';
-const BODY = 'text-sm sm:text-base text-textMain/90 leading-relaxed [&_p]:!m-0 [&_.katex-display]:!m-0 overflow-x-auto custom-scrollbar';
+const BODY = 'text-sm sm:text-base text-textMain/90 leading-relaxed overflow-x-auto custom-scrollbar';
 
 /**
  * @param question     the answered question ({ fixedExplanation, answer, … })
@@ -83,7 +84,7 @@ export default function SolutionPanel({ question, isOnline, aiText, aiLoading, o
           <Heading className="text-eyebrow mb-3" style={{ color: 'var(--accent-signal)' }}>Solution</Heading>
           <div className={BODY}>
             {solution
-              ? <LatexRenderer content={solution} />
+              ? <ExplanationBody text={solution} />
               : (
                 <p className="text-muted2">
                   No written solution yet. The answer is <strong className="text-textMain"><LatexRenderer inline content={question?.answer || '—'} /></strong>.
@@ -112,7 +113,7 @@ export default function SolutionPanel({ question, isOnline, aiText, aiLoading, o
               Regenerate
             </Button>
           </div>
-          <div className={BODY}><LatexRenderer content={aiText} /></div>
+          <div className={BODY}><ExplanationBody text={aiText} /></div>
         </div>
       )}
     </div>

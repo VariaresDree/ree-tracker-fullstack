@@ -1334,6 +1334,28 @@ body {
 .math-text .katex-display > .katex {
   font-size: 1.12em;
 }
+/* Tailwind's reset strips list markers and heading sizes, so an explanation's
+   numbered steps read as loose lines without these. */
+.math-text ol,
+.math-text ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+.math-text ol { list-style: decimal; }
+.math-text ul { list-style: disc; }
+.math-text li { margin: 0.35rem 0; }
+.math-text li::marker {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.math-text h1,
+.math-text h2,
+.math-text h3,
+.math-text h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1em;
+  font-weight: 700;
+}
 /* Pipe tables (utils/remarkPipeTables). The wrapper scrolls a table wider than
    the card, as a display formula does; the cells take the theme's text colour
    and hairline border, so they read on every theme. */

@@ -11,6 +11,7 @@
 //     option, unbalanced `$`, no question) block Save; the rest only warn.
 import { useMemo, useState } from 'react';
 import LatexRenderer from '../../components/LatexRenderer';
+import ExplanationBody from '../quiz/ExplanationBody';
 import { useStore } from '../../store/useStore';
 import { Button, Modal, FormField, Select, Input, Textarea } from '../../components/ui';
 import { Pencil, Copy, Check, CircleAlert } from '../../components/ui/icons';
@@ -66,7 +67,7 @@ function Preview({ q }) {
       </ol>
       {q.fixedExplanation && (
         <div className="text-xs text-muted2 leading-relaxed border-t border-border pt-2 min-w-0">
-          <LatexRenderer content={q.fixedExplanation} />
+          <ExplanationBody text={q.fixedExplanation} />
         </div>
       )}
     </section>

@@ -1,6 +1,6 @@
 // src/features/library/LibraryOverview.jsx
 import { useState } from 'react';
-import { toDisplaySubject, normalizeSubject } from '@ree/shared';
+import { toDisplaySubject, normalizeSubject, hasUnbalancedMath } from '@ree/shared';
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import {
@@ -58,6 +58,8 @@ const isBulkEligibleClient = (q, tos) => {
   if (!Array.isArray(options) || options.length < 2) return false;
   const answer = stripChoicePrefix(q.answer);
   if (typeof answer !== 'string' || answer.trim().length === 0) return false;
+  if (typeof q.fixedExplanation !== 'string' || q.fixedExplanation.trim().length === 0) return false;
+  if ([text, ...options, q.fixedExplanation].some(hasUnbalancedMath)) return false;
   return options.includes(answer);
 };
 

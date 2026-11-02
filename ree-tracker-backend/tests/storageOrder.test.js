@@ -47,7 +47,7 @@ describe('storageOrder', () => {
         vi.spyOn(prisma, '$transaction').mockResolvedValue([]);
         const seen = new Set();
         for (let i = 0; i < 24; i += 1) {
-            const row = { id: `r${i}`, status: 'PENDING', subject: 'EE', subtopic: 'General', text: 'x', options: FOUR, answer: 'KEY', difficulty: 2 };
+            const row = { id: `r${i}`, status: 'PENDING', subject: 'EE', subtopic: 'General', text: 'x', options: FOUR, answer: 'KEY', fixedExplanation: 'Worked.', difficulty: 2 };
             const res = await approveOneRow(row, 'admin');
             expect(res.ok).toBe(true);
             const live = created.mock.calls.at(-1)[0].data.options;

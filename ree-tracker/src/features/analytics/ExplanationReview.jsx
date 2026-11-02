@@ -3,6 +3,7 @@ import { fetchPendingExplanations, updateExplanationStatus, bulkApproveExplanati
 import { Button, Card, EmptyState, Modal, Skeleton } from '../../components/ui';
 import { Check, CheckCircle2, X } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
+import ExplanationBody from '../quiz/ExplanationBody';
 import toast from 'react-hot-toast';
 
 const StatusBadge = ({ status }) => {
@@ -199,7 +200,7 @@ export default function ExplanationReview() {
                                     AI-Generated Explanation
                                 </div>
                                 <div className="text-xs text-textMain leading-relaxed">
-                                    <LatexRenderer content={q.fixedExplanation} />
+                                    <ExplanationBody text={q.fixedExplanation} />
                                 </div>
                             </div>
 

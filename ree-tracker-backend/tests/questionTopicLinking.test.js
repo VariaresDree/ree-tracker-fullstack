@@ -39,6 +39,7 @@ const question = (over = {}) => ({
     text: 'What is the impedance of a purely resistive 10-ohm load?',
     options: ['10 ohms', '0 ohms', 'Infinite', 'j10 ohms'],
     answer: '10 ohms',
+    fixedExplanation: 'Worked.',
     ...over,
 });
 

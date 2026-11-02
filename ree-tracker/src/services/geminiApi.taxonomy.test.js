@@ -11,7 +11,34 @@ vi.mock('./dbQueries', () => ({ apiRequest: (...a) => apiRequest(...a) }));
 const LIVE = { EE: ['Electric Circuits 1', 'Electrical Transient Analysis'], ESAS: ['Fluid Mechanics'], Mathematics: ['Algebra'] };
 vi.mock('../store/useStore', () => ({ useStore: { getState: () => ({ dynamicTOS: LIVE }) } }));
 
-const { getStrictRules, generateQuestionsAI } = await import('./geminiApi');
+const { getStrictRules, generateQuestionsAI, generateMasterExplanation, REFERENCE_SYSTEM } = await import('./geminiApi');
+const { BOARD_EXAM_SYSTEM, EXPLANATION_RULES, JSON_MATH_RULE, MATH_RULES } = await import('./aiPrompts');
+const { structureExplanation, explanationSections } = await import('@ree/shared');
+
+describe('one explanation format', () => {
+  it('every prompt that writes an explanation uses it, and only JSON prompts ask for doubled backslashes', () => {
+    expect(BOARD_EXAM_SYSTEM).toContain(EXPLANATION_RULES);
+    expect(getStrictRules('EE', 'All', LIVE.EE)).toContain(EXPLANATION_RULES);
+    expect(getStrictRules('EE', 'All', LIVE.EE)).toContain(JSON_MATH_RULE);
+    expect(REFERENCE_SYSTEM).toContain(MATH_RULES);
+  });
+
+  it('the learner explanation asks for it too, in plain Markdown', async () => {
+    apiRequest.mockResolvedValueOnce({ text: 'x' });
+    await generateMasterExplanation({ text: 'Q', answer: 'A', options: ['A', 'B'] });
+    const { contents } = apiRequest.mock.calls.at(-1)[2];
+    expect(contents).toContain(EXPLANATION_RULES);
+    expect(contents).not.toContain(JSON_MATH_RULE);
+  });
+
+  it('the app can read back every label the prompt asks for', () => {
+    const labels = [...EXPLANATION_RULES.matchAll(/\*\*([A-Z][^*:]+):\*\*/g)].map((m) => m[1]);
+    expect(new Set(labels)).toEqual(new Set(['Key idea', 'Given', 'Find', 'Solution', 'Answer', 'Why the others are wrong', 'Remember', 'Why']));
+    for (const label of labels) {
+      expect(explanationSections(structureExplanation(`${label}: x.`))).toEqual([{ label, body: 'x.' }]);
+    }
+  });
+});
 
 describe('getStrictRules', () => {
   it('for "All topics", lists exactly the topics it is given', () => {

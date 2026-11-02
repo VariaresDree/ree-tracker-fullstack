@@ -7,6 +7,7 @@ import { Button, FormField, Select, Modal, Badge } from '../../components/ui';
 import { Sparkles, FileText, FileUp, X, TriangleAlert, Check } from '../../components/ui/icons';
 import AiStatusNote from '../../components/AiStatusNote';
 import LatexRenderer from '../../components/LatexRenderer';
+import ExplanationBody from '../quiz/ExplanationBody';
 
 export default function LibraryIngestion({
   genSubject, setGenSubject, genSubtopic, setGenSubtopic,
@@ -251,8 +252,8 @@ export default function LibraryIngestion({
 
                       {q.fixedExplanation && (
                           <div className="text-xs text-muted bg-surface2/50 p-3 rounded-[var(--radius-default)] border border-border leading-relaxed math-scroll-mobile min-w-0">
-                              <strong className="text-eyebrow mr-2" style={{ color: 'var(--accent-signal)' }}>Explanation</strong>
-                              <span className="[&_p]:!m-0"><LatexRenderer content={q.fixedExplanation} /></span>
+                              <strong className="text-eyebrow block mb-2" style={{ color: 'var(--accent-signal)' }}>Explanation</strong>
+                              <ExplanationBody text={q.fixedExplanation} />
                           </div>
                       )}
                   </div>
