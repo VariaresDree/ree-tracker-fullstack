@@ -1,8 +1,8 @@
-// Your rating vs your answers (Progress › Confidence) and the admin
-// high-yield list (CELE round): the comparison rule, the four groups with a
-// Drill where it helps, the empty and too-few states, and the admin toggle.
+// Your rating vs your answers (Progress › Confidence, CELE round): the
+// comparison rule, the four groups with a Drill where it helps, and the empty
+// and too-few states.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { compareSelfRating } from '../../syllabus/selfRating';
 
@@ -10,12 +10,8 @@ let topics = [];
 vi.mock('../../syllabus/useSyllabus', () => ({ useSyllabus: () => ({ topics }) }));
 const navigateFn = vi.fn();
 vi.mock('react-router-dom', async (orig) => ({ ...(await orig()), useNavigate: () => navigateFn }));
-const apiRequest = vi.fn();
-vi.mock('../../../services/dbQueries', () => ({ apiRequest: (...a) => apiRequest(...a) }));
-vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { error: vi.fn() }) }));
 
 const { default: SelfVsData } = await import('./SelfVsData');
-const { default: HighYieldTopics } = await import('../../admin/HighYieldTopics');
 
 const t = (name, attempts, mastery, confidence = null, dread = null) => ({
   topicId: name.toLowerCase(), name, subject: 'EE', attempts, masteryEffective: mastery, confidence, dread,
@@ -23,7 +19,6 @@ const t = (name, attempts, mastery, confidence = null, dread = null) => ({
 
 beforeEach(() => {
   navigateFn.mockClear();
-  apiRequest.mockReset();
 });
 
 describe('compareSelfRating', () => {
@@ -71,31 +66,5 @@ describe('SelfVsData', () => {
     topics = [t('A', 20, 0.5, 50), t('B', 3, 0.5, 100)];
     show();
     expect(screen.getByText(/Your ratings and your answers agree so far. 1 rated topic needs 10 answers/)).toBeInTheDocument();
-  });
-});
-
-describe('HighYieldTopics (admin)', () => {
-  it('loads when opened and saves a tick at once', async () => {
-    apiRequest.mockImplementation(async (endpoint, method = 'GET') => (method === 'GET'
-      ? { topics: [{ id: 't1', subject: 'EE', name: 'Machines', highYield: false }] }
-      : { topic: { id: 't1', highYield: true } }));
-    render(<HighYieldTopics />);
-    fireEvent.click(screen.getByRole('button', { name: /High-yield topics/ }));
-    const box = await screen.findByRole('checkbox', { name: 'Machines' });
-    fireEvent.click(box);
-    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/config/topics/t1', 'PUT', { highYield: true }));
-    expect(box).toBeChecked();
-  });
-
-  it('a refused save puts the tick back', async () => {
-    apiRequest.mockImplementation(async (endpoint, method = 'GET') => {
-      if (method === 'GET') return { topics: [{ id: 't1', subject: 'EE', name: 'Machines', highYield: true }] };
-      throw new Error('Only admins can do this.');
-    });
-    render(<HighYieldTopics />);
-    fireEvent.click(screen.getByRole('button', { name: /High-yield topics/ }));
-    const box = await screen.findByRole('checkbox', { name: 'Machines' });
-    fireEvent.click(box);
-    await waitFor(() => expect(box).toBeChecked());
   });
 });

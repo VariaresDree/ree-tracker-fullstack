@@ -8,7 +8,7 @@ import { saveQuestionToBank } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import { labelForGenerated } from '../../utils/topicLabels';
 import toast from 'react-hot-toast';
-import PdfWorker from './pdfWorker?worker';
+import { readPdfText, SCANNED_PDF_MESSAGE } from './readPdfText';
 
 export const useAIIngestion = (onIngestSuccess) => {
   // --- INGESTION SETTINGS ---
@@ -90,36 +90,14 @@ export const useAIIngestion = (onIngestSuccess) => {
          handleExtractionSuccess(newQs);
       } else if (selectedPdf.type === 'application/pdf') {
          setGenStatus('Reading the PDF…');
-         const arrayBuffer = await selectedPdf.arrayBuffer();
-         const worker = new PdfWorker();
-
-         worker.onmessage = async (e) => {
-           const { type, text, message, error } = e.data;
-           if (type === 'progress') {
-             setGenStatus(message);
-           } else if (type === 'success') {
-             setGenStatus('Finding the questions in the text…');
-             try {
-               const newQs = await generateQuestionsFromText(text, genSubject, genSubtopic, 5);
-               handleExtractionSuccess(newQs);
-             } catch (err) {
-               setGenStatus("Couldn't process the file. Try again.", 'error');
-               toast.error(`Error: ${err.message}`);
-               setParsingPdf(false);
-             }
-             worker.terminate();
-           } else if (type === 'error') {
-             setGenStatus("Couldn't read the PDF. Try again.", 'error');
-             toast.error(`Error: ${error}`);
-             worker.terminate();
-             setParsingPdf(false);
-           }
-         };
-         worker.postMessage({ arrayBuffer });
+         const text = await readPdfText(selectedPdf, { onProgress: (message) => setGenStatus(message) });
+         setGenStatus('Finding the questions in the text…');
+         handleExtractionSuccess(await generateQuestionsFromText(text, genSubject, genSubtopic, 5));
       }
     } catch (error) {
-       setGenStatus('Extraction failed. Try again.', 'error');
-       toast.error(`Error: ${error.message}`);
+       const scanned = error.message === SCANNED_PDF_MESSAGE;
+       setGenStatus(scanned ? SCANNED_PDF_MESSAGE : 'Extraction failed. Try again.', 'error');
+       toast.error(scanned ? SCANNED_PDF_MESSAGE : `Error: ${error.message}`);
        setParsingPdf(false);
     }
   };
