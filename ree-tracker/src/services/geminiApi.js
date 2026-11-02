@@ -293,7 +293,11 @@ export const REFERENCE_SYSTEM = `You compile the formula and constant flashcards
 ${MATH_RULES}
 ${JSON_MATH_RULE}`;
 
-const generateReferenceCardBatch = async (kind, subject, topic, count, existingNames, specificFocus) => {
+// How a card's tag is chosen, in every card prompt: a tag on one card shows no
+// heading, and the live bank had nine tags for nine cards under one topic.
+const tagRule = (tags = []) => `"subtopicTag" names the family of cards this one belongs to, in 2 to 4 words in Title Case ("AC Power", "Resonance", "Annuities"): a family of at least two cards, never the card's own name, and never a word like "Formulas" or "Misc".${tags.length ? ` Reuse one of these when it fits: ${tags.slice(0, 60).join('; ')}.` : ''}`;
+
+const generateReferenceCardBatch = async (kind, subject, topic, count, existingNames, specificFocus, existingTags) => {
     const seed = Math.floor(Math.random() * 10000);
     const names = (existingNames || []).filter(Boolean).slice(0, 200);
     const exclusionDirective = names.length > 0
@@ -325,10 +329,11 @@ const generateReferenceCardBatch = async (kind, subject, topic, count, existingN
         "purposeExamTip": "REQUIRED — how it is applied in board problem-solving, plus one common trap/mistake to watch for",
         "subject": "${subject}",
         "topic": "${topic}",
-        "subtopicTag": "a finer free-text tag within the topic (e.g. 'Capacitance'), or null",
+        "subtopicTag": "the card's family, see the rule below, or null",
         "dimensionless": false
       }
-    3. For formulas: "variables" MUST cover EVERY symbol appearing in formulaLatex (except the defined symbol itself and known constants like \\pi), each with meaning and unit.
+    3. For formulas: "variables" lists EVERY symbol in formulaLatex, the defined symbol included (known constants like \\pi aside), each with meaning and unit. For a constant: "variables" is [].
+    ${tagRule(existingTags)}
     4. All math/units MUST be valid LaTeX AND wrapped in $ delimiters (e.g. "$V = IR$", never bare "V = IR") — the renderer only typesets delimited expressions; anything else displays as literal source text to the student. Use standard engineering values; DO NOT round standard constants. ZERO HALLUCINATION — only well-established, board-relevant content.
     5. "topic" must be EXACTLY "${topic}" and "subject" EXACTLY "${subject}".
     ${exclusionDirective}
@@ -351,7 +356,7 @@ const CARD_FIELDS = `{
         "purposeExamTip": "how it is used in board problems, and one common trap",
         "subject": "<subject>",
         "topic": "<one of the topics listed>",
-        "subtopicTag": "a finer tag within the topic, or null",
+        "subtopicTag": "the card's family, or null",
         "dimensionless": false
       }`;
 
@@ -365,7 +370,7 @@ const MAX_SOURCE_PARTS = 5;
  * shape as generated ones, for the review queue. Each card's topic is snapped
  * to the live taxonomy. `onProgress(part, of)`.
  */
-export const generateReferenceCardsFromSource = async ({ subject, topic = null, topics = [], text = '', images = [], existingNames = [] }, onProgress) => {
+export const generateReferenceCardsFromSource = async ({ subject, topic = null, topics = [], text = '', images = [], existingNames = [], existingTags = [] }, onProgress) => {
     const scope = topic
         ? `Every card is for Subject: ${subject}, Topic: ${topic}. Set "topic" to exactly "${topic}".`
         : `Every card is for Subject: ${subject}. Set "topic" to the one of these topics it belongs to, spelled exactly: ${topics.join(' | ')}.`;
@@ -378,13 +383,22 @@ export const generateReferenceCardsFromSource = async ({ subject, topic = null, 
       ${CARD_FIELDS}
     2. Only formulas and constants. No definitions, theories or concepts as cards.
     3. Copy values and formulas faithfully from the material; fix only obvious typos. Use standard values where the material is unreadable, and leave out anything you can't read or aren't sure of.
-    4. For a formula, "variables" covers every symbol in it (except the defined symbol and known constants like \\pi).
+    4. For a formula, "variables" lists every symbol in it, the defined symbol included (known constants like \\pi aside). For a constant, "variables" is [].
+    ${tagRule(existingTags)}
     5. All math in $ delimiters, as valid KaTeX. Write peso amounts as ₱ outside math.
     6. At most 15 cards per answer; prefer the ones board problems use most.${skip}`;
 
     const finish = (rows) => (Array.isArray(rows) ? rows : [])
         .filter((r) => r && (r.kind === 'formula' || r.kind === 'constant'))
         .map((r) => ({ ...r, subject, topic: labelForGenerated(r.topic, { target: topic || 'All', topics }) }));
+    // A card a later part or another photo repeats is dropped.
+    const seen = new Set(known.map((n) => String(n).toLowerCase().trim()));
+    const fresh = (rows) => rows.filter((row) => {
+        const key = String(row?.name || '').toLowerCase().trim();
+        if (key && seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 
     if (images.length) {
         onProgress?.(1, 1);
@@ -394,7 +408,7 @@ export const generateReferenceCardsFromSource = async ({ subject, topic = null, 
             return { inlineData: { data, mimeType: /data:([^;]+)/.exec(head)?.[1] || 'image/jpeg' } };
         });
         const response = await callAITask('vision', [instructions, ...parts], { system: REFERENCE_SYSTEM, json: true, temperature: 0.1 });
-        return finish(asItems(parseAiJson(response.text)));
+        return fresh(finish(asItems(parseAiJson(response.text))));
     }
 
     const clean = String(text || '').replace(/[ \t]+/g, ' ').trim();
@@ -402,16 +416,10 @@ export const generateReferenceCardsFromSource = async ({ subject, topic = null, 
     const chunks = [];
     for (let i = 0; i < clean.length && chunks.length < MAX_SOURCE_PARTS; i += SOURCE_PART_CHARS) chunks.push(clean.slice(i, i + SOURCE_PART_CHARS));
     const out = [];
-    const seen = new Set(known.map((n) => String(n).toLowerCase().trim()));
     for (let i = 0; i < chunks.length; i += 1) {
         onProgress?.(i + 1, chunks.length);
         const response = await callAITask('author', `${instructions}\n\nREVIEWER MATERIAL (part ${i + 1} of ${chunks.length}):\n${chunks[i]}`, { system: REFERENCE_SYSTEM, json: true, temperature: 0.2 });
-        for (const row of finish(asItems(parseAiJson(response.text)))) {
-            const key = String(row?.name || '').toLowerCase().trim();
-            if (key && seen.has(key)) continue;
-            seen.add(key);
-            out.push(row);
-        }
+        out.push(...fresh(finish(asItems(parseAiJson(response.text)))));
     }
     return out;
 };
@@ -419,14 +427,14 @@ export const generateReferenceCardsFromSource = async ({ subject, topic = null, 
 // Up to 6 cards per request; a larger count runs as several requests in turn,
 // each told what the earlier ones wrote, so nothing repeats.
 const CARD_BATCH = 6;
-export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, existingNames = [], specificFocus = null, onProgress) => {
+export const generateReferenceCardsAI = async (kind, subject, topic, count = 6, existingNames = [], specificFocus = null, onProgress, existingTags = []) => {
     const out = [];
     const seen = new Set((existingNames || []).map((n) => String(n).toLowerCase().trim()));
     const batches = Math.ceil(count / CARD_BATCH);
     for (let b = 0; b < batches && out.length < count; b += 1) {
         const want = Math.min(CARD_BATCH, count - out.length);
         onProgress?.(b + 1, batches);
-        const rows = await generateReferenceCardBatch(kind, subject, topic, want, [...(existingNames || []), ...out.map((r) => r.name)], specificFocus);
+        const rows = await generateReferenceCardBatch(kind, subject, topic, want, [...(existingNames || []), ...out.map((r) => r.name)], specificFocus, existingTags);
         for (const row of rows) {
             const key = String(row?.name || '').toLowerCase().trim();
             if (key && seen.has(key)) continue;

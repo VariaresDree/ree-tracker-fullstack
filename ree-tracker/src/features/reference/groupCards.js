@@ -13,11 +13,20 @@ const byKindThenName = (a, b) =>
 /** Cards → [{ label, cards, subgroups: [{ label, cards }] }], topics in syllabus order. */
 export function groupCards(cards, { by = 'topic', topicOrder = [] } = {}) {
   const subgroupsOf = (list) => {
-    const m = new Map();
+    // Free-text tags: the same tag in another letter case is the same tag, shown
+    // as first spelled.
+    const tags = new Map();
     for (const c of list) {
-      const k = c.subtopicTag || GENERAL;
-      if (!m.has(k)) m.set(k, []);
-      m.get(k).push(c);
+      const tag = String(c.subtopicTag || '').trim();
+      const key = tag.toLowerCase();
+      if (!tags.has(key)) tags.set(key, { label: tag, cards: [] });
+      tags.get(key).cards.push(c);
+    }
+    // A heading over one card says nothing the card doesn't: it joins General.
+    const m = new Map();
+    for (const { label, cards: items } of tags.values()) {
+      const k = label && items.length > 1 ? label : GENERAL;
+      m.set(k, [...(m.get(k) || []), ...items]);
     }
     // Named subtopics A–Z, the untagged "General" bucket last.
     return [...m.entries()]

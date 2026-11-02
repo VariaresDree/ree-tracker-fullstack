@@ -93,12 +93,11 @@ describe('validateCardRules — the required-field gate (Pillar 5)', () => {
         expect(validateCardRules({ ...completeFormulaCard, description: ' ' })).toContain('missing-description');
     });
 
-    it('rejects a formula whose variables do not cover the expression', () => {
-        const reasons = validateCardRules({
+    it('leaves whether the variables cover the expression to the reviewer', () => {
+        expect(validateCardRules({
             ...completeFormulaCard,
             variables: [{ symbol: 'f', meaning: 'frequency', unit: 'Hz' }],
-        });
-        expect(reasons.some((r) => r.startsWith('uncovered-symbols:'))).toBe(true);
+        })).toEqual([]);
     });
 
     it('constants require valueUnit — unless dimensionless (controlled exception)', () => {

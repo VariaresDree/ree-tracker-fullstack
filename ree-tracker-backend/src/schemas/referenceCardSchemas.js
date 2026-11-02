@@ -7,7 +7,6 @@
 // approve/debt paths can re-check stored rows without re-parsing.
 const { z } = require('zod');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
-const { checkVariableCoverage } = require('../utils/formulaSymbols');
 
 // A card is a formula or a constant. 'concept' is retired (2026-10-31): old
 // concept rows stay in the table for admins to re-type, but no new one is made
@@ -28,12 +27,13 @@ const referenceCardCreateSchema = z.object({
     formulaLatex: z.string().max(2000).nullable().optional(),
     valueUnit: z.string().max(300).nullable().optional(),
     description: z.string().min(1).max(2000),
-    variables: z.array(variableSchema).max(30).default([]),
+    // Models send null as often as they leave a field out.
+    variables: z.array(variableSchema).max(30).nullish().transform((v) => v ?? []),
     purposeExamTip: z.string().max(2000).nullable().optional(),
     subject: z.string().min(1),
     topic: z.string().min(1).max(200),   // topic NAME — resolved to topicId by the route
     subtopicTag: z.string().max(120).nullable().optional(),
-    dimensionless: z.boolean().default(false),
+    dimensionless: z.boolean().nullish().transform(Boolean),
     sourceId: z.string().nullable().optional(),
 });
 
@@ -70,6 +70,14 @@ const aiIntakeSchema = z.object({
     cards: z.array(z.record(z.string(), z.any())).min(1).max(50),
 });
 
+// Rename a tag across a topic; renaming onto a tag in use merges the two.
+const tagRenameSchema = z.object({
+    subject: z.string().min(1),
+    topic: z.string().min(1).max(200),
+    from: z.string().min(1).max(120),
+    to: z.string().trim().min(1).max(120),
+});
+
 /**
  * Content-completeness rules over a FULL card object (post-zod or a stored
  * row). Returns an array of reason strings — empty means the card is complete.
@@ -88,13 +96,11 @@ function validateCardRules(card) {
         if (!card.formulaLatex || String(card.formulaLatex).trim().length === 0) {
             reasons.push('missing-formula');
         }
+        // Whether the variables cover every symbol is advice in the review queue
+        // (GET /pending), not a gate. The check reads LaTeX by heuristic, and it
+        // refused valid cards like PF, omega_s and I_rms.
         const vars = Array.isArray(card.variables) ? card.variables : [];
-        if (vars.length === 0) {
-            reasons.push('missing-variables');
-        } else if (card.formulaLatex) {
-            const { ok, missing } = checkVariableCoverage(card.formulaLatex, vars, card.symbol);
-            if (!ok) reasons.push(`uncovered-symbols:${missing.join(',')}`);
-        }
+        if (vars.length === 0) reasons.push('missing-variables');
     }
 
     if (card.kind === 'constant' && !card.dimensionless) {
@@ -112,5 +118,6 @@ module.exports = {
     sourceCreateSchema,
     sourceUpdateSchema,
     aiIntakeSchema,
+    tagRenameSchema,
     validateCardRules,
 };

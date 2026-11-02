@@ -17,6 +17,7 @@ const logger = require('../utils/logger');
 const { resolveTopic } = require('../services/topicResolver');
 const { normalizeSubject } = require('../utils/subject');
 const { withMathDelimiters } = require('../utils/mathDelimiters');
+const { checkVariableCoverage } = require('../utils/formulaSymbols');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const {
     referenceCardCreateSchema,
@@ -25,6 +26,7 @@ const {
     sourceUpdateSchema,
     aiIntakeSchema,
     validateCardRules,
+    tagRenameSchema,
 } = require('../schemas/referenceCardSchemas');
 
 router.use(authMiddleware);
@@ -47,7 +49,9 @@ async function toCardData(payload) {
     const reasons = validateCardRules(payload);
     let topicRow = null;
     if (payload.subject !== undefined || payload.topic !== undefined) {
-        topicRow = await resolveTopic(payload.subject, payload.topic);
+        // Within the card's own subject: a topic of another subject would file
+        // it where its subject's topic tiles never show it.
+        topicRow = await resolveTopic(payload.subject, payload.topic, { crossSubject: false });
         if (!topicRow) reasons.push('unknown-topic');
     }
     if (reasons.length > 0) return { reasons };
@@ -120,7 +124,11 @@ router.get('/pending', requireAdmin, async (req, res) => {
             select: CARD_SELECT,
             orderBy: { createdAt: 'desc' },
         });
-        return res.status(200).json({ items });
+        // Advice for the reviewer, never a gate (see validateCardRules).
+        const withAdvice = items.map((card) => (card.kind === 'formula' && card.formulaLatex
+            ? { ...card, uncovered: checkVariableCoverage(card.formulaLatex, card.variables || [], card.symbol).missing }
+            : card));
+        return res.status(200).json({ items: withAdvice });
     } catch (error) {
         logger.error('pending cards fetch failed', { error: error.message });
         return res.status(500).json({ error: 'Failed to fetch pending cards.' });
@@ -166,16 +174,42 @@ router.get('/debt', requireAdmin, async (req, res) => {
 
 // ── Admin: creation + AI intake ─────────────────────────────────────────────
 
+/**
+ * A rejected card keeps its row (reject is a soft state), and so its place in
+ * the kind/subject/name unique key. Nobody can see it, so a new card of that
+ * name would be refused forever: it takes the old row over instead. Null when
+ * no rejected row holds the name.
+ */
+async function reviveRejected(data, status, userId) {
+    const row = await prisma.referenceCard.findFirst({
+        where: { kind: data.kind, subject: data.subject, name: data.name, status: 'REJECTED' },
+        select: { id: true },
+    });
+    if (!row) return null;
+    const live = status === 'LIVE';
+    return prisma.referenceCard.update({
+        where: { id: row.id },
+        data: { ...data, status, reviewNote: null, submittedBy: userId, reviewedBy: live ? userId : null, reviewedAt: live ? new Date() : null },
+        select: CARD_SELECT,
+    });
+}
+
 // POST /api/reference-cards — manual admin creation goes LIVE directly (the
 // admin IS the reviewer), still through the full required-field gate.
 router.post('/', requireAdmin, validate(referenceCardCreateSchema), idempotency(), async (req, res) => {
     try {
         const { data, reasons } = await toCardData(req.body);
         if (reasons) return res.status(400).json({ error: 'Card is incomplete.', reasons });
-        const card = await prisma.referenceCard.create({
-            data: { ...data, status: 'LIVE', submittedBy: req.user.id, reviewedBy: req.user.id, reviewedAt: new Date() },
-            select: CARD_SELECT,
-        });
+        let card;
+        try {
+            card = await prisma.referenceCard.create({
+                data: { ...data, status: 'LIVE', submittedBy: req.user.id, reviewedBy: req.user.id, reviewedAt: new Date() },
+                select: CARD_SELECT,
+            });
+        } catch (err) {
+            card = err.code === 'P2002' ? await reviveRejected(data, 'LIVE', req.user.id) : null;
+            if (!card) throw err;
+        }
         await prisma.referenceCardVersion.create({
             data: { cardId: card.id, action: 'CREATED', editor: req.user.id, snapshot: cardSnapshot(card) },
         });
@@ -202,22 +236,50 @@ router.post('/ai-intake', requireAdmin, validate(aiIntakeSchema), idempotency(),
             }
             const { data, reasons } = await toCardData(parsed.data);
             if (reasons) { rejected.push({ index: i, reasons }); continue; }
+            let card;
             try {
-                const card = await prisma.referenceCard.create({
+                card = await prisma.referenceCard.create({
                     data: { ...data, status: 'PENDING', submittedBy: req.user.id },
                 });
-                await prisma.referenceCardVersion.create({
-                    data: { cardId: card.id, action: 'SUBMITTED', editor: null, snapshot: cardSnapshot(card) },
-                });
-                queued.push(card.id);
             } catch (err) {
-                rejected.push({ index: i, reasons: [err.code === 'P2002' ? 'duplicate' : 'create-failed'] });
+                card = err.code === 'P2002' ? await reviveRejected(data, 'PENDING', req.user.id) : null;
+                if (!card) { rejected.push({ index: i, reasons: [err.code === 'P2002' ? 'duplicate' : 'create-failed'] }); continue; }
             }
+            queued.push(card.id);
+            // The card is in the queue by now: a failed audit row mustn't say otherwise.
+            await prisma.referenceCardVersion.create({
+                data: { cardId: card.id, action: 'SUBMITTED', editor: null, snapshot: cardSnapshot(card) },
+            }).catch((err) => logger.error('card audit write failed', { cardId: card.id, error: err.message }));
         }
         return res.status(200).json({ success: true, queued, rejected });
     } catch (error) {
         logger.error('card ai-intake failed', { error: error.message });
         return res.status(500).json({ error: 'AI intake failed.' });
+    }
+});
+
+// POST /api/reference-cards/tags/rename — one tag across a topic, in any letter
+// case. Renaming onto a tag already in use merges the two.
+router.post('/tags/rename', requireAdmin, validate(tagRenameSchema), async (req, res) => {
+    try {
+        const { subject, topic, from, to } = req.body;
+        const topicRow = await resolveTopic(subject, topic, { crossSubject: false });
+        if (!topicRow) return res.status(400).json({ error: 'That topic is not in this subject.' });
+        const rows = await prisma.referenceCard.findMany({
+            where: { topicId: topicRow.id, status: { in: ['LIVE', 'PENDING'] }, subtopicTag: { equals: from, mode: 'insensitive' } },
+            select: CARD_SELECT,
+        });
+        if (rows.length === 0) return res.status(200).json({ success: true, updated: 0 });
+        await prisma.$transaction([
+            prisma.referenceCard.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { subtopicTag: to } }),
+            prisma.referenceCardVersion.createMany({
+                data: rows.map((r) => ({ cardId: r.id, action: 'EDITED', editor: req.user.id, snapshot: { ...cardSnapshot(r), subtopicTag: to } })),
+            }),
+        ]);
+        return res.status(200).json({ success: true, updated: rows.length });
+    } catch (error) {
+        logger.error('card tag rename failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to rename the tag.' });
     }
 });
 
