@@ -33,6 +33,8 @@ const DISPLAY_ONLY = {
     // Sets to finish and personal links (CELE round): display only, every way.
     practiceSet: ['routes/practiceSetRoutes.js'],
     userLink: ['routes/userLinkRoutes.js'],
+    // A User column, not a table: how a learner's mocks are picked, and no more.
+    drawPrefs: ['routes/drawPrefsRoutes.js'],
     printedSet: ['routes/printedSetRoutes.js'],
     scannedSheet: ['routes/printedSetRoutes.js'],
 };

@@ -51,6 +51,9 @@ model User {
   // Changed only through PUT /api/user/plan-prefs.
   restWeekdays       Int[]   @default([])
   reviewMode         String  @default("self")
+  // Mock setup: how this learner picks a paper's questions, and their own counts.
+  // { drawMode, ownCounts: { subject: { topic: n } } }. Null is an even spread.
+  drawPrefs          Json?
 
   // V1 Relations
   sessions         ExamSession[]

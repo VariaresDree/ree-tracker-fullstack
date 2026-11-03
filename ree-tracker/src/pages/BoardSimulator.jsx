@@ -63,8 +63,8 @@ export default function BoardSimulator() {
     if (sectionJustFinished) setBoard(loadFullBoard());
   }
 
-  const beginFullBoard = () => {
-    const fresh = startFullBoard(crypto.randomUUID());
+  const beginFullBoard = (draw) => {
+    const fresh = startFullBoard(crypto.randomUUID(), Date.now(), draw);
     setBoard(fresh);
     engine.startSimulation(sectionConfig(fresh));
   };

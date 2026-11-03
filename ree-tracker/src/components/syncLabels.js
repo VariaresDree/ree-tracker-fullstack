@@ -30,6 +30,7 @@ const LABELS = [
   ['/api/user/outside-scores', (m) => (m === 'DELETE' ? 'Deleting an outside score' : 'An outside score')],
   ['/api/user/key-dates', (m) => (m === 'DELETE' ? 'Deleting a key date' : 'A key date')],
   ['/api/user/plan-prefs', () => 'Your rest days and how you review'],
+  ['/api/user/draw-prefs', () => 'How your mocks are picked'],
   ['/api/user/practice-sets', (m) => (m === 'DELETE' ? 'Deleting a set' : 'A set to finish')],
   ['/api/user/links', (m) => (m === 'DELETE' ? 'Deleting a link' : 'A link')],
   ['/api/user/printed-sets', printedSetLabel],

@@ -85,6 +85,8 @@ const configSchema = z.object({
     source: loose(z.string().max(40)),
     timeLimitMins: loose(z.number().min(0).max(24 * 60)),
     cognitiveFocus: loose(z.string().max(40)),
+    drawMode: loose(z.string().max(12)),
+    ownCounts: loose(z.record(z.string().max(20), z.record(z.string().max(200), z.number().int().min(0).max(1000)))),
 }).strip().transform((c) => Object.fromEntries(Object.entries(c).filter(([, v]) => v !== undefined)));
 
 const warningsSchema = z.object({
