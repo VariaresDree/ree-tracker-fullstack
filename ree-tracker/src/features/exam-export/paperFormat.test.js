@@ -3,7 +3,7 @@
 // tests keep their old invariant: jsPDF's standard font only renders WinAnsi
 // (Latin-1), so it must emit readable text with NO code point above U+00FF.
 import { describe, it, expect } from 'vitest';
-import { formatPrintId } from '@ree/shared';
+import { formatPrintId } from '@ree/shared/paperSets';
 import {
   PRACTICE_LINE, SUBJECT_CODE, answerLetterFor, chooseOptionLayout, columnMajorPosition, deriveExamIdentity,
   formatDuration, formatPaperDate, letterOf, loadQrEncoder, loadQrModules, mathToText, paperDay, partLabel,

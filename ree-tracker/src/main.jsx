@@ -6,6 +6,10 @@ import './styles/index.css';
 import { wakeBackend } from './services/wakeBackend';
 import { startConnectionWatch } from './services/connection';
 import { startUpdateWatch, onNewVersionReady } from './services/appUpdate';
+import { startAppHealth } from './services/appHealth';
+import { apiRequest } from './services/dbQueries';
+import { auth } from './config/firebaseDb';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // PWA Service Worker Registration
 import { registerSW } from 'virtual:pwa-register';
@@ -16,6 +20,8 @@ wakeBackend();
 // (services/connection): fetch again when the server answers, and wake it
 // when the app returns after a long time away.
 startConnectionWatch({ wake: wakeBackend });
+// Admin > App health: this device's version, and errors nothing else caught.
+startAppHealth({ request: apiRequest, whenSignedIn: (fn) => onAuthStateChanged(auth, (user) => { if (user) fn(); }) });
 
 // A screen's code that can't be loaded even after its retries
 // (utils/lazyWithRetry) is usually a chunk from an older version, gone after

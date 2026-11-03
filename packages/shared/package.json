@@ -6,7 +6,17 @@
   "type": "commonjs",
   "main": "./src/index.js",
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "browser": "./src/client.js",
+      "default": "./src/index.js"
+    },
+    "./paperSets": "./src/paperSets.js",
+    "./modelJson": "./src/modelJson.js",
+    "./explanation": "./src/explanation.js",
+    "./questionReplace": "./src/questionReplace.js",
+    "./outsideScores": "./src/outsideScores.js"
   },
-  "files": ["src"]
+  "files": [
+    "src"
+  ]
 }

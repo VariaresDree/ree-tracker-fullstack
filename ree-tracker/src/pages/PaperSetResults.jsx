@@ -14,7 +14,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { VERDICT, formatPrintId, normalizePrintId, scorePaperSheet } from '@ree/shared';
+import { VERDICT } from '@ree/shared';
+import { formatPrintId, normalizePrintId, scorePaperSheet } from '@ree/shared/paperSets';
 import LatexRenderer from '../components/LatexRenderer';
 import {
   Button, Card, DataTable, EmptyState, Grid, KpiTile, Modal, Page, PageHeader, Panel, Skeleton, StatusPill,

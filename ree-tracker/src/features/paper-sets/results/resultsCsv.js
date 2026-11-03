@@ -9,7 +9,7 @@
 // that starts with = + - @ (or a tab or carriage return) as a formula
 // ("=HYPERLINK(...)"): such a cell gets a leading apostrophe, which shows the
 // text as typed. Numbers are written as numbers.
-import { formatPrintId } from '@ree/shared';
+import { formatPrintId } from '@ree/shared/paperSets';
 import { countedSheets, scoreSheet, scoringSet } from './itemAnalysis';
 
 const FORMULA_START = /^[=+\-@\t\r]/;

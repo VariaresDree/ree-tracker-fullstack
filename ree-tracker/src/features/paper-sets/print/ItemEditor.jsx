@@ -7,7 +7,7 @@
 // (itemEditErrors, which the API runs too), plus a check that every formula
 // renders. Warns when a change affects sheets already printed or scored.
 import { useDeferredValue, useId, useLayoutEffect, useRef, useState } from 'react';
-import { PAPER_SET_LIMITS, itemEditErrors } from '@ree/shared';
+import { PAPER_SET_LIMITS, itemEditErrors } from '@ree/shared/paperSets';
 import LatexRenderer from '../../../components/LatexRenderer';
 import { Button, FormField, Input, Modal, Textarea } from '../../../components/ui';
 import { Pencil, Plus, Trash2, TriangleAlert } from '../../../components/ui/icons';

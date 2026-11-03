@@ -6,7 +6,8 @@
 // board-simulator/examPaper.js, the old jsPDF export, now deleted.
 //
 // Every non-ASCII character is a \u escape, so this source stays ASCII.
-import { formatPrintId, stripChoicePrefix } from '@ree/shared';
+import { stripChoicePrefix } from '@ree/shared';
+import { formatPrintId } from '@ree/shared/paperSets';
 import { fnv1a } from '../../utils/contentHash';
 import { answerSheetGeometry } from './sheetLayout';
 

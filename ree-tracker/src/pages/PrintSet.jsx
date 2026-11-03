@@ -7,7 +7,7 @@
 // The code is read however it was typed (K7P2-9QXA-M3TD, lower case), so a
 // set code copied from a footer opens too.
 import { useParams } from 'react-router-dom';
-import { normalizePrintId } from '@ree/shared';
+import { normalizePrintId } from '@ree/shared/paperSets';
 import { useAppearance } from '../hooks/useAppearance';
 import PrintPreview from '../features/paper-sets/print/PrintPreview';
 import '../features/paper-sets/print/print.css';

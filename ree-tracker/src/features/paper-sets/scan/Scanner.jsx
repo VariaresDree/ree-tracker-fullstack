@@ -17,7 +17,9 @@
 // here, in a worker, and only the answers string and the name are saved.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { formatPrintId, outsideScoreErrors, scorePaperSheet, todayManila } from '@ree/shared';
+import { todayManila } from '@ree/shared';
+import { formatPrintId, scorePaperSheet } from '@ree/shared/paperSets';
+import { outsideScoreErrors } from '@ree/shared/outsideScores';
 import { Button, Card, SegmentedControl } from '../../../components/ui';
 import {
   Camera, CameraOff, ChevronLeft, Flashlight, FlashlightOff, Images, ListChecks, ShieldCheck,

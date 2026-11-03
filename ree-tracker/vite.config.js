@@ -48,7 +48,7 @@ export default defineConfig(async ({ mode, command }) => {
   // build. Listing it here forces esbuild to convert it to ESM, so named imports
   // resolve in dev, in vitest, and in the production bundle alike.
   optimizeDeps: {
-    include: ['@ree/shared'],
+    include: ['@ree/shared', '@ree/shared/paperSets', '@ree/shared/modelJson', '@ree/shared/explanation', '@ree/shared/questionReplace', '@ree/shared/outsideScores'],
   },
   ssr: {
     noExternal: ['@ree/shared'],

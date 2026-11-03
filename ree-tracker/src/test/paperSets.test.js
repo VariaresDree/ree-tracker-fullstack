@@ -1,9 +1,7 @@
 // @ree/shared paper sets: the scoring, edit and key rules the app and the API
 // both run (the API re-scores every scanned sheet with the same function).
 import { describe, it, expect } from 'vitest';
-import {
-  ANSWER_RE, PRINT_ID_RE, effectiveItems, formatPrintId, itemEditErrors, keyVersionOf, normalizePrintId, scorePaperSheet,
-} from '@ree/shared';
+import { ANSWER_RE, PRINT_ID_RE, effectiveItems, formatPrintId, itemEditErrors, keyVersionOf, normalizePrintId, scorePaperSheet } from '@ree/shared/paperSets';
 
 const item = (n, subject, answerIndex, options = ['a', 'b', 'c', 'd']) => ({ n, subject, text: `Q${n}`, options, answer: options[answerIndex] ?? 'x', answerIndex, explanation: null });
 const SECTIONS = [{ subject: 'Mathematics', from: 1, to: 2 }, { subject: 'ESAS', from: 3, to: 4 }, { subject: 'EE', from: 5, to: 6 }];

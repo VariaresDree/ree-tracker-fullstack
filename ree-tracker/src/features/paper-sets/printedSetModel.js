@@ -12,9 +12,8 @@
 //
 // No side effects here: the API, the device cache and the hooks are beside
 // this file.
-import {
-  PAPER_PROFILES, PAPER_SET_LIMITS, PRINT_ID_ALPHABET, effectiveItems, keyVersionOf, stripChoicePrefix,
-} from '@ree/shared';
+import { stripChoicePrefix } from '@ree/shared';
+import { PAPER_PROFILES, PAPER_SET_LIMITS, PRINT_ID_ALPHABET, effectiveItems, keyVersionOf } from '@ree/shared/paperSets';
 import { mentionsFigure } from '../exam-export/markdownToLatex';
 
 export const PAPERS = ['a4', 'letter', 'long'];

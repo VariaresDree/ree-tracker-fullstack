@@ -3,7 +3,8 @@
 // Content tools, in one place and out of the learners' way: the question bank
 // (AI/PDF ingestion, manual entry, review queue, syllabus), the explanation
 // review queue, formula-card management, handout uploads, and the AI model
-// status (which model answers each AI feature, and whether it is healthy). These used to sit
+// status (which model answers each AI feature, and whether it is healthy), and
+// app health (versions in use, errors people hit). These used to sit
 // inside learner pages — a Profile tab, a Materials tab, and the whole
 // "Module Library" — with the AI ingestion visible to every learner.
 // Reached through routes/AdminRoute; every tab body is lazy, so a learner's
@@ -13,7 +14,7 @@ import { lazy } from '../../utils/lazyWithRetry';
 import { useAuth } from '../../contexts/AuthContext';
 import useTabParam from '../../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../../components/ui';
-import { Library, ClipboardList, BookOpen, Cloud, Activity } from '../../components/ui/icons';
+import { Library, ClipboardList, BookOpen, Cloud, Activity, ShieldCheck } from '../../components/ui/icons';
 import ErrorBoundary from '../../components/ErrorBoundary';
 
 const QuestionBank = lazy(() => import('./QuestionBank'));
@@ -22,6 +23,7 @@ const ReferenceAdminV2 = lazy(() => import('../../features/reference/ReferenceAd
 const CloudVaultTab = lazy(() => import('../../features/materials/CloudVaultTab'));
 const MaterialViewer = lazy(() => import('../../features/materials/MaterialViewer'));
 const AiStatusPanel = lazy(() => import('../../features/admin/ai/AiStatusPanel'));
+const AppHealthPanel = lazy(() => import('../../features/admin/health/AppHealthPanel'));
 
 const TABS = [
   { id: 'questions', label: 'Question bank', icon: Library },
@@ -29,6 +31,7 @@ const TABS = [
   { id: 'references', label: 'Formula cards', icon: BookOpen },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
   { id: 'ai', label: 'AI models', icon: Activity },
+  { id: 'health', label: 'App health', icon: ShieldCheck },
 ];
 
 const TabFallback = () => (
@@ -64,18 +67,11 @@ export default function Admin() {
           {tab === 'handouts' && <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />}
 
           {tab === 'ai' && <AiStatusPanel />}
+
+          {tab === 'health' && <AppHealthPanel />}
         </Suspense>
       </ErrorBoundary>
       </TabPanel>
-
-      {/* Over the list, with its own boundary: the first open loads this chunk, and
-          sharing the tabs' Suspense would swap the list for a skeleton and lose its
-          scroll. */}
-      {tab === 'handouts' && viewingMaterial && (
-        <Suspense fallback={null}>
-          <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} />
-        </Suspense>
-      )}
 
       {/* Over the list, with its own boundary: the first open loads this chunk, and
           sharing the tabs' Suspense would swap the list for a skeleton and lose its

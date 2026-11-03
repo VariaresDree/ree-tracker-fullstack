@@ -33,7 +33,14 @@ The question-quality round, seven PRs from the owner's list:
 **Limits:**
 - 16,333 questions at 25 per round is a long campaign. Only 1,305 have ever been answered, so that's the first target.
 - The AI can be wrong. A person decides every key change.
-- The boot download is at 99.5% of its 700 kB budget. New shared code should stay out of `@ree/shared`'s eager index.
+- The boot download is at 98% of its 700 kB budget (it was 99.7%). `@ree/shared` now gives the browser `src/client.js`, which leaves out the modules only a lazy screen uses; those are imported by path (`@ree/shared/explanation`, `/modelJson`, `/paperSets`, `/questionReplace`, `/outsideScores`). A new module used only by lazy screens goes the same way: add it to `exports` and to `optimizeDeps.include` in `vite.config.js`. The server still gets everything from `index.js`.
+
+**App health (next PR after PR 6):** Admin › App health shows versions in use and errors from the app and the server. Check it before a change both sides depend on, and when something feels off.
+
+**Decided against, for now:**
+- **Sentry:** its SDK costs tens of kB against this budget and needs an account. App health covers what is needed today. Revisit if it stops being enough, for example if source-mapped stacks become necessary (the stacks shown are minified).
+- **A version header on every request:** it would need a CORS change, and a frontend deployed before the backend would fail every request on preflight. A small daily POST can't break anything.
+- **Long admin AI runs as server jobs:** the free-tier server sleeps, so a job would die with it, and importing from another AI has become the better path for bulk work.
 
 ## 0. Handover, 2026-10-31
 

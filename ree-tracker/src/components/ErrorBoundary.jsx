@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Card, EmptyState, Logo } from './ui';
 import { TriangleAlert } from './ui/icons';
+import { reportError } from '../services/appHealth';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,6 +15,7 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error(`[ErrorBoundary] ${this.props.name || 'App'} crashed:`, error, errorInfo);
+    reportError(error);
   }
 
   render() {

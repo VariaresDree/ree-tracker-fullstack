@@ -2,7 +2,7 @@
 // items (the renderers and the .tex take the result), and the PATCH rules the
 // device applies the way the server does.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { PRINT_ID_RE, keyVersionOf } from '@ree/shared';
+import { PRINT_ID_RE, keyVersionOf } from '@ree/shared/paperSets';
 import {
   applySetPatch, defaultPrefs, editFor, effectiveDraw, formFor, isUnusedSet, mergeDelta, newPrintId,
   optionCountsOf, rememberPaper, setSizeProblem, summaryOf, toPrintedSet,

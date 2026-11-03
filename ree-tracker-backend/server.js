@@ -104,6 +104,8 @@ async function bootstrap() {
     const { setupBattleSocket } = require('./src/sockets/battleSocket');
     const battleLifecycle = require('./src/services/battleLifecycle');
     const logger = require('./src/utils/logger');
+    const ServerErrorCapture = require('./src/services/serverErrorCapture');
+    logger.add(new ServerErrorCapture());
 
     // Probe the DB but never abort boot on failure — degraded mode lets the
     // frontend circuit breaker show a banner instead of seeing every request
@@ -326,6 +328,7 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/printedSetRoutes'));
     app.use('/api/user', require('./src/routes/todayLoopRoutes'));
     app.use('/api/user', require('./src/routes/reminderRoutes'));
+    app.use('/api/user', require('./src/routes/appHealthRoutes'));
     app.use('/api/cron', require('./src/routes/cronRoutes'));
     app.use('/api/smart-drill', require('./src/routes/smartDrillRoutes'));
     app.use('/api/diagnostic', require('./src/routes/diagnosticRoutes'));

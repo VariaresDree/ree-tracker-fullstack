@@ -18,7 +18,7 @@ import {
 import { ExportError, drawExamPaper } from '../exam-export/drawExamPaper';
 import { defaultPrefs, newPrintId, setSizeProblem, toPrintedSet } from './printedSetModel';
 import { PRINTED_SETS_ENDPOINT } from './printedSetQueue';
-import { effectiveItems, keyVersionOf } from '@ree/shared';
+import { effectiveItems, keyVersionOf } from '@ree/shared/paperSets';
 
 export { PRINTED_SETS_ENDPOINT };
 
