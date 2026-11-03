@@ -69,7 +69,7 @@ export default function Sidebar() {
     // theme's glow and pattern carry on behind it (solid wherever the cards
     // are; index.css › GLASS SURFACES).
     <aside className={cn('sticky top-0 h-dvh shrink-0 surface-glass border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
-      <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3')}>
+      <div className={cn('flex border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'p-5 [@media(max-height:700px)]:p-1.5 flex-col justify-center gap-3' : 'p-5 justify-between gap-3')}>
         {collapsed ? (
           <Link to="/" aria-label="REE.ai home" className="inline-flex touch-target items-center justify-center">
             <Logo decorative size={34} />
@@ -109,11 +109,11 @@ export default function Sidebar() {
       </nav>
 
       {/* Connectivity + offline pack (also keeps the pack fresh on mount). */}
-      <div className={cn('shrink-0 border-t border-border2 bg-surface2/10', collapsed ? 'py-3' : 'px-4 py-3')}>
+      <div className={cn('shrink-0 border-t border-border2 bg-surface2/10', collapsed ? 'py-3 [@media(max-height:700px)]:py-1' : 'px-4 py-3')}>
         <OfflineStatusBadge collapsed={collapsed} />
       </div>
 
-      <div className={cn('p-4 border-t border-border2 bg-surface2/10 shrink-0 flex gap-2', collapsed ? 'flex-col items-center' : 'items-center')}>
+      <div className={cn('border-t border-border2 bg-surface2/10 shrink-0 flex gap-2', collapsed ? 'p-4 [@media(max-height:700px)]:p-1.5 flex-col items-center' : 'p-4 items-center')}>
         <Link
           to="/account"
           aria-current={active === 'account' ? 'page' : undefined}
@@ -144,7 +144,8 @@ export default function Sidebar() {
           onClick={() => setConfirmingLogout(true)}
           aria-label="Log out"
           title="Log out"
-          className="touch-target inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-full border border-border2 bg-surface text-muted hover:text-textMain hover:bg-surface3 cursor-pointer transition-colors"
+          // On a short rail the room goes to the destinations; Account has Log out too.
+          className={`${collapsed ? '[@media(max-height:700px)]:hidden ' : ''}touch-target inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-full border border-border2 bg-surface text-muted hover:text-textMain hover:bg-surface3 cursor-pointer transition-colors`}
         >
           <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
         </button>

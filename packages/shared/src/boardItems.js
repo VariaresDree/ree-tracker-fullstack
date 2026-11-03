@@ -68,4 +68,60 @@ function boardItemsFor(subject, topicName) {
     return { items: group.items, sharedWith: group.topics.filter((t) => t !== topicName) };
 }
 
-module.exports = { BOARD_GROUPS, UNITEMIZED, boardItemsFor };
+/** `count` items across the subject's groups, in proportion, always summing to `count`. */
+function boardItemSplit(subject, count) {
+    const groups = BOARD_GROUPS[subject] || [];
+    const total = groups.reduce((sum, g) => sum + g.items, 0);
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    if (total === 0) return [];
+    const exact = groups.map((g) => (n * g.items) / total);
+    const out = exact.map(Math.floor);
+    let left = n - out.reduce((a, b) => a + b, 0);
+    exact
+        .map((x, i) => ({ i, rest: x - Math.floor(x), items: groups[i].items }))
+        .sort((a, b) => (b.rest - a.rest) || (b.items - a.items) || (a.i - b.i))
+        .forEach(({ i }) => { if (left > 0) { out[i] += 1; left -= 1; } });
+    return out;
+}
+
+/**
+ * A subject's paper by PRC's topic counts. Each group draws its share from its
+ * own topics; whatever a thin group can't supply, and any shortfall, comes from
+ * the rest of the pool, so a paper stays full however the bank stands. Topics PRC
+ * doesn't itemize (or a topic renamed since this file) only ever fill.
+ *
+ * @param {Array<{ subtopic?: string }>} pool
+ * @param {(list: Array, n: number) => Array} pick the caller's own sampling, seeded or not
+ */
+function boardWeightedPick(pool, subject, count, pick) {
+    const groups = BOARD_GROUPS[subject];
+    if (!groups) return pick(pool, count);
+    const split = boardItemSplit(subject, count);
+    const taken = new Set();
+    groups.forEach((group, i) => {
+        if (split[i] <= 0) return;
+        const names = new Set(group.topics);
+        for (const q of pick(pool.filter((item) => names.has(item?.subtopic)), split[i])) taken.add(q);
+    });
+    const short = count - taken.size;
+    if (short > 0) {
+        for (const q of pick(pool.filter((item) => !taken.has(item)), short)) taken.add(q);
+    }
+    return [...taken];
+}
+
+/**
+ * The bank beside the board for a subject, thinnest first.
+ * @param {Record<string, number>} counts questions per topic name
+ */
+function bankVsBoard(counts, subject) {
+    const of = (topic) => Number(counts?.[topic]) || 0;
+    const groups = (BOARD_GROUPS[subject] || []).map((g) => {
+        const questions = g.topics.reduce((sum, t) => sum + of(t), 0);
+        return { topics: g.topics, items: g.items, questions, perItem: questions / g.items };
+    }).sort((a, b) => a.perItem - b.perItem);
+    const unitemized = (UNITEMIZED[subject] || []).map((topic) => ({ topic, questions: of(topic) }));
+    return { groups, unitemized };
+}
+
+module.exports = { BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick, bankVsBoard };

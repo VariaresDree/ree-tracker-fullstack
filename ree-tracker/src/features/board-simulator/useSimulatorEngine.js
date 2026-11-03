@@ -10,7 +10,7 @@ import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray } from '../../utils/shuffle';
-import { applyFocusFilter, stratifiedSample } from './poolFilters';
+import { applyFocusFilter, boardWeightedSample, stratifiedSample } from './poolFilters';
 import { computeBattleDiagnostics } from './battleGrades';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
@@ -230,7 +230,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                   // Direct Deep Fetch: Pulling 2000 ensures we have enough data even after filtering
                   const raw = await fetchVaultQuestions(subj, 'All', 2000);
                   const filtered = applyFilter(raw || []);
-                  const shuffled = stratifiedSample(filtered, dist[subj] || 0);
+                  // A PRC paper follows the board's topic counts; a custom mock stays even.
+                  const shuffled = config.isPrcStandard
+                      ? boardWeightedSample(filtered, subj, dist[subj] || 0)
+                      : stratifiedSample(filtered, dist[subj] || 0);
                   pool = pool.concat(shuffled);
               }
               timeLimitSecs = config.isPrcStandard ? PRC_TIMES.BLENDED : timeLimitSecs;
@@ -241,7 +244,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               const filtered = applyFilter(raw || []);
               // Stratify so a single-subject sim spans its subtopics rather than
               // collapsing onto the dominant one. (No-op for a pinned subtopic.)
-              pool = stratifiedSample(filtered, totalCount);
+              // A PRC paper by the board's topic counts. A pinned topic has one group anyway.
+              pool = config.isPrcStandard ? boardWeightedSample(filtered, config.subject, totalCount) : stratifiedSample(filtered, totalCount);
               // PRC schedule from @ree/shared: Math 5h, ESAS 4h, EE 6h.
               timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }

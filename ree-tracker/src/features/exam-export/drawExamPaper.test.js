@@ -64,8 +64,8 @@ describe('drawExamPaper', () => {
     const fetchQuestions = bank({ Mathematics: many('Mathematics', 25), ESAS: many('ESAS', 30), EE: many('EE', 45) });
     const draw = await drawExamPaper(PRC_BLENDED, { fetchQuestions, fetchWeights: async () => null, sittingKey: 'k', now: new Date('2026-10-20T00:00:00Z') });
     expect(fetchQuestions).toHaveBeenCalledTimes(3);
-    // Each section asks for four times its count, to choose from.
-    expect(fetchQuestions.mock.calls.map((c) => [c[0], c[1], c[2]])).toEqual([['Mathematics', 'All', 100], ['ESAS', 'All', 120], ['EE', 'All', 180]]);
+    // A PRC paper asks for enough to hold thin topics whole.
+    expect(fetchQuestions.mock.calls.map((c) => [c[0], c[1], c[2]])).toEqual([['Mathematics', 'All', 2000], ['ESAS', 'All', 2000], ['EE', 'All', 2000]]);
     expect(draw.sections.map((s) => [s.subject, s.from, s.to])).toEqual([['Mathematics', 1, 25], ['ESAS', 26, 55], ['EE', 56, 100]]);
     expect(draw.items.map((it) => it.n)).toEqual(Array.from({ length: 100 }, (_, i) => i + 1));
     expect(draw.items[30].subject).toBe('ESAS');
@@ -192,5 +192,38 @@ describe('answerIndexFor', () => {
     expect(answerIndexFor({ options: ['A. 12 V', 'B. 6 V'], answer: '  6 v ' })).toBe(1);
     expect(answerIndexFor({ options: ['3 V', '12 V'], answer: '99 V' })).toBe(-1);
     expect(answerIndexFor({ options: [], answer: 'x' })).toBe(-1);
+  });
+});
+
+describe('a PRC paper follows the board’s topic counts', () => {
+  const topic = (name, n) => Array.from({ length: n }, (_, i) => q(`${name}-${i}`, 'EE', { subtopic: name }));
+  const pool = [...topic('Power System Analysis', 60), ...topic('Electromagnetism', 300), ...topic('Electric Circuits 2', 200), ...topic('Quantities/units/constants (EE)', 50)];
+  const countOf = (draw, name) => draw.items.filter((i) => i.subtopic === name).length;
+
+  it('gives Power System Analysis its 20 of 100, and fills what thin topics can’t', async () => {
+    const draw = await drawExamPaper(PRC_EE, { fetchQuestions: bank({ EE: pool }), sittingKey: 'k1' });
+    expect(draw.items).toHaveLength(100);
+    expect(countOf(draw, 'Power System Analysis')).toBeGreaterThanOrEqual(20);
+    expect(new Set(draw.items.map((i) => i.id)).size).toBe(100);
+  });
+
+  it('asks for enough to hold thin topics whole', async () => {
+    const fetchQuestions = bank({ EE: pool });
+    await drawExamPaper(PRC_EE, { fetchQuestions, sittingKey: 'k1' });
+    expect(fetchQuestions).toHaveBeenCalledWith('EE', 'All', 2000);
+  });
+
+  it('the same key reprints the same paper, mixed rather than grouped by topic', async () => {
+    const one = await drawExamPaper(PRC_EE, { fetchQuestions: bank({ EE: pool }), sittingKey: 'k1' });
+    const two = await drawExamPaper(PRC_EE, { fetchQuestions: bank({ EE: pool }), sittingKey: 'k1' });
+    const other = await drawExamPaper(PRC_EE, { fetchQuestions: bank({ EE: pool }), sittingKey: 'k2' });
+    expect(two.items.map((i) => i.id)).toEqual(one.items.map((i) => i.id));
+    expect(other.items.map((i) => i.id)).not.toEqual(one.items.map((i) => i.id));
+    expect(one.items.slice(0, 20).every((i) => i.subtopic === one.items[0].subtopic)).toBe(false);
+  });
+
+  it('a custom paper stays evenly spread', async () => {
+    const draw = await drawExamPaper(custom({ count: 40, subtopic: 'All' }), { fetchQuestions: async () => pool, sittingKey: 'k1' });
+    expect(countOf(draw, 'Quantities/units/constants (EE)')).toBeGreaterThanOrEqual(9);
   });
 });

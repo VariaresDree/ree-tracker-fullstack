@@ -20,6 +20,7 @@ import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
 import AnswerPositions from '../../features/admin/AnswerPositions';
+import BankVsBoard from '../../features/admin/BankVsBoard';
 import { SectionHeader } from '../../components/ui';
 
 export default function QuestionBank() {
@@ -61,6 +62,8 @@ export default function QuestionBank() {
         title="Question bank"
         description="Generate, import, review and edit the shared questions. Everything the AI writes waits in the review queue until an admin approves it."
       />
+
+      <BankVsBoard />
 
       <QuestionGenerator isOnline={isOnline} onSaved={initializeVault} />
 

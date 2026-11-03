@@ -6,6 +6,8 @@ const logger = require('../utils/logger');
 const { runRecalibration } = require('../services/calibrationService');
 const { sendToUser } = require('../services/pushService');
 const { healthSummary, dismissError } = require('../services/appHealthService');
+const prisma = require('../config/db');
+const { normalizeSubject } = require('@ree/shared');
 
 router.use(authMiddleware, adminMiddleware);
 
@@ -24,6 +26,26 @@ router.post('/calibrate', async (req, res) => {
     } catch (error) {
         logger.error('admin calibrate failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Calibration run failed.' });
+    }
+});
+
+// GET /api/admin/bank-counts: questions per subject and topic, for Admin ›
+// Question bank › Bank vs board. Subject spellings merge. One query.
+router.get('/bank-counts', async (req, res) => {
+    try {
+        const rows = await prisma.question.groupBy({ by: ['subject', 'subtopic'], where: { isFlagged: false }, _count: { _all: true } });
+        const merged = new Map();
+        for (const r of rows) {
+            const subject = normalizeSubject(r.subject);
+            const key = `${subject}|${r.subtopic}`;
+            const held = merged.get(key) || { subject, topic: r.subtopic, count: 0 };
+            held.count += r._count._all;
+            merged.set(key, held);
+        }
+        return res.status(200).json({ items: [...merged.values()] });
+    } catch (error) {
+        logger.error('bank counts failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not count the bank.' });
     }
 });
 

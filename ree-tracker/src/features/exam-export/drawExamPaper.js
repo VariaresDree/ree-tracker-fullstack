@@ -9,7 +9,8 @@
 //     ESAS 30, EE 45 by default), in board order, one fetch per subject, so it
 //     also works offline from the saved question pack;
 //   - a custom mock keeps its topic and length; PRC profiles ignore the topic,
-//     as the setup screen does;
+//     as the setup screen does, and draw by the board's topic counts
+//     (@ree/shared/boardItems), as the sitting does;
 //   - the cognitive focus is honoured (poolFilters, shared with the sitting);
 //   - the time allotment is the board's: PRC_EXAM_FORMAT for a subject paper,
 //     5 hours for the mixed paper, the board's pace per item for a custom one.
@@ -19,6 +20,7 @@ import {
   PRC_EXAM_FORMAT, DEFAULT_SYLLABUS_WEIGHTS, apportionItems, boardPaceSeconds, matchOption,
   newSittingKey, normalizeSubject, shuffleWithKey,
 } from '@ree/shared';
+import { boardWeightedPick } from '@ree/shared/boardItems';
 import { presentOptions } from '../quiz/presentOptions';
 import {
   SUBJECT_CODE, answerLetterFor, deriveExamIdentity, formatDuration, partLabel, setLabelFor,
@@ -186,7 +188,8 @@ export async function drawExamPaper(config, {
     // back its first N every time, so taking exactly N printed the same
     // questions on every "Draw a new set"; and a duplicate or unprintable
     // item skipped below left the paper short with nothing to replace it.
-    const limit = Math.min(2000, section.count * 4);
+    // A PRC paper takes every topic's share, so it needs the thin topics whole.
+    const limit = plan.profile === 'custom' ? Math.min(2000, section.count * 4) : 2000;
     const raw = (await fetchQuestions(section.subject, section.subtopic, limit)) || [];
     const { pool, fallback } = applyFocusFilter(raw.filter(printable), plan.cognitiveFocus);
     if (fallback) warnings.focusFallback = true;
@@ -198,7 +201,10 @@ export async function drawExamPaper(config, {
       local.add(k);
       unique.push(q);
     }
-    const picked = pickForSet(unique, section.count, `${sittingKey}|${section.subject}`);
+    const setKey = `${sittingKey}|${section.subject}`;
+    const picked = plan.profile === 'custom'
+      ? pickForSet(unique, section.count, setKey)
+      : shuffleWithKey(boardWeightedPick(unique, section.subject, section.count, (list, n) => pickForSet(list, n, setKey)), setKey);
     picked.forEach((q) => seen.add(keyOf(q)));
     if (picked.length < section.count) {
       warnings.shortfall.push({ subject: section.subject, requested: section.count, drawn: picked.length });

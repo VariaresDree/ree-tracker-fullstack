@@ -184,6 +184,13 @@ describe('desktop shell', () => {
 });
 
 describe('tablet shell', () => {
+    it('a phone held sideways stays a phone: wide, but no height for a rail', () => {
+        window.matchMedia = (q) => ({ ...originalMatchMedia(q), matches: q === '(min-width: 600px)' });
+        at('/');
+        expect(primaryNav().closest('aside')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Account menu' })).toBeInTheDocument();
+    });
+
     it('the navigation sits beside the page: an icon rail, and no top or bottom bar to pass under', () => {
         tablet();
         const { container } = at('/progress');
