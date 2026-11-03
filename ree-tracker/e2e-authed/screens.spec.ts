@@ -61,7 +61,8 @@ const measure = (page: Page) => page.evaluate(() => {
   for (const el of main.querySelectorAll('a, button, input, select, textarea, p, li, td, h1, h2, h3')) {
     const box = el.getBoundingClientRect();
     if (!box.width || !box.height || getComputedStyle(el).visibility === 'hidden') continue;
-    if (el.closest('.sr-only, [aria-hidden="true"]') || clipped(el, box.bottom)) continue;
+    // A closed <details> still reports where its contents would be laid out.
+    if (el.closest('.sr-only, [aria-hidden="true"], details:not([open]) > :not(summary)') || clipped(el, box.bottom)) continue;
     contentBottom = Math.max(contentBottom, box.bottom);
   }
   const navIsBar = getComputedStyle(nav).position === 'fixed';
