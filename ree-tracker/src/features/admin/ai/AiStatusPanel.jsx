@@ -7,7 +7,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAiStatus, setAiStatus } from '../../../hooks/useAiStatus';
 import { probeAiModels } from '../../../services/geminiApi';
-import { Button, Card, Grid, SectionHeader, StatusPill, Skeleton, EmptyState } from '../../../components/ui';
+import { Button, Card, SectionHeader, StatusPill, Skeleton, EmptyState } from '../../../components/ui';
 import { RefreshCw, Activity, Check, X } from '../../../components/ui/icons';
 
 const STATE = {
@@ -39,6 +39,16 @@ const ERROR_KIND = {
 const keyName = (key) => String(key || '').split('_').flatMap((part, i, all) => (i < all.length - 1 ? [part, '_', <wbr key={i} />] : [part]));
 
 const secs = (ms) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+const backupLabel = (m) => {
+  const notes = [
+    m.picked && 'picked',
+    m.state !== 'ok' && m.state !== 'unknown' && (STATE[m.state] || STATE.unknown).label.toLowerCase(),
+    m.calls && m.medianMs != null && secs(m.medianMs),
+    m.calls && `${Math.round((m.successRate ?? 0) * 100)}%`,
+  ].filter(Boolean);
+  return notes.length ? `${m.model} (${notes.join(', ')})` : m.model;
+};
 
 function Pill({ state }) {
   const s = STATE[state] || STATE.unknown;
@@ -77,7 +87,7 @@ export default function AiStatusPanel() {
     <div className="flex flex-col gap-6">
       <SectionHeader
         title="AI models"
-        description="Each feature has its own chain of models. Learner features use fast open models; admin generation uses the most accurate one. When a model fails or times out, the next one answers, and a failing model is skipped for a while."
+        description="Each feature has its own chain of models. When one fails or times out, the next one answers."
         actions={(
           <>
             <Button variant="secondary" size="sm" onClick={() => refresh()}>
@@ -90,87 +100,69 @@ export default function AiStatusPanel() {
         )}
       />
 
-      <section aria-labelledby="ai-providers" className="flex flex-col gap-3">
-        <h3 id="ai-providers" className="text-h3 text-textMain">Providers</h3>
-        <Grid kind="kpi" gap="sm" as="ul">
-          {providers.map(([id, p]) => (
-            <Card as="li" key={id} padding="sm" className="flex items-start gap-3 min-w-0">
-              {p.configured
-                ? <Check size={18} strokeWidth={2} aria-hidden="true" style={{ color: 'var(--accent-success)' }} className="shrink-0 mt-0.5" />
-                : <X size={18} strokeWidth={2} aria-hidden="true" className="shrink-0 mt-0.5 text-muted" />}
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-textMain">{p.label}</div>
-                <div data-env-key className="text-xs text-muted2 font-mono [overflow-wrap:break-word]">{keyName(p.envKey)}</div>
-                <div className="text-xs text-muted2 mt-0.5">
-                  {!p.configured ? 'No key on the server'
-                    : p.catalog?.ok ? `Key works · ${p.catalog.models} models offered${p.catalog.free != null ? `, ${p.catalog.free} free` : ''}`
-                      : p.catalog ? `Key set · model list: ${p.catalog.error}`
-                        : 'Key set'}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </Grid>
-        {missing.length > 0 && (
-          <p className="text-xs text-muted2 max-w-2xl">
-            Models from a provider without a key are skipped. Set {missing.map(([, p]) => p.envKey).join(', ')} in the backend's environment on Render to use them; Groq is free and is the first choice for most features.
-          </p>
-        )}
-      </section>
-
       <section aria-labelledby="ai-features" className="flex flex-col gap-3">
         <h3 id="ai-features" className="text-h3 text-textMain">Features</h3>
-        <ul className="flex flex-col gap-3">
-          {Object.entries(status.tasks).map(([id, t]) => (
-            <Card as="li" key={id} padding="sm" className="flex flex-col gap-3 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm font-semibold text-textMain">{t.label}</span>
-                  <span className="text-xs text-muted2">{t.audience === 'admin' ? 'Admin' : 'Learners'} · {t.tier === 'fast' ? 'speed first' : 'accuracy first'}</span>
+        {/* One row a feature: who answers now, who's next, and any model in
+            trouble, with its reason. Healthy backups are a name in a line, not a
+            row each, so a failure stands out. It was a card a feature and a row a
+            model: 3,513px, where nearly everything said "Working". */}
+        <Card as="ul" className="divide-y divide-border">
+          {Object.entries(status.tasks).map(([id, t]) => {
+            const lead = t.chain.find((m) => m.model === t.primary?.model);
+            const backups = t.chain.filter((m) => m !== lead);
+            const troubled = t.chain.filter((m) => m.lastError && m.state !== 'ok');
+            return (
+              <li key={id} data-feature-row className="px-4 py-3 flex flex-col gap-1 min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <span className="min-w-0 text-sm font-semibold text-textMain">
+                    {t.label}
+                    <span className="font-normal text-xs text-muted2"> · {t.audience === 'admin' ? 'Admin' : 'Learners'}, {t.tier === 'fast' ? 'speed first' : 'accuracy first'}</span>
+                  </span>
+                  <Pill state={t.state} />
                 </div>
-                <Pill state={t.state} />
-              </div>
-              <p className="text-xs text-muted2 [overflow-wrap:anywhere]">
-                {t.primary ? <>Answering now: <span className="text-textMain">{t.primary.model}</span> on {t.primary.providerLabel}</> : 'No model can answer.'}
-                {' · '}each model gets up to {secs(t.perModelTimeoutMs)}, {secs(t.budgetMs)} in all
-              </p>
-              {/* Each row is a grid on the list's own width. It was a flex row
-                  that went single-line at the window's sm: beside the sidebar
-                  that left the model name (flex-1, basis 0) a few pixels after
-                  the fixed columns, and a failure line with basis-full but no
-                  wrap took the rest, so a long id like
-                  google/gemma-4-31b-it:free broke after every character.
-                  Narrow: the number, then the name, with provider, speed and
-                  state wrapping under the name. From 42rem: one line, the
-                  columns lined up row to row. A failure always takes its own
-                  line under the name. */}
-              <ol className="@container flex flex-col divide-y divide-border border border-border rounded-[var(--radius-default)] bg-bg">
-                {t.chain.map((m, i) => (
-                  <li key={m.id} data-chain-row className="px-3 py-2 grid grid-cols-[1rem_minmax(0,1fr)] @2xl:grid-cols-[1rem_minmax(0,1fr)_6.5rem_9rem_7.5rem] items-center gap-x-3 gap-y-1 text-xs">
-                    <span className="text-muted tabular-nums">{i + 1}</span>
-                    <span className="font-mono text-textMain [overflow-wrap:anywhere] min-w-0">
-                      {m.model}
-                      {m.picked && <span className="font-sans text-muted2"> · picked from the provider's current list</span>}
-                    </span>
-                    <div className="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 @2xl:contents">
-                      <span className="text-muted2">{m.providerLabel}</span>
-                      <span className="text-muted2 tabular-nums">
-                        {m.calls ? `${secs(m.medianMs)} median · ${Math.round((m.successRate ?? 0) * 100)}%` : ''}
-                      </span>
-                      <span className="@2xl:justify-self-end"><Pill state={m.state} /></span>
-                    </div>
-                    {m.lastError && m.state !== 'ok' && (
-                      <span data-chain-error className="[grid-column:2/-1] text-micro [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>
-                        Last failure: {ERROR_KIND[m.lastError.kind] || m.lastError.kind}{m.lastError.message ? ` (${m.lastError.message.slice(0, 140)})` : ''}
-                      </span>
-                    )}
-                  </li>
+                <p className="text-xs text-muted2 [overflow-wrap:anywhere]">
+                  {t.primary ? <>Answering now: <span className="font-mono text-textMain">{t.primary.model}</span> on {t.primary.providerLabel}</> : 'No model can answer.'}
+                  {lead?.calls ? ` · ${lead.medianMs != null ? `${secs(lead.medianMs)} median, ` : ''}${Math.round((lead.successRate ?? 0) * 100)}%` : ''}
+                  {` · up to ${secs(t.perModelTimeoutMs)} each, ${secs(t.budgetMs)} in all`}
+                </p>
+                {backups.length > 0 && (
+                  <p className="text-xs text-muted2 [overflow-wrap:anywhere]">
+                    Then: {backups.map(backupLabel).join(', ')}
+                  </p>
+                )}
+                {troubled.map((m) => (
+                  <p key={m.id} data-chain-error className="text-xs [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>
+                    {m.model}: {ERROR_KIND[m.lastError.kind] || m.lastError.kind}{m.lastError.message ? ` (${m.lastError.message.slice(0, 140)})` : ''}
+                  </p>
                 ))}
-              </ol>
-            </Card>
+              </li>
+            );
+          })}
+        </Card>
+        <p className="text-xs text-muted2">"Picked" backups follow each provider's current model list, so a renamed or retired model is replaced on its own. "Not offered" means the provider no longer lists that model, so it's skipped. Speeds reset when the server restarts. Checked {new Date(status.checkedAt).toLocaleTimeString()}.</p>
+      </section>
+
+      <section aria-labelledby="ai-providers" className="flex flex-col gap-3">
+        <h3 id="ai-providers" className="text-h3 text-textMain">Providers</h3>
+        <Card as="ul" className="divide-y divide-border">
+          {providers.map(([id, p]) => (
+            <li key={id} className="px-4 py-2 flex items-start gap-2 min-w-0">
+              {p.configured
+                ? <Check size={16} strokeWidth={2} aria-hidden="true" style={{ color: 'var(--accent-success)' }} className="shrink-0 mt-0.5" />
+                : <X size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 mt-0.5 text-muted" />}
+              <p className="min-w-0 text-xs text-muted2">
+                <span className="text-sm font-semibold text-textMain">{p.label}</span>{' · '}
+                {!p.configured ? <>No key on the server: <span data-env-key className="font-mono [overflow-wrap:break-word]">{keyName(p.envKey)}</span></>
+                  : p.catalog?.ok ? `Key works, ${p.catalog.models} models offered${p.catalog.free != null ? `, ${p.catalog.free} free` : ''}`
+                    : p.catalog ? `Key set, model list: ${p.catalog.error}`
+                      : 'Key set'}
+              </p>
+            </li>
           ))}
-        </ul>
-        <p className="text-xs text-muted2">Backups marked "picked" follow each provider's current model list, so a renamed or retired model is replaced on its own; OpenRouter backups are always free models. "Not offered" means the provider's own model list doesn't include that model (checked at startup and every 6 hours), so it is skipped. Speeds are from this server's recent requests and reset when it restarts. Checked {new Date(status.checkedAt).toLocaleTimeString()}.</p>
+        </Card>
+        {missing.length > 0 && (
+          <p className="text-xs text-muted2">Models from a provider without a key are skipped. Set the key in the backend's environment on Render to use them.</p>
+        )}
       </section>
     </div>
   );

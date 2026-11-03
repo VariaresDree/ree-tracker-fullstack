@@ -1,5 +1,5 @@
 // Regression coverage for "Accept All" chunking (see BULK_CHUNK_SIZE in
-// LibraryOverview.jsx): apiRequest hard-aborts at 12s and the server approves
+// ReviewQueue.jsx): apiRequest hard-aborts at 12s and the server approves
 // serially, so a queue of any real size sent in ONE request used to report
 // "failed" while the server kept going and finished anyway. This test drives
 // a queue larger than one chunk through the real handler and asserts the
@@ -9,10 +9,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import LibraryOverview from './LibraryOverview';
+import ReviewQueue from './ReviewQueue';
 
 vi.mock('../../store/useStore', () => ({
-  useStore: () => ({
+  useStore: (sel) => sel({
     isAdmin: true,
     dynamicTOS: { Mathematics: [], ESAS: [], EE: [] },
     setDynamicTOS: vi.fn(),
@@ -60,7 +60,7 @@ const makeQueue = (n) =>
     fixedExplanation: 'Worked.',
   }));
 
-describe('LibraryOverview — Accept All chunking', () => {
+describe('ReviewQueue — Accept All chunking', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -88,16 +88,8 @@ describe('LibraryOverview — Accept All chunking', () => {
     const resyncVaultMetadata = vi.fn().mockResolvedValue();
 
     render(
-      <LibraryOverview
-        serverStats={{}}
-        vaultMetadata={{}}
-        resyncVaultMetadata={resyncVaultMetadata}
-        manualMode={false}
-        setManualMode={() => {}}
-      />,
+      <ReviewQueue resyncVaultMetadata={resyncVaultMetadata} />,
     );
-
-    await user.click(screen.getByRole('button', { name: /review queue/i }));
     await waitFor(() => expect(fetchReviewQueue).toHaveBeenCalled());
 
     const acceptAllButton = await screen.findByRole('button', { name: /accept all 30 valid/i });
@@ -130,16 +122,8 @@ describe('LibraryOverview — Accept All chunking', () => {
 
     const user = userEvent.setup();
     render(
-      <LibraryOverview
-        serverStats={{}}
-        vaultMetadata={{}}
-        resyncVaultMetadata={vi.fn().mockResolvedValue()}
-        manualMode={false}
-        setManualMode={() => {}}
-      />,
+      <ReviewQueue resyncVaultMetadata={vi.fn().mockResolvedValue()} />,
     );
-
-    await user.click(screen.getByRole('button', { name: /review queue/i }));
     const acceptAllButton = await screen.findByRole('button', { name: /accept all 10 valid/i });
     await user.click(acceptAllButton);
     const dialog = await screen.findByRole('dialog', { name: /approve all 10 valid items\?/i });
@@ -168,16 +152,8 @@ describe('LibraryOverview — Accept All chunking', () => {
 
     const user = userEvent.setup();
     render(
-      <LibraryOverview
-        serverStats={{}}
-        vaultMetadata={{}}
-        resyncVaultMetadata={vi.fn().mockResolvedValue()}
-        manualMode={false}
-        setManualMode={() => {}}
-      />,
+      <ReviewQueue resyncVaultMetadata={vi.fn().mockResolvedValue()} />,
     );
-
-    await user.click(screen.getByRole('button', { name: /review queue/i }));
     const acceptAllButton = await screen.findByRole('button', { name: /accept all 30 valid/i });
     await user.click(acceptAllButton);
     const dialog = await screen.findByRole('dialog', { name: /approve all 30 valid items\?/i });
@@ -212,16 +188,8 @@ describe('LibraryOverview — Accept All chunking', () => {
 
     const user = userEvent.setup();
     render(
-      <LibraryOverview
-        serverStats={{}}
-        vaultMetadata={{}}
-        resyncVaultMetadata={vi.fn().mockResolvedValue()}
-        manualMode={false}
-        setManualMode={() => {}}
-      />,
+      <ReviewQueue resyncVaultMetadata={vi.fn().mockResolvedValue()} />,
     );
-
-    await user.click(screen.getByRole('button', { name: /review queue/i }));
     const acceptAllButton = await screen.findByRole('button', { name: /accept all 30 valid/i });
     await user.click(acceptAllButton);
     const dialog = await screen.findByRole('dialog', { name: /approve all 30 valid items\?/i });

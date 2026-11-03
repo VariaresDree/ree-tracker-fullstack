@@ -1,7 +1,5 @@
-// Admin › AI models. A long model id with a failure line used to collapse
-// to a one-character column (the row was a single-line flex row with a
-// basis-0 name and a basis-full error that never wrapped). The rows are now a
-// grid on the list's own width, with the failure on its own line.
+// Admin › AI models: one row a feature, with healthy backups as a name in a line
+// and any model in trouble called out with its reason.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 
@@ -34,6 +32,7 @@ const STATUS = {
           successRate: 0,
           lastError: { kind: 'rate_limited', message: 'OpenRouter 429: Provider returned error' },
         },
+        { id: 'c', model: 'gemini-2.5-flash', providerLabel: 'Google Gemini', state: 'ok', calls: 2, medianMs: 800, successRate: 0.5 },
       ],
     },
   },
@@ -48,48 +47,44 @@ vi.mock('../../../services/geminiApi', () => ({ probeAiModels: vi.fn() }));
 const { default: AiStatusPanel } = await import('./AiStatusPanel');
 
 describe('AiStatusPanel', () => {
-  it('lays each model out on a grid sized by the list, with a failure on its own line', () => {
+  it('is one row a feature, not a card a feature and a row a model', () => {
     const { container } = render(<AiStatusPanel />);
-    const rows = container.querySelectorAll('[data-chain-row]');
-    expect(rows).toHaveLength(2);
-    for (const row of rows) {
-      // Narrow: number + name; one line from the list's own 42rem.
-      expect(row.className).toMatch(/\bgrid grid-cols-\[1rem_minmax\(0,1fr\)\]/);
-      expect(row.className).toMatch(/@2xl:grid-cols-\[/);
-      expect(row.className).not.toMatch(/\b(sm|md|lg):flex-row\b/);
-    }
-    expect(rows[0].closest('ol')).toHaveClass('@container');
-
-    const failing = rows[1];
-    expect(within(failing).getByText(/google\/gemma-4-31b-it:free/)).toBeInTheDocument();
-    const error = failing.querySelector('[data-chain-error]');
-    expect(error).toHaveTextContent('Last failure: rate limited (OpenRouter 429: Provider returned error)');
-    expect(error.className).toMatch(/\[grid-column:2\/-1\]/);
-    expect(within(failing).getByText('Down')).toBeInTheDocument();
-    // A healthy model has no failure line.
-    expect(rows[0].querySelector('[data-chain-error]')).toBeNull();
+    expect(container.querySelectorAll('[data-feature-row]')).toHaveLength(1);
+    expect(container.querySelector('[data-chain-row]')).toBeNull();
+    const row = container.querySelector('[data-feature-row]');
+    expect(within(row).getByText('AI board report')).toBeInTheDocument();
+    expect(row).toHaveTextContent('Learners, speed first');
+    expect(within(row).getByText('Working')).toBeInTheDocument();
   });
 
-  it('shows each provider as a card on the shared grid, and says which have no key', () => {
+  it('says who answers now and how it’s doing, and who’s next', () => {
+    render(<AiStatusPanel />);
+    const now = screen.getByText(/Answering now:/);
+    expect(now).toHaveTextContent('Answering now: openai/gpt-oss-20b on Groq · 1.1 s median, 100% · up to 12.0 s each, 30.0 s in all');
+    expect(now.className).toMatch(/\[overflow-wrap:anywhere\]/);
+    expect(screen.getByText(/^Then:/)).toHaveTextContent('Then: google/gemma-4-31b-it:free (picked, down, 0%), gemini-2.5-flash (800 ms, 50%)');
+  });
+
+  it('still shows a failure, with the model and its reason, and none for a healthy model', () => {
+    const { container } = render(<AiStatusPanel />);
+    const errors = container.querySelectorAll('[data-chain-error]');
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toHaveTextContent('google/gemma-4-31b-it:free: rate limited (OpenRouter 429: Provider returned error)');
+  });
+
+  it('lists the providers, and says which have no key', () => {
     render(<AiStatusPanel />);
     const providers = screen.getByRole('heading', { name: 'Providers' }).closest('section');
-    const items = within(providers).getAllByRole('listitem');
-    expect(items).toHaveLength(3);
-    expect(items[0]).toHaveClass('surface-glass');
-    expect(within(providers).getByText('No key on the server')).toBeInTheDocument();
-    expect(within(providers).getByText(/Set CEREBRAS_API_KEY/)).toBeInTheDocument();
+    expect(within(providers).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(providers).getByText(/Key works, 20 models offered, 20 free/)).toBeInTheDocument();
+    expect(within(providers).getByText(/No key on the server/)).toHaveTextContent('CEREBRAS_API_KEY');
   });
 
   it('wraps a key name at its underscores, and it still reads (and copies) exactly', () => {
     const { container } = render(<AiStatusPanel />);
-    const key = [...container.querySelectorAll('[data-env-key]')].find((el) => el.textContent === 'OPENROUTER_API_KEY');
+    const key = [...container.querySelectorAll('[data-env-key]')].find((el) => el.textContent === 'CEREBRAS_API_KEY');
     expect(key).toBeTruthy();
     expect(key.querySelectorAll('wbr')).toHaveLength(2);
     expect(key.className).not.toMatch(/overflow-wrap:anywhere/);
-  });
-
-  it('lets a long model id wrap in the "answering now" line', () => {
-    render(<AiStatusPanel />);
-    expect(screen.getByText(/Answering now:/).className).toMatch(/\[overflow-wrap:anywhere\]/);
   });
 });

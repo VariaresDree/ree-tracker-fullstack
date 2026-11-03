@@ -52,7 +52,7 @@ test.describe('reading a PDF', () => {
 
   test('question extraction reads the text and sends it to the AI', async ({ page }) => {
     const sent = await stubAi(page, [QUESTION]);
-    await page.goto('/admin?tab=questions');
+    await page.goto('/admin?tab=questions&view=add&how=file');
     await page.getByLabel('Upload a PDF or image').setInputFiles(pdfFile('reviewer.pdf', SENTENCE));
     await page.getByRole('button', { name: 'Extract questions' }).click();
     await expect.poll(() => sent.length, { timeout: 20_000 }).toBe(1);
@@ -61,7 +61,7 @@ test.describe('reading a PDF', () => {
 
   test('question extraction stops on a scanned PDF, without calling the AI', async ({ page }) => {
     const sent = await stubAi(page, [QUESTION]);
-    await page.goto('/admin?tab=questions');
+    await page.goto('/admin?tab=questions&view=add&how=file');
     await page.getByLabel('Upload a PDF or image').setInputFiles(pdfFile('scan.pdf', ''));
     await page.getByRole('button', { name: 'Extract questions' }).click();
     await expect(page.getByText('This PDF looks scanned. Upload its pages as images.').first()).toBeVisible({ timeout: 20_000 });

@@ -18,6 +18,7 @@ const SCREENS = [
   ...tabs('/library', ['handouts', 'formulas', 'notebook', 'bookmarks', 'quizzes']),
   '/account',
   ...tabs('/admin', ['questions', 'explanations', 'references', 'syllabus', 'handouts', 'ai', 'health']),
+  ...['add', 'add&how=import', 'add&how=file', 'add&how=manual', 'review', 'fix'].map((view) => `/admin?tab=questions&view=${view}`),
   '/simulator',
   '/diagnostic',
   '/focus',
