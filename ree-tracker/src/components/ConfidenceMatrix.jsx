@@ -1,6 +1,6 @@
 // src/components/ConfidenceMatrix.jsx
 import React from 'react';
-import { Card, EmptyState, Panel } from './ui';
+import { Card, Panel } from './ui';
 import { Crosshair, CircleAlert } from './ui/icons';
 
 const CELLS = [
@@ -12,21 +12,6 @@ const CELLS = [
 
 function ConfidenceMatrix({ stats }) {
   const mc = stats?.matrix || { hc: 0, hw: 0, lc: 0, lw: 0 };
-  const rated = CELLS.reduce((n, c) => n + (Number(mc[c.key]) || 0), 0);
-
-  // Four zeros said nothing: before any rated answer, say how it fills.
-  if (rated === 0) {
-    return (
-      <Panel icon={Crosshair} eyebrow="Calibration" title="Confidence vs accuracy" className="h-full">
-        <EmptyState
-          compact
-          icon={Crosshair}
-          title="No rated answers yet"
-          description="Rate how sure you are when you answer in Practice, and this sorts your answers into mastery, blind spots, lucky guesses and gaps."
-        />
-      </Panel>
-    );
-  }
 
   return (
     <Panel icon={Crosshair} eyebrow="Calibration" title="Confidence vs accuracy" className="h-full" bodyClassName="flex flex-col gap-4">
@@ -69,7 +54,7 @@ function ConfidenceMatrix({ stats }) {
 
       <Card variant="inset" className="p-4 flex items-start gap-2.5">
         <CircleAlert size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: 'var(--accent-danger)' }} />
-        <p className="text-[0.7rem] text-muted2 leading-relaxed">
+        <p className="text-xs text-muted2 leading-relaxed">
           <strong className="text-textMain font-semibold">Blind spots</strong> (high confidence, wrong) hurt your
           predicted score the most — target them first in Practice.
         </p>

@@ -276,7 +276,7 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
       <SectionHeader
         divider
         title="Bookmarks"
-        description="Questions you saved while practising. Open one to see its answer, or practise them as a session."
+        description="Questions you saved. Open one for its answer, or practise them as a session."
         actions={(
           <>
             <span className="text-xs text-muted2 tabular-nums">

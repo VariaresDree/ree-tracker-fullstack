@@ -14,11 +14,12 @@
 import { Suspense, useState } from 'react';
 import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
-import { Badge, Button, Card, CardWatermark, Grid, KpiTile, Panel, SegmentedControl } from '../../components/ui';
+import { Badge, Card, Grid, KpiTile, Panel, SegmentedControl } from '../../components/ui';
 import { ArrowRight, AudioWaveform, Flame, Gauge, ListChecks, Timer } from '../../components/ui/icons';
 import { SkeletonChart } from '../../components/SkeletonLoaders';
 import { TrajectoryCard } from '../analytics/TrajectoryCard';
 import AiBoardReport from './AiBoardReport';
+import NothingYet from './NothingYet';
 import { weeklyAnswers } from './weeklyAnswers';
 
 // Recharts is the heaviest dependency here; the KPIs paint before it arrives.
@@ -37,15 +38,11 @@ export default function OverviewTab({ stats, kpi, today }) {
 
   if (stats && !kpi.answered) {
     return (
-      <Card as="section" variant="hero" aria-labelledby="overview-lead" className="flex flex-col gap-3">
-        <CardWatermark icon={AudioWaveform} />
-        <h2 id="overview-lead" className="text-h2 text-textMain">Your progress starts with your first answer</h2>
-        <p className="text-sm text-muted2 max-w-prose">Your accuracy, pace, ability trend and pass forecast appear here as you practise.</p>
-        <div className="pt-1 flex flex-wrap gap-2">
-          <Button as={Link} to="/practice" size="lg">Start practising</Button>
-          <Button as={Link} to="/diagnostic" size="lg" variant="secondary">Take the placement test</Button>
-        </div>
-      </Card>
+      <NothingYet
+        icon={AudioWaveform}
+        title="Your progress starts with your first answer"
+        description="Your accuracy, pace, ability trend and pass forecast appear here as you practise."
+      />
     );
   }
 

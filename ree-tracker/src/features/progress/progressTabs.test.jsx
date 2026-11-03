@@ -107,8 +107,17 @@ describe('Progress tabs', () => {
 
   it('Confidence: before any rated answer, says how the matrix fills instead of four zeros', () => {
     renderTab(<ConfidenceTab stats={{ ...stats, matrix: { hc: 0, hw: 0, lc: 0, lw: 0 } }} />);
-    expect(screen.getByText('No rated answers yet')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'See whether your confidence matches your answers' })).toBeInTheDocument();
     expect(screen.queryByText('High confidence · correct')).not.toBeInTheDocument();
+    // Nor an empty calibration section under it.
+    expect(screen.queryByText('Accuracy at each confidence level')).not.toBeInTheDocument();
+  });
+
+  it('Habits with no answers yet says so once, and keeps focus time', async () => {
+    renderTab(<HabitsTab stats={{ ...stats, activityCalendar: {} }} />);
+    expect(screen.getByRole('region', { name: 'Your study habits show here once you start' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Study calendar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Previous month' })).not.toBeInTheDocument();
   });
 
   it('Habits: the study calendar, study time and time per topic', async () => {

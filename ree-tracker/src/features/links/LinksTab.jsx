@@ -172,7 +172,7 @@ export default function LinksTab({ embedded = false } = {}) {
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="text-muted2 text-sm max-w-prose">
-          Your own resources, by subject: a Drive folder, a video, a flashcard deck, a quiz. Pin the ones you open most.
+          A Drive folder, a video, a flashcard deck, a quiz. Pin the ones you open most.
         </p>
         <Button size="sm" onClick={() => open()}>
           <Plus size={14} strokeWidth={2} aria-hidden="true" /> Add link

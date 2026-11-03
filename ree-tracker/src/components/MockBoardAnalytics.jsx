@@ -217,6 +217,9 @@ export default function MockBoardAnalytics() {
     },
   ];
 
+  // Nothing sat yet: one invitation, not zeroes and two empty panels.
+  const nothingYet = !loading && !loadError && history.length === 0;
+
   return (
     <div className="flex flex-col gap-6">
       {/* Trajectory: mini-stats + chart */}
@@ -234,17 +237,19 @@ export default function MockBoardAnalytics() {
         {/* Over the latest 20 sittings, which is what the list holds. Until
             the first list arrives they are placeholders: they used to read
             "0", "0%" and "0 of 0" while it loaded. */}
-        <Grid kind="tiles" gap="sm">
-          {loading && history.length === 0 ? (
-            [0, 1, 2].map((i) => <Skeleton key={i} className="h-[5.5rem] rounded-[var(--radius-lg)]" />)
-          ) : (
-            <>
-              <MiniStat label="Sittings (last 20)" value={totalRuns} />
-              <MiniStat label="Average" value={`${avgScore}%`} tone={avgScore >= 70 ? 'success' : 'amber'} />
-              <MiniStat label="Passed" value={`${passCount} of ${totalRuns}`} tone={passRate >= 70 ? 'success' : 'danger'} />
-            </>
-          )}
-        </Grid>
+        {!nothingYet && (
+          <Grid kind="tiles" gap="sm">
+            {loading && history.length === 0 ? (
+              [0, 1, 2].map((i) => <Skeleton key={i} className="h-[5.5rem] rounded-[var(--radius-lg)]" />)
+            ) : (
+              <>
+                <MiniStat label="Sittings (last 20)" value={totalRuns} />
+                <MiniStat label="Average" value={`${avgScore}%`} tone={avgScore >= 70 ? 'success' : 'amber'} />
+                <MiniStat label="Passed" value={`${passCount} of ${totalRuns}`} tone={passRate >= 70 ? 'success' : 'danger'} />
+              </>
+            )}
+          </Grid>
+        )}
 
         {loading ? (
           <SkeletonChart className="h-[320px]" />
@@ -299,7 +304,7 @@ export default function MockBoardAnalytics() {
       </Panel>
 
       {/* Ledger table */}
-      <Panel
+      {!nothingYet && <Panel
         icon={History}
         eyebrow="History"
         title="Past sittings"
@@ -319,7 +324,7 @@ export default function MockBoardAnalytics() {
             emptyMessage="No sittings yet. Finish a mock board or battle to see it here."
           />
         )}
-      </Panel>
+      </Panel>}
 
       {/* Scores from outside the app, beside (never inside) the in-app ones. */}
       {/* A paper mock checked with the scanner lands here as an outside score. */}
