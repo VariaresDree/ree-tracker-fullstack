@@ -30,6 +30,7 @@ export {
   Activity,
   ClipboardList,
   BookOpen,
+  Info,
   Award,
   // UI controls
   ChevronRight,

@@ -1,10 +1,9 @@
 // src/features/syllabus/trackerModel.js
 //
 // The figures behind Progress › Syllabus's tracker, pure: mastery and accuracy
-// per topic, what counts as weak, a subject's topics by mastery band, its board
-// items covered, and the sort orders.
+// per topic, what counts as weak, a subject's topics by mastery band, the filters
+// and the sort orders.
 import { isTopicCovered, masteryBand } from '@ree/shared';
-import { BOARD_GROUPS, boardItemsFor } from '@ree/shared/boardItems';
 
 /** Accuracy waits for this many answers, so one lucky answer isn't "100%". */
 export const ACCURACY_MIN_ANSWERS = 5;
@@ -30,22 +29,9 @@ export function bandCounts(rows) {
   return counts;
 }
 
-/**
- * How much of PRC's paper the covered topics stand for. A count shared by
- * several topics splits evenly among those the app has; an unitemized topic adds
- * nothing. @returns {{ covered: number, total: number }} rounded items
- */
-export function boardItemsCovered(subject, rows) {
-  let covered = 0;
-  let total = 0;
-  for (const group of BOARD_GROUPS[subject] || []) {
-    const members = (rows || []).filter((r) => group.topics.includes(r.name));
-    if (members.length === 0) continue;
-    total += group.items;
-    covered += group.items * (members.filter(isTopicCovered).length / members.length);
-  }
-  return { covered: Math.round(covered), total };
-}
+/** The filter chips: all, still to cover, covered, weak. */
+export const TOPIC_FILTERS = { all: () => true, todo: (r) => !isTopicCovered(r), done: isTopicCovered, weak: isWeak };
+export const filterTopics = (rows, filter) => (rows || []).filter(TOPIC_FILTERS[filter] || TOPIC_FILTERS.all);
 
 const fraction = ({ done, total }) => (total > 0 ? done / total : Number.POSITIVE_INFINITY);
 const missingLast = (n, fallback = Number.POSITIVE_INFINITY) => n ?? fallback;
@@ -56,7 +42,6 @@ const missingLast = (n, fallback = Number.POSITIVE_INFINITY) => n ?? fallback;
  */
 export function sortTopics(rows, sortBy, progressOf) {
   const list = (rows || []).slice();
-  if (sortBy === 'items') return list.sort((a, b) => (boardItemsFor(b.subject, b.name)?.items ?? -1) - (boardItemsFor(a.subject, a.name)?.items ?? -1));
   if (sortBy === 'least') return list.sort((a, b) => fraction(progressOf(a.topicId)) - fraction(progressOf(b.topicId)));
   if (sortBy === 'weakest') return list.sort((a, b) => missingLast(a.masteryEffective) - missingLast(b.masteryEffective));
   if (sortBy === 'dread') return list.sort((a, b) => (b.dread ?? -1) - (a.dread ?? -1));

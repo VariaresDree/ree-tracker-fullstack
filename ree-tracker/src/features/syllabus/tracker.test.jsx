@@ -3,7 +3,7 @@
 // changes show at once and queue offline. The figures are pure (trackerModel).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 
 const authState = { currentUser: { uid: 'user-A' } };
 vi.mock('../../config/firebaseDb', () => ({ auth: authState }));
@@ -64,7 +64,12 @@ function routeApi({ offline = false } = {}) {
 }
 const writes = (endpoint) => apiRequest.mock.calls.filter((c) => c[0].startsWith(endpoint) && (c[1] || 'GET') !== 'GET');
 
-const show = () => render(<MemoryRouter><SyllabusTab /></MemoryRouter>);
+// Stands in for the phone's Back button.
+function BackButton() {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(-1)}>device-back</button>;
+}
+const show = (initialEntries = ['/progress?tab=syllabus']) => render(<MemoryRouter initialEntries={initialEntries}><SyllabusTab /><BackButton /></MemoryRouter>);
 const open = async (name) => {
   fireEvent.click(await screen.findByRole('button', { name }));
   return within(screen.getByRole('region', { name: `${name}: table of contents` }));
@@ -82,49 +87,42 @@ beforeEach(() => {
   routeApi();
 });
 
-describe('the tracker’s rows', () => {
-  it('folds: one topic open at a time, with the figures always on the row', async () => {
+describe('the tracker’s tiles', () => {
+  it('each tile reports its subtopics and checks, and has nothing to change on it', async () => {
     show();
     const alg = await screen.findByRole('button', { name: 'Algebra' });
     await waitFor(() => expect(screen.getByRole('progressbar', { name: 'Algebra: 0 of 2 subtopics' })).toBeInTheDocument());
     const item = alg.closest('li');
     expect(within(item).getByText('0/2')).toBeInTheDocument();
     expect(within(item).getByRole('img', { name: 'not read, not watched, not drilled' })).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Algebra: checklist' })).not.toBeInTheDocument();
-
-    fireEvent.click(alg);
-    expect(alg).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('group', { name: 'Algebra: checklist' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Calculus 1' }));
-    expect(screen.queryByRole('group', { name: 'Algebra: checklist' })).not.toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Calculus 1: checklist' })).toBeInTheDocument();
+    expect(within(item).getAllByRole('button')).toHaveLength(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows mastery, accuracy and Weak, and waits for enough answers', async () => {
+  it('marks a weak topic with its pill and a red edge, and only that one', async () => {
     show();
     const item = (await screen.findByRole('button', { name: 'Algebra' })).closest('li');
     expect(within(item).getByText('Weak')).toBeInTheDocument();
-    expect(within(item).getByText('33%')).toBeInTheDocument();
+    expect(item.getAttribute('style')).toMatch(/accent-danger/);
     const calc = screen.getByRole('button', { name: 'Calculus 1' }).closest('li');
-    expect(within(calc).getByText('Proficient')).toBeInTheDocument();
-    expect(within(calc).getByText('63%')).toBeInTheDocument();
-    const few = screen.getByRole('button', { name: 'Vector Analysis' }).closest('li');
-    expect(within(few).queryByText('100%')).not.toBeInTheDocument();
+    expect(within(calc).queryByText('Weak')).not.toBeInTheDocument();
+    expect(calc.getAttribute('style') || '').not.toMatch(/accent-danger/);
   });
 
-  it('says what a shared board count is shared with, when open', async () => {
+  it('tells a board figure nowhere on the screen', async () => {
     show();
+    await screen.findByRole('button', { name: 'Algebra' });
     await open('Algebra');
-    expect(screen.getByText(/5 of the board’s 100 Math items, shared with Complex Numbers/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/board items|board’s 100|not itemized/i);
   });
 
-  it('tiles show topics, subtopics and board items, and switch the list', async () => {
+  it('rings switch the subject, three always in a row', async () => {
     show();
-    const math = await screen.findByRole('button', { name: /Maths*· 25%/ });
+    const math = await screen.findByRole('button', { name: /^Mathematics: / });
     expect(math).toHaveAttribute('aria-pressed', 'true');
-    await waitFor(() => expect(within(math).getByText('0 of 3 subtopics')).toBeInTheDocument());
-    expect(within(math).getByText('0 of 20 board items')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /EEs*· 45%/ }));
+    expect(math.parentElement.className).toMatch(/grid-cols-3/);
+    expect(math.parentElement.children).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: /^EE: / }));
     expect(screen.getByRole('heading', { level: 3, name: 'Power System Analysis' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 3, name: 'Algebra' })).not.toBeInTheDocument();
   });
@@ -134,15 +132,82 @@ describe('the tracker’s rows', () => {
     expect(await screen.findByRole('img', { name: 'Mathematics topics by mastery: Proficient 1, Novice 1, No answers 1' })).toBeInTheDocument();
   });
 
-  it('sorts weakest first, and by most board items', async () => {
+  it('filter chips carry their counts, and narrow the list', async () => {
+    TOPICS[0] = { ...TOPICS[0], read: true, drilled: true };
+    try {
+      show();
+      await screen.findByRole('button', { name: 'Algebra' });
+      const names = () => screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+      expect(names()).toEqual(['Calculus 1', 'Algebra', 'Vector Analysis']);
+      fireEvent.click(screen.getByRole('radio', { name: 'To do 2' }));
+      expect(names()).toEqual(['Algebra', 'Vector Analysis']);
+      fireEvent.click(screen.getByRole('radio', { name: 'Done 1' }));
+      expect(names()).toEqual(['Calculus 1']);
+      fireEvent.click(screen.getByRole('radio', { name: 'Weak 1' }));
+      expect(names()).toEqual(['Algebra']);
+      fireEvent.click(screen.getByRole('button', { name: /^EE: / }));
+      expect(screen.getByText('No weak topics in this subject.')).toBeInTheDocument();
+    } finally {
+      TOPICS[0] = { ...TOPICS[0], read: false, drilled: false };
+    }
+  });
+
+  it('sorts weakest first, and has no board-items sort', async () => {
     show();
     await screen.findByRole('button', { name: 'Algebra' });
     const names = () => screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
     expect(names()).toEqual(['Calculus 1', 'Algebra', 'Vector Analysis']);
     fireEvent.change(screen.getByLabelText('Sort'), { target: { value: 'weakest' } });
     expect(names()).toEqual(['Algebra', 'Calculus 1', 'Vector Analysis']);
-    fireEvent.change(screen.getByLabelText('Sort'), { target: { value: 'items' } });
-    expect(names()).toEqual(['Calculus 1', 'Algebra', 'Vector Analysis']);
+    expect(screen.queryByRole('option', { name: /board items/ })).not.toBeInTheDocument();
+  });
+
+  it('how coverage works is one tap away, not on the screen', async () => {
+    show();
+    await screen.findByRole('button', { name: 'Algebra' });
+    expect(screen.queryByText(/A topic counts as covered/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'How coverage works' }));
+    expect(screen.getByText(/A topic counts as covered/)).toHaveTextContent('Math 25%, ESAS 30%, EE 45%');
+  });
+});
+
+describe('a topic’s sheet', () => {
+  it('opens over the list with its mastery and accuracy, and waits for enough answers', async () => {
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Calculus 1' }));
+    let sheet = within(screen.getByRole('dialog', { name: 'Calculus 1' }));
+    expect(sheet.getByText('Proficient')).toBeInTheDocument();
+    expect(sheet.getByText('63%')).toBeInTheDocument();
+    fireEvent.click(sheet.getByRole('button', { name: 'Close dialog' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Vector Analysis' }));
+    sheet = within(await screen.findByRole('dialog', { name: 'Vector Analysis' }));
+    // 2 of 2 right is too few answers to call 100%.
+    expect(sheet.getByText('Accuracy').nextSibling).toHaveTextContent('—');
+  });
+
+  it('Back closes it, and the list and subject stay', async () => {
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: /^EE: / }));
+    fireEvent.click(screen.getByRole('button', { name: 'Power System Analysis' }));
+    expect(screen.getByRole('dialog', { name: 'Power System Analysis' })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('device-back'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('heading', { level: 3, name: 'Power System Analysis' })).toBeInTheDocument();
+  });
+
+  it('a link opens the topic and the subject it names, and closing stays on the page', async () => {
+    show(['/progress?tab=syllabus&subject=EE&topic=t-psa']);
+    const sheet = await screen.findByRole('dialog', { name: 'Power System Analysis' });
+    expect(screen.getByRole('button', { name: /^EE: / })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Close dialog' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('heading', { level: 3, name: 'Power System Analysis' })).toBeInTheDocument();
+  });
+
+  it('a link to a topic that isn’t there just shows the list', async () => {
+    show(['/progress?tab=syllabus&topic=gone']);
+    await screen.findByRole('button', { name: 'Algebra' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 
@@ -312,16 +377,19 @@ describe('trackerModel', () => {
     expect(model.isWeak({ masteryEffective: null, attempts: 50 })).toBe(false);
   });
 
-  it('board items covered splits a shared count, and ignores unitemized topics', () => {
-    const covered = { read: true, drilled: true };
+  it('the filters split a subject by coverage and weakness', () => {
     const rows = [
-      { subject: 'Mathematics', name: 'Algebra', ...covered },
-      { subject: 'Mathematics', name: 'Complex Numbers' },
-      { subject: 'Mathematics', name: 'Calculus 1', ...covered },
-      { subject: 'Mathematics', name: 'Vector Analysis', ...covered },
+      { topicId: 'covered', read: true, drilled: true },
+      { topicId: 'weak', masteryEffective: 0.2, attempts: 10 },
+      { topicId: 'new' },
     ];
-    expect(model.boardItemsCovered('Mathematics', rows)).toEqual({ covered: 18, total: 20 });
-    expect(model.boardItemsCovered('Nope', rows)).toEqual({ covered: 0, total: 0 });
+    const ids = (filter) => model.filterTopics(rows, filter).map((r) => r.topicId);
+    expect(ids('all')).toEqual(['covered', 'weak', 'new']);
+    expect(ids('todo')).toEqual(['weak', 'new']);
+    expect(ids('done')).toEqual(['covered']);
+    expect(ids('weak')).toEqual(['weak']);
+    expect(ids('nonsense')).toEqual(['covered', 'weak', 'new']);
+    expect(model.filterTopics(null, 'all')).toEqual([]);
   });
 
   it('least done puts topics with no list last', () => {
