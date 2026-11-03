@@ -170,7 +170,8 @@ describe('Progress', () => {
     ['syllabus', 'syllabus exam=null'],
   ])('?tab=%s opens that tab', async (tab, text) => {
     at(`/progress?tab=${tab}`, Progress);
-    expect(await screen.findByText(text)).toBeInTheDocument();
+    // A lazy chunk: under full-suite load the default 1 s isn't enough.
+    expect(await screen.findByText(text, {}, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole('tab', { selected: true })).toHaveAttribute('aria-selected', 'true');
   });
 

@@ -1,56 +1,35 @@
 // src/components/ZoomableImage.jsx
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { Button } from './ui';
+import { Minus, Plus, RotateCcw } from './ui/icons';
+
+// Inline sizes: the library injects its own unlayered CSS (fit-content), which
+// beats Tailwind's layered utilities, so a class here shrink-wraps the zoom area
+// to the image. `wheel.step` multiplies a wheel notch's deltaY (about 100).
+const FILL = { width: '100%', height: '100%' };
 
 export default function ZoomableImage({ src, alt }) {
   return (
-    <div className="w-full h-full bg-surface2 border border-border2 rounded-[var(--radius-default)] overflow-hidden relative group">
-      {/* Overlay controls hint */}
-      <div className="absolute top-4 right-4 z-10 bg-bg/80 backdrop-blur-sm border border-border2 px-3 py-1.5 rounded-lg text-micro font-bold text-muted uppercase tracking-widest pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-        Pinch or Scroll to Zoom
-      </div>
-
-      <TransformWrapper
-        initialScale={1}
-        minScale={0.5}
-        maxScale={8} // Allows extreme zoom for dense charts and architectural plans
-        centerOnInit={true}
-        wheel={{ step: 0.1 }}
-      >
+    <div className="w-full h-full bg-surface2 border border-border2 rounded-[var(--radius-default)] overflow-hidden relative">
+      <TransformWrapper initialScale={1} minScale={1} maxScale={8} wheel={{ step: 0.005 }}>
         {({ zoomIn, zoomOut, resetTransform }) => (
           <>
-            {/* Manual Controls for Desktop/Mouse users */}
             <div className="absolute bottom-4 right-4 z-10 flex gap-2">
-              <button type="button" onClick={() => zoomIn()} aria-label="Zoom in" className="touch-target w-8 h-8 bg-surface3 hover:bg-reeBlue/20 border border-border2 hover:border-reeBlue/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
-                +
-              </button>
-              <button type="button" onClick={() => zoomOut()} aria-label="Zoom out" className="touch-target w-8 h-8 bg-surface3 hover:bg-reeBlue/20 border border-border2 hover:border-reeBlue/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
-                -
-              </button>
-              <button type="button" onClick={() => resetTransform()} aria-label="Reset zoom" className="touch-target w-8 h-8 bg-surface3 hover:bg-reeRed/20 border border-border2 hover:border-reeRed/50 rounded-lg text-textMain flex items-center justify-center transition-colors shadow-sm cursor-pointer">
-                ↺
-              </button>
+              <Button size="icon" variant="secondary" aria-label="Zoom in" onClick={() => zoomIn()}><Plus size={16} strokeWidth={1.75} aria-hidden="true" /></Button>
+              <Button size="icon" variant="secondary" aria-label="Zoom out" onClick={() => zoomOut()}><Minus size={16} strokeWidth={1.75} aria-hidden="true" /></Button>
+              <Button size="icon" variant="secondary" aria-label="Reset zoom" onClick={() => resetTransform()}><RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" /></Button>
             </div>
 
-            <TransformComponent wrapperClass="w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing">
-              {/* No width/height attributes here, deliberately. The audit flagged
-                  this as a CLS risk because it is the app's only <img> and sets
-                  no dimensions — but the box is already reserved: this sits in a
-                  w-full h-full flex container inside another w-full h-full
-                  wrapper, so the image is centred into space that exists before
-                  it loads. `src` is a user-supplied URL of unknown intrinsic
-                  size, so hard-coding dimensions would distort it rather than
-                  prevent a shift that does not happen.
-
-                  decoding="async" keeps a large reference scan off the main
-                  thread, and lazy loading defers it until the viewer is
-                  actually opened. */}
+            <TransformComponent wrapperStyle={FILL} contentStyle={FILL} wrapperClass="cursor-grab active:cursor-grabbing">
+              {/* No width/height attributes: the box is reserved by the viewer, and
+                  `src` is a file of unknown size. decoding="async" keeps a large
+                  scan off the main thread. */}
               <img
                 src={src}
                 alt={alt || 'Zoomable reference'}
-                className="max-w-full max-h-[80vh] object-contain"
+                className="w-full h-full object-contain"
                 draggable="false"
                 decoding="async"
-                loading="lazy"
               />
             </TransformComponent>
           </>

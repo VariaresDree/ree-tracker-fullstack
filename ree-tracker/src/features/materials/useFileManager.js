@@ -1,5 +1,6 @@
 // src/features/materials/useFileManager.js
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { app } from '../../config/firebaseDb';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
@@ -32,8 +33,10 @@ const isOfflineErr = (e) => e?.message?.includes('[OFFLINE]');
 export const useFileManager = (currentUser, isAdmin) => {
   const [folders, setFolders] = useState([]);
   const [materials, setMaterials] = useState([]);
-  const [currentFolderId, setCurrentFolderId] = useState('root');
-  const [breadcrumbs, setBreadcrumbs] = useState([{ id: 'root', name: 'Handouts' }]);
+  // The open folder lives in the URL, pushed: Back goes up a level, and a reload
+  // or a shared link stays put. A folder that's gone is the top level.
+  const [params, setParams] = useSearchParams();
+  const urlFolderId = params.get('folder');
   const [isLoading, setIsLoading] = useState(true);
   // null | 'offline' | 'failed'. The tab shows these instead of "This folder
   // is empty" — a failed load used to toast and then claim there was nothing.
@@ -87,16 +90,30 @@ export const useFileManager = (currentUser, isAdmin) => {
   }, [uid]);
 
   // --- NAVIGATION ROUTING ---
-  const navigateToFolder = (folderId, folderName) => {
-    setCurrentFolderId(folderId);
-    setBreadcrumbs(prev => [...prev, { id: folderId, name: folderName }]);
-  };
+  const currentFolderId = urlFolderId && (isLoading || folders.some((f) => f.id === urlFolderId)) ? urlFolderId : 'root';
 
-  const navigateToBreadcrumb = (index) => {
-    const newPath = breadcrumbs.slice(0, index + 1);
-    setBreadcrumbs(newPath);
-    setCurrentFolderId(newPath[newPath.length - 1].id);
-  };
+  const breadcrumbs = useMemo(() => {
+    const path = [];
+    const byId = new Map(folders.map((f) => [f.id, f]));
+    const seen = new Set();
+    for (let f = byId.get(currentFolderId); f && !seen.has(f.id); f = byId.get(f.parentId)) {
+      seen.add(f.id);
+      path.unshift({ id: f.id, name: f.name });
+    }
+    return [{ id: 'root', name: 'Handouts' }, ...path];
+  }, [folders, currentFolderId]);
+
+  const goToFolder = (folderId, options) => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (folderId && folderId !== 'root') next.set('folder', folderId);
+    else next.delete('folder');
+    return next;
+  }, options);
+
+  const navigateToFolder = (folderId) => goToFolder(folderId);
+  const navigateToBreadcrumb = (index) => goToFolder(breadcrumbs[index]?.id);
+  // A handout opened from a link: closing it shows the folder it's in.
+  const revealFolder = (folderId) => goToFolder(folderId, { replace: true });
 
   // --- CRUD OPERATIONS (wired to materialRoutes; admin-only server-side) ---
   //
@@ -237,13 +254,15 @@ export const useFileManager = (currentUser, isAdmin) => {
     const storageRef = ref(getStorage(app), `board_materials/${currentUser.uid}/${Date.now()}_${fileToUpload.name}`);
     const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
 
-    uploadTask.on('state_changed', 
+    // Resolves when it's all over, so the panel stays open with "Uploading…".
+    await new Promise((resolve) => uploadTask.on('state_changed',
       () => {}, // Tracking progress if necessary
       (error) => {
         console.error("Storage upload failed:", error);
         toast.error(`Upload failed: ${error.message}`);
         setIsUploading(false);
-      }, 
+        resolve();
+      },
       async () => {
         // Declared outside the try so the catch block can still queue the
         // record if it has a URL to work with (i.e. Storage succeeded and
@@ -284,9 +303,10 @@ export const useFileManager = (currentUser, isAdmin) => {
           }
         } finally {
           setIsUploading(false);
+          resolve();
         }
       }
-    );
+    ));
   };
 
   // --- DRAG AND DROP PHYSICS ---
@@ -321,7 +341,7 @@ export const useFileManager = (currentUser, isAdmin) => {
 
   return {
     folders, materials, currentFolderId, breadcrumbs, isLoading, loadError, reload: fetchContents, isUploading, dragOverFolderId,
-    navigateToFolder, navigateToBreadcrumb, createFolder, uploadAndCommitMaterial, addMaterialRecord,
+    navigateToFolder, navigateToBreadcrumb, revealFolder, createFolder, uploadAndCommitMaterial, addMaterialRecord,
     deleteItem, renameItem, moveItem,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   };

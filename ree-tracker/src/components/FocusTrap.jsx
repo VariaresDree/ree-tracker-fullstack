@@ -3,9 +3,9 @@ import { useEffect, useRef } from 'react';
 
 // Exclude disabled/hidden controls so the first/last wrap targets are real.
 const FOCUSABLE =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, audio[controls], video[controls], [tabindex]:not([tabindex="-1"])';
 
-export default function FocusTrap({ children, active }) {
+export default function FocusTrap({ children, active, className }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -63,5 +63,5 @@ export default function FocusTrap({ children, active }) {
     };
   }, [active]);
 
-  return <div ref={ref}>{children}</div>;
+  return <div ref={ref} className={className}>{children}</div>;
 }

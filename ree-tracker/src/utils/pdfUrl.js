@@ -1,15 +1,20 @@
 // src/utils/pdfUrl.js
-// Normalize a PDF url for iframe embedding. Google Drive links must use the
-// /preview URL (Drive renders its own viewer — its chrome can't be stripped);
-// hosted/raw PDFs get #toolbar=0 to hide the native browser PDF toolbar.
-// Shared by MediaViewer (inline) and FullscreenPdfViewer.
+// A PDF's url for the viewer's frame, and for opening it elsewhere. Google Drive
+// links must use the /preview URL (Drive renders its own viewer, with its own
+// zoom toolbar).
+const driveId = (url) => /\/d\/([a-zA-Z0-9_-]+)/.exec(url)?.[1] ?? null;
+
+export const isDriveUrl = (url) => String(url || '').includes('drive.google.com');
+
 export function normalizePdfUrl(url) {
-  let pdfUrl = url || '';
-  if (pdfUrl.includes('drive.google.com')) {
-    const driveIdMatch = pdfUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    return driveIdMatch && driveIdMatch[1]
-      ? `https://drive.google.com/file/d/${driveIdMatch[1]}/preview`
-      : pdfUrl.replace(/\/(view|edit)(.*)$/g, '/preview');
-  }
-  return `${pdfUrl}#toolbar=0`;
+  const pdfUrl = url || '';
+  if (!isDriveUrl(pdfUrl)) return pdfUrl;
+  const id = driveId(pdfUrl);
+  return id ? `https://drive.google.com/file/d/${id}/preview` : pdfUrl.replace(/\/(view|edit)(.*)$/g, '/preview');
+}
+
+/** Where to open it outside the app: Drive's page (the Drive app on a phone), or the file. */
+export function externalPdfUrl(url) {
+  const id = isDriveUrl(url) ? driveId(url) : null;
+  return id ? `https://drive.google.com/file/d/${id}/view` : url;
 }

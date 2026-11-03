@@ -1,7 +1,9 @@
 // src/components/MediaViewer.jsx
+import { useState } from 'react';
 import ZoomableImage from './ZoomableImage';
-import { AudioWaveform } from './ui/icons';
-import { normalizePdfUrl } from '../utils/pdfUrl';
+import { Button } from './ui';
+import { AudioWaveform, ExternalLink, Minus, Plus } from './ui/icons';
+import { externalPdfUrl, isDriveUrl, normalizePdfUrl } from '../utils/pdfUrl';
 
 const extractYouTubeId = (url) => {
   if (!url) return null;
@@ -9,6 +11,55 @@ const extractYouTubeId = (url) => {
   const match = url.match(regExp);
   return (match && match[2].length === 11) ? match[2] : null;
 };
+
+const ZOOM_MIN = 100;
+const ZOOM_MAX = 250;
+const ZOOM_STEP = 50;
+
+function OpenExternally({ href, label }) {
+  return (
+    <Button as="a" size="sm" variant="secondary" href={href} target="_blank" rel="noopener noreferrer">
+      <ExternalLink size={14} strokeWidth={1.75} aria-hidden="true" /> {label}
+    </Button>
+  );
+}
+
+// A PDF in a frame: Drive's viewer, or the browser's own. Another site's frame
+// can't be zoomed from here, and both bring their own zoom on a computer, at the
+// foot of the frame or the top (so nothing may clip it). On a phone neither
+// shows any, and Drive refits its page to the frame's width: widening the frame
+// enlarges the page, sharply, and the box around it scrolls.
+function PdfFrame({ url, title }) {
+  const [zoom, setZoom] = useState(ZOOM_MIN);
+  return (
+    <div className="flex flex-col flex-1 min-h-0 gap-2">
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:hidden">
+          <Button size="icon" variant="secondary" aria-label="Zoom out" disabled={zoom <= ZOOM_MIN} onClick={() => setZoom((z) => z - ZOOM_STEP)}>
+            <Minus size={16} strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+          <span className="text-xs text-muted2 w-12 text-center tabular-nums" aria-live="polite">{zoom}%</span>
+          <Button size="icon" variant="secondary" aria-label="Zoom in" disabled={zoom >= ZOOM_MAX} onClick={() => setZoom((z) => z + ZOOM_STEP)}>
+            <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+        </div>
+        <div className="ml-auto">
+          <OpenExternally href={externalPdfUrl(url)} label={isDriveUrl(url) ? 'Open in Drive' : 'Open in a new tab'} />
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto rounded-[var(--radius-default)] border border-border2 bg-surface2">
+        <iframe
+          src={normalizePdfUrl(url)}
+          className="block h-full border-0"
+          style={{ width: `${zoom}%` }}
+          title={title}
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function MediaViewer({ item }) {
   if (!item) return null;
@@ -22,9 +73,9 @@ export default function MediaViewer({ item }) {
       }
       return (
         <div className="w-full aspect-video rounded-[var(--radius-lg)] overflow-hidden border border-border2 shadow-lg bg-black">
-          <iframe 
-            width="100%" height="100%" src={embedUrl} title={item.title} frameBorder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          <iframe
+            width="100%" height="100%" src={embedUrl} title={item.title} frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           ></iframe>
         </div>
@@ -44,36 +95,22 @@ export default function MediaViewer({ item }) {
           </audio>
         </div>
       );
-      
+
     case 'image':
       return (
-        <div className="w-full h-[60dvh] sm:h-[80dvh]">
+        <div className="w-full flex-1 min-h-0">
           <ZoomableImage src={item.url} alt={item.title} />
         </div>
       );
-      
-    case 'pdf': {
-      const finalPdfUrl = normalizePdfUrl(item.url);
 
-      return (
-        <div className="w-full h-[80dvh] rounded-[var(--radius-lg)] overflow-hidden border border-border2 shadow-sm bg-surface2 relative">
-          {/* 🚀 ROOT CAUSE FIXED: The strict "sandbox" attribute was removed. 
-              Google Drive requires unrestricted iframe access to execute its own UI scripts. */}
-          <iframe 
-             src={finalPdfUrl} 
-             className="w-full h-full relative z-10 border-0" 
-             title={item.title}
-             allow="autoplay; encrypted-media"
-             allowFullScreen
-          ></iframe>
-        </div>
-      );
-    }
+    case 'pdf':
+      return <PdfFrame url={item.url} title={item.title} />;
 
     default:
       return (
-        <div className="p-8 text-center border-2 border-dashed border-border2 rounded-[var(--radius-lg)] text-muted2 text-xs uppercase tracking-widest font-mono mt-8">
-          This file type can't be shown here.
+        <div className="p-8 text-center border-2 border-dashed border-border2 rounded-[var(--radius-lg)] text-muted2 text-sm mt-8 flex flex-col items-center gap-4">
+          <p>This file type can't be shown here.</p>
+          <OpenExternally href={item.url} label="Open in a new tab" />
         </div>
       );
   }

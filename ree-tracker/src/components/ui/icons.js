@@ -117,4 +117,7 @@ export {
   FlashlightOff,
   Printer,
   QrCode,
+  // Handout viewer
+  ExternalLink,
+  Minus,
 } from 'lucide-react';

@@ -133,6 +133,8 @@ describe('Library handout viewer', () => {
         at('/library?tab=handouts', Library);
         fireEvent.click(screen.getByRole('button', { name: 'open m1' }));
         expect(screen.getByText('viewing AC notes')).toBeInTheDocument();
+        // Over the list, not instead of it: that's what keeps the folder and scroll.
+        expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         expect(screen.getByTestId('url')).toHaveTextContent('material=m1');
         fireEvent.click(screen.getByRole('button', { name: 'close viewer' }));
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();

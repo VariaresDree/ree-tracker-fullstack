@@ -81,12 +81,13 @@ export default function Library() {
     setParams((prev) => { const p = new URLSearchParams(prev); p.delete('material'); return p; }, { replace: true });
   };
 
-  if (viewingMaterial && materialId && String(viewingMaterial.id) === materialId) {
-    return <MaterialViewer material={viewingMaterial} onClose={closeMaterial} />;
-  }
-
   return (
     <Page>
+      {/* Over the list, never instead of it: the list keeps its folder and scroll. */}
+      {viewingMaterial && materialId && String(viewingMaterial.id) === materialId && (
+        <MaterialViewer material={viewingMaterial} onClose={closeMaterial} />
+      )}
+
       <PageHeader title="Library" subtitle="Your study material in one place: handouts and your own links, formula cards, your mistakes and notes, bookmarked questions, and imported quizzes." />
 
       <Tabs id="library" label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
