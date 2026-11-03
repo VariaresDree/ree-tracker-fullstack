@@ -59,8 +59,6 @@ const renderPanel = (props) => render(
 );
 
 beforeEach(() => {
-  // Most of this file reads the tiles: open them. Their own describe clears this.
-  localStorage.setItem('ree:today-more', 'open');
   lastState = null;
   placement = { status: { status: 'completed' }, result: null, plan: null, dismissed: false, dismiss: vi.fn(), isNew: false, settled: true };
   plannerItems = [];
@@ -93,7 +91,7 @@ describe('TodayPanel', () => {
       readiness: { score: 54, breakdown: { topicCoverage: 61, accuracyRate: 58, thetaNormalized: 52, consistency: 40 } },
       stats: { lastActiveDate: todayManila(), dailyMath: 4, dailyESAS: 2, dailyEE: 6, dailyTarget: 40 },
     });
-    for (const name of ['Board readiness index', 'Pass probability', 'Today’s target']) {
+    for (const name of ['Readiness index', 'Pass probability', 'Today’s target']) {
       expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
     }
     expect(screen.getByText('54')).toBeInTheDocument();

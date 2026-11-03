@@ -77,6 +77,42 @@ describe('GauntletTab', () => {
     expect(path).toBe('/gauntlet/2');
   });
 
+  it('shows every tier and board at once, with nothing to open', () => {
+    renderTab(<GauntletTab />);
+    for (const name of [/Tier 1: Warm-up/, /Tier 2: Stretch/, /Tier 3: Full length/, /Tier 4: Pressure round/, 'Mathematics', 'ESAS', 'EE']) {
+      expect(screen.getByRole('heading', { level: 3, name })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('group')).not.toBeInTheDocument();
+    expect(document.querySelector('details')).toBeNull();
+    expect(screen.getByText(/They open once all four tiers are cleared/)).toBeInTheDocument();
+    // Locked boards offer nothing to press.
+    expect(screen.getAllByLabelText('Locked')).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: /board/ })).not.toBeInTheDocument();
+  });
+
+  it('highlights the tier to reach, and shows how close each locked tier is', () => {
+    renderTab(<GauntletTab />);
+    expect(screen.getByText('You’re here').closest('li')).toHaveTextContent('Tier 2: Stretch');
+    expect(screen.getByRole('progressbar', { name: 'Tier 3 opens at 1000 answered: 600 so far' })).toHaveAttribute('aria-valuenow', '600');
+    expect(screen.getByText('600 / 1,000 answered')).toBeInTheDocument();
+    expect(screen.getByText('600 / 2,000 answered')).toBeInTheDocument();
+  });
+
+  it('the current tier still short of answers shows its bar and no Start', () => {
+    storeStats = { gauntletLevel: 1, totalAnswered: 50 };
+    renderTab(<GauntletTab />);
+    expect(screen.getByText('You’re here').closest('li')).toHaveTextContent('50 / 200 answered');
+    expect(screen.queryByRole('button', { name: /Start tier/ })).not.toBeInTheDocument();
+  });
+
+  it('a later tier with enough answers asks for the tier before it', () => {
+    storeStats = { gauntletLevel: 1, totalAnswered: 600 };
+    renderTab(<GauntletTab />);
+    expect(screen.getByRole('button', { name: 'Start tier 1 exam' })).toBeInTheDocument();
+    expect(screen.getByText('Clear tier 1 first')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start tier 2 exam' })).not.toBeInTheDocument();
+  });
+
   it('a failed run locks open tiers with a countdown', () => {
     storeStats = { ...storeStats, gauntletLockUntil: Date.now() + 3600 * 1000 };
     renderTab(<GauntletTab />);
@@ -96,9 +132,11 @@ describe('GauntletTab — loading and cleared boards', () => {
   it('a cleared subject board says so and can be taken again', () => {
     storeStats = { gauntletLevel: 5, totalAnswered: 9000, gauntletBoardClears: ['Mathematics'] };
     renderTab(<GauntletTab />);
-    fireEvent.click(screen.getByRole('button', { name: 'Take the Mathematics board again' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Take again: Mathematics board' }));
     expect(path).toBe('/gauntlet/5');
-    expect(screen.getByRole('button', { name: 'Start the ESAS board' })).toBeInTheDocument();
+    // One primary button: the first board still to clear.
+    expect(screen.getByRole('button', { name: 'Start the ESAS board' }).className).toMatch(/--btn-ink/);
+    expect(screen.getByRole('button', { name: 'Start the EE board' }).className).not.toMatch(/--btn-ink/);
   });
 });
 

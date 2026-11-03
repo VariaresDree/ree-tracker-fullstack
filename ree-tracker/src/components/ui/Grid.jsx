@@ -7,6 +7,8 @@ import { cn } from './cn';
 // given, beside the sidebar, inside a card or on a phone.
 //   kpi    2, then 4 from 48rem: headline figures
 //   tiles  2, then 3 from 32rem: small figures (never a column of tiny tiles)
+//   duo    2, then 3 from 42rem: tiles with more in them. One that needs the
+//          whole row on a phone takes `col-span-2 @2xl:col-span-1`
 //   pair   1, then 2 from 42rem: two panels side by side
 //   cards  1, then 2 from 36rem, then 3 from 56rem: option and content cards
 //   options  as cards, with an odd last card taking the whole row at 2 columns,
@@ -22,6 +24,7 @@ import { cn } from './cn';
 const KINDS = {
   kpi: 'grid-cols-2 @3xl:grid-cols-4',
   tiles: 'grid-cols-2 @lg:grid-cols-3',
+  duo: 'grid-cols-2 @2xl:grid-cols-3',
   pair: 'grid-cols-1 @2xl:grid-cols-2',
   cards: 'grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3',
   options: 'grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 @xl:@max-4xl:[&>:last-child:nth-child(odd)]:col-span-2',

@@ -11,12 +11,10 @@
 // reordered as each source arrived. The lead now waits until every source
 // that can claim it has answered (or LEAD_WAIT_MS has passed).
 //
-// Under the lead, one line of figures opens More for today: the tiles and the
-// rest of the shortlist. Closed on a phone, where they competed with the lead;
-// open from 768px; the learner's own choice is remembered on the device.
-import { useEffect, useId, useState } from 'react';
+// All of it always shows. On a phone the first two tiles sit side by side and
+// the target takes the row under them.
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import useMediaQuery from '../../hooks/useMediaQuery';
 import { fetchReadinessHistory } from '../../services/dbQueries';
 import { Badge, Card, CardTitle, CardWatermark, Button, Grid, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
@@ -38,7 +36,7 @@ import { usePlanCalendar } from '../study-plan/usePlanCalendar';
 import { todayManila } from '../../utils/manilaDate';
 import { launchPractice } from '../active-recall/presets';
 import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS, isRestDay, keyDayMap } from '@ree/shared';
-import { ArrowRight, ChevronDown, CalendarCheck, ClipboardList, Compass, Crosshair, Layers, Pause, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
+import { ArrowRight, CalendarCheck, ClipboardList, Compass, Crosshair, Layers, Pause, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
 
 // The calendar is read at most this often here: Today is the boot screen.
 const CALENDAR_FRESH_MS = 30 * 60 * 1000;
@@ -62,24 +60,6 @@ const BREAKDOWN = [
   ['consistency', 'Consistency'],
 ];
 
-const MORE_KEY = 'ree:today-more';
-const readMore = () => {
-  try { return localStorage.getItem(MORE_KEY); } catch { return null; }
-};
-
-/** Open or closed, by the learner's choice on this device, or by the room there is. */
-function useMoreForToday() {
-  const wide = useMediaQuery('(min-width: 768px)');
-  const [chosen, setChosen] = useState(readMore);
-  const open = chosen ? chosen === 'open' : wide;
-  const toggle = () => {
-    const next = open ? 'closed' : 'open';
-    setChosen(next);
-    try { localStorage.setItem(MORE_KEY, next); } catch { /* it holds for this visit */ }
-  };
-  return [open, toggle];
-}
-
 // Beside a number that is still mostly the starting guess (earlyEstimate.js).
 const EarlyBadge = () => <Badge tone="signal">Early estimate</Badge>;
 
@@ -93,17 +73,20 @@ function TileTitle({ children, badge }) {
   );
 }
 
+// The tiles' big figure: smaller while the tiles share a phone's width.
+const BIG_FIGURE = 'text-display text-3xl @2xl:text-4xl text-textMain tabular-nums';
+
 function ReadinessTile({ readiness, trend, settled, isOnline, early }) {
   return (
-    <Card padding="md" className="flex flex-col gap-2 min-w-0">
-      <TileTitle badge={readiness && early && <EarlyBadge />}>Board readiness index</TileTitle>
+    <Card padding="sm" className="flex flex-col gap-2 min-w-0">
+      <TileTitle badge={readiness && early && <EarlyBadge />}>Readiness index</TileTitle>
       {readiness ? (
         <>
-          <span className="text-display text-4xl text-textMain tabular-nums">
+          <span className={BIG_FIGURE}>
             {readiness.score}<span className="text-lg text-muted2">/100</span>
           </span>
           {trend?.scores?.length >= 2 && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Sparkline scores={trend.scores} />
               {trend.delta !== null && (
                 <span className={`text-xs tabular-nums ${trend.delta >= 0 ? 'text-success' : 'text-danger'}`}>
@@ -113,7 +96,7 @@ function ReadinessTile({ readiness, trend, settled, isOnline, early }) {
             </div>
           )}
           {readiness.breakdown && (
-            <dl className="mt-auto pt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <dl className="mt-auto pt-1 flex flex-col gap-1 text-xs">
               {BREAKDOWN.map(([key, label]) => (
                 <div key={key} className="flex justify-between gap-2">
                   <dt className="text-muted2">{label}</dt>
@@ -136,17 +119,17 @@ function ReadinessTile({ readiness, trend, settled, isOnline, early }) {
 function PassTile({ snapshot, loading, isOnline, early }) {
   const projection = snapshot?.subjectForecasts;
   return (
-    <Card padding="md" className="flex flex-col gap-2 min-w-0">
+    <Card padding="sm" className="flex flex-col gap-2 min-w-0">
       <TileTitle badge={snapshot && early && <EarlyBadge />}>Pass probability</TileTitle>
       {snapshot ? (
         <>
-          <span className="text-display text-4xl text-textMain tabular-nums">
+          <span className={BIG_FIGURE}>
             {Math.round((snapshot.passProbability ?? 0) * 100)}<span className="text-lg text-muted2">%</span>
           </span>
           <span className="text-xs text-muted2">
             {projection?.projectedGWA
-              ? `Projected average ${projection.projectedGWA.mean.toFixed(1)}% under the PRC rule`
-              : 'Under the PRC rule: 70% weighted average, no subject below 50%'}
+              ? `Projected average ${projection.projectedGWA.mean.toFixed(1)}%`
+              : 'Needs a 70% average, no subject under 50%'}
           </span>
           {projection?.conditionalProbability >= 0.05 && (
             <span className="text-xs text-reeAmber-text">
@@ -178,12 +161,12 @@ function TargetTile({ daily, leading }) {
   const remaining = daily.target - daily.done;
   const split = apportionItems(daily.target, DEFAULT_SYLLABUS_WEIGHTS);
   return (
-    <Card padding="md" className="flex flex-col gap-2 min-w-0">
+    <Card padding="sm" className="col-span-2 @2xl:col-span-1 flex flex-col gap-2 min-w-0">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-eyebrow">Today’s target</h2>
         <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2" aria-label="Change your daily target">Change</Link>
       </div>
-      <span className="text-display text-4xl text-textMain tabular-nums">
+      <span className={BIG_FIGURE}>
         {daily.done}<span className="text-lg text-muted2">/{daily.target}</span>
       </span>
       <ProgressIndicator value={Math.min(daily.done, daily.target)} max={daily.target} tone={met ? 'success' : 'velocity'} ariaLabel="Today's target progress" size="sm" />
@@ -282,8 +265,6 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     return () => clearTimeout(t);
   }, []);
   const trend = readinessTrend(history);
-  const [moreOpen, toggleMore] = useMoreForToday();
-  const moreId = useId();
   const placement = usePlacement({ uid, answered });
   const early = isEarlyEstimate({ snapshot, answered });
   // One onboarding card at a time: the placement prompt, then the exam plan.
@@ -322,13 +303,6 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   // The target tile already says how many are left, so the target action is
   // listed only when it leads.
   const also = rest.filter((a) => a.key !== 'target');
-  // The tiles' headline figures, for the closed line. Only what's arrived.
-  const summary = [
-    readiness ? `Readiness ${readiness.score}/100` : null,
-    snapshot ? `Pass ${Math.round((snapshot.passProbability ?? 0) * 100)}%` : null,
-    `Today ${daily.done}/${daily.target}`,
-    also.length > 0 ? `${also.length} more to do` : null,
-  ].filter(Boolean).join(' · ');
 
   return (
     <section aria-label="Today" className="flex flex-col gap-6">
@@ -337,50 +311,28 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
 
       {!settled ? <LeadSkeleton /> : lead && <LeadCard action={lead} navigate={navigate} />}
 
-      <button
-        type="button"
-        aria-expanded={moreOpen}
-        aria-controls={moreId}
-        onClick={toggleMore}
-        className="w-full min-h-11 flex items-center justify-between gap-3 px-4 py-2 text-left rounded-[var(--radius-default)] border border-border hover:bg-surface2 cursor-pointer transition-colors"
-      >
-        <span className="min-w-0 flex flex-col">
-          <span className="text-sm font-semibold text-textMain">More for today</span>
-          {summary && <span className="text-xs text-muted2 tabular-nums">{summary}</span>}
-        </span>
-        <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" className={`shrink-0 text-muted transition-[rotate] duration-200 motion-reduce:transition-none ${moreOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      <div id={moreId} hidden={!moreOpen} className="flex flex-col gap-6">
-      {moreOpen && <>
-      {/* Three tiles side by side as soon as they fit (42rem): the cards
-          grid reaches three only at 56rem, which left the third alone. */}
-      <Grid kind="cards" className="@2xl:grid-cols-3">
+      <Grid kind="duo" gap="sm">
         <ReadinessTile readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />
         <PassTile snapshot={snapshot} loading={loading} isOnline={isOnline} early={early} />
         <TargetTile daily={daily} leading={settled && lead?.key === 'target'} />
       </Grid>
 
       {settled && also.length > 0 && (
-        <Card as="section" padding="md" aria-labelledby="today-also" className="flex flex-col gap-3">
+        <Card as="section" padding="md" aria-labelledby="today-also" className="flex flex-col gap-1">
           <CardTitle id="today-also">Also today</CardTitle>
-          <ol className="flex flex-col gap-2">
+          <ol className="flex flex-col divide-y divide-border">
             {also.map((a) => (
-              <Card as="li" variant="inset" key={a.key} className="p-3 flex flex-wrap sm:flex-nowrap items-center gap-3">
-                <div className="min-w-0 flex-1">
+              <li key={a.key} className="py-3 last:pb-0 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-textMain [overflow-wrap:anywhere]">{a.title}</p>
                   <p className="text-xs text-muted2 line-clamp-2">{a.detail}</p>
                 </div>
-                {/* Full width under the text on a phone, where a long title
-                    squeezed the button to a sliver beside it. */}
-                <ActionButton action={a} navigate={navigate} className="w-full sm:w-auto" />
-              </Card>
+                <ActionButton action={a} navigate={navigate} />
+              </li>
             ))}
           </ol>
         </Card>
       )}
-      </>}
-      </div>
 
       <Link to="/progress" className="self-start inline-flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
         Charts, topics and your study plan are in Progress <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
