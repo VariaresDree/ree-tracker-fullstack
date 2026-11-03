@@ -4,7 +4,7 @@
 // reply comes back through Admin's "Import from another AI"
 // (features/admin/exchange/aiExchange reads it). The same item and explanation
 // rules as the in-app generator (services/aiPrompts).
-import { EXPLANATION_RULES, ITEM_RULES, MATH_RULES, SUBJECT_SCOPE } from './aiPrompts';
+import { apportion, calculationCount, DIFFICULTY_MIXES, EXPLANATION_RULES, ITEM_RULES, MATH_RULES, SUBJECT_SCOPE } from './aiPrompts';
 
 export const MAX_PER_MESSAGE = 20;
 
@@ -13,6 +13,7 @@ export const MAX_PER_MESSAGE = 20;
 const DELIVERY = `How to reply:
 - Put your whole reply in ONE code block, so it copies exactly as written. No text outside it.
 - This is plain text, not JSON: write LaTeX normally, with single backslashes ($\\frac{1}{2}$).
+- Copy the markers exactly: three equals signs on both sides of QUESTION, CARD and END, and three hyphens on both sides of every section name, with nothing before them.
 - If you run out of room, stop after a complete item. I'll reply "continue" for the rest.`;
 
 const QUESTION_FORMAT = `Write each item exactly like this, with these markers on their own lines:
@@ -35,20 +36,31 @@ The letter of the correct option, and nothing else.
 The explanation, in the layout above.
 ===END===`;
 
-const typeLine = (type) => {
-  if (type === 'calculation') return 'Every item is a calculation (problem-solving) item.';
-  if (type === 'conceptual') return 'Every item is a conceptual (theory, definition or code) item.';
-  return 'About 60% calculation (problem-solving) items and 40% conceptual (theory, definition or code) items.';
+const DIFFICULTY_WORDS = { 1: 'easy', 2: 'medium', 3: 'hard' };
+
+const typeLine = (count, type, calcShare) => {
+  const calculation = calculationCount(count, type, calcShare);
+  const conceptual = count - calculation;
+  if (!conceptual) return `Every item is a calculation (problem-solving) item.`;
+  if (!calculation) return `Every item is a conceptual (theory, definition or code) item.`;
+  return `Exactly ${calculation} calculation (problem-solving) and ${conceptual} conceptual (theory, definition or code).`;
+};
+
+const difficultyLine = (count, difficulty) => {
+  const perLevel = apportion(count, (DIFFICULTY_MIXES[difficulty] || DIFFICULTY_MIXES.board).weights);
+  return `Difficulty: exactly ${['1', '2', '3'].filter((k) => perLevel[k] > 0).map((k) => `${perLevel[k]} ${DIFFICULTY_WORDS[k]} (difficulty ${k})`).join(', ')}.`;
 };
 
 /**
  * The prompt for writing new questions.
  *   topic     a TOS topic, or 'All' for any topic in `topics`
+ *   focus     a finer steer within the topic (the "topic:" line still follows the rule)
+ *   notes     anything else from the admin
  *   fromFile  the admin will attach a reviewer for the AI to work from
  */
-export function buildQuestionImportPrompt({ subject, topic, topics = [], count = 10, type = 'mixed', fromFile = false }) {
+export function buildQuestionImportPrompt({ subject, topic, topics = [], focus = '', count = 10, type = 'mixed', calcShare = 0.6, difficulty = 'board', notes = '', fromFile = false }) {
   const specific = topic && topic !== 'All';
-  const howMany = Math.min(count, MAX_PER_MESSAGE);
+  const howMany = Math.min(Math.max(1, Math.round(count) || 1), MAX_PER_MESSAGE);
   return [
     'You are a senior item writer for the Philippine Professional Regulation Commission (PRC) Registered Electrical Engineer (REE) licensure examination. Accuracy matters more than anything else: a wrong answer key teaches a reviewee the wrong thing.',
     '',
@@ -57,8 +69,10 @@ export function buildQuestionImportPrompt({ subject, topic, topics = [], count =
       ? `Every item is on the topic "${topic}". Set "topic:" to exactly that.`
       : `Spread them across these topics, and set "topic:" to exactly one of them: ${topics.join(' | ')}.`,
     `Set "subject:" to exactly "${subject}".`,
-    typeLine(type),
-    'Difficulty: about 30% easy (1), 50% medium (2) and 20% hard (3).',
+    focus.trim() ? `Center every item on this finer focus: "${focus.trim()}".` : null,
+    typeLine(howMany, type, calcShare),
+    difficultyLine(howMany, difficulty),
+    notes.trim() ? `Additional instructions: ${notes.trim()}` : null,
     fromFile ? 'Base the items on the file I attached. Use only what it supports, and correct any error in it.' : null,
     '',
     ITEM_RULES,

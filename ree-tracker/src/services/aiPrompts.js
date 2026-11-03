@@ -78,9 +78,9 @@ export function planBatches({ count, type = 'mixed', calcShare = 0.6, difficulty
 }
 
 export const SUBJECT_SCOPE = {
-  Mathematics: 'Mathematics (20% of the board): algebra, trigonometry, analytic and solid geometry, differential and integral calculus, differential equations, complex numbers, matrices, probability and statistics, numerical methods.',
+  Mathematics: 'Mathematics (25% of the board): algebra, trigonometry, analytic and solid geometry, differential and integral calculus, differential equations, complex numbers, matrices, probability and statistics, numerical methods.',
   ESAS: 'Engineering Sciences and Allied Subjects (30% of the board): physics, chemistry, statics and dynamics, strength of materials, fluid mechanics, thermodynamics, engineering economics, computer fundamentals, engineering materials, and engineering laws, ethics and contracts.',
-  EE: 'Electrical Engineering Professional Subjects (50% of the board): DC and AC circuits, electrical machines, power systems, transmission and distribution, protection, electronics, instrumentation and control, illumination, power plant engineering, and the Philippine Electrical Code (PEC 2017).',
+  EE: 'Electrical Engineering Professional Subjects (45% of the board): DC and AC circuits, electrical machines, power systems, transmission and distribution, protection, electronics, instrumentation and control, illumination, power plant engineering, and the Philippine Electrical Code (PEC 2017).',
 };
 
 // The one definition of how the AI writes math and worked explanations. Every
@@ -109,6 +109,7 @@ export const EXPLANATION_RULES = `Explanations, in this exact layout, with a bla
   **Why the others are wrong:** one short bullet for each wrong option.
   **Remember:** one line to carry into the exam.
 - Short sentences and plain words. No paragraph longer than three sentences.
+- Write only the finished solution. Solve the item fully before writing it, and never show false starts, recalculations or second thoughts. If the numbers don't work, change the item and start it again, so that its options, key and explanation all agree.
 - Name an option by its content ("the 2.4 kA option", "the answer that ignores power factor"), never by its letter or position ("option B", "the first choice"): the options are shown in a different order every sitting.`;
 
 // What a good board item is, for any AI writing one.

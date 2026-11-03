@@ -27,6 +27,24 @@ describe('buildQuestionImportPrompt', () => {
     expect(prompt({ count: 500 })).toContain(`Write ${MAX_PER_MESSAGE} original`);
   });
 
+  it('turns the settings into exact counts', () => {
+    const p = prompt({ count: 10, type: 'mixed', calcShare: 0.7, difficulty: 'board' });
+    expect(p).toContain('Exactly 7 calculation (problem-solving) and 3 conceptual');
+    expect(p).toContain('exactly 3 easy (difficulty 1), 5 medium (difficulty 2), 2 hard (difficulty 3)');
+  });
+
+  it('carries the focus and notes, only when given', () => {
+    const p = prompt({ focus: ' PEC grounding ', notes: 'Use delta loads.' });
+    expect(p).toContain('finer focus: "PEC grounding"');
+    expect(p).toContain('Additional instructions: Use delta loads.');
+    expect(prompt()).not.toMatch(/finer focus|Additional instructions/);
+  });
+
+  it('asks for the markers exactly, and for a finished solution', () => {
+    expect(prompt()).toMatch(/Copy the markers exactly/);
+    expect(prompt()).toMatch(/never show false starts/);
+  });
+
   it('mentions an attached file only when there is one', () => {
     expect(prompt({ fromFile: true })).toMatch(/file I attached/);
     expect(prompt()).not.toMatch(/file I attached/);
