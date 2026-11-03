@@ -14,6 +14,7 @@ import { useManualIngestion } from '../../features/library/useManualIngestion';
 
 import LibraryIngestion from '../../features/library/LibraryIngestion';
 import QuestionGenerator from '../../features/admin/ai/QuestionGenerator';
+import ImportFromAI from '../../features/admin/exchange/ImportFromAI';
 import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
@@ -72,6 +73,8 @@ export default function QuestionBank() {
         handlePdfSelect={handlePdfSelect} executePdfExtraction={executePdfExtraction}
         removeQuestion={removeQuestion} handleCommitToMatrix={handleCommitToMatrix}
       />
+
+      <ImportFromAI />
 
       <AnswerPositions />
 

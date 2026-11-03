@@ -260,7 +260,8 @@ describe('Print preview', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved$/), { timeout: 2000 });
     expect(calls('PATCH', SET_URL)[0][2]).toEqual({ edits: { 1: { text: 'E2E edited: $\\frac{1}{2}$' } } });
     expect(within(sheets()).getByRole('button', { name: 'Edit item 1' })).toHaveTextContent('Edited');
-  });
+    // An axe scan plus typing a whole stem: too slow for 5 s under full-suite load.
+  }, 20_000);
 
   it('downloads one .tex of the edited set, and opens it in Overleaf', async () => {
     const user = userEvent.setup();

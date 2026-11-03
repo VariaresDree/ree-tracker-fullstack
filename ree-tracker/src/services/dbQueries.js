@@ -262,6 +262,12 @@ export const syncTelemetryBatch = async (uid, sessionId, targetSubject, mode, at
 // ----------------------------------------------------------------------
 // 2. Question Bank & Review Queue
 // ----------------------------------------------------------------------
+// Questions another AI wrote: { queued: [ids], rejected: [{ index, reasons }] }.
+// A press of Send is a new attempt, not a retry to answer from the last response.
+export const importQuestions = (items) => apiRequest('/api/questions/import', 'POST', { items }, {
+    timeoutMs: 45_000,
+    idempotencyKey: crypto?.randomUUID?.() ?? String(Date.now()),
+});
 export const saveQuestionToBank = async (questionObject) => {
     const result = await apiRequest('/api/questions', 'POST', questionObject);
     return result.id;
