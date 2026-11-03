@@ -59,10 +59,11 @@
 
     <!-- BLANK-PAGE RECOVERY: if the app's own script can't load, nothing in the
          app can run to fix it, so the fix lives here. A service worker that cached
-         the wrong thing for a chunk left a blank page with no way out. Clears the
-         worker and its shell, keeps the saved API data, and reloads once per tab
-         session. Only when the server answers: offline, the cache may be all there
-         is. blankRecovery.test.js runs this script. -->
+         the wrong thing for a chunk left a blank page with no way out. Fetches the
+         page's scripts past the browser's own cache (it can hold a wrong answer
+         too), clears the worker and its shell, keeps the saved API data, and reloads
+         once per tab session. Only when the server answers: offline, the cache may
+         be all there is. blankRecovery.test.js runs this script. -->
     <script id="blank-recovery">
       (function() {
         var KEY = 'ree:blank-recovery';
@@ -75,13 +76,15 @@
           } catch (err) { return; }
           fetch('/version.json', { cache: 'no-store' }).then(function(r) {
             if (!r.ok) return;
+            var urls = [s.src].concat([].map.call(document.querySelectorAll('link[rel="modulepreload"]'), function(l) { return l.href; }));
+            var fresh = urls.map(function(u) { return fetch(u, { cache: 'reload' }).catch(function() {}); });
             var sw = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]);
             var names = window.caches ? caches.keys() : Promise.resolve([]);
             return Promise.all([sw, names]).then(function(found) {
               return Promise.all(found[0].map(function(reg) { return reg.unregister(); }).concat(
                 found[1].filter(function(n) { return n.indexOf('-precache-') !== -1; }).map(function(n) { return caches.delete(n); })
               ));
-            }).then(function() { location.reload(); }, function() { location.reload(); });
+            }).then(function() { return Promise.all(fresh); }).then(function() { location.reload(); }, function() { location.reload(); });
           }).catch(function() {});
         }, true);
       })();
