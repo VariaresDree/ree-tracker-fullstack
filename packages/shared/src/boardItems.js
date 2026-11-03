@@ -157,4 +157,23 @@ function blueprintError(stored, topics) {
     return null;
 }
 
-module.exports = { BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick, resolveBlueprint, blueprintError };
+/** A learner's own counts, { subject: { topic: n } }, as groups: one per topic with a count. */
+function ownBlueprint(counts) {
+    return Object.fromEntries(Object.keys(BOARD_GROUPS).map((subject) => [
+        subject,
+        Object.entries(counts?.[subject] || {}).filter(([, n]) => n > 0).map(([topic, items]) => ({ items, topics: [topic] })),
+    ]));
+}
+
+/** The board's groups as a starting point for a learner's own: a shared count split evenly. */
+function ownCountsFromBoard(blueprint) {
+    return Object.fromEntries(Object.entries(blueprint || BOARD_GROUPS).map(([subject, groups]) => {
+        const counts = {};
+        for (const g of groups) {
+            g.topics.forEach((topic, i) => { counts[topic] = Math.floor(g.items / g.topics.length) + (i < g.items % g.topics.length ? 1 : 0); });
+        }
+        return [subject, counts];
+    }));
+}
+
+module.exports = { BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick, resolveBlueprint, blueprintError, ownBlueprint, ownCountsFromBoard };

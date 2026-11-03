@@ -54,3 +54,19 @@ describe('full PRC board state', () => {
     expect(loadFullBoard()).toBeNull();
   });
 });
+
+describe('how a full board’s questions are picked', () => {
+  it('every section keeps the choice made when the board began, across a reload', () => {
+    localStorage.clear();
+    const draw = { drawMode: 'own', ownCounts: { EE: { A: 5 } } };
+    const board = startFullBoard('board-d', Date.now(), draw);
+    expect(sectionConfig(board)).toMatchObject({ subject: 'Mathematics', ...draw });
+    recordSection(board, 0, { correct: 1, total: 100 });
+    expect(sectionConfig(loadFullBoard())).toMatchObject({ subject: 'ESAS', ...draw });
+  });
+
+  it('a board begun before there was a choice draws evenly', () => {
+    localStorage.clear();
+    expect(sectionConfig(startFullBoard('board-e')).drawMode).toBeUndefined();
+  });
+});

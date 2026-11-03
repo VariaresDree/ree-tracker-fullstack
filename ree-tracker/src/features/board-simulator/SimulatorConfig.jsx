@@ -3,16 +3,24 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
-import { Card, Button, FormField, Grid, IconChip, PageHeader, Select, SegmentedControl, Modal, StatusPill, cn } from '../../components/ui';
+import { Card, Button, FormField, PageHeader, Select, SegmentedControl, Modal, StatusPill } from '../../components/ui';
 import { FileText, TriangleAlert } from '../../components/ui/icons';
 import { PRC_TIMES } from '../../config/examStandards';
 import { SIM_PROFILES, configForProfile } from './profiles';
-import { prcSectionSeconds } from '@ree/shared';
+import { FULL_BOARD_SECTIONS } from './fullBoard';
+import { prcSectionSeconds, SYLLABUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { AI_SOURCE_MESSAGE } from '../exam-export/drawExamPaper';
+import { drawApplies } from './drawModes';
+import { useDrawPrefs } from './useDrawPrefs';
+import DrawPicker from './DrawPicker';
 
 const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60]
   .map((n) => String(n).padStart(2, '0')).join(':');
 
+// The board's own sitting first, the custom mock last.
+const FORMAT_ORDER = ['prc_full', 'prc_blended', 'prc_subject', 'custom'];
+const FORMATS = FORMAT_ORDER.map((id) => SIM_PROFILES.find((p) => p.id === id));
+const SUBJECT_OPTIONS = SYLLABUS_SUBJECTS.map((s) => ({ value: s, label: toDisplaySubject(s) }));
 
 const FULL_BOARD_ROWS = [['Mathematics', 'Mathematics'], ['ESAS', 'ESAS'], ['EE', 'Electrical Engineering']];
 
@@ -32,10 +40,14 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
   // A profile chosen in the Exams hub arrives as /simulator?profile=<id>.
   const [fullBoardSelected, setFullBoardSelected] = useState(() => initialProfile === 'prc_full');
 
-  const isCustom = config.mode === 'subject' && !config.isPrcStandard;
+  // The full board is its own flow, so the config beneath it says nothing about it.
+  const isCustom = !fullBoardSelected && config.mode === 'subject' && !config.isPrcStandard;
   const isPrcSubject = config.mode === 'subject' && config.isPrcStandard;
   const isBlended = config.mode === 'blended';
   const activeProfile = fullBoardSelected ? 'prc_full' : isBlended ? 'prc_blended' : isPrcSubject ? 'prc_subject' : 'custom';
+  const { prefs: draw, save: saveDraw } = useDrawPrefs();
+  // What a paper is drawn from: the setup's choices plus how questions are picked.
+  const withDraw = { ...config, drawMode: draw.drawMode, ownCounts: draw.ownCounts };
 
   const setProfile = (profile) => {
     setFullBoardSelected(profile === 'prc_full');
@@ -60,7 +72,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
     setPrintError(null);
     try {
       const { createPrintedSetFromConfig } = await loadPrintedSets();
-      const { set } = await createPrintedSetFromConfig(config);
+      const { set } = await createPrintedSetFromConfig(withDraw);
       navigate(`/print/${set.id}`);
     } catch (err) {
       setPrintError(err?.name === 'ExportError' ? err.message : `Couldn\u2019t make the paper. ${err?.message || 'Try again.'}`);
@@ -70,7 +82,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
   // Starting a new exam silently discards any saved one — make that a
   // deliberate choice instead of an accident.
-  const begin = () => (fullBoardSelected && onStartFullBoard ? onStartFullBoard() : startSimulation());
+  const begin = () => (fullBoardSelected && onStartFullBoard ? onStartFullBoard(draw) : startSimulation(withDraw));
   const handleStart = () => {
     if (engine?.hasSavedSession) {
       setShowNewExamGuard(true);
@@ -83,7 +95,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
   // owns the frame: the setup sits under the full-board banner there.
   return (
     <>
-      <PageHeader title="Mock board" subtitle="Choose how strict the exam should be." />
+      <PageHeader title="Mock board" />
 
       <Card elevated grain padding="lg" className="flex flex-col gap-6">
         {session?.error && (
@@ -113,46 +125,28 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           </div>
         )}
 
-        {/* Exam profile */}
-        <div className="flex flex-col gap-3">
-          <span className="text-eyebrow block">Exam profile</span>
-          <Grid kind="cards" role="radiogroup" aria-label="Exam profile">
-            {SIM_PROFILES.map((p) => {
-              const selected = activeProfile === p.id;
-              const Icon = p.icon;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => setProfile(p.id)}
-                  className={cn(
-                    'p-4 rounded-[var(--radius-default)] border text-left cursor-pointer flex flex-col gap-3 min-w-0 interactive-card',
-                    selected
-                      ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
-                      : 'bg-surface2 border-border hover:bg-surface3 hover:border-border2'
-                  )}
-                >
-                  <IconChip icon={Icon} tone={selected ? 'accent' : 'muted'} />
-                  <div className="min-w-0">
-                    <span className={cn('block text-sm font-semibold mb-1', selected ? 'text-[var(--accent-text)]' : 'text-textMain')}>{p.name}</span>
-                    <p className="text-xs text-muted2 leading-relaxed">{p.description}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </Grid>
+        {/* The format chosen in Exams, here to change without going back. */}
+        <div className="flex flex-col gap-2">
+          <span className="text-eyebrow block">Format</span>
+          <SegmentedControl
+            label="Format"
+            value={activeProfile}
+            onChange={setProfile}
+            columns={2}
+            className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]!"
+            options={FORMATS.map((p) => ({ value: p.id, label: p.short, icon: p.icon }))}
+          />
+          <p className="text-sm text-muted2">{SIM_PROFILES.find((p) => p.id === activeProfile)?.description}</p>
         </div>
 
         {fullBoardSelected && (
-          <div className="p-4 flex flex-col gap-3 rounded-[var(--radius-default)] border border-border bg-surface2">
+          <div className="flex flex-col gap-2">
             <span className="text-eyebrow">Sections, in board order</span>
-            <ol className="flex flex-col gap-2">
+            <ol className="flex flex-col gap-1">
               {FULL_BOARD_ROWS.map(([key, label], i) => (
-                <li key={key} className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-sm">
+                <li key={key} className="flex flex-wrap justify-between gap-x-3 text-sm">
                   <span className="text-textMain min-w-0">{i + 1}. {label}</span>
-                  <span className="text-muted2 font-mono tabular-nums">100 items · {hms(prcSectionSeconds(key))}</span>
+                  <span className="text-muted2 tabular-nums">100 items · {hms(prcSectionSeconds(key))}</span>
                 </li>
               ))}
             </ol>
@@ -162,82 +156,67 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           </div>
         )}
 
-        {/* Subject & topic */}
-        {!fullBoardSelected && (
-        <>
-        <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-top-2">
-          <FormField label="Subject" className="flex-1 min-w-0">
-            <Select
-              disabled={isBlended}
+        {!fullBoardSelected && !isBlended && (
+          <div className="flex flex-col gap-2">
+            <span className="text-eyebrow block">Subject</span>
+            <SegmentedControl
+              label="Subject"
               value={config.subject}
-              onChange={(e) => setConfig({ ...config, subject: e.target.value, subtopic: safeTOS[e.target.value]?.[0] || 'All' })}
-              className="py-3.5 text-base"
-            >
-              {Object.keys(safeTOS).map((s) => (
-                <option key={s} value={s}>{s === 'EE' ? 'Electrical Engineering (EE)' : s}</option>
-              ))}
-              {isBlended && <option value="blended">All subjects (blended)</option>}
+              onChange={(subject) => setConfig({ ...config, subject, subtopic: 'All' })}
+              options={SUBJECT_OPTIONS}
+            />
+          </div>
+        )}
+
+        {isCustom && config.subject && config.subject !== 'blended' && (
+          <FormField label="Topic">
+            <Select value={config.subtopic || 'All'} onChange={(e) => setConfig({ ...config, subtopic: e.target.value })}>
+              <option value="All">All topics</option>
+              {(safeTOS[config.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
             </Select>
           </FormField>
+        )}
 
-          {isCustom && config.subject && config.subject !== 'blended' && (
-            <FormField label="Topic" className="flex-1 min-w-0 animate-in fade-in slide-in-from-left-4">
-              <Select
-                value={config.subtopic || 'All'}
-                onChange={(e) => setConfig({ ...config, subtopic: e.target.value })}
-                className="py-3.5 text-base"
-              >
-                <option value="All">All topics</option>
-                {(safeTOS[config.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FormField>
-          )}
-        </div>
-
-        {/* Length, or the enforced board time limit */}
-        {isCustom ? (
-          <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-3">
-            <span className="text-eyebrow block">Length</span>
+        {isCustom && (
+          <div className="flex flex-col gap-2">
+            <span className="text-eyebrow block">Questions</span>
             <SegmentedControl
               label="Number of questions"
               value={config.count}
               onChange={(v) => setConfig({ ...config, count: v })}
-              columns={2}
-              size="lg"
-              className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
-              options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n} questions` }))}
+              options={[10, 20, 50, 100].map((n) => ({ value: n, label: String(n) }))}
             />
-          </div>
-        ) : (
-          <div className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-3 rounded-[var(--radius-default)] border border-border bg-surface2">
-            <div className="flex flex-col gap-1">
-              <span className="text-eyebrow">Time limit</span>
-              <span className="text-sm text-muted2">Fixed by PRC board rules.</span>
-            </div>
-            <span className="text-display text-3xl text-textMain font-mono tabular-nums bg-surface px-6 py-3 rounded-[var(--radius-default)] border border-border">
-              {hms(isBlended ? PRC_TIMES.BLENDED : (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED))}
-            </span>
           </div>
         )}
 
-        </>
+        {!fullBoardSelected && !isCustom && (
+          <p className="text-sm text-muted2">
+            Time limit <span className="font-semibold text-textMain tabular-nums">{hms(isBlended ? PRC_TIMES.BLENDED : (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED))}</span>, fixed by PRC board rules.
+          </p>
         )}
 
         {/* Source (custom only) */}
         {isCustom && (
-          <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex flex-col gap-2">
             <span className="text-eyebrow block">Source</span>
             <SegmentedControl
               label="Question source"
               value={config.source}
               onChange={(v) => setConfig({ ...config, source: v })}
-              size="lg"
               options={[
                 { value: 'library', label: 'Question bank' },
                 { value: 'ai', label: 'AI generated', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
               ]}
             />
           </div>
+        )}
+
+        {(fullBoardSelected || drawApplies(config)) && (
+          <DrawPicker
+            prefs={draw}
+            onChange={saveDraw}
+            subjects={fullBoardSelected ? FULL_BOARD_SECTIONS : isBlended ? SYLLABUS_SUBJECTS : [config.subject]}
+          />
         )}
 
         {/* Primary action, with the PDF export visibly subordinate */}

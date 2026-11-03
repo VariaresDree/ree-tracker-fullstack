@@ -11,24 +11,28 @@ export const SIM_PROFILES = [
     id: 'custom',
     icon: Settings2,
     name: 'Custom mock',
+    short: 'Custom',
     description: 'Pick the item count, topic, and source for focused practice.',
   },
   {
     id: 'prc_subject',
     icon: Landmark,
     name: 'One subject (PRC clock)',
+    short: 'One subject',
     description: `One subject, 100 items, on the PRC clock (${PRC_FORMAT_SUMMARY}).`,
   },
   {
     id: 'prc_blended',
     icon: Scale,
     name: 'Mixed paper',
+    short: 'Mixed',
     description: 'One 100-item mixed paper in 5 hours.',
   },
   {
     id: 'prc_full',
     icon: Layers,
     name: 'Full PRC board',
+    short: 'Full board',
     description: `Math, ESAS and EE in board order: 300 items on the PRC clock (${PRC_FORMAT_SUMMARY}), results after the last section.`,
   },
 ];

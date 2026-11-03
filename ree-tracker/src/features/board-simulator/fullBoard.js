@@ -36,8 +36,9 @@ export function loadFullBoard(now = Date.now()) {
   }
 }
 
-export function startFullBoard(sessionId, now = Date.now()) {
-  return save({ sessionId, startedAt: now, sectionIndex: 0, sections: [] });
+/** `draw` is how its questions are picked ({ drawMode, ownCounts }), for all three sections. */
+export function startFullBoard(sessionId, now = Date.now(), draw = {}) {
+  return save({ sessionId, startedAt: now, sectionIndex: 0, sections: [], draw });
 }
 
 export function clearFullBoard() {
@@ -55,6 +56,7 @@ export function sectionConfig(state) {
     source: 'library',
     cognitiveFocus: 'mixed',
     timeLimitMins: PRC_EXAM_FORMAT[subject].minutes,
+    ...state.draw,
     fullBoard: { sessionId: state.sessionId, sectionIndex: state.sectionIndex },
   };
 }

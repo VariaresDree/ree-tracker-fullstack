@@ -227,3 +227,53 @@ describe('a PRC paper follows the board’s topic counts', () => {
     expect(countOf(draw, 'Quantities/units/constants (EE)')).toBeGreaterThanOrEqual(9);
   });
 });
+
+describe('drawExamPaper: how questions are picked', () => {
+  const topic = (name, n) => Array.from({ length: n }, (_, i) => q(`${name}-${i}`, 'EE', { subtopic: name }));
+  const pool = [...topic('Big', 200), ...topic('Small', 200), ...topic('Other', 200)];
+  const countOf = (draw, name) => draw.items.filter((it) => it.subtopic === name).length;
+  const fetchBoardGroups = async () => ({ EE: [{ items: 70, topics: ['Big'] }, { items: 30, topics: ['Small'] }] });
+  const paper = (config, deps = {}) => drawExamPaper(config, { fetchQuestions: bank({ EE: pool }), sittingKey: 'k', fetchBoardGroups, ...deps });
+
+  it('with no choice made, an even spread, without asking for the board’s counts', async () => {
+    const asked = vi.fn();
+    const draw = await paper(PRC_EE, { fetchBoardGroups: asked });
+    expect(draw.items).toHaveLength(100);
+    expect(asked).not.toHaveBeenCalled();
+    for (const name of ['Big', 'Small', 'Other']) expect(Math.abs(countOf(draw, name) - 33)).toBeLessThanOrEqual(1);
+  });
+
+  it('Board’s counts follows Admin’s setup', async () => {
+    const draw = await paper({ ...PRC_EE, drawMode: 'board' });
+    expect(countOf(draw, 'Big')).toBe(70);
+    expect(countOf(draw, 'Small')).toBe(30);
+  });
+
+  it('Board’s counts can’t stop a paper when they can’t be reached', async () => {
+    const draw = await paper({ ...PRC_EE, drawMode: 'board' }, { fetchBoardGroups: async () => { throw new Error('offline'); } });
+    expect(draw.items).toHaveLength(100);
+  });
+
+  it('My own scales to a custom paper, fetching enough to fill thin topics', async () => {
+    const fetchQuestions = bank({ EE: pool });
+    const draw = await paper(custom({ count: 20, subtopic: 'All', drawMode: 'own', ownCounts: { EE: { Big: 30, Small: 10 } } }), { fetchQuestions });
+    expect(countOf(draw, 'Big')).toBe(15);
+    expect(countOf(draw, 'Small')).toBe(5);
+    expect(fetchQuestions).toHaveBeenCalledWith('EE', 'All', 2000);
+  });
+
+  it('a pinned custom topic ignores the choice', async () => {
+    const fetchQuestions = bank({ EE: topic('Small', 100) });
+    const asked = vi.fn();
+    const draw = await paper(custom({ count: 10, subtopic: 'Small', drawMode: 'board' }), { fetchQuestions, fetchBoardGroups: asked });
+    expect(draw.items).toHaveLength(10);
+    expect(asked).not.toHaveBeenCalled();
+    expect(fetchQuestions).toHaveBeenCalledWith('EE', 'Small', 40);
+  });
+
+  it('the same key reprints the same paper, whatever the choice', async () => {
+    const config = { ...PRC_EE, drawMode: 'board' };
+    const [one, two] = await Promise.all([paper(config), paper(config)]);
+    expect(one.items.map((it) => it.id)).toEqual(two.items.map((it) => it.id));
+  });
+});

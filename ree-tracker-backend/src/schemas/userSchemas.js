@@ -21,4 +21,13 @@ const deviceTokenSchema = z.object({
     platform: z.enum(['android', 'ios', 'web']).optional().default('android'),
 });
 
-module.exports = { profileUpdateSchema, settingsUpdateSchema, deviceTokenSchema };
+// PUT /api/user/draw-prefs: both fields, always. A topic is its name, because
+// that's what a question carries; a renamed topic's count just stops applying.
+const ownCounts = z.record(z.string().min(1).max(160), z.number().int().min(0).max(1000))
+    .refine((o) => Object.keys(o).length <= 100, 'Too many topics.');
+const drawPrefsSchema = z.object({
+    drawMode: z.enum(['even', 'board', 'own']),
+    ownCounts: z.object({ Mathematics: ownCounts.optional(), ESAS: ownCounts.optional(), EE: ownCounts.optional() }).strict(),
+}).strict();
+
+module.exports = { drawPrefsSchema, profileUpdateSchema, settingsUpdateSchema, deviceTokenSchema };

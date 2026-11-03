@@ -51,6 +51,7 @@ const MUST_NOT_MATCH = [
     '/api/user/outside-scores', // per-user, edited offline: never served from the SW cache
     '/api/user/key-dates',
     '/api/user/plan-prefs',
+    '/api/user/draw-prefs',
     '/api/user/practice-sets',
     '/api/user/links',
     '/api/user/syllabus',

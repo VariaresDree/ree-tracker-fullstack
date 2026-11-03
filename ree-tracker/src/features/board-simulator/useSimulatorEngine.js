@@ -11,6 +11,7 @@ import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray } from '../../utils/shuffle';
 import { applyFocusFilter, boardWeightedSample, stratifiedSample } from './poolFilters';
+import { groupsForDraw } from './drawModes';
 import { computeBattleDiagnostics } from './battleGrades';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
@@ -218,7 +219,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           timeLimitSecs = Math.round(pool.reduce((acc, q) => acc + (boardPaceSeconds(q.subject) || 180), 0));
           if (pool.length === 0) throw new Error("There's nothing to retake from that sitting.");
       } else if (config.source === 'library') {
-          const boardGroups = config.isPrcStandard ? await fetchBoardGroups() : null;
+          // The learner's choice (drawModes); null is an even spread across topics.
+          const drawGroups = await groupsForDraw(config, fetchBoardGroups);
+          const sample = (filtered, subject, count) => (drawGroups
+              ? boardWeightedSample(filtered, subject, count, drawGroups)
+              : stratifiedSample(filtered, count));
           if (config.mode === 'blended') {
               // Blend by the PRC syllabus weights (server config, one source of
               // truth shared with the backend sampler); falls back to 25/30/45.
@@ -231,22 +236,18 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                   // Direct Deep Fetch: Pulling 2000 ensures we have enough data even after filtering
                   const raw = await fetchVaultQuestions(subj, 'All', 2000);
                   const filtered = applyFilter(raw || []);
-                  // A PRC paper follows the board's topic counts; a custom mock stays even.
-                  const shuffled = config.isPrcStandard
-                      ? boardWeightedSample(filtered, subj, dist[subj] || 0, boardGroups)
-                      : stratifiedSample(filtered, dist[subj] || 0);
-                  pool = pool.concat(shuffled);
+                  pool = pool.concat(sample(filtered, subj, dist[subj] || 0));
               }
               timeLimitSecs = config.isPrcStandard ? PRC_TIMES.BLENDED : timeLimitSecs;
           } else {
               // Direct Deep Fetch
-              const targetSubtopic = config.subtopic === 'All' || !config.subtopic ? 'All' : config.subtopic;
+              // A PRC paper covers its whole subject, whatever the setup last held.
+              const targetSubtopic = config.isPrcStandard || config.subtopic === 'All' || !config.subtopic ? 'All' : config.subtopic;
               const raw = await fetchVaultQuestions(config.subject, targetSubtopic, 2000);
               const filtered = applyFilter(raw || []);
               // Stratify so a single-subject sim spans its subtopics rather than
               // collapsing onto the dominant one. (No-op for a pinned subtopic.)
-              // A PRC paper by the board's topic counts. A pinned topic has one group anyway.
-              pool = config.isPrcStandard ? boardWeightedSample(filtered, config.subject, totalCount, boardGroups) : stratifiedSample(filtered, totalCount);
+              pool = sample(filtered, config.subject, totalCount);
               // PRC schedule from @ree/shared: Math 5h, ESAS 4h, EE 6h.
               timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }

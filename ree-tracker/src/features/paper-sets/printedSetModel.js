@@ -23,7 +23,7 @@ export const PAPER_STORAGE_KEY = 'ree-print-paper';
 
 // The setup screen's choices a set keeps, for "Draw a new set" (the server
 // keeps only these too).
-const CONFIG_KEYS = ['mode', 'subject', 'subtopic', 'count', 'isPrcStandard', 'source', 'cognitiveFocus', 'timeLimitMins'];
+const CONFIG_KEYS = ['mode', 'subject', 'subtopic', 'count', 'isPrcStandard', 'source', 'cognitiveFocus', 'timeLimitMins', 'drawMode', 'ownCounts'];
 
 const randomBytes = (n) => {
   const bytes = new Uint8Array(n);

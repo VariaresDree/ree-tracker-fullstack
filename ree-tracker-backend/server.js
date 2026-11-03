@@ -318,6 +318,7 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/plannerRoutes'));
     app.use('/api/user', require('./src/routes/outsideScoreRoutes'));
     app.use('/api/user', require('./src/routes/keyDateRoutes'));
+    app.use('/api/user', require('./src/routes/drawPrefsRoutes'));
     app.use('/api/user', require('./src/routes/practiceSetRoutes'));
     app.use('/api/user', require('./src/routes/userLinkRoutes'));
     app.use('/api/user', require('./src/routes/syllabusRoutes'));

@@ -12,7 +12,7 @@ const { invalidateRole } = require('../src/middlewares/roleMiddleware');
 const adminRoutes = require('../src/routes/adminRoutes');
 const configRoutes = require('../src/routes/configRoutes');
 const { invalidateBoardBlueprint } = require('../src/services/boardBlueprint');
-const { BOARD_GROUPS, resolveBlueprint, blueprintError, boardItemsFor, boardItemSplit, boardWeightedPick } = require('@ree/shared');
+const { BOARD_GROUPS, resolveBlueprint, blueprintError, boardItemsFor, boardItemSplit, boardWeightedPick, ownBlueprint, ownCountsFromBoard } = require('@ree/shared');
 
 const ADMIN = 'uid-admin';
 const USER = 'uid-user';
@@ -93,6 +93,18 @@ describe('drawing by a saved setup', () => {
         expect(boardItemSplit('EE', 100, null)).toEqual(BOARD_GROUPS.EE.map((g) => g.items));
         expect(boardItemsFor('EE', 'Electromagnetism', null)).toEqual({ items: 10, sharedWith: [] });
         expect(boardItemsFor('EE', 'A', groups)).toEqual({ items: 30, sharedWith: [] });
+    });
+});
+
+describe('a learner’s own counts', () => {
+    it('are one group per topic with a count, for every subject', () => {
+        expect(ownBlueprint({ EE: { A: 3, B: 0 } })).toEqual({ Mathematics: [], ESAS: [], EE: [{ items: 3, topics: ['A'] }] });
+        expect(ownBlueprint(null).EE).toEqual([]);
+    });
+
+    it('can start from the board’s, a shared count split evenly', () => {
+        expect(ownCountsFromBoard({ EE: [{ items: 5, topics: ['A', 'B'] }] })).toEqual({ EE: { A: 3, B: 2 } });
+        expect(Object.values(ownCountsFromBoard().EE).reduce((a, b) => a + b, 0)).toBe(100);
     });
 });
 
