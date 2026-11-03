@@ -1,9 +1,9 @@
 // The app shell (2026-10 reorganization): five destinations — Today,
-// Practice, Exams, Progress, Library — in a phone bottom bar and a desktop
-// sidebar, both from layouts/navModel.js. The phone's hamburger drawer is gone;
+// Practice, Exams, Progress, Library — in a phone bottom bar and a sidebar from
+// a tablet up, both from layouts/navModel.js. The phone's hamburger drawer is gone;
 // Account, Admin and Log out sit behind the avatar.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import MainLayout from './MainLayout';
 import { freshPomodoro } from '../utils/pomodoroLogic';
@@ -26,7 +26,10 @@ vi.mock('../store/slices', async () => {
 
 const originalMatchMedia = window.matchMedia;
 const desktop = () => {
-    window.matchMedia = (q) => ({ ...originalMatchMedia(q), matches: q.includes('min-width: 768px') });
+    window.matchMedia = (q) => ({ ...originalMatchMedia(q), matches: q.includes('min-width: 600px') || q.includes('min-width: 1024px') });
+};
+const tablet = () => {
+    window.matchMedia = (q) => ({ ...originalMatchMedia(q), matches: q.includes('min-width: 600px') });
 };
 beforeEach(() => { auth.isAdmin = false; storeState.syncQueue = []; storeState.pendingWrites = []; });
 afterEach(() => { window.matchMedia = originalMatchMedia; });
@@ -35,6 +38,19 @@ const at = (path) => render(<MemoryRouter initialEntries={[path]}><MainLayout><p
 const primaryNav = () => screen.getByRole('navigation', { name: 'Primary' });
 
 describe('phone shell', () => {
+    it('keyboard focus brings a hidden bar back', () => {
+        const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => { cb(); return 1; });
+        Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 3000 });
+        at('/');
+        window.scrollY = 600;
+        act(() => { window.dispatchEvent(new Event('scroll')); });
+        expect(primaryNav().className).toContain('translate-y-full');
+        act(() => { within(primaryNav()).getByRole('link', { name: 'Today' }).focus(); });
+        expect(primaryNav().className).not.toContain('translate-y-full');
+        window.scrollY = 0;
+        raf.mockRestore();
+    });
+
     it('a bottom bar with exactly the five destinations, and no drawer', () => {
         at('/');
         const links = within(primaryNav()).getAllByRole('link');
@@ -167,6 +183,30 @@ describe('desktop shell', () => {
     });
 });
 
+describe('tablet shell', () => {
+    it('the navigation sits beside the page: an icon rail, and no top or bottom bar to pass under', () => {
+        tablet();
+        const { container } = at('/progress');
+        expect(screen.getAllByRole('navigation', { name: 'Primary' })).toHaveLength(1);
+        expect(within(primaryNav()).getByRole('link', { current: 'page' })).toHaveTextContent('Progress');
+        expect(primaryNav().closest('aside').className).toContain('w-20');
+        expect(screen.queryByRole('button', { name: 'Account menu' })).toBeNull();
+        expect(container.firstChild.style.getPropertyValue('--bottom-bar-h')).toBe('0px');
+    });
+
+    it('stays a rail: there is no room for the full sidebar, so no button offers it', () => {
+        tablet();
+        at('/');
+        expect(screen.queryByRole('button', { name: /sidebar/i })).toBeNull();
+    });
+
+    it('fits the height the browser really gives it, so Account stays in reach under an address bar', () => {
+        tablet();
+        at('/');
+        expect(primaryNav().closest('aside').className).toContain('h-dvh');
+    });
+});
+
 describe('sticky offsets', () => {
     // Sticky children (a mock's review toolbar, Practice's Start button) read
     // these from whichever layout they're in.
@@ -205,5 +245,10 @@ describe('sticky offsets', () => {
     it('the page ends clear of the floating timer while it shows', () => {
         at('/');
         expect(document.getElementById('main-content').className).toContain('var(--fab-space,0px)');
+    });
+
+    it('the page ends clear of the bottom bar, from the one padding that follows its height', () => {
+        at('/');
+        expect(document.getElementById('main-content').className).toContain('pb-[calc(var(--bottom-bar-h)+2rem');
     });
 });

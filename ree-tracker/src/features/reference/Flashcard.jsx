@@ -37,8 +37,10 @@ import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
 
 // `onFlip(flipped)`: study mode offers the review ratings once the back has
-// been seen. `initialFlipped`: start on the back (read once).
-export default function Flashcard({ card, onFlip, initialFlipped = false }) {
+// been seen. `initialFlipped`: start on the back (read once). `hideTag`: the
+// page already says it (a topic's cards sit under their tag headings), and it
+// was cut short beside "Tap to flip" ("Voltage and Current D…").
+export default function Flashcard({ card, onFlip, initialFlipped = false, hideTag = false }) {
   const [flipped, setFlipped] = useState(initialFlipped);
   // The button's label names the card; the face on show describes it. The
   // label alone hid everything on the card from a screen reader.
@@ -106,10 +108,12 @@ export default function Flashcard({ card, onFlip, initialFlipped = false }) {
             </div>
           )}
 
-          <div className="mt-auto flex items-center justify-between gap-2 min-w-0">
-            <span className="text-xs text-muted2 truncate min-w-0" title={[card.subject, card.topic?.name, card.subtopicTag].filter(Boolean).join(' · ')}>
-              {card.subtopicTag || card.topic?.name || card.subject}
-            </span>
+          <div className={`mt-auto flex items-center gap-2 min-w-0 ${hideTag ? 'justify-end' : 'justify-between'}`}>
+            {!hideTag && (
+              <span className="text-xs text-muted2 truncate min-w-0" title={[card.subject, card.topic?.name, card.subtopicTag].filter(Boolean).join(' · ')}>
+                {card.subtopicTag || card.topic?.name || card.subject}
+              </span>
+            )}
             <span className="text-eyebrow shrink-0">Tap to flip</span>
           </div>
         </div>

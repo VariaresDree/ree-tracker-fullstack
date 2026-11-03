@@ -25,13 +25,13 @@ test('closing a handout keeps the folder and the scroll position', async ({ page
 
   const card = page.getByText('Handout 30', { exact: true });
   await card.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(100);
-  const scrolled = await page.evaluate(() => window.scrollY);
-  expect(scrolled).toBeGreaterThan(200);
-
   await card.click();
   await expect(page.getByRole('dialog', { name: 'Handout 30' })).toBeVisible();
   await expect(page).toHaveURL(/material=m30/);
+  // Read with the viewer open: the page above the list can still be filling in
+  // before the click, which moved the position 348px with no viewer involved.
+  const scrolled = await page.evaluate(() => window.scrollY);
+  expect(scrolled).toBeGreaterThan(200);
 
   await page.getByRole('button', { name: 'Close dialog' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();

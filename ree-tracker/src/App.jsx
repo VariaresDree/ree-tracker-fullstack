@@ -13,6 +13,7 @@ import { TodaySkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
 import NotificationOptIn from './components/NotificationOptIn';
 import useMediaQuery from './hooks/useMediaQuery';
+import { RAIL_QUERY } from './layouts/navModel';
 import Login from './pages/Login';
 import LegacyRedirect from './routes/LegacyRedirect';
 import AdminRoute from './routes/AdminRoute';
@@ -72,10 +73,10 @@ const SecureAppTerminal = () => {
   // app, so the login screen's messages ("a reset link is on its way") never
   // showed, and queued ones popped up after signing in.
   // Toasts sit below the phone header (they covered it), centred on a phone.
-  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const hasSidebar = useMediaQuery(RAIL_QUERY);
   const toaster = (
     <Toaster
-      position={isDesktop ? 'top-right' : 'top-center'}
+      position={hasSidebar ? 'top-right' : 'top-center'}
       containerStyle={{ top: 'calc(var(--phone-header-h, 0.5rem) + 0.5rem)' }}
       toastOptions={{ duration: 3000, style: { background: 'var(--bg-surface2)', color: 'var(--text-main)', border: '1px solid var(--border-light)' } }}
     />

@@ -35,7 +35,7 @@ The question-quality round, seven PRs from the owner's list:
 - The AI can be wrong. A person decides every key change.
 - The boot download is at 98% of its 700 kB budget (it was 99.7%). `@ree/shared` now gives the browser `src/client.js`, which leaves out the modules only a lazy screen uses; those are imported by path (`@ree/shared/explanation`, `/modelJson`, `/paperSets`, `/questionReplace`, `/outsideScores`). A new module used only by lazy screens goes the same way: add it to `exports` and to `optimizeDeps.include` in `vite.config.js`. The server still gets everything from `index.js`.
 
-**App health (next PR after PR 6):** Admin › App health shows versions in use and errors from the app and the server. Check it before a change both sides depend on, and when something feels off.
+**App health (#200, merged):** Admin › App health shows versions in use and errors from the app and the server. Check it before a change both sides depend on, and when something feels off.
 
 **Decided against, for now:**
 - **Sentry:** its SDK costs tens of kB against this budget and needs an account. App health covers what is needed today. Revisit if it stops being enough, for example if source-mapped stacks become necessary (the stacks shown are minified).

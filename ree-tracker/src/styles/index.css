@@ -319,8 +319,10 @@
   --logo-veil: 0.85;
   --bg-primary: #fdf6e3;
   --bg-surface: #fefce8;
-  --bg-surface2: #fef08a;
-  --bg-surface3: #fde047;
+  /* A warm cream. These were strong yellows, which made every secondary and
+     disabled control look alike and compete with the primary button. */
+  --bg-surface2: #f5ecc8;
+  --bg-surface3: #ecdfae;
   --text-main: #451a03;
   --text-muted: #78350f;
   --text-muted2: #92400e;

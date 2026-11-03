@@ -1,8 +1,8 @@
 // src/layouts/Sidebar.jsx
 //
-// Desktop navigation: the five destinations (layouts/navModel.js), the Admin
-// link for admins, the focus timer, connection status, and the Account card.
-// Collapsible to an icon rail.
+// Tablet and desktop navigation: the five destinations (layouts/navModel.js),
+// the Admin link for admins, the focus timer, connection status, and the
+// Account card. Always an icon rail on a tablet; collapsible to one on desktop.
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import FocusLauncher from '../components/focus/FocusLauncher';
@@ -13,7 +13,8 @@ import { cn, Logo } from '../components/ui';
 import { LogOut, PanelLeftClose, PanelLeftOpen } from '../components/ui/icons';
 import Avatar from '../components/Avatar';
 import LogoutConfirm from '../components/LogoutConfirm';
-import { PRIMARY_NAV, ADMIN_NAV, activeNavId } from './navModel';
+import useMediaQuery from '../hooks/useMediaQuery';
+import { PRIMARY_NAV, ADMIN_NAV, FULL_SIDEBAR_QUERY, activeNavId } from './navModel';
 
 // The current page: an accent tint, the accent edge, and a soft glow (an
 // inner hairline and a faint outer bloom in the accent). The glow is a
@@ -28,11 +29,13 @@ function NavItem({ item, active, collapsed }) {
       to={item.to}
       aria-current={active ? 'page' : undefined}
       title={collapsed ? item.label : undefined}
-      className={cn('group flex items-center rounded-[var(--radius-default)] border-l-2 p-3 transition-colors', collapsed && 'justify-center', active ? ACTIVE : IDLE)}
+      className={cn('group flex items-center rounded-[var(--radius-default)] border-l-2 transition-colors', collapsed ? 'flex-col gap-1 px-0.5 py-2' : 'p-3', active ? ACTIVE : IDLE)}
     >
       <Icon size={20} strokeWidth={1.75} aria-hidden="true" className={cn('shrink-0', active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100')} />
       {collapsed ? (
-        <span className="sr-only">{item.label}</span>
+        // Named, as on the phone's bar: this is how a tablet gets around, and
+        // five bare icons make a learner guess.
+        <span className="text-micro font-medium tracking-wide">{item.label}</span>
       ) : (
         <span className="flex flex-col min-w-0 ml-3 animate-in fade-in">
           <span className="text-sm font-semibold tracking-tight truncate">{item.label}</span>
@@ -48,7 +51,9 @@ function NavItem({ item, active, collapsed }) {
 }
 
 export default function Sidebar() {
-  const { isSidebarCollapsed: collapsed, toggleSidebarCollapse } = useUISlice();
+  const { isSidebarCollapsed, toggleSidebarCollapse } = useUISlice();
+  const roomForFull = useMediaQuery(FULL_SIDEBAR_QUERY);
+  const collapsed = isSidebarCollapsed || !roomForFull;
   const { currentUser, isAdmin } = useAuth();
   const { pathname } = useLocation();
   const active = activeNavId(pathname);
@@ -63,7 +68,7 @@ export default function Sidebar() {
     // whole page on every frame for 300ms. Glass, like the page's cards: the
     // theme's glow and pattern carry on behind it (solid wherever the cards
     // are; index.css › GLASS SURFACES).
-    <aside className={cn('sticky top-0 h-screen shrink-0 surface-glass border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
+    <aside className={cn('sticky top-0 h-dvh shrink-0 surface-glass border-r border-border2 flex flex-col pl-[env(safe-area-inset-left)]', collapsed ? 'w-20' : 'w-72')}>
       <div className={cn('flex p-5 border-b border-border2 items-center bg-surface2/30 shrink-0', collapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3')}>
         {collapsed ? (
           <Link to="/" aria-label="REE.ai home" className="inline-flex touch-target items-center justify-center">
@@ -74,7 +79,7 @@ export default function Sidebar() {
             <Logo variant="lockup" size={36} wordmarkClassName="text-xl" />
           </Link>
         )}
-        <button
+        {roomForFull && <button
           type="button"
           onClick={() => toggleSidebarCollapse()}
           className="p-1.5 bg-surface2 hover:bg-surface3 border border-border2 rounded-lg cursor-pointer text-muted hover:text-textMain transition-colors touch-target inline-flex items-center justify-center"
@@ -82,7 +87,7 @@ export default function Sidebar() {
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <CollapseIcon size={16} strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        </button>}
       </div>
 
       {/* The focus timer is full screen now (/focus); this opens it, and

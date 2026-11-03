@@ -30,6 +30,7 @@ const FIRST_ROWS = 12;
 // right), in a list that grows with the page, the first 12 and then "Show all".
 // They were 72px tiles in a box that scrolled on its own inside the page: on a
 // phone the panel's header and pickers left it room for four or five topics.
+// Topics with no answers fold behind one button, not a screen of "No data yet".
 function HeatmapChart({ stats, onDrillTopic }) {
   const [activeTab, setActiveTab] = useState('Mathematics');
   // Which subject has its whole list open; another subject opens folded.
@@ -71,6 +72,13 @@ function HeatmapChart({ stats, onDrillTopic }) {
   // 216 s). It read 144 s for Mathematics, ESAS's pace, so a Math topic at a
   // comfortable 2:50 per item was flagged as a speed risk.
   const targetLimit = boardPaceSeconds(activeTab) ?? 144;
+  // The list is sorted most answered first, so these are the first rows.
+  const answeredCount = displayedTopics.filter((t) => t.data.attempts > 0).length;
+  const isOpen = openFor === activeTab;
+  const shownTopics = isOpen ? displayedTopics : displayedTopics.slice(0, Math.min(answeredCount, FIRST_ROWS));
+  const foldedCount = displayedTopics.length - shownTopics.length;
+  // Every folded row has no answers, or some do and it's just a long list.
+  const onlyUnanswered = answeredCount <= FIRST_ROWS;
   const title =
     viewMode === 'accuracy' ? 'Accuracy by subtopic'
     : viewMode === 'speed' ? `Speed vs ${targetLimit}s limit`
@@ -116,8 +124,9 @@ function HeatmapChart({ stats, onDrillTopic }) {
         className="shrink-0"
       />
 
+      {shownTopics.length > 0 && (
       <ul className="flex flex-col gap-1.5" aria-label={`${toDisplaySubject(activeTab)} topics`}>
-        {(openFor === activeTab ? displayedTopics : displayedTopics.slice(0, FIRST_ROWS)).map((item) => {
+        {shownTopics.map((item) => {
           const hasData = item.data.attempts > 0;
           const pct = hasData ? Math.round((item.data.correct / item.data.attempts) * 100) : 0;
           // Average over ONLY the attempts that had plausible timing (corrupt
@@ -207,16 +216,21 @@ function HeatmapChart({ stats, onDrillTopic }) {
           );
         })}
       </ul>
-      {displayedTopics.length > FIRST_ROWS && (
+      )}
+      {(isOpen ? displayedTopics.length > Math.min(answeredCount, FIRST_ROWS) : foldedCount > 0) && (
         <Button
           variant="ghost"
           size="sm"
           fullWidth
-          aria-expanded={openFor === activeTab}
-          onClick={() => setOpenFor(openFor === activeTab ? null : activeTab)}
+          aria-expanded={isOpen}
+          onClick={() => setOpenFor(isOpen ? null : activeTab)}
         >
-          {openFor === activeTab ? 'Show fewer' : `Show all ${displayedTopics.length} topics`}
-          <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className={`transition-[rotate] duration-200 motion-reduce:transition-none ${openFor === activeTab ? 'rotate-180' : ''}`} />
+          {isOpen
+            ? 'Show fewer'
+            : onlyUnanswered
+              ? `${foldedCount} ${foldedCount === 1 ? 'topic' : 'topics'} with no answers yet`
+              : `Show all ${displayedTopics.length} topics`}
+          <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className={`transition-[rotate] duration-200 motion-reduce:transition-none ${isOpen ? 'rotate-180' : ''}`} />
         </Button>
       )}
       {displayedTopics.length === 0 && (

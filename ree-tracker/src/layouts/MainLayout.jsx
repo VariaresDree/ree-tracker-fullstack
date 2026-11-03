@@ -1,7 +1,8 @@
 // src/layouts/MainLayout.jsx
 //
-// The app shell: a sidebar on desktop; on a phone, a top bar (timer, status,
-// account menu) and a five-item bottom bar. Both read layouts/navModel.js.
+// The app shell: a sidebar from a tablet up (an icon rail on a tablet); on a
+// phone, a top bar (timer, status, account menu) and a five-item bottom bar.
+// Both read layouts/navModel.js.
 // Each piece is rendered only at its own breakpoint (not hidden with CSS), so
 // OfflineStatusBadge — and the offline-pack refresh it triggers — mounts once.
 //
@@ -15,6 +16,7 @@ import { useAppearance } from '../hooks/useAppearance';
 import Sidebar from './Sidebar';
 import PhoneHeader from './PhoneHeader';
 import BottomBar from './BottomBar';
+import { RAIL_QUERY } from './navModel';
 import { applyUpdateIfSafe } from '../services/appUpdate';
 
 export default function MainLayout({ children }) {
@@ -24,7 +26,7 @@ export default function MainLayout({ children }) {
   // A move to a calm screen is a safe moment to load a new version of the
   // app that has arrived (services/appUpdate); a no-op when there is none.
   useEffect(() => { applyUpdateIfSafe({ pathname: location.pathname }); }, [location.pathname]);
-  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const hasSidebar = useMediaQuery(RAIL_QUERY);
 
   // A new page starts at its top — or at the section a link points to
   // (/account#offline). The router keeps the old scroll position otherwise.
@@ -62,10 +64,10 @@ export default function MainLayout({ children }) {
   // Offsets for sticky children, set by the layout that knows its chrome.
   // --phone-header-h IS the phone header's height (PhoneHeader sizes itself
   // from it), so --sticky-top can't drift from it; there is no top bar on
-  // desktop, where the sidebar is beside the page. --bottom-bar-h clears the
-  // phone bottom bar and the home-indicator inset. A finished mock's review
+  // a tablet or desktop, where the sidebar is beside the page. --bottom-bar-h
+  // clears the phone bottom bar and the home-indicator inset. A finished mock's review
   // toolbar used the exam banner's 2.25rem and slid under the phone header.
-  const chromeOffsets = isDesktop
+  const chromeOffsets = hasSidebar
     ? { '--sticky-top': '0.75rem', '--bottom-bar-h': '0px' }
     : {
         '--phone-header-h': 'calc(max(0.5rem, env(safe-area-inset-top)) + 3.4rem)',
@@ -84,7 +86,7 @@ export default function MainLayout({ children }) {
   }, [offsetsKey]);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row font-sans text-textMain relative" style={chromeOffsets}>
+    <div className={`min-h-screen flex font-sans text-textMain relative ${hasSidebar ? 'flex-row' : 'flex-col'}`} style={chromeOffsets}>
       {/* First stop for a keyboard user: past the navigation, straight to the page. */}
       <a
         href="#main-content"
@@ -93,7 +95,7 @@ export default function MainLayout({ children }) {
         Skip to main content
       </a>
 
-      {isDesktop ? <Sidebar /> : <PhoneHeader />}
+      {hasSidebar ? <Sidebar /> : <PhoneHeader />}
 
       {/* overflow-x-clip, not overflow-y-auto: <main> has no fixed height so it
           never scrolled itself (the window does), but overflow-y-auto still
@@ -104,7 +106,7 @@ export default function MainLayout({ children }) {
         key={location.pathname}
         id="main-content"
         tabIndex={-1}
-        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+1.5rem+var(--fab-space,0px))] md:pb-[calc(2rem+var(--fab-space,0px))] overflow-x-clip relative page-fade-in outline-hidden"
+        className="flex-1 w-full min-w-0 max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 pb-[calc(var(--bottom-bar-h)+2rem+var(--fab-space,0px))] overflow-x-clip relative page-fade-in outline-hidden"
       >
         {children}
       </main>
@@ -116,7 +118,7 @@ export default function MainLayout({ children }) {
           on time. /focus, outside this layout, owns the clock itself. */}
       <FloatingPomodoro />
 
-      {!isDesktop && <BottomBar />}
+      {!hasSidebar && <BottomBar />}
     </div>
   );
 }

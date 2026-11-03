@@ -2,12 +2,14 @@
 //
 // Exams › Gauntlet: the ranked ladder. Four blended tiers in order, then the
 // three subject boards at board time. Moved out of the Arena page, where it
-// hid behind a "Rankings" label.
+// hid behind a "Rankings" label. It shows the ladder up to the next tier to
+// reach; the rest fold, and a locked card says what opens it in a line of text
+// (a big disabled button read like something to press).
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
-import { Badge, Button, Card, CardWatermark, Grid, KpiTile, Skeleton, StatusPill } from '../../components/ui';
+import { Badge, Button, Card, CardWatermark, Disclosure, Grid, KpiTile, Skeleton, StatusPill } from '../../components/ui';
 import { Lock, Shield, Swords, Trophy } from '../../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../../config/examStandards';
 import { cooldownLabel, formatLimit, tierState } from './gauntletTierState';
@@ -17,7 +19,7 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
   return (
     <Card
       padding="md"
-      className={`flex flex-col gap-4 transition-[opacity,border-color] ${isLocked ? 'opacity-60' : ''}`}
+      className="flex flex-col gap-4 transition-[border-color]"
       style={{
         borderColor: isCleared
           ? 'color-mix(in srgb, var(--accent-success) 30%, transparent)'
@@ -61,13 +63,11 @@ function TierCard({ tier, state, cooldown, totalAnswered, onStart }) {
         {isPassed ? (
           <StatusPill tone="success">Cleared</StatusPill>
         ) : isCoolingDown ? (
-          <Button fullWidth variant="secondary" disabled>
-            <StatusPill tone="danger" dot={false} className="border-0 bg-transparent p-0">Locked — {cooldown}</StatusPill>
-          </Button>
+          <StatusPill tone="danger" dot={false}>Locked — {cooldown}</StatusPill>
         ) : isLocked ? (
-          <Button fullWidth variant="secondary" disabled>
+          <p className="text-sm text-muted2 text-center">
             {subject ? 'Clear the blended tiers first' : `Requires ${tier.reqQs} answered`}
-          </Button>
+          </p>
         ) : (
           <Button fullWidth variant={isCleared ? 'secondary' : 'primary'} onClick={() => onStart(tier.level)}>
             {subject ? `${isCleared ? 'Take' : 'Start'} the ${tier.subject} board${isCleared ? ' again' : ''}` : `Start tier ${tier.level} exam`}
@@ -119,16 +119,23 @@ export default function GauntletTab() {
     );
   }
 
+  const stateOf = (tier) => tierState(tier, { currentLevel, totalAnswered, coolingDown: cooldown, boardClears: stats?.gauntletBoardClears });
   const card = (tier) => (
     <TierCard
       key={tier.level}
       tier={tier}
-      state={tierState(tier, { currentLevel, totalAnswered, coolingDown: cooldown, boardClears: stats?.gauntletBoardClears })}
+      state={stateOf(tier)}
       cooldown={cooldown}
       totalAnswered={totalAnswered}
       onStart={start}
     />
   );
+
+  const blended = GAUNTLET_TIERS.filter((t) => !isSubjectTier(t));
+  const boards = GAUNTLET_TIERS.filter((t) => isSubjectTier(t));
+  // Up to and including the first tier still locked: the next one to reach.
+  const firstLocked = blended.findIndex((t) => stateOf(t).isLocked);
+  const later = firstLocked === -1 ? [] : blended.slice(firstLocked + 1);
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
@@ -150,14 +157,25 @@ export default function GauntletTab() {
 
       <div className="flex flex-col gap-3">
         <p className="text-eyebrow">Blended tiers</p>
-        <Grid kind="pair">{GAUNTLET_TIERS.filter((t) => !isSubjectTier(t)).map(card)}</Grid>
+        <Grid kind="pair">{blended.slice(0, blended.length - later.length).map(card)}</Grid>
+        {later.length > 0 && (
+          <Disclosure title={`${later.length} more ${later.length === 1 ? 'tier' : 'tiers'}`} description="They open as you clear the ones before them.">
+            <Grid kind="pair">{later.map(card)}</Grid>
+          </Disclosure>
+        )}
       </div>
       <div className="flex flex-col gap-3">
         <p className="text-eyebrow flex items-center gap-2">
           Subject boards — 100 items each at board time
           {!subjectsUnlocked && <Lock size={12} strokeWidth={2} className="text-muted" aria-hidden="true" />}
         </p>
-        <Grid kind="cards">{GAUNTLET_TIERS.filter((t) => isSubjectTier(t)).map(card)}</Grid>
+        {subjectsUnlocked ? (
+          <Grid kind="options">{boards.map(card)}</Grid>
+        ) : (
+          <Disclosure title="Math, ESAS and EE boards" description="They open once all four tiers are cleared.">
+            <Grid kind="options">{boards.map(card)}</Grid>
+          </Disclosure>
+        )}
       </div>
     </div>
   );
