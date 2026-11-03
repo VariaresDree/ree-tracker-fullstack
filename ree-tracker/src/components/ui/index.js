@@ -23,6 +23,7 @@ export { StickyToolbar } from './StickyToolbar';
 export { QuestionSurface } from './QuestionSurface';
 export { IconChip } from './IconChip';
 export { ProgressIndicator } from './ProgressIndicator';
+export { Ring } from './Ring';
 export { Sparkline } from './Sparkline';
 export { Logo, Wordmark } from './Logo';
 export { cn } from './cn';

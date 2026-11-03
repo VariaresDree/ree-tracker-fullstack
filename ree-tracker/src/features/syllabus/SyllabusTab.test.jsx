@@ -52,10 +52,10 @@ function PracticeProbe() {
   lastState = useLocation().state;
   return <p>practice-page</p>;
 }
-// Opens a topic's row; only one is open at a time.
+// Opens a topic's sheet, and hands it back.
 const openTopic = async (name) => {
   fireEvent.click(await screen.findByRole('button', { name }));
-  return screen.getByRole('heading', { level: 3, name }).closest('li');
+  return screen.getByRole('dialog', { name });
 };
 const renderTab = (props = {}) => render(
   <MemoryRouter>
@@ -99,8 +99,7 @@ describe('SyllabusTab', () => {
 
   it('its headings step down from the Progress h1 without skipping a level', async () => {
     const { container } = renderTab();
-    const item = await openTopic('Calculus');
-    fireEvent.click(within(item).getByRole('button', { name: /Dates and note/ }));
+    await openTopic('Calculus');
     expectNoSkippedLevels(container);
   });
 
@@ -122,7 +121,7 @@ describe('SyllabusTab', () => {
       read: true, watched: false, drilled: false, startedOn: todayManila(), finishedOn: null, note: null,
     });
     // Read + drilled from answers = covered.
-    expect(within(group.closest('li')).getByText('Covered')).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { level: 3, name: 'Differential Equations' }).closest('li')).getByText('Covered')).toBeInTheDocument();
     expect(screen.getByText(/covered · 2 of 3 topics/)).toBeInTheDocument();
   });
 
@@ -145,7 +144,6 @@ describe('SyllabusTab', () => {
   it('checks dates before sending, and drills the topic from its details', async () => {
     renderTab();
     const item = await openTopic('Calculus');
-    fireEvent.click(within(item).getByRole('button', { name: /Dates and note/ }));
     fireEvent.change(within(item).getByLabelText('Started'), { target: { value: '2026-10-05' } });
     fireEvent.change(within(item).getByLabelText('Finished'), { target: { value: '2026-10-01' } });
     fireEvent.click(within(item).getByRole('button', { name: 'Save dates and note' }));
@@ -159,9 +157,9 @@ describe('SyllabusTab', () => {
 
   it('switches subject, and says when a subject has no topics', async () => {
     renderTab();
-    fireEvent.click(await screen.findByRole('button', { name: /EEs*·/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /^EE: / }));
     expect(screen.getByRole('heading', { level: 3, name: 'Power Systems' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /ESASs*·/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^ESAS: / }));
     expect(screen.getByText('No topics in this subject yet.')).toBeInTheDocument();
   });
 
@@ -177,8 +175,8 @@ describe('SyllabusTab', () => {
   it('reads the exam share from the stored weights, whether fractions or percents', async () => {
     apiRequest.mockResolvedValue({ weights: { Mathematics: 25, ESAS: 30, EE: 45 }, topics: TOPICS });
     renderTab();
-    expect(await screen.findByText(/· 25% of the exam/)).toBeInTheDocument();
-    expect(screen.getByText(/· 45% of the exam/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'How coverage works' }));
+    expect(screen.getByText(/Math 25%, ESAS 30%, EE 45%/)).toBeInTheDocument();
   });
 
   it('a refused list shows an error with a retry', async () => {
@@ -292,21 +290,31 @@ describe('your own rating of a topic, and high-yield (CELE round)', () => {
   const serve = (topics) => apiRequest.mockImplementation(async (endpoint, method = 'GET', body) => (method === 'GET' ? { weights: WEIGHTS, topics } : { item: body }));
   const item = (name) => screen.getByRole('heading', { level: 3, name }).closest('li');
 
-  it('a pick saves the topic’s full state with the rating; clearing sends null', async () => {
+  it('a tap on a scale saves the topic’s full state with the rating; tapping it again clears it', async () => {
     serve(rated);
     renderTab();
-    await openTopic('Calculus');
-    fireEvent.change(within(item('Calculus')).getByLabelText('Dread'), { target: { value: '3' } });
+    const sheet = within(await openTopic('Calculus'));
+    expect(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '75%' })).toBeChecked();
+    fireEvent.click(within(sheet.getByRole('radiogroup', { name: 'Dread' })).getByRole('radio', { name: 'Very' }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ read: false, confidence: 75, dread: 3 })));
-    fireEvent.change(within(item('Calculus')).getByLabelText('How sure'), { target: { value: '' } });
+    fireEvent.click(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '75%' }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ confidence: null })));
+    expect(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '75%' })).not.toBeChecked();
+  });
+
+  it('a scale keeps a rating of zero, and tells it from no rating', async () => {
+    serve([row('m1', 'Mathematics', 'Calculus', { confidence: 0, dread: 0 })]);
+    renderTab();
+    const sheet = within(await openTopic('Calculus'));
+    expect(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '0%' })).toBeChecked();
+    expect(within(sheet.getByRole('radiogroup', { name: 'Dread' })).getByRole('radio', { name: 'None' })).toBeChecked();
   });
 
   it('a row from before the rating existed sends no rating keys', async () => {
     serve([row('m3', 'Mathematics', 'Probability')]); // no confidence/dread keys at all
     renderTab();
-    await openTopic('Probability');
-    fireEvent.click(within(item('Probability')).getByRole('button', { name: /Read/ }));
+    const sheet = await openTopic('Probability');
+    fireEvent.click(within(sheet).getByRole('button', { name: /Read/ }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m3`, 'PUT', expect.anything()));
     const body = apiRequest.mock.calls.find((c) => c[1] === 'PUT')[2];
     expect(body).not.toHaveProperty('confidence');
