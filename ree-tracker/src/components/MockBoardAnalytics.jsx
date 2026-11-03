@@ -269,16 +269,16 @@ export default function MockBoardAnalytics() {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ top: 16, right: 4, bottom: 0, left: -18 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} dy={8} interval="preserveStartEnd" minTickGap={12} />
-                <YAxis stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 100]} />
+                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} dy={8} interval="preserveStartEnd" minTickGap={12} />
+                <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} />
                 <Tooltip content={<ScoreTooltip />} cursor={{ fill: 'color-mix(in srgb, var(--text-main) 5%, transparent)' }} />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '16px' }} iconType="circle" />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '16px' }} iconType="circle" />
                 <ReferenceLine
                   y={70}
                   stroke="var(--accent-danger)"
                   strokeDasharray="4 4"
                   strokeWidth={1.5}
-                  label={{ position: 'insideTopRight', value: '70% pass line', fill: 'var(--accent-danger)', fontSize: 10, fontWeight: 600 }}
+                  label={{ position: 'insideTopRight', value: '70% pass line', fill: 'var(--accent-danger)', fontSize: 12, fontWeight: 600 }}
                 />
                 {/* maxBarSize, not a fixed size: twenty 38px bars overflowed a phone. */}
                 <Bar dataKey="overall" name="Overall" maxBarSize={38} radius={[4, 4, 0, 0]}>

@@ -127,7 +127,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
         {/* The format chosen in Exams, here to change without going back. */}
         <div className="flex flex-col gap-2">
-          <span className="text-eyebrow block">Format</span>
+          <span className="text-label block">Format</span>
           <SegmentedControl
             label="Format"
             value={activeProfile}
@@ -158,7 +158,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
         {!fullBoardSelected && !isBlended && (
           <div className="flex flex-col gap-2">
-            <span className="text-eyebrow block">Subject</span>
+            <span className="text-label block">Subject</span>
             <SegmentedControl
               label="Subject"
               value={config.subject}
@@ -179,7 +179,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
         {isCustom && (
           <div className="flex flex-col gap-2">
-            <span className="text-eyebrow block">Questions</span>
+            <span className="text-label block">Questions</span>
             <SegmentedControl
               label="Number of questions"
               value={config.count}
@@ -198,7 +198,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
         {/* Source (custom only) */}
         {isCustom && (
           <div className="flex flex-col gap-2">
-            <span className="text-eyebrow block">Source</span>
+            <span className="text-label block">Source</span>
             <SegmentedControl
               label="Question source"
               value={config.source}

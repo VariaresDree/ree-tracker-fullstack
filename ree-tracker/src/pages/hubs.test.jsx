@@ -97,10 +97,10 @@ describe('Library (learner)', () => {
         expect(screen.getByRole('tab', { name: /^Formula cards/ })).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('unit conversion is marked as coming next', () => {
+    it('has no tab that leads nowhere: unit conversion comes back when it’s built', () => {
         at('/library?tab=conversion', Library);
-        expect(screen.getByRole('tab', { name: 'Unit conversion Soon' })).toHaveAttribute('aria-selected', 'true');
-        expect(screen.getByText('Unit conversion is coming next')).toBeInTheDocument();
+        expect(screen.queryByRole('tab', { name: /Unit conversion/ })).not.toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: 'Handouts' })).toHaveAttribute('aria-selected', 'true');
     });
 
     it('opens formula cards from an old /materials deep link, keeping its search', () => {
@@ -113,14 +113,14 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Handouts', 'Formula cards', 'Unit conversion Soon', 'Notebook', 'Bookmarks', 'Imported quizzes']);
+        expect(tabs).toEqual(['Handouts', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes']);
     });
 });
 
 describe('Library headings', () => {
     // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
     // formula-card panels check their outlines in their own tests.
-    it.each(['handouts', 'formulas', 'conversion', 'notebook', 'bookmarks', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['handouts', 'formulas', 'notebook', 'bookmarks', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/library?tab=${tab}`, Library);
         if (tab === 'quizzes') await screen.findByText(tab);
         if (tab === 'handouts') await screen.findByText('links');

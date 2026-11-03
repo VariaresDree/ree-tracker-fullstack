@@ -1,8 +1,8 @@
 // src/pages/Library.jsx
 //
 // The learner's study material in one place, in this order (2026-10-31):
-// Handouts (with the learner's own links under them), Formula cards, Unit
-// conversion (coming next), Notebook, Bookmarks and Imported quizzes. (This
+// Handouts (with the learner's own links under them), Formula cards, Notebook,
+// Bookmarks and Imported quizzes. (This
 // was "Materials Hub"; the old "Module Library" was the question-bank
 // authoring tool and moved to Admin.) Handouts are read-only here; uploading
 // and organising them is an Admin tab.
@@ -15,8 +15,8 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
-import { Page, PageHeader, Tabs, TabPanel, Skeleton, EmptyState } from '../components/ui';
-import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen, ArrowLeftRight } from '../components/ui/icons';
+import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
+import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
@@ -34,7 +34,6 @@ const LinksTab = lazy(() => import('../features/links/LinksTab'));
 const TABS = [
   { id: 'handouts', label: 'Handouts', icon: Cloud },
   { id: 'formulas', label: 'Formula cards', icon: BookOpen },
-  { id: 'conversion', label: 'Unit conversion', icon: ArrowLeftRight, badge: 'Soon' },
   { id: 'notebook', label: 'Notebook', icon: NotebookPen },
   { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
   { id: 'quizzes', label: 'Imported quizzes', icon: FileUp },
@@ -88,7 +87,7 @@ export default function Library() {
         <MaterialViewer material={viewingMaterial} onClose={closeMaterial} />
       )}
 
-      <PageHeader title="Library" subtitle="Your study material in one place: handouts and your own links, formula cards, your mistakes and notes, bookmarked questions, and imported quizzes." />
+      <PageHeader title="Library" />
 
       <Tabs id="library" label="Library sections" active={tab} onChange={setTab} tabs={TABS} />
 
@@ -100,10 +99,6 @@ export default function Library() {
               readers' heading list, and the topic headings of the quick
               sheet (h3) sit under it. */}
           <h2 className="sr-only">Formula cards</h2>
-          <p className="text-muted2 text-sm max-w-prose">
-            The formulas and constants for Math, ESAS and EE. Open a subject, then a topic, and flip the cards,
-            or switch to its quick sheet to see every one at a glance.
-          </p>
           <ReferenceBrowser
             // A new deep link opens afresh, even with Formula cards already open.
             key={deepLink.topic ? `${deepLink.subject}|${deepLink.topic}` : deepLink.search || 'browse'}
@@ -127,17 +122,6 @@ export default function Library() {
               </Suspense>
             </ErrorBoundary>
           </div>
-        </div>
-      )}
-
-      {tab === 'conversion' && (
-        <div className="animate-in fade-in">
-          <h2 className="sr-only">Unit conversion</h2>
-          <EmptyState
-            icon={ArrowLeftRight}
-            title="Unit conversion is coming next"
-            description="Convert between the units board problems mix: kW, hp and BTU/h; kcmil, mm² and AWG; °C, °F and K; per-unit values on a new base. It will work offline, on this device."
-          />
         </div>
       )}
 

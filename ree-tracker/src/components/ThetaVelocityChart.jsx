@@ -100,7 +100,7 @@ export default function ThetaVelocityChart({ history = NO_HISTORY, range = 'day'
                     <XAxis
                         dataKey="name"
                         stroke="var(--text-muted)"
-                        fontSize={10}
+                        fontSize={12}
                         tickLine={false}
                         axisLine={false}
                         dy={10}
@@ -111,7 +111,7 @@ export default function ThetaVelocityChart({ history = NO_HISTORY, range = 'day'
                     <YAxis
                         domain={yDomain}
                         stroke="var(--text-muted)"
-                        fontSize={10}
+                        fontSize={12}
                         tickLine={false}
                         axisLine={false}
                         tick={{ fill: 'var(--text-muted)', fontWeight: 600 }}

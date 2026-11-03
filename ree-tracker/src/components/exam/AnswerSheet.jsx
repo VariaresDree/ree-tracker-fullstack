@@ -51,7 +51,7 @@ export default function AnswerSheet({ count, currentIndex, onSelect, letterOf, c
                     return (
                       <span
                         key={l}
-                        className="w-5 h-5 rounded-full border flex items-center justify-center text-[0.65rem] font-semibold"
+                        className="w-5 h-5 rounded-full border flex items-center justify-center text-xs font-semibold"
                         style={{
                           background: shaded ? 'var(--text-main)' : 'transparent',
                           color: shaded ? 'var(--bg-surface)' : 'var(--text-muted)',

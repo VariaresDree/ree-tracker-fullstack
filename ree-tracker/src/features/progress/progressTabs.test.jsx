@@ -52,6 +52,15 @@ const kpi = { answered: 120, accuracy: 58, avgSec: 50, streak: 4 };
 const renderTab = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('Progress tabs', () => {
+  it('Overview with no answers yet says where to begin, instead of four zeroes and empty charts', () => {
+    renderTab(<OverviewTab stats={{ activityCalendar: {} }} kpi={{ ...kpi, answered: 0, accuracy: 0, avgSec: 0, streak: 0 }} today="2026-10-08" />);
+    expect(screen.getByRole('region', { name: 'Your progress starts with your first answer' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Start practising' })).toHaveAttribute('href', '/practice');
+    expect(screen.getByRole('link', { name: 'Take the placement test' })).toHaveAttribute('href', '/diagnostic');
+    expect(screen.queryByText('Accuracy')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ability trend (θ)' })).not.toBeInTheDocument();
+  });
+
   it('Overview: KPIs, ability trend, forecast and the AI report', async () => {
     const { container } = renderTab(<OverviewTab stats={stats} kpi={kpi} today="2026-10-08" />);
     // The figures and the report lead the tab in one hero.
