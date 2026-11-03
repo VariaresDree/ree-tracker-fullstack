@@ -15,7 +15,7 @@ const del = vi.fn(() => Promise.resolve(true));
 const reload = vi.fn();
 let listeners;
 
-function fireScriptError(attrs = { type: 'module' }) {
+function fireScriptError(attrs = { type: 'module', src: 'http://x/assets/entry.js' }) {
   const el = document.createElement('script');
   Object.assign(el, attrs);
   listeners.forEach((fn) => fn({ target: el }));
@@ -46,6 +46,20 @@ describe('blank-page recovery', () => {
     await settle();
     expect(unregister).toHaveBeenCalledTimes(1);
     expect(del.mock.calls.map((c) => c[0]).sort()).toEqual(['ree-2-precache-v2-x', 'workbox-precache-v2-x']);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches the page’s scripts past the browser’s own cache, which can hold a wrong answer', async () => {
+    const link = document.createElement('link');
+    link.rel = 'modulepreload';
+    link.href = 'http://x/assets/useStore.js';
+    document.head.append(link);
+    fireScriptError();
+    await settle();
+    await settle();
+    link.remove();
+    const reloaded = fetch.mock.calls.filter(([, opts]) => opts?.cache === 'reload').map(([url]) => url);
+    expect(reloaded).toEqual(['http://x/assets/entry.js', 'http://x/assets/useStore.js']);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
@@ -84,6 +98,15 @@ describe('blank-page recovery', () => {
     listeners.forEach((fn) => fn({ target: window }));
     await settle();
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('the server’s headers', () => {
+  it('holds assets for a day: the header reaches a 404 and any wrong answer too', () => {
+    const vercel = JSON.parse(readFileSync(resolve(root, '..', 'vercel.json'), 'utf8'));
+    const assets = vercel.headers.find((h) => h.source === '/assets/(.*)').headers.find((h) => h.key === 'Cache-Control');
+    expect(assets.value).not.toMatch(/immutable/);
+    expect(Number(assets.value.match(/max-age=(\d+)/)[1])).toBeLessThanOrEqual(86400);
   });
 });
 

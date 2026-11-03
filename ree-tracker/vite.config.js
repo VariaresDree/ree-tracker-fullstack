@@ -78,6 +78,12 @@ export default defineConfig(async ({ mode, command }) => {
     target: 'es2022',
     rollupOptions: {
       output: {
+        // "v2-": new addresses for every file. Browsers hold a wrong answer for a
+        // chunk (the app page, from before missing assets were a 404) for a year,
+        // since /assets/ was marked immutable. Only a new address gets past that.
+        entryFileNames: 'assets/v2-[name]-[hash].js',
+        chunkFileNames: 'assets/v2-[name]-[hash].js',
+        assetFileNames: 'assets/v2-[name]-[hash][extname]',
         // Cleanly split heavy vendor groups so initial bundle stays lean.
         // Rolldown (Vite 8) requires the function form of manualChunks.
         manualChunks(id) {
