@@ -25,12 +25,12 @@ function performanceByTopic(performance, index, now = new Date()) {
     for (const p of performance || []) {
         const topicId = p.topicId || resolveInIndex(index, p.subject, p.topic)?.id;
         if (!topicId) continue;
-        const prev = out.get(topicId) || { attempts: 0, pMastery: null, masteryEffective: null };
+        const prev = out.get(topicId) || { attempts: 0, correct: 0, pMastery: null, masteryEffective: null };
         const mastery = p.pMastery == null ? prev.pMastery : Math.max(prev.pMastery ?? 0, p.pMastery);
         // Each row decays on its own clock before the best is kept.
         const decayed = p.pMastery == null ? null : effectiveMastery(p, now).masteryEffective;
         const effective = decayed == null ? prev.masteryEffective : Math.max(prev.masteryEffective ?? 0, decayed);
-        out.set(topicId, { attempts: prev.attempts + (Number(p.attempts) || 0), pMastery: mastery, masteryEffective: effective });
+        out.set(topicId, { attempts: prev.attempts + (Number(p.attempts) || 0), correct: prev.correct + (Number(p.correct) || 0), pMastery: mastery, masteryEffective: effective });
     }
     return out;
 }
@@ -52,7 +52,7 @@ function buildSyllabusRows({ topics, progress, performance, index, now = new Dat
             || a.name.localeCompare(b.name))
         .map((t) => {
             const mine = ticks.get(t.id);
-            const perf = answered.get(t.id) || { attempts: 0, pMastery: null, masteryEffective: null };
+            const perf = answered.get(t.id) || { attempts: 0, correct: 0, pMastery: null, masteryEffective: null };
             return {
                 topicId: t.id,
                 subject: t.subject,
@@ -63,6 +63,7 @@ function buildSyllabusRows({ topics, progress, performance, index, now = new Dat
                 drilled: !!mine?.drilled,
                 autoDrilled: isAutoDrilled(perf),
                 attempts: perf.attempts,
+                correct: perf.correct,
                 startedOn: mine?.startedOn ?? null,
                 finishedOn: mine?.finishedOn ?? null,
                 note: mine?.note ?? null,

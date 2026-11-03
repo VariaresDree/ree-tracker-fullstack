@@ -52,6 +52,11 @@ function PracticeProbe() {
   lastState = useLocation().state;
   return <p>practice-page</p>;
 }
+// Opens a topic's row; only one is open at a time.
+const openTopic = async (name) => {
+  fireEvent.click(await screen.findByRole('button', { name }));
+  return screen.getByRole('heading', { level: 3, name }).closest('li');
+};
 const renderTab = (props = {}) => render(
   <MemoryRouter>
     <Routes>
@@ -88,27 +93,29 @@ describe('SyllabusTab', () => {
     // Math 1 of 2 (25%) and EE 0 of 1 (45%): (0.25 × 0.5) / 0.70 = 17.9%
     expect(screen.getByText('17.9%')).toBeInTheDocument();
     expect(screen.getByText(/covered · 1 of 3 topics/)).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Mathematics: 1 of 2 topics covered' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Mathematics: 1 of 2 topics covered' })).toHaveAttribute('aria-valuenow', '50');
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Calculus', 'Differential Equations']);
   });
 
   it('its headings step down from the Progress h1 without skipping a level', async () => {
     const { container } = renderTab();
-    await screen.findByRole('heading', { level: 3, name: 'Calculus' });
-    fireEvent.click(within(screen.getByRole('heading', { level: 3, name: 'Calculus' }).closest('li')).getByRole('button', { name: /Dates and note/ }));
+    const item = await openTopic('Calculus');
+    fireEvent.click(within(item).getByRole('button', { name: /Dates and note/ }));
     expectNoSkippedLevels(container);
   });
 
   it('ticks itself as Drilled from answers, and won’t be unticked', async () => {
     renderTab();
-    const auto = await screen.findByRole('button', { name: /Drilled · 24 answers/ });
+    await openTopic('Differential Equations');
+    const auto = screen.getByRole('button', { name: /Drilled · 24 answers/ });
     expect(auto).toHaveAttribute('aria-pressed', 'true');
     expect(auto).toBeDisabled();
   });
 
   it('a tick sends the topic’s full state, filling in today as the start date', async () => {
     renderTab();
-    const group = await screen.findByRole('group', { name: 'Differential Equations: checklist' });
+    await openTopic('Differential Equations');
+    const group = screen.getByRole('group', { name: 'Differential Equations: checklist' });
     fireEvent.click(within(group).getByRole('button', { name: /Read/ }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m2`, 'PUT', expect.anything()));
     expect(apiRequest.mock.calls.find((c) => c[1] === 'PUT')[2]).toEqual({
@@ -122,7 +129,8 @@ describe('SyllabusTab', () => {
   it('offline, ticks show at once and queue one full state per topic', async () => {
     routeApi({ failWrites: () => new Error('[OFFLINE]') });
     renderTab();
-    const group = await screen.findByRole('group', { name: 'Differential Equations: checklist' });
+    await openTopic('Differential Equations');
+    const group = screen.getByRole('group', { name: 'Differential Equations: checklist' });
     fireEvent.click(within(group).getByRole('button', { name: /Read/ }));
     await waitFor(() => expect(useStore.getState().pendingWrites).toHaveLength(1));
     fireEvent.click(within(group).getByRole('button', { name: /Watched/ }));
@@ -136,7 +144,7 @@ describe('SyllabusTab', () => {
 
   it('checks dates before sending, and drills the topic from its details', async () => {
     renderTab();
-    const item = (await screen.findByRole('heading', { level: 3, name: 'Calculus' })).closest('li');
+    const item = await openTopic('Calculus');
     fireEvent.click(within(item).getByRole('button', { name: /Dates and note/ }));
     fireEvent.change(within(item).getByLabelText('Started'), { target: { value: '2026-10-05' } });
     fireEvent.change(within(item).getByLabelText('Finished'), { target: { value: '2026-10-01' } });
@@ -151,9 +159,9 @@ describe('SyllabusTab', () => {
 
   it('switches subject, and says when a subject has no topics', async () => {
     renderTab();
-    fireEvent.click(await screen.findByRole('radio', { name: /EE/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /EEs*·/ }));
     expect(screen.getByRole('heading', { level: 3, name: 'Power Systems' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('radio', { name: /ESAS/ }));
+    fireEvent.click(screen.getByRole('button', { name: /ESASs*·/ }));
     expect(screen.getByText('No topics in this subject yet.')).toBeInTheDocument();
   });
 
@@ -287,7 +295,7 @@ describe('your own rating of a topic, and high-yield (CELE round)', () => {
   it('a pick saves the topic’s full state with the rating; clearing sends null', async () => {
     serve(rated);
     renderTab();
-    await screen.findByRole('heading', { level: 3, name: 'Calculus' });
+    await openTopic('Calculus');
     fireEvent.change(within(item('Calculus')).getByLabelText('Dread'), { target: { value: '3' } });
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ read: false, confidence: 75, dread: 3 })));
     fireEvent.change(within(item('Calculus')).getByLabelText('How sure'), { target: { value: '' } });
@@ -297,7 +305,7 @@ describe('your own rating of a topic, and high-yield (CELE round)', () => {
   it('a row from before the rating existed sends no rating keys', async () => {
     serve([row('m3', 'Mathematics', 'Probability')]); // no confidence/dread keys at all
     renderTab();
-    await screen.findByRole('heading', { level: 3, name: 'Probability' });
+    await openTopic('Probability');
     fireEvent.click(within(item('Probability')).getByRole('button', { name: /Read/ }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m3`, 'PUT', expect.anything()));
     const body = apiRequest.mock.calls.find((c) => c[1] === 'PUT')[2];
