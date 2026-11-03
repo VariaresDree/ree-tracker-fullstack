@@ -56,8 +56,7 @@ export default function QuizLauncherTab() {
             screen readers' heading list. */}
         <h2 className="sr-only">Imported quizzes</h2>
         <p className="text-sm text-muted2">
-          Load your own quiz files and take them as a timed practice exam. They stay on this device
-          and work offline.
+          Your own quiz files, as a timed exam. They stay on this device.
         </p>
       </div>
 

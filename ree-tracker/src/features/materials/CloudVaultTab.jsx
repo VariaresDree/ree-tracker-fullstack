@@ -211,7 +211,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           <p className="text-sm text-muted2">
             {isAdmin
               ? 'Upload and organize handouts. Reviewers can open them but not change them.'
-              : 'Review notes and reference files, sorted into folders. Open a folder, then tap a file to read it.'}
+              : 'Open a folder, then tap a file to read it.'}
           </p>
           <div className="flex items-center gap-2 mt-3 font-mono text-xs text-muted2 flex-wrap">
             {breadcrumbs.map((crumb, idx) => (

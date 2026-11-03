@@ -35,6 +35,14 @@ const { default: Account } = await import('./Account');
 const setStats = (stats) => act(() => { storeState = { ...storeState, stats }; listeners.forEach((l) => l()); });
 
 describe('Account', () => {
+  it('its jump links stay in view, in one row', () => {
+    render(<MemoryRouter><Account /></MemoryRouter>);
+    const nav = screen.getByRole('navigation', { name: 'Account sections' });
+    expect(nav.className).toMatch(/sticky/);
+    expect(nav.className).toMatch(/overflow-x-auto/);
+    expect(nav.className).not.toMatch(/flex-wrap/);
+  });
+
   it('has jump links to its sections', () => {
     render(<MemoryRouter><Account /></MemoryRouter>);
     const nav = screen.getByRole('navigation', { name: 'Account sections' });

@@ -15,7 +15,7 @@ export default function NotebookTab({ currentUser, isOnline }) {
         divider
         title="Notebook"
         description={view === 'mistakes'
-          ? 'Every question you got wrong, newest first, with its solution. Tag why you missed it, then practise the ones still open.'
+          ? 'What you got wrong, with solutions. Tag why, then practise the ones still open.'
           : 'Your own notes on questions and formula cards, newest first.'}
         actions={(
           <SegmentedControl

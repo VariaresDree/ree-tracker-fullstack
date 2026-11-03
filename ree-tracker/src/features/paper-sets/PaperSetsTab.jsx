@@ -86,7 +86,7 @@ export default function PaperSetsTab() {
       <SectionHeader
         id="paper-sets-title"
         title="Paper sets"
-        description="Mock boards printed on paper. Scan the answer sheets with your phone to score them: each taker, or your own as a self-check."
+        description="Print a mock, then scan its answer sheets with your phone to score them."
         actions={(
           <>
             <Button as={Link} size="sm" variant="secondary" to="/simulator">

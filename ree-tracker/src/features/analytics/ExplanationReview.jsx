@@ -111,7 +111,7 @@ export default function ExplanationReview() {
                     <h2 className="text-sm font-bold text-textMain">
                         Explanation review queue ({questions.length})
                     </h2>
-                    <p className="text-[0.7rem] text-muted2 mt-1 leading-relaxed max-w-2xl">
+                    <p className="text-xs text-muted2 mt-1 leading-relaxed max-w-2xl">
                         Approve or reject AI-generated explanations queued for the question bank.
                         Approved text becomes the canonical solution shown when you review that item;
                         rejected explanations are discarded so the question can be re-derived later.

@@ -41,7 +41,7 @@ describe('layout standard', () => {
   });
 
   it('no text is under 12px', () => {
-    expect(scan(/text-\[(0?\.[0-6]\d*rem|\d(\.\d+)?px|1[01](\.\d+)?px)\]/)).toEqual([]);
+    expect(scan(/text-\[(0?\.[0-6]\d*rem|0?\.7(?:[0-4]\d*)?rem|\d(\.\d+)?px|1[01](\.\d+)?px)\]/)).toEqual([]);
   });
 
   it('page grids follow the room they have (<Grid>), not the window', () => {

@@ -8,7 +8,7 @@
 // Sections have anchors (/account#offline) so other screens can link straight
 // to one.
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShallow } from 'zustand/react/shallow';
 import { DISPLAY_NAME_MAX } from '@ree/shared';
@@ -29,6 +29,8 @@ import AppVersion from '../features/account/AppVersion';
 
 // Jump links to each section: Account is nine sections long, and on a phone
 // "Sign-in & security" was a long scroll down with no way to see what was there.
+// One row that scrolls sideways and stays in view, so you can jump from anywhere.
+// They wrapped to 200px at the top of the page and were gone once you scrolled.
 const SECTIONS = [
   ['profile', 'Name'],
   ['exam-plan', 'Exam plan'],
@@ -43,8 +45,8 @@ const SECTIONS = [
 
 function Section({ id, title, description, children }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-[calc(var(--sticky-top,0.75rem)+0.75rem)]">
-      <Card className="p-5 sm:p-6 flex flex-col gap-4">
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-[calc(var(--sticky-top,0.75rem)+3.75rem)]">
+      <Card className="p-4 sm:p-5 flex flex-col gap-3">
         <div>
           <CardTitle size="lg" id={`${id}-title`}>{title}</CardTitle>
           {description && <p className="text-sm text-muted2 mt-1">{description}</p>}
@@ -91,6 +93,7 @@ function NameForm({ currentUser }) {
 
 export default function Account() {
   const { currentUser, isAdmin } = useAuth();
+  const { hash } = useLocation();
   const { stats, theme, setTheme, plainBackground, setPlainBackground } = useStore(useShallow((s) => ({
     stats: s.stats, theme: s.theme, setTheme: s.setTheme, plainBackground: s.plainBackground, setPlainBackground: s.setPlainBackground,
   })));
@@ -113,12 +116,13 @@ export default function Account() {
     <Page width="narrow">
       <PageHeader title="Account" subtitle={currentUser?.email || undefined} />
 
-      <nav aria-label="Account sections" className="flex flex-wrap gap-2">
+      <nav aria-label="Account sections" className="sticky top-[var(--sticky-top,0.75rem)] z-20 flex gap-2 overflow-x-auto [scrollbar-width:none] py-2 rounded-[var(--radius-default)] bg-bg/90 backdrop-blur-sm reduce-transparency:bg-bg reduce-transparency:backdrop-blur-none">
         {[...SECTIONS, ...(isAdmin ? [['admin', 'Admin']] : [])].map(([id, label]) => (
           <Link
             key={id}
             to={{ hash: id }}
-            className="touch-target inline-flex items-center px-3 py-1.5 rounded-full border border-border bg-surface2 text-xs font-medium text-muted2 hover:text-textMain hover:bg-surface3 transition-colors"
+            aria-current={hash === `#${id}` ? 'location' : undefined}
+            className="touch-target shrink-0 whitespace-nowrap inline-flex items-center px-3 py-1.5 rounded-full border border-border bg-surface2 text-xs font-medium text-muted2 hover:text-textMain hover:bg-surface3 aria-[current]:text-[var(--accent-text)] aria-[current]:border-[color-mix(in_srgb,var(--accent)_45%,transparent)] transition-colors"
           >
             {label}
           </Link>
