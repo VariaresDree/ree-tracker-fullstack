@@ -25,6 +25,7 @@ const LABELS = [
   ['/api/user/notes', (m) => (m === 'DELETE' ? 'Deleting a note' : 'A note')],
   ['/api/user/card-reviews', () => 'A formula card rating'],
   ['/api/user/focus-blocks', (m) => (m === 'DELETE' ? 'Deleting a focus block' : 'A focus block')],
+  ['/api/user/syllabus-subtopics', (m) => (m === 'DELETE' ? 'Deleting a subtopic' : 'A subtopic check-off')],
   ['/api/user/syllabus', () => 'A syllabus check-off'],
   ['/api/user/outside-scores', (m) => (m === 'DELETE' ? 'Deleting an outside score' : 'An outside score')],
   ['/api/user/key-dates', (m) => (m === 'DELETE' ? 'Deleting a key date' : 'A key date')],

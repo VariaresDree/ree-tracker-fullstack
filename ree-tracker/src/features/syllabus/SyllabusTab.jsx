@@ -1,171 +1,40 @@
 // src/features/syllabus/SyllabusTab.jsx
 //
-// Progress › Syllabus: the board's topic list as a checklist. Per topic, has
-// the learner read it, watched a lecture on it, drilled it? Drilled ticks
-// itself from their answers. Coverage per subject and overall (weighted the
-// way the board weighs the subjects), and a pace line against the exam date.
-// The psychometrician tracker's Tracker + TOS Summary sheets, for the REE
-// board, on the app's own topics.
+// Progress › Syllabus: the board's topic list as a tracker and a table of
+// contents. A tile per subject (coverage, subtopics, board items), then one
+// folding row per topic: subtopics ticked, Read / Watched / Drilled (Drilled
+// ticks itself from answers), mastery and accuracy. Coverage overall is weighted
+// the way the board weighs the subjects, with a pace line against the exam date.
+// The psychometrician tracker's Tracker + TOS Summary sheets, for the REE board,
+// on the app's own topics.
 //
 // Display only: none of this feeds readiness, the forecast or the rankings.
-import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { SYLLABUS_NOTE_MAX, SYLLABUS_SUBJECTS, isTopicCovered, syllabusCoverage, todayManila } from '@ree/shared';
+import { SYLLABUS_SUBJECTS, syllabusCoverage } from '@ree/shared';
+import { subtopicProgress } from '@ree/shared/subtopics';
 import {
-  Panel, Button, SegmentedControl, ProgressIndicator, StatusPill, EmptyState, Skeleton, FormField, Input, Select, Textarea, cn,
+  Panel, Button, EmptyState, Skeleton, FormField, Select, cn,
 } from '../../components/ui';
-import { ListChecks, BookOpen, CloudOff, RotateCcw, ChevronDown, Crosshair, Check, Plus } from '../../components/ui/icons';
+import { ListChecks, BookOpen, CloudOff, RotateCcw, Check } from '../../components/ui/icons';
 import { useSyllabus } from './useSyllabus';
-import { CONFIDENCE_OPTIONS, DREAD_OPTIONS } from './selfRating';
+import { useSubtopics } from './useSubtopics';
 import { daysToExam } from '../today/todayActions';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 import { paceLine } from './syllabusPace';
+import { MasteryStrip, SubjectTiles } from './SubjectTiles';
+import TopicRow, { ROW_COLUMNS } from './TopicRow';
+import { bandCounts, boardItemsCovered, sortTopics } from './trackerModel';
 
 const SUBJECT_LABEL = { Mathematics: 'Math', ESAS: 'ESAS', EE: 'EE' };
 const fmtPct = (n) => `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
+const NO_ROWS = [];
 
-// A toggle chip: one tick on the checklist.
-function Tick({ pressed, disabled, onClick, title, children }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={!!pressed}
-      disabled={disabled}
-      onClick={onClick}
-      title={title}
-      className={cn(
-        'inline-flex items-center gap-1.5 min-h-11 px-3.5 rounded-full border text-sm font-medium transition-colors',
-        pressed
-          ? 'bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent-text)]'
-          : 'border-border text-muted2 hover:text-textMain hover:bg-surface2',
-        disabled && 'cursor-default',
-      )}
-    >
-      {pressed ? <Check size={14} strokeWidth={2} aria-hidden="true" /> : <Plus size={14} strokeWidth={2} aria-hidden="true" />}
-      {children}
-    </button>
-  );
-}
-
-function TopicDetails({ id, row, onSave, onDrill }) {
-  const [draft, setDraft] = useState({ startedOn: row.startedOn || '', finishedOn: row.finishedOn || '', note: row.note || '' });
-  const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
-  const set = (field) => (e) => setDraft((d) => ({ ...d, [field]: e.target.value }));
-  const today = todayManila();
-
-  const save = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await onSave(row.topicId, { startedOn: draft.startedOn || null, finishedOn: draft.finishedOn || null, note: draft.note.trim() || null });
-      setErrors({});
-    } catch (err) {
-      setErrors(err?.fields || {});
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <form id={id} onSubmit={save} noValidate className="flex flex-col gap-3 border-t border-border pt-3">
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Started" error={errors.startedOn}>
-          <Input type="date" value={draft.startedOn} max={today} onChange={set('startedOn')} />
-        </FormField>
-        <FormField label="Finished" error={errors.finishedOn}>
-          <Input type="date" value={draft.finishedOn} max={today} onChange={set('finishedOn')} />
-        </FormField>
-      </div>
-      <FormField label="Note" error={errors.note} hint={`${draft.note.length}/${SYLLABUS_NOTE_MAX}. Pages, formulas, what to revisit.`}>
-        <Textarea rows={2} value={draft.note} onChange={set('note')} maxLength={SYLLABUS_NOTE_MAX} />
-      </FormField>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button type="button" variant="secondary" size="sm" onClick={() => onDrill(row)}>
-          <Crosshair size={14} strokeWidth={1.75} aria-hidden="true" /> Drill this topic
-        </Button>
-        <Button type="submit" size="sm" loading={saving}>Save dates and note</Button>
-      </div>
-    </form>
-  );
-}
-
-const TopicRow = memo(function TopicRow({ row, onSave, onDrill }) {
-  const [open, setOpen] = useState(false);
-  const detailsId = useId();
-  // A tick has no form to show a field error in, so it gets a toast. (A
-  // refused request was already toasted by onSave.)
-  const tick = (field) => onSave(row.topicId, { [field]: !row[field] }).catch((err) => {
-    if (err?.fields) toast.error(err.message);
-  });
-  const answers = `${row.attempts} ${row.attempts === 1 ? 'answer' : 'answers'}`;
-  const rate = (field, value) => onSave(row.topicId, { [field]: value === '' ? null : Number(value) }).catch((err) => {
-    if (err?.fields) toast.error(err.message);
-  });
-
-  return (
-    <li className="rounded-[var(--radius-default)] border border-border bg-surface2/30 p-3.5 flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-h3 text-textMain break-words">{row.name}</h3>
-        <div className="flex flex-wrap justify-end gap-1.5 shrink-0">
-          {row.highYield && <StatusPill tone="velocity" dot={false}>High-yield</StatusPill>}
-          {isTopicCovered(row) && <StatusPill tone="success" dot={false}>Covered</StatusPill>}
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`${row.name}: checklist`}>
-        <Tick pressed={row.read} onClick={() => tick('read')}>Read</Tick>
-        <Tick pressed={row.watched} onClick={() => tick('watched')}>Watched</Tick>
-        {row.autoDrilled ? (
-          <Tick pressed disabled title="Ticked from your answers in this topic">Drilled · {answers}</Tick>
-        ) : (
-          <Tick pressed={row.drilled} onClick={() => tick('drilled')}>
-            Drilled{row.attempts > 0 ? ` · ${answers}` : ''}
-          </Tick>
-        )}
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={detailsId}
-          onClick={() => setOpen((o) => !o)}
-          className="ml-auto inline-flex items-center gap-1 min-h-11 px-2 rounded-md text-xs text-muted2 hover:text-textMain"
-        >
-          Dates and note
-          <ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" className={cn('transition-transform', open && 'rotate-180')} />
-        </button>
-      </div>
-      {/* Your own rating (the CELE "Meta topics"): saved as you pick. */}
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="How sure">
-          <Select value={row.confidence == null ? '' : String(row.confidence)} onChange={(e) => rate('confidence', e.target.value)}>
-            {CONFIDENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Dread">
-          <Select value={row.dread == null ? '' : String(row.dread)} onChange={(e) => rate('dread', e.target.value)}>
-            {DREAD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </Select>
-        </FormField>
-      </div>
-      {/* Keyed on the saved values: when they change underneath an open form
-          (a refetch, another device), the form starts again from them
-          instead of saving a stale copy back over them. */}
-      {open && (
-        <TopicDetails
-          key={`${row.startedOn}|${row.finishedOn}|${row.note}`}
-          id={detailsId}
-          row={row}
-          onSave={onSave}
-          onDrill={onDrill}
-        />
-      )}
-    </li>
-  );
-});
-
-function StatusLine({ status, queuedCount, hasTopics }) {
+function StatusLine({ status, queuedCount, subtopicsQueued, hasTopics }) {
   let text = null;
   if (queuedCount > 0) text = `${queuedCount} ${queuedCount === 1 ? 'topic' : 'topics'} saved on this device, waiting to sync.`;
+  else if (subtopicsQueued > 0) text = `${subtopicsQueued} subtopic ${subtopicsQueued === 1 ? 'change' : 'changes'} saved on this device, waiting to sync.`;
   else if (status === 'offline') text = 'Offline. Showing the checklist saved on this device.';
   else if (status === 'unreachable') text = 'Couldn’t reach the server. Showing the checklist saved on this device.';
   else if (status === 'error' && hasTopics) text = 'Couldn’t refresh. Showing the checklist saved on this device.';
@@ -181,8 +50,10 @@ function StatusLine({ status, queuedCount, hasTopics }) {
 export default function SyllabusTab({ examDate = null }) {
   const navigate = useNavigate();
   const { topics, weights, status, queuedCount, saveTopic, reload } = useSyllabus();
+  const subtopics = useSubtopics();
   const [subject, setSubject] = useState('Mathematics');
-  // Narrow the list: high-yield topics only, and sort by your own rating.
+  const [openTopic, setOpenTopic] = useState(null);
+  // Narrow the list: high-yield topics only, and the order to read it in.
   const [highYieldOnly, setHighYieldOnly] = useState(false);
   const [sortBy, setSortBy] = useState('board');
 
@@ -203,14 +74,16 @@ export default function SyllabusTab({ examDate = null }) {
   const onDrill = useCallback((row) => {
     launchPractice(navigate, drillPreset({ topicId: row.topicId, topic: row.name, subject: row.subject }));
   }, [navigate]);
+  const onToggle = useCallback((topicId) => setOpenTopic((open) => (open === topicId ? null : topicId)), []);
 
+  const { byTopic } = subtopics;
   const coverage = useMemo(() => syllabusCoverage(topics || [], weights || undefined), [topics, weights]);
-  const visible = useMemo(() => {
-    const list = (topics || []).filter((t) => t.subject === subject && (!highYieldOnly || t.highYield));
-    if (sortBy === 'dread') return list.slice().sort((a, b) => (b.dread ?? -1) - (a.dread ?? -1));
-    if (sortBy === 'unsure') return list.slice().sort((a, b) => (a.confidence ?? 101) - (b.confidence ?? 101));
-    return list;
-  }, [topics, subject, highYieldOnly, sortBy]);
+  const subjectRows = useMemo(() => (topics || []).filter((t) => t.subject === subject), [topics, subject]);
+  const visible = useMemo(() => sortTopics(
+    subjectRows.filter((t) => !highYieldOnly || t.highYield),
+    sortBy,
+    (topicId) => subtopicProgress(byTopic.get(topicId)),
+  ), [subjectRows, highYieldOnly, sortBy, byTopic]);
   const anyHighYield = (topics || []).some((t) => t.highYield);
 
   if (!topics && status === 'error') {
@@ -257,46 +130,45 @@ export default function SyllabusTab({ examDate = null }) {
   // Shares of the exam, from the weights as stored (fractions or percents).
   const weightSum = coverage.subjects.reduce((s, x) => s + (x.weight > 0 ? x.weight : 0), 0);
   const share = (w) => (weightSum > 0 ? Math.round((w / weightSum) * 100) : 0);
+  const tiles = coverage.subjects.filter((s) => s.total > 0 || s.subject === subject).map((s) => {
+    const rows = topics.filter((t) => t.subject === s.subject);
+    const counts = rows.map((t) => subtopicProgress(byTopic.get(t.topicId)));
+    return {
+      subject: s.subject,
+      label: SUBJECT_LABEL[s.subject],
+      percent: s.percent,
+      covered: s.covered,
+      total: s.total,
+      share: share(s.weight),
+      subtopics: { done: counts.reduce((n, c) => n + c.done, 0), total: counts.reduce((n, c) => n + c.total, 0) },
+      items: boardItemsCovered(s.subject, rows),
+    };
+  });
+  // A subject with no topics still has its tile, so it can say so.
+  for (const s of SYLLABUS_SUBJECTS) {
+    if (!tiles.some((t) => t.subject === s)) {
+      tiles.push({ subject: s, label: SUBJECT_LABEL[s], percent: 0, covered: 0, total: 0, share: share(coverage.subjects.find((x) => x.subject === s)?.weight || 0), subtopics: { done: 0, total: 0 }, items: { covered: 0, total: 0 } });
+    }
+  }
+  tiles.sort((a, b) => SYLLABUS_SUBJECTS.indexOf(a.subject) - SYLLABUS_SUBJECTS.indexOf(b.subject));
 
   return (
     <div className="flex flex-col gap-6">
       <Panel icon={ListChecks} eyebrow="Checklist" title="Syllabus coverage" bodyClassName="flex flex-col gap-4">
-        <StatusLine status={status} queuedCount={queuedCount} hasTopics />
+        <StatusLine status={status} queuedCount={queuedCount} subtopicsQueued={subtopics.queuedCount} hasTopics />
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-4xl text-display tabular-nums text-textMain">{fmtPct(overall.percent)}</span>
           <span className="text-sm text-muted2">covered · {overall.covered} of {overall.total} topics</span>
         </div>
         {pace && <p className="text-sm text-muted2">{pace}</p>}
-        <ul className="flex flex-col gap-3">
-          {coverage.subjects.filter((s) => s.total > 0).map((s) => (
-            <li key={s.subject} className="flex flex-col gap-1.5">
-              <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="text-textMain font-medium">
-                  {s.subject}
-                  <span className="text-muted2 font-normal"> · {share(s.weight)}% of the exam</span>
-                </span>
-                <span className="tabular-nums text-muted2 shrink-0">{s.covered} of {s.total}</span>
-              </div>
-              <ProgressIndicator value={s.covered} max={s.total} size="sm" ariaLabel={`${s.subject}: ${s.covered} of ${s.total} topics covered`} />
-            </li>
-          ))}
-        </ul>
+        <SubjectTiles tiles={tiles} active={subject} onPick={setSubject} />
         <p className="text-xs text-muted2 leading-relaxed">
-          A topic counts as covered once you’ve read it and drilled it. Drilled ticks itself after 20 answers in the topic, or 10 at Developing mastery or better. Watched is for your own tracking. None of this changes your readiness, forecast or rankings.
+          A topic counts as covered once you’ve read it and drilled it. Drilled ticks itself after 20 answers in the topic, or 10 at Developing mastery or better. Ticking every subtopic ticks Read. Watched is for your own tracking. None of this changes your readiness, forecast or rankings.
         </p>
       </Panel>
 
-      <Panel icon={BookOpen} eyebrow="By subject" title="Topics" bodyClassName="flex flex-col gap-4">
-        <SegmentedControl
-          label="Subject"
-          options={SYLLABUS_SUBJECTS.map((s) => {
-            const c = coverage.subjects.find((x) => x.subject === s);
-            return { value: s, label: SUBJECT_LABEL[s], hint: `${c.covered}/${c.total} covered` };
-          })}
-          value={subject}
-          onChange={setSubject}
-          fullWidth
-        />
+      <Panel icon={BookOpen} eyebrow={`Topic tracker · ${SUBJECT_LABEL[subject]}`} title="Topics" bodyClassName="flex flex-col gap-4">
+        <MasteryStrip counts={bandCounts(subjectRows)} subject={subject} />
         <div className="flex flex-wrap items-end gap-3">
           {anyHighYield && (
             <Button type="button" size="sm" variant={highYieldOnly ? 'outline' : 'secondary'} aria-pressed={highYieldOnly} onClick={() => setHighYieldOnly((v) => !v)}>
@@ -306,17 +178,40 @@ export default function SyllabusTab({ examDate = null }) {
           <FormField label="Sort" className="min-w-40">
             <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
               <option value="board">Board order</option>
+              <option value="items">Most board items</option>
+              <option value="least">Least done</option>
+              <option value="weakest">Weakest first</option>
               <option value="dread">Most dreaded first</option>
               <option value="unsure">Least sure first</option>
             </Select>
           </FormField>
+          <Link to="/progress?tab=weak-spots" className="touch-target inline-flex items-center text-sm text-[var(--accent-text)] hover:underline">See Weak spots</Link>
         </div>
         {visible.length === 0 ? (
           <p className="text-sm text-muted2">{highYieldOnly ? 'No high-yield topics in this subject.' : 'No topics in this subject yet.'}</p>
         ) : (
-          <ul className="flex flex-col gap-2" aria-label={`${subject} topics`}>
-            {visible.map((row) => <TopicRow key={row.topicId} row={row} onSave={onSave} onDrill={onDrill} />)}
-          </ul>
+          <div className="@container flex flex-col gap-2">
+            <div aria-hidden="true" className={cn('hidden @2xl:grid gap-x-3 px-3.5 text-eyebrow', ROW_COLUMNS)}>
+              <span>Topic</span><span>Items</span><span>Subtopics</span><span>R W D</span><span>Mastery</span><span>Accuracy</span><span />
+            </div>
+            <ul className="flex flex-col gap-2" aria-label={`${subject} topics`}>
+              {visible.map((row) => (
+                <TopicRow
+                  key={row.topicId}
+                  row={row}
+                  rows={byTopic.get(row.topicId) || NO_ROWS}
+                  ready={subtopics.ready}
+                  status={subtopics.premadeStatus}
+                  open={openTopic === row.topicId}
+                  onToggle={onToggle}
+                  actions={subtopics.actions}
+                  onSave={onSave}
+                  onDrill={onDrill}
+                />
+              ))}
+            </ul>
+            <p className="text-xs text-muted2">R read, W watched, D drilled. Items: of the board’s 100 in this subject; * shared with another topic, — not itemized by PRC.</p>
+          </div>
         )}
       </Panel>
     </div>

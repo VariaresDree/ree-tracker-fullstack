@@ -29,7 +29,7 @@ router.get('/syllabus', authMiddleware, async (req, res) => {
             prisma.syllabusProgress.findMany({ where: { userId } }),
             prisma.userTopicPerformance.findMany({
                 where: { userId },
-                select: { topic: true, topicId: true, subject: true, attempts: true, pMastery: true, masteryN: true, lastPracticedAt: true },
+                select: { topic: true, topicId: true, subject: true, attempts: true, correct: true, pMastery: true, masteryN: true, lastPracticedAt: true },
             }),
             getSyllabusWeights(),
         ]);

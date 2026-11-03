@@ -139,6 +139,19 @@ describe('PUT /syllabus/:topicId', () => {
 });
 
 describe('the learner’s own rating and the high-yield flag (step 4)', () => {
+    it('rows add up the correct answers across a topic’s rows, for the tracker’s accuracy', () => {
+        const rows = buildSyllabusRows({
+            topics: [topic('t-ee-1', 'EE', 'Machines', 1)],
+            progress: [],
+            performance: [
+                { topicId: 't-ee-1', subject: 'EE', topic: 'Machines', attempts: 12, correct: 9, pMastery: null },
+                { topicId: 't-ee-1', subject: 'EE', topic: 'Machines', attempts: 3, correct: 1, pMastery: null },
+            ],
+            index: buildResolverIndex([]),
+        });
+        expect(rows[0]).toMatchObject({ attempts: 15, correct: 10 });
+    });
+
     it('a PUT that leaves the rating out keeps the stored one; null clears it', async () => {
         const upsert = vi.spyOn(prisma.syllabusProgress, 'upsert').mockImplementation(async ({ create }) => ({ id: 'row', ...create }));
         await request(makeApp()).put('/api/user/syllabus/t-ee-1').set(as(UID)).send(state());
