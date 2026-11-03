@@ -2,13 +2,17 @@
 //
 // Practice's setup screen, top to bottom: one hero (the due reviews when any
 // are due, otherwise Quick 20), the other presets as small tiles that start on a
-// tap, the always-open "Build your own", and where to turn when unsure (the mode
-// guide and the placement test).
+// tap, "Build your own" as a second hero that opens its setup in a sheet, and where
+// to turn when unsure (the mode guide and the placement test).
+//
+// A sheet rather than a page: it's a few quick choices that come straight back
+// here. It's kept in ?build=1, so Back closes it, and its footer holds Start, so
+// nothing has to float over the choices.
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Card, CardTitle, CardWatermark, Button, FormField, Grid, IconChip, Select, SegmentedControl, Skeleton, Page, PageHeader, cn } from '../../components/ui';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Card, CardWatermark, Button, FormField, Grid, IconChip, Modal, Select, SegmentedControl, Skeleton, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
-import { Shuffle, Crosshair, Gauge, Layers, Bookmark, RotateCcw } from '../../components/ui/icons';
+import { Shuffle, Crosshair, Gauge, Layers, Bookmark, RotateCcw, ChevronRight, Settings2 } from '../../components/ui/icons';
 import { SYLLABUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { adaptivePreset, bookmarksPreset, drillPreset, dueReviewPreset, quickReviewPreset } from './presets';
@@ -98,6 +102,26 @@ function Field({ label, children }) {
 
 export default function ReviewSetup({ config, session, safeTOS, isOnline, startSession }) {
   const [launchingPreset, setLaunchingPreset] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const building = params.get('build') === '1';
+  const withoutBuild = (prev) => {
+    const next = new URLSearchParams(prev);
+    next.delete('build');
+    return next;
+  };
+  const openBuilder = () => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    next.set('build', '1');
+    return next;
+  }, { state: { builderSheet: true } });
+  // Opening added a history entry, so closing goes back over it. One opened from a
+  // link has nothing behind it to go back to.
+  const closeBuilder = () => {
+    if (location.state?.builderSheet) navigate(-1);
+    else setParams(withoutBuild, { replace: true });
+  };
   // The builder keeps its own state, so a preset run in between doesn't overwrite
   // the session you built. Remembered on this device as you change it.
   const [built, setBuilt] = useState(() => readRememberedBuilder() || customView(config));
@@ -214,78 +238,101 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
         })}
       </Grid>
 
-      <Card as="section" padding="md" aria-labelledby="practice-build" className="flex flex-col gap-4">
-        <CardTitle id="practice-build">Build your own</CardTitle>
-
-        <Field label="Subject">
-          <SegmentedControl label="Subject" value={view.studyMode === 'interleaved' ? 'All' : view.subject} onChange={(s) => build(chooseScope(view, s))} options={SUBJECT_OPTIONS} />
-        </Field>
-
-        {view.studyMode !== 'interleaved' && (
-          <FormField label="Topic">
-            <Select value={view.studyMode === 'subtopic' ? view.subtopic : 'All'} onChange={(e) => build(chooseScope(view, view.subject, e.target.value))}>
-              <option value="All">All topics</option>
-              {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
-            </Select>
-          </FormField>
-        )}
-
-        <Grid kind="pair" gap="md">
-          <Field label="Items">
-            <SegmentedControl label="Number of questions" value={view.count} onChange={(count) => build({ ...view, count })} options={BUILDER_COUNTS.map((n) => ({ value: n, label: String(n) }))} />
-          </Field>
-          <Field label="Type">
-            <SegmentedControl
-              label="Question type"
-              value={view.cognitiveFocus}
-              onChange={(cognitiveFocus) => build({ ...view, cognitiveFocus })}
-              options={[
-                { value: 'mixed', label: 'Mixed' },
-                { value: 'conceptual', label: 'Theory' },
-                { value: 'calculation', label: 'Calculation' },
-              ]}
-            />
-          </Field>
-          <Field label="Mode">
-            <SegmentedControl
-              label="Session mode"
-              value={view.sessionMode}
-              onChange={(sessionMode) => build({ ...view, sessionMode })}
-              options={[
-                { value: 'mcq', label: 'Choice' },
-                { value: 'flashcard', label: 'Cards' },
-              ]}
-            />
-          </Field>
-          <Field label="From">
-            <SegmentedControl
-              label="Question source"
-              value={view.source}
-              onChange={(source) => build({ ...view, source })}
-              options={[
-                { value: 'library', label: 'Bank' },
-                { value: 'bookmarks', label: 'Saved', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
-                { value: 'ai', label: 'AI', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
-              ]}
-            />
-          </Field>
-        </Grid>
-
-        {/* In view at the foot of the card as it scrolls, above the phone's bottom
-            bar. The offset comes from the layout, so a home-indicator inset can't
-            push it under the bar. */}
-        <div className="sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+var(--fab-space,0px)+0.75rem)] flex items-center justify-between gap-3 -mx-2 px-2 py-2 rounded-[var(--radius-default)] bg-surface/95 backdrop-blur-sm reduce-transparency:bg-surface reduce-transparency:backdrop-blur-none">
-          <p className="text-sm font-medium text-textMain tabular-nums [overflow-wrap:anywhere] min-w-0">{builderSummary(view)}</p>
-          <Button
-            className="shrink-0"
-            loading={session.loading && !launchingPreset}
-            disabled={customDisabled}
-            onClick={() => { setLaunchingPreset(null); startSession(view); }}
-          >
-            Start session
-          </Button>
+      {/* The whole card is the button (the ::after), and only its title names it, so
+          a screen reader hears the title and then the setup it will open on. */}
+      <Card as="section" variant="hero" padding="md" aria-labelledby="practice-build" className="flex items-center gap-4">
+        <CardWatermark icon={Settings2} />
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
+          <h2 id="practice-build" className="text-h2 text-textMain">
+            <button type="button" aria-haspopup="dialog" disabled={session.loading} onClick={openBuilder} className="text-left cursor-pointer disabled:cursor-default after:absolute after:inset-0 after:content-['']">
+              Build your own
+            </button>
+          </h2>
+          <p className="text-sm text-muted2 [overflow-wrap:anywhere]">
+            {session.loading && !launchingPreset ? 'Starting…' : <>Your setup: <span className="text-textMain tabular-nums">{builderSummary(view)}</span></>}
+          </p>
         </div>
+        <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-muted" />
       </Card>
+
+      <Modal
+        open={building}
+        onClose={closeBuilder}
+        size="lg"
+        title="Build your own"
+        footer={(
+          <>
+            <p className="mr-auto min-w-0 text-sm font-medium text-textMain tabular-nums [overflow-wrap:anywhere]">{builderSummary(view)}</p>
+            <Button
+              className="shrink-0"
+              disabled={customDisabled}
+              onClick={() => {
+                setLaunchingPreset(null);
+                setParams(withoutBuild, { replace: true });
+                startSession(view);
+              }}
+            >
+              Start session
+            </Button>
+          </>
+        )}
+      >
+        <div className="flex flex-col gap-4">
+          <Field label="Subject">
+            <SegmentedControl label="Subject" value={view.studyMode === 'interleaved' ? 'All' : view.subject} onChange={(s) => build(chooseScope(view, s))} options={SUBJECT_OPTIONS} />
+          </Field>
+
+          {view.studyMode !== 'interleaved' && (
+            <FormField label="Topic">
+              <Select value={view.studyMode === 'subtopic' ? view.subtopic : 'All'} onChange={(e) => build(chooseScope(view, view.subject, e.target.value))}>
+                <option value="All">All topics</option>
+                {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </FormField>
+          )}
+
+          <Grid kind="pair" gap="md" className="@lg:grid-cols-2">
+            <Field label="Items">
+              <SegmentedControl label="Number of questions" value={view.count} onChange={(count) => build({ ...view, count })} options={BUILDER_COUNTS.map((n) => ({ value: n, label: String(n) }))} />
+            </Field>
+            <Field label="Type">
+              <SegmentedControl
+                label="Question type"
+                value={view.cognitiveFocus}
+                onChange={(cognitiveFocus) => build({ ...view, cognitiveFocus })}
+                options={[
+                  { value: 'mixed', label: 'Mixed' },
+                  { value: 'conceptual', label: 'Theory' },
+                  { value: 'calculation', label: 'Calculation' },
+                ]}
+              />
+            </Field>
+            <Field label="Mode">
+              <SegmentedControl
+                label="Session mode"
+                value={view.sessionMode}
+                onChange={(sessionMode) => build({ ...view, sessionMode })}
+                options={[
+                  { value: 'mcq', label: 'Choice' },
+                  { value: 'flashcard', label: 'Cards' },
+                ]}
+              />
+            </Field>
+            <Field label="From">
+              <SegmentedControl
+                label="Question source"
+                value={view.source}
+                onChange={(source) => build({ ...view, source })}
+                options={[
+                  { value: 'library', label: 'Bank' },
+                  { value: 'bookmarks', label: 'Saved', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+                  { value: 'ai', label: 'AI', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+                ]}
+              />
+            </Field>
+          </Grid>
+        </div>
+      </Modal>
 
       {/* Where to turn when unsure: one quiet block under the sessions. */}
       <div className="flex flex-col gap-2">
