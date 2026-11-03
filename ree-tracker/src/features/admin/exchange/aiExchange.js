@@ -8,9 +8,14 @@
 import { matchOption, parseModelJson } from '@ree/shared';
 import { normalizeMathDelimiters } from '../../../utils/mathDelimiters';
 
-const BLOCK = /^\s*={3,}\s*(QUESTION|CARD|END)\s*={3,}\s*$/i;
-const SECTION = /^\s*-{3,}\s*([A-Z ]+?)\s*-{3,}\s*$/i;
-const FIELD = /^\s*([a-z]+)\s*:\s*(.*)$/i;
+// What real replies did to a marker: ChatGPT's copy wrote \===QUESTION=== (a
+// Markdown escape), Gemini closed ---EXPLANATION=== with the wrong sign, and word
+// processors turn --- into a dash. One marker, however it arrives.
+const RULE = '[-=\\u2013\\u2014]{3,}|[\\u2013\\u2014]+';
+const MARK = (name) => new RegExp(`^[\\s\\\\*#>_]*(?:${RULE})\\s*(${name})\\s*\\\\?(?:${RULE})[\\s\\\\*_]*$`, 'i');
+const BLOCK = MARK('QUESTION|CARD|END');
+const SECTION = MARK('[A-Z ]+?');
+const FIELD = /^[\s*]*([a-z]+)[\s*]*:[\s*]*(.*)$/i;
 const FENCE_LINE = /^\s*`{3,}[a-z]*\s*$/i;
 const OPTION = /^\s*\(?([A-F])[.):]\s+(.*)$/i;
 
@@ -23,7 +28,9 @@ function readBlocks(raw) {
   let block = null;
   let section = null;
   for (const line of raw.split(/\r?\n/)) {
-    const mark = BLOCK.exec(line);
+    // Some apps' copy escapes each character of a marker.
+    const plain = line.replace(/\\(?=[-=])/g, '');
+    const mark = BLOCK.exec(plain);
     if (mark) {
       const name = mark[1].toUpperCase();
       if (name === 'END') {
@@ -35,7 +42,7 @@ function readBlocks(raw) {
       }
       section = null;
     } else if (block && !FENCE_LINE.test(line)) {
-      const head = SECTION.exec(line);
+      const head = SECTION.exec(plain);
       if (head) {
         section = head[1].toUpperCase();
         block.sections[section] = [];

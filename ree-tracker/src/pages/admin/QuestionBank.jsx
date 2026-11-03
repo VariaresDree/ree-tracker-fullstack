@@ -63,6 +63,8 @@ export default function QuestionBank() {
 
       <QuestionGenerator isOnline={isOnline} onSaved={initializeVault} />
 
+      <ImportFromAI onSaved={initializeVault} />
+
       <LibraryIngestion
         genSubject={genSubject} setGenSubject={setGenSubject}
         genSubtopic={genSubtopic} setGenSubtopic={setGenSubtopic}
@@ -73,8 +75,6 @@ export default function QuestionBank() {
         handlePdfSelect={handlePdfSelect} executePdfExtraction={executePdfExtraction}
         removeQuestion={removeQuestion} handleCommitToMatrix={handleCommitToMatrix}
       />
-
-      <ImportFromAI />
 
       <AnswerPositions />
 

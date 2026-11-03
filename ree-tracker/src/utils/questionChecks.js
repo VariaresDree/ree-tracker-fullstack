@@ -6,10 +6,32 @@
 // explanation); whether the physics is right is the answer check's job, and
 // the reviewer's.
 
-import { hasUnbalancedMath as unbalancedDollars } from '@ree/shared';
+import { hasUnbalancedMath as unbalancedDollars, explanationSections, structureExplanation } from '@ree/shared';
 import { mathIssues } from './mathIssues';
 
 const BANNED_OPTION = /\b(all|none) of the above\b|\bboth [a-d] and [a-d]\b/i;
+
+// The AI thinking aloud: it changed its mind partway, so the options, the key
+// and the working may no longer agree. (A real Gemini reply ended "Let's adjust
+// option choices" with a key of 1106 rpm and a worked answer of 1161 rpm.)
+const SELF_CORRECTION = /\b(let'?s (adjust|select|re-?\w+|recalculate|try again|fix)|recalculating|re-?evaluating|adjusting options|correct option:|on second thought)\b/i;
+
+const numbersIn = (text) => (String(text ?? '')
+  .replace(/\\[a-zA-Z]+/g, ' ')
+  .replace(/\\[,;:! ]/g, '')
+  .replace(/(\d),(?=\d{3}\b)/g, '$1')
+  .match(/\d+(?:\.\d+)?/g) || []).map(Number);
+
+/** Whether a written solution disagrees with itself or with the key. */
+export function explanationIssues(q) {
+  const issues = [];
+  if (SELF_CORRECTION.test(String(q?.fixedExplanation ?? ''))) issues.push('The explanation shows the AI correcting itself. Check the key and options');
+  const stated = explanationSections(structureExplanation(q?.fixedExplanation)).find((s) => s.label === 'Answer');
+  const said = numbersIn(stated?.body);
+  const key = numbersIn(q?.answer);
+  if (said.length && key.length && key.some((n) => !said.includes(n))) issues.push("The explanation's answer doesn't match the key");
+  return issues;
+}
 
 /**
  * Issues with one generated question, as short readable strings. An empty
@@ -36,6 +58,7 @@ export function questionIssues(q, { expectedType } = {}) {
   const fields = [text, ...options, String(q.fixedExplanation ?? '')];
   if (fields.some(unbalancedDollars)) issues.push('Unbalanced $ in the math');
   else issues.push(...new Set(fields.flatMap(mathIssues)));
+  issues.push(...explanationIssues(q));
   return issues;
 }
 

@@ -5,17 +5,17 @@
 // run is written in parallel batches, optionally double-checked by a second
 // model, and previewed here before anything goes to the review queue.
 import { useEffect, useMemo } from 'react';
-import { useStore } from '../../../store/useStore';
 import { useAuth } from '../../../contexts/AuthContext';
 import { refreshLiveTOS } from '../../../services/liveTaxonomy';
-import { planBatches, calculationCount, QUESTION_TYPES, DIFFICULTY_MIXES, MAX_QUESTIONS } from '../../../services/aiPrompts';
+import { planBatches, calculationCount, MAX_QUESTIONS } from '../../../services/aiPrompts';
 import { useAiStatus } from '../../../hooks/useAiStatus';
 import AiStatusNote from '../../../components/AiStatusNote';
 import LatexRenderer from '../../../components/LatexRenderer';
 import ExplanationBody from '../../quiz/ExplanationBody';
-import { Button, Card, FormField, Input, Select, Textarea, SegmentedControl, Badge, ProgressIndicator, StatusPill } from '../../../components/ui';
-import { Sparkles, X, Check, TriangleAlert, ChevronDown } from '../../../components/ui/icons';
+import { Button, Card, Badge, ProgressIndicator, StatusPill } from '../../../components/ui';
+import { Sparkles, X, Check, TriangleAlert } from '../../../components/ui/icons';
 import { useQuestionGenerator } from './useQuestionGenerator';
+import QuestionSpecFields from './QuestionSpecFields';
 
 const COUNT_PRESETS = [5, 10, 20, 30];
 const DIFFICULTY_LABEL = { 1: 'Easy', 2: 'Medium', 3: 'Hard' };
@@ -36,7 +36,6 @@ function modelLine(status) {
 
 export default function QuestionGenerator({ isOnline = true, onSaved }) {
   const { currentUser } = useAuth();
-  const dynamicTOS = useStore((s) => s.dynamicTOS) || {};
   const { status } = useAiStatus();
   const g = useQuestionGenerator(onSaved);
   const { spec, update, phase, progress, items, runInfo } = g;
@@ -50,11 +49,6 @@ export default function QuestionGenerator({ isOnline = true, onSaved }) {
   const total = Math.min(MAX_QUESTIONS, spec.count || 1);
   const busy = phase === 'generating' || phase === 'checking' || phase === 'saving';
   const selectedCount = items.filter((q) => q.selected).length;
-
-  const setCount = (value) => {
-    const n = Math.round(Number(value));
-    update({ count: Number.isFinite(n) ? Math.min(MAX_QUESTIONS, Math.max(1, n)) : 1 });
-  };
 
   return (
     // A Card like every other section (it was a hand-made frame). Its form
@@ -73,100 +67,15 @@ export default function QuestionGenerator({ isOnline = true, onSaved }) {
 
       <fieldset disabled={busy} className="flex flex-col gap-5 min-w-0">
         <legend className="sr-only">Generation settings</legend>
-        <div className="grid grid-cols-1 @xl:grid-cols-2 @3xl:grid-cols-3 gap-3">
-          <FormField label="Subject">
-            <Select value={spec.subject} onChange={(e) => update({ subject: e.target.value, topic: 'All' })}>
-              {Object.keys(dynamicTOS).map((s) => <option key={s} value={s}>{s === 'Mathematics' ? 'Mathematics (Math)' : s}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Topic">
-            <Select value={spec.topic} onChange={(e) => update({ topic: e.target.value })}>
-              <option value="All">All topics (spread across them)</option>
-              {(dynamicTOS[spec.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Specific focus (optional)" className="@xl:col-span-2 @3xl:col-span-1">
-            <Input value={spec.focus} onChange={(e) => update({ focus: e.target.value })} placeholder="e.g. transformer efficiency, PEC grounding" />
-          </FormField>
-        </div>
-
-        <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-5">
-          <div className="flex flex-col gap-2">
-            <FormField label="How many questions" hint={`1 to ${MAX_QUESTIONS}. Written in batches of up to 5, two at a time.`}>
-              {(a11y) => (
-                <div className="flex gap-2 items-center flex-wrap">
-                  <Input {...a11y} type="number" inputMode="numeric" min={1} max={MAX_QUESTIONS} value={spec.count}
-                    onChange={(e) => setCount(e.target.value)} className="!w-24" />
-                  {COUNT_PRESETS.map((n) => (
-                    <Button key={n} type="button" size="sm" variant={spec.count === n ? 'primary' : 'secondary'} onClick={() => update({ count: n })} aria-pressed={spec.count === n}>
-                      {n}
-                    </Button>
-                  ))}
-                </div>
-              )}
-            </FormField>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-eyebrow" id="qgen-type">Question type</span>
-            <SegmentedControl
-              label="Question type"
-              value={spec.type}
-              onChange={(type) => update({ type })}
-              options={QUESTION_TYPES.map((t) => ({
-                ...t,
-                hint: t.value === 'mixed' ? 'Both kinds' : t.value === 'conceptual' ? 'Theory, code' : 'Problem solving',
-              }))}
-            />
-            {spec.type === 'mixed' && (
-              <div className="flex flex-col gap-1 mt-1">
-                <label htmlFor="qgen-share" className="text-xs text-muted2 flex justify-between">
-                  <span>Calculation share</span>
-                  <span className="tabular-nums text-textMain">{calcN} calculation · {total - calcN} conceptual</span>
-                </label>
-                <input id="qgen-share" type="range" min={0} max={100} step={10}
-                  value={Math.round(spec.calcShare * 100)}
-                  onChange={(e) => update({ calcShare: Number(e.target.value) / 100 })}
-                  className="w-full accent-[var(--accent)]" />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <span className="text-eyebrow">Difficulty</span>
-          <SegmentedControl
-            label="Difficulty"
-            value={spec.difficulty}
-            onChange={(difficulty) => update({ difficulty })}
-            columns={4}
-            options={Object.entries(DIFFICULTY_MIXES).map(([value, d]) => ({
-              value,
-              label: d.label,
-              hint: value === 'board' ? '30 / 50 / 20' : undefined,
-            }))}
-          />
-        </div>
-
-        <details className="group rounded-[var(--radius-default)] border border-border bg-bg px-4 py-3">
-          <summary className="cursor-pointer text-sm font-medium text-textMain flex items-center gap-2 list-none">
-            <ChevronDown size={15} strokeWidth={1.75} aria-hidden="true" className="transition-transform group-open:rotate-180" />
-            More options
-          </summary>
-          <div className="flex flex-col gap-4 mt-4">
-            <FormField label="Instructions for the writer (optional)" hint="Anything else: a style of problem, values to use, a reference to follow.">
-              <Textarea rows={3} value={spec.notes} maxLength={600} onChange={(e) => update({ notes: e.target.value })}
-                placeholder="e.g. Use three-phase delta-connected loads. Include one PEC ampacity question." />
-            </FormField>
-            <label className="flex items-start gap-3 text-sm text-textMain cursor-pointer">
-              <input type="checkbox" className="mt-1" checked={spec.verify} onChange={(e) => update({ verify: e.target.checked })} />
-              <span>
-                Double-check answers with a second model
-                <span className="block text-xs text-muted2">It solves each question without seeing the key. Disagreements stay unticked and carry a note into the review queue. Adds about half the time again.</span>
-              </span>
-            </label>
-          </div>
-        </details>
+        <QuestionSpecFields spec={spec} update={update} maxCount={MAX_QUESTIONS} countHint={`1 to ${MAX_QUESTIONS}. Written in batches of up to 5, two at a time.`} presets={COUNT_PRESETS} idPrefix="qgen">
+          <label className="flex items-start gap-3 text-sm text-textMain cursor-pointer">
+            <input type="checkbox" className="mt-1" checked={spec.verify} onChange={(e) => update({ verify: e.target.checked })} />
+            <span>
+              Double-check answers with a second model
+              <span className="block text-xs text-muted2">It solves each question without seeing the key. Disagreements stay unticked and carry a note into the review queue. Adds about half the time again.</span>
+            </span>
+          </label>
+        </QuestionSpecFields>
       </fieldset>
 
       {phase === 'generating' || phase === 'checking' ? (
