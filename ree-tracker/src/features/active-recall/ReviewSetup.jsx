@@ -94,7 +94,7 @@ const SUBJECT_OPTIONS = [
 function Field({ label, children }) {
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
-      <span className="text-eyebrow">{label}</span>
+      <span className="text-label">{label}</span>
       {children}
     </div>
   );
