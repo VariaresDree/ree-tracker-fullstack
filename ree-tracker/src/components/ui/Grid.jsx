@@ -9,6 +9,8 @@ import { cn } from './cn';
 //   tiles  2, then 3 from 32rem: small figures (never a column of tiny tiles)
 //   pair   1, then 2 from 42rem: two panels side by side
 //   cards  1, then 2 from 36rem, then 3 from 56rem: option and content cards
+//   options  as cards, with an odd last card taking the whole row at 2 columns,
+//          for a short list of choices that left one card and a gap
 //   split  1, then 3 from 56rem: a main column and an aside; give the main
 //          child `@4xl:col-span-2`
 //   bento  1, then 2 from 36rem, then 4 from 56rem: a screen's mixed cards,
@@ -22,6 +24,7 @@ const KINDS = {
   tiles: 'grid-cols-2 @lg:grid-cols-3',
   pair: 'grid-cols-1 @2xl:grid-cols-2',
   cards: 'grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3',
+  options: 'grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 @xl:@max-4xl:[&>:last-child:nth-child(odd)]:col-span-2',
   split: 'grid-cols-1 @4xl:grid-cols-3',
   bento: 'grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-4',
 };

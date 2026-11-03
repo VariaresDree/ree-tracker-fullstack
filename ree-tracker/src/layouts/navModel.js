@@ -1,7 +1,7 @@
 // src/layouts/navModel.js
 //
-// The app's destinations, stated once. The sidebar (desktop), the bottom bar
-// (phone) and the active state all read from here. The old shell kept two
+// The app's destinations, stated once. The sidebar (tablet and desktop), the
+// bottom bar (phone) and the active state all read from here. The old shell kept two
 // hand-written lists that disagreed — Library and Materials were missing from
 // the phone bar, Profile from the sidebar — and never lit /simulator.
 //
@@ -9,6 +9,14 @@
 // exam runners (/simulator, /gauntlet/:n, /battle/:id) light Exams and the old
 // URLs (redirected) light where they now land.
 import { CalendarCheck, BrainCircuit, Zap, TrendingUp, Library, User, ShieldCheck } from '../components/ui/icons';
+
+// Where the shell changes. From a tablet up the navigation sits beside the page,
+// so nothing passes under it at any scroll position; a stretched phone layout
+// spent about 114px of a tablet's height on a top and a bottom bar. Below the
+// wider width the sidebar stays an icon rail: its 288px would leave a small
+// landscape tablet less room for the page than a phone has.
+export const RAIL_QUERY = '(min-width: 600px)';
+export const FULL_SIDEBAR_QUERY = '(min-width: 1024px)';
 
 export const PRIMARY_NAV = [
   { id: 'today', to: '/', label: 'Today', icon: CalendarCheck, desc: 'Your next step and today’s target', segments: ['', 'diagnostic'] },

@@ -44,7 +44,7 @@ export default function MockBoardTab() {
         </div>
       </Card>
 
-      <Grid kind="cards">
+      <Grid kind="options">
         {FOLLOWERS.map(byId).map((p) => {
           const Icon = p.icon;
           return (

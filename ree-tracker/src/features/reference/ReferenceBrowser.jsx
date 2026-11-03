@@ -82,7 +82,7 @@ function TopicCards({ cards }) {
   const shown = groups.filter((g) => !only || g.label === only);
   const grid = (list) => (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-      {list.map((card) => <Flashcard key={card.id} card={card} />)}
+      {list.map((card) => <Flashcard key={card.id} card={card} hideTag />)}
     </div>
   );
   if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards);
@@ -443,7 +443,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           </>
         )
       ) : !selectedSubject ? (
-        <Grid kind="cards">
+        <Grid kind="options">
           {Object.keys(safeTOS).map((s) => (
             <BrowseTile
               key={s}
@@ -479,7 +479,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
               </Suspense>
             ) : (
               <>
-                <Grid kind="cards">
+                <Grid kind="options">
                   {(safeTOS[selectedSubject] || []).filter((t) => topicCounts[t]).map((t) => (
                     <BrowseTile
                       key={t}

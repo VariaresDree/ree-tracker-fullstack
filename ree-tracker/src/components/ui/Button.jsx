@@ -7,7 +7,7 @@ import { cn } from './cn';
 // uses this component so focus, disabled, loading, and touch-target behavior
 // stay consistent.
 //
-// `tone` recolors primary/outline/ghost through a local CSS var so every
+// `tone` recolors every variant through a local CSS var so every
 // color still resolves through the active theme.
 
 const TONE_VAR = {
@@ -61,6 +61,11 @@ const variants = {
     'bg-transparent border border-[var(--btn-accent)] text-[var(--btn-text)] hover:bg-[color-mix(in_srgb,var(--btn-accent)_12%,transparent)]',
 };
 
+// A tone on secondary: its label and edge, on the usual fill. Delete account
+// and Delete all analytics asked for danger and looked just like Log out.
+const secondaryToned =
+  'bg-surface2 text-[var(--btn-text)] hover:bg-surface3 border border-[color-mix(in_srgb,var(--btn-accent)_45%,transparent)]';
+
 // Tinted ghost — only applied when a non-default tone is requested, so
 // existing ghost buttons keep their neutral text color.
 const ghostToned =
@@ -107,7 +112,7 @@ export const Button = forwardRef(function Button(
       ref={ref}
       className={cn(
         base,
-        variants[v],
+        v === 'secondary' && t !== 'accent' ? secondaryToned : variants[v],
         v === 'ghost' && t !== 'accent' && ghostToned,
         sizes[size],
         fullWidth && 'w-full',
