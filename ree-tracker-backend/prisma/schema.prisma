@@ -423,6 +423,9 @@ model SystemConfig {
   id          String   @id @default("global_config")
   tos         Json?
   metadata    Json?
+  // Admin › Syllabus: the board's items per topic, { subject: [{ items, topicIds }] }.
+  // Null means PRC's current table (@ree/shared/boardItems).
+  boardBlueprint Json?
   updatedAt   DateTime @updatedAt
 }
 

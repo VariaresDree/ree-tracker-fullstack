@@ -12,6 +12,7 @@ export { Modal } from './Modal';
 export { FormField, Input, Select, Textarea } from './FormField';
 export { EmptyState } from './EmptyState';
 export { SegmentedControl } from './SegmentedControl';
+export { Stepper } from './Stepper';
 export { Tabs, TabPanel } from './Tabs';
 export { PageHeader } from './PageHeader';
 export { SectionHeader } from './SectionHeader';

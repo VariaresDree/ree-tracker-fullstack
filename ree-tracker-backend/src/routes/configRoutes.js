@@ -13,6 +13,7 @@ const readinessCache = require('../services/readinessCache');
 const forecastCache = require('../services/forecastCache');
 const { invalidateFlagCache, getFlags } = require('../services/featureFlags');
 const { getTos, invalidateTosCache } = require('../services/tosCache');
+const { getBoardBlueprint, invalidateBoardBlueprint } = require('../services/boardBlueprint');
 const { featureFlagSchema } = require('../schemas/configSchemas');
 
 // TOS = { subject: [topicName, ...] }. Since Phase 3.3 the source of truth is
@@ -49,6 +50,17 @@ router.get('/subtopics', authMiddleware, async (req, res) => {
     } catch (error) {
         logger.error('Subtopics fetch error', { error: error.message });
         return res.status(500).json({ error: 'Failed to fetch the subtopics.' });
+    }
+});
+
+// The board's items per topic (Admin › Syllabus), which PRC papers draw by. The
+// same for everyone; the service worker's /api/config rule keeps it for offline.
+router.get('/board-blueprint', authMiddleware, async (req, res) => {
+    try {
+        return res.status(200).json(await getBoardBlueprint());
+    } catch (error) {
+        logger.error('Board blueprint fetch error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to fetch the board counts.' });
     }
 });
 
@@ -92,6 +104,7 @@ router.put('/tos', authMiddleware, requireAdmin, async (req, res) => {
         }, TOS_TX_OPTS);
         invalidateTopicCache();
         invalidateTosCache();
+        invalidateBoardBlueprint();
         if (renames.length) {
             // The pack-manifest checksum covers subtopic; the learner caches
             // are built from the rollup rows just renamed or merged.

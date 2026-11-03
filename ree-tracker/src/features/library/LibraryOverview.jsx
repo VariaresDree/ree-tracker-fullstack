@@ -4,7 +4,6 @@ import { toDisplaySubject, normalizeSubject, hasUnbalancedMath } from '@ree/shar
 import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../../store/useStore';
 import {
-    updateDynamicTOS,
     fetchReviewQueue,
     updateReviewItem,
     approveReviewItem,
@@ -16,7 +15,7 @@ import {
 import { sanitizeOptions, stripChoicePrefix } from '../../utils/sanitizeOptions';
 import { isKnownTopic } from '../../utils/topicLabels';
 import { Button, Card, Grid, Modal, FormField, Select, Input, Textarea, Badge, EmptyState, StatusPill, ProgressIndicator } from '../../components/ui';
-import { Shield, Settings2, RefreshCw, Plus, X, Sparkles, Layers, TriangleAlert } from '../../components/ui/icons';
+import { Shield, RefreshCw, Plus, Sparkles, Layers, TriangleAlert } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import toast from 'react-hot-toast';
 
@@ -70,17 +69,10 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
   // (a full sanitizeOptions pass over the whole review queue) unmemoized in
   // render, so a root subscription meant that ran on every unrelated store
   // mutation.
-  const { isAdmin, dynamicTOS, setDynamicTOS } = useStore(
-    useShallow((s) => ({ isAdmin: s.isAdmin, dynamicTOS: s.dynamicTOS, setDynamicTOS: s.setDynamicTOS })),
+  const { isAdmin, dynamicTOS } = useStore(
+    useShallow((s) => ({ isAdmin: s.isAdmin, dynamicTOS: s.dynamicTOS })),
   );
   const [isSyncing, setIsSyncing] = useState(false);
-
-  // --- TOS MANAGER STATE ---
-  const [showTOSManager, setShowTOSManager] = useState(false);
-  const [editTOS, setEditTOS] = useState(null);
-  const [newSubtopic, setNewSubtopic] = useState('');
-  const [targetSubject, setTargetSubject] = useState('Mathematics');
-  const [isSavingTOS, setIsSavingTOS] = useState(false);
 
   // --- REVIEW QUEUE STATE (AI review loop, Phase 3.6) ---
   const [showQuarantineQueue, setShowQuarantineQueue] = useState(false);
@@ -361,46 +353,6 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
     setIsSyncing(false);
   };
 
-  // --- TOS MANAGER HANDLERS ---
-  const openTOSManager = () => {
-      setEditTOS(JSON.parse(JSON.stringify(dynamicTOS)));
-      setShowTOSManager(true);
-  };
-
-  const handleAddSubtopic = () => {
-      if (!newSubtopic.trim()) return;
-      if (editTOS[targetSubject].includes(newSubtopic.trim())) {
-          toast.error(`${newSubtopic} already exists in ${targetSubject}.`);
-          return;
-      }
-      setEditTOS(prev => ({
-          ...prev,
-          [targetSubject]: [...prev[targetSubject], newSubtopic.trim()].sort()
-      }));
-      setNewSubtopic('');
-      toast.success(`Added: ${newSubtopic.trim()}`);
-  };
-
-  const handleRemoveSubtopic = (subject, subtopicToRemove) => {
-      setEditTOS(prev => ({
-          ...prev,
-          [subject]: prev[subject].filter(sub => sub !== subtopicToRemove)
-      }));
-  };
-
-  const saveTOSChanges = async () => {
-      setIsSavingTOS(true);
-      try {
-          await updateDynamicTOS(editTOS);
-          setDynamicTOS(editTOS); // Updates global UI immediately without reload
-          setShowTOSManager(false);
-          toast.success("Syllabus updated.");
-      } catch {
-          toast.error("Couldn't save the syllabus changes.");
-      }
-      setIsSavingTOS(false);
-  };
-
   return (
     <Card padding="md" className="shadow-sm flex flex-col gap-4">
       <div className="flex justify-between items-center border-b border-border pb-4 flex-wrap gap-4">
@@ -409,14 +361,9 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
         </h3>
         <div className="flex flex-wrap gap-2 z-10">
           {isAdmin && (
-              <>
-                  <Button size="sm" variant="outline" tone="amber" onClick={openQuarantineQueue}>
-                      <Shield size={14} strokeWidth={1.75} aria-hidden="true" /> Review queue
-                  </Button>
-                  <Button size="sm" variant="outline" tone="signal" onClick={openTOSManager}>
-                      <Settings2 size={14} strokeWidth={1.75} aria-hidden="true" /> Edit syllabus
-                  </Button>
-              </>
+              <Button size="sm" variant="outline" tone="amber" onClick={openQuarantineQueue}>
+                  <Shield size={14} strokeWidth={1.75} aria-hidden="true" /> Review queue
+              </Button>
           )}
           <Button size="sm" variant="secondary" loading={isSyncing} disabled={isSyncing} onClick={handleResync}>
             {!isSyncing && <RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" />} Refresh counts
@@ -478,78 +425,6 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
           );
         })}
       </Grid>
-
-      {/* --- Syllabus editor --- */}
-      <Modal
-        open={showTOSManager && !!editTOS}
-        onClose={() => setShowTOSManager(false)}
-        size="xl"
-        icon={Settings2}
-        title="Edit the syllabus"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowTOSManager(false)}>Discard changes</Button>
-            <Button loading={isSavingTOS} disabled={isSavingTOS} onClick={saveTOSChanges}>Save syllabus</Button>
-          </>
-        }
-      >
-        {editTOS && (
-          <>
-            <p className="text-sm text-muted2 mb-6">
-              Add or remove topics. Changes apply immediately to AI generation and the dashboard heatmaps.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 mb-8 p-4 border rounded-[var(--radius-lg)]"
-              style={{
-                borderColor: 'color-mix(in srgb, var(--accent-signal) 30%, transparent)',
-                background: 'color-mix(in srgb, var(--accent-signal) 5%, transparent)',
-              }}
-            >
-              <FormField label="Subject" className="sm:w-1/3">
-                <Select value={targetSubject} onChange={(e) => setTargetSubject(e.target.value)}>
-                  {Object.keys(editTOS).map(s => <option key={s} value={s}>{s}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="New topic" className="flex-1">
-                <Input
-                  type="text"
-                  value={newSubtopic}
-                  onChange={(e) => setNewSubtopic(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSubtopic())}
-                  placeholder="e.g. Vector Analysis"
-                />
-              </FormField>
-              <div className="flex items-end">
-                <Button tone="signal" onClick={handleAddSubtopic} disabled={!newSubtopic.trim()}>
-                  Add topic
-                </Button>
-              </div>
-            </div>
-
-            <Grid kind="cards" className="@3xl:grid-cols-3">
-              {Object.keys(editTOS).map(subject => (
-                  <div key={subject} className="bg-surface2/40 border border-border rounded-[var(--radius-default)] p-4 flex flex-col max-h-[350px] min-w-0">
-                      <h3 className="text-eyebrow mb-3 pb-2 border-b border-border shrink-0">{subject}</h3>
-                      <div className="flex-1 flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-2">
-                          {editTOS[subject].map(sub => (
-                              <div key={sub} className="flex justify-between items-center bg-bg border border-border p-2 rounded-[var(--radius-sm)] group transition-colors shrink-0">
-                                  <span className="text-xs font-medium text-muted2 truncate pr-2" title={sub}>{sub}</span>
-                                  <button
-                                      onClick={() => handleRemoveSubtopic(subject, sub)}
-                                      aria-label={`Remove ${sub}`}
-                                      className="text-muted hover:text-[var(--accent-danger)] p-1 rounded-[var(--radius-sm)] transition-colors opacity-50 group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer"
-                                  >
-                                      <X size={12} strokeWidth={2} aria-hidden="true" />
-                                  </button>
-                              </div>
-                          ))}
-                      </div>
-                  </div>
-              ))}
-            </Grid>
-          </>
-        )}
-      </Modal>
 
       {/* --- AI review queue --- */}
       <Modal

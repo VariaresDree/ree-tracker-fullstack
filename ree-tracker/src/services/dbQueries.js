@@ -208,6 +208,15 @@ export const fetchSyllabusWeights = async () => {
         return DEFAULT_SYLLABUS_WEIGHTS;
     }
 };
+// The board's items per topic, as Admin set them. Null when out of reach: the
+// draw then uses PRC's table, so a paper can always be drawn.
+export const fetchBoardGroups = async () => {
+    try {
+        return (await apiRequest('/api/config/board-blueprint'))?.groups || null;
+    } catch {
+        return null;
+    }
+};
 export const updateCommandParameters = async (uid, params) => apiRequest('/api/user/settings', 'PUT', params);
 // Spaced review. Cards are scheduled server-side from every recorded answer
 // (engine/srs via the telemetry transaction) — the client only reads the queue.
