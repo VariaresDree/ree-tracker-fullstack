@@ -465,16 +465,15 @@ every feature add, change, or removal, not on a schedule.
       - **Otherwise:** **Quick 20**. A "Review queue is clear · Next review tomorrow" line appears once there is a queue.
       - While the queue loads, a hero-shaped skeleton holds its place, so the page no longer jumps when the due card arrives.
       - Offline, there's no queue to wait for and Quick 20 leads at once.
-    - **The other one-tap presets** as choice cards (`variant="interactive"`, with an icon watermark and a secondary Start). The presets are **Quick 20 · Adaptive set · Weak spots · Flashcards · Bookmarks**.
-      - With all five (reviews due), Quick 20 spans two of three columns, so the rows read 2+1 and 1+1+1. With four, they sit two by two, then four across.
-      - A preset that needs a connection says so in a badge beside its name.
-      - Each preset name is an h2.
+    - **The other presets** as small tiles, where the whole tile starts the session: an icon, a name and one short line, with no separate Start. The presets are **Quick 20 · Adaptive set · Weak spots · Flashcards · Bookmarks**.
+      - With all five (reviews due), Quick 20 takes a row of its own on a phone and two of three columns on a wide screen, so no gap is left. With four, they sit two by two, then four across.
+      - A preset that needs a connection says so in its short line, and can't start.
       - A session is never offered twice: Quick 20 leaves the grid when it is the hero.
     - **Weak spots** is the one learner entry to the adaptive drill. It used to be offered three ways: that preset, a "Weak points" scope, and a "Smart drill" source that silently ignored the chosen subject.
-  - **Custom session** (the shared `Disclosure`), in two groups.
-    - **What to practise:** mode, focus, and scope (**all subjects / one subject / one topic**) with the subject and topic.
-    - **How much:** length, and source (**Question bank / My bookmarks / AI generated**).
-    - The mode guide and the placement-test link now sit together under it, as the place to turn when unsure; they used to sit above the presets, with a negative margin. A preset's config left in the form (a drill, the due queue) shows and starts as a question-bank session over every subject (`features/active-recall/customView.js`).
+  - **Build your own** (2026-11, `ReviewSetup.jsx`, `customView.js`): always open, on one card. **Subject** (All, Math, ESAS, EE), then **Topic** once a subject is chosen (All topics unless you pick one); these replace the old Scope, and `customView.js` turns them into the session's `studyMode`. **Items** (10, 20, 50, 100), **Type** (Mixed, Theory, Calculation), **Mode** (Choice, Cards) and **From** (Bank, Saved, AI; the last two need a connection).
+    - **A one-line summary and Start session** stay in view as the card scrolls, such as "20 choice · EE · mixed".
+    - **Remembers the last setup on this device** (`ree:practice-builder`), whatever a preset runs in between. A topic retired since falls back to its whole subject.
+  - **The mode guide and the placement-test link** sit together under the builder, as the place to turn when unsure. A preset's config left in the session's form (a drill, the due queue) never reaches the builder, which keeps its own state.
   - **A fixed set** (`itemsPreset`): practises exactly the questions handed over — a past sitting's misses from its review — offline too, and "Practise again" repeats the set. The list never stays in the custom form's config.
   - **Bookmarks source:** practises up to 100 saved questions (`fetchBookmarks({ limit })`), filtered by subject under any stored spelling and topic, and shown as bookmarked. Bookmarks could be saved but never practised. Library › Bookmarks has a **Practise bookmarks** button.
   - **Session summary** (`features/active-recall/{buildSessionSummary.js,SessionSummary.jsx}`): when a session ends, the score, time and time per question; answers wrong while sure and right while unsure; accuracy by topic, worst first; up to ten missed questions with their answers (confident misses first). Next steps: **Practise again** (the same session, a drill's target included), **Drill** the weakest topic, **See your progress**, **Done**. Built from the recorded attempts before they are cleared; nothing is shown after a session with no answers. A session used to end on a toast and drop back to setup.

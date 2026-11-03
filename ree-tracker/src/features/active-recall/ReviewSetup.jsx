@@ -1,17 +1,18 @@
 // src/features/active-recall/ReviewSetup.jsx
 //
 // Practice's setup screen, top to bottom: one hero (the due reviews when any
-// are due, otherwise Quick 20), the other one-tap presets as cards, a custom
-// session behind a disclosure, and where to turn when unsure (the mode guide
-// and the placement test).
+// are due, otherwise Quick 20), the other presets as small tiles that start on a
+// tap, the always-open "Build your own", and where to turn when unsure (the mode
+// guide and the placement test).
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Card, CardTitle, CardWatermark, Button, Disclosure, FormField, Grid, IconChip, Select, SegmentedControl, Skeleton, Page, PageHeader, cn } from '../../components/ui';
+import { Card, CardTitle, CardWatermark, Button, FormField, Grid, IconChip, Select, SegmentedControl, Skeleton, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
 import { Shuffle, Crosshair, Gauge, Layers, Bookmark, RotateCcw } from '../../components/ui/icons';
+import { SYLLABUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { adaptivePreset, bookmarksPreset, drillPreset, dueReviewPreset, quickReviewPreset } from './presets';
-import { customView, SCOPES } from './customView';
+import { BUILDER_COUNTS, builderSummary, chooseScope, customView, liveScope, readRememberedBuilder, rememberBuilder } from './customView';
 
 // A due session is capped so a backlog after a break doesn't become a
 // 200-question wall; the rest stays in the queue for the next session.
@@ -24,17 +25,17 @@ const relativeDay = (iso) => {
   return days === 1 ? 'tomorrow' : `in ${days} days`;
 };
 
-// One-tap presets cover the common sessions; the full configuration lives
-// behind "Custom session" so first-time users aren't handed seven decisions.
-// "Weak spots" is the one learner entry to the adaptive drill. It used to be
-// offered three ways: this preset, a "Weak points" scope, and a "Smart drill"
-// source that silently ignored the chosen subject.
+// One-tap presets cover the common sessions. "Weak spots" is the one learner
+// entry to the adaptive drill. It used to be offered three ways: this preset, a
+// "Weak points" scope, and a "Smart drill" source that silently ignored the
+// chosen subject.
 const PRESETS = [
   {
     id: 'quick20',
     icon: Shuffle,
     name: 'Quick 20',
     meta: '20 mixed questions across all three subjects',
+    short: 'Mixed, all subjects',
     needsConnection: false,
     overrides: quickReviewPreset(20),
   },
@@ -45,6 +46,7 @@ const PRESETS = [
     icon: Gauge,
     name: 'Adaptive set',
     meta: '20 questions picked one at a time to match your level',
+    short: 'Matched to your level',
     needsConnection: false,
     overrides: adaptivePreset({ count: 20 }),
   },
@@ -53,6 +55,7 @@ const PRESETS = [
     icon: Crosshair,
     name: 'Weak spots',
     meta: 'An adaptive drill on your weakest topics',
+    short: 'Your weakest topics',
     needsConnection: true,
     overrides: drillPreset({ count: 20 }),
   },
@@ -61,6 +64,7 @@ const PRESETS = [
     icon: Layers,
     name: 'Flashcards',
     meta: '20 cards for definitions and facts',
+    short: 'Definitions and facts',
     needsConnection: false,
     // Conceptual items only: a calculation as a flip card shows a bare number
     // on the back, with nothing to recall.
@@ -71,28 +75,36 @@ const PRESETS = [
     icon: Bookmark,
     name: 'Bookmarks',
     meta: '20 of the questions you saved',
+    short: 'Questions you saved',
     needsConnection: true,
     overrides: bookmarksPreset(20),
   },
 ];
 
-export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnline, startSession }) {
-  const [showCustom, setShowCustom] = useState(false);
+const SUBJECT_OPTIONS = [
+  { value: 'All', label: 'All' },
+  ...SYLLABUS_SUBJECTS.map((s) => ({ value: s, label: toDisplaySubject(s) })),
+];
+
+// A small field: its label above its choices.
+function Field({ label, children }) {
+  return (
+    <div className="flex flex-col gap-1.5 min-w-0">
+      <span className="text-eyebrow">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+export default function ReviewSetup({ config, session, safeTOS, isOnline, startSession }) {
   const [launchingPreset, setLaunchingPreset] = useState(null);
-
-  const view = customView(config);
-
-  const handleScopeChange = (mode) => {
-    if (mode === 'interleaved') {
-      setConfig({ ...view, studyMode: mode, subject: 'All', subtopic: 'All' });
-      return;
-    }
-    const defaultSubj = 'Mathematics';
-    // Only 'subtopic' scope pins a specific topic. 'By subject' MUST use
-    // 'All' — pinning to the first topic made every by-subject session serve
-    // only Algebra/Chemistry/Electromagnetism instead of the whole subject.
-    const defaultSub = mode === 'subtopic' ? (safeTOS[defaultSubj]?.[0] || 'All') : 'All';
-    setConfig({ ...view, studyMode: mode, subject: defaultSubj, subtopic: defaultSub });
+  // The builder keeps its own state, so a preset run in between doesn't overwrite
+  // the session you built. Remembered on this device as you change it.
+  const [built, setBuilt] = useState(() => readRememberedBuilder() || customView(config));
+  const view = liveScope(built, safeTOS);
+  const build = (next) => {
+    setBuilt(next);
+    rememberBuilder(next);
   };
 
   const launchPreset = (preset) => {
@@ -114,18 +126,18 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
 
   return (
     <Page>
-      <PageHeader title="Practice" subtitle="Pick a preset or build your own session." />
+      <PageHeader title="Practice" />
       {srsLoading ? (
         // Holds the hero's place while the queue loads, so the page doesn't
         // jump when it arrives.
-        <Card variant="hero" aria-busy="true" aria-label="Checking your review queue" className="flex flex-col gap-3">
+        <Card variant="hero" padding="md" aria-busy="true" aria-label="Checking your review queue" className="flex flex-col gap-3">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-7 w-2/3" />
           <Skeleton className="h-4 w-full max-w-prose" />
           <Skeleton className="h-11 w-full sm:w-40 mt-2" />
         </Card>
       ) : leadPreset ? (
-        <Card as="section" variant="hero" aria-labelledby="practice-lead" className="flex flex-col gap-3">
+        <Card as="section" variant="hero" padding="md" aria-labelledby="practice-lead" className="flex flex-col gap-2">
           <CardWatermark icon={leadPreset.icon} />
           <p className="text-eyebrow">Start here</p>
           <h2 id="practice-lead" className="text-h2 text-textMain">{leadPreset.name}</h2>
@@ -137,7 +149,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
               <span>Review queue is clear</span> · Next review {relativeDay(srs.nextDueAt) || 'once you practise more'}.
             </p>
           )}
-          <div className="pt-2">
+          <div className="pt-1">
             <Button
               size="lg"
               className="w-full sm:w-auto"
@@ -151,7 +163,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
         </Card>
       ) : (
         // Spaced review: what the schedule says is due today.
-        <Card as="section" variant="hero" aria-labelledby="practice-lead" className="flex flex-col gap-3">
+        <Card as="section" variant="hero" padding="md" aria-labelledby="practice-lead" className="flex flex-col gap-2">
           <CardWatermark icon={RotateCcw} />
           <p className="text-eyebrow">Due today</p>
           <h2 id="practice-lead" className="text-h2 text-textMain">
@@ -160,7 +172,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
           <p className="text-sm text-muted2 max-w-prose">
             Spaced review of what you missed or weren't sure of{srs.overdue > 0 ? ` · ${srs.overdue} overdue` : ''}.
           </p>
-          <div className="pt-2">
+          <div className="pt-1">
             <Button size="lg" className="w-full sm:w-auto" loading={session.loading && launchingPreset === 'srs-due'} disabled={session.loading} onClick={startDue}>
               Review {Math.min(dueCount, DUE_SESSION_MAX)} now
             </Button>
@@ -168,160 +180,104 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
         </Card>
       )}
 
-      {/* One-tap presets. With all five, Quick 20 takes two columns of three,
-          so the rows read 2+1 and 1+1+1; with four, two by two, then four
-          across. */}
-      <Grid kind={gridPresets.length === 4 ? 'kpi' : 'cards'} className="stagger-fade-in">
+      {/* The whole tile starts the session. With all five, Quick 20 takes a row of
+          its own on a phone and two of three columns on a wide screen, so no gap
+          is left; with four, two by two, then four across. */}
+      <Grid kind={gridPresets.length === 4 ? 'kpi' : 'tiles'} gap="sm" className="stagger-fade-in">
         {gridPresets.map((preset, i) => {
           const offline = preset.needsConnection && !isOnline;
+          const starting = session.loading && launchingPreset === preset.id;
           const Icon = preset.icon;
           return (
             <Card
               key={preset.id}
+              as="button"
+              type="button"
               variant="interactive"
-              padding="md"
-              className={cn('flex flex-col gap-3', gridPresets.length === 5 && i === 0 && '@4xl:col-span-2')}
+              padding="sm"
+              aria-label={`Start ${preset.name}`}
+              aria-busy={starting || undefined}
+              disabled={offline || session.loading}
+              onClick={() => launchPreset(preset)}
+              className={cn(
+                'flex items-center gap-3 min-w-0 text-left cursor-pointer disabled:cursor-default disabled:opacity-60',
+                gridPresets.length === 5 && i === 0 && 'col-span-2',
+              )}
             >
-              <CardWatermark icon={Icon} corner="top" />
-              <IconChip icon={Icon} />
-              <div className="flex-1 min-w-0 flex flex-col gap-1">
-                <CardTitle className="flex flex-wrap items-center gap-2">
-                  {preset.name}
-                  {offline && <Badge>Needs a connection</Badge>}
-                </CardTitle>
-                <p className="text-xs text-muted2">{preset.meta}</p>
-              </div>
-              <Button
-                variant="secondary"
-                fullWidth
-                loading={session.loading && launchingPreset === preset.id}
-                disabled={offline || session.loading}
-                onClick={() => launchPreset(preset)}
-              >
-                Start
-              </Button>
+              <IconChip icon={Icon} size="sm" />
+              <span className="min-w-0 flex flex-col">
+                <span className="text-sm font-semibold text-textMain">{preset.name}</span>
+                <span className="text-xs text-muted2">{starting ? 'Starting…' : offline ? 'Needs a connection' : preset.short}</span>
+              </span>
             </Card>
           );
         })}
       </Grid>
 
-      {/* Custom session — progressive disclosure */}
-      <Disclosure
-        title="Custom session"
-        description="Choose the mode, focus, scope, length and source yourself."
-        open={showCustom}
-        onToggle={setShowCustom}
-        bodyClassName="flex flex-col gap-5"
-      >
-        <fieldset className="flex flex-col gap-5 min-w-0">
-        <legend className="text-sm font-semibold text-textMain mb-3">What to practise</legend>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-eyebrow">Mode</span>
-          <SegmentedControl
-            label="Session mode"
-            value={view.sessionMode}
-            onChange={(v) => setConfig({ ...view, sessionMode: v })}
-            options={[
-              { value: 'mcq', label: 'Multiple choice' },
-              { value: 'flashcard', label: 'Flashcards', hint: 'best for definitions and facts' },
-            ]}
-          />
-        </div>
+      <Card as="section" padding="md" aria-labelledby="practice-build" className="flex flex-col gap-4">
+        <CardTitle id="practice-build">Build your own</CardTitle>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-eyebrow">Focus</span>
-          <SegmentedControl
-            label="Focus"
-            value={view.cognitiveFocus}
-            onChange={(v) => setConfig({ ...view, cognitiveFocus: v })}
-            options={[
-              { value: 'mixed', label: 'Mixed' },
-              { value: 'conceptual', label: 'Theory' },
-              { value: 'calculation', label: 'Calculation' },
-            ]}
-          />
-        </div>
+        <Field label="Subject">
+          <SegmentedControl label="Subject" value={view.studyMode === 'interleaved' ? 'All' : view.subject} onChange={(s) => build(chooseScope(view, s))} options={SUBJECT_OPTIONS} />
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <span className="text-eyebrow">Scope</span>
-          <SegmentedControl
-            label="Study scope"
-            value={view.studyMode}
-            onChange={handleScopeChange}
-            options={SCOPES}
-          />
-        </div>
-
-        {['subject', 'subtopic'].includes(view.studyMode) && (
-          <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-top-2">
-            <FormField label="Subject" className="flex-1">
-              <Select
-                value={view.subject}
-                onChange={(e) => setConfig({
-                  ...view,
-                  subject: e.target.value,
-                  // Keep 'All' unless the user is explicitly picking a topic.
-                  subtopic: view.studyMode === 'subtopic' ? (safeTOS[e.target.value]?.[0] || 'All') : 'All',
-                })}
-              >
-                {Object.keys(safeTOS).map((s) => <option key={s} value={s}>{s}</option>)}
-              </Select>
-            </FormField>
-            {view.studyMode === 'subtopic' && (
-              <FormField label="Topic" className="flex-1">
-                <Select
-                  value={view.subtopic}
-                  onChange={(e) => setConfig({ ...view, subtopic: e.target.value })}
-                >
-                  {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
-                </Select>
-              </FormField>
-            )}
-          </div>
+        {view.studyMode !== 'interleaved' && (
+          <FormField label="Topic">
+            <Select value={view.studyMode === 'subtopic' ? view.subtopic : 'All'} onChange={(e) => build(chooseScope(view, view.subject, e.target.value))}>
+              <option value="All">All topics</option>
+              {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </FormField>
         )}
 
-        </fieldset>
+        <Grid kind="pair" gap="md">
+          <Field label="Items">
+            <SegmentedControl label="Number of questions" value={view.count} onChange={(count) => build({ ...view, count })} options={BUILDER_COUNTS.map((n) => ({ value: n, label: String(n) }))} />
+          </Field>
+          <Field label="Type">
+            <SegmentedControl
+              label="Question type"
+              value={view.cognitiveFocus}
+              onChange={(cognitiveFocus) => build({ ...view, cognitiveFocus })}
+              options={[
+                { value: 'mixed', label: 'Mixed' },
+                { value: 'conceptual', label: 'Theory' },
+                { value: 'calculation', label: 'Calculation' },
+              ]}
+            />
+          </Field>
+          <Field label="Mode">
+            <SegmentedControl
+              label="Session mode"
+              value={view.sessionMode}
+              onChange={(sessionMode) => build({ ...view, sessionMode })}
+              options={[
+                { value: 'mcq', label: 'Choice' },
+                { value: 'flashcard', label: 'Cards' },
+              ]}
+            />
+          </Field>
+          <Field label="From">
+            <SegmentedControl
+              label="Question source"
+              value={view.source}
+              onChange={(source) => build({ ...view, source })}
+              options={[
+                { value: 'library', label: 'Bank' },
+                { value: 'bookmarks', label: 'Saved', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+                { value: 'ai', label: 'AI', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+              ]}
+            />
+          </Field>
+        </Grid>
 
-        <hr className="border-border" />
-
-        <fieldset className="flex flex-col gap-5 min-w-0">
-        <legend className="text-sm font-semibold text-textMain mb-3">How much</legend>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-eyebrow">Length</span>
-          <SegmentedControl
-            label="Number of questions"
-            value={view.count}
-            onChange={(v) => setConfig({ ...view, count: v })}
-            columns={2}
-            className="sm:[grid-template-columns:repeat(4,minmax(0,1fr))]"
-            options={[10, 20, 50, 100].map((n) => ({ value: n, label: `${n} questions` }))}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <span className="text-eyebrow">Source</span>
-          <SegmentedControl
-            label="Question source"
-            value={view.source}
-            onChange={(v) => setConfig({ ...view, source: v })}
-            columns={1}
-            className="sm:[grid-template-columns:repeat(3,minmax(0,1fr))]"
-            options={[
-              { value: 'library', label: 'Question bank' },
-              { value: 'bookmarks', label: 'My bookmarks', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
-              { value: 'ai', label: 'AI generated', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
-            ]}
-          />
-        </div>
-        </fieldset>
-
-        {/* Sticky above the mobile bottom nav so the CTA never scrolls out
-            of reach on a tall form. The offset comes from the layout, so a
-            phone's home-indicator inset can't push it under the bar. */}
-        <div className={cn('sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+var(--fab-space,0px)+1.25rem)] md:static md:bottom-auto', 'bg-surface/95 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none -mx-2 px-2 py-2 md:m-0 md:p-0 rounded-[var(--radius-default)]')}>
+        {/* In view at the foot of the card as it scrolls, above the phone's bottom
+            bar. The offset comes from the layout, so a home-indicator inset can't
+            push it under the bar. */}
+        <div className="sticky bottom-[calc(var(--bottom-bar-h,3.6rem)+var(--fab-space,0px)+0.75rem)] flex items-center justify-between gap-3 -mx-2 px-2 py-2 rounded-[var(--radius-default)] bg-surface/95 backdrop-blur-sm reduce-transparency:bg-surface reduce-transparency:backdrop-blur-none">
+          <p className="text-sm font-medium text-textMain tabular-nums [overflow-wrap:anywhere] min-w-0">{builderSummary(view)}</p>
           <Button
-            size="lg"
-            fullWidth
+            className="shrink-0"
             loading={session.loading && !launchingPreset}
             disabled={customDisabled}
             onClick={() => { setLaunchingPreset(null); startSession(view); }}
@@ -329,7 +285,7 @@ export default function ReviewSetup({ config, setConfig, session, safeTOS, isOnl
             Start session
           </Button>
         </div>
-      </Disclosure>
+      </Card>
 
       {/* Where to turn when unsure: one quiet block under the sessions. */}
       <div className="flex flex-col gap-2">
