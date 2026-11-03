@@ -8,19 +8,15 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { SYLLABUS_NOTE_MAX, todayManila } from '@ree/shared';
 import { subtopicProgress } from '@ree/shared/subtopics';
-import { Button, FormField, Input, Modal, Ring, SegmentedControl, Textarea, cn } from '../../components/ui';
+import { Button, FormField, Input, Modal, Ring, Textarea, cn } from '../../components/ui';
+import { ScaleSlider } from '../../components/ui/ScaleSlider';
 import { BookOpen, Crosshair, Play } from '../../components/ui/icons';
-import { CONFIDENCE_OPTIONS, DREAD_OPTIONS, dreadLabel } from './selfRating';
+import { CONFIDENCE_SCALE, DREAD_SCALE } from './selfRating';
 import TopicContents from './TopicContents';
 import { accuracyOf, bandOf } from './trackerModel';
 
 // Mastery's own colours, as on Progress › Topics.
 const BAND_TEXT = { mastered: 'text-reeGreen-text', proficient: 'text-reeCyan-text', developing: 'text-reeAmber-text', novice: 'text-reeRed-text' };
-
-// Short enough for five across a phone. The full words stay in selfRating.js.
-const CONFIDENCE_SCALE = CONFIDENCE_OPTIONS.filter((o) => o.value !== '').map((o) => ({ value: o.value, label: `${o.value}%` }));
-const DREAD_SHORT = { 0: 'None', 1: 'Slight', 2: 'Some', 3: 'Very', 4: 'Skip' };
-const DREAD_SCALE = DREAD_OPTIONS.filter((o) => o.value !== '').map((o) => ({ value: o.value, label: DREAD_SHORT[o.value] }));
 
 function Toggle({ icon: Icon, pressed, disabled, onClick, title, children }) {
   return (
@@ -109,8 +105,6 @@ export default function TopicSheet({ row, rows, ready, status, actions, onSave, 
   const finished = () => {
     if (!row.read) tick('read');
   };
-  // Tapping the choice already picked clears it.
-  const rate = (field, value) => patch({ [field]: String(row[field] ?? '') === value ? null : Number(value) });
 
   return (
     <Modal
@@ -149,17 +143,12 @@ export default function TopicSheet({ row, rows, ready, status, actions, onSave, 
 
         <TopicContents topicId={row.topicId} name={row.name} rows={rows} ready={ready} status={status} actions={actions} onFinished={finished} />
 
-        {/* Your own rating (the CELE "Meta topics"): saved as you tap. */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-eyebrow">How sure</span>
-            <SegmentedControl label="How sure" size="sm" options={CONFIDENCE_SCALE} value={row.confidence == null ? '' : String(row.confidence)} onChange={(v) => rate('confidence', v)} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-eyebrow">Dread{row.dread != null && <span className="sr-only">: {dreadLabel(row.dread)}</span>}</span>
-            <SegmentedControl label="Dread" size="sm" options={DREAD_SCALE} value={row.dread == null ? '' : String(row.dread)} onChange={(v) => rate('dread', v)} />
-          </div>
-          <p className="text-xs text-muted2">Tap a choice again to clear it. None of this changes your readiness or rankings.</p>
+        {/* Your own rating (the CELE "Meta topics"): saved as you let go. Two scales,
+            because being sure of a topic and dreading it aren't opposites. */}
+        <div className="flex flex-col gap-4">
+          <ScaleSlider {...CONFIDENCE_SCALE} value={row.confidence ?? null} onCommit={(confidence) => patch({ confidence })} />
+          <ScaleSlider {...DREAD_SCALE} value={row.dread ?? null} onCommit={(dread) => patch({ dread })} />
+          <p className="text-xs text-muted2">Just for you. Neither changes your readiness or rankings.</p>
         </div>
 
         {/* Keyed on the saved values: when they change underneath an open form (a
