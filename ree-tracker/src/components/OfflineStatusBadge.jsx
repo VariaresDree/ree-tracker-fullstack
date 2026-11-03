@@ -51,7 +51,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                 <span className="sr-only">{summary.slice(state.length + 3)}</span>
                 <span aria-hidden="true" className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-reeGreen' : 'bg-reeAmber'} ${!isOnline ? 'animate-pulse' : ''}`} />
                 {pending > 0 && (
-                    <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-reeAmber text-[10px] font-bold tabular-nums text-bg flex items-center justify-center">
+                    <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-reeAmber text-xs font-bold tabular-nums text-bg flex items-center justify-center">
                         {pending > 99 ? '99+' : pending}
                     </span>
                 )}

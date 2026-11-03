@@ -40,8 +40,8 @@ describe('layout standard', () => {
     expect(scan(/\brounded-(xl|2xl)\b/)).toEqual([]);
   });
 
-  it('small labels use the text-micro size, not an arbitrary 11px', () => {
-    expect(scan(/text-\[11px\]/)).toEqual([]);
+  it('no text is under 12px', () => {
+    expect(scan(/text-\[(0?\.[0-6]\d*rem|\d(\.\d+)?px|1[01](\.\d+)?px)\]/)).toEqual([]);
   });
 
   it('page grids follow the room they have (<Grid>), not the window', () => {

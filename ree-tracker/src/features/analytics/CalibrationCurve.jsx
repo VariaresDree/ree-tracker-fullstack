@@ -76,13 +76,13 @@ export function CalibrationCurve({ attempts = [], buckets = null }) {
                 dataKey="confidence"
                 domain={[0, 100]}
                 type="number"
-                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-                label={{ value: 'Reported confidence (%)', position: 'insideBottom', offset: -2, fill: 'var(--text-muted)', fontSize: 10 }}
+                tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                label={{ value: 'Reported confidence (%)', position: 'insideBottom', offset: -2, fill: 'var(--text-muted)', fontSize: 12 }}
               />
               <YAxis
                 domain={[0, 100]}
-                tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
-                label={{ value: 'Observed accuracy (%)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 10 }}
+                tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                label={{ value: 'Observed accuracy (%)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 12 }}
               />
               <Tooltip
                 contentStyle={{ background: 'var(--bg-surface2)', border: '1px solid var(--border-light)', borderRadius: 8, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}

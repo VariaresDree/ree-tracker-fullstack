@@ -48,7 +48,7 @@ export default function Admin() {
 
   return (
     <Page>
-      <PageHeader title="Admin" subtitle="Content tools. Only admins see this area." />
+      <PageHeader title="Admin" />
       <Tabs id="admin" label="Admin sections" active={tab} onChange={setTab} tabs={TABS} />
 
       <TabPanel id="admin" active={tab}>

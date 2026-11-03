@@ -149,8 +149,9 @@
   --fluid-lg:   clamp(1.05rem, 0.95rem + 0.5vw, 1.25rem);  /* subhead */
   --fluid-xl:   clamp(1.3rem, 1.1rem + 1vw, 1.75rem);      /* heading */
   /* The small label size (chips, hints, timer captions): `text-micro`. It
-     was written as the arbitrary text-[11px] in 35 places. */
-  --text-micro: 0.6875rem;
+     was written as the arbitrary text-[11px] in 35 places. 12px is the floor for
+     any text in the app. */
+  --text-micro: 0.75rem;
 
   /* Motion tokens */
   --ease-spring-soft: cubic-bezier(0.34, 1.2, 0.64, 1);
@@ -1116,19 +1117,24 @@ body {
      combinations. Override color with a text-* class when needed. */
   .text-eyebrow {
     font-family: var(--font-mono);
-    /* Bounded fluid size: was a fixed 11px that rendered too small on high-DPI
-       tablets. Floor 10px keeps phones legible; ceiling 12px stops it growing. */
-    font-size: clamp(10px, 9.5px + 0.2vw, 12px);
+    /* 12px, the floor for any text in the app. It was 10-12px, in capitals. */
+    font-size: 0.75rem;
     line-height: 1.4;
     text-transform: uppercase;
-    /* Fluid tracking, same pattern as the font-size clamp above: 0.18em of
-       tracking on a long label ("QUESTIONS ANSWERED", 19 chars) adds ~34px of
-       pure whitespace at the 10px mobile floor — the single biggest driver of
-       the KpiTile label overflow fixed in 0.3. Tightens below ~587px viewport
-       width, reaches the original 0.18em by tablet where the room exists. */
-    letter-spacing: clamp(0.1em, 0.1em + 0.15vw, 0.18em);
+    /* Fluid tracking: it tightens on a phone, where a long label ("QUESTIONS
+       ANSWERED") has little room, and opens up by tablet. */
+    letter-spacing: clamp(0.06em, 0.06em + 0.12vw, 0.14em);
     font-weight: 500;
     color: var(--text-muted);
+  }
+
+  /* A form field's label: sentence case in the body font, because it's read
+     before every choice. text-eyebrow is for a section's heading. */
+  .text-label {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    font-weight: 500;
+    color: var(--color-muted2);
   }
 
   /* Chart axes: figures in columns that line up as they change. */

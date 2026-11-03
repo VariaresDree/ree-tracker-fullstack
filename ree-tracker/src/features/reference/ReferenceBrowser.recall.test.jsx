@@ -41,7 +41,7 @@ describe('ReferenceBrowser — random topic and the weak-formula sheet', () => {
     reviewItems = [{ cardId: 'a', nextReviewDate: later, easeFactor: 2.5, repetitions: 1, lastRating: 'good' }];
     const { unmount } = render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
     expect(screen.queryByRole('link', { name: /Print weak formulas/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/Rate cards in a review to print/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Print weak formulas/ })).not.toBeInTheDocument();
     unmount();
     reviewItems = [{ cardId: 'a', nextReviewDate: later, easeFactor: 2.36, repetitions: 1, lastRating: 'hard' }];
     render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);

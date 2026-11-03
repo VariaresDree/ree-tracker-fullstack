@@ -28,7 +28,7 @@ export function FormField({ label, hint, error, required, id: idProp, className,
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={id} className="text-eyebrow">
+      <label htmlFor={id} className="text-label">
         {label}
         {required && (
           <span className="ml-1 text-[var(--accent-danger)]" aria-hidden="true">

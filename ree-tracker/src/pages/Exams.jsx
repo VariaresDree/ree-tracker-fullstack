@@ -44,7 +44,7 @@ export default function Exams() {
 
   return (
     <Page>
-      <PageHeader title="Exams" subtitle="Timed tests under board conditions: mock boards, the Gauntlet ladder, and battles with friends." />
+      <PageHeader title="Exams" />
       <ModeGuide folded here={GUIDE_HERE[tab]} />
       <Tabs id="exams" label="Exam types" active={tab} onChange={setTab} tabs={TABS} />
 

@@ -75,7 +75,7 @@ export default function Progress() {
 
   return (
     <Page>
-      <PageHeader title="Progress" subtitle="How your readiness is moving, topic by topic, and your study plan." />
+      <PageHeader title="Progress" />
       <Tabs id="progress" label="Progress sections" active={tab} onChange={setTab} tabs={TABS} />
 
       <TabPanel id="progress" active={tab}>

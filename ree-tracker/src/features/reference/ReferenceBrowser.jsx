@@ -23,7 +23,7 @@ import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
-import { Input, FormField, SegmentedControl, EmptyState, Button, Card, CardWatermark, Disclosure, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
+import { Input, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
 import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import Flashcard from './Flashcard';
@@ -361,21 +361,30 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
 
   return (
     <div className="flex flex-col gap-4 animate-in fade-in">
-      {/* Top bar: search (bypasses the hierarchy) + kind filter (applies everywhere) */}
-      <div className="flex flex-col gap-3">
-        <FormField label="Search">
-          <div className="relative">
-            <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search every card by name, symbol, or keyword…"
-              className="!pl-9"
-              aria-label="Search reference cards"
-            />
-          </div>
-        </FormField>
-        <SegmentedControl label="Card kind" size="sm" value={kind} onChange={setKind} options={KIND_OPTIONS} className="self-start" />
+      {/* One row of controls: search (bypasses the hierarchy), the kind filter
+          (applies everywhere), and the two ways in that aren't browsing. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-52">
+          <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, symbol or keyword"
+            className="!pl-9"
+            aria-label="Search reference cards"
+          />
+        </div>
+        <SegmentedControl label="Card kind" size="sm" value={kind} onChange={setKind} options={KIND_OPTIONS} />
+        {!studying && cards.length > 0 && (
+          <Button size="sm" variant="secondary" onClick={drawTopic}>
+            <Shuffle size={14} strokeWidth={1.75} aria-hidden="true" /> Random topic
+          </Button>
+        )}
+        {!studying && weak.length > 0 && (
+          <Button size="sm" variant="secondary" as={Link} to="/print/formulas">
+            <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print weak formulas ({weak.length})
+          </Button>
+        )}
       </div>
 
       {!studying && dueCards.length > 0 && (
@@ -391,20 +400,6 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           </div>
           <Button className="shrink-0 w-full sm:w-auto" onClick={() => startStudying(dueCards, 'review')}>Review now</Button>
         </Card>
-      )}
-      {!studying && cards.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={drawTopic}>
-            <Shuffle size={14} strokeWidth={1.75} aria-hidden="true" /> Random topic
-          </Button>
-          {weak.length > 0 ? (
-            <Button size="sm" variant="secondary" as={Link} to="/print/formulas">
-              <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print weak formulas ({weak.length})
-            </Button>
-          ) : (
-            <p className="text-xs text-muted2 self-center">Rate cards in a review to print the ones you still miss.</p>
-          )}
-        </div>
       )}
       {!studying && recall && (
         <Card variant="inset" padding="md" className="flex flex-col gap-3" aria-live="polite">
@@ -493,14 +488,10 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
                     />
                   ))}
                 </Grid>
-                {/* Topics with nothing to open don't crowd the ones that have cards. */}
+                {/* Named under the ones with cards, with nothing to open or unfold. */}
                 {(() => {
                   const empty = (safeTOS[selectedSubject] || []).filter((t) => !topicCounts[t]);
-                  return empty.length > 0 && (
-                    <Disclosure title={`No cards yet · ${empty.length} topic${empty.length === 1 ? '' : 's'}`}>
-                      <ul className="text-sm text-muted2 flex flex-col gap-1">{empty.map((t) => <li key={t}>{t}</li>)}</ul>
-                    </Disclosure>
-                  );
+                  return empty.length > 0 && <p className="text-xs text-muted2">No cards yet: {empty.join(', ')}.</p>;
                 })()}
               </>
             )}

@@ -103,7 +103,7 @@ export default function DrawPicker({ prefs, onChange, subjects }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-eyebrow block">How questions are picked</span>
+      <span className="text-label block">How questions are picked</span>
       <SegmentedControl label="How questions are picked" size="lg" options={DRAW_MODES} value={mode.value} onChange={(v) => save({ drawMode: v })} />
       <p className="text-sm text-muted2">{mode.description}</p>
       {shown && (

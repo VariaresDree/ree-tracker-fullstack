@@ -220,7 +220,7 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
                     the flex gap swallows it visually. */}
                 {t.badge && ' '}
                 {t.badge && (
-                  <span className="rounded-full border border-border2 bg-surface2 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted2">
+                  <span className="rounded-full border border-border2 bg-surface2 px-1.5 py-px text-xs font-semibold uppercase tracking-wide text-muted2">
                     {t.badge}
                   </span>
                 )}

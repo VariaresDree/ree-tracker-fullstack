@@ -149,12 +149,12 @@ export default function VaultDataGrid({
           always newest-first via its own endpoint). */}
       {!showOnlyFlagged && (
         <div className="flex items-center gap-1.5 -mt-2">
-          <span className="text-[0.6rem] font-bold text-muted2 uppercase tracking-widest mr-1">Sort</span>
+          <span className="text-xs font-bold text-muted2 uppercase tracking-widest mr-1">Sort</span>
           {SORT_OPTIONS.map(opt => (
             <button
               key={opt.key}
               onClick={() => setSortOrder(opt.key)}
-              className={`px-3 py-1.5 rounded-lg border text-[0.65rem] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
                 sortOrder === opt.key
                   ? 'bg-reeBlue/10 border-reeBlue/50 text-reeBlue-text shadow-sm'
                   : 'bg-bg border-border2 text-muted hover:text-textMain hover:border-reeBlue/40'

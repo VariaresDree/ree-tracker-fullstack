@@ -11,7 +11,7 @@ import { cn } from './cn';
 // back, …" a 22px column, a word or two per line (found live, 2026-10-28).
 export function PageHeader({ title, subtitle, meta, actions, className }) {
   return (
-    <div className={cn('@container border-b border-border pb-5', className)}>
+    <div className={cn('@container border-b border-border pb-4', className)}>
       <div className="flex flex-col gap-4 @2xl:flex-row @2xl:items-end @2xl:justify-between">
         <div className="min-w-0 @2xl:flex-1 @2xl:min-w-[16rem]">
           <h1 className="text-h1 text-textMain">{title}</h1>
