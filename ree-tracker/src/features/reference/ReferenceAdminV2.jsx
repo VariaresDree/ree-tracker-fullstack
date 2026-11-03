@@ -21,13 +21,16 @@ import {
     Button, Card, Modal, FormField, Input, Select, Textarea,
     SegmentedControl, Badge, StatusPill, EmptyState, Skeleton,
 } from '../../components/ui';
-import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search } from '../../components/ui/icons';
+import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search, Copy } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
-import { isKnownTopic } from '../../utils/topicLabels';
+import { isKnownTopic, labelForGenerated } from '../../utils/topicLabels';
 import { refreshLiveTOS } from '../../services/liveTaxonomy';
 import Flashcard from './Flashcard';
 import { cardReasonWords } from './cardReasons';
+import { buildCardImportPrompt, MAX_PER_MESSAGE } from '../../services/externalPrompts';
+import { parseExchange } from '../admin/exchange/aiExchange';
+import { copyText } from '../exam-export/deliver';
 import { generateReferenceCardsAI, generateReferenceCardsFromSource } from '../../services/geminiApi';
 import { readPdfText } from '../library/readPdfText';
 import AiStatusNote from '../../components/AiStatusNote';
@@ -47,6 +50,7 @@ const KINDS = [
 const AI_SOURCES = [
     { value: 'topic', label: 'From a topic' },
     { value: 'file', label: 'From a file' },
+    { value: 'paste', label: 'From another AI' },
 ];
 const FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_IMAGES = 6;
@@ -278,6 +282,9 @@ export default function ReferenceAdminV2() {
     const [aiDuplicates, setAiDuplicates] = useState(new Set());
     // Why the server refused a row, by its position in aiRows.
     const [aiRefusals, setAiRefusals] = useState({});
+    // From another AI: its reply, and what couldn't be read from it.
+    const [aiReply, setAiReply] = useState('');
+    const [aiReplyProblems, setAiReplyProblems] = useState([]);
     const [retired, setRetired] = useState([]);
     const [renaming, setRenaming] = useState(null); // { subject, topic, from, to }
 
@@ -452,6 +459,31 @@ export default function ReferenceAdminV2() {
             toast.success(`Found ${rows.length} — review and queue the complete ones.`, { id: toastId });
         } catch (err) {
             toast.error(err?.message === '[OFFLINE]' ? 'AI needs a connection.' : (err.message || "Couldn't make cards from that file."), { id: toastId });
+        } finally { setBusy(false); }
+    };
+    const copyCardPrompt = async () => {
+        const inSubject = live.filter((c) => c.subject === aiSubject);
+        const ok = await copyText(buildCardImportPrompt({
+            subject: aiSubject, topic: aiTopic || null, topics: aiTopics, count: aiCount,
+            existingNames: inSubject.map((c) => c.name),
+            existingTags: [...new Set(inSubject.filter((c) => c.subtopicTag).map((c) => c.subtopicTag.trim()))],
+        }));
+        if (ok) toast.success('Prompt copied. Paste it into the other AI.');
+        else toast.error("Couldn't copy. Allow clipboard access and try again.");
+    };
+    const readCardReply = async () => {
+        const { cards, problems } = parseExchange(aiReply);
+        const rows = cards.map((c) => ({ ...c, subject: c.subject || aiSubject, topic: labelForGenerated(c.topic, { target: aiTopic || 'All', topics: dynamicTOS?.[c.subject || aiSubject] }) }));
+        setAiReplyProblems(problems);
+        clearDrafts();
+        if (!rows.length) return;
+        setBusy(true);
+        try {
+            const { cards: library } = await libraryNow();
+            showDrafts(rows, library.map((c) => c.name));
+            setAiReply('');
+        } catch (err) {
+            toast.error(err.message || "Couldn't check the library.");
         } finally { setBusy(false); }
     };
     const handleQueueSelected = async () => {
@@ -669,6 +701,23 @@ export default function ReferenceAdminV2() {
                             <Button onClick={handleGenerate} loading={busy} disabled={busy || !aiTopic} className="self-start">
                                 <Sparkles size={14} strokeWidth={1.75} aria-hidden="true" /> Generate {aiCount} {aiKind === 'constant' ? 'constant' : 'formula'} card{aiCount === 1 ? '' : 's'}
                             </Button>
+                        </>
+                    ) : aiSource === 'paste' ? (
+                        <>
+                            <p className="text-xs text-muted2 max-w-2xl">
+                                Use Claude, ChatGPT or Gemini in their own apps: copy this prompt into one, optionally attach a reviewer, then paste its reply. Cards already in the library are flagged, and every card still waits in the review queue.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                <FormField label="Subject"><Select value={aiSubject} onChange={(e) => { setAiSubject(e.target.value); setAiTopic(''); }}>{SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}</Select></FormField>
+                                <FormField label="Topic"><Select value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}><option value="">Any topic (the AI files each card)</option>{aiTopics.map((t) => <option key={t} value={t}>{t}</option>)}</Select></FormField>
+                                <FormField label="How many" hint={`At most ${MAX_PER_MESSAGE} per message`}><Select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))}>{[6, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}</Select></FormField>
+                            </div>
+                            <Button variant="secondary" onClick={copyCardPrompt} className="self-start"><Copy size={14} strokeWidth={1.75} aria-hidden="true" /> Copy prompt</Button>
+                            <FormField label="The AI's reply" hint="Use the copy button on its code block, so the LaTeX comes across as written.">
+                                <Textarea value={aiReply} onChange={(e) => setAiReply(e.target.value)} className="!min-h-32 font-mono text-xs" placeholder="===CARD===" />
+                            </FormField>
+                            <Button onClick={readCardReply} loading={busy} disabled={busy || !aiReply.trim()} className="self-start">Read the reply</Button>
+                            {aiReplyProblems.map((p) => <p key={p} role="alert" className="text-xs" style={{ color: 'var(--accent-danger)' }}>{p}</p>)}
                         </>
                     ) : (
                         <>

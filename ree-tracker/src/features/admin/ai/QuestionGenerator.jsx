@@ -234,7 +234,7 @@ function GeneratedList({ g, currentUser, selectedCount, runInfo }) {
   );
 }
 
-function GeneratedItem({ q, idx, g, disabled }) {
+export function GeneratedItem({ q, idx, g, disabled }) {
   const check = q.check ? CHECK_BADGE[q.check.status] : null;
   const checkText = q.check?.status === 'disagrees'
     ? `Answer check picked ${q.check.choice || 'another option'}`

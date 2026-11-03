@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
 const idempotency = require('../middlewares/idempotency');
-const { questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
@@ -17,6 +17,7 @@ const { buildVersionSnapshot, createLiveQuestion, storageOrder, withStorageOrder
 const questionBankCache = require('../services/questionBankCache');
 const optionAudit = require('../services/optionAudit');
 const { matchOption } = require('../utils/sanitizeOptions');
+const { importQuestions } = require('../services/questionImport');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
 // flag, explanation change — can move the vault counts or the pack-manifest
@@ -235,6 +236,17 @@ router.post('/option-audit/fix-keys', authMiddleware, requireAdmin, validate(bul
     } catch (error) {
         logger.error('Key fix error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Could not fix the answers.' });
+    }
+});
+
+// POST /api/questions/import — questions another AI wrote, for the review queue
+// (Admin › Import from another AI). Per-item reasons, like /reference-cards/ai-intake.
+router.post('/import', authMiddleware, requireAdmin, validate(questionImportSchema), idempotency(), async (req, res) => {
+    try {
+        return res.status(200).json({ success: true, ...await importQuestions(req.body.items, req.user.id) });
+    } catch (error) {
+        logger.error('Question import error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to import the questions.' });
     }
 });
 

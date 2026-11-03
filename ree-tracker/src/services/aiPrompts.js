@@ -77,7 +77,7 @@ export function planBatches({ count, type = 'mixed', calcShare = 0.6, difficulty
   return batches;
 }
 
-const SUBJECT_SCOPE = {
+export const SUBJECT_SCOPE = {
   Mathematics: 'Mathematics (20% of the board): algebra, trigonometry, analytic and solid geometry, differential and integral calculus, differential equations, complex numbers, matrices, probability and statistics, numerical methods.',
   ESAS: 'Engineering Sciences and Allied Subjects (30% of the board): physics, chemistry, statics and dynamics, strength of materials, fluid mechanics, thermodynamics, engineering economics, computer fundamentals, engineering materials, and engineering laws, ethics and contracts.',
   EE: 'Electrical Engineering Professional Subjects (50% of the board): DC and AC circuits, electrical machines, power systems, transmission and distribution, protection, electronics, instrumentation and control, illumination, power plant engineering, and the Philippine Electrical Code (PEC 2017).',
@@ -111,13 +111,8 @@ export const EXPLANATION_RULES = `Explanations, in this exact layout, with a bla
 - Short sentences and plain words. No paragraph longer than three sentences.
 - Name an option by its content ("the 2.4 kA option", "the answer that ignores power factor"), never by its letter or position ("option B", "the first choice"): the options are shown in a different order every sitting.`;
 
-/**
- * The system prompt for every admin question run: who the model is writing
- * for and what a good board item looks like.
- */
-export const BOARD_EXAM_SYSTEM = `You are a senior item writer for the Philippine Professional Regulation Commission (PRC) Registered Electrical Engineer (REE) licensure examination. You write original multiple-choice items that match the real board exam in scope, wording and difficulty. Accuracy matters more than anything else: a wrong answer key teaches a reviewee the wrong thing.
-
-What a good item looks like:
+// What a good board item is, for any AI writing one.
+export const ITEM_RULES = `What a good item looks like:
 - One clear stem, written the way the PRC writes it: direct, technical, no story padding. Give every value with its unit.
 - Exactly four options, exactly one correct. All four are plausible, in the same unit and format, and of similar length. Never "all of the above", "none of the above", or "both A and B".
 - Put the correct option at a random position, not first. The app shuffles the options for every sitting, so their order carries no meaning.
@@ -130,7 +125,15 @@ What a good item looks like:
 Difficulty:
 - 1 (easy): one concept, one formula or one step.
 - 2 (medium): two or three steps; a typical board item.
-- 3 (hard): several steps or concepts combined, or distractors that punish a common misconception.
+- 3 (hard): several steps or concepts combined, or distractors that punish a common misconception.`;
+
+/**
+ * The system prompt for every admin question run: who the model is writing
+ * for and what a good board item looks like.
+ */
+export const BOARD_EXAM_SYSTEM = `You are a senior item writer for the Philippine Professional Regulation Commission (PRC) Registered Electrical Engineer (REE) licensure examination. You write original multiple-choice items that match the real board exam in scope, wording and difficulty. Accuracy matters more than anything else: a wrong answer key teaches a reviewee the wrong thing.
+
+${ITEM_RULES}
 
 The "fixedExplanation" field. ${EXPLANATION_RULES}
 
@@ -138,6 +141,7 @@ ${MATH_RULES}
 ${JSON_MATH_RULE}
 
 Options never carry their own letter ("A.", "(b)"): the app adds the letters.`;
+
 
 const typeLine = (b) => {
   if (b.calculation && b.conceptual) return `${b.calculation} calculation (problem-solving) item${b.calculation === 1 ? '' : 's'} and ${b.conceptual} conceptual (theory, definition or code) item${b.conceptual === 1 ? '' : 's'}`;

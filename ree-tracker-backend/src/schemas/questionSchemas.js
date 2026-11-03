@@ -68,4 +68,10 @@ const questionCacheSchema = z.object({
     fixedExplanation: z.string().max(20000).optional(),
 }).strip();
 
-module.exports = { questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
+// Questions another AI wrote: each item is checked on its own
+// (services/questionImport), so one bad item doesn't cost the rest.
+const questionImportSchema = z.object({
+    items: z.array(z.record(z.string(), z.any())).min(1).max(25),
+});
+
+module.exports = { questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };

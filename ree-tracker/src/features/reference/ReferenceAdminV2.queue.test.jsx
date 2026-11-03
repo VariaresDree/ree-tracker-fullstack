@@ -97,6 +97,50 @@ describe('queueing generated cards', () => {
   });
 });
 
+describe('from another AI', () => {
+  const reply = `===CARD===
+kind: formula
+subject: EE
+topic: circuits
+tag: AC Power
+name: Real power
+---FORMULA---
+$P = VI$
+---MEANING---
+Power delivered.
+---VARIABLES---
+$V$ | voltage | V
+===END===`;
+
+  it('copies a prompt that skips cards already live, then reads the reply into the usual preview', async () => {
+    db.fetchReferenceCards.mockResolvedValue([liveCard('1', 'Ohm', 'Circuits')]);
+    const execCommand = vi.fn(() => true);
+    document.execCommand = execCommand;
+    render(<ReferenceAdminV2 />);
+    fireEvent.click(await screen.findByRole('radio', { name: 'AI generate' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'From another AI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy prompt' }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/Prompt copied/)));
+    fireEvent.change(screen.getByLabelText(/The AI's reply/), { target: { value: reply } });
+    fireEvent.click(screen.getByRole('button', { name: 'Read the reply' }));
+    await screen.findByText('Real power');
+    expect(screen.getByRole('checkbox')).toBeChecked();
+    db.intakeReferenceCards.mockResolvedValue({ queued: ['1'], rejected: [] });
+    fireEvent.click(screen.getByRole('button', { name: /^Queue 1/ }));
+    await waitFor(() => expect(db.intakeReferenceCards).toHaveBeenCalled());
+    expect(db.intakeReferenceCards.mock.calls[0][0][0]).toMatchObject({ name: 'Real power', topic: 'Circuits', subtopicTag: 'AC Power' });
+  });
+
+  it('says so when the reply has no cards', async () => {
+    render(<ReferenceAdminV2 />);
+    fireEvent.click(await screen.findByRole('radio', { name: 'AI generate' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'From another AI' }));
+    fireEvent.change(screen.getByLabelText(/The AI's reply/), { target: { value: 'Sorry.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Read the reply' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn't find any/);
+  });
+});
+
 describe('Coverage', () => {
   it('lists empty topics first, with counts and tags', async () => {
     db.fetchReferenceCards.mockResolvedValue([

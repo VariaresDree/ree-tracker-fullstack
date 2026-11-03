@@ -329,7 +329,9 @@ async function approveBulk(ids, editorId) {
     }
 
     try {
-        await prisma.$transaction(ops);
+        // Array transactions default to 5 s, too short at about 180 ms a query from
+        // Render to Supabase: a chunk of 25 fell back to the slow per-item path.
+        await prisma.$transaction(ops, { maxWait: 5_000, timeout: 30_000 });
         for (const item of batchItems) approved.push(item.row.id);
     } catch (batchErr) {
         logger.error('bulk approve: batched transaction failed, falling back to per-item', {
