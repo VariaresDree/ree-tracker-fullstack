@@ -56,6 +56,36 @@
         } catch (e) {}
       })();
     </script>
+
+    <!-- BLANK-PAGE RECOVERY: if the app's own script can't load, nothing in the
+         app can run to fix it, so the fix lives here. A service worker that cached
+         the wrong thing for a chunk left a blank page with no way out. Clears the
+         worker and its shell, keeps the saved API data, and reloads once per tab
+         session. Only when the server answers: offline, the cache may be all there
+         is. blankRecovery.test.js runs this script. -->
+    <script id="blank-recovery">
+      (function() {
+        var KEY = 'ree:blank-recovery';
+        window.addEventListener('error', function(e) {
+          var s = e.target;
+          if (!s || s.tagName !== 'SCRIPT' || s.type !== 'module') return;
+          try {
+            if (sessionStorage.getItem(KEY)) return;
+            sessionStorage.setItem(KEY, '1');
+          } catch (err) { return; }
+          fetch('/version.json', { cache: 'no-store' }).then(function(r) {
+            if (!r.ok) return;
+            var sw = navigator.serviceWorker ? navigator.serviceWorker.getRegistrations() : Promise.resolve([]);
+            var names = window.caches ? caches.keys() : Promise.resolve([]);
+            return Promise.all([sw, names]).then(function(found) {
+              return Promise.all(found[0].map(function(reg) { return reg.unregister(); }).concat(
+                found[1].filter(function(n) { return n.indexOf('-precache-') !== -1; }).map(function(n) { return caches.delete(n); })
+              ));
+            }).then(function() { location.reload(); }, function() { location.reload(); });
+          }).catch(function() {});
+        }, true);
+      })();
+    </script>
   </head>
   <body class="bg-bg text-textMain antialiased">
     <div id="root"></div>

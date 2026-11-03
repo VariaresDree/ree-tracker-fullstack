@@ -201,6 +201,12 @@ export default defineConfig(async ({ mode, command }) => {
         // notifications only — no push subscription or FCM involved.
         importScripts: ['notifications-sw.js'],
         cleanupOutdatedCaches: true,
+        // A new name, so every device downloads its shell afresh. A deploy left
+        // some with the app page cached under a chunk's address (a missing asset
+        // used to answer 200 with index.html, vercel.json), and the old name would
+        // keep that entry for as long as the chunk's hash stayed the same.
+        // services/appUpdate clears the old cache.
+        cacheId: 'ree-2',
         // Raise the precache size cap above Workbox's 2 MiB default: the heavy
         // vendor chunks (charts/recharts, LatexRenderer/KaTeX, jspdf, pdfjs) can
         // approach it, and any chunk over the cap is SILENTLY excluded from the
