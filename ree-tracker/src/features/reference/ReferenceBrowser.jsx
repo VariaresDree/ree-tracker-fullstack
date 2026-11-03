@@ -74,6 +74,8 @@ const VIEW_OPTIONS = (browseLabel) => [
   { value: 'sheet', label: 'Quick sheet', icon: Layers },
 ];
 
+const sheetPrintPath = (subject, topic) => `/print/formulas?${new URLSearchParams({ subject, ...(topic ? { topic } : {}) })}`;
+
 // A topic's cards, under its tag headings when it has any, with a chip per tag
 // to narrow down to one.
 function TopicCards({ cards }) {
@@ -475,6 +477,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
                   by="topic"
                   topicOrder={safeTOS[selectedSubject] || []}
                   onStudy={(set) => startStudying(set)}
+                  printTo={sheetPrintPath(selectedSubject)}
                 />
               </Suspense>
             ) : (
@@ -520,7 +523,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           </div>
           {view === 'sheet' ? (
             <Suspense fallback={<SheetFallback />}>
-              <QuickSheet cards={leafCards} scopeLabel={selectedTopic} by="subtopic" onStudy={(set) => startStudying(set)} />
+              <QuickSheet cards={leafCards} scopeLabel={selectedTopic} by="subtopic" onStudy={(set) => startStudying(set)} printTo={sheetPrintPath(selectedSubject, selectedTopic)} />
             </Suspense>
           ) : (
             <TopicCards cards={leafCards} />

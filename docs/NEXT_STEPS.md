@@ -8,7 +8,34 @@ section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
-## 0a. Handover, 2026-11-03 (read this first)
+## 0b. Handover, second round of 2026-11-03 (read this first)
+
+Six PRs from the owner's list, all merged or open as #207:
+
+| PR | What |
+|---|---|
+| #201 | Rail from 600 px, phone bar hides on scroll, screen fixes, an E2E end-of-page guard |
+| #202 | Subtopic tables, 631 seeded across 50 topics, Admin › Subtopics |
+| #203 | Syllabus tab as a tracker and table of contents; Customize |
+| #204, #205 | **Blank app after a deploy**, see below |
+| #206 | PRC papers by the board's topic counts; Bank vs board; sideways phones keep the phone layout |
+| #207 | Calmer Today; Quick sheet Hide answers and Print this sheet |
+
+**The blank app.** A missing asset answered 200 with `index.html`, and `/assets/` was marked immutable for a year, so a device updating during a rollout could store the app page as a chunk in both the service worker's cache and the browser's HTTP cache. Now: missing assets 404, new file addresses (`v2-`), a new cache name, assets held a day, and a recovery script in `index.html`. `curl` looks healthy in that state: check `caches` and a plain `fetch` in the browser. A `fetch` with `cache: 'reload'` repairs the entry it reads, which hides the evidence.
+
+**Decisions:**
+- PRC's table of specifications (file `2024-40 Annex A`) stops at topic level, so subtopics are a suggested list, drafted by us and editable in Admin. CMO 88 s.2017's full text couldn't be fetched; a copy from the owner would let the lists be checked.
+- Subtopic ticks are self-reported, because questions aren't tagged by subtopic.
+- Rejected: a fixed `pb-24` (the overlap was mid-scroll), per-topic trend charts (no history stored, little data), switching whole topics off.
+
+**Next, in order:**
+1. **Features:** tag questions by subtopic, with AI help and review (drill a subtopic, tick from answers). Fill the Thin topics in Bank vs board through Import from another AI. Battles by board counts. Unit conversion, two-day board dates, offline handouts.
+2. **Reliability:** read App health after a week. Multi-device first-answer undercount and streak flicker. Scanned PDFs as images. Cold starts.
+3. **UI and UX:** rendered-axe heading pass and dark-theme contrast sweep. First-run tour. Notebook notes with their cards.
+
+**Limit:** the boot download is at 98.6% of its 700 kB budget. Lazy-only shared code goes by subpath (see below); anything new on Today counts against it.
+
+## 0a. Handover, 2026-11-03
 
 The question-quality round, seven PRs from the owner's list:
 
