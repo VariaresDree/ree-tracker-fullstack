@@ -31,7 +31,7 @@ export default function Practice() {
   const { currentUser } = useAuth();
   
   const {
-    config, setConfig, session, setSession, questionStartedAt, bookmarks,
+    config, session, setSession, questionStartedAt, bookmarks,
     startSession, endSession, loadNextQuestion, 
     handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
     toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
@@ -124,7 +124,7 @@ export default function Practice() {
   }
 
   if (!session.isActive) {
-      return <ReviewSetup config={config} setConfig={setConfig} isOnline={isOnline} startSession={startSession} session={session} safeTOS={safeTOS} />;
+      return <ReviewSetup config={config} isOnline={isOnline} startSession={startSession} session={session} safeTOS={safeTOS} />;
   }
 
   if (!currentQ) return <div className="flex justify-center items-center h-64 text-[var(--accent-text)]"><span className="telemetry-spinner !w-12 !h-12"></span></div>;
