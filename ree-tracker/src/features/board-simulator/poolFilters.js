@@ -10,7 +10,7 @@ import { shuffleArray, stratifiedSample } from '../../utils/shuffle';
 export { stratifiedSample };
 
 /** A PRC paper's questions by the board's topic counts, mixed, not grouped by topic. */
-export const boardWeightedSample = (pool, subject, count) => shuffleArray(boardWeightedPick(pool, subject, count, stratifiedSample));
+export const boardWeightedSample = (pool, subject, count, groups) => shuffleArray(boardWeightedPick(pool, subject, count, stratifiedSample, groups));
 
 /** True for a calculation item: its type reads "calc", "math" or "problem". */
 export function isCalculationItem(q) {

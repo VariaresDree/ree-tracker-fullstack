@@ -14,7 +14,7 @@ const { invalidateRole } = require('../src/middlewares/roleMiddleware');
 const userRoutes = require('../src/routes/userSubtopicRoutes');
 const adminRoutes = require('../src/routes/adminSubtopicRoutes');
 const configRoutes = require('../src/routes/configRoutes');
-const { mergeSubtopics, subtopicProgress, userSubtopicErrors, BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick, bankVsBoard } = require('@ree/shared');
+const { mergeSubtopics, subtopicProgress, userSubtopicErrors, BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick } = require('@ree/shared');
 
 const ADMIN = 'uid-admin';
 const USER = 'uid-user';
@@ -156,16 +156,6 @@ describe('drawing by the board’s counts', () => {
 
     it('a zero count draws nothing, even with a sampler that reads 0 as everything', () => {
         expect(boardWeightedPick(eePool, 'EE', 0, (list, n) => (n ? list.slice(0, n) : list))).toEqual([]);
-    });
-
-    it('the bank against the board adds up shared topics, thinnest first', () => {
-        const { groups, unitemized } = bankVsBoard({ 'Power System Analysis': 73, 'Power System Protection': 26, Electromagnetism: 1109, 'Quantities/units/constants (EE)': 34 }, 'EE');
-        const psa = groups.find((g) => g.topics.includes('Power System Analysis'));
-        expect(psa).toMatchObject({ items: 20, questions: 99 });
-        expect(psa.perItem).toBeCloseTo(4.95);
-        expect(groups[0].perItem).toBe(0);
-        expect(groups.at(-1).topics).toEqual(['Electromagnetism']);
-        expect(unitemized).toEqual([{ topic: 'Quantities/units/constants (EE)', questions: 34 }]);
     });
 
     it('GET /api/admin/bank-counts merges subject spellings, for admins only', async () => {

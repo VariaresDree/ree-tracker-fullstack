@@ -8,8 +8,9 @@
 // with Electric Circuits 1, Power System Protection with Power System Analysis.
 // The rest (`UNITEMIZED`) have no count.
 //
-// Keyed by Topic.name. A topic Admin renames falls out to "no count", which is
-// harmless: it shows no figure until this file catches up.
+// This is the default. Admin › Syllabus can replace it (SystemConfig.boardBlueprint,
+// by topic id), because PRC changes its table. The functions below take the
+// groups to use, as `resolveBlueprint` gives them, and fall back to this table.
 
 'use strict';
 
@@ -62,15 +63,15 @@ const UNITEMIZED = Object.freeze({
  * A topic's board count, or null when PRC doesn't itemize it.
  * @returns {{ items: number, sharedWith: string[] } | null} sharedWith: the other topics in its count
  */
-function boardItemsFor(subject, topicName) {
-    const group = (BOARD_GROUPS[subject] || []).find((g) => g.topics.includes(topicName));
+function boardItemsFor(subject, topicName, blueprint) {
+    const group = ((blueprint || BOARD_GROUPS)[subject] || []).find((g) => g.topics.includes(topicName));
     if (!group) return null;
     return { items: group.items, sharedWith: group.topics.filter((t) => t !== topicName) };
 }
 
 /** `count` items across the subject's groups, in proportion, always summing to `count`. */
-function boardItemSplit(subject, count) {
-    const groups = BOARD_GROUPS[subject] || [];
+function boardItemSplit(subject, count, blueprint) {
+    const groups = (blueprint || BOARD_GROUPS)[subject] || [];
     const total = groups.reduce((sum, g) => sum + g.items, 0);
     const n = Math.max(0, Math.floor(Number(count) || 0));
     if (total === 0) return [];
@@ -87,19 +88,20 @@ function boardItemSplit(subject, count) {
 /**
  * A subject's paper by PRC's topic counts. Each group draws its share from its
  * own topics; whatever a thin group can't supply, and any shortfall, comes from
- * the rest of the pool, so a paper stays full however the bank stands. Topics PRC
- * doesn't itemize (or a topic renamed since this file) only ever fill.
+ * the rest of the pool, so a paper stays full however the bank stands. Topics
+ * with no count only ever fill.
  *
  * @param {Array<{ subtopic?: string }>} pool
  * @param {(list: Array, n: number) => Array} pick the caller's own sampling, seeded or not
+ * @param {Record<string, Array<{ items: number, topics: string[] }>>} [blueprint] the groups to use
  */
-function boardWeightedPick(pool, subject, count, pick) {
-    const groups = BOARD_GROUPS[subject];
+function boardWeightedPick(pool, subject, count, pick, blueprint) {
+    const groups = (blueprint || BOARD_GROUPS)[subject];
     if (!groups) return pick(pool, count);
-    const split = boardItemSplit(subject, count);
+    const split = boardItemSplit(subject, count, blueprint);
     const taken = new Set();
     groups.forEach((group, i) => {
-        if (split[i] <= 0) return;
+        if (!(split[i] > 0)) return; // no share, or every count in the subject at 0
         const names = new Set(group.topics);
         for (const q of pick(pool.filter((item) => names.has(item?.subtopic)), split[i])) taken.add(q);
     });
@@ -111,17 +113,48 @@ function boardWeightedPick(pool, subject, count, pick) {
 }
 
 /**
- * The bank beside the board for a subject, thinnest first.
- * @param {Record<string, number>} counts questions per topic name
+ * The saved blueprint (or PRC's table, when `stored` is null) against today's
+ * topics. Stored by topic id, so a rename follows; a retired topic drops out, and
+ * a group left with no topics goes with it. A topic in no group has no count.
+ *
+ * @param {Record<string, Array<{ items: number, topicIds: string[] }>> | null} stored
+ * @param {Array<{ id: string, subject: string, name: string }>} topics the active topics
+ * @returns {{ custom: boolean, groups: object, unitemized: object }}
  */
-function bankVsBoard(counts, subject) {
-    const of = (topic) => Number(counts?.[topic]) || 0;
-    const groups = (BOARD_GROUPS[subject] || []).map((g) => {
-        const questions = g.topics.reduce((sum, t) => sum + of(t), 0);
-        return { topics: g.topics, items: g.items, questions, perItem: questions / g.items };
-    }).sort((a, b) => a.perItem - b.perItem);
-    const unitemized = (UNITEMIZED[subject] || []).map((topic) => ({ topic, questions: of(topic) }));
-    return { groups, unitemized };
+function resolveBlueprint(stored, topics) {
+    const groups = {};
+    const unitemized = {};
+    for (const subject of Object.keys(BOARD_GROUPS)) {
+        const own = (topics || []).filter((t) => t.subject === subject);
+        const byId = new Map(own.map((t) => [t.id, t]));
+        const byName = new Map(own.map((t) => [t.name, t]));
+        const rows = stored
+            ? (stored[subject] || []).map((g) => ({ items: g.items, topics: g.topicIds.map((id) => byId.get(id)) }))
+            : BOARD_GROUPS[subject].map((g) => ({ items: g.items, topics: g.topics.map((name) => byName.get(name)) }));
+        const kept = rows.map((g) => ({ items: g.items, topics: g.topics.filter(Boolean) })).filter((g) => g.topics.length > 0);
+        groups[subject] = kept.map((g) => ({ items: g.items, topics: g.topics.map((t) => t.name), topicIds: g.topics.map((t) => t.id) }));
+        const counted = new Set(kept.flatMap((g) => g.topics.map((t) => t.id)));
+        unitemized[subject] = own.filter((t) => !counted.has(t.id)).map((t) => ({ id: t.id, name: t.name }));
+    }
+    return { custom: !!stored, groups, unitemized };
 }
 
-module.exports = { BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick, bankVsBoard };
+/** Why a blueprint can't be saved against today's topics, in a sentence, or null. */
+function blueprintError(stored, topics) {
+    const byId = new Map((topics || []).map((t) => [t.id, t]));
+    const seen = new Set();
+    for (const [subject, list] of Object.entries(stored || {})) {
+        for (const group of list) {
+            for (const id of group.topicIds) {
+                const topic = byId.get(id);
+                if (!topic) return 'A topic in this setup has been retired. Reload and try again.';
+                if (topic.subject !== subject) return `${topic.name} belongs to ${topic.subject}, not ${subject}.`;
+                if (seen.has(id)) return `${topic.name} is counted twice.`;
+                seen.add(id);
+            }
+        }
+    }
+    return null;
+}
+
+module.exports = { BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick, resolveBlueprint, blueprintError };

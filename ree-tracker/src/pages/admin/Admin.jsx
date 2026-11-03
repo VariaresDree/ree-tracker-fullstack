@@ -2,8 +2,8 @@
 //
 // Content tools, in one place and out of the learners' way: the question bank
 // (AI/PDF ingestion, manual entry, review queue, syllabus), the explanation
-// review queue, formula-card management, the syllabus's suggested subtopics,
-// handout uploads, and the AI model
+// review queue, formula-card management, the syllabus (topics, the board's items
+// per topic, suggested subtopics), handout uploads, and the AI model
 // status (which model answers each AI feature, and whether it is healthy), and
 // app health (versions in use, errors people hit). These used to sit
 // inside learner pages — a Profile tab, a Materials tab, and the whole
@@ -23,7 +23,7 @@ const ExplanationReview = lazy(() => import('../../features/analytics/Explanatio
 const ReferenceAdminV2 = lazy(() => import('../../features/reference/ReferenceAdminV2'));
 const CloudVaultTab = lazy(() => import('../../features/materials/CloudVaultTab'));
 const MaterialViewer = lazy(() => import('../../features/materials/MaterialViewer'));
-const SubtopicsAdmin = lazy(() => import('../../features/admin/subtopics/SubtopicsAdmin'));
+const SyllabusAdmin = lazy(() => import('../../features/admin/syllabus/SyllabusAdmin'));
 const AiStatusPanel = lazy(() => import('../../features/admin/ai/AiStatusPanel'));
 const AppHealthPanel = lazy(() => import('../../features/admin/health/AppHealthPanel'));
 
@@ -31,7 +31,7 @@ const TABS = [
   { id: 'questions', label: 'Question bank', icon: Library },
   { id: 'explanations', label: 'Explanation review', icon: ClipboardList },
   { id: 'references', label: 'Formula cards', icon: BookOpen },
-  { id: 'subtopics', label: 'Subtopics', icon: ListChecks },
+  { id: 'syllabus', label: 'Syllabus', icon: ListChecks },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
   { id: 'ai', label: 'AI models', icon: Activity },
   { id: 'health', label: 'App health', icon: ShieldCheck },
@@ -67,7 +67,7 @@ export default function Admin() {
             </div>
           )}
 
-          {tab === 'subtopics' && <SubtopicsAdmin />}
+          {tab === 'syllabus' && <SyllabusAdmin />}
 
           {tab === 'handouts' && <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />}
 

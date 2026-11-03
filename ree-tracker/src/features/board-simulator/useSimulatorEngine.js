@@ -4,7 +4,7 @@ import { generateQuestionsAI } from '../../services/geminiApi';
 import {
   updateQuestionInBank, fetchVaultQuestions,
   finalizeExamSession, syncTelemetryBatch, getAnalyticsProfile,
-  fetchMultiplayerBattle, fetchSyllabusWeights, saveBookmark, removeBookmark
+  fetchMultiplayerBattle, fetchSyllabusWeights, fetchBoardGroups, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
@@ -218,6 +218,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           timeLimitSecs = Math.round(pool.reduce((acc, q) => acc + (boardPaceSeconds(q.subject) || 180), 0));
           if (pool.length === 0) throw new Error("There's nothing to retake from that sitting.");
       } else if (config.source === 'library') {
+          const boardGroups = config.isPrcStandard ? await fetchBoardGroups() : null;
           if (config.mode === 'blended') {
               // Blend by the PRC syllabus weights (server config, one source of
               // truth shared with the backend sampler); falls back to 25/30/45.
@@ -232,7 +233,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                   const filtered = applyFilter(raw || []);
                   // A PRC paper follows the board's topic counts; a custom mock stays even.
                   const shuffled = config.isPrcStandard
-                      ? boardWeightedSample(filtered, subj, dist[subj] || 0)
+                      ? boardWeightedSample(filtered, subj, dist[subj] || 0, boardGroups)
                       : stratifiedSample(filtered, dist[subj] || 0);
                   pool = pool.concat(shuffled);
               }
@@ -245,7 +246,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               // Stratify so a single-subject sim spans its subtopics rather than
               // collapsing onto the dominant one. (No-op for a pinned subtopic.)
               // A PRC paper by the board's topic counts. A pinned topic has one group anyway.
-              pool = config.isPrcStandard ? boardWeightedSample(filtered, config.subject, totalCount) : stratifiedSample(filtered, totalCount);
+              pool = config.isPrcStandard ? boardWeightedSample(filtered, config.subject, totalCount, boardGroups) : stratifiedSample(filtered, totalCount);
               // PRC schedule from @ree/shared: Math 5h, ESAS 4h, EE 6h.
               timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }

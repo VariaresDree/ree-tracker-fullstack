@@ -6,6 +6,9 @@ const logger = require('../utils/logger');
 const { runRecalibration } = require('../services/calibrationService');
 const { sendToUser } = require('../services/pushService');
 const { healthSummary, dismissError } = require('../services/appHealthService');
+const { saveBoardBlueprint, resetBoardBlueprint } = require('../services/boardBlueprint');
+const { validate } = require('../middlewares/validate');
+const { boardBlueprintSchema } = require('../schemas/configSchemas');
 const prisma = require('../config/db');
 const { normalizeSubject } = require('@ree/shared');
 
@@ -30,7 +33,7 @@ router.post('/calibrate', async (req, res) => {
 });
 
 // GET /api/admin/bank-counts: questions per subject and topic, for Admin ›
-// Question bank › Bank vs board. Subject spellings merge. One query.
+// Syllabus. Subject spellings merge. One query.
 router.get('/bank-counts', async (req, res) => {
     try {
         const rows = await prisma.question.groupBy({ by: ['subject', 'subtopic'], where: { isFlagged: false }, _count: { _all: true } });
@@ -46,6 +49,28 @@ router.get('/bank-counts', async (req, res) => {
     } catch (error) {
         logger.error('bank counts failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Could not count the bank.' });
+    }
+});
+
+// PUT /api/admin/board-blueprint: the board's items per topic, every subject.
+router.put('/board-blueprint', validate(boardBlueprintSchema), async (req, res) => {
+    try {
+        const { error, blueprint } = await saveBoardBlueprint(req.body);
+        if (error) return res.status(400).json({ error });
+        return res.status(200).json(blueprint);
+    } catch (error) {
+        logger.error('board blueprint save failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not save the board counts.' });
+    }
+});
+
+// DELETE /api/admin/board-blueprint: back to PRC's table.
+router.delete('/board-blueprint', async (req, res) => {
+    try {
+        return res.status(200).json(await resetBoardBlueprint());
+    } catch (error) {
+        logger.error('board blueprint reset failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not reset the board counts.' });
     }
 });
 

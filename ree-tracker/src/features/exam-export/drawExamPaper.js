@@ -140,6 +140,7 @@ const IMAGE_RE = /!\[[^\]]*\]\([^)]*\)/;
 const defaultFetchQuestions = (subject, subtopic, limit) => import('../../services/dbQueries')
   .then((m) => m.fetchVaultQuestions(subject, subtopic, limit));
 const defaultFetchWeights = () => import('../../services/dbQueries').then((m) => m.fetchSyllabusWeights());
+const defaultFetchBoardGroups = () => import('../../services/dbQueries').then((m) => m.fetchBoardGroups());
 
 // A set's questions: spread across subtopics like the sitting's sample, but
 // seeded by the set's key, so the same key reprints the same paper and
@@ -164,7 +165,7 @@ function pickForSet(pool, count, key) {
 /**
  * Draw a printed set.
  * @param {object} config  the setup screen's config
- * @param {{ sittingKey?: string, now?: Date, fetchQuestions?: Function, fetchWeights?: Function }} [deps]
+ * @param {{ sittingKey?: string, now?: Date, fetchQuestions?: Function, fetchWeights?: Function, fetchBoardGroups?: Function }} [deps]
  * @returns {Promise<object>} an ExamDraw
  */
 export async function drawExamPaper(config, {
@@ -172,12 +173,14 @@ export async function drawExamPaper(config, {
   now = new Date(),
   fetchQuestions = defaultFetchQuestions,
   fetchWeights = defaultFetchWeights,
+  fetchBoardGroups = defaultFetchBoardGroups,
 } = {}) {
   let weights = DEFAULT_SYLLABUS_WEIGHTS;
   if (config?.mode === 'blended') {
     try { weights = (await fetchWeights()) || DEFAULT_SYLLABUS_WEIGHTS; } catch { weights = DEFAULT_SYLLABUS_WEIGHTS; }
   }
   const plan = resolveExportPlan(config, weights);
+  const boardGroups = plan.profile === 'custom' ? null : await fetchBoardGroups().catch(() => null);
   const warnings = { unmatched: [], shortfall: [], focusFallback: false };
   const seen = new Set();
   const items = [];
@@ -204,7 +207,7 @@ export async function drawExamPaper(config, {
     const setKey = `${sittingKey}|${section.subject}`;
     const picked = plan.profile === 'custom'
       ? pickForSet(unique, section.count, setKey)
-      : shuffleWithKey(boardWeightedPick(unique, section.subject, section.count, (list, n) => pickForSet(list, n, setKey)), setKey);
+      : shuffleWithKey(boardWeightedPick(unique, section.subject, section.count, (list, n) => pickForSet(list, n, setKey), boardGroups), setKey);
     picked.forEach((q) => seen.add(keyOf(q)));
     if (picked.length < section.count) {
       warnings.shortfall.push({ subject: section.subject, requested: section.count, drawn: picked.length });
