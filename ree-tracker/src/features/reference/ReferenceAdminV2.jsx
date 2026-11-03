@@ -24,6 +24,10 @@ import {
 import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
+import { isKnownTopic } from '../../utils/topicLabels';
+import { refreshLiveTOS } from '../../services/liveTaxonomy';
+import Flashcard from './Flashcard';
+import { cardReasonWords } from './cardReasons';
 import { generateReferenceCardsAI, generateReferenceCardsFromSource } from '../../services/geminiApi';
 import { readPdfText } from '../library/readPdfText';
 import AiStatusNote from '../../components/AiStatusNote';
@@ -31,7 +35,7 @@ import {
     fetchReferenceCards, fetchPendingReferenceCards, fetchReferenceCardDebt,
     createReferenceCard, updateReferenceCard, deleteReferenceCard,
     approveReferenceCard, rejectReferenceCard, bulkApproveReferenceCards, fetchRetiredReferenceCards,
-    intakeReferenceCards, fetchReferenceSources, createReferenceSource, deleteReferenceSource,
+    intakeReferenceCards, renameReferenceTag, fetchReferenceSources, createReferenceSource, deleteReferenceSource,
 } from '../../services/dbQueries';
 
 const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
@@ -67,6 +71,7 @@ const PANELS = [
     { value: 'create', label: 'Add card' },
     { value: 'ai', label: 'AI generate' },
     { value: 'live', label: 'Live cards' },
+    { value: 'coverage', label: 'Coverage' },
     { value: 'sources', label: 'Sources' },
     { value: 'debt', label: 'Data debt' },
 ];
@@ -79,11 +84,13 @@ const EMPTY_FORM = {
 
 // Quick client-side completeness check for AI preview rows (display only —
 // the server's /ai-intake gate is authoritative).
-const quickMissing = (row) => {
+const quickMissing = (row, tos) => {
     const missing = [];
     if (!row?.name) missing.push('name');
     if (!row?.description) missing.push('description');
-    if (!row?.topic) missing.push('topic');
+    // A draft's topic is the model's label: it has to be on the live syllabus,
+    // or the server refuses it. A stored card's is already a Topic.
+    if (!row?.topic || (typeof row.topic === 'string' && !isKnownTopic(row.topic, tos?.[row.subject]))) missing.push('topic');
     if (row?.kind === 'formula' && !row?.formulaLatex) missing.push('formula');
     if (row?.kind === 'formula' && !(Array.isArray(row?.variables) && row.variables.length > 0)) missing.push('variables');
     if (row?.kind === 'constant' && !row?.valueUnit && !row?.dimensionless) missing.push('value/unit');
@@ -93,7 +100,8 @@ const quickMissing = (row) => {
 // Card row → form state (for editing pending/live cards). A retired concept
 // card opens as a formula: saving it re-types it.
 const cardToForm = (card) => ({
-    kind: card.kind === 'concept' ? 'formula' : card.kind, subject: card.subject, topic: card.topic?.name || '',
+    kind: card.kind === 'concept' ? 'formula' : card.kind, subject: card.subject,
+    topic: (typeof card.topic === 'string' ? card.topic : card.topic?.name) || '',
     name: card.name || '', symbol: card.symbol || '',
     formulaLatex: card.formulaLatex || '', valueUnit: card.valueUnit || '',
     description: card.description || '', purposeExamTip: card.purposeExamTip || '',
@@ -102,6 +110,17 @@ const cardToForm = (card) => ({
 });
 
 // Form state → API payload (empty strings become nulls).
+// Names already taken, as positions in `rows`.
+const repeatedRows = (rows, names) => {
+    const known = new Set(names.map(nameKey));
+    return new Set(rows.map((r, i) => (known.has(nameKey(r.name)) ? i : -1)).filter((i) => i >= 0));
+};
+
+// Tags in use under a topic, for suggestions: one tag, spelled one way.
+const tagsIn = (cards, subject, topic) => [...new Map(cards
+    .filter((c) => c.subtopicTag && c.subject === subject && c.topic?.name === topic)
+    .map((c) => [c.subtopicTag.trim().toLowerCase(), c.subtopicTag.trim()])).values()].sort();
+
 const formToPayload = (f) => ({
     kind: f.kind, subject: f.subject, topic: f.topic,
     name: f.name.trim(), symbol: f.symbol.trim() || null,
@@ -114,8 +133,9 @@ const formToPayload = (f) => ({
 });
 
 // ── Shared card form (create + edit) ────────────────────────────────────────
-function CardForm({ form, setForm, sources, dynamicTOS }) {
+function CardForm({ form, setForm, sources, dynamicTOS, cards = [] }) {
     const topics = dynamicTOS?.[form.subject] || [];
+    const tags = tagsIn(cards, form.subject, form.topic);
     const setF = (patch) => setForm((f) => ({ ...f, ...patch }));
     const setVar = (i, patch) => setForm((f) => ({
         ...f, variables: f.variables.map((v, idx) => (idx === i ? { ...v, ...patch } : v)),
@@ -154,14 +174,25 @@ function CardForm({ form, setForm, sources, dynamicTOS }) {
                     <Textarea value={form.formulaLatex} onChange={(e) => setF({ formulaLatex: e.target.value })} placeholder="e.g. $$X_c = \frac{1}{2\pi f C}$$" className="!min-h-16 font-mono text-xs" />
                 </FormField>
             )}
+            {form.kind !== 'constant' && form.formulaLatex.trim() && (
+                <div className="bg-bg border border-border rounded-[var(--radius-default)] px-3 py-2 math-scroll-mobile min-w-0 text-sm">
+                    <LatexRenderer content={withMathDelimiters(form.formulaLatex)} />
+                </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormField label={form.kind === 'constant' ? 'Value + unit (LaTeX ok)' : 'Result unit (optional)'} required={form.kind === 'constant' && !form.dimensionless}>
                     <Input value={form.valueUnit} onChange={(e) => setF({ valueUnit: e.target.value })} placeholder="e.g. $8.854\times10^{-12}$ F/m" />
                 </FormField>
-                <FormField label="Finer subtopic tag (optional)" hint="A free label within the topic — not a taxonomy node.">
-                    <Input value={form.subtopicTag} onChange={(e) => setF({ subtopicTag: e.target.value })} placeholder="e.g. Capacitance" />
+                <FormField label="Tag (optional)" hint="The family of cards this belongs to, in 2 to 4 words, such as AC Power. Reuse a tag when one fits.">
+                    <Input value={form.subtopicTag} onChange={(e) => setF({ subtopicTag: e.target.value })} placeholder="e.g. Capacitance" list="card-tags" />
                 </FormField>
             </div>
+            <datalist id="card-tags">{tags.map((t) => <option key={t} value={t} />)}</datalist>
+            {form.valueUnit.trim() && (
+                <div className="text-sm text-textMain math-scroll-mobile min-w-0 [&_p]:!mb-0">
+                    <LatexRenderer content={withMathDelimiters(form.valueUnit)} />
+                </div>
+            )}
             <label className="flex items-center gap-2 text-xs text-muted2 cursor-pointer select-none">
                 <input type="checkbox" checked={form.dimensionless} onChange={(e) => setF({ dimensionless: e.target.checked })} />
                 Dimensionless / contextual — no numeric value required
@@ -175,7 +206,7 @@ function CardForm({ form, setForm, sources, dynamicTOS }) {
 
             <div>
                 <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-eyebrow">Variables {form.kind === 'formula' ? '(must cover every symbol in the formula)' : '(optional)'}</span>
+                    <span className="text-eyebrow">Variables {form.kind === 'formula' ? '(every symbol in the formula)' : '(optional)'}</span>
                     <Button size="sm" variant="ghost" onClick={() => setF({ variables: [...form.variables, { symbol: '', meaning: '', unit: '' }] })}>
                         <Plus size={14} strokeWidth={1.75} aria-hidden="true" /> Add variable
                     </Button>
@@ -245,7 +276,10 @@ export default function ReferenceAdminV2() {
     const [aiSource, setAiSource] = useState('topic');
     const [aiFiles, setAiFiles] = useState([]);
     const [aiDuplicates, setAiDuplicates] = useState(new Set());
+    // Why the server refused a row, by its position in aiRows.
+    const [aiRefusals, setAiRefusals] = useState({});
     const [retired, setRetired] = useState([]);
+    const [renaming, setRenaming] = useState(null); // { subject, topic, from, to }
 
     // Bulk accept
     const [showBulkConfirm, setShowBulkConfirm] = useState(false);
@@ -265,12 +299,11 @@ export default function ReferenceAdminV2() {
         let ignore = false;
         const jobs = [];
         if (panel === 'queue') jobs.push(fetchPendingReferenceCards().then((x) => { if (!ignore) setPending(x); }));
-        if (panel === 'live') {
-            jobs.push(fetchReferenceCards().then((x) => { if (!ignore) setLive(x); }));
-            jobs.push(fetchRetiredReferenceCards().then((x) => { if (!ignore) setRetired(x); }));
-        }
+        // Live cards too wherever a card can be edited: its tag suggestions.
+        if (panel !== 'sources' && panel !== 'debt') jobs.push(fetchReferenceCards().then((x) => { if (!ignore) setLive(x); }));
+        if (panel === 'live') jobs.push(fetchRetiredReferenceCards().then((x) => { if (!ignore) setRetired(x); }));
         if (panel === 'debt') jobs.push(fetchReferenceCardDebt().then((x) => { if (!ignore) setDebt(x); }));
-        if (panel === 'sources' || panel === 'create' || panel === 'queue') {
+        if (panel === 'sources' || panel === 'create' || panel === 'queue' || panel === 'ai') {
             jobs.push(fetchReferenceSources().then((x) => { if (!ignore) setSources(x); }));
         }
         Promise.all(jobs)
@@ -288,6 +321,7 @@ export default function ReferenceAdminV2() {
         } catch { toast.error('Approval failed.'); }
     };
     const handleReject = async (card) => {
+        if (!window.confirm(`Reject "${card.name}"? It leaves the queue. A card of the same name can be queued again later.`)) return;
         try {
             await rejectReferenceCard(card.id);
             setPending((p) => p.filter((c) => c.id !== card.id));
@@ -322,6 +356,16 @@ export default function ReferenceAdminV2() {
         } finally { setBusy(false); }
     };
     const submitEdit = async () => {
+        // A draft isn't saved anywhere yet: the edit changes the row on screen.
+        if (editing.draftIndex !== undefined) {
+            const i = editing.draftIndex;
+            setAiRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...formToPayload(editForm) } : r)));
+            setAiRefusals((prev) => { const n = { ...prev }; delete n[i]; return n; });
+            setAiDuplicates((prev) => { const n = new Set(prev); n.delete(i); return n; });
+            setAiSelected((prev) => new Set(prev).add(i));
+            setEditing(null);
+            return;
+        }
         setBusy(true);
         try {
             const res = await updateReferenceCard(editing.id, formToPayload(editForm));
@@ -339,7 +383,7 @@ export default function ReferenceAdminV2() {
         } finally { setBusy(false); }
     };
     const handleDelete = async (card) => {
-        if (!window.confirm(`Delete "${card.name}"? The audit history is kept.`)) return;
+        if (!window.confirm(`Delete "${card.name}"? Every learner's review progress on this card is lost. The audit history is kept. To change the card, use Edit instead.`)) return;
         try {
             await deleteReferenceCard(card.id);
             setLive((p) => p.filter((c) => c.id !== card.id));
@@ -350,26 +394,33 @@ export default function ReferenceAdminV2() {
     };
 
     // ── AI generation ──────────────────────────────────────────────────────
+    const clearDrafts = () => { setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set()); setAiRefusals({}); };
+    // What's in the library this moment, and the live syllabus: pending cards
+    // change as rows are queued, and a stale list let a repeat through.
+    const libraryNow = async () => {
+        const [liveCards, pendingCards] = await Promise.all([fetchReferenceCards(), fetchPendingReferenceCards(), refreshLiveTOS()]);
+        const cards = [...liveCards, ...pendingCards];
+        return { cards, tags: [...new Set(cards.filter((c) => c.subject === aiSubject && c.subtopicTag).map((c) => c.subtopicTag.trim()))] };
+    };
+    const showDrafts = (rows, existing) => {
+        const dupes = repeatedRows(rows, existing);
+        setAiRows(rows);
+        setAiDuplicates(dupes);
+        setAiSelected(new Set(rows.map((_, i) => i).filter((i) => !dupes.has(i) && quickMissing(rows[i], dynamicTOS).length === 0)));
+    };
     const handleGenerate = async () => {
         if (!aiTopic) return toast.error('Pick a topic first.');
         setBusy(true);
-        setAiRows([]); setAiSelected(new Set());
+        clearDrafts();
         const toastId = toast.loading('Generating flashcards…');
         try {
             // Exclusion list: everything already live or pending for this kind+subject.
-            const [liveCards, pendingCards] = await Promise.all([
-                live.length ? Promise.resolve(live) : fetchReferenceCards(),
-                pending.length ? Promise.resolve(pending) : fetchPendingReferenceCards(),
-            ]);
-            const existing = [...liveCards, ...pendingCards]
-                .filter((c) => c.kind === aiKind && c.subject === aiSubject)
-                .map((c) => c.name);
+            const { cards, tags } = await libraryNow();
+            const existing = cards.filter((c) => c.kind === aiKind && c.subject === aiSubject).map((c) => c.name);
             const rows = await generateReferenceCardsAI(aiKind, aiSubject, aiTopic, aiCount, existing, aiFocus.trim() || null,
-                (n, of) => { if (of > 1) toast.loading(`Writing cards, part ${n} of ${of}…`, { id: toastId }); });
+                (n, of) => { if (of > 1) toast.loading(`Writing cards, part ${n} of ${of}…`, { id: toastId }); }, tags);
             if (!rows.length) throw new Error('No cards returned.');
-            setAiRows(rows);
-            setAiDuplicates(new Set());
-            setAiSelected(new Set(rows.map((_, i) => i).filter((i) => quickMissing(rows[i]).length === 0)));
+            showDrafts(rows, existing);
             toast.success(`Generated ${rows.length} — review and queue the complete ones.`, { id: toastId });
         } catch (err) {
             toast.error(err?.message === '[OFFLINE]' ? 'AI needs a connection.' : (err.message || 'Generation failed.'), { id: toastId });
@@ -385,26 +436,19 @@ export default function ReferenceAdminV2() {
     const handleFromFile = async () => {
         if (!aiFiles.length) return toast.error('Choose a PDF or photos first.');
         setBusy(true);
-        setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set());
+        clearDrafts();
         const toastId = toast.loading('Reading the file…');
         try {
-            const [liveCards, pendingCards] = await Promise.all([
-                live.length ? Promise.resolve(live) : fetchReferenceCards(),
-                pending.length ? Promise.resolve(pending) : fetchPendingReferenceCards(),
-            ]);
-            const existing = [...liveCards, ...pendingCards].filter((c) => c.subject === aiSubject).map((c) => c.name);
+            const { cards, tags } = await libraryNow();
+            const existing = cards.filter((c) => c.subject === aiSubject).map((c) => c.name);
             const isPdf = aiFiles[0].type === 'application/pdf';
             const text = isPdf ? await readPdfText(aiFiles[0], { maxPages: PDF_PAGES, onProgress: (m) => toast.loading(m, { id: toastId }) }) : '';
             const rows = await generateReferenceCardsFromSource(
-                { subject: aiSubject, topic: aiTopic || null, topics: aiTopics, text, images: isPdf ? [] : aiFiles, existingNames: existing },
+                { subject: aiSubject, topic: aiTopic || null, topics: aiTopics, text, images: isPdf ? [] : aiFiles, existingNames: existing, existingTags: tags },
                 (n, of) => toast.loading(of > 1 ? `Finding formulas and constants, part ${n} of ${of}…` : 'Finding formulas and constants…', { id: toastId }),
             );
             if (!rows.length) throw new Error('No formulas or constants found in that file.');
-            const known = new Set(existing.map(nameKey));
-            const dupes = new Set(rows.map((r, i) => (known.has(nameKey(r.name)) ? i : -1)).filter((i) => i >= 0));
-            setAiRows(rows);
-            setAiDuplicates(dupes);
-            setAiSelected(new Set(rows.map((_, i) => i).filter((i) => !dupes.has(i) && quickMissing(rows[i]).length === 0)));
+            showDrafts(rows, existing);
             toast.success(`Found ${rows.length} — review and queue the complete ones.`, { id: toastId });
         } catch (err) {
             toast.error(err?.message === '[OFFLINE]' ? 'AI needs a connection.' : (err.message || "Couldn't make cards from that file."), { id: toastId });
@@ -413,15 +457,22 @@ export default function ReferenceAdminV2() {
     const handleQueueSelected = async () => {
         const chosen = aiRows.filter((_, i) => aiSelected.has(i));
         if (chosen.length === 0) return toast.error('Select at least one complete card.');
+        const key = crypto?.randomUUID?.() ?? String(Date.now());
         setBusy(true);
         const toastId = toast.loading(`Queueing ${chosen.length} for review…`);
         try {
-            const res = await intakeReferenceCards(chosen);
+            const res = await intakeReferenceCards(chosen, { idempotencyKey: key });
             const queued = res?.queued?.length || 0;
-            const rejected = res?.rejected?.length || 0;
-            toast.success(`${queued} queued for review${rejected ? ` · ${rejected} rejected as incomplete` : ''}.`, { id: toastId });
-            setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set());
-            if (panel === 'queue') refreshPanel();
+            const refused = res?.rejected || [];
+            // A refused row stays, with why, to fix here rather than generate again.
+            const fix = refused.length ? `${refused.length} need${refused.length === 1 ? 's' : ''} a fix, listed below` : '';
+            if (queued) toast.success(`${queued} queued for review${fix ? ` · ${fix}` : ''}.`, { id: toastId });
+            else toast.error(`Nothing queued · ${fix}.`, { id: toastId });
+            const kept = refused.map((r) => chosen[r.index]);
+            setAiRows(kept);
+            setAiRefusals(Object.fromEntries(refused.map((r, i) => [i, r.reasons])));
+            setAiDuplicates(new Set());
+            setAiSelected(new Set());
         } catch (err) { toast.error(err.message || 'Intake failed.', { id: toastId }); }
         finally { setBusy(false); }
     };
@@ -446,7 +497,30 @@ export default function ReferenceAdminV2() {
     };
 
     const aiTopics = dynamicTOS?.[aiSubject] || [];
-    const completeAiCount = useMemo(() => aiRows.filter((r) => quickMissing(r).length === 0).length, [aiRows]);
+    const completeAiCount = useMemo(() => aiRows.filter((r) => quickMissing(r, dynamicTOS).length === 0).length, [aiRows, dynamicTOS]);
+
+    // Coverage: per topic, what learners can open, thinnest first.
+    const coverage = useMemo(() => SUBJECTS.map((subject) => ({
+        subject,
+        rows: (dynamicTOS?.[subject] || []).map((topic) => {
+            const cards = live.filter((c) => c.subject === subject && c.topic?.name === topic);
+            const formulas = cards.filter((c) => c.kind === 'formula').length;
+            return { topic, total: cards.length, formulas, constants: cards.length - formulas, tags: tagsIn(cards, subject, topic) };
+        }).sort((a, b) => a.total - b.total),
+    })), [dynamicTOS, live]);
+
+    const submitRename = async () => {
+        if (!renaming?.to?.trim()) return toast.error('Type the new tag.');
+        setBusy(true);
+        try {
+            const { to, ...rest } = renaming;
+            const res = await renameReferenceTag({ ...rest, to: to.trim() });
+            toast.success(`${res?.updated ?? 0} card${res?.updated === 1 ? '' : 's'} updated.`);
+            setRenaming(null);
+            refreshPanel();
+        } catch (err) { toast.error(err.message || "Couldn't rename the tag."); }
+        finally { setBusy(false); }
+    };
 
     // Live Cards: real-time search across name/symbol/subtopicTag/description,
     // then one of six sorts. Search and sort are independent — a search term
@@ -546,13 +620,23 @@ export default function ReferenceAdminV2() {
                                 Accept all {pending.length}
                             </Button>
                         </div>
-                        {pending.map((card) => cardRow(card, (
-                            <>
-                                <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Edit</Button>
-                                <Button size="sm" variant="outline" tone="danger" onClick={() => handleReject(card)}>Reject</Button>
-                                <Button size="sm" tone="success" onClick={() => handleApprove(card)}>Approve</Button>
-                            </>
-                        )))}
+                        {/* The real card, front and back, as learners will get it. */}
+                        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] gap-5 items-start">
+                            {pending.map((card) => (
+                                <div key={card.id} className="flex flex-col gap-2 min-w-0">
+                                    <Flashcard card={card} />
+                                    {card.topic?.name && <p className="text-xs text-muted2">{card.subject} · {card.topic.name}</p>}
+                                    {card.uncovered?.length > 0 && (
+                                        <StatusPill tone="warning">Check the variables: {card.uncovered.join(', ')}</StatusPill>
+                                    )}
+                                    <div className="flex gap-2 flex-wrap">
+                                        <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Edit</Button>
+                                        <Button size="sm" variant="outline" tone="danger" onClick={() => handleReject(card)}>Reject</Button>
+                                        <Button size="sm" tone="success" onClick={() => handleApprove(card)}>Approve</Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )
             )}
@@ -560,7 +644,7 @@ export default function ReferenceAdminV2() {
             {/* 2 ── ADD CARD */}
             {!loadingPanel && panel === 'create' && (
                 <div className="max-w-2xl flex flex-col gap-4">
-                    <CardForm form={form} setForm={setForm} sources={sources} dynamicTOS={dynamicTOS} />
+                    <CardForm form={form} setForm={setForm} sources={sources} dynamicTOS={dynamicTOS} cards={live} />
                     <Button onClick={submitCreate} loading={busy} disabled={busy} className="self-start">Create card (goes live)</Button>
                 </div>
             )}
@@ -568,7 +652,7 @@ export default function ReferenceAdminV2() {
             {/* 3 ── AI GENERATE */}
             {!loadingPanel && panel === 'ai' && (
                 <div className="flex flex-col gap-4">
-                    <SegmentedControl label="Make cards" size="sm" value={aiSource} onChange={(v) => { setAiSource(v); setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set()); }} options={AI_SOURCES} className="self-start" />
+                    <SegmentedControl label="Make cards" size="sm" value={aiSource} onChange={(v) => { setAiSource(v); clearDrafts(); }} options={AI_SOURCES} className="self-start" />
                     {aiSource === 'topic' ? (
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
@@ -608,15 +692,16 @@ export default function ReferenceAdminV2() {
                     {aiRows.length > 0 && (
                         <div className="flex flex-col gap-3">
                             <div className="flex items-center justify-between gap-3 flex-wrap">
-                                <p className="text-xs text-muted2">{completeAiCount} of {aiRows.length} generated card{aiRows.length === 1 ? '' : 's'} are complete — incomplete ones can't be queued.</p>
+                                <p className="text-xs text-muted2">{completeAiCount} of {aiRows.length} card{aiRows.length === 1 ? '' : 's'} complete. Edit a row to fix it without generating again.</p>
                                 <Button size="sm" tone="success" onClick={handleQueueSelected} loading={busy} disabled={busy || aiSelected.size === 0}>
                                     Queue {aiSelected.size} for review
                                 </Button>
                             </div>
                             {aiRows.map((row, i) => {
-                                const missing = quickMissing(row);
-                                const selectable = missing.length === 0;
+                                const missing = quickMissing(row, dynamicTOS);
                                 const duplicate = aiDuplicates.has(i);
+                                const selectable = missing.length === 0 && !duplicate;
+                                const refusals = aiRefusals[i] || [];
                                 return (
                                     <label key={i} className={`flex items-start gap-3 bg-surface border rounded-[var(--radius-lg)] p-4 min-w-0 ${selectable ? 'border-border2 cursor-pointer' : 'border-[color-mix(in_srgb,var(--accent-danger)_35%,transparent)] opacity-70'}`}>
                                         <input type="checkbox" className="mt-1" disabled={!selectable} checked={aiSelected.has(i)}
@@ -625,7 +710,7 @@ export default function ReferenceAdminV2() {
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-bold text-sm text-textMain [overflow-wrap:anywhere]">{row.name || 'Unnamed'}</span>
                                                 {row.subtopicTag && <Badge tone="signal">{row.subtopicTag}</Badge>}
-                                                {!selectable && <StatusPill tone="danger">Missing: {missing.join(', ')}</StatusPill>}
+                                                {missing.length > 0 && <StatusPill tone="danger">Missing: {missing.join(', ')}</StatusPill>}
                                                 {duplicate && <StatusPill tone="warning">Already a card</StatusPill>}
                                                 {aiSource === 'file' && row.topic && <Badge tone="neutral">{row.topic}</Badge>}
                                             </div>
@@ -640,7 +725,14 @@ export default function ReferenceAdminV2() {
                                             <div className="text-xs text-muted2 mt-1 line-clamp-2 [overflow-wrap:anywhere] [&_p]:!m-0">
                                                 <LatexRenderer content={row.description} />
                                             </div>
+                                            {refusals.map((reason) => (
+                                                <p key={reason} className="text-xs mt-1" style={{ color: 'var(--accent-danger)' }}>{cardReasonWords(reason)}</p>
+                                            ))}
                                         </div>
+                                        <Button size="sm" variant="outline" aria-label={`Edit ${row.name || 'this card'}`}
+                                            onClick={(e) => { e.preventDefault(); setEditing({ name: row.name, draftIndex: i }); setEditForm(cardToForm({ ...row, subject: row.subject || aiSubject })); }}>
+                                            <Pencil size={14} strokeWidth={1.75} aria-hidden="true" /> Edit
+                                        </Button>
                                     </label>
                                 );
                             })}
@@ -711,6 +803,34 @@ export default function ReferenceAdminV2() {
                 )
             )}
 
+            {/* 4c ── COVERAGE */}
+            {!loadingPanel && panel === 'coverage' && (
+                <div className="flex flex-col gap-6">
+                    <p className="text-xs text-muted2 max-w-2xl">What learners can open under each topic, thinnest first. A tag names a family of at least two cards; a tag on one card shows no heading. Press a tag to rename it, or to merge it into another by giving it that tag's name.</p>
+                    {coverage.filter((g) => g.rows.length > 0).map((g) => (
+                        <section key={g.subject} aria-label={g.subject} className="flex flex-col gap-2">
+                            <h3 className="text-fluid-base font-bold text-textMain">{g.subject} · {g.rows.filter((r) => r.total > 0).length} of {g.rows.length} topics have cards</h3>
+                            {g.rows.map((r) => (
+                                <Card key={r.topic} variant="inset" data-testid="coverage-row" className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 min-w-0">
+                                    <span data-testid="coverage-topic" className="text-sm font-semibold text-textMain min-w-0 sm:w-64 shrink-0 [overflow-wrap:anywhere]">{r.topic}</span>
+                                    {r.total === 0
+                                        ? <StatusPill tone="warning" dot={false}>No cards</StatusPill>
+                                        : <span className="text-xs text-muted2 shrink-0">{r.formulas} formula{r.formulas === 1 ? '' : 's'} · {r.constants} constant{r.constants === 1 ? '' : 's'}</span>}
+                                    <div className="flex gap-1.5 flex-wrap min-w-0">
+                                        {r.tags.map((tag) => (
+                                            <Button key={tag} size="sm" variant="ghost" aria-label={`Rename tag ${tag}`}
+                                                onClick={() => setRenaming({ subject: g.subject, topic: r.topic, from: tag, to: tag })}>
+                                                {tag}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </Card>
+                            ))}
+                        </section>
+                    ))}
+                </div>
+            )}
+
             {/* 5 ── SOURCES */}
             {!loadingPanel && panel === 'sources' && (
                 <div className="flex flex-col gap-4 max-w-2xl">
@@ -768,7 +888,25 @@ export default function ReferenceAdminV2() {
                         <Button onClick={submitEdit} loading={busy} disabled={busy}>Save changes</Button>
                     </>
                 }>
-                {editing && <CardForm form={editForm} setForm={setEditForm} sources={sources} dynamicTOS={dynamicTOS} />}
+                {editing && <CardForm form={editForm} setForm={setEditForm} sources={sources} dynamicTOS={dynamicTOS} cards={live} />}
+            </Modal>
+
+            {/* Rename or merge a tag */}
+            <Modal open={!!renaming} onClose={() => !busy && setRenaming(null)} icon={Pencil} title={renaming ? `Rename tag: ${renaming.from}` : 'Rename tag'}
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setRenaming(null)} disabled={busy}>Cancel</Button>
+                        <Button onClick={submitRename} loading={busy} disabled={busy}>Rename</Button>
+                    </>
+                }>
+                {renaming && (
+                    <>
+                        <FormField label="New tag" hint={`Under ${renaming.topic}. Use another tag's name to merge the two.`}>
+                            <Input value={renaming.to} onChange={(e) => setRenaming((r) => ({ ...r, to: e.target.value }))} list="rename-tags" />
+                        </FormField>
+                        <datalist id="rename-tags">{tagsIn(live, renaming.subject, renaming.topic).map((t) => <option key={t} value={t} />)}</datalist>
+                    </>
+                )}
             </Modal>
 
             {/* Accept-All confirmation */}

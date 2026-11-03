@@ -130,6 +130,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         const errorData = await response.json().catch(() => ({}));
         const err = new Error(errorData.error || `Request failed (${response.status}).`);
         err.status = response.status;
+        err.body = errorData;
         // A machine-readable reason some routes add (e.g. the sitting review's
         // IN_PROGRESS / SYNCING), so callers needn't match on wording.
         if (typeof errorData.code === 'string') err.code = errorData.code;
@@ -655,7 +656,10 @@ export const approveReferenceCard = (id) => apiRequest(`/api/reference-cards/${i
 export const rejectReferenceCard = (id, reviewNote) => apiRequest(`/api/reference-cards/${id}/reject`, 'PUT', reviewNote ? { reviewNote } : {});
 export const deleteReferenceCard = (id) => apiRequest(`/api/reference-cards/${id}`, 'DELETE');
 // { queued: [ids], rejected: [{index, reasons}] } — incomplete AI output never queues.
-export const intakeReferenceCards = (cards) => apiRequest('/api/reference-cards/ai-intake', 'POST', { cards });
+// `options.idempotencyKey`: queueing the same rows again is a new attempt, not a
+// retry to answer from the last response.
+export const intakeReferenceCards = (cards, options) => apiRequest('/api/reference-cards/ai-intake', 'POST', { cards }, options);
+export const renameReferenceTag = (body) => apiRequest('/api/reference-cards/tags/rename', 'POST', body);
 // { approved, failed:[{id, reason}] } — same Accept-All contract as questions.
 export const bulkApproveReferenceCards = (ids) => apiRequest('/api/reference-cards/approve-bulk', 'POST', { ids });
 export const fetchReferenceSources = async () => {

@@ -13,8 +13,8 @@
 // who knows what they want shouldn't have to drill down to find it.
 //
 // Subject/Topic come from the shared taxonomy (dynamicTOS) — the same source
-// the Library syllabus manager and heatmap use — not a parallel one. The
-// Subtopic level groups on ReferenceCard.subtopicTag, a free-text label.
+// the Library syllabus manager and heatmap use — not a parallel one. Within a
+// topic, cards group on ReferenceCard.subtopicTag, a free-text label.
 //
 // Where you are (subject, topic, which view) is kept for the browser session,
 // so leaving the tab and coming back doesn't drop you at the top again.
@@ -23,7 +23,7 @@ import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
-import { Input, FormField, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
+import { Input, FormField, SegmentedControl, EmptyState, Button, Card, CardWatermark, Disclosure, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
 import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import Flashcard from './Flashcard';
@@ -74,9 +74,12 @@ const VIEW_OPTIONS = (browseLabel) => [
   { value: 'sheet', label: 'Quick sheet', icon: Layers },
 ];
 
-// A topic's cards, under its subtopic headings when it has any.
+// A topic's cards, under its tag headings when it has any, with a chip per tag
+// to narrow down to one.
 function TopicCards({ cards }) {
   const groups = groupCards(cards, { by: 'subtopic' });
+  const [only, setOnly] = useState(null);
+  const shown = groups.filter((g) => !only || g.label === only);
   const grid = (list) => (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
       {list.map((card) => <Flashcard key={card.id} card={card} />)}
@@ -85,7 +88,15 @@ function TopicCards({ cards }) {
   if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards);
   return (
     <div className="flex flex-col gap-5">
-      {groups.map((g) => (
+      <div role="group" aria-label="Show one tag" className="flex gap-2 flex-wrap">
+        <Button size="sm" variant={only ? 'ghost' : 'secondary'} aria-pressed={!only} onClick={() => setOnly(null)}>All {cards.length}</Button>
+        {groups.map((g) => (
+          <Button key={g.label} size="sm" variant={only === g.label ? 'secondary' : 'ghost'} aria-pressed={only === g.label} onClick={() => setOnly(g.label)}>
+            {g.label} {g.cards.length}
+          </Button>
+        ))}
+      </div>
+      {shown.map((g) => (
         <section key={g.label} aria-label={g.label} className="flex flex-col gap-3">
           <p className="text-eyebrow">{g.label} · {g.cards.length}</p>
           {grid(g.cards)}
@@ -467,17 +478,28 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
                 />
               </Suspense>
             ) : (
-              <Grid kind="cards">
-                {(safeTOS[selectedSubject] || []).map((t) => (
-                  <BrowseTile
-                    key={t}
-                    label={t}
-                    count={topicCounts[t] || 0}
-                    detail={showBreakdown ? kindBreakdown(kindsBy.topic[`${selectedSubject}::${t}`]) : ''}
-                    onClick={() => handleSelectTopic(t)}
-                  />
-                ))}
-              </Grid>
+              <>
+                <Grid kind="cards">
+                  {(safeTOS[selectedSubject] || []).filter((t) => topicCounts[t]).map((t) => (
+                    <BrowseTile
+                      key={t}
+                      label={t}
+                      count={topicCounts[t]}
+                      detail={showBreakdown ? kindBreakdown(kindsBy.topic[`${selectedSubject}::${t}`]) : ''}
+                      onClick={() => handleSelectTopic(t)}
+                    />
+                  ))}
+                </Grid>
+                {/* Topics with nothing to open don't crowd the ones that have cards. */}
+                {(() => {
+                  const empty = (safeTOS[selectedSubject] || []).filter((t) => !topicCounts[t]);
+                  return empty.length > 0 && (
+                    <Disclosure title={`No cards yet · ${empty.length} topic${empty.length === 1 ? '' : 's'}`}>
+                      <ul className="text-sm text-muted2 flex flex-col gap-1">{empty.map((t) => <li key={t}>{t}</li>)}</ul>
+                    </Disclosure>
+                  );
+                })()}
+              </>
             )}
           </>
         )

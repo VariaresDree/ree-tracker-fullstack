@@ -1,6 +1,7 @@
 // src/features/reference/Flashcard.jsx
-// One interactive formula card. FRONT: name and symbol, the typeset formula
-// (or a constant's value), and one quiet subject · topic line. BACK: what it
+// One interactive formula card. FRONT: the name, the typeset formula (or a
+// constant's value) as the largest thing on it, and one quiet line with its tag
+// (or topic, where there's no tag). BACK: what it
 // means, the variables, the value and units, the board tip, and the source.
 // Kept plain on purpose (2026-10-31): the front used to carry a kind badge and
 // three topic badges on every card, and the back led with units.
@@ -86,28 +87,28 @@ export default function Flashcard({ card, onFlip, initialFlipped = false }) {
         <div ref={frontRef} id={`${faceId}-front`} className={`flip-front ${faceClasses}`} aria-hidden={flipped}>
           <div className="flex items-start justify-between gap-2 min-w-0">
             <div className="min-w-0">
-              {card.symbol && (
-                <div className="text-fluid-lg font-bold text-[var(--accent-text)] [&_p]:!mb-0">
-                  <LatexRenderer content={withMathDelimiters(card.symbol)} />
-                </div>
-              )}
               <div className="text-fluid-base font-bold text-textMain line-clamp-2 [overflow-wrap:anywhere]" title={card.name}>
                 {card.name}
               </div>
+              {card.symbol && (
+                <div className="text-sm text-[var(--accent-text)] [&_p]:!mb-0">
+                  <LatexRenderer content={withMathDelimiters(card.symbol)} />
+                </div>
+              )}
             </div>
             {/* Most cards are formulas; only a constant says what it is. */}
             {card.kind === 'constant' && <Badge tone="signal" className="shrink-0">Constant</Badge>}
           </div>
 
           {(card.formulaLatex || card.valueUnit) && (
-            <div className="bg-bg border border-border rounded-[var(--radius-default)] px-3 py-4 math-scroll-mobile min-w-0">
+            <div className="bg-bg border border-border rounded-[var(--radius-default)] px-3 py-4 math-scroll-mobile min-w-0 text-center text-fluid-lg text-textMain [&_p]:!mb-0">
               <LatexRenderer content={withMathDelimiters(card.formulaLatex || card.valueUnit)} />
             </div>
           )}
 
           <div className="mt-auto flex items-center justify-between gap-2 min-w-0">
             <span className="text-xs text-muted2 truncate min-w-0" title={[card.subject, card.topic?.name, card.subtopicTag].filter(Boolean).join(' · ')}>
-              {[card.subject, card.topic?.name].filter(Boolean).join(' · ')}
+              {card.subtopicTag || card.topic?.name || card.subject}
             </span>
             <span className="text-eyebrow shrink-0">Tap to flip</span>
           </div>

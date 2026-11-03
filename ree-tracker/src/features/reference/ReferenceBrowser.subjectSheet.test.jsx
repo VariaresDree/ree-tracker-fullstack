@@ -45,14 +45,37 @@ describe('ReferenceBrowser — formulas and constants', () => {
     expect(kinds).toEqual(['All', 'Formulas', 'Constants']);
   });
 
-  it('opens a topic straight onto its cards, under subtopic headings', () => {
+  it('opens a topic straight onto its cards, with no heading over a single card', () => {
     render(<ReferenceBrowser />);
     fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
     fireEvent.click(screen.getByRole('button', { name: /^DC Circuits/ }));
-    expect(screen.getByText('Resistance · 1')).toBeInTheDocument();
-    expect(screen.getByText('Networks · 1')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Show one tag' })).not.toBeInTheDocument();
     expect(screen.getByText('card Ohm’s law')).toBeInTheDocument();
     expect(screen.getByText('card Kirchhoff')).toBeInTheDocument();
+  });
+
+  it('with a family of cards, shows its heading and a chip to narrow down to it', () => {
+    const extra = { id: 'x', name: 'Power law', kind: 'formula', subject: 'EE', topic: { name: 'DC Circuits' }, subtopicTag: 'Resistance', formulaLatex: 'P = I^2 R' };
+    CARDS.push(extra);
+    try {
+      render(<ReferenceBrowser />);
+      fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
+      fireEvent.click(screen.getByRole('button', { name: /^DC Circuits/ }));
+      expect(screen.getByText('Resistance · 2')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Resistance 2' }));
+      expect(screen.queryByText('card Kirchhoff')).not.toBeInTheDocument();
+      expect(screen.getByText('card Power law')).toBeInTheDocument();
+    } finally {
+      CARDS.pop();
+    }
+  });
+
+  it('folds topics with no cards away from the ones that have them', () => {
+    render(<ReferenceBrowser />);
+    fireEvent.click(screen.getByRole('button', { name: /^ESAS/ }));
+    const empty = screen.queryByRole('button', { name: /^No cards yet/ });
+    if (empty) expect(empty).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: /^Physics/ })).toBeInTheDocument();
   });
 
   it('shows a subject as a quick sheet: every formula and constant at a glance', async () => {
@@ -114,7 +137,7 @@ describe('groupCards and learnerCards', () => {
   it('groups a subject by topic in syllabus order, formulas before constants', () => {
     const groups = groupCards(CARDS.filter((c) => c.subject === 'EE'), { by: 'topic', topicOrder: ['AC Circuits', 'DC Circuits'] });
     expect(groups.map((g) => g.label)).toEqual(['AC Circuits', 'DC Circuits']);
-    expect(groups[1].subgroups.map((s) => s.label)).toEqual(['Networks', 'Resistance']);
+    expect(groups[1].subgroups.map((s) => s.label)).toEqual(['General']);
   });
 
   it('drops concept cards a device cached before they were retired', () => {
