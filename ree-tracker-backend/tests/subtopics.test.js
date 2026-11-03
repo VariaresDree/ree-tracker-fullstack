@@ -14,7 +14,7 @@ const { invalidateRole } = require('../src/middlewares/roleMiddleware');
 const userRoutes = require('../src/routes/userSubtopicRoutes');
 const adminRoutes = require('../src/routes/adminSubtopicRoutes');
 const configRoutes = require('../src/routes/configRoutes');
-const { mergeSubtopics, subtopicProgress, userSubtopicErrors, BOARD_GROUPS, UNITEMIZED, boardItemsFor } = require('@ree/shared');
+const { mergeSubtopics, subtopicProgress, userSubtopicErrors, BOARD_GROUPS, UNITEMIZED, boardItemsFor, boardItemSplit, boardWeightedPick, bankVsBoard } = require('@ree/shared');
 
 const ADMIN = 'uid-admin';
 const USER = 'uid-user';
@@ -106,6 +106,81 @@ describe('board items', () => {
         expect(boardItemsFor('Mathematics', 'Calculus 1')).toEqual({ items: 15, sharedWith: [] });
         expect(boardItemsFor('Mathematics', 'Vector Analysis')).toBeNull();
         expect(boardItemsFor('Nope', 'Nope')).toBeNull();
+    });
+});
+
+describe('drawing by the board’s counts', () => {
+    const topics = (name, n) => Array.from({ length: n }, (_, i) => ({ id: `${name}-${i}`, subtopic: name }));
+    const first = (list, n) => list.slice(0, n);
+    const count = (out, name) => out.filter((q) => q.subtopic === name).length;
+    const eePool = [
+        ...topics('Power System Analysis', 50), ...topics('Power System Protection', 50), ...topics('Electromagnetism', 50),
+        ...topics('Electric Circuits 1', 50), ...topics('Electric Circuits 2', 50), ...topics('Electrical Machinery 1', 50),
+        ...topics('Electrical Machinery 2', 50), ...topics('Instrumentation & Control', 50), ...topics('Electrical System & Illumination Design', 50),
+        ...topics('Power Plant Engineering', 50), ...topics('Electronics 1 and 2', 50), ...topics('Electrical Apparatus & Devices', 50),
+        ...topics('Quantities/units/constants (EE)', 50),
+    ];
+
+    it.each([[100], [45], [7], [1], [0]])('a split of %i sums exactly', (n) => {
+        for (const subject of Object.keys(BOARD_GROUPS)) expect(boardItemSplit(subject, n).reduce((a, b) => a + b, 0)).toBe(n);
+    });
+
+    it('a 100-item paper takes PRC’s counts, and an unitemized topic gets nothing', () => {
+        const out = boardWeightedPick(eePool, 'EE', 100, first);
+        expect(out).toHaveLength(100);
+        expect(count(out, 'Power System Analysis')).toBe(20);
+        expect(count(out, 'Electromagnetism')).toBe(10);
+        expect(count(out, 'Electrical Machinery 1')).toBe(5);
+        expect(count(out, 'Quantities/units/constants (EE)')).toBe(0);
+    });
+
+    it('a share of 45 items scales down and still sums', () => {
+        expect(boardWeightedPick(eePool, 'EE', 45, first)).toHaveLength(45);
+    });
+
+    it('fills a thin group from the rest, unitemized topics included, with no repeats', () => {
+        const pool = [...topics('Power System Analysis', 3), ...topics('Electromagnetism', 50), ...topics('Quantities/units/constants (EE)', 200)];
+        const out = boardWeightedPick(pool, 'EE', 100, first);
+        expect(out).toHaveLength(100);
+        expect(new Set(out.map((q) => q.id)).size).toBe(100);
+        expect(count(out, 'Power System Analysis')).toBe(3);
+    });
+
+    it('a pool too small returns all of it, and an unknown or renamed topic can’t break a draw', () => {
+        const pool = topics('Renamed Topic', 8);
+        expect(boardWeightedPick(pool, 'EE', 100, first)).toHaveLength(8);
+        expect(boardWeightedPick(pool, 'EE', 5, first)).toHaveLength(5);
+        expect(boardWeightedPick(pool, 'Nope', 5, first)).toHaveLength(5);
+        expect(boardWeightedPick([], 'EE', 5, first)).toEqual([]);
+    });
+
+    it('a zero count draws nothing, even with a sampler that reads 0 as everything', () => {
+        expect(boardWeightedPick(eePool, 'EE', 0, (list, n) => (n ? list.slice(0, n) : list))).toEqual([]);
+    });
+
+    it('the bank against the board adds up shared topics, thinnest first', () => {
+        const { groups, unitemized } = bankVsBoard({ 'Power System Analysis': 73, 'Power System Protection': 26, Electromagnetism: 1109, 'Quantities/units/constants (EE)': 34 }, 'EE');
+        const psa = groups.find((g) => g.topics.includes('Power System Analysis'));
+        expect(psa).toMatchObject({ items: 20, questions: 99 });
+        expect(psa.perItem).toBeCloseTo(4.95);
+        expect(groups[0].perItem).toBe(0);
+        expect(groups.at(-1).topics).toEqual(['Electromagnetism']);
+        expect(unitemized).toEqual([{ topic: 'Quantities/units/constants (EE)', questions: 34 }]);
+    });
+
+    it('GET /api/admin/bank-counts merges subject spellings, for admins only', async () => {
+        const group = vi.spyOn(prisma.question, 'groupBy').mockResolvedValue([
+            { subject: 'EE', subtopic: 'Electromagnetism', _count: { _all: 5 } },
+            { subject: 'Electrical Engineering', subtopic: 'Electromagnetism', _count: { _all: 2 } },
+        ]);
+        const admin = express();
+        admin.use(express.json());
+        admin.use('/api/admin', require('../src/routes/adminRoutes'));
+        expect((await request(admin).get('/api/admin/bank-counts').set(as(USER))).status).toBe(403);
+        expect(group).not.toHaveBeenCalled();
+        const res = await request(admin).get('/api/admin/bank-counts').set(as(ADMIN));
+        expect(res.status).toBe(200);
+        expect(res.body.items).toEqual([{ subject: 'EE', topic: 'Electromagnetism', count: 7 }]);
     });
 });
 

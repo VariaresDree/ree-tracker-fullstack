@@ -14,8 +14,9 @@ import { CalendarCheck, BrainCircuit, Zap, TrendingUp, Library, User, ShieldChec
 // so nothing passes under it at any scroll position; a stretched phone layout
 // spent about 114px of a tablet's height on a top and a bottom bar. Below the
 // wider width the sidebar stays an icon rail: its 288px would leave a small
-// landscape tablet less room for the page than a phone has.
-export const RAIL_QUERY = '(min-width: 600px)';
+// landscape tablet less room for the page than a phone has. A phone held sideways
+// is wide but has no height for a rail (about one item showed), so it stays a phone.
+export const RAIL_QUERY = '(min-width: 600px) and (min-height: 500px)';
 export const FULL_SIDEBAR_QUERY = '(min-width: 1024px)';
 
 export const PRIMARY_NAV = [
