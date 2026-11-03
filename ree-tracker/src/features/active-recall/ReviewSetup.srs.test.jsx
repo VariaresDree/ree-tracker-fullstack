@@ -1,6 +1,6 @@
 // The spaced-review entry point on the setup screen.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 const fetchSrsSummary = vi.fn();
@@ -8,6 +8,12 @@ vi.mock('../../services/dbQueries', () => ({ fetchSrsSummary: (...a) => fetchSrs
 
 const { default: ReviewSetup } = await import('./ReviewSetup');
 const { __resetSrsSummaryInFlight } = await import('../../hooks/useSrsSummary');
+
+// Stands in for the phone's Back button.
+function BackButton() {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(-1)}>device-back</button>;
+}
 
 const baseProps = () => ({
   config: { sessionMode: 'mcq', studyMode: 'interleaved', subject: 'All', subtopic: 'All', cognitiveFocus: 'mixed', count: 20, source: 'library' },
@@ -102,13 +108,17 @@ describe('ReviewSetup — presets', () => {
 });
 
 describe('ReviewSetup — Build your own', () => {
-  const builder = () => within(screen.getByRole('region', { name: 'Build your own' }));
+  const card = () => screen.getByRole('button', { name: 'Build your own' });
+  const builder = () => within(screen.getByRole('dialog', { name: 'Build your own' }));
   const show = (props = baseProps()) => {
-    render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
+    render(<MemoryRouter><ReviewSetup {...props} /><BackButton /></MemoryRouter>);
+    fireEvent.click(card());
     return props;
   };
+  // Starts it, says what started, and opens the sheet again for the next step.
   const started = (props) => {
     fireEvent.click(builder().getByRole('button', { name: 'Start session' }));
+    fireEvent.click(card());
     return props.startSession.mock.calls.at(-1)[0];
   };
 
@@ -116,16 +126,54 @@ describe('ReviewSetup — Build your own', () => {
     fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 0, bySubject: {}, nextDueAt: null });
   });
 
-  it('is open from the start, and asks no question about scope', () => {
+  it('is a hero card in its place on the page, and the setup waits in a sheet', () => {
+    render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
+    const heroCard = screen.getByRole('region', { name: 'Build your own' });
+    expect(heroCard.className).toMatch(/card-hero/);
+    expect(within(heroCard).getByText('20 choice · all subjects · mixed')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Subject' })).not.toBeInTheDocument();
+    expect(card()).toHaveAttribute('aria-haspopup', 'dialog');
+    fireEvent.click(card());
+    expect(builder().getByRole('radiogroup', { name: 'Subject' })).toBeInTheDocument();
+  });
+
+  it('asks no question about scope', () => {
     show();
-    expect(builder().getByRole('button', { name: 'Start session' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Custom session/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Build your own' }).querySelector('details')).toBeNull();
     expect(screen.queryByRole('radiogroup', { name: 'Study scope' })).not.toBeInTheDocument();
     ['All', 'Math', 'ESAS', 'EE', '10', '100', 'Mixed', 'Theory', 'Calculation', 'Choice', 'Cards', 'Bank', 'Saved', 'AI']
       .forEach((name) => expect(builder().getByRole('radio', { name })).toBeInTheDocument());
     // One way to drill: the Weak spots tile.
     expect(screen.queryByRole('radio', { name: /Weak points|Smart drill/ })).not.toBeInTheDocument();
+  });
+
+  it('Back closes the sheet, and the card shows what was set', () => {
+    show();
+    fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
+    fireEvent.click(screen.getByText('device-back'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Build your own' })).getByText('20 choice · EE · mixed')).toBeInTheDocument();
+  });
+
+  it('a link opens the sheet, and closing stays on the page', () => {
+    render(<MemoryRouter initialEntries={['/practice?build=1']}><ReviewSetup {...baseProps()} /></MemoryRouter>);
+    fireEvent.click(builder().getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(card()).toBeInTheDocument();
+  });
+
+  it('Start closes the sheet and starts the session', () => {
+    const props = show();
+    fireEvent.click(builder().getByRole('button', { name: 'Start session' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(props.startSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('while a session is starting, the card says so and doesn’t open', () => {
+    render(<MemoryRouter><ReviewSetup {...baseProps()} session={{ loading: true }} /></MemoryRouter>);
+    expect(card()).toBeDisabled();
+    expect(screen.getByText('Starting…')).toBeInTheDocument();
   });
 
   it('All subjects has no topic to pick, and starts across every subject', () => {
@@ -192,14 +240,16 @@ describe('ReviewSetup — Build your own', () => {
   describe('remembers the last setup on this device', () => {
     it('comes back as it was left, whatever a preset did in between', () => {
       const { unmount } = render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
+      fireEvent.click(card());
       fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
       fireEvent.change(builder().getByLabelText('Topic'), { target: { value: 'Machines' } });
       fireEvent.click(builder().getByRole('radio', { name: '100' }));
       unmount();
       const props = baseProps();
       props.config = { ...props.config, studyMode: 'bleeding', source: 'smart-drill' }; // a preset's leftovers
-      show(props);
-      expect(builder().getByText('100 choice · Machines · mixed')).toBeInTheDocument();
+      render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
+      expect(screen.getByText('100 choice · Machines · mixed')).toBeInTheDocument();
+      fireEvent.click(card());
       expect(builder().getByLabelText('Topic')).toHaveValue('Machines');
     });
 
@@ -213,7 +263,7 @@ describe('ReviewSetup — Build your own', () => {
     it('a broken saved copy is ignored', () => {
       localStorage.setItem('ree:practice-builder', '{not json');
       show();
-      expect(builder().getByText('20 choice · all subjects · mixed')).toBeInTheDocument();
+      expect(builder().getByRole('radio', { name: 'All' })).toBeChecked();
     });
   });
 });
