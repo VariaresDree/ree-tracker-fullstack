@@ -1,27 +1,45 @@
 // The learner's own rating of a syllabus topic — the CELE tracker's "Meta
 // topics" sheet, which asked how confident you were (0-99%) and how
-// intimidating the topic felt, with emoji. Here in plain words, and set
-// against what the learner's answers say (the topic's decayed mastery).
+// intimidating the topic felt, with emoji. Here two separate scales, because
+// they aren't opposites, set against what the learner's answers say (the topic's
+// decayed mastery). The values are what's stored; the words are free to change.
 
-export const CONFIDENCE_OPTIONS = [
-  { value: '', label: 'Not rated' },
-  { value: '0', label: '0% sure' },
-  { value: '25', label: '25% sure' },
-  { value: '50', label: '50% sure' },
-  { value: '75', label: '75% sure' },
-  { value: '100', label: '100% sure' },
-];
+// Slate to a confident green.
+const sure = (percent) => `color-mix(in srgb, var(--scale-sure) ${percent}%, var(--scale-calm))`;
+export const CONFIDENCE_SCALE = {
+  label: 'How sure are you?',
+  anchors: ['Just guessing', 'Fairly confident', 'Absolute certainty'],
+  fillGradient: `linear-gradient(to right, ${sure(0)}, ${sure(100)})`,
+  stops: [
+    { value: 0, label: 'Just guessing', tone: 'neutral', fill: sure(0) },
+    { value: 25, label: 'Unsure', tone: 'neutral', fill: sure(25) },
+    { value: 50, label: 'Fairly confident', tone: 'signal', fill: sure(50) },
+    { value: 75, label: 'Confident', tone: 'success', fill: sure(75) },
+    { value: 100, label: 'Absolute certainty', tone: 'success', fill: sure(100) },
+  ],
+};
 
-export const DREAD_OPTIONS = [
-  { value: '', label: 'Not rated' },
-  { value: '0', label: 'Bring it on' },
-  { value: '1', label: 'Slightly' },
-  { value: '2', label: 'Somewhat' },
-  { value: '3', label: 'Very' },
-  { value: '4', label: 'I’d skip it' },
-];
+// Pale yellow, through orange, to a muted crimson.
+const fillPale = 'var(--scale-pale)';
+const fillOrange = 'var(--scale-orange)';
+const fillCrimson = 'var(--scale-crimson)';
+const between = (percent) => `color-mix(in srgb, ${fillCrimson} ${percent}%, ${fillOrange})`;
+export const DREAD_SCALE = {
+  // Kept as "dread": candid, and the word the rest of the app uses. The calm words
+  // and colours at the low end carry the softening.
+  label: 'How much do you dread it?',
+  anchors: ['No worries', 'Anxious', 'Pure dread'],
+  fillGradient: `linear-gradient(to right, ${fillPale}, ${fillOrange}, ${fillCrimson})`,
+  stops: [
+    { value: 0, label: 'No worries', tone: 'success', fill: fillPale },
+    { value: 1, label: 'A little uneasy', tone: 'signal', fill: `color-mix(in srgb, ${fillOrange} 60%, ${fillPale})` },
+    { value: 2, label: 'Anxious', tone: 'amber', fill: fillOrange },
+    { value: 3, label: 'Very anxious', tone: 'amber', fill: between(50) },
+    { value: 4, label: 'Pure dread', tone: 'danger', fill: fillCrimson },
+  ],
+};
 
-export const dreadLabel = (n) => DREAD_OPTIONS.find((o) => o.value === String(n))?.label || null;
+export const dreadLabel = (n) => DREAD_SCALE.stops.find((s) => s.value === n)?.label || null;
 
 /** Enough answers for the mastery to mean something. */
 export const MIN_ANSWERS = 10;

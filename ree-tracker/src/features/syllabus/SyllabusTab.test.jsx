@@ -290,24 +290,37 @@ describe('your own rating of a topic, and high-yield (CELE round)', () => {
   const serve = (topics) => apiRequest.mockImplementation(async (endpoint, method = 'GET', body) => (method === 'GET' ? { weights: WEIGHTS, topics } : { item: body }));
   const item = (name) => screen.getByRole('heading', { level: 3, name }).closest('li');
 
-  it('a tap on a scale saves the topic’s full state with the rating; tapping it again clears it', async () => {
+  const howSure = (sheet) => sheet.getByRole('slider', { name: 'How sure are you?' });
+  const dread = (sheet) => sheet.getByRole('slider', { name: 'How much do you dread it?' });
+
+  it('two separate sliders: a move saves the topic’s full state on release, and Clear sends null', async () => {
     serve(rated);
     renderTab();
     const sheet = within(await openTopic('Calculus'));
-    expect(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '75%' })).toBeChecked();
-    fireEvent.click(within(sheet.getByRole('radiogroup', { name: 'Dread' })).getByRole('radio', { name: 'Very' }));
+    expect(howSure(sheet)).toHaveAttribute('aria-valuetext', 'Confident');
+    expect(dread(sheet)).toHaveAttribute('aria-valuetext', 'Not rated');
+    fireEvent.change(dread(sheet), { target: { value: '3' } });
+    fireEvent.pointerUp(dread(sheet));
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ read: false, confidence: 75, dread: 3 })));
-    fireEvent.click(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '75%' }));
-    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ confidence: null })));
-    expect(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '75%' })).not.toBeChecked();
+    expect(dread(sheet)).toHaveAttribute('aria-valuetext', 'Very anxious');
+    fireEvent.click(sheet.getByRole('button', { name: 'Clear: How sure are you?' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith(`${KEY}/m1`, 'PUT', expect.objectContaining({ confidence: null, dread: 3 })));
+    expect(howSure(sheet)).toHaveAttribute('aria-valuetext', 'Not rated');
   });
 
-  it('a scale keeps a rating of zero, and tells it from no rating', async () => {
+  it('keeps a rating of zero, and tells it from no rating', async () => {
     serve([row('m1', 'Mathematics', 'Calculus', { confidence: 0, dread: 0 })]);
     renderTab();
     const sheet = within(await openTopic('Calculus'));
-    expect(within(sheet.getByRole('radiogroup', { name: 'How sure' })).getByRole('radio', { name: '0%' })).toBeChecked();
-    expect(within(sheet.getByRole('radiogroup', { name: 'Dread' })).getByRole('radio', { name: 'None' })).toBeChecked();
+    expect(howSure(sheet)).toHaveAttribute('aria-valuetext', 'Just guessing');
+    expect(dread(sheet)).toHaveAttribute('aria-valuetext', 'No worries');
+  });
+
+  it('every stop saves a value the server accepts', async () => {
+    const { SELF_CONFIDENCE_LEVELS, DREAD_LEVELS } = await import('@ree/shared');
+    const { CONFIDENCE_SCALE, DREAD_SCALE } = await import('./selfRating');
+    expect(CONFIDENCE_SCALE.stops.map((s) => s.value)).toEqual([...SELF_CONFIDENCE_LEVELS]);
+    expect(DREAD_SCALE.stops.map((s) => s.value)).toEqual([...DREAD_LEVELS]);
   });
 
   it('a row from before the rating existed sends no rating keys', async () => {

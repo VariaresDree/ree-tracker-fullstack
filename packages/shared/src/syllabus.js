@@ -92,7 +92,7 @@ function syllabusCoverage(rows, weights = DEFAULT_SYLLABUS_WEIGHTS) {
 /**
  * The learner's own rating of a topic (CELE round, 2026-10; the CELE
  * tracker's "Meta topics" sheet): how sure they are (0-100%, five steps) and
- * how much they dread it (0 "bring it on" … 4 "I'd skip it"). Both optional.
+ * how much they dread it (0 "no worries" … 4 "pure dread"). Both optional.
  */
 const SELF_CONFIDENCE_LEVELS = [0, 25, 50, 75, 100];
 const DREAD_LEVELS = [0, 1, 2, 3, 4];

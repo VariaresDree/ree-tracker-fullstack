@@ -57,7 +57,7 @@ describe('SelfVsData', () => {
     expect(within(above).getByText('You: 75% sure · answers: 40%')).toBeInTheDocument();
     fireEvent.click(within(above).getByRole('button', { name: 'Drill Transformers' }));
     expect(navigateFn).toHaveBeenCalledWith('/practice', expect.objectContaining({ state: { preset: expect.objectContaining({ drillTopicId: 'transformers' }) } }));
-    expect(within(screen.getByRole('region', { name: 'Dreaded, and the answers agree' })).getByText('Dread: I’d skip it · answers: 30%')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Dreaded, and the answers agree' })).getByText('Dread: Pure dread · answers: 30%')).toBeInTheDocument();
     const better = screen.getByRole('region', { name: 'You know these better than you think' });
     expect(within(better).queryByRole('button')).not.toBeInTheDocument();
   });
