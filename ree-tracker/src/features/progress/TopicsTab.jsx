@@ -12,8 +12,8 @@ export default function TopicsTab({ stats }) {
   return (
     <div className="flex flex-col gap-6">
       {/* No box of its own to scroll in: the topic list grows with the page
-          (compact rows, the first 12, then "Show all"). A fixed-height box
-          left a phone room for four or five topics. */}
+          (compact rows, then chips for topics with no answers). A fixed-height
+          box left a phone room for four or five topics. */}
       <HeatmapChart stats={stats} onDrillTopic={(topic, subject) => launchPractice(navigate, drillPreset({ topic, subject }))} />
       <SubjectAccuracy />
     </div>

@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { toDisplaySubject, masteryBand, boardPaceSeconds } from '@ree/shared';
 import { useStore } from '../store/useStore';
-import { Button, EmptyState, Panel, SegmentedControl } from './ui';
-import { ChevronDown, Flame, LayoutGrid, Timer, Target } from './ui/icons';
+import { EmptyState, Panel, SegmentedControl } from './ui';
+import { Flame, LayoutGrid, Timer, Target } from './ui/icons';
 
 const normKey = (s) => String(s || '').trim().toLowerCase();
 
@@ -20,21 +20,16 @@ const MASTERY_STYLE = {
   novice: { bg: 'bg-reeRed/10 border-reeRed/40', text: 'text-reeRed-text' },
 };
 
-// Rows shown before "Show all": a phone screen's worth and then some.
-const FIRST_ROWS = 12;
-
 // `onDrillTopic(topic, subject)` makes each row a button that starts a
 // targeted drill on that topic.
 //
-// One compact row per topic (name and status on the left, the figure on the
-// right), in a list that grows with the page, the first 12 and then "Show all".
-// They were 72px tiles in a box that scrolled on its own inside the page: on a
-// phone the panel's header and pickers left it room for four or five topics.
-// Topics with no answers fold behind one button, not a screen of "No data yet".
+// One compact row per answered topic (name and status on the left, the figure
+// on the right), in a list that grows with the page. They were 72px tiles in a
+// box that scrolled on its own inside the page: on a phone the panel's header
+// and pickers left it room for four or five topics. Topics with no answers are
+// small chips under them, all showing, not a screen of "No data yet".
 function HeatmapChart({ stats, onDrillTopic }) {
   const [activeTab, setActiveTab] = useState('Mathematics');
-  // Which subject has its whole list open; another subject opens folded.
-  const [openFor, setOpenFor] = useState(null);
   // BKT P(mastery) is the headline signal (roadmap 3.5) — default view.
   const [viewMode, setViewMode] = useState('mastery');
 
@@ -72,13 +67,8 @@ function HeatmapChart({ stats, onDrillTopic }) {
   // 216 s). It read 144 s for Mathematics, ESAS's pace, so a Math topic at a
   // comfortable 2:50 per item was flagged as a speed risk.
   const targetLimit = boardPaceSeconds(activeTab) ?? 144;
-  // The list is sorted most answered first, so these are the first rows.
-  const answeredCount = displayedTopics.filter((t) => t.data.attempts > 0).length;
-  const isOpen = openFor === activeTab;
-  const shownTopics = isOpen ? displayedTopics : displayedTopics.slice(0, Math.min(answeredCount, FIRST_ROWS));
-  const foldedCount = displayedTopics.length - shownTopics.length;
-  // Every folded row has no answers, or some do and it's just a long list.
-  const onlyUnanswered = answeredCount <= FIRST_ROWS;
+  const answeredTopics = displayedTopics.filter((t) => t.data.attempts > 0);
+  const unanswered = displayedTopics.filter((t) => t.data.attempts === 0);
   const title =
     viewMode === 'accuracy' ? 'Accuracy by subtopic'
     : viewMode === 'speed' ? `Speed vs ${targetLimit}s limit`
@@ -124,9 +114,9 @@ function HeatmapChart({ stats, onDrillTopic }) {
         className="shrink-0"
       />
 
-      {shownTopics.length > 0 && (
+      {answeredTopics.length > 0 && (
       <ul className="flex flex-col gap-1.5" aria-label={`${toDisplaySubject(activeTab)} topics`}>
-        {shownTopics.map((item) => {
+        {answeredTopics.map((item) => {
           const hasData = item.data.attempts > 0;
           const pct = hasData ? Math.round((item.data.correct / item.data.attempts) * 100) : 0;
           // Average over ONLY the attempts that had plausible timing (corrupt
@@ -217,21 +207,28 @@ function HeatmapChart({ stats, onDrillTopic }) {
         })}
       </ul>
       )}
-      {(isOpen ? displayedTopics.length > Math.min(answeredCount, FIRST_ROWS) : foldedCount > 0) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          fullWidth
-          aria-expanded={isOpen}
-          onClick={() => setOpenFor(isOpen ? null : activeTab)}
-        >
-          {isOpen
-            ? 'Show fewer'
-            : onlyUnanswered
-              ? `${foldedCount} ${foldedCount === 1 ? 'topic' : 'topics'} with no answers yet`
-              : `Show all ${displayedTopics.length} topics`}
-          <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className={`transition-[rotate] duration-200 motion-reduce:transition-none ${isOpen ? 'rotate-180' : ''}`} />
-        </Button>
+      {unanswered.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted2">No answers yet</p>
+          <ul className="flex flex-wrap gap-2" aria-label={`${toDisplaySubject(activeTab)} topics with no answers`}>
+            {unanswered.map(({ name }) => (
+              <li key={name} className="max-w-full">
+                {onDrillTopic ? (
+                  <button
+                    type="button"
+                    onClick={() => onDrillTopic(name, activeTab)}
+                    aria-label={`Drill ${name}: no answers yet`}
+                    className={`${CHIP} cursor-pointer hover:bg-surface3 hover:text-textMain transition-colors`}
+                  >
+                    {name}
+                  </button>
+                ) : (
+                  <span className={CHIP}>{name}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {displayedTopics.length === 0 && (
         <EmptyState compact icon={LayoutGrid} title="No topics for this subject yet" description="They appear once the syllabus for it loads." />
@@ -241,5 +238,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
 }
 
 const NO_TOPICS = {};
+// A topic with no answers. 44px on touch, like the rows above it.
+const CHIP = 'inline-flex items-center min-h-8 pointer-coarse:min-h-11 px-3 py-1 rounded-full border border-border bg-surface2 text-xs text-muted2 text-left [overflow-wrap:anywhere]';
 
 export default React.memo(HeatmapChart);
