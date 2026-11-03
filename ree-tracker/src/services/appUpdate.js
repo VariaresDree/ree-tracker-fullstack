@@ -108,10 +108,19 @@ export async function healStuckWorker(remoteVersion) {
         const regs = (await navigator.serviceWorker?.getRegistrations?.()) || [];
         await Promise.all(regs.map((r) => r.unregister()));
         const names = (await globalThis.caches?.keys?.()) || [];
-        await Promise.all(names.filter((n) => n.startsWith('workbox-precache')).map((n) => caches.delete(n)));
+        await Promise.all(names.filter((n) => n.includes('-precache-')).map((n) => caches.delete(n)));
     } catch { /* reload anyway: the network has the new version */ }
     deps.reload();
     return true;
+}
+
+/**
+ * The shell's cache under its old name (vite.config.js `cacheId`). Running this
+ * code means the worker using it is gone, or about to be replaced by a claim.
+ */
+export function dropRetiredShell() {
+    const retired = globalThis.caches?.delete?.(`workbox-precache-v2-${globalThis.location?.origin}/`);
+    retired?.catch?.(() => {});
 }
 
 /** Start the update watch. Called once from main.jsx with the registration. */
@@ -121,6 +130,7 @@ export function startUpdateWatch({ registration, notify, ...overrides } = {}) {
     deps = { ...deps, ...overrides };
     if (state.started || typeof window === 'undefined') return;
     state.started = true;
+    dropRetiredShell();
     const tick = () => {
         clearTimeout(state.timer);
         state.timer = setTimeout(() => {

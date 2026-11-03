@@ -101,3 +101,23 @@ describe('checkForUpdate', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 });
+
+describe('the shell cache’s names', () => {
+  it('healing clears the shell under its current name and its old one, and leaves saved API data', async () => {
+    const del = vi.fn(() => Promise.resolve(true));
+    vi.stubGlobal('caches', { keys: () => Promise.resolve(['ree-2-precache-v2-x', 'workbox-precache-v2-x', 'api-user-data']), delete: del });
+    const { healStuckWorker } = await import('./appUpdate');
+    await healStuckWorker('names-test');
+    expect(del.mock.calls.map((c) => c[0]).sort()).toEqual(['ree-2-precache-v2-x', 'workbox-precache-v2-x']);
+    vi.unstubAllGlobals();
+  });
+
+  it('drops the retired shell by its old name', async () => {
+    const del = vi.fn(() => Promise.resolve(true));
+    vi.stubGlobal('caches', { delete: del });
+    const { dropRetiredShell } = await import('./appUpdate');
+    dropRetiredShell();
+    expect(del).toHaveBeenCalledWith(`workbox-precache-v2-${location.origin}/`);
+    vi.unstubAllGlobals();
+  });
+});
