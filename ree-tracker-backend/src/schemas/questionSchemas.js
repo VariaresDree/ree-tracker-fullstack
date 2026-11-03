@@ -74,4 +74,19 @@ const questionImportSchema = z.object({
     items: z.array(z.record(z.string(), z.any())).min(1).max(25),
 });
 
-module.exports = { questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
+// A corrected copy of a live question (services/questionReplace). Subject, topic
+// and type aren't here: a fix never moves a question.
+const questionReplaceSchema = z.object({
+    items: z.array(z.object({
+        id: z.string().min(1).max(100),
+        hash: z.string().min(1).max(64),
+        text: z.string().min(1).max(20000),
+        options: z.array(z.string().min(1)).min(2).max(6),
+        answer: z.string().min(1),
+        fixedExplanation: z.string().max(20000).nullable().optional(),
+        confirmKeyChange: z.boolean().optional(),
+    }).transform(sanitizeQuestionShape)).min(1).max(25),
+});
+const replacePreviewSchema = z.object({ ids: z.array(z.string().min(1).max(100)).min(1).max(200) });
+
+module.exports = { questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };

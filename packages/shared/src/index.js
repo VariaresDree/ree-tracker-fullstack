@@ -48,4 +48,5 @@ module.exports = {
     ...require('./reviewPhase'),
     ...require('./modelJson'),
     ...require('./explanation'),
+    ...require('./questionReplace'),
 };

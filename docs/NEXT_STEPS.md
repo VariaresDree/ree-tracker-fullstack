@@ -8,7 +8,34 @@ section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
-## 0. Handover, 2026-10-31 (read this first)
+## 0a. Handover, 2026-11-03 (read this first)
+
+The question-quality round, seven PRs from the owner's list:
+
+| PR | What |
+|---|---|
+| #193 | PDFs extract again; high-yield admin section removed |
+| #194 | LaTeX survives AI answers; explanations read in layers. 375 live questions repaired by `scripts/repairSwallowedLatex.sql` |
+| #195 | Formula cards: no false rejections, Coverage panel, tags. 28 live cards re-tagged |
+| #196 | Handouts: closing keeps your place, zoom works, clearer list |
+| #197, #198 | Import from another AI (questions and cards), tolerant of what real replies do |
+| PR 6 | Fix questions with another AI: export, compare, apply, regrade |
+
+**Decisions:**
+- **No Drive API PDF viewer.** The owner tried dragging across the Drive frame on a phone and it works.
+- **Claude's free app gave the cleanest replies** in real tests. Gemini corrects itself mid-solution; those are flagged and the owner discards them.
+
+**After PR 6 merges:**
+1. Run one small round: export 5, fix them, apply. Include a test key change on a question with no learners' answers.
+2. After a real cleanup round with key changes: `npm run recompute:theta -- --dry-run`, compare, then decide. It needs a `DATABASE_URL`, which isn't kept locally, so plan how to run it.
+3. Render's free tier appears to have no shell. One-off data fixes have gone through the Supabase connection after the owner's explicit approval, with a trial that aborts first.
+
+**Limits:**
+- 16,333 questions at 25 per round is a long campaign. Only 1,305 have ever been answered, so that's the first target.
+- The AI can be wrong. A person decides every key change.
+- The boot download is at 99.5% of its 700 kB budget. New shared code should stay out of `@ree/shared`'s eager index.
+
+## 0. Handover, 2026-10-31
 
 Main is at `74647df` (#190), live on Vercel and Render. Fifteen PRs merged since 2026-10-28, in two rounds.
 

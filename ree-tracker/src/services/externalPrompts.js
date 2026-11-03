@@ -87,6 +87,35 @@ export function buildQuestionImportPrompt({ subject, topic, topics = [], focus =
   ].filter((line) => line !== null).join('\n');
 }
 
+/** The prompt to check and correct live questions, with the blocks to work on. */
+export function buildFixPrompt(blocks) {
+  return [
+    'You are checking questions for the Philippine Registered Electrical Engineer (REE) board exam, used by real reviewees. Accuracy matters more than anything else: a wrong answer key teaches a reviewee the wrong thing.',
+    '',
+    'For each item below:',
+    '1. Solve it yourself first, fully and independently, before reading its key.',
+    '2. Correct the key only if your solution shows it is wrong. If no option is right, or the item can\'t be solved as written, set the verdict to unsure and explain in NOTES.',
+    '3. Correct errors in the stem and options, and fix their math formatting. Keep the same number of options, in the same order: change an option\'s wording, never its position.',
+    '4. Rewrite the explanation in the layout below.',
+    '5. Set "verdict:" to exactly one word:',
+    '   - ok: nothing needed changing.',
+    '   - formatted: only the formatting or the explanation changed.',
+    '   - corrected: the key, a value or the meaning changed. Say what and why in NOTES.',
+    '   - unsure: you aren\'t confident. Say why in NOTES.',
+    'Copy "id:" and "hash:" exactly as given. Never change them, or "subject:" and "topic:".',
+    '',
+    EXPLANATION_RULES,
+    '',
+    MATH_RULES,
+    '',
+    DELIVERY,
+    '',
+    'Reply with every item in the same format:',
+    '',
+    blocks.join('\n\n'),
+  ].join('\n');
+}
+
 const CARD_FORMAT = `Write each card exactly like this, with these markers on their own lines. Leave out a section that doesn't apply:
 
 ===CARD===

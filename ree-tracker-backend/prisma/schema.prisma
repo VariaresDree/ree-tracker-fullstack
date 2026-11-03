@@ -181,6 +181,10 @@ model Question {
   // Phase 3: Explanation review pipeline
   explanationStatus String? @default("PENDING")
 
+  // Set when an admin has reviewed an outside AI's check of this question
+  // (Admin › Fix questions with another AI); the progress across the bank.
+  qualityCheckedAt DateTime?
+
   // Phase 4: IRT 3PL parameters. Nullable so legacy items can be drawn
   // at random until they accumulate enough attempts for calibration.
   // Since Phase 3.4 these hold the SERVED values: the author-blended result

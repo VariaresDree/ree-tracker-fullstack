@@ -19,10 +19,14 @@ export const AI_EXPLANATIONS_CACHE = 'aiExplanations';
 // Newest kept first; an explanation is a few kB, so this stays well under 1 MB.
 export const MAX_SAVED_EXPLANATIONS = 200;
 
-/** The key an explanation is saved under: the question id, or its text. */
+/**
+ * The key an explanation is saved under: the question id with its answer (a
+ * corrected key shouldn't bring back an explanation reasoning toward the old
+ * one), or its text.
+ */
 export function explanationKey(question) {
   if (!question) return null;
-  if (question.id) return String(question.id);
+  if (question.id) return question.answer ? `${question.id}|${fnv1a(String(question.answer))}` : String(question.id);
   const text = question.text || question.question || question.content || '';
   return text ? `t:${fnv1a(text)}` : null;
 }

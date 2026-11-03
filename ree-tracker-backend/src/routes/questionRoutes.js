@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
 const idempotency = require('../middlewares/idempotency');
-const { questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
@@ -18,6 +18,7 @@ const questionBankCache = require('../services/questionBankCache');
 const optionAudit = require('../services/optionAudit');
 const { matchOption } = require('../utils/sanitizeOptions');
 const { importQuestions } = require('../services/questionImport');
+const { questionsForChecking, replacePreview, replaceQuestions } = require('../services/questionReplace');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
 // flag, explanation change — can move the vault counts or the pack-manifest
@@ -247,6 +248,39 @@ router.post('/import', authMiddleware, requireAdmin, validate(questionImportSche
     } catch (error) {
         logger.error('Question import error', { error: error.message });
         return res.status(500).json({ error: 'Failed to import the questions.' });
+    }
+});
+
+// Fixing live questions with another AI (Admin › Question bank). A page to
+// export, the live rows behind a pasted reply, and the reviewed replacements.
+router.get('/for-checking', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { subject, subtopic, q, unchecked, limit, offset } = req.query;
+        const search = typeof q === 'string' ? q.trim().slice(0, 200) : '';
+        return res.status(200).json(await questionsForChecking({
+            subject, subtopic, search, unchecked: unchecked === '1', limit: parseInt(limit, 10) || 25, offset: Math.max(0, parseInt(offset, 10) || 0),
+        }));
+    } catch (error) {
+        logger.error('Questions for checking error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the questions.' });
+    }
+});
+
+router.post('/replace-preview', authMiddleware, requireAdmin, validate(replacePreviewSchema), async (req, res) => {
+    try {
+        return res.status(200).json({ items: await replacePreview(req.body.ids) });
+    } catch (error) {
+        logger.error('Replace preview error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to read the questions.' });
+    }
+});
+
+router.post('/replace-bulk', authMiddleware, requireAdmin, validate(questionReplaceSchema), idempotency(), async (req, res) => {
+    try {
+        return res.status(200).json({ success: true, ...await replaceQuestions(req.body.items, req.user.id) });
+    } catch (error) {
+        logger.error('Question replace error', { error: error.message });
+        return res.status(500).json({ error: 'Nothing was changed. Try again.' });
     }
 });
 

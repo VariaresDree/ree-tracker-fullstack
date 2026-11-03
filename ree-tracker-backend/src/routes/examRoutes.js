@@ -9,6 +9,7 @@ const { invalidate: invalidateDashboard } = require('../services/dashboardCache'
 const examHistory = require('../services/examHistory');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { recordAttempts } = require('../services/telemetryService');
+const { translateStaleAnswers } = require('../services/questionReplace');
 const { gradeAttempts, buildDiagnostics } = require('../services/examService');
 const { lockedQuestionIds, openBattleQuestionIds } = require('../services/answerGate');
 const { updateTheta, itemParams, fisherInfo, PRIOR_SE } = require('../engine/irt');
@@ -63,18 +64,19 @@ router.get('/', authMiddleware, async (req, res) => {
 // same key — got a 409 'duplicate in progress' instead of being graded.
 router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), async (req, res) => {
     try {
-        const { answers } = req.body;
-        if (!Array.isArray(answers) || answers.length === 0) {
+        if (!Array.isArray(req.body.answers) || req.body.answers.length === 0) {
             return res.status(400).json({ error: 'answers array is required.' });
         }
+        let { answers } = req.body;
 
         const questionIds = answers.map(a => a.questionId).filter(Boolean);
         const masterQuestions = await prisma.question.findMany({
             where: { id: { in: questionIds } },
-            select: { id: true, answer: true, fixedExplanation: true, difficulty: true }
+            select: { id: true, answer: true, options: true, fixedExplanation: true, difficulty: true }
         });
         const qMap = {};
         masterQuestions.forEach(q => { qMap[q.id] = q; });
+        answers = await translateStaleAnswers(answers, qMap);
         // A question in a battle this learner is still in is not graded here:
         // the result would hand them (or whoever they pass the id to) the key
         // while the battle is open. It is not recorded either, so the mistakes
@@ -183,11 +185,12 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
         // examService now. They used to be ~60 lines inline here, which is why
         // they were uncovered — and why this handler's verdict band drifted from
         // the client's (>= 50 here vs >= 60 there) for long enough to ship.
+        const answered = await translateStaleAnswers(attempts, qMap);
         const { correctCount, parsedAttempts, subjectPerformance } =
-            gradeAttempts(attempts, qMap, req.user.id);
+            gradeAttempts(answered, qMap, req.user.id);
 
         const diagnostics = buildDiagnostics({
-            attempts,
+            attempts: answered,
             parsedAttempts,
             correctCount,
             subjectPerformance,

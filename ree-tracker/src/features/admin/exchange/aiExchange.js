@@ -81,7 +81,10 @@ function readKey(text, options) {
 
 function toQuestion(block) {
   const options = readOptions(sectionText(block, 'OPTIONS'));
+  // Only in a reply to the fix-it prompt: which live question this corrects.
+  const fix = block.fields.id ? { id: block.fields.id, hash: block.fields.hash || '', verdict: (block.fields.verdict || '').toLowerCase(), notes: sectionText(block, 'NOTES') } : {};
   return {
+    ...fix,
     subject: block.fields.subject || '',
     subtopic: block.fields.topic || '',
     type: block.fields.type || '',
@@ -155,6 +158,30 @@ function readJson(raw) {
     }
   }
   return out;
+}
+
+/** A live question as a block for the fix-it prompt. Options keep their order. */
+export function toExchangeBlock(q) {
+  const key = q.options.indexOf(q.answer);
+  return [
+    '===QUESTION===',
+    `id: ${q.id}`,
+    `hash: ${q.hash}`,
+    `subject: ${q.subject}`,
+    `topic: ${q.subtopic}`,
+    'verdict: ',
+    '---STEM---',
+    q.text,
+    '---OPTIONS---',
+    ...q.options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`),
+    '---KEY---',
+    key >= 0 ? String.fromCharCode(65 + key) : q.answer,
+    '---EXPLANATION---',
+    q.fixedExplanation || '',
+    '---NOTES---',
+    '',
+    '===END===',
+  ].join('\n');
 }
 
 /** { questions, cards, problems } from a pasted reply. `problems` are readable strings. */
