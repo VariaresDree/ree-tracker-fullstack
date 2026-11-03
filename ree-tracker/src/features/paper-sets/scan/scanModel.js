@@ -7,7 +7,8 @@
 //   - the answers string, with the person's corrections over the reading;
 //   - when the live viewfinder has held the sheet still long enough to take it;
 //   - the self-check's history entry (an OutsideScore, display only).
-import { formatPrintId, normalizeOutsideSubject, OUTSIDE_SCORE_LIMITS } from '@ree/shared';
+import { formatPrintId } from '@ree/shared/paperSets';
+import { normalizeOutsideSubject, OUTSIDE_SCORE_LIMITS } from '@ree/shared/outsideScores';
 
 export const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 

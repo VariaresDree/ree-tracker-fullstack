@@ -5,6 +5,7 @@ const adminMiddleware = require('../middlewares/adminMiddleware');
 const logger = require('../utils/logger');
 const { runRecalibration } = require('../services/calibrationService');
 const { sendToUser } = require('../services/pushService');
+const { healthSummary, dismissError } = require('../services/appHealthService');
 
 router.use(authMiddleware, adminMiddleware);
 
@@ -23,6 +24,27 @@ router.post('/calibrate', async (req, res) => {
     } catch (error) {
         logger.error('admin calibrate failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Calibration run failed.' });
+    }
+});
+
+// GET /api/admin/app-health: versions in use over the last week, and errors.
+router.get('/app-health', async (req, res) => {
+    try {
+        return res.status(200).json(await healthSummary());
+    } catch (error) {
+        logger.error('app health read failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not load app health.' });
+    }
+});
+
+// DELETE /api/admin/app-health/errors/:id: dismiss. If it happens again it comes back.
+router.delete('/app-health/errors/:id', async (req, res) => {
+    try {
+        await dismissError(req.params.id);
+        return res.status(204).end();
+    } catch (error) {
+        logger.error('app health dismiss failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Could not dismiss that error.' });
     }
 });
 

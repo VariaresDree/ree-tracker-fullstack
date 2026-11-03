@@ -9,7 +9,8 @@
 //   counts         how many chose each option, left it blank, or marked two
 //   topWrong       the wrong option chosen most (ties: the earlier letter)
 //   discrimination upper 27% minus lower 27% by total score, from 10 takers up
-import { effectiveItems, isPassingVerdict, scorePaperSheet } from '@ree/shared';
+import { isPassingVerdict } from '@ree/shared';
+import { effectiveItems, scorePaperSheet } from '@ree/shared/paperSets';
 
 export const DISCRIMINATION_MIN_TAKERS = 10;
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];

@@ -6,17 +6,8 @@
 // it needs. Worked out on the device by @ree/shared (rateBoard, scoreNeeded),
 // the rule every graded mock uses, so it agrees with them and works offline.
 import { useState } from 'react';
-import {
-  CANONICAL_SUBJECTS,
-  DEFAULT_SYLLABUS_WEIGHTS,
-  GENERAL_AVERAGE,
-  OUTSIDE_SCORE_LIMITS,
-  PRC_EXAM_FORMAT,
-  SUBJECT_FLOOR,
-  VERDICT,
-  rateBoard,
-  scoreNeeded,
-} from '@ree/shared';
+import { CANONICAL_SUBJECTS, DEFAULT_SYLLABUS_WEIGHTS, GENERAL_AVERAGE, PRC_EXAM_FORMAT, SUBJECT_FLOOR, VERDICT, rateBoard, scoreNeeded } from '@ree/shared';
+import { OUTSIDE_SCORE_LIMITS } from '@ree/shared/outsideScores';
 import { Modal, Button, Card, FormField, Input, StatusPill } from '../../components/ui';
 import { Calculator } from '../../components/ui/icons';
 

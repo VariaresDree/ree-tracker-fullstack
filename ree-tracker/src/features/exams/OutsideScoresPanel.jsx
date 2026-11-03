@@ -15,9 +15,8 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import {
-  VERDICT, flaggedTopics, outsidePace, outsideScorePercent, outsideScoreRemark, outsideScoreSummary, retestDelta, todayManila,
-} from '@ree/shared';
+import { VERDICT, todayManila } from '@ree/shared';
+import { flaggedTopics, outsidePace, outsideScorePercent, outsideScoreRemark, outsideScoreSummary, retestDelta } from '@ree/shared/outsideScores';
 import { Card, Panel, Button, Grid, Modal, EmptyState, StatusPill, Sparkline, Skeleton } from '../../components/ui';
 import { ClipboardList, Plus, Pencil, Trash2, ShieldAlert, CloudOff, RotateCcw, Calculator, Crosshair } from '../../components/ui/icons';
 import { useOutsideScores } from './useOutsideScores';

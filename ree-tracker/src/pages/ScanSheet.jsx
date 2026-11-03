@@ -7,7 +7,7 @@
 // The code in the link is read however it was typed (K7P2-9QXA-M3TD, lower
 // case), as the print preview reads it.
 import { useParams } from 'react-router-dom';
-import { normalizePrintId } from '@ree/shared';
+import { normalizePrintId } from '@ree/shared/paperSets';
 import { useAppearance } from '../hooks/useAppearance';
 import Scanner from '../features/paper-sets/scan/Scanner';
 import '../features/paper-sets/scan/scan.css';

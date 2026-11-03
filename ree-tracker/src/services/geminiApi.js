@@ -9,7 +9,7 @@
 //   author    Admin question and flashcard writing  strongest open model
 //   verify    Admin answer double-check             a second model family
 //   vision    Admin image extraction                multimodal model
-import { parseModelJson, repairJsonEscapes } from '@ree/shared';
+import { parseModelJson, repairJsonEscapes } from '@ree/shared/modelJson';
 import { apiRequest } from './dbQueries';
 import { labelForGenerated } from '../utils/topicLabels';
 import { useStore } from '../store/useStore';

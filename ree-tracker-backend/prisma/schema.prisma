@@ -93,6 +93,7 @@ model User {
   keyDates           KeyDate[]
   practiceSets       PracticeSet[]
   userLinks          UserLink[]
+  appVersionsSeen    AppVersionSeen[]
   syllabusProgress   SyllabusProgress[]
   mistakeTags        MistakeTag[]
   notes              UserNote[]
@@ -1149,4 +1150,33 @@ model UserLink {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// Which app versions people are running (Admin > App health). One row per
+// person and version, written at most once a day from the device.
+model AppVersionSeen {
+  userId     String
+  version    String
+  lastSeenAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, version])
+  @@index([lastSeenAt])
+}
+
+// One row per distinct error from the app or the server, with a count. No user
+// id on purpose. Deleted when dismissed or after 60 days without a repeat.
+model AppError {
+  id          String   @id @default(uuid())
+  fingerprint String   @unique
+  source      String   // 'client' | 'server'
+  message     String
+  stack       String?
+  route       String?
+  version     String?
+  count       Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([lastSeenAt])
 }

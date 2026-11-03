@@ -5,7 +5,7 @@
 // set opens by itself. The camera is only asked for when it can do that.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { formatPrintId } from '@ree/shared';
+import { formatPrintId } from '@ree/shared/paperSets';
 import { Button, Card, EmptyState, Skeleton } from '../../../components/ui';
 import { FileText, QrCode } from '../../../components/ui/icons';
 import { usePrintedSets } from '../usePrintedSets';

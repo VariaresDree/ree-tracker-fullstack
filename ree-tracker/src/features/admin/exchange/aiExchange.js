@@ -5,7 +5,8 @@
 // so LaTeX survives, and a reply cut off mid-way loses only its last item. JSON
 // pasted instead is read too. This only reads; the server validates every item
 // (POST /api/questions/import, /api/reference-cards/ai-intake).
-import { matchOption, parseModelJson } from '@ree/shared';
+import { matchOption } from '@ree/shared';
+import { parseModelJson } from '@ree/shared/modelJson';
 import { normalizeMathDelimiters } from '../../../utils/mathDelimiters';
 
 // What real replies did to a marker: ChatGPT's copy wrote \===QUESTION=== (a

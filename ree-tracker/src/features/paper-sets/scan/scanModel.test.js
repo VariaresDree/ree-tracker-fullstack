@@ -2,7 +2,7 @@
 // check and how they are described, corrections over the reading, the steady
 // lock that takes the picture, and the self-check's history entry.
 import { describe, it, expect } from 'vitest';
-import { scorePaperSheet } from '@ree/shared';
+import { scorePaperSheet } from '@ree/shared/paperSets';
 import {
   answerLabel, answersOf, cornerLocks, correctionChoices, firstSelfCheckId, flagSentence, flaggedRows, guideRect,
   mergePages, nearestRow, nextPage, progressLine, refusalReason, selfCheckEntry, selfCheckSubject, steadyLock,

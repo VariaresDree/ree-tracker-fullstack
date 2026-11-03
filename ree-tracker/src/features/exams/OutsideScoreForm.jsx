@@ -11,9 +11,8 @@
 // here: a form opened from a copy saved before they existed must not clear
 // what another device recorded.
 import { useState } from 'react';
-import {
-  CANONICAL_SUBJECTS, OUTSIDE_SCORE_LIMITS, PRC_EXAM_FORMAT, outsidePartsTotals, outsideScoreErrors, outsideScorePercent, todayManila,
-} from '@ree/shared';
+import { CANONICAL_SUBJECTS, PRC_EXAM_FORMAT, todayManila } from '@ree/shared';
+import { OUTSIDE_SCORE_LIMITS, outsidePartsTotals, outsideScoreErrors, outsideScorePercent } from '@ree/shared/outsideScores';
 import { Modal, Button, Disclosure, FormField, Input, Select, Textarea, SegmentedControl } from '../../components/ui';
 import { ClipboardList, X } from '../../components/ui/icons';
 import { SUBJECT_OPTIONS, subjectLabel } from './outsideScoreLabels';

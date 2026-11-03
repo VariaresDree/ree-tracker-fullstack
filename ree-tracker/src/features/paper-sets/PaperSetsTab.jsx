@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { formatPrintId } from '@ree/shared';
+import { formatPrintId } from '@ree/shared/paperSets';
 import {
   Button, Card, EmptyState, Grid, Modal, SectionHeader, Skeleton, StatusPill,
 } from '../../components/ui';

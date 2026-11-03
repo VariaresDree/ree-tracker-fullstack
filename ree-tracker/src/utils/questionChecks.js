@@ -6,7 +6,8 @@
 // explanation); whether the physics is right is the answer check's job, and
 // the reviewer's.
 
-import { hasUnbalancedMath as unbalancedDollars, explanationSections, structureExplanation } from '@ree/shared';
+import { hasUnbalancedMath as unbalancedDollars } from '@ree/shared';
+import { explanationSections, structureExplanation } from '@ree/shared/explanation';
 import { mathIssues } from './mathIssues';
 
 const BANNED_OPTION = /\b(all|none) of the above\b|\bboth [a-d] and [a-d]\b/i;

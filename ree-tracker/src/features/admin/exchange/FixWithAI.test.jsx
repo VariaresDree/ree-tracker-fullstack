@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { questionContentHash } from '@ree/shared';
+import { questionContentHash } from '@ree/shared/questionReplace';
 
 const db = { fetchQuestionsForChecking: vi.fn(), previewReplacements: vi.fn(), replaceQuestions: vi.fn() };
 vi.mock('../../../services/dbQueries', () => db);

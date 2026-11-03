@@ -5,7 +5,7 @@
 // get the same layout (structureExplanation, @ree/shared). Text with no labels
 // renders as plain paragraphs.
 import { useMemo } from 'react';
-import { structureExplanation, explanationSections } from '@ree/shared';
+import { structureExplanation, explanationSections } from '@ree/shared/explanation';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Disclosure } from '../../components/ui';
 

@@ -8,7 +8,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { outsideScorePercent, setCollections, todayManila } from '@ree/shared';
+import { setCollections, todayManila } from '@ree/shared';
+import { outsideScorePercent } from '@ree/shared/outsideScores';
 import { Button, Card, CardTitle, Disclosure, EmptyState, Modal, Skeleton } from '../../components/ui';
 import { Check, ClipboardList, CloudOff, ListChecks, Plus, ShieldAlert, Trash2 } from '../../components/ui/icons';
 import { usePracticeSets } from './usePracticeSets';

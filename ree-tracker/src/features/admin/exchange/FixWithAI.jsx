@@ -8,7 +8,7 @@
 // learners actually see is what to fix first.
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { replacePlan } from '@ree/shared';
+import { replacePlan } from '@ree/shared/questionReplace';
 import { useStore } from '../../../store/useStore';
 import { Badge, Button, Card, FormField, Grid, Input, ProgressIndicator, SegmentedControl, Select, StatusPill, Textarea } from '../../../components/ui';
 import { Check, Copy, Download, ExternalLink, TriangleAlert, Wrench } from '../../../components/ui/icons';

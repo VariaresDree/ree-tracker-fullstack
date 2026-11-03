@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { effectiveItems, keyVersionOf } from '@ree/shared';
+import { effectiveItems, keyVersionOf } from '@ree/shared/paperSets';
 import {
   buildExamTexDocument, buildExamTexDocumentSync, loadQrEncoder, mergeWarnings,
   texDocumentName, texWarningLines,

@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { formatPrintId } from '@ree/shared';
+import { formatPrintId } from '@ree/shared/paperSets';
 import { Button, Card, Modal } from '../../../components/ui';
 import { Shuffle, TriangleAlert, X } from '../../../components/ui/icons';
 import { paperSize } from '../../exam-export/sheetLayout';
