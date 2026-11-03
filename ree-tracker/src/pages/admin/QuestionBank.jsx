@@ -15,6 +15,7 @@ import { useManualIngestion } from '../../features/library/useManualIngestion';
 import LibraryIngestion from '../../features/library/LibraryIngestion';
 import QuestionGenerator from '../../features/admin/ai/QuestionGenerator';
 import ImportFromAI from '../../features/admin/exchange/ImportFromAI';
+import FixWithAI from '../../features/admin/exchange/FixWithAI';
 import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
@@ -64,6 +65,8 @@ export default function QuestionBank() {
       <QuestionGenerator isOnline={isOnline} onSaved={initializeVault} />
 
       <ImportFromAI onSaved={initializeVault} />
+
+      <FixWithAI onSaved={initializeVault} />
 
       <LibraryIngestion
         genSubject={genSubject} setGenSubject={setGenSubject}

@@ -16,7 +16,7 @@ const BANNED_OPTION = /\b(all|none) of the above\b|\bboth [a-d] and [a-d]\b/i;
 // option choices" with a key of 1106 rpm and a worked answer of 1161 rpm.)
 const SELF_CORRECTION = /\b(let'?s (adjust|select|re-?\w+|recalculate|try again|fix)|recalculating|re-?evaluating|adjusting options|correct option:|on second thought)\b/i;
 
-const numbersIn = (text) => (String(text ?? '')
+export const numbersIn = (text) => (String(text ?? '')
   .replace(/\\[a-zA-Z]+/g, ' ')
   .replace(/\\[,;:! ]/g, '')
   .replace(/(\d),(?=\d{3}\b)/g, '$1')

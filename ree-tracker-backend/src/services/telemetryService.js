@@ -111,11 +111,15 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
     const masterQuestions = questionIds.length
         ? await prisma.question.findMany({
             where: { id: { in: questionIds } },
-            select: { id: true, answer: true, difficulty: true, subject: true, subtopic: true, irtA: true, irtB: true, irtC: true },
+            select: { id: true, answer: true, options: true, difficulty: true, subject: true, subtopic: true, irtA: true, irtB: true, irtC: true },
         })
         : [];
     const qMap = Object.create(null);
     for (const q of masterQuestions) qMap[q.id] = q;
+    // Required here, not at the top: questionReplace pulls in the rollup services.
+    // eslint-disable-next-line global-require
+    const { translateStaleAnswers } = require('./questionReplace');
+    attempts = await translateStaleAnswers(attempts, qMap);
 
     // Mapping is a pure helper (telemetryHelpers.mapAttemptRows) so the
     // server-canonical naming/grading rules are unit-testable: master-question

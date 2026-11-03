@@ -118,6 +118,7 @@ export {
   Printer,
   QrCode,
   // Handout viewer
+  Wrench,
   ExternalLink,
   Minus,
 } from 'lucide-react';

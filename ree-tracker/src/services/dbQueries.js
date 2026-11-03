@@ -268,6 +268,19 @@ export const importQuestions = (items) => apiRequest('/api/questions/import', 'P
     timeoutMs: 45_000,
     idempotencyKey: crypto?.randomUUID?.() ?? String(Date.now()),
 });
+// Fixing live questions with another AI: a page to export, the live rows behind
+// a reply, and the reviewed replacements (25 at a time).
+export const fetchQuestionsForChecking = ({ subject, subtopic, search, unchecked, limit, offset = 0 }) => {
+    const params = new URLSearchParams({ subject, subtopic, limit, offset });
+    if (search?.trim()) params.set('q', search.trim());
+    if (unchecked) params.set('unchecked', '1');
+    return apiRequest(`/api/questions/for-checking?${params.toString()}`, 'GET', null, { timeoutMs: 30_000 });
+};
+export const previewReplacements = (ids) => apiRequest('/api/questions/replace-preview', 'POST', { ids }, { timeoutMs: 30_000 });
+export const replaceQuestions = (items) => apiRequest('/api/questions/replace-bulk', 'POST', { items }, {
+    timeoutMs: 45_000,
+    idempotencyKey: crypto?.randomUUID?.() ?? String(Date.now()),
+});
 export const saveQuestionToBank = async (questionObject) => {
     const result = await apiRequest('/api/questions', 'POST', questionObject);
     return result.id;

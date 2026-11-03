@@ -10,20 +10,10 @@
 const prisma = require('../config/db');
 const { battleTiming } = require('../utils/battleLogic');
 
-/**
- * Every question id in a battle `userId` is still in (one not yet closed).
- * Pickers that hand out items with their key (Practice's adaptive set) leave
- * these out, so a player can't draw a live battle's question mid-battle.
- * @returns {Promise<Set<string>>}
- */
-async function openBattleQuestionIds(userId, now = Date.now()) {
+// The question ids of the battles in `rows` that haven't closed.
+function openIdsIn(battles, now) {
     const open = new Set();
-    if (!userId) return open;
-    const rows = await prisma.battleParticipant.findMany({
-        where: { userId, battle: { status: { not: 'COMPLETED' } } },
-        select: { battle: { select: { id: true, questions: true, startedAt: true, timeLimitSecs: true, createdAt: true } } },
-    });
-    for (const { battle } of rows) {
+    for (const battle of battles) {
         if (!battle || battleTiming(battle, now)?.closed) continue;
         const qs = Array.isArray(battle.questions) ? battle.questions : [];
         for (const q of qs) {
@@ -32,6 +22,30 @@ async function openBattleQuestionIds(userId, now = Date.now()) {
         }
     }
     return open;
+}
+
+/**
+ * Every question id in a battle `userId` is still in (one not yet closed).
+ * Pickers that hand out items with their key (Practice's adaptive set) leave
+ * these out, so a player can't draw a live battle's question mid-battle.
+ * @returns {Promise<Set<string>>}
+ */
+async function openBattleQuestionIds(userId, now = Date.now()) {
+    if (!userId) return new Set();
+    const rows = await prisma.battleParticipant.findMany({
+        where: { userId, battle: { status: { not: 'COMPLETED' } } },
+        select: { battle: { select: { id: true, questions: true, startedAt: true, timeLimitSecs: true, createdAt: true } } },
+    });
+    return openIdsIn(rows.map((r) => r.battle), now);
+}
+
+/** Every question id in any battle still open, for changes that would upset one. */
+async function allOpenBattleQuestionIds(now = Date.now()) {
+    const battles = await prisma.battle.findMany({
+        where: { status: { not: 'COMPLETED' } },
+        select: { id: true, questions: true, startedAt: true, timeLimitSecs: true, createdAt: true },
+    });
+    return openIdsIn(battles, now);
 }
 
 /**
@@ -45,4 +59,4 @@ async function lockedQuestionIds(userId, questionIds, now = Date.now()) {
     return new Set([...wanted].filter((id) => open.has(id)));
 }
 
-module.exports = { lockedQuestionIds, openBattleQuestionIds };
+module.exports = { allOpenBattleQuestionIds, lockedQuestionIds, openBattleQuestionIds };
