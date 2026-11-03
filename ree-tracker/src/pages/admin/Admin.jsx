@@ -61,14 +61,30 @@ export default function Admin() {
             </div>
           )}
 
-          {tab === 'handouts' && (viewingMaterial
-            ? <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} headingLevel={2} />
-            : <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />)}
+          {tab === 'handouts' && <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />}
 
           {tab === 'ai' && <AiStatusPanel />}
         </Suspense>
       </ErrorBoundary>
       </TabPanel>
+
+      {/* Over the list, with its own boundary: the first open loads this chunk, and
+          sharing the tabs' Suspense would swap the list for a skeleton and lose its
+          scroll. */}
+      {tab === 'handouts' && viewingMaterial && (
+        <Suspense fallback={null}>
+          <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} />
+        </Suspense>
+      )}
+
+      {/* Over the list, with its own boundary: the first open loads this chunk, and
+          sharing the tabs' Suspense would swap the list for a skeleton and lose its
+          scroll. */}
+      {tab === 'handouts' && viewingMaterial && (
+        <Suspense fallback={null}>
+          <MaterialViewer material={viewingMaterial} onClose={() => setViewingMaterial(null)} />
+        </Suspense>
+      )}
     </Page>
   );
 }

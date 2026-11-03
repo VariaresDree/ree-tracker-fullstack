@@ -1,17 +1,26 @@
 // src/features/materials/CloudVaultTab.jsx
 //
 // Library › Handouts: folders and files (PDFs, images, video, audio, links).
-// Learners browse and open; admins also organise. A failed load shows an
-// error with Try again and offline says so — both used to read "This folder
+// Learners browse, search and open; admins also organise. A failed load shows
+// an error with Try again and offline says so — both used to read "This folder
 // is empty" — and the first load has a skeleton.
-import React, { useEffect, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useFileManager } from './useFileManager';
 import { Button, Card, EmptyState, FormField, Grid, Input, Modal, Select, Skeleton } from '../../components/ui';
-import { FolderOpen, FileText, FileUp, Pencil, Plus, Scissors, X, Download, TriangleAlert, CloudOff } from '../../components/ui/icons';
+import { FolderOpen, FileText, FileUp, Pencil, Plus, Scissors, X, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
+import { readRecentHandouts, rememberHandout } from './recentHandouts';
+
+// Actions on a tile: in view on a phone, on hover or keyboard focus otherwise.
+const TILE_ACTIONS = 'flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1';
+const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, openMaterialId = null }) {
   const [sortBy, setSortBy] = useState('name');
+  const [search, setSearch] = useState('');
+  const query = useDeferredValue(search).trim().toLowerCase();
+  const uid = currentUser?.uid;
+  const [recentIds, setRecentIds] = useState(() => readRecentHandouts(uid));
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [isAddingMaterial, setIsAddingMaterial] = useState(false);
@@ -23,7 +32,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
 
   const {
     folders, materials, currentFolderId, breadcrumbs, isLoading, loadError, reload, isUploading, dragOverFolderId,
-    navigateToFolder, navigateToBreadcrumb, createFolder, uploadAndCommitMaterial, addMaterialRecord,
+    navigateToFolder, navigateToBreadcrumb, revealFolder, createFolder, uploadAndCommitMaterial, addMaterialRecord,
     deleteItem, renameItem, moveItem,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   } = useFileManager(currentUser, isAdmin);
@@ -33,9 +42,33 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
   useEffect(() => {
     if (!openMaterialId) return;
     const m = materials.find((x) => String(x.id) === String(openMaterialId));
-    if (m) onViewMaterial(m);
+    if (m) {
+      onViewMaterial(m);
+      if ((m.folderId || 'root') !== currentFolderId) revealFolder(m.folderId || 'root');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openMaterialId, materials]);
+
+  const openFile = (m) => {
+    setRecentIds(rememberHandout(uid, m.id));
+    onViewMaterial(m);
+  };
+
+  // A folder's parent chain as "Machines / Transformers", for a search result.
+  const folderPath = useMemo(() => {
+    const byId = new Map(folders.map((f) => [f.id, f]));
+    return (id) => {
+      const names = [];
+      const seen = new Set();
+      for (let f = byId.get(id); f && !seen.has(f.id); f = byId.get(f.parentId)) {
+        seen.add(f.id);
+        names.unshift(f.name);
+      }
+      return names.join(' / ');
+    };
+  }, [folders]);
+
+  const recentFiles = recentIds.map((id) => materials.find((m) => m.id === id)).filter(Boolean);
 
   const handleCut = (item, type, e) => {
     e.stopPropagation();
@@ -114,7 +147,6 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
   const executeDeleteClick = async () => {
     if (!isAdmin) return;
     await deleteItem(deleteModal.id, deleteModal.type === 'folder');
-    toast.success(`Deleted successfully.`);
     setDeleteModal({ isOpen: false, id: null, type: null, name: '' });
   };
 
@@ -130,7 +162,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
       setEditingItem({ id: null, type: null, newName: '' });
       return;
     }
-    await renameItem(editingItem.id, editingItem.type, editingItem.newName.trim());
+    await renameItem(editingItem.id, editingItem.type === 'folder', editingItem.newName.trim());
     setEditingItem({ id: null, type: null, newName: '' });
   };
 
@@ -139,12 +171,14 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
     if (e.key === 'Escape') setEditingItem({ id: null, type: null, newName: '' });
   };
 
+  // A search looks in every folder; otherwise, what's in this one.
+  const matches = (item) => item.name.toLowerCase().includes(query);
   const visibleFolders = folders
-    .filter(f => (f.parentId || 'root') === currentFolderId)
+    .filter(f => (query ? matches(f) : (f.parentId || 'root') === currentFolderId))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const visibleMaterials = materials
-    .filter(m => (m.folderId || 'root') === currentFolderId)
+    .filter(m => (query ? matches(m) : (m.folderId || 'root') === currentFolderId))
     .sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       return new Date(b.createdAt) - new Date(a.createdAt);
@@ -191,6 +225,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           </div>
         </div>
         <div className="flex flex-wrap gap-3 items-end">
+          <FormField label="Search" className="w-full sm:w-56">
+            <div className="relative">
+              <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Titles and folders" className="!pl-9" aria-label="Search handouts" />
+            </div>
+          </FormField>
           <FormField label="Sort files" className="w-40">
             <Select value={sortBy} onChange={e => setSortBy(e.target.value)}>
               <option value="name">Name (A–Z)</option>
@@ -231,12 +271,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
 
           {uploadMode === 'local' ? (
             <div className="border-2 border-dashed border-border2 rounded-[var(--radius-default)] p-8 text-center hover:bg-surface2 transition-colors relative cursor-pointer">
-              <input type="file" aria-label="Choose a file to upload" accept=".pdf,.doc,.docx,image/*,audio/*,video/*" onChange={handleLocalFileUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" />
+              <input type="file" aria-label="Choose a file to upload" accept=".pdf,.doc,.docx,image/*,audio/*" onChange={handleLocalFileUpload} disabled={isUploading} className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" />
               <div className="text-sm text-muted2 flex flex-col items-center gap-3" aria-live="polite">
                 {isUploading ? (
                   <><span className="telemetry-spinner border-reeBlue border-t-transparent" aria-hidden="true"></span> Uploading…</>
                 ) : (
-                  <><FileUp size={28} strokeWidth={1.5} aria-hidden="true" className="text-muted" /><span>Choose or drop a file: PDF, Word, image, video or audio.</span></>
+                  <><FileUp size={28} strokeWidth={1.5} aria-hidden="true" className="text-muted" /><span>Choose or drop a file: PDF, Word, image or audio. For video, add a YouTube or Drive link.</span></>
                 )}
               </div>
             </div>
@@ -281,6 +321,13 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
             action={<Button onClick={reload}>Try again</Button>}
           />
         )
+      ) : query && visibleFolders.length === 0 && visibleMaterials.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="Nothing matches"
+          description={`No handout or folder has "${search.trim()}" in its name.`}
+          action={<Button variant="secondary" onClick={() => setSearch('')}>Clear search</Button>}
+        />
       ) : visibleFolders.length === 0 && visibleMaterials.length === 0 ? (
         <EmptyState
           icon={FolderOpen}
@@ -288,9 +335,26 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           description={isAdmin ? 'Create a folder or add a file to start.' : 'Nothing has been added here yet.'}
         />
       ) : (
+        <div className="flex flex-col gap-6">
+        {!query && currentFolderId === 'root' && recentFiles.length > 0 && (
+          <section aria-label="Recently opened" className="flex flex-col gap-2">
+            <p className="text-eyebrow">Recently opened</p>
+            <div className="flex gap-2 flex-wrap">
+              {recentFiles.map((m) => (
+                <Button key={m.id} size="sm" variant="secondary" aria-label={`Open ${m.name}`} onClick={() => openFile(m)} className="max-w-full">
+                  <FileText size={14} strokeWidth={1.75} aria-hidden="true" /> <span className="truncate">{m.name}</span>
+                </Button>
+              ))}
+            </div>
+          </section>
+        )}
+        {visibleFolders.length > 0 && (
+        <section aria-label="Folders" className="flex flex-col gap-2">
+        <p className="text-eyebrow">Folders · {visibleFolders.length}</p>
         <Grid kind="cards" className="@5xl:grid-cols-4">
           {visibleFolders.map(f => {
             const isDropTarget = dragOverFolderId === f.id;
+            const inside = countSubtree(f.id).containedMaterials;
             return (
               // A choice card like the rest of the app's. A folder a file is
               // dragged over takes an accent ring (it was a fixed blue border
@@ -325,11 +389,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                       className="pointer-events-auto text-left font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5 rounded-[var(--radius-sm)] cursor-pointer"
                     >
                       {f.name}
+                      <span className="block font-normal text-xs text-muted2">{plural(inside, 'file')}</span>
                     </span>
                   )}
                 </div>
                 {isAdmin && (
-                  <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2 shrink-0 bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1">
+                  <div className={`${TILE_ACTIONS} ml-2 shrink-0`}>
                     {!(editingItem.id === f.id && editingItem.type === 'folder') && (
                       <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-text)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
@@ -340,6 +405,13 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               </Card>
             );
           })}
+        </Grid>
+        </section>
+        )}
+        {visibleMaterials.length > 0 && (
+        <section aria-label="Files" className="flex flex-col gap-2">
+        <p className="text-eyebrow">Files · {visibleMaterials.length}</p>
+        <Grid kind="cards" className="@5xl:grid-cols-4">
           {visibleMaterials.map(m => (
             <Card
               key={m.id}
@@ -347,14 +419,15 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               padding="md"
               draggable={isAdmin ? "true" : "false"}
               onDragStart={(e) => handleDragStart(e, m, 'material')}
-              className={`flex flex-col justify-between group ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''}`}
+              onClick={() => { if (editingItem.id !== m.id) openFile(m); }}
+              className="flex flex-col justify-between group cursor-pointer"
             >
               <div className="flex justify-between items-start">
                 <span className={`px-2 py-0.5 bg-bg border border-border2 text-micro font-mono rounded-[var(--radius-sm)] uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>
                     {m.type}
                 </span>
                 {isAdmin && (
-                  <div className="flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1 -mt-1 -mr-1">
+                  <div className={`${TILE_ACTIONS} -mt-1 -mr-1`}>
                     {!(editingItem.id === m.id && editingItem.type === 'material') && (
                       <button onClick={(e) => initiateRename(m, 'material', e)} aria-label="Rename file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
@@ -364,23 +437,27 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                 )}
               </div>
               {editingItem.id === m.id && editingItem.type === 'material' ? (
-                <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} className="bg-bg border border-reeCyan text-sm text-textMain px-2 py-1 rounded-[var(--radius-sm)] w-full mt-3 font-bold flex-1" />
+                <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeCyan text-sm text-textMain px-2 py-1 rounded-[var(--radius-sm)] w-full mt-3 font-bold flex-1" />
               ) : (
-                <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 pointer-events-none line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
+                <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
               )}
+              {query && m.folderId && <p className="text-xs text-muted2 mt-1 [overflow-wrap:anywhere]">{folderPath(m.folderId)}</p>}
               <div className="flex gap-2 mt-4 pt-4 border-t border-border2/50">
-                <Button size="sm" variant="secondary" className="flex-1" onClick={() => onViewMaterial(m)}>
+                <Button size="sm" variant="secondary" className="flex-1" onClick={(e) => { e.stopPropagation(); openFile(m); }} aria-label={`View ${m.name}`}>
                   View
                 </Button>
                 {m.type !== 'video' && (
-                    <Button as="a" size="icon" variant="secondary" href={m.url} download={m.name} target="_blank" rel="noopener noreferrer" aria-label="Download file">
-                      <Download size={16} strokeWidth={1.75} aria-hidden="true" />
+                    <Button as="a" size="icon" variant="secondary" href={m.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${m.name} in a new tab`} onClick={(e) => e.stopPropagation()}>
+                      <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
                     </Button>
                 )}
               </div>
             </Card>
           ))}
         </Grid>
+        </section>
+        )}
+        </div>
       )}
 
       <Modal

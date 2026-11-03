@@ -11,6 +11,7 @@
 // optimistically instead of showing the stale pre-mutation state.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useFileManager } from './useFileManager';
 
@@ -52,7 +53,7 @@ const currentUser = { uid: 'user-1' };
 
 async function bootHook(seedFolders, seedMaterials) {
   apiRequestMock.mockResolvedValueOnce({ success: true, folders: seedFolders, materials: seedMaterials });
-  const { result } = renderHook(() => useFileManager(currentUser, true));
+  const { result } = renderHook(() => useFileManager(currentUser, true), { wrapper: MemoryRouter });
   await waitFor(() => expect(result.current.isLoading).toBe(false));
   return result;
 }

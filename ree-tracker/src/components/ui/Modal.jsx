@@ -38,6 +38,9 @@ import { cn } from './cn';
 // included, under the keyboard. This one sits at the top of the screen below
 // `sm`, is at most 85dvh tall, and scrolls its body with the footer stuck to
 // the bottom of what's visible.
+//
+// `fullscreen`, for a viewer: the whole screen, edge to edge, and the body is a
+// flex column for what fills it.
 let openModalCount = 0;
 let preLockOverflow = '';
 
@@ -67,6 +70,7 @@ export function Modal({
   size = 'md',
   closeOnBackdrop = true,
   keyboardSafe = false,
+  fullscreen = false,
   footer,
   children,
   className,
@@ -108,28 +112,29 @@ export function Modal({
   return createPortal(
     <div
       className={cn(
-        'fixed inset-0 z-[100] flex justify-center p-4 bg-bg/80 backdrop-blur-sm animate-in fade-in',
+        'fixed inset-0 z-[100] flex justify-center bg-bg/80 backdrop-blur-sm animate-in fade-in',
+        !fullscreen && 'p-4',
         keyboardSafe ? 'items-start pt-[max(1rem,env(safe-area-inset-top))] sm:items-center' : 'items-center'
       )}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
-      <div className={cn('w-full', SIZES[size])} onClick={(e) => e.stopPropagation()}>
-        <FocusTrap active>
+      <div className={cn('w-full', fullscreen ? 'h-[100dvh]' : SIZES[size])} onClick={(e) => e.stopPropagation()}>
+        <FocusTrap active className={fullscreen ? 'h-full' : undefined}>
           <Card
             elevated
             glass={false}
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? titleId : undefined}
-            className={cn('modal-entrance w-full flex flex-col', keyboardSafe ? 'max-h-[85dvh]' : 'max-h-[90dvh]', className)}
+            className={cn('modal-entrance w-full flex flex-col', fullscreen ? 'h-full !rounded-none' : keyboardSafe ? 'max-h-[85dvh]' : 'max-h-[90dvh]', className)}
             style={{ '--modal-accent': accent }}
           >
-            <div className="px-5 pt-5 pb-3 flex items-start gap-3 shrink-0">
+            <div className={cn('px-5 pb-3 flex items-start gap-3 shrink-0', fullscreen ? 'pt-[max(0.75rem,env(safe-area-inset-top))]' : 'pt-5')}>
               {Icon && <IconChip icon={Icon} size="sm" tone={TONE_CHIP[tone] || TONE_CHIP.default} />}
               <div className="flex-1 min-w-0">
                 {eyebrow && <p className="text-eyebrow mb-0.5">{eyebrow}</p>}
                 {title && (
-                  <h2 id={titleId} className="text-textMain font-semibold tracking-tight text-lg">
+                  <h2 id={titleId} className={cn('text-textMain font-semibold tracking-tight text-lg', fullscreen && 'truncate')}>
                     {title}
                   </h2>
                 )}
@@ -141,7 +146,9 @@ export function Modal({
               )}
             </div>
 
-            {keyboardSafe ? (
+            {fullscreen ? (
+              <div className="px-3 sm:px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] min-h-0 flex-1 flex flex-col overflow-y-auto">{children}</div>
+            ) : keyboardSafe ? (
               <div className="overflow-y-auto min-h-0 flex-1 flex flex-col">
                 <div className="px-5 pb-5">{children}</div>
                 {footer && <CardFooter className="sticky bottom-0 mt-auto bg-surface">{footer}</CardFooter>}

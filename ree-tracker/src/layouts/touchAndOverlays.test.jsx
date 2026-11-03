@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Scratchpad from '../components/Scratchpad';
 import ActivityCalendar from '../features/profile/ActivityCalendar';
-import FullscreenPdfViewer from '../components/FullscreenPdfViewer';
+import MediaViewer from '../components/MediaViewer';
 import FloatingPomodoro from '../components/FloatingPomodoro';
 
 // The floating timer, pinned and paused, without the persisted store.
@@ -114,10 +114,10 @@ describe('touch targets', () => {
         expect(rule?.[1]).toMatch(/min-height: 2\.75rem/);
     });
 
-    it('the fullscreen handout viewer’s Zoom and Close grow to 44px on touch', () => {
-        render(<FullscreenPdfViewer url="https://example.com/a.pdf" title="AC notes" onClose={() => {}} />);
-        for (const name of ['Zoom in', 'Close fullscreen viewer']) {
-            expect(screen.getByRole('button', { name }).className).toMatch(/pointer-coarse:h-11/);
+    it('the handout viewer’s zoom buttons are touch-sized', () => {
+        render(<MediaViewer item={{ type: 'pdf', url: 'https://example.com/a.pdf', title: 'AC notes' }} />);
+        for (const name of ['Zoom in', 'Zoom out']) {
+            expect(screen.getByRole('button', { name }).className).toMatch(/touch-target|pointer-coarse:/);
         }
     });
 
