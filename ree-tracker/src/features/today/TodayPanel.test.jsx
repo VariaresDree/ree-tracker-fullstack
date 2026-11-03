@@ -59,6 +59,8 @@ const renderPanel = (props) => render(
 );
 
 beforeEach(() => {
+  // Most of this file reads the tiles: open them. Their own describe clears this.
+  localStorage.setItem('ree:today-more', 'open');
   lastState = null;
   placement = { status: { status: 'completed' }, result: null, plan: null, dismissed: false, dismiss: vi.fn(), isNew: false, settled: true };
   plannerItems = [];

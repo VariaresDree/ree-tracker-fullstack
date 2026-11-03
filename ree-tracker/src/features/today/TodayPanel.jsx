@@ -10,8 +10,13 @@
 // numbered list, so nothing said which was the thing to do; and the list
 // reordered as each source arrived. The lead now waits until every source
 // that can claim it has answered (or LEAD_WAIT_MS has passed).
-import { useEffect, useState } from 'react';
+//
+// Under the lead, one line of figures opens More for today: the tiles and the
+// rest of the shortlist. Closed on a phone, where they competed with the lead;
+// open from 768px; the learner's own choice is remembered on the device.
+import { useEffect, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import useMediaQuery from '../../hooks/useMediaQuery';
 import { fetchReadinessHistory } from '../../services/dbQueries';
 import { Badge, Card, CardTitle, CardWatermark, Button, Grid, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
@@ -33,7 +38,7 @@ import { usePlanCalendar } from '../study-plan/usePlanCalendar';
 import { todayManila } from '../../utils/manilaDate';
 import { launchPractice } from '../active-recall/presets';
 import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS, isRestDay, keyDayMap } from '@ree/shared';
-import { ArrowRight, CalendarCheck, ClipboardList, Compass, Crosshair, Layers, Pause, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
+import { ArrowRight, ChevronDown, CalendarCheck, ClipboardList, Compass, Crosshair, Layers, Pause, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
 
 // The calendar is read at most this often here: Today is the boot screen.
 const CALENDAR_FRESH_MS = 30 * 60 * 1000;
@@ -56,6 +61,24 @@ const BREAKDOWN = [
   ['thetaNormalized', 'Ability'],
   ['consistency', 'Consistency'],
 ];
+
+const MORE_KEY = 'ree:today-more';
+const readMore = () => {
+  try { return localStorage.getItem(MORE_KEY); } catch { return null; }
+};
+
+/** Open or closed, by the learner's choice on this device, or by the room there is. */
+function useMoreForToday() {
+  const wide = useMediaQuery('(min-width: 768px)');
+  const [chosen, setChosen] = useState(readMore);
+  const open = chosen ? chosen === 'open' : wide;
+  const toggle = () => {
+    const next = open ? 'closed' : 'open';
+    setChosen(next);
+    try { localStorage.setItem(MORE_KEY, next); } catch { /* it holds for this visit */ }
+  };
+  return [open, toggle];
+}
 
 // Beside a number that is still mostly the starting guess (earlyEstimate.js).
 const EarlyBadge = () => <Badge tone="signal">Early estimate</Badge>;
@@ -259,6 +282,8 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
     return () => clearTimeout(t);
   }, []);
   const trend = readinessTrend(history);
+  const [moreOpen, toggleMore] = useMoreForToday();
+  const moreId = useId();
   const placement = usePlacement({ uid, answered });
   const early = isEarlyEstimate({ snapshot, answered });
   // One onboarding card at a time: the placement prompt, then the exam plan.
@@ -297,6 +322,13 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   // The target tile already says how many are left, so the target action is
   // listed only when it leads.
   const also = rest.filter((a) => a.key !== 'target');
+  // The tiles' headline figures, for the closed line. Only what's arrived.
+  const summary = [
+    readiness ? `Readiness ${readiness.score}/100` : null,
+    snapshot ? `Pass ${Math.round((snapshot.passProbability ?? 0) * 100)}%` : null,
+    `Today ${daily.done}/${daily.target}`,
+    also.length > 0 ? `${also.length} more to do` : null,
+  ].filter(Boolean).join(' · ');
 
   return (
     <section aria-label="Today" className="flex flex-col gap-6">
@@ -305,6 +337,22 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
 
       {!settled ? <LeadSkeleton /> : lead && <LeadCard action={lead} navigate={navigate} />}
 
+      <button
+        type="button"
+        aria-expanded={moreOpen}
+        aria-controls={moreId}
+        onClick={toggleMore}
+        className="w-full min-h-11 flex items-center justify-between gap-3 px-4 py-2 text-left rounded-[var(--radius-default)] border border-border hover:bg-surface2 cursor-pointer transition-colors"
+      >
+        <span className="min-w-0 flex flex-col">
+          <span className="text-sm font-semibold text-textMain">More for today</span>
+          {summary && <span className="text-xs text-muted2 tabular-nums">{summary}</span>}
+        </span>
+        <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" className={`shrink-0 text-muted transition-[rotate] duration-200 motion-reduce:transition-none ${moreOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      <div id={moreId} hidden={!moreOpen} className="flex flex-col gap-6">
+      {moreOpen && <>
       {/* Three tiles side by side as soon as they fit (42rem): the cards
           grid reaches three only at 56rem, which left the third alone. */}
       <Grid kind="cards" className="@2xl:grid-cols-3">
@@ -331,6 +379,8 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
           </ol>
         </Card>
       )}
+      </>}
+      </div>
 
       <Link to="/progress" className="self-start inline-flex items-center gap-1.5 pointer-coarse:min-h-11 text-sm text-muted2 hover:text-textMain hover:underline underline-offset-2">
         Charts, topics and your study plan are in Progress <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
