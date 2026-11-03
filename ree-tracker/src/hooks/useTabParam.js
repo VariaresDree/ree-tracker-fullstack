@@ -7,19 +7,19 @@
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-export default function useTabParam(validIds, fallback) {
+export default function useTabParam(validIds, fallback, key = 'tab') {
   const [params, setParams] = useSearchParams();
-  const raw = params.get('tab');
+  const raw = params.get(key);
   const tab = validIds.includes(raw) ? raw : fallback;
 
   const setTab = useCallback((next) => {
     setParams((prev) => {
       const p = new URLSearchParams(prev);
-      if (!next || next === fallback) p.delete('tab');
-      else p.set('tab', next);
+      if (!next || next === fallback) p.delete(key);
+      else p.set(key, next);
       return p;
     }, { replace: true });
-  }, [setParams, fallback]);
+  }, [setParams, fallback, key]);
 
   return [tab, setTab];
 }

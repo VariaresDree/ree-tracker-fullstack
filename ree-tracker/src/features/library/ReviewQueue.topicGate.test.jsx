@@ -6,10 +6,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import LibraryOverview from './LibraryOverview';
+import ReviewQueue from './ReviewQueue';
 
 vi.mock('../../store/useStore', () => ({
-  useStore: () => ({
+  useStore: (sel) => sel({
     isAdmin: true,
     dynamicTOS: { Mathematics: ['Algebra'], ESAS: [], EE: ['Electric Circuits 2', 'Electrical Transient Analysis'] },
     setDynamicTOS: vi.fn(),
@@ -46,15 +46,14 @@ const item = (id, subject, subtopic) => ({
 async function openQueue(queue) {
   fetchReviewQueue.mockResolvedValue(queue);
   const user = userEvent.setup();
-  render(<LibraryOverview serverStats={{}} vaultMetadata={{}} resyncVaultMetadata={vi.fn().mockResolvedValue()} manualMode={false} setManualMode={() => {}} />);
-  await user.click(screen.getByRole('button', { name: /review queue/i }));
+  render(<ReviewQueue resyncVaultMetadata={vi.fn().mockResolvedValue()} />);
   await screen.findByText('Question ok');
   return user;
 }
 
 const cardOf = (text) => screen.getByText(text).closest('div.bg-surface2\\/40');
 
-describe('LibraryOverview — review queue topic gate', () => {
+describe('ReviewQueue — review queue topic gate', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('leaves off-syllabus items out of Accept All and flags them', async () => {

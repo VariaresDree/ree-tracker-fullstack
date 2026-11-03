@@ -1,6 +1,6 @@
 # REE Tracker: where things stand, and what's next
 
-Handoff notes for the next planning session. **Section 0 is the latest (2026-10-31).** First written 2026-10-13, after
+Handoff notes for the next planning session. **The first section below is the latest.** First written 2026-10-13, after
 [#143](https://github.com/VariaresDree/ree-tracker-fullstack/pull/143) and
 [#144](https://github.com/VariaresDree/ree-tracker-fullstack/pull/144) were merged;
 updated for the three releases that followed (branch `claude/jolly-cerf-yz78he`,
@@ -8,7 +8,44 @@ section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
-## 0b. Handover, second round of 2026-11-03 (read this first)
+## 0c. Handover, third round of 2026-11-03 (read this first)
+
+The owner's seven-PR plan: nothing folded away, board counts in Admin, a choice of mock draw, and a simpler, more visual app.
+
+| PR | What |
+|---|---|
+| #208 | Today and Gauntlet with nothing folded; Topics chips |
+| #209 | Board counts in Admin › Syllabus (`SystemConfig.boardBlueprint`), which replaces Subtopics and Bank vs board |
+| #210 | Mock draw: Even spread (default), Board's counts, My own (`User.drawPrefs`) |
+| #211 | Syllabus tiles with a sheet in `?topic=`; board items gone from it |
+| #212 | How sure and Dread as two stacked sliders |
+| #213, #214 | Practice tiles; Build your own is a hero card opening a sheet in `?build=1` |
+| #215, #216 | 12 px text floor with a guard, `text-label`, one empty card for new accounts, Account's sticky jump strip |
+| #217 | Question bank as Bank, Add, Review and Fix (`?view=`, `?how=`); AI models as one row a feature |
+
+**Decisions:**
+- Mocks default to Even spread, which deliberately undoes #206's automatic weighting. Board's counts is a choice.
+- Build your own's hero card breaks the one-hero-per-screen rule, at the owner's request.
+- The word "Dread" stays, and stored ratings are unchanged.
+- Subtopic-level item counts wait for question tagging, because a paper can't draw by a subtopic yet.
+- **The saved board blueprint is the owner's own** (12:21 UTC on 2026-11-03: unitemized topics share counts, and each subject totals 100). Never reset it.
+
+**Left alone deliberately:** Syllabus (2,531 px on a phone) and Study plan (2,731 px) are long but hold real content. "Which mode do I use?" stays closed as optional help.
+
+**Not verified:**
+- A real phone or tablet, above all the sliders under a finger on iOS. Everything here was checked at emulated widths or with a real browser on stubbed data.
+- A paper printout after the type changes.
+- Subtopic ticking on production: the test write wasn't approved.
+- The owner's pane account has no answers, so production only shows it the empty cards. Screens with answers were checked on stubbed data.
+
+**Next, in order:**
+1. **Features:** tag questions by subtopic (the card from the round before is still waiting), then subtopic counts and drilling. Fill the Thin topics through Add › Import. Battles with the same draw choice. Unit conversion, two-day board dates, offline handouts.
+2. **Reliability:** multi-device first-answer undercount, scanned PDFs as images, cold starts.
+3. **UI and UX:** first-run tour, notebook notes with their cards.
+
+**Limit:** the boot download is at 98.7% of its 700 kB budget. New CSS goes in a lazy file imported by path (`ScaleSlider` is the pattern), and `:root` blocks can't go at the end of `index.css` (`themeMeta.test.js` parses them).
+
+## 0b. Handover, second round of 2026-11-03
 
 Six PRs from the owner's list, all merged or open as #207:
 
