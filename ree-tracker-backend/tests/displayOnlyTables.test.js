@@ -20,6 +20,7 @@ const DISPLAY_ONLY = {
     outsideScore: ['routes/outsideScoreRoutes.js', 'services/selfReportSignals.js'],
     // selfReportSignals reads the learner's own topic ratings for the planner only.
     syllabusProgress: ['routes/syllabusRoutes.js', 'services/selfReportSignals.js'],
+    userSubtopic: ['routes/userSubtopicRoutes.js'],
     // The notebook's reads live in services/mistakeList.js (shared with the
     // Today loop, which only picks which questions to practise).
     mistakeTag: ['routes/mistakeRoutes.js', 'services/mistakeList.js'],

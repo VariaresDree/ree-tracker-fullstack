@@ -321,6 +321,7 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/practiceSetRoutes'));
     app.use('/api/user', require('./src/routes/userLinkRoutes'));
     app.use('/api/user', require('./src/routes/syllabusRoutes'));
+    app.use('/api/user', require('./src/routes/userSubtopicRoutes'));
     app.use('/api/user', require('./src/routes/mistakeRoutes'));
     app.use('/api/user', require('./src/routes/noteRoutes'));
     app.use('/api/user', require('./src/routes/cardReviewRoutes'));
@@ -337,6 +338,7 @@ async function bootstrap() {
     app.use('/api/forecast', require('./src/routes/forecastRoutes'));
     // Reference flashcard vault (replaced the legacy /api/reference constants+formulas routes).
     app.use('/api/reference-cards', require('./src/routes/referenceCardRoutes'));
+    app.use('/api/admin/subtopics', require('./src/routes/adminSubtopicRoutes'));
     app.use('/api/admin', require('./src/routes/adminRoutes'));
     app.use('/api/review', require('./src/routes/reviewRoutes'));
 

@@ -54,6 +54,7 @@ const MUST_NOT_MATCH = [
     '/api/user/practice-sets',
     '/api/user/links',
     '/api/user/syllabus',
+    '/api/user/syllabus-subtopics',
     '/api/user/printed-sets', // printed paper sets: per-user, edited offline
     '/api/user/printed-sets/K7P29QXAM3TD',
     '/api',

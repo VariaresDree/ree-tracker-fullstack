@@ -14,7 +14,9 @@
     "./modelJson": "./src/modelJson.js",
     "./explanation": "./src/explanation.js",
     "./questionReplace": "./src/questionReplace.js",
-    "./outsideScores": "./src/outsideScores.js"
+    "./outsideScores": "./src/outsideScores.js",
+    "./subtopics": "./src/subtopics.js",
+    "./boardItems": "./src/boardItems.js"
   },
   "files": [
     "src"

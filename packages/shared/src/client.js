@@ -1,7 +1,7 @@
 // What the browser loads with every page: everything in index.js except the
 // modules only a lazy screen uses (package.json `exports`). Those are imported
 // by path: @ree/shared/paperSets, /modelJson, /explanation, /questionReplace,
-// /outsideScores. The boot bundle is at its budget (scripts/check-eager-bundle).
+// /outsideScores, /subtopics, /boardItems. The boot bundle is at its budget (scripts/check-eager-bundle).
 // @ree/shared — business rules that MUST agree between the web client and the API.
 //
 // A production audit found the same rule implemented in up to EIGHT places, with

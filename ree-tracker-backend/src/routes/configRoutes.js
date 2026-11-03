@@ -36,6 +36,22 @@ router.get('/tos', async (req, res) => {
     }
 });
 
+// The suggested table of contents (Admin › Subtopics), which the device merges
+// with the learner's own changes. Retired rows come too, flagged: a learner who
+// ticked one keeps it, and it needs its name.
+router.get('/subtopics', authMiddleware, async (req, res) => {
+    try {
+        const items = await prisma.syllabusSubtopic.findMany({
+            select: { id: true, topicId: true, name: true, sortOrder: true, active: true },
+            orderBy: [{ topicId: 'asc' }, { sortOrder: 'asc' }],
+        });
+        return res.status(200).json({ items });
+    } catch (error) {
+        logger.error('Subtopics fetch error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to fetch the subtopics.' });
+    }
+});
+
 // TOS Manager save. Same request contract as before ({ subject: [names] }),
 // but instead of overwriting a JSON blob it SYNCS the Topic table: new names
 // are created, existing rows are renamed/reordered/reactivated, and rows

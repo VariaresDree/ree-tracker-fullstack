@@ -34,6 +34,8 @@ module.exports = {
     ...require('./mastery'),
     ...require('./displayName'),
     ...require('./outsideScores'),
+    ...require('./subtopics'),
+    ...require('./boardItems'),
     ...require('./syllabus'),
     ...require('./gauntlet'),
     ...require('./notebook'),
