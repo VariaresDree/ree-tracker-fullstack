@@ -24,7 +24,8 @@ test('a backup holds the account’s records, and a restore previews them first'
   await expect(page.getByText(/It isn’t encrypted/)).toBeVisible();
 
   await page.locator('input[accept=".reebak"]').setInputFiles(saved);
-  await expect(page.getByText('Your account')).toBeVisible({ timeout: 20_000 });
+  // In the preview's own row: the page says "Your account" elsewhere too.
+  await expect(page.getByText(/^Made /).locator('..').getByText('Your account', { exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText(/never restored: only the server grades answers/)).toBeVisible();
   expect(writes).toEqual([]);
 });
