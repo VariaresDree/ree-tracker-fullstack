@@ -79,6 +79,19 @@ beforeEach(() => {
   engineState = null;
 });
 
+describe('Gauntlet — a tier that can’t load', () => {
+  it('offline, it says the tier needs a connection', () => {
+    renderAtIndex(0, 3, 'error', { errorKind: 'offline' });
+    expect(screen.getByText('This tier needs a connection')).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't build this exam")).toBeNull();
+  });
+
+  it('any other failure keeps the plain message', () => {
+    renderAtIndex(0, 3, 'error', { errorKind: null });
+    expect(screen.getByText("Couldn't build this exam")).toBeInTheDocument();
+  });
+});
+
 describe('Gauntlet — layouts', () => {
   it.each(['loading', 'resume', 'submitting', 'pending', 'submit-error', 'error', 'diagnostics'])('the %s screen has the app chrome, not the exam banner', (status) => {
     renderAtIndex(0, 3, status);

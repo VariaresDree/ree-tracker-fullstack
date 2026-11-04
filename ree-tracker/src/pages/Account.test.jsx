@@ -39,8 +39,20 @@ describe('Account', () => {
     render(<MemoryRouter><Account /></MemoryRouter>);
     const nav = screen.getByRole('navigation', { name: 'Account sections' });
     expect(nav.className).toMatch(/sticky/);
-    expect(nav.className).toMatch(/overflow-x-auto/);
-    expect(nav.className).not.toMatch(/flex-wrap/);
+    const strip = nav.firstElementChild;
+    expect(strip.className).toMatch(/overflow-x-auto/);
+    expect(strip.className).not.toMatch(/flex-wrap/);
+  });
+
+  it('its jump links can be dragged with a mouse', () => {
+    render(<MemoryRouter><Account /></MemoryRouter>);
+    const strip = screen.getByRole('navigation', { name: 'Account sections' }).firstElementChild;
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, value: 900 });
+    Object.defineProperty(strip, 'clientWidth', { configurable: true, value: 300 });
+    fireEvent.pointerDown(screen.getByRole('link', { name: 'Exam plan' }), { pointerType: 'mouse', button: 0, clientX: 200 });
+    act(() => { window.dispatchEvent(new MouseEvent('pointermove', { clientX: 120 })); });
+    expect(strip.scrollLeft).toBe(80);
+    act(() => { window.dispatchEvent(new MouseEvent('pointerup')); });
   });
 
   it('has jump links to its sections', () => {

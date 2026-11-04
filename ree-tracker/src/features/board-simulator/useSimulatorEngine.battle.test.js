@@ -99,6 +99,50 @@ describe('useSimulatorEngine — coming back to a battle', () => {
     expect(pendingAttempts.find((a) => a.questionId === 'q1')).toMatchObject({ userAnswer: 'B', confidenceLevel: 'HIGH' });
   });
 
+  it('finishing a battle keeps the sitting’s id, so its review stays one tap away', async () => {
+    api.fetchMultiplayerBattle.mockResolvedValue(battle());
+    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startMultiplayerBattle('ABC123'));
+    await act(() => result.current.submitExam());
+    expect(result.current.session.diagnostics.unansweredItems).toBe(1);
+    act(() => result.current.applyBattleGrades({ q1: 'B', q2: 'D', q3: 'G' }, {}));
+    const d = result.current.session.diagnostics;
+    expect(d.pending).toBe(false);
+    expect(d.sessionId).toBe('ABC123:u1');
+    expect(d.unansweredItems).toBe(1);
+    expect(d.pacingItems).toHaveLength(3);
+    expect(d.correctItems).toBe(1);
+    expect(d.pendingAttempts).toBeUndefined();
+  });
+
+  it('reporting a question marks it, so its button says so', async () => {
+    api.fetchMultiplayerBattle.mockResolvedValue(battle());
+    api.updateQuestionInBank.mockResolvedValue({});
+    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startMultiplayerBattle('ABC123'));
+    await act(() => result.current.handleFlagQuestion());
+    expect(api.updateQuestionInBank).toHaveBeenCalledTimes(1);
+    expect(result.current.session.questions[0].isFlagged).toBe(true);
+    expect(result.current.session.questions[1].isFlagged).toBeFalsy();
+  });
+
+  it('a report that fails leaves the button as it was', async () => {
+    api.fetchMultiplayerBattle.mockResolvedValue(battle());
+    api.updateQuestionInBank.mockRejectedValue(new Error('nope'));
+    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startMultiplayerBattle('ABC123'));
+    await act(() => result.current.handleFlagQuestion());
+    expect(result.current.session.questions[0].isFlagged).toBeFalsy();
+  });
+
+  it('a sitting submitted by the clock says so; one submitted by hand does not', async () => {
+    api.fetchMultiplayerBattle.mockResolvedValue(battle());
+    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startMultiplayerBattle('ABC123'));
+    await act(() => result.current.submitExam());
+    expect(result.current.session.diagnostics.timedOut).toBeFalsy();
+  });
+
   it('submits what was saved at once when the time ran out while away', async () => {
     const data = battle();
     data.battle.timing = { serverNow: Date.now(), endsAt: Date.now() - 5000, closesAt: Date.now() + 25000, remainingMs: 0 };
@@ -107,6 +151,7 @@ describe('useSimulatorEngine — coming back to a battle', () => {
     await act(() => result.current.startMultiplayerBattle('ABC123'));
     await waitFor(() => expect(result.current.session.isFinished).toBe(true), { timeout: 3000 });
     expect(result.current.session.diagnostics.pendingAttempts.filter((a) => a.userAnswer != null)).toHaveLength(2);
+    expect(result.current.session.diagnostics.timedOut).toBe(true);
   });
 
   it.each([

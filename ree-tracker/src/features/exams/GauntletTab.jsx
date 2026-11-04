@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Button, Card, CardWatermark, Grid, ProgressIndicator, Skeleton, StatusPill } from '../../components/ui';
 import { Check, Lock, Shield, Swords, Trophy } from '../../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../../config/examStandards';
@@ -49,7 +50,7 @@ function LockedFor({ cooldown }) {
   return <StatusPill tone="danger" dot={false} className="self-start">Locked — {cooldown}</StatusPill>;
 }
 
-function TierRung({ tier, state, current, cooldown, totalAnswered, onStart }) {
+function TierRung({ tier, state, current, cooldown, totalAnswered, offline, onStart }) {
   const { isPassed, isUnlocked, isCoolingDown } = state;
   const content = (
     <>
@@ -65,7 +66,10 @@ function TierRung({ tier, state, current, cooldown, totalAnswered, onStart }) {
         isCoolingDown ? (
           <LockedFor cooldown={cooldown} />
         ) : isUnlocked ? (
-          <Button className="w-full sm:w-auto sm:self-start mt-1" onClick={() => onStart(tier.level)}>Start tier {tier.level} exam</Button>
+          <>
+            <Button className="w-full sm:w-auto sm:self-start mt-1" disabled={offline} onClick={() => onStart(tier.level)}>Start tier {tier.level} exam</Button>
+            {offline && <p className="text-xs text-muted2">Needs a connection: this tier’s questions come from the server.</p>}
+          </>
         ) : totalAnswered >= tier.reqQs ? (
           <p className="text-xs text-muted2">Clear tier {tier.level - 1} first</p>
         ) : (
@@ -122,6 +126,7 @@ export default function GauntletTab() {
 
   // A clock for the cooldown, ticking only while a lock is running. The label
   // is derived from it, not stored.
+  const isOnline = useNetworkStatus();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!lockUntil || lockUntil <= Date.now()) return undefined;
@@ -184,6 +189,7 @@ export default function GauntletTab() {
             current={tier.level === currentLevel}
             cooldown={cooldown}
             totalAnswered={totalAnswered}
+            offline={!isOnline}
             onStart={start}
           />
         ))}

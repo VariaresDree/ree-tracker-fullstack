@@ -9,6 +9,10 @@ const storage = require('../services/storage');
 const { wouldCreateCycle, subtreeIds } = require('../services/folderTree');
 
 // --- LIST ---
+// A file the client uploaded to Firebase (useFileManager.js). The client deletes
+// those too: this server's storage driver never held them.
+const isFirebasePath = (p) => typeof p === 'string' && p.length <= 500 && p.startsWith('board_materials/') && !p.includes('..');
+
 // GET /api/materials — returns folders + materials in one payload so the
 // Materials Hub UI can build its tree without a second roundtrip.
 router.get('/', authMiddleware, async (req, res) => {
@@ -90,7 +94,7 @@ router.delete('/folders/:id', authMiddleware, requireAdmin, async (req, res) => 
             select: { storagePath: true },
         });
         for (const m of contained) {
-            if (m.storagePath) await storage.delete(m.storagePath).catch(() => {});
+            if (m.storagePath && !isFirebasePath(m.storagePath)) await storage.delete(m.storagePath).catch(() => {});
         }
         // The self-relation FK cascades every descendant Folder row; Material's
         // existing FK cascades every Material row in the subtree.
@@ -116,13 +120,15 @@ router.post(
     express.json({ limit: '8mb' }),
     async (req, res) => {
         try {
-            const { folderId, name, type, dataBase64, url } = req.body || {};
+            const { folderId, name, type, dataBase64, url, storagePath: clientPath } = req.body || {};
             if (!name) return res.status(400).json({ error: 'name is required.' });
             if (!dataBase64 && !url) return res.status(400).json({ error: 'Provide dataBase64 or url.' });
             // folderId is optional now — null/omitted means a root-level material.
 
             let materialUrl = url;
-            let storagePath = null;
+            // The client uploads straight to Firebase and sends the file's path
+            // with the link, so deleting the handout can delete the file.
+            let storagePath = isFirebasePath(clientPath) ? clientPath : null;
 
             if (dataBase64) {
                 const buf = Buffer.from(dataBase64, 'base64');
@@ -172,7 +178,7 @@ router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
         const mat = await prisma.material.findUnique({ where: { id: req.params.id } });
         if (!mat) return res.status(404).json({ error: 'Material not found.' });
-        if (mat.storagePath) await storage.delete(mat.storagePath).catch(() => {});
+        if (mat.storagePath && !isFirebasePath(mat.storagePath)) await storage.delete(mat.storagePath).catch(() => {});
         await prisma.material.delete({ where: { id: req.params.id } });
         return res.status(200).json({ success: true });
     } catch (error) {

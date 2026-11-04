@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from './cn';
+import { FADE_PX, fadeMask, fadeName, readFades } from './scrollFade';
 import { prefersReducedMotion } from '../../motion/presets';
+import { useDragScroll } from '../../hooks/useDragScroll';
 
 // Page-level tab row (Exams, Progress, Library, Admin, a sitting review). Real
 // tablist semantics with arrow-key movement, 44px touch targets, and
@@ -12,22 +14,10 @@ import { prefersReducedMotion } from '../../motion/presets';
 // doesn't open with it off-screen. Each tab names its panel (`id`, shared
 // with <TabPanel>), so a screen reader can go from the tab to its content.
 //
-// The fade is a mask on the strip, not a band painted in the page colour on
-// top, so it fades into whatever is behind: the page's texture, or a card.
-//
 // The row hangs 1rem into the page gutter on each side (-mx-4, the tab's own
 // inset), so the first label lines up with the page title above and the
 // cards below, and on a phone the strip scrolls out to the screen edge. The
 // rule under it stays at the content width.
-const FADE = '2rem';
-const FADE_PX = 32;
-const fadeName = ({ left, right }) => (left && right ? 'both' : left ? 'left' : right ? 'right' : undefined);
-function fadeMask({ left, right }) {
-  if (!left && !right) return undefined;
-  const mask = `linear-gradient(to right, ${left ? 'transparent' : '#000'}, #000 ${left ? FADE : '0px'}, #000 calc(100% - ${right ? FADE : '0px'}), ${right ? 'transparent' : '#000'})`;
-  return { maskImage: mask, WebkitMaskImage: mask };
-}
-
 // Where to scroll the strip so the tab is clear of the fades, or null if it
 // already is. The fade only covers an edge that has more beyond it.
 function scrollTargetFor({ start, end, scrollLeft, clientWidth, scrollWidth }) {
@@ -44,6 +34,7 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
   const id = idProp || autoId;
   const refs = useRef([]);
   const stripRef = useRef(null);
+  const drag = useDragScroll();
   const [fade, setFade] = useState({ left: false, right: false });
   // The active tab's underline: one bar that slides between tabs (a
   // transform: a 1px bar moved and stretched), placed without a slide the
@@ -82,8 +73,7 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
   const measure = () => {
     const el = stripRef.current;
     if (!el) return;
-    const left = el.scrollLeft > 4;
-    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    const { left, right } = readFades(el);
     setFade((f) => (f.left === left && f.right === right ? f : { left, right }));
   };
 
@@ -158,9 +148,10 @@ export function Tabs({ tabs, active, onChange, label, className, id: idProp }) {
         aria-label={label}
         onKeyDown={onKeyDown}
         onScroll={measure}
+        {...drag}
         data-fade={fadeName(fade)}
         // No scrollbar track under the strip (arrow keys move between tabs,
-        // and touch scrolls it). overflow-y-hidden: with only x set, the
+        // touch scrolls it, and a mouse drags it). overflow-y-hidden: with only x set, the
         // browser makes y auto too, and the row could be nudged a pixel up
         // and down. A sideways swipe that runs out stops here, not in the
         // browser's back gesture.

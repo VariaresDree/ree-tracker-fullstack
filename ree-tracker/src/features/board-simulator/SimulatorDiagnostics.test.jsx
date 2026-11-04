@@ -14,6 +14,20 @@ vi.mock('../../components/NotificationOptIn', () => ({ default: () => null }));
 
 const { default: SimulatorDiagnostics } = await import('./SimulatorDiagnostics');
 
+describe('a sitting the clock submitted', () => {
+  const show = (diagnostics) => render(
+    <MemoryRouter><SimulatorDiagnostics session={session(diagnostics)} engine={{ resetToSetup: vi.fn() }} /></MemoryRouter>,
+  );
+  it('says time ran out', () => {
+    show({ timedOut: true, verdict: 'PASSED', score: 80, generalAverage: 80 });
+    expect(screen.getByText('Time ran out, so your answers were submitted.')).toBeInTheDocument();
+  });
+  it('says nothing when submitted by hand', () => {
+    show({ verdict: 'PASSED', score: 80, generalAverage: 80 });
+    expect(screen.queryByText(/Time ran out/)).toBeNull();
+  });
+});
+
 const session = (diagnostics) => ({
   diagnostics: {
     totalItems: 100, correctItems: 75, timeTakenSecs: 3600, unansweredItems: 2,

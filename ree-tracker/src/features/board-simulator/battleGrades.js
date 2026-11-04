@@ -51,6 +51,7 @@ export function computeBattleDiagnostics({ questions, answerKey, explanationKey 
   // ONE definition, shared with the API (@ree/shared): the WEIGHTED general
   // average plus the subject floor. `score` stays the raw share correct.
   const { generalAverage, verdict } = gradeBoardExam(subjectScores);
+  const weakTopics = Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t);
 
   return {
     mappedQuestions,
@@ -60,9 +61,19 @@ export function computeBattleDiagnostics({ questions, answerKey, explanationKey 
       verdict,
       timeTakenSecs,
       subjectScores,
-      weakTopics: Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t),
+      weakTopics,
+      // With each topic's subject, so a weak topic opens a drill on it.
+      weakTopicDetails: weakTopics.map((topic) => ({ topic, subject: mappedQuestions.find((q) => q.subtopic === topic)?.subject || null })),
       totalItems,
       correctItems: correct,
+      unansweredItems: mappedQuestions.filter((q) => q.userAnswer == null).length,
+      pacingItems: mappedQuestions.map((q, idx) => ({
+        order: idx + 1,
+        subject: q.subject,
+        timeSpentMs: Math.round(timeSpentPerQuestion[idx]) || 0,
+        isCorrect: q.userAnswer != null && q.userAnswer === q.answer,
+        text: q.text || q.question,
+      })),
       chronoAnomalies: mappedQuestions.filter((_, idx) => (timeSpentPerQuestion[idx] || 0) > TIME_SINK_MS),
       // Confidently WRONG — an unanswered item is a miss, not a blind spot.
       blindSpots: mappedQuestions.filter((q) => q.userAnswer != null && q.userConf === 'HIGH' && q.userAnswer !== q.answer),

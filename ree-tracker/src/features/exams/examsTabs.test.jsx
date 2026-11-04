@@ -1,7 +1,7 @@
 // The Exams tabs split out of the 700-line Arena page: Battles, Gauntlet and
 // Rankings render, keep their behavior, and head their sections with h2 under
 // the hub's h1 (Arena's cards used h3).
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
@@ -118,6 +118,32 @@ describe('GauntletTab', () => {
     renderTab(<GauntletTab />);
     expect(screen.queryByRole('button', { name: 'Start tier 2 exam' })).not.toBeInTheDocument();
     expect(screen.getByText(/Locked — 0h 59m|Locked — 1h 0m/)).toBeInTheDocument();
+  });
+});
+
+describe('GauntletTab — offline', () => {
+  afterEach(() => { online = true; });
+
+  it('a blended tier needs a connection: its Start is off, and it says why', () => {
+    online = false;
+    storeStats = { gauntletLevel: 1, totalAnswered: 500 };
+    renderTab(<GauntletTab />);
+    expect(screen.getByRole('button', { name: 'Start tier 1 exam' })).toBeDisabled();
+    expect(screen.getByText('Needs a connection: this tier’s questions come from the server.')).toBeInTheDocument();
+  });
+
+  it('a subject board can still start offline', () => {
+    online = false;
+    storeStats = { gauntletLevel: 5, totalAnswered: 5000 };
+    renderTab(<GauntletTab />);
+    expect(screen.getByRole('button', { name: 'Start the EE board' })).toBeEnabled();
+  });
+
+  it('online, nothing changes', () => {
+    storeStats = { gauntletLevel: 1, totalAnswered: 500 };
+    renderTab(<GauntletTab />);
+    expect(screen.getByRole('button', { name: 'Start tier 1 exam' })).toBeEnabled();
+    expect(screen.queryByText(/Needs a connection/)).toBeNull();
   });
 });
 

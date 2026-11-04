@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, X } from '../ui/icons';
 import { SegmentedControl } from '../ui';
 import { navigatorLabel } from './examAnnouncements';
+import { useDragScroll } from '../../hooks/useDragScroll';
 import AnswerSheet from './AnswerSheet';
 
 const VIEWS = [{ value: 'strip', label: 'Strip' }, { value: 'sheet', label: 'Answer sheet' }];
@@ -23,6 +24,7 @@ const VIEWS = [{ value: 'strip', label: 'Strip' }, { value: 'sheet', label: 'Ans
 export default function ExamNavigator({ count, currentIndex, onSelect, isAnswered, reviewStateOf, isMarked, numberOf, sheet }) {
   const scrollRef = useRef(null);
   const [view, setView] = useState('strip');
+  const drag = useDragScroll();
 
   // Keep the active item centered in the horizontal strip — otherwise on a phone
   // (only ~6 cells visible) the current cell scrolls off-screen past item ~7 and
@@ -55,7 +57,7 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
           numberOf={numberOf}
         />
       ) : (
-      <div ref={scrollRef} className="flex overflow-x-auto gap-2.5 pb-4 items-center px-2 scroll-smooth [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
+      <div ref={scrollRef} {...drag} className="flex overflow-x-auto gap-2.5 pb-4 items-center px-2 scroll-smooth [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-surface2/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400">
         {Array.from({ length: count }).map((_, idx) => {
           const answered = !!isAnswered?.(idx);
           const isCurrent = idx === currentIndex;

@@ -7,8 +7,6 @@
 import { Button, Modal } from '../../components/ui';
 import { TriangleAlert } from '../../components/ui/icons';
 
-const MAX_LINKS = 20;
-
 function ItemLinks({ label, indices, onJump }) {
   if (indices.length === 0) return null;
   return (
@@ -17,12 +15,11 @@ function ItemLinks({ label, indices, onJump }) {
         <span className="font-semibold tabular-nums">{indices.length}</span> {label}
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {indices.slice(0, MAX_LINKS).map((idx) => (
+        {indices.map((idx) => (
           <Button key={idx} size="sm" variant="secondary" onClick={() => onJump(idx)} aria-label={`Go to item ${idx + 1}`}>
             {idx + 1}
           </Button>
         ))}
-        {indices.length > MAX_LINKS && <span className="text-xs text-muted2 self-center">and {indices.length - MAX_LINKS} more</span>}
       </div>
     </div>
   );
