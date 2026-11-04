@@ -95,23 +95,23 @@ describe('phone shell', () => {
         expect(screen.getByRole('link', { name: /admin/i })).toHaveAttribute('href', '/admin');
     });
 
-    it('logging out warns when answers have not synced yet', () => {
+    it('logging out warns when answers have not synced yet', async () => {
         storeState.syncQueue = [{}, {}, {}];
         at('/');
         fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
         fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
-        expect(screen.getByRole('dialog')).toHaveTextContent('3 answers haven’t synced yet');
+        expect(await screen.findByRole('dialog')).toHaveTextContent('3 answers haven’t synced yet');
     });
 
     // Queued writes that aren't answers (an outside score saved offline, a
     // finished session) are counted, but not called answers.
-    it('logging out names queued changes that aren’t answers for what they are', () => {
+    it('logging out names queued changes that aren’t answers for what they are', async () => {
         storeState.syncQueue = [{}];
         storeState.pendingWrites = [{}, {}];
         at('/');
         fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
         fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
-        expect(screen.getByRole('dialog')).toHaveTextContent('1 answer and 2 other changes haven’t synced yet');
+        expect(await screen.findByRole('dialog')).toHaveTextContent('1 answer and 2 other changes haven’t synced yet');
     });
 
     it('mounts the offline badge once', () => {
@@ -152,11 +152,11 @@ describe('desktop shell', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
     });
 
-    it('the sidebar has Log out, which asks first', () => {
+    it('the sidebar has Log out, which asks first', async () => {
         desktop();
         at('/');
         fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(await screen.findByRole('dialog')).toBeInTheDocument();
         expect(auth.logout).not.toHaveBeenCalled();
     });
 

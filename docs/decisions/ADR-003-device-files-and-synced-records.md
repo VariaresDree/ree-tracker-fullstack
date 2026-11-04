@@ -32,6 +32,6 @@ A proposal asked for "local-first" storage with "total device isolation": study 
 
 ## Consequences
 
-- Device data can vanish: a browser can delete a site's data under storage pressure, iOS can clear it after seven days without use unless the app is installed, and clearing browser data removes it. PR 7's storage meter and PR 8's backup file are the answer.
-- Sign-out doesn't touch this store. Each account sees only its own records in the app, but they aren't encrypted, so a shared device's other users could reach them with developer tools.
+- Device data can vanish: a browser can delete a site's data under storage pressure, iOS can clear it after seven days without use unless the app is installed, and clearing browser data removes it. Account › Offline & sync shows what's stored and whether it's protected, and PR 8's backup file is the real safety net.
+- Sign-out leaves this store alone unless the learner ticks **Also remove my files**. Each account sees only its own records in the app, but they aren't encrypted, so a shared device's other users could reach them with developer tools.
 - `quizLauncher.isolation.test.js` holds imported quizzes to this: no store, no server module and no network call.

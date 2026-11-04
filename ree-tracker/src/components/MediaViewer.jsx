@@ -89,9 +89,13 @@ export default function MediaViewer({ item }) {
           <div className="text-sm font-bold text-textMain text-center mt-2 [overflow-wrap:anywhere]">{item.title}</div>
           <div className="text-micro font-mono text-muted uppercase tracking-widest -mt-2">Audio</div>
           <audio controls className="w-full max-w-md mt-4 custom-audio-player">
-            <source src={item.url} type="audio/mpeg" />
-            <source src={item.url} type="audio/wav" />
-            <source src={item.url} type="audio/ogg" />
+            {item.mime ? <source src={item.url} type={item.mime} /> : (
+              <>
+                <source src={item.url} type="audio/mpeg" />
+                <source src={item.url} type="audio/wav" />
+                <source src={item.url} type="audio/ogg" />
+              </>
+            )}
           </audio>
         </div>
       );

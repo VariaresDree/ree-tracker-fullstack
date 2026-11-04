@@ -201,7 +201,8 @@ export default defineConfig(async ({ mode, command }) => {
       workbox: {
         // APP SHELL (JS/CSS/HTML/icons/fonts): precached, i.e. CacheFirst with
         // revision-based invalidation — the shell must boot with zero network.
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // mjs is pdf.js's worker (1.2 MB): without it, My files' PDFs fail offline.
+        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2}'],
         // Adds a `notificationclick` handler to the generated SW (public/) so a
         // tap on the in-page Pomodoro notification focuses/opens the app. Local
         // notifications only — no push subscription or FCM involved.

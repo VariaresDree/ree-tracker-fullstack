@@ -125,4 +125,8 @@ export {
   Minus,
   // Unit conversion
   Star,
+  // My files
+  FileAudio,
+  FileImage,
+  FileType,
 } from 'lucide-react';

@@ -4,12 +4,15 @@
 // A disclosure (button + panel of links), not an ARIA menu — the items are
 // plain links and a button, reached with Tab. Opening moves focus to the first
 // item; Escape or a tap outside closes it and returns focus to the avatar.
-import { useEffect, useId, useRef, useState } from 'react';
+import { Suspense, useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import LogoutConfirm from '../components/LogoutConfirm';
 import { User, ShieldCheck, LogOut } from '../components/ui/icons';
 import Avatar from '../components/Avatar';
+import { lazy } from '../utils/lazyWithRetry';
+
+// Only when asked for: it holds no one up, and the boot download is at its budget.
+const LogoutConfirm = lazy(() => import('../components/LogoutConfirm'));
 
 const ITEM = 'touch-target flex items-center gap-3 w-full px-3 py-2.5 rounded-[var(--radius-default)] text-sm text-textMain hover:bg-surface2 text-left cursor-pointer';
 
@@ -83,7 +86,7 @@ export default function AccountMenu() {
         </div>
       )}
 
-      <LogoutConfirm open={confirming} onClose={() => setConfirming(false)} />
+      {confirming && <Suspense fallback={null}><LogoutConfirm open onClose={() => setConfirming(false)} /></Suspense>}
     </div>
   );
 }

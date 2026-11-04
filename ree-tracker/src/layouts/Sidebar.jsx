@@ -3,7 +3,7 @@
 // Tablet and desktop navigation: the five destinations (layouts/navModel.js),
 // the Admin link for admins, the focus timer, connection status, and the
 // Account card. Always an icon rail on a tablet; collapsible to one on desktop.
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import FocusLauncher from '../components/focus/FocusLauncher';
 import OfflineStatusBadge from '../components/OfflineStatusBadge';
@@ -12,9 +12,12 @@ import { useUISlice } from '../store/slices';
 import { cn, Logo } from '../components/ui';
 import { LogOut, PanelLeftClose, PanelLeftOpen } from '../components/ui/icons';
 import Avatar from '../components/Avatar';
-import LogoutConfirm from '../components/LogoutConfirm';
 import useMediaQuery from '../hooks/useMediaQuery';
 import { PRIMARY_NAV, ADMIN_NAV, FULL_SIDEBAR_QUERY, activeNavId } from './navModel';
+import { lazy } from '../utils/lazyWithRetry';
+
+// Only when asked for: it holds no one up, and the boot download is at its budget.
+const LogoutConfirm = lazy(() => import('../components/LogoutConfirm'));
 
 // The current page: an accent tint, the accent edge, and a soft glow (an
 // inner hairline and a faint outer bloom in the accent). The glow is a
@@ -150,7 +153,7 @@ export default function Sidebar() {
           <LogOut size={16} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </div>
-      <LogoutConfirm open={confirmingLogout} onClose={() => setConfirmingLogout(false)} />
+      {confirmingLogout && <Suspense fallback={null}><LogoutConfirm open onClose={() => setConfirmingLogout(false)} /></Suspense>}
     </aside>
   );
 }

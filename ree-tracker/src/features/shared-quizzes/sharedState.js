@@ -1,5 +1,6 @@
 // src/features/shared-quizzes/sharedState.js
 import { CANONICAL_SUBJECTS } from '@ree/shared';
+import { formatBytes } from '../../utils/bytes';
 
 // quizIdFor (quiz-launcher) takes the first 32 hex digits of the same SHA-256 the
 // server stores as the checksum, so a shared file and a device copy match by bytes.
@@ -31,10 +32,6 @@ export function bySubject(files) {
   return groups.filter((g) => g.files.length > 0);
 }
 
-export function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+export const formatSize = formatBytes;
 
 export const countLine = (n, skipped = 0) => `${n} question${n === 1 ? '' : 's'}${skipped > 0 ? `, ${skipped} skipped` : ''}`;
