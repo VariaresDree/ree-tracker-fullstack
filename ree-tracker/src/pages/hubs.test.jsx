@@ -29,6 +29,7 @@ vi.mock('../features/vault/BookmarkVaultTab', () => ({ default: () => <p>bookmar
 vi.mock('../features/notebook/NotebookTab', () => ({ default: () => <section><h2>Notebook</h2><p>notebook</p></section> }));
 vi.mock('../features/quiz-launcher/QuizLauncherTab', () => ({ default: () => <p>quizzes</p> }));
 vi.mock('../features/conversion/ConversionTab', () => ({ default: () => <p>conversion</p> }));
+vi.mock('../features/my-files/MyFilesTab', () => ({ default: () => <p>files</p> }));
 vi.mock('../features/links/LinksTab', () => ({ default: ({ embedded }) => <><h2>{embedded ? 'Your links' : 'Links'}</h2><p>links</p></> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
 vi.mock('../features/analytics/ExplanationReview', () => ({ default: () => <p>explanation-review</p> }));
@@ -114,16 +115,16 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Handouts', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes', 'Units and tools']);
+        expect(tabs).toEqual(['Handouts', 'My files', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes', 'Units and tools']);
     });
 });
 
 describe('Library headings', () => {
     // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
     // formula-card panels check their outlines in their own tests.
-    it.each(['handouts', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['handouts', 'files', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/library?tab=${tab}`, Library);
-        if (tab === 'quizzes' || tab === 'conversion') await screen.findByText(tab);
+        if (tab === 'quizzes' || tab === 'conversion' || tab === 'files') await screen.findByText(tab);
         if (tab === 'handouts') await screen.findByText('links');
         expectNoSkippedLevels(container);
     });

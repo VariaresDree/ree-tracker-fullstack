@@ -10,6 +10,8 @@ import { useFileManager } from './useFileManager';
 import { Button, Card, EmptyState, FormField, Grid, Input, Modal, Select, Skeleton } from '../../components/ui';
 import { FolderOpen, FileText, FileUp, Pencil, Plus, Scissors, X, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
 import { readRecentHandouts, rememberHandout } from './recentHandouts';
+import SaveOffline from './SaveOffline';
+import { useMyFiles } from '../my-files/filesStore';
 
 // Actions on a tile: in view on a phone, on hover or keyboard focus otherwise.
 const TILE_ACTIONS = 'flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1';
@@ -36,6 +38,9 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
     deleteItem, renameItem, moveItem,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   } = useFileManager(currentUser, isAdmin);
+  const { files: deviceFiles } = useMyFiles(uid);
+  const savedHandouts = deviceFiles.filter((f) => f.source?.kind === 'handout');
+  const savedIds = new Set(savedHandouts.map((f) => f.source.materialId));
 
   // A handout named in the URL (a reload, a shared link) opens once the list
   // has it.
@@ -307,12 +312,29 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         </Grid>
       ) : loadError && folders.length === 0 && materials.length === 0 ? (
         loadError === 'offline' ? (
-          <EmptyState
-            icon={CloudOff}
-            title="Handouts need a connection"
-            description="Reconnect to browse them."
-            action={<Button variant="secondary" onClick={reload}>Try again</Button>}
-          />
+          savedHandouts.length > 0 ? (
+            <section aria-label="Saved handouts" className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-muted2 min-w-0">You’re offline. These are saved on this device. The rest need a connection.</p>
+                <Button size="sm" variant="secondary" onClick={reload}>Try again</Button>
+              </div>
+              <Grid kind="cards" className="@5xl:grid-cols-4">
+                {savedHandouts.map((f) => (
+                  <Card key={f.id} padding="md" className="flex flex-col gap-3">
+                    <div title={f.name} className="font-bold text-sm text-textMain leading-relaxed flex-1 min-w-0 line-clamp-2 [overflow-wrap:anywhere]">{f.name}</div>
+                    <Button size="sm" variant="secondary" aria-label={`View ${f.name}`} onClick={() => onViewMaterial({ id: f.source.materialId, name: f.name, type: 'pdf', url: f.source.url })}>View</Button>
+                  </Card>
+                ))}
+              </Grid>
+            </section>
+          ) : (
+            <EmptyState
+              icon={CloudOff}
+              title="Handouts need a connection"
+              description="Reconnect to browse them. A handout you save for offline opens without one."
+              action={<Button variant="secondary" onClick={reload}>Try again</Button>}
+            />
+          )
         ) : (
           <EmptyState
             icon={TriangleAlert}
@@ -442,10 +464,11 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                 <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
               )}
               {query && m.folderId && <p className="text-xs text-muted2 mt-1 [overflow-wrap:anywhere]">{folderPath(m.folderId)}</p>}
-              <div className="flex gap-2 mt-4 pt-4 border-t border-border2/50">
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border2/50">
                 <Button size="sm" variant="secondary" className="flex-1" onClick={(e) => { e.stopPropagation(); openFile(m); }} aria-label={`View ${m.name}`}>
                   View
                 </Button>
+                <SaveOffline material={m} uid={uid} saved={savedIds.has(m.id)} />
                 {m.type !== 'video' && (
                     <Button as="a" size="icon" variant="secondary" href={m.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${m.name} in a new tab`} onClick={(e) => e.stopPropagation()}>
                       <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />

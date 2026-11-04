@@ -8,7 +8,7 @@
 //
 // Reads never throw: no storage (a private window, a test) reads as empty. Writes
 // do, with a message for the learner, since the caller has to say it wasn't kept.
-import { createStore, del, get, getMany, keys, set } from 'idb-keyval';
+import { createStore, del, delMany, get, getMany, keys, set } from 'idb-keyval';
 
 let store = null;
 const open = () => {
@@ -38,6 +38,13 @@ export async function deviceDel(key) {
   try {
     await del(key, open());
   } catch { /* nothing there to remove */ }
+}
+
+/** Everything one account has on this device: its quizzes, files and saved handouts. */
+export async function deleteDeviceData(uid) {
+  const s = open();
+  const mine = (await keys(s)).filter((k) => typeof k === 'string' && k.startsWith(`${uid}:`));
+  if (mine.length) await delMany(mine, s);
 }
 
 /** Every [key, value] whose key starts with `prefix`. */

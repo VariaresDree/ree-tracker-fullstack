@@ -10,10 +10,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
 
 export default function useSignOut() {
-  const { logout } = useAuth();
+  const { logout, currentUser } = useAuth();
   const resetStore = useStore((s) => s.resetStore);
 
-  return useCallback(async () => {
+  // `removeDeviceFiles`: also clear this account's files and quizzes from this device.
+  // They stay otherwise, for when they sign back in. Loaded only when asked for.
+  return useCallback(async ({ removeDeviceFiles = false } = {}) => {
+    const uid = currentUser?.uid;
     try {
       await logout();
     } catch {
@@ -25,5 +28,14 @@ export default function useSignOut() {
     } catch (err) {
       console.error('[AUTH] Local state was not fully cleared on logout.', err);
     }
-  }, [logout, resetStore]);
+    if (removeDeviceFiles && uid) {
+      try {
+        const { deleteDeviceData } = await import('../services/deviceStore');
+        await deleteDeviceData(uid);
+      } catch (err) {
+        console.error('[AUTH] Device files were not removed on logout.', err);
+        toast.error('Your files couldn’t be removed from this device.');
+      }
+    }
+  }, [logout, resetStore, currentUser?.uid]);
 }

@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useStore } from '../../store/useStore';
 import { syncDashboardStats } from '../../services/analyticsSync';
 import OfflineStatusBadge from '../../components/OfflineStatusBadge';
+import StorageSettings from './StorageSettings';
 import { Button, Modal, StatusPill } from '../../components/ui';
 import { Cloud } from '../../components/ui/icons';
 
@@ -55,6 +56,10 @@ export default function OfflineSyncSettings() {
         <Button size="sm" variant="ghost" onClick={() => setConfirmRestore(true)} className="self-start -ml-2 text-muted hover:text-textMain">
           Merge from cloud backup…
         </Button>
+      </div>
+
+      <div className="border-t border-border2/60 pt-5">
+        <StorageSettings />
       </div>
 
       <Modal

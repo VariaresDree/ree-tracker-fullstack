@@ -350,7 +350,7 @@ describe('Leaving and coming back', () => {
     view.unmount();
     renderLauncher(`/library/quiz?id=${id}`);
     expect(await screen.findByText(/1 \/ 36 correct/)).toBeInTheDocument();
-    expect(idb.__data.get(`local:quiz:attempts:${id}`)).toHaveLength(1);
+    await waitFor(() => expect(idb.__data.get(`local:quiz:attempts:${id}`)).toHaveLength(1));
     fireEvent.click(screen.getByRole('button', { name: /Back to quizzes/ }));
     expect(await screen.findByText('Scored 3%')).toBeInTheDocument();
     expect(idb.__data.has(`local:quiz:run:${id}`)).toBe(false);

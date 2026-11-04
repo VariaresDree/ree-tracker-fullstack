@@ -6,6 +6,9 @@ const driveId = (url) => /\/d\/([a-zA-Z0-9_-]+)/.exec(url)?.[1] ?? null;
 
 export const isDriveUrl = (url) => String(url || '').includes('drive.google.com');
 
+/** A Drive file's id, or null if it isn't a link to one. */
+export const driveFileId = (url) => (isDriveUrl(url) ? driveId(url) : null);
+
 export function normalizePdfUrl(url) {
   const pdfUrl = url || '';
   if (!isDriveUrl(pdfUrl)) return pdfUrl;
