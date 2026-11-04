@@ -273,8 +273,7 @@ describe('theme contrast (WCAG AA)', () => {
     // stronger tint or a new tone is measured here. Each badge's tint can differ from
     // its label's colour, as velocity's does.
     const badgeSrc = fs.readFileSync(new URL('../components/ui/Badge.jsx', import.meta.url), 'utf8');
-    const BADGE_TONES = [...badgeSrc.matchAll(/(\w+):\s*
-?\s*'bg-\[color-mix\(in_srgb,(var\([^)]+\))_(\d+)%,transparent\)\] text-\[color-mix\(in_srgb,(var\([^)]+\))_(\d+)%,var\(--text-main\)\)\]/g)]
+    const BADGE_TONES = [...badgeSrc.matchAll(/(\w+):\s*'bg-\[color-mix\(in_srgb,(var\([^)]+\))_(\d+)%,transparent\)\] text-\[color-mix\(in_srgb,(var\([^)]+\))_(\d+)%,var\(--text-main\)\)\]/g)]
         .map((m) => ({ tone: m[1], tintVar: m[2], tint: Number(m[3]) / 100, label: m[4], lean: m[5] }));
     it('reads every coloured badge tone from its source', () => {
         expect(BADGE_TONES.map((b) => b.tone).sort()).toEqual(['amber', 'danger', 'signal', 'success', 'velocity']);

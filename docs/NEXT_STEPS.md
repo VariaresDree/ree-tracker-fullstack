@@ -57,7 +57,7 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 3. **Performance:** the API sends no compression (`compression` isn't in the backend), so a Large pack is 8.8 MB on the wire. It's worth trying, and worth watching what it costs on 0.1 CPU.
 4. **Later:** spectating and ranked matchmaking once there are enough players, Web Push and a weekly summary after the iOS build decision, and Fix rounds on the bank, starting with the 1,305 answered questions.
 
-**Limit:** the boot download is at 99.5% of its 700 kB budget, about 3.6 KB left. Everything new has to be lazy. The next person to need room should look for something to take out of the entry chunk first.
+**Limit:** the boot download is at 99.6% of its 700 kB budget, about 2.5 KB left. Everything new has to be lazy. The next person to need room should look for something to take out of the entry chunk first.
 
 **Testing:** `e2e-authed` can run most of the way locally. The Auth emulator needs no Java, and a small stand-in on port 5000 replaces the backend, though screens then show thin data. CI still runs it for real. `a11y-sweep.spec.ts` finds rendered contrast and heading problems; run it when a colour or heading changes. A whole E2E run makes more requests than the server's default 3,000 per 15 minutes, so the Playwright config raises `RATE_LIMIT_GLOBAL_MAX` for its test server only. A run where everything fails on "Up next" after a certain point is that limit: look for 429s in the traces.
 
