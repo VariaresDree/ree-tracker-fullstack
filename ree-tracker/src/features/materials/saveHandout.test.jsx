@@ -194,6 +194,7 @@ describe('Handouts, with one saved', () => {
     const { container } = render(<MemoryRouter><MaterialViewer material={MATERIAL} onClose={() => {}} /></MemoryRouter>);
     expect(await screen.findByText('device pdf AC notes')).toBeInTheDocument();
     expect(container.ownerDocument.querySelector('iframe')).toBeNull();
+    expect(screen.getByRole('link', { name: /Open in Drive/ })).toHaveAttribute('href', 'https://drive.google.com/file/d/abc123/view');
   });
 
   it('the viewer opens an unsaved one from Drive', async () => {

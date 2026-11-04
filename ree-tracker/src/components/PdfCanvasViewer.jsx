@@ -26,6 +26,7 @@ function PdfPage({ pdf, number, total, width, aspect, rootRef }) {
   const canvasRef = useRef(null);
   const [near, setNear] = useState(false);
   const [drawnAspect, setDrawnAspect] = useState(aspect);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const box = boxRef.current;
@@ -61,7 +62,9 @@ function PdfPage({ pdf, number, total, width, aspect, rootRef }) {
         task = page.render({ canvas, viewport });
         await task.promise;
       } catch (err) {
-        if (err?.name !== 'RenderingCancelledException') console.warn('[PDF] A page didn’t draw.', err);
+        if (err?.name === 'RenderingCancelledException') return;
+        console.warn('[PDF] A page didn’t draw.', err);
+        if (live) setFailed(true);
       }
     }, 120);
     return () => {
@@ -74,10 +77,12 @@ function PdfPage({ pdf, number, total, width, aspect, rootRef }) {
   return (
     <div
       ref={boxRef}
-      className="bg-white shadow-sm shrink-0"
+      className="bg-surface shadow-sm shrink-0"
       style={{ width, height: width * drawnAspect }}
     >
-      {near && <canvas ref={canvasRef} role="img" aria-label={`Page ${number} of ${total}`} className="block w-full h-full" />}
+      {failed
+        ? <p role="alert" className="p-4 text-sm text-center" style={{ color: 'var(--accent-danger)' }}>Page {number} couldn’t be drawn here.</p>
+        : near && <canvas ref={canvasRef} role="img" aria-label={`Page ${number} of ${total}`} className="block w-full h-full" />}
     </div>
   );
 }
