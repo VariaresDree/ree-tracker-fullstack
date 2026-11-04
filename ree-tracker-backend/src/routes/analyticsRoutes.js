@@ -255,6 +255,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                     role: user.role,
                     globalStreak, thetaRating: user.thetaRating,
                     lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
+                    analyticsResetAt: user.analyticsResetAt,
                     dailyMath, dailyESAS, dailyEE,
                     totalAnswered,
                     // The Gauntlet ladder as the server keeps it. Until the
@@ -308,6 +309,7 @@ router.post('/telemetry-bulk', authMiddleware, validate(telemetryBulkSchema), id
 
 router.delete('/purge', authMiddleware, async (req, res) => {
     invalidateDashboard(req.user.id);
+    const analyticsResetAt = new Date();
     try {
         await prisma.$transaction(async (tx) => {
             await tx.questionAttempt.deleteMany({ where: { userId: req.user.id } });
@@ -327,10 +329,12 @@ router.delete('/purge', authMiddleware, async (req, res) => {
                 where: { id: req.user.id },
                 // standardError too: a purge used to keep the shrunken SE of
                 // the wiped history, so θ then crawled from its reset value.
-                data: { thetaRating: 0.0, standardError: PRIOR_SE, globalStreak: 0 }
+                data: { thetaRating: 0.0, standardError: PRIOR_SE, globalStreak: 0, analyticsResetAt }
             });
         });
-        res.status(200).json({ success: true });
+        // A dashboard read while this ran would hold the old numbers.
+        invalidateDashboard(req.user.id);
+        res.status(200).json({ success: true, analyticsResetAt });
     } catch (error) {
         res.status(500).json({ error: 'Failed to execute global purge sequence.' });
     }

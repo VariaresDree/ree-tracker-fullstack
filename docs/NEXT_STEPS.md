@@ -14,7 +14,7 @@ Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mo
 
 ## 0d. Handover, round of 2026-11-04 (read this first)
 
-The owner's ten-PR plan: one exam frame across every session, imported and shared quizzes, unit conversion, files on the device, backup, and offline proven with the network cut.
+The owner's ten-PR plan, finished: one exam frame across every session, imported and shared quizzes, unit conversion, files on the device, backup, and offline proven with the network cut. Two fixes followed, for problems found while checking it live.
 
 | PR | What |
 |---|---|
@@ -29,6 +29,13 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 | #227 | Offline gaps closed, and `zz-offline.spec.ts`, a real service worker with the network cut, in airplane mode and on Wi-Fi with no internet |
 | #228 | Battles draw choice, direct rematch invites, two-day board, first-run tour, notes with their cards, rendered heading and contrast sweep |
 | #229 | A screen's code that fails to download recovers by itself (`services/chunkRecovery.js`), and the host stops letting browsers keep a 404 for a day |
+| #230 | Delete all analytics reaches every device (`User.analyticsResetAt`), the screen says what stays, the notification prompt leaves the first download, and this handover |
+
+**Your actions:**
+1. **Press Delete all analytics once more, after #230 deploys.** Your account has nothing left to lose: 0 answers on the server, checked in the database on 2026-11-04. The earlier delete happened before devices could hear of it, so a browser that kept its own copy still shows 42/50 and a 1-day streak (your Claude pane does). One more press clears every device. Signing out and in clears just that one.
+2. **Decide about the review schedule.** The delete leaves your review cards, 38 of them, so Today still offers "1 due review" with no answers behind it. The screen now says they stay. Clearing them too is one line in the purge route; I left it for you to choose.
+3. **Check a real phone and tablet.** See Not verified below.
+4. **Set the shared quizzes' subjects** whenever you like, in Admin › Handouts › Quiz files. All 13 are General.
 
 **Decisions:**
 - **Files stay on the device, records stay synced.** "Total device isolation" was rejected: Battles, rankings and calibration need other users, ranked scores rest on server re-grading, and phone and tablet have to agree. See `docs/decisions/ADR-003`.
@@ -44,6 +51,9 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 - The owner tried backup and restore: "seems fine".
 - In a fresh Chromium the service worker precaches all 275 files, and the app boots offline.
 - A Large question pack downloaded from the real server: 6,000 questions, 8.8 MB, 15 seconds.
+- On `1a52c02` (after #229), in the owner's pane and read-only: Today, Library, Rankings and Notebook open with no error card, Exams › Battles offers Host a battle, and `GET /api/battles/me/invites` answers 200. Status pills and the "You" badge render with the new tint, and the exam date's hint reads as it should.
+- On the same build, in a fresh Chromium: 273 files precached, none of them wrong, and the app boots with the network cut, with Library importing.
+- Assets carry `max-age=0`, 404s included. Rechecking an unchanged file is a 304 with no body, in about 0.15 s.
 
 **Not verified:**
 - **What first failed in the owner's browser** when Library wouldn't load, right after #228 deployed. The site was healthy, and every file loaded from elsewhere. If it comes back, Admin › App health now shows a case that survived recovery; before reloading, check that browser's Network tab for the file's status.
@@ -52,6 +62,9 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 - **A real rematch invite** between two accounts on production. It's covered by route and component tests and a stubbed browser check, but nothing has played two people through it.
 - **A battle drawn by Board's counts** on the real bank, for the same reason. The picking is the mock's own code, tested on the server with stubbed rows.
 - **A restore on an account with real data** beyond the owner's own try. It adds only what's missing.
+- **The first-run tour on production.** The owner's account no longer qualifies once any device reports answers, and the pane's stale 42 hides it. It was checked at four widths against a stand-in server. Action 1 above should bring it up.
+- **The two-day countdown on production,** which only shows on those days. It was checked with a stubbed date and by tests.
+- **Answers queued on a device when another device deletes analytics.** They're still sent when it reconnects, so a few can reappear on the server. Left as is: they're real answers, and it's rare.
 
 **Next, in order:**
 1. **Features:** tag questions by subtopic with AI help and review, then subtopic counts, drills and ticks from answers. Fill the Thin topics through Add › Import. More in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
@@ -59,7 +72,7 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 3. **Performance:** the API sends no compression (`compression` isn't in the backend), so a Large pack is 8.8 MB on the wire. It's worth trying, and worth watching what it costs on 0.1 CPU.
 4. **Later:** spectating and ranked matchmaking once there are enough players, Web Push and a weekly summary after the iOS build decision, and Fix rounds on the bank, starting with the 1,305 answered questions.
 
-**Limit:** the boot download is at 99.8% of its 700 kB budget, about 1.2 KB left. Everything new has to be lazy. The next person to need room should look for something to take out of the entry chunk first.
+**Limit:** the boot download is at 99.2% of its 700 kB budget, about 5.8 KB left. Everything new has to be lazy. If more room is needed, the next candidates are the Login page (7 KB of source, only for signed-out visits, though it'd add a request to their first paint) and the 139 KB stylesheet, whose theme blocks are the bulk.
 
 **Testing:** `e2e-authed` can run most of the way locally. The Auth emulator needs no Java, and a small stand-in on port 5000 replaces the backend, though screens then show thin data. CI still runs it for real. `a11y-sweep.spec.ts` finds rendered contrast and heading problems; run it when a colour or heading changes. A whole E2E run makes more requests than the server's default 3,000 per 15 minutes, so the Playwright config raises `RATE_LIMIT_GLOBAL_MAX` for its test server only. A run where everything fails on "Up next" after a certain point is that limit: look for 429s in the traces.
 

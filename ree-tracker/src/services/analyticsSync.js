@@ -10,6 +10,7 @@
 import { effectiveStreak, lastStudyDay, todayManila } from '@ree/shared';
 import { apiRequest } from './dbQueries';
 import { useStore } from '../store/useStore';
+import { clearedAnalytics } from './clearedAnalytics';
 import { takeDashboardSeed, invalidateDashboardSeed } from './dashboardSeed';
 
 /**
@@ -89,13 +90,21 @@ export function dailyCountsToday(stats, today = todayManila()) {
  *    the daily counts enter the max only as they stand today (see below);
  *  - theta/thetaHistory: server is canonical when present.
  *
- * @param {object|null} stats   local store stats (optimistic)
+ * @param {object|null} savedStats   local store stats (optimistic)
  * @param {object|null} sqlData normalized dashboard payload (microTopics already client-shaped)
  * @param {string} [today]      Manila YYYY-MM-DD; defaults to now
  */
-export function mergeServerIntoStats(stats, sqlData, today = todayManila()) {
-  if (!stats && !sqlData) return null;
-  if (!sqlData) return stats;
+export function mergeServerIntoStats(savedStats, sqlData, today = todayManila()) {
+  if (!savedStats && !sqlData) return null;
+  if (!sqlData) return savedStats;
+
+  // Analytics deleted, maybe on another device, since this one last looked. What it
+  // saved counted answers that no longer exist, and the rules below would keep them
+  // for good, taking "more here than there" for answers the server hasn't seen yet.
+  const reset = sqlData.profile?.analyticsResetAt || null;
+  const stats = reset && reset > (savedStats?.analyticsResetAt || '')
+    ? { ...savedStats, ...clearedAnalytics(), analyticsResetAt: reset }
+    : savedStats;
 
   const sqlMicroTopics = sqlData.microTopics || {};
   const mergedMicroTopics = { ...sqlMicroTopics };
