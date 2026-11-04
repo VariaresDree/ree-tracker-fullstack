@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGauntletEngine } from '../features/gauntlet/useGauntletEngine';
 import GauntletDiagnostics from '../features/gauntlet/GauntletDiagnostics';
-import SubmitDialog from '../features/board-simulator/SubmitDialog';
+import SubmitDialog from '../components/exam/SubmitDialog';
 import QuestionCard from '../features/quiz/QuestionCard';
 import ExamLayout from '../layouts/ExamLayout';
 import MainLayout from '../layouts/MainLayout';

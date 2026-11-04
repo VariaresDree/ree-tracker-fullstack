@@ -1,11 +1,11 @@
-// src/features/board-simulator/SubmitDialog.jsx
+// src/components/exam/SubmitDialog.jsx
 //
 // "Submit this exam?" — with what is still open: how many items are
 // unanswered and how many are marked for review, each a link back to the item.
 // Two dialogs said less than this (one behind "Exit exam", one on the last
 // item), and Submit was reachable only from the last item.
-import { Button, Modal } from '../../components/ui';
-import { TriangleAlert } from '../../components/ui/icons';
+import { Button, Modal } from '../ui';
+import { TriangleAlert } from '../ui/icons';
 
 function ItemLinks({ label, indices, onJump }) {
   if (indices.length === 0) return null;
@@ -25,7 +25,7 @@ function ItemLinks({ label, indices, onJump }) {
   );
 }
 
-export default function SubmitDialog({ open, onClose, onSubmit, unanswered = [], marked = [], onJump, submitting = false }) {
+export default function SubmitDialog({ open, onClose, onSubmit, unanswered = [], marked = [], onJump, submitting = false, title = 'Submit this exam?', submitLabel = 'Submit exam' }) {
   const jump = (idx) => { onClose(); onJump(idx); };
   const allDone = unanswered.length === 0 && marked.length === 0;
   return (
@@ -34,11 +34,11 @@ export default function SubmitDialog({ open, onClose, onSubmit, unanswered = [],
       onClose={onClose}
       tone={allDone ? 'default' : 'amber'}
       icon={TriangleAlert}
-      title="Submit this exam?"
+      title={title}
       footer={(
         <>
           <Button variant="secondary" onClick={onClose}>Keep working</Button>
-          <Button tone="danger" loading={submitting} disabled={submitting} onClick={() => { onClose(); onSubmit(); }}>Submit exam</Button>
+          <Button tone="danger" loading={submitting} disabled={submitting} onClick={() => { onClose(); onSubmit(); }}>{submitLabel}</Button>
         </>
       )}
     >

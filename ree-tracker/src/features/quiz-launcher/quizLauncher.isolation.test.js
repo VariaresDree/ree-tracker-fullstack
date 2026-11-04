@@ -44,6 +44,8 @@ const FORBIDDEN = [
   'store/slices.js',
   'services/dbQueries.js',
   'services/analyticsSync.js',
+  'services/writeOrQueue.js',
+  'services/reportQuestion.js',
   'hooks/useSyncLifecycle.js',
   'utils/irtMath.js',
 ].map((p) => resolve(SRC_ROOT, p));
@@ -108,6 +110,12 @@ function walkImports(entryFiles) {
 }
 
 describe('CAQ Quiz Launcher — isolation from telemetry/store/scoring', () => {
+  it('makes no network call of its own', () => {
+    const files = listFilesRecursive(join(SRC_ROOT, 'features/quiz-launcher')).concat(join(SRC_ROOT, 'services/deviceStore.js'));
+    const calling = files.filter((f) => /\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket/.test(readFileSync(f, 'utf-8')));
+    expect(calling).toEqual([]);
+  });
+
   it('reaches no forbidden module anywhere in its transitive import graph', () => {
     const entryFiles = ROOTS.flatMap((r) => (statSync(r).isDirectory() ? listFilesRecursive(r) : [r]));
     expect(entryFiles.length).toBeGreaterThan(0); // sanity: the walk actually has something to check
