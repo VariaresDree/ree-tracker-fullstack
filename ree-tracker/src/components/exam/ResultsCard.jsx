@@ -19,7 +19,7 @@ export default function ResultsCard({ score, tone, caption, verdict, notes = [],
           {score != null && (
             <>
               <p className="text-display text-6xl sm:text-7xl tabular-nums" style={{ color: TONE_COLOR[tone] || 'var(--text-main)' }}>{score}</p>
-              {caption && <p className="text-sm text-muted2">{caption}</p>}
+              {caption && <p className="text-sm text-muted2 [overflow-wrap:anywhere]">{caption}</p>}
             </>
           )}
         </div>

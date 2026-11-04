@@ -36,14 +36,14 @@ export const letterIn = (options, value) => {
 };
 
 // Each session's keys, for the legend. Most of these appeared nowhere on screen.
-const CHOICE_KEYS = [
-  ['1–4 or A–D', 'Pick a choice'],
-  ['Q W E', 'How sure you are'],
-  ['↑ ↓', 'Move between the choices'],
-];
+const PICK_KEY = ['1–4 or A–D', 'Pick a choice'];
+const ARROW_KEY = ['↑ ↓', 'Move between the choices'];
+const CHOICE_KEYS = [PICK_KEY, ['Q W E', 'How sure you are'], ARROW_KEY];
 export const KEYS = {
   exam: [...CHOICE_KEYS, ['← →', 'Previous or next item'], ['M', 'Mark for review']],
   practice: [...CHOICE_KEYS, ['Enter or →', 'Next, once answered']],
   flashcards: [['Space', 'Show the answer'], ['1–4', 'Rate how well you recalled it'], ['Enter or →', 'Next, once rated']],
   placement: [...CHOICE_KEYS, ['Enter', 'Submit your answer']],
+  quizPractice: [PICK_KEY, ARROW_KEY, ['← →', 'Previous or next item'], ['Enter', 'Next, once answered']],
+  quizExam: [PICK_KEY, ARROW_KEY, ['← →', 'Previous or next item'], ['M', 'Mark for review']],
 };

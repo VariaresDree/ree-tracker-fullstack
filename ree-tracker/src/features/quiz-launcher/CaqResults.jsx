@@ -1,107 +1,129 @@
 // src/features/quiz-launcher/CaqResults.jsx
-// In-session score + full answer review for a finished CAQ run. Nothing here
-// is saved anywhere — leaving this screen (or reloading) discards it, which
-// is the point: a CAQ practice session must never touch real assessment
-// history. Reuses QuestionCard in 'reviewing' state for the per-question
-// breakdown, with plainText so third-party quiz text never enters the
-// markdown/KaTeX pipeline it was never authored for.
-import { Button, Badge, StatusPill } from '../../components/ui';
-import { RefreshCw, LayoutGrid, TriangleAlert } from '../../components/ui/icons';
+//
+// The end of an imported quiz: the score, then each item with what you picked, one
+// at a time. The attempt is kept on this device for the quiz's row and goes no
+// further: it must never touch real assessment history. Text renders plainly, since
+// third-party quiz text was never written for the markdown and KaTeX pipeline.
+import { useState } from 'react';
+import { Button, QuestionSurface, SegmentedControl, StatusPill } from '../../components/ui';
+import { LayoutGrid, RotateCcw } from '../../components/ui/icons';
+import ExamNavigator from '../../components/exam/ExamNavigator';
+import ResultsCard from '../../components/exam/ResultsCard';
+import { ITEM_FOCUS_CLASS, useItemFocus } from '../../hooks/useItemFocus';
+import { COPY, itemOf } from '../quiz/examCopy';
 import QuestionCard from '../quiz/QuestionCard';
+import { formatDuration } from '../../utils/time';
+import { missedIds } from './quizRun';
 
-function formatElapsed(ms) {
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+/** A file's optional explanation and extra notes, when it carries them. */
+export function QuizNotes({ question }) {
+  if (!question.explanation && !question.additionalInfo) return null;
+  return (
+    <div className="flex flex-col gap-3 border-t border-border2/40 pt-3">
+      {question.explanation && (
+        <div>
+          <p className="text-eyebrow mb-1">Explanation</p>
+          <p className="text-sm text-muted2 leading-relaxed whitespace-pre-wrap break-words">{question.explanation}</p>
+        </div>
+      )}
+      {question.additionalInfo && (
+        <div>
+          <p className="text-eyebrow mb-1">Additional info</p>
+          <p className="text-sm text-muted2 leading-relaxed whitespace-pre-wrap break-words">{question.additionalInfo}</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
-export default function CaqResults({ fileName, questions, answers, score, elapsedMs, warnings, onRetake, onExit }) {
-  const pct = score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0;
-  const defectiveCount = questions.filter((q) => q.defects.length > 0).length;
+export default function CaqResults({ quiz, run, shown, score, onRetake, onRetryMissed, onDone }) {
+  const missed = missedIds(run, shown);
+  const blank = shown.filter((q) => run.answers[q.id] == null);
+  const wrong = shown.filter((q) => run.answers[q.id] != null && run.answers[q.id] !== q.answer);
+  const flagged = shown.filter((q) => run.marked.includes(q.id));
+  const [filter, setFilter] = useState(() => (wrong.length > 0 ? 'wrong' : blank.length > 0 ? 'blank' : 'all'));
+  const [pos, setPos] = useState(0);
+  const lists = { all: shown, wrong, blank, marked: flagged };
+  const list = lists[filter];
+  const at = Math.min(pos, Math.max(0, list.length - 1));
+  const item = list[at];
+  const itemRef = useItemFocus(item?.id);
+  const choose = (next) => { setFilter(next); setPos(0); };
+
+  const { warnings = [] } = quiz.result;
+  const defects = shown.filter((q) => q.defects?.length > 0).length;
+  const options = [
+    { value: 'all', label: `All ${shown.length}` },
+    { value: 'wrong', label: `Wrong ${wrong.length}`, disabled: wrong.length === 0 },
+    ...(blank.length > 0 ? [{ value: 'blank', label: `Blank ${blank.length}` }] : []),
+    ...(flagged.length > 0 ? [{ value: 'marked', label: `Marked ${flagged.length}` }] : []),
+  ];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 bg-surface border border-border rounded-[var(--radius-lg)] p-6 elevate-1">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-eyebrow mb-1">{fileName}</p>
-            <p className="text-2xl font-bold text-textMain tabular-nums">
-              {score.correct} / {score.total} correct
-              <span className="text-muted2 text-base font-medium ml-2">({pct}%)</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <StatusPill tone="neutral" dot={false}>Time {formatElapsed(elapsedMs)}</StatusPill>
-            <StatusPill tone="neutral" dot={false}>{score.answered} / {score.total} answered</StatusPill>
-          </div>
-        </div>
+    <>
+      <ResultsCard
+        score={`${score.pct}%`}
+        tone={score.pct >= 70 ? 'success' : score.pct >= 50 ? 'amber' : 'danger'}
+        caption={`${score.correct} / ${score.total} correct · ${quiz.fileName}`}
+        notes={[
+          run.timedOut && 'Time ran out, so your answers were submitted.',
+          warnings.length > 0 && `${warnings.length} record${warnings.length === 1 ? '' : 's'} in this file couldn’t be read and ${warnings.length === 1 ? 'was' : 'were'} skipped.`,
+          defects > 0 && `${defects} question${defects === 1 ? '' : 's'} had a duplicate choice in the file. Either copy counted as correct.`,
+          'Kept on this device only. It doesn’t count toward your progress, streak or readiness.',
+        ]}
+        tiles={[
+          { label: 'Answered', value: `${score.answered} / ${score.total}` },
+          { label: 'Left blank', value: blank.length },
+          { label: 'Time', value: formatDuration(Math.round(run.elapsedMs / 1000)) },
+        ]}
+        actions={(
+          <>
+            {missed.length > 0 && (
+              <Button onClick={onRetryMissed}><RotateCcw size={15} strokeWidth={1.75} aria-hidden="true" /> Retry missed ({missed.length})</Button>
+            )}
+            <Button variant={missed.length > 0 ? 'secondary' : 'primary'} onClick={onRetake}><RotateCcw size={15} strokeWidth={1.75} aria-hidden="true" /> Retake</Button>
+            <Button variant="secondary" onClick={onDone}><LayoutGrid size={15} strokeWidth={1.75} aria-hidden="true" /> Back to quizzes</Button>
+          </>
+        )}
+      />
 
-        <p className="text-xs text-muted2">
-          This result is shown for this session only — nothing here is saved, uploaded, or reflected
-          in your progress, streak, or readiness score.
-        </p>
-
-        {(warnings.length > 0 || defectiveCount > 0) && (
-          <div className="flex items-start gap-2 rounded-[var(--radius-default)] border p-3" style={{
-            background: 'color-mix(in srgb, var(--color-reeAmber) 8%, transparent)',
-            borderColor: 'color-mix(in srgb, var(--color-reeAmber) 30%, transparent)',
-          }}>
-            <TriangleAlert size={16} strokeWidth={1.75} className="shrink-0 mt-0.5" style={{ color: 'var(--color-reeAmber-text)' }} aria-hidden="true" />
-            <div className="text-xs text-muted2 leading-relaxed">
-              {warnings.length > 0 && <p>{warnings.length} record{warnings.length === 1 ? '' : 's'} in this file couldn't be read and {warnings.length === 1 ? 'was' : 'were'} skipped.</p>}
-              {defectiveCount > 0 && <p>{defectiveCount} question{defectiveCount === 1 ? '' : 's'} had a duplicate answer choice in the source file — either matching option was accepted as correct.</p>}
-            </div>
+      <section aria-labelledby="quiz-review" className="flex flex-col gap-4 min-w-0">
+        <h2 id="quiz-review" className="text-h3 text-textMain">Review</h2>
+        <SegmentedControl label="Show" value={filter} onChange={choose} options={options} />
+        {list.length > 1 && (
+          <ExamNavigator
+            count={list.length}
+            currentIndex={at}
+            onSelect={setPos}
+            isAnswered={(i) => run.answers[list[i].id] != null}
+            reviewStateOf={(i) => {
+              const answer = run.answers[list[i].id];
+              return answer == null ? 'skipped' : answer === list[i].answer ? 'correct' : 'incorrect';
+            }}
+            isMarked={(i) => run.marked.includes(list[i].id)}
+            numberOf={(i) => shown.indexOf(list[i]) + 1}
+          />
+        )}
+        {item && (
+          <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
+            <QuestionSurface className="gap-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-medium text-textMain">{itemOf(shown.indexOf(item), shown.length)}</p>
+                {item.defects?.includes('duplicate-option-removed') && <StatusPill tone="amber">Duplicate choice in source</StatusPill>}
+                {run.answers[item.id] == null && <StatusPill tone="neutral" dot={false}>Left blank</StatusPill>}
+              </div>
+              <QuestionCard question={item} selectedOption={run.answers[item.id] ?? null} state="reviewing" showConfidence={false} plainText announce={false} />
+              <QuizNotes question={item} />
+              {list.length > 1 && (
+                <div className="flex justify-between gap-3 border-t border-border pt-5">
+                  <Button variant="secondary" onClick={() => setPos(at - 1)} disabled={at === 0}>{COPY.previous}</Button>
+                  <Button onClick={() => setPos(at + 1)} disabled={at === list.length - 1}>{COPY.next}</Button>
+                </div>
+              )}
+            </QuestionSurface>
           </div>
         )}
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="primary" onClick={onRetake}>
-            <RefreshCw size={15} strokeWidth={1.75} aria-hidden="true" /> Retake
-          </Button>
-          <Button variant="secondary" onClick={onExit}>
-            <LayoutGrid size={15} strokeWidth={1.75} aria-hidden="true" /> Back to files
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        {questions.map((q, i) => (
-          <div key={q.id} className="bg-surface border border-border rounded-[var(--radius-lg)] p-5">
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge tone="neutral">Item {i + 1}</Badge>
-              {q.defects.includes('duplicate-option-removed') && (
-                <StatusPill tone="amber">Duplicate choice in source</StatusPill>
-              )}
-            </div>
-            <QuestionCard
-              question={q}
-              selectedOption={answers[q.id] ?? null}
-              state="reviewing"
-              showConfidence={false}
-              plainText
-              announce={false}
-              onSelect={() => {}}
-            />
-            {/* Optional per the source format — both real sample files leave
-                these empty on every question, but the format explicitly
-                supports them, so render whenever a file actually carries
-                content rather than silently dropping it. */}
-            {q.explanation && (
-              <div className="mt-3 pt-3 border-t border-border2/40">
-                <p className="text-eyebrow mb-1">Explanation</p>
-                <p className="text-sm text-muted2 leading-relaxed whitespace-pre-wrap break-words">{q.explanation}</p>
-              </div>
-            )}
-            {q.additionalInfo && (
-              <div className="mt-3 pt-3 border-t border-border2/40">
-                <p className="text-eyebrow mb-1">Additional info</p>
-                <p className="text-sm text-muted2 leading-relaxed whitespace-pre-wrap break-words">{q.additionalInfo}</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+      </section>
+    </>
   );
 }

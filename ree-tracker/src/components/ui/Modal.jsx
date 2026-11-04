@@ -134,7 +134,7 @@ export function Modal({
               <div className="flex-1 min-w-0">
                 {eyebrow && <p className="text-eyebrow mb-0.5">{eyebrow}</p>}
                 {title && (
-                  <h2 id={titleId} className={cn('text-textMain font-semibold tracking-tight text-lg', fullscreen && 'truncate')}>
+                  <h2 id={titleId} className={cn('text-textMain font-semibold tracking-tight text-lg', fullscreen ? 'truncate' : '[overflow-wrap:anywhere]')}>
                     {title}
                   </h2>
                 )}

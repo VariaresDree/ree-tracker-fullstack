@@ -27,7 +27,7 @@ import SolutionPanel from '../quiz/SolutionPanel';
 import NoteButton, { NoteView } from '../notebook/NoteButton';
 import { questionTarget } from '../notebook/targets';
 import { explanationKey } from '../../services/aiExplanations';
-import SubmitDialog from './SubmitDialog';
+import SubmitDialog from '../../components/exam/SubmitDialog';
 
 const NO_MARKS = new Set();
 

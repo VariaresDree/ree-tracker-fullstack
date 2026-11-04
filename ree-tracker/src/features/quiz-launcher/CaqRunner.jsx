@@ -1,175 +1,207 @@
 // src/features/quiz-launcher/CaqRunner.jsx
-// The active exam run for one loaded CAQ quiz. Reuses ExamLayout for the
-// distraction-free chrome and QuestionCard for the answer surface — the
-// SAME visual language as Board Simulator/Gauntlet — but drives them from
-// useCaqSession's local-only state, never useSimulatorEngine. See
-// quizLauncher.isolation.test.js for the static proof that this file's
-// import graph never reaches the telemetry/store/scoring modules.
-import { useEffect, useState } from 'react';
+//
+// Taking an imported quiz, in the same frame as every other session. Practice shows
+// the answer right after each pick and can't be changed; Exam holds everything back
+// until the whole set is submitted. The run is saved after every change, so leaving
+// is safe. See quizLauncher.isolation.test.js for the proof that nothing here
+// reaches your progress or the server.
+import { useEffect, useEffectEvent, useState } from 'react';
 import ExamLayout from '../../layouts/ExamLayout';
-import { Button, Modal } from '../../components/ui';
-import { ChevronLeft, ChevronRight, Check, X as XIcon } from '../../components/ui/icons';
+import { Button, Page, QuestionSurface } from '../../components/ui';
+import ExamClock from '../../components/exam/ExamClock';
+import ExamNavigator from '../../components/exam/ExamNavigator';
+import ItemActions from '../../components/exam/ItemActions';
+import KeyLegend from '../../components/exam/KeyLegend';
+import PaceIndicator from '../../components/exam/PaceIndicator';
+import SessionActions from '../../components/exam/SessionActions';
+import SessionBar, { SubmitLabel } from '../../components/exam/SessionBar';
+import SubmitDialog from '../../components/exam/SubmitDialog';
+import Scratchpad from '../../components/Scratchpad';
+import { ITEM_FOCUS_CLASS, useItemFocus } from '../../hooks/useItemFocus';
+import { shouldIgnoreHotkey } from '../../utils/hotkeys';
+import { COPY, KEYS, letterIn } from '../quiz/examCopy';
 import QuestionCard from '../quiz/QuestionCard';
-import { useCaqSession } from './useCaqSession';
-import CaqResults from './CaqResults';
+import CaqResults, { QuizNotes } from './CaqResults';
+import { missedIds } from './quizRun';
+import { recordAttempt, saveRun } from './quizStore';
+import { useQuizRun } from './useQuizRun';
 
 function formatElapsed(ms) {
   const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`;
 }
 
-export default function CaqRunner({ fileName, questions, warnings, onExit }) {
-  // key={runKey} below forces a full remount of the session hook on Retake —
-  // simpler and safer than adding a manual reset() to useCaqSession, and
-  // guarantees no stale answer/index state leaks between attempts.
-  const [runKey, setRunKey] = useState(0);
-  return (
-    <CaqRun
-      key={runKey}
-      fileName={fileName}
-      questions={questions}
-      warnings={warnings}
-      onExit={onExit}
-      onRetake={() => setRunKey((k) => k + 1)}
-    />
-  );
-}
-
-function CaqRun({ fileName, questions: rawQuestions, warnings, onExit, onRetake }) {
-  const session = useCaqSession(rawQuestions);
-  // `questions` here is the hook's SHUFFLED array, not `rawQuestions` above —
-  // every read below (the jump navigator and the post-submit review) must
-  // come from this one so the option order a user answered with is the exact
-  // order they see when reviewing. Passing `rawQuestions` to CaqResults
-  // instead of this was the bug: the answer surface showed shuffled options
-  // while review re-rendered the pre-shuffle order, so the correct answer
-  // appeared to jump back to option A and no longer matched what the user
-  // remembered picking.
-  const {
-    questions, currentQuestion, currentIndex, total, answers, selectAnswer, next, prev, goTo,
-    finished, submit, elapsedMs, startClock, score,
-  } = session;
-  // Exit asks first once there are answers: nothing here is saved, and one
-  // stray tap used to throw a half-done quiz away.
-  const [confirmExit, setConfirmExit] = useState(false);
-  const requestExit = () => (score.answered > 0 ? setConfirmExit(true) : onExit());
-
+// Counts up on its own, so its tick re-renders nothing else.
+function CountUp({ baseMs, since }) {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    startClock();
-    return () => session.stopClock();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once per mount; stopClock is stable enough for this lifecycle
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <span className="text-xs font-mono text-muted2 tabular-nums">{formatElapsed(baseMs + Math.max(0, now - since))}</span>;
+}
+
+const BANNER = {
+  shortMessage: 'Imported quiz — not in your progress',
+  message: 'Imported quiz — private to this device, and not counted in your progress',
+};
+
+export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onDone }) {
+  const questions = quiz.result.questions;
+  const { run, shown, score, select, goTo, toggleMark, finish, openedAt } = useQuizRun({
+    initialRun,
+    questions,
+    onSave: (next) => saveRun(uid, quiz.id, next),
+    onFinish: (attempt) => recordAttempt(uid, quiz.id, attempt),
+  });
+  const [showSubmit, setShowSubmit] = useState(false);
+  const [showTime, setShowTime] = useState(true);
+  const [showScratchpad, setShowScratchpad] = useState(false);
+  const itemRef = useItemFocus(run.index);
+
+  const practice = run.setup.mode === 'practice';
+  const q = shown[run.index];
+  const picked = q ? run.answers[q.id] ?? null : null;
+  const revealed = practice && picked != null;
+  const isLast = run.index === shown.length - 1;
+  const blanks = shown.map((item, i) => (run.answers[item.id] == null ? i : -1)).filter((i) => i >= 0);
+  const marked = shown.map((item, i) => (run.marked.includes(item.id) ? i : -1)).filter((i) => i >= 0);
+
+  const onKey = useEffectEvent((e) => {
+    if (run.finished || !q || shouldIgnoreHotkey(e) || showSubmit || showScratchpad) return;
+    const key = e.key.toLowerCase();
+    if (key === 'arrowleft') goTo(run.index - 1);
+    if (key === 'arrowright') goTo(run.index + 1);
+    if (key === 'm' && !practice) toggleMark(q.id);
+    if (key === 'enter' && revealed && !e.target?.closest?.('button, a')) goTo(run.index + 1);
+  });
+  useEffect(() => {
+    const handler = (e) => onKey(e);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  if (finished) {
+  if (run.finished) {
     return (
-      <ExamLayout
-        shortMessage="Offline practice — not tracked"
-        message="Offline practice quiz — untimed, local only, not reflected in your analytics"
-      >
-        <CaqResults
-          fileName={fileName}
-          questions={questions}
-          answers={answers}
-          score={score}
-          elapsedMs={elapsedMs}
-          warnings={warnings}
-          onRetake={onRetake}
-          onExit={onExit}
-        />
+      <ExamLayout {...BANNER}>
+        <Page width="reading">
+          <h1 className="sr-only">{quiz.fileName} results</h1>
+          <CaqResults
+            quiz={quiz}
+            run={run}
+            shown={shown}
+            score={score}
+            onRetake={() => onAgain()}
+            onRetryMissed={() => onAgain({ only: missedIds(run, shown) })}
+            onDone={onDone}
+          />
+        </Page>
       </ExamLayout>
     );
   }
+  if (!q) return null;
 
-  if (!currentQuestion) return null;
-
-  const isLast = currentIndex === total - 1;
+  const stateOf = (i) => {
+    const answer = run.answers[shown[i].id];
+    if (!practice || answer == null) return null;
+    return answer === shown[i].answer ? 'correct' : 'incorrect';
+  };
 
   return (
-    <ExamLayout
-      shortMessage="Offline practice — not tracked"
-      message="Offline practice quiz — untimed, local only, not reflected in your analytics"
-    >
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-eyebrow">Item {currentIndex + 1} / {total}</p>
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-muted2 tabular-nums">{formatElapsed(elapsedMs)}</span>
-            <Button variant="ghost" size="sm" onClick={requestExit}>Exit</Button>
-          </div>
-        </div>
+    <ExamLayout {...BANNER}>
+      <Page width="wide">
+        <h1 className="sr-only">{quiz.fileName}</h1>
 
-        <QuestionCard
-          question={currentQuestion}
-          selectedOption={answers[currentQuestion.id] ?? null}
-          onSelect={(opt) => selectAnswer(currentQuestion.id, opt)}
-          showConfidence={false}
-          plainText
+        <SubmitDialog
+          open={showSubmit}
+          onClose={() => setShowSubmit(false)}
+          onSubmit={() => finish()}
+          unanswered={blanks}
+          marked={marked}
+          onJump={goTo}
+          title={practice ? 'Finish this quiz?' : undefined}
+          submitLabel={practice ? 'Finish' : undefined}
         />
 
-        {/* Compact jump navigator — filled dot = answered, ring = current */}
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Jump to question">
-          {questions.map((q, i) => {
-            const answered = answers[q.id] != null;
-            const isCurrent = i === currentIndex;
-            return (
-              <button
-                key={q.id}
-                type="button"
-                onClick={() => goTo(i)}
-                aria-current={isCurrent}
-                aria-label={`Question ${i + 1}${answered ? ', answered' : ''}`}
-                className={`w-7 h-7 rounded-[var(--radius-sm)] text-micro font-mono flex items-center justify-center transition-colors cursor-pointer border touch-target ${
-                  isCurrent
-                    ? 'border-[var(--accent-velocity)] text-[var(--accent-text)] font-bold'
-                    : answered
-                      ? 'border-transparent bg-surface3 text-textMain'
-                      : 'border-transparent bg-surface2/50 text-muted'
-                }`}
-              >
-                {i + 1}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <Button variant="secondary" onClick={prev} disabled={currentIndex === 0}>
-            <ChevronLeft size={15} strokeWidth={1.75} aria-hidden="true" /> Prev
-          </Button>
-          {isLast ? (
-            <Button variant="primary" onClick={submit}>
-              <Check size={15} strokeWidth={1.75} aria-hidden="true" /> Finish ({score.answered}/{total} answered)
-            </Button>
-          ) : (
-            <Button variant="secondary" onClick={next}>
-              Next <ChevronRight size={15} strokeWidth={1.75} aria-hidden="true" />
-            </Button>
-          )}
-        </div>
-
-        <Modal
-          open={confirmExit}
-          onClose={() => setConfirmExit(false)}
-          title="Leave this quiz?"
-          size="sm"
-          footer={(
-            <>
-              <Button variant="secondary" onClick={() => setConfirmExit(false)}>Keep going</Button>
-              <Button tone="danger" onClick={onExit}>Leave</Button>
-            </>
+        <SessionBar
+          index={run.index}
+          total={shown.length}
+          answered={practice ? undefined : score.answered}
+          action={<Button variant="ghost" size="sm" className="shrink-0" onClick={onLeave}>Leave</Button>}
+          detail={practice && score.answered > 0 && (
+            <span className="shrink-0 text-xs text-muted2 tabular-nums max-[359px]:hidden">
+              <span style={{ color: 'var(--accent-success)' }} className="font-semibold">{score.correct}</span>/{score.answered} correct
+            </span>
           )}
         >
-          <p className="text-sm text-muted2">Your {score.answered} answer{score.answered === 1 ? '' : 's'} aren’t saved anywhere, so they’ll be lost.</p>
-        </Modal>
+          {run.deadline ? (
+            <>
+              <PaceIndicator endTime={run.deadline} totalSecs={run.limitSecs} totalItems={shown.length} answered={score.answered} hidden={!showTime} />
+              <ExamClock endTime={run.deadline} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} onExpire={() => finish({ timedOut: true })} />
+            </>
+          ) : (
+            <CountUp baseMs={initialRun.elapsedMs} since={openedAt} />
+          )}
+          <KeyLegend keys={practice ? KEYS.quizPractice : KEYS.quizExam} />
+        </SessionBar>
 
-        {isLast && score.answered < total && (
-          <p className="text-xs text-muted2 flex items-center gap-1.5">
-            <XIcon size={13} strokeWidth={1.75} aria-hidden="true" /> {total - score.answered} question{total - score.answered === 1 ? '' : 's'} unanswered — you can still finish, or jump back using the numbers above.
-          </p>
-        )}
-      </div>
+        {/* Under the question on a phone, so the question comes first. */}
+        <div className="max-md:order-last min-w-0">
+          <ExamNavigator
+            count={shown.length}
+            currentIndex={run.index}
+            onSelect={goTo}
+            isAnswered={(i) => run.answers[shown[i].id] != null}
+            reviewStateOf={practice ? stateOf : undefined}
+            isMarked={(i) => run.marked.includes(shown[i].id)}
+            sheet={practice ? undefined : { letterOf: (i) => letterIn(shown[i].options, run.answers[shown[i].id]) }}
+          />
+        </div>
+
+        <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
+          <QuestionSurface className="overflow-hidden md:isolate gap-6">
+            <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
+            <QuestionCard
+              question={q}
+              selectedOption={picked}
+              state={revealed ? 'reviewing' : 'answering'}
+              showConfidence={false}
+              hotkeys
+              arrowsMoveItems
+              plainText
+              onSelect={(option) => select(q.id, option)}
+              headerSlot={(
+                <ItemActions
+                  marked={run.marked.includes(q.id)}
+                  onMark={practice ? undefined : () => toggleMark(q.id)}
+                  onScratchpad={() => setShowScratchpad((v) => !v)}
+                />
+              )}
+            />
+            {revealed && <QuizNotes question={q} />}
+          </QuestionSurface>
+        </div>
+
+        <SessionActions>
+          <Button variant="secondary" onClick={() => goTo(run.index - 1)} disabled={run.index === 0}>{COPY.previous}</Button>
+          {practice ? (
+            <Button
+              variant={isLast ? undefined : 'outline'}
+              tone={isLast ? 'success' : undefined}
+              className="mx-auto"
+              onClick={() => (blanks.length > 0 ? setShowSubmit(true) : finish())}
+            >
+              Finish
+            </Button>
+          ) : (
+            <Button tone="danger" variant={isLast ? undefined : 'outline'} className="mx-auto" aria-label={COPY.submit} onClick={() => setShowSubmit(true)}>
+              <SubmitLabel />
+            </Button>
+          )}
+          <Button className="ml-auto" onClick={() => goTo(run.index + 1)} disabled={isLast}>{COPY.next}</Button>
+        </SessionActions>
+
+      </Page>
     </ExamLayout>
   );
 }

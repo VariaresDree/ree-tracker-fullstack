@@ -1,42 +1,74 @@
 // src/features/quiz-launcher/quizSession.js
 //
-// The imported quizzes, for this tab only: the files loaded and the one being
-// run. A plain module store (never src/store — this feature stays isolated,
-// and nothing here is persisted), so:
-//   - the list survives switching Library tabs (it was component state, gone
-//     the moment you looked at Formula cards);
-//   - a run can live on its own route (/library/quiz) with the exam layout,
-//     instead of an exam layout nested inside the app shell's <main>.
-// Reloading the tab still discards everything, as the picker says.
+// The list on Library › Imported quizzes: what's saved on this device, plus files
+// still being read and any that failed. A plain module store (never src/store:
+// this feature stays isolated), so the list doesn't flicker on switching tabs.
 import { useSyncExternalStore } from 'react';
+import { __clearQuizMemory, deleteQuiz, listQuizzes, quizIdFor, saveQuiz } from './quizStore';
+import { parseCaqArchive } from './caqParser';
 
-let state = { entries: [], activeId: null };
+let state = { entries: [], loaded: false };
 const listeners = new Set();
 const emit = () => listeners.forEach((l) => l());
-
 const subscribe = (l) => { listeners.add(l); return () => listeners.delete(l); };
 const getState = () => state;
+const setEntries = (update) => {
+  state = { ...state, entries: update(state.entries) };
+  emit();
+};
 
-export function setQuizEntries(update) {
-  const entries = typeof update === 'function' ? update(state.entries) : update;
-  const activeId = entries.some((e) => e.id === state.activeId) ? state.activeId : null;
-  state = { entries, activeId };
+let nextTempId = 0;
+
+/** Reload the list from the device, keeping files still being read or refused. */
+export async function refreshQuizzes(uid) {
+  const saved = await listQuizzes(uid);
+  const ready = saved.map((q) => ({ ...q, status: 'ready' }));
+  state = {
+    entries: [...state.entries.filter((e) => e.status !== 'ready'), ...ready],
+    loaded: true,
+  };
   emit();
 }
 
-export function setActiveQuiz(id) {
-  state = { ...state, activeId: id };
-  emit();
+/** Read each file on its own, so one bad file doesn't stop the rest. */
+export function addQuizFiles(uid, files) {
+  files.forEach(async (file) => {
+    const tempId = `temp-${nextTempId++}`;
+    setEntries((entries) => [{ id: tempId, fileName: file.name, status: 'parsing' }, ...entries]);
+    try {
+      const buffer = await file.arrayBuffer();
+      const result = await parseCaqArchive(buffer);
+      const id = await quizIdFor(buffer);
+      const kept = await saveQuiz(uid, {
+        id,
+        fileName: file.name,
+        addedAt: Date.now(),
+        file: new Blob([buffer], { type: 'application/zip' }),
+        result,
+      });
+      setEntries((entries) => entries.filter((e) => e.id !== tempId));
+      await refreshQuizzes(uid);
+      if (!kept) setEntries((entries) => entries.map((e) => (e.id === id ? { ...e, onlyInMemory: true } : e)));
+    } catch (err) {
+      setEntries((entries) => entries.map((e) => (
+        e.id === tempId ? { ...e, status: 'error', error: err?.message || "This doesn't look like a valid quiz file." } : e
+      )));
+    }
+  });
 }
 
-/** The loaded files and the active run's entry (null when none). */
-export function useQuizSession() {
-  const s = useSyncExternalStore(subscribe, getState, getState);
-  return { entries: s.entries, active: s.entries.find((e) => e.id === s.activeId && e.status === 'ready') || null };
+export async function removeQuiz(uid, id) {
+  setEntries((entries) => entries.filter((e) => e.id !== id));
+  await deleteQuiz(uid, id);
 }
+
+export const dismissQuizError = (id) => setEntries((entries) => entries.filter((e) => e.id !== id));
+
+export const useQuizSession = () => useSyncExternalStore(subscribe, getState, getState);
 
 /** Test seam. */
 export function __resetQuizSession() {
-  state = { entries: [], activeId: null };
+  state = { entries: [], loaded: false };
+  __clearQuizMemory();
   emit();
 }

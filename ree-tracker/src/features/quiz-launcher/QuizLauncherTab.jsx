@@ -1,53 +1,125 @@
 // src/features/quiz-launcher/QuizLauncherTab.jsx
-// Materials Hub entry point for the offline CAQ Quiz Launcher. Owns the list
-// of files the user has picked, parses each independently (so one bad file
-// in a batch doesn't block the rest), and hands a ready one to CaqRunner —
-// selecting several files runs them one at a time, per-topic, rather than
-// merging them into a single mixed exam.
 //
-// State here is plain component state, never src/store — this whole feature
-// is a sandbox. Parse failures are handled explicitly per-entry rather than
-// relying on the wrapping ErrorBoundary: a malformed file is an EXPECTED
-// outcome for a third-party format, not an app bug, and deserves an inline
-// "try another file" message rather than the boundary's generic crash UI.
-import { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button, Card, IconChip } from '../../components/ui';
-import { FileText, Play, Trash2, Clock, CircleAlert, CheckCircle2 } from '../../components/ui/icons';
+// Library › Imported quizzes: your quiz files, saved on this device, each taken as
+// practice or as an exam. A malformed file is an EXPECTED outcome for a third-party
+// format, not an app bug, so it gets an inline message rather than the error
+// boundary. Starting opens a sheet in ?quiz=<id>, so Back closes it.
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, Card, EmptyState, IconChip, Modal } from '../../components/ui';
+import { CheckCircle2, CircleAlert, Clock, Download, FileText, Play, Trash2 } from '../../components/ui/icons';
+import { useAuth } from '../../contexts/AuthContext';
+import { canDownloadFiles, downloadBlob } from '../exam-export/deliver';
 import QuizFilePicker from './QuizFilePicker';
-import { parseCaqArchive } from './caqParser';
-import { setActiveQuiz, setQuizEntries as setEntries, useQuizSession } from './quizSession';
+import QuizSetupSheet from './QuizSetupSheet';
+import { buildRun, runProgress } from './quizRun';
+import { addQuizFiles, dismissQuizError, refreshQuizzes, removeQuiz, useQuizSession } from './quizSession';
+import { saveRun } from './quizStore';
 
-let nextEntryId = 0;
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function scoreLine(attempts = []) {
+  if (attempts.length === 0) return null;
+  const last = attempts[attempts.length - 1];
+  const best = Math.max(...attempts.map((a) => a.pct));
+  return attempts.length === 1 ? `Scored ${last.pct}%` : `Last ${last.pct}% · Best ${best}%`;
+}
+
+function QuizRow({ entry, onStart, onResume, onDelete }) {
+  if (entry.status === 'parsing') {
+    return (
+      <Card as="li" padding="sm" className="flex items-center gap-3">
+        <IconChip icon={FileText} tone="muted" size="sm" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-textMain truncate" title={entry.fileName}>{entry.fileName}</p>
+          <p className="text-xs text-muted2 flex items-center gap-1.5"><Clock size={12} strokeWidth={1.75} aria-hidden="true" /> Reading…</p>
+        </div>
+      </Card>
+    );
+  }
+  if (entry.status === 'error') {
+    return (
+      <Card as="li" padding="sm" className="flex items-center gap-3">
+        <IconChip icon={FileText} tone="muted" size="sm" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-textMain truncate" title={entry.fileName}>{entry.fileName}</p>
+          <p className="text-xs flex items-center gap-1.5 [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>
+            <CircleAlert size={12} strokeWidth={1.75} aria-hidden="true" className="shrink-0" /> {entry.error}
+          </p>
+        </div>
+        <Button size="icon" variant="ghost" aria-label={`Remove ${entry.fileName}`} onClick={() => dismissQuizError(entry.id)}>
+          <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+      </Card>
+    );
+  }
+
+  const { loadedCount, skippedCount } = entry.result.meta;
+  const unfinished = entry.run && !entry.run.finished ? runProgress(entry.run) : null;
+  const scores = scoreLine(entry.attempts);
+  return (
+    <Card as="li" padding="sm" className="flex flex-wrap items-center gap-3">
+      <IconChip icon={FileText} tone="muted" size="sm" />
+      <div className="flex-1 min-w-[10rem]">
+        <p className="text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{entry.fileName}</p>
+        <p className="text-xs flex items-center gap-1.5" style={{ color: 'var(--accent-success)' }}>
+          <CheckCircle2 size={12} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+          {plural(loadedCount, 'question')} loaded{skippedCount > 0 && `, ${skippedCount} skipped`}
+        </p>
+        {scores && <p className="text-xs text-muted2 tabular-nums">{scores}</p>}
+        {unfinished && <p className="text-xs text-muted2 tabular-nums">Unfinished: {unfinished.answered} of {unfinished.total} answered</p>}
+        {entry.onlyInMemory && <p className="text-xs text-muted2">This browser isn’t saving files, so this one goes when you close the tab.</p>}
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {unfinished && <Button size="sm" onClick={() => onResume(entry)}><Play size={13} strokeWidth={1.75} aria-hidden="true" /> Resume</Button>}
+        <Button size="sm" variant={unfinished ? 'secondary' : 'primary'} onClick={() => onStart(entry)} aria-label={`Start ${entry.fileName}`}>
+          {!unfinished && <Play size={13} strokeWidth={1.75} aria-hidden="true" />} {unfinished ? 'Start over' : 'Start'}
+        </Button>
+        {canDownloadFiles() && entry.file && (
+          <Button size="icon" variant="ghost" aria-label={`Save ${entry.fileName} as a file`} title="Save as a file" onClick={() => downloadBlob(entry.file, entry.fileName)}>
+            <Download size={15} strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+        )}
+        <Button size="icon" variant="ghost" aria-label={`Delete ${entry.fileName}`} title="Delete" onClick={() => onDelete(entry)}>
+          <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 export default function QuizLauncherTab() {
   const navigate = useNavigate();
-  // { id, fileName, status: 'parsing'|'ready'|'error', result, error }, kept
-  // in quizSession so they outlast a tab switch.
-  const { entries } = useQuizSession();
+  const location = useLocation();
+  const uid = useAuth()?.currentUser?.uid;
+  const { entries, loaded } = useQuizSession();
+  const [params, setParams] = useSearchParams();
+  const [deleting, setDeleting] = useState(null);
 
-  const handleFilesSelected = useCallback((files) => {
-    const newEntries = files.map((file) => ({ id: nextEntryId++, fileName: file.name, status: 'parsing', file, result: null, error: null }));
-    setEntries((prev) => [...prev, ...newEntries]);
+  useEffect(() => { refreshQuizzes(uid); }, [uid]);
 
-    newEntries.forEach(async (entry) => {
-      try {
-        const buffer = await entry.file.arrayBuffer();
-        const result = await parseCaqArchive(buffer);
-        setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: 'ready', result } : e)));
-      } catch (err) {
-        setEntries((prev) => prev.map((e) => (
-          e.id === entry.id ? { ...e, status: 'error', error: err?.message || "This doesn't look like a valid quiz file." } : e
-        )));
-      }
-    });
-  }, []);
+  const openId = params.get('quiz');
+  const open = entries.find((e) => e.id === openId && e.status === 'ready') || null;
+  const withoutSheet = (prev) => {
+    const next = new URLSearchParams(prev);
+    next.delete('quiz');
+    return next;
+  };
+  const openSheet = (entry) => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    next.set('quiz', entry.id);
+    return next;
+  }, { state: { quizSheet: true } });
+  const closeSheet = () => {
+    if (location.state?.quizSheet) navigate(-1);
+    else setParams(withoutSheet, { replace: true });
+  };
 
-  const removeEntry = useCallback((id) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-  }, []);
-
-  const start = (id) => { setActiveQuiz(id); navigate('/library/quiz'); };
+  const runPage = (entry) => navigate(`/library/quiz?id=${encodeURIComponent(entry.id)}`);
+  const start = async (setup) => {
+    await saveRun(uid, open.id, buildRun(open.result.questions, setup));
+    runPage(open);
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,52 +128,41 @@ export default function QuizLauncherTab() {
             screen readers' heading list. */}
         <h2 className="sr-only">Imported quizzes</h2>
         <p className="text-sm text-muted2">
-          Your own quiz files, as a timed exam. They stay on this device.
+          Your own quiz files, saved on this device. Take each one as practice or as an exam.
         </p>
       </div>
 
-      <QuizFilePicker onFilesSelected={handleFilesSelected} />
-
-      {entries.length > 0 && (
+      {entries.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <p id="loaded-quiz-files" className="text-eyebrow">Loaded files</p>
+          <p id="loaded-quiz-files" className="text-eyebrow">Your quizzes</p>
           <ul aria-labelledby="loaded-quiz-files" className="flex flex-col gap-2">
-          {entries.map((entry) => (
-            <Card as="li" key={entry.id} padding="sm" className="flex items-center gap-3">
-              <IconChip icon={FileText} tone="muted" size="sm" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-textMain truncate" title={entry.fileName}>{entry.fileName}</p>
-                {entry.status === 'parsing' && (
-                  <p className="text-xs text-muted2 flex items-center gap-1.5"><Clock size={12} strokeWidth={1.75} aria-hidden="true" /> Reading…</p>
-                )}
-                {entry.status === 'ready' && (
-                  <p className="text-xs flex items-center gap-1.5" style={{ color: 'var(--accent-success)' }}>
-                    <CheckCircle2 size={12} strokeWidth={1.75} aria-hidden="true" />
-                    {entry.result.meta.loadedCount} question{entry.result.meta.loadedCount === 1 ? '' : 's'} loaded
-                    {entry.result.meta.skippedCount > 0 && `, ${entry.result.meta.skippedCount} skipped`}
-                  </p>
-                )}
-                {entry.status === 'error' && (
-                  <p className="text-xs flex items-center gap-1.5 [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>
-                    <CircleAlert size={12} strokeWidth={1.75} aria-hidden="true" /> {entry.error}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {entry.status === 'ready' && (
-                  <Button size="sm" variant="primary" onClick={() => start(entry.id)}>
-                    <Play size={13} strokeWidth={1.75} aria-hidden="true" /> Start
-                  </Button>
-                )}
-                <Button size="icon" variant="ghost" aria-label={`Remove ${entry.fileName}`} onClick={() => removeEntry(entry.id)}>
-                  <Trash2 size={15} strokeWidth={1.75} aria-hidden="true" />
-                </Button>
-              </div>
-            </Card>
-          ))}
+            {entries.map((entry) => (
+              <QuizRow key={entry.id} entry={entry} onStart={openSheet} onResume={runPage} onDelete={setDeleting} />
+            ))}
           </ul>
         </div>
+      ) : loaded && (
+        <EmptyState compact icon={FileText} title="No quizzes yet" description="Add a .quiz or .caq file below and it stays here, ready to take offline." />
       )}
+
+      <QuizFilePicker compact={entries.length > 0} onFilesSelected={(files) => addQuizFiles(uid, files)} />
+
+      {open && <QuizSetupSheet quiz={open} onClose={closeSheet} onStart={start} />}
+
+      <Modal
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        title="Delete this quiz?"
+        size="sm"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setDeleting(null)}>Keep it</Button>
+            <Button tone="danger" onClick={() => { removeQuiz(uid, deleting.id); setDeleting(null); }}>Delete</Button>
+          </>
+        )}
+      >
+        <p className="text-sm text-muted2 [overflow-wrap:anywhere]">{deleting?.fileName} and its scores go from this device. You can add the file again if you still have it.</p>
+      </Modal>
     </div>
   );
 }
