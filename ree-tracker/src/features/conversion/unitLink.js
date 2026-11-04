@@ -22,6 +22,14 @@ const BY_SYMBOL = {
   N: 'force', 'N·m': 'torque', Pa: 'pressure', kPa: 'pressure', psi: 'pressure',
   K: 'temperature', '°C': 'temperature',
   s: 'time', kg: 'mass', rad: 'angle',
+  'kJ/kg': 'enthalpy', 'J/kg': 'enthalpy', 'BTU/lb': 'enthalpy',
+  'kJ/(kg·K)': 'specificheat', 'J/(kg·K)': 'specificheat',
+  'kg/m³': 'massdensity', 'kg/m^3': 'massdensity', 'lb/ft³': 'massdensity',
+  'm³/kg': 'specvolume', 'N/m³': 'specweight',
+  'm/s²': 'acceleration', 'ft/s²': 'acceleration', 'm/s': 'speed',
+  'W/(m·K)': 'conductivity', 'W/(m²·K)': 'heattransfer', 'W/m²': 'heatflux',
+  'm³/s': 'flow', 'L/s': 'flow', 'kg/s': 'massflow',
+  'Pa·s': 'dynvisc', 'm²/s': 'kinvisc',
 };
 
 const plain = (latex) => String(latex || '')
@@ -33,6 +41,7 @@ const plain = (latex) => String(latex || '')
   .replace(/\\times/g, '×')
   .replace(/\\,|\\ /g, ' ')
   .replace(/\^\{?2\}?/g, '²')
+  .replace(/\^\{?3\}?/g, '³')
   .trim();
 
 /** The category id for a unit written in a card, or null. A leading value is ignored. */

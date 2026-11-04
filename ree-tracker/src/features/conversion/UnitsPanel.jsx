@@ -1,14 +1,17 @@
 // src/features/conversion/UnitsPanel.jsx
 //
-// Unit conversion: pick a category, or search, then convert. The state comes from
-// outside, so Library can keep it in the URL (a conversion can be linked) and
-// Practice's tools sheet can hold it for the moment. No network, no rates.
+// Unit conversion, for changing between SI, other metric units and English ones.
+// Pick a common conversion, a category or a search result, then convert: every
+// conversion shows its multiplier, its formula and why. Changing only a prefix has
+// its own screen. The state comes from outside, so Library can keep it in the URL
+// and Practice's tools sheet can hold it for the moment. No network, no rates.
 import { useEffect, useMemo, useState } from 'react';
-import { UNIT_CATEGORIES, UNIT_GROUPS, categoryById, convert, convertAll, inSiUnit, searchUnits, unitIn } from '@ree/shared/units';
-import { Button, Card, FormField, Grid, Input, Select } from '../../components/ui';
+import { COMMON_CONVERSIONS, UNIT_GROUPS, UNIT_SYSTEMS, categoriesInGroup, categoryById, convert, convertAll, inSiUnit, searchUnits, unitIn } from '@ree/shared/units';
+import { Button, Card, FormField, Grid, Input, Select, StatusPill } from '../../components/ui';
 import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Copy, Search, Star, Trash2 } from '../../components/ui/icons';
-import { SI_SCALE, scalePosition, withPrefix } from './boardMath';
 import { evaluate, formatNumber } from './calc';
+import { explain } from './explain';
+import PrefixSlider from './PrefixSlider';
 import { useUnitsMemory } from './unitsMemory';
 
 const pairFor = (category, from, to) => {
@@ -23,22 +26,59 @@ const numberOf = (text) => {
   return result.ok ? result.value : null;
 };
 
-function MagnitudeBar({ categoryId, value, from }) {
-  const category = categoryById(categoryId);
-  const si = value === null ? null : inSiUnit(categoryId, value, from);
-  const position = scalePosition(si);
-  if (position === null) return null;
-  const text = withPrefix(si, category.siUnit);
+// Symbol first, so a narrow select still shows the part that matters.
+function UnitOptions({ category }) {
+  return UNIT_SYSTEMS.map((system) => {
+    const units = category.units.filter((u) => u.system === system.id);
+    if (units.length === 0) return null;
+    return (
+      <optgroup key={system.id} label={system.label}>
+        {units.map((u) => <option key={u.id} value={u.id}>{u.id} · {u.name}</option>)}
+      </optgroup>
+    );
+  });
+}
+
+const Line = ({ children, strong = false }) => (
+  <p className={`rounded-[var(--radius-default)] bg-surface2/60 px-3 py-2 text-sm tabular-nums [overflow-wrap:anywhere] ${strong ? 'font-semibold text-textMain' : 'text-textMain'}`}>{children}</p>
+);
+
+function HowItWorks({ how }) {
+  if (!how) return null;
   return (
-    <div role="img" aria-label={`On the SI prefix scale, that’s ${text}`} className="flex flex-col gap-1.5 min-w-0">
-      <p className="text-xs text-muted2">On the SI scale: <span className="font-semibold text-textMain tabular-nums">{text}</span></p>
-      <div className="relative h-2 rounded-full bg-surface2 border border-border2/60">
-        <span className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--accent)] border-2 border-surface" style={{ left: `${position * 100}%` }} />
+    <section aria-labelledby="how-it-works" className="flex flex-col gap-2.5 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p id="how-it-works" className="text-eyebrow">How it works</p>
+        <StatusPill tone="neutral" dot={false}>{how.direction}</StatusPill>
       </div>
-      <div className="flex justify-between text-xs text-muted2 tabular-nums" aria-hidden="true">
-        {SI_SCALE.map((s) => <span key={s.label}>{s.label}</span>)}
+      {how.line ? (
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <p className="text-sm text-muted2">The multiplier</p>
+          <p className="text-lg font-semibold text-textMain tabular-nums [overflow-wrap:anywhere]">{how.line}</p>
+          <p className="text-sm text-muted2 tabular-nums [overflow-wrap:anywhere]">{how.inverseLine}</p>
+        </div>
+      ) : <p className="text-sm text-muted2">No single multiplier here, so it takes a formula.</p>}
+      <div className="flex flex-col gap-1 min-w-0">
+        <p className="text-sm text-muted2">The formula</p>
+        <Line strong>{how.formula}</Line>
+        <Line>{how.back}</Line>
       </div>
-    </div>
+      {how.working && (
+        <div className="flex flex-col gap-1 min-w-0">
+          <p className="text-sm text-muted2">Your number</p>
+          <Line strong>{how.working}</Line>
+        </div>
+      )}
+      {how.steps.length > 0 && (
+        <div className="flex flex-col gap-1 min-w-0">
+          <p className="text-sm text-muted2">Where the multiplier comes from</p>
+          <ol className="flex flex-col gap-0.5 text-sm text-muted2 tabular-nums min-w-0">
+            {how.steps.map((step) => <li key={step} className="[overflow-wrap:anywhere]">{step}</li>)}
+          </ol>
+        </div>
+      )}
+      {how.notes.map((note) => <p key={note} className="text-sm text-muted2 [overflow-wrap:anywhere]">{note}</p>)}
+    </section>
   );
 }
 
@@ -52,12 +92,11 @@ function Converter({ state, onChange, memory }) {
   const value = parsed.ok ? parsed.value : null;
   const result = value === null ? null : convert(category.id, value, from, to);
   const shown = formatNumber(result);
-  const one = formatNumber(convert(category.id, 1, from, to));
-  const isLinear = !unitIn(category, from).toBase && !unitIn(category, to).toBase;
   const isExpression = parsed.ok && String(parsed.value) !== text.trim();
-  const others = value === null ? [] : convertAll(category.id, value, from);
+  const others = value === null ? [] : convertAll(category.id, value, from).filter((o) => o.unit.id !== from && !o.unit.prefixed);
   const favourite = memory.isFavourite(category.id, from, to);
   const [copied, setCopied] = useState(false);
+  const si = value === null ? null : inSiUnit(category.id, value, from);
 
   const { remember } = memory;
   useEffect(() => {
@@ -73,7 +112,10 @@ function Converter({ state, onChange, memory }) {
       setTimeout(() => setCopied(false), 1500);
     } catch { /* the number is on screen to copy by hand */ }
   };
-  const unitOptions = category.units.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>);
+  const pick = (nextFrom, nextTo) => onChange({ cat: category.id, from: nextFrom, to: nextTo, v: text });
+  let hint = 'Or a sum: 2*pi*60';
+  if (isExpression) hint = `= ${formatNumber(parsed.value)}`;
+  else if (parsed.incomplete && text.trim()) hint = 'Keep going…';
 
   return (
     <div className="flex flex-col gap-4 min-w-0">
@@ -94,73 +136,101 @@ function Converter({ state, onChange, memory }) {
         </Button>
       </div>
 
-      <Card padding="sm" className="flex flex-col gap-4 min-w-0">
-        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
-          <div className="flex flex-col gap-2 min-w-0">
-            <FormField
-              label="From"
-              error={text.trim() && !parsed.ok ? parsed.error : undefined}
-              hint={isExpression ? `= ${formatNumber(parsed.value)}` : 'A number, or a sum like 2*pi*60'}
-            >
-              <Input value={text} autoComplete="off" spellCheck={false} onChange={(e) => { setText(e.target.value); onChange({ cat: category.id, from, to, v: e.target.value }); }} />
-            </FormField>
-            <FormField label="From unit">
-              <Select value={from} onChange={(e) => onChange({ cat: category.id, from: e.target.value, to: e.target.value === to ? from : to, v: text })}>{unitOptions}</Select>
-            </FormField>
-          </div>
-          <div className="flex justify-center sm:pt-7">
-            <Button size="icon" variant="secondary" aria-label="Swap the units" title="Swap the units" onClick={() => onChange({ cat: category.id, from: to, to: from, v: text })}>
-              <ArrowLeftRight size={16} strokeWidth={1.75} aria-hidden="true" className="rotate-90 sm:rotate-0" />
+      {category.pairs?.length > 1 && (
+        <div role="group" aria-label="Common conversions here" className="flex flex-wrap gap-1.5 min-w-0">
+          {category.pairs.map(([a, b]) => (
+            <Button key={`${a}>${b}`} size="sm" variant={a === from && b === to ? 'secondary' : 'ghost'} className="normal-case border border-border2/70" aria-pressed={a === from && b === to} onClick={() => pick(a, b)}>
+              {a} → {b}
             </Button>
-          </div>
-          <div className="flex flex-col gap-2 min-w-0">
-            <div className="flex flex-col gap-1.5 min-w-0">
-              <p className="text-label">To</p>
-              <div className="flex items-center gap-2 min-w-0 rounded-[var(--radius-default)] border border-border2 bg-surface2/40 px-3 min-h-11">
-                <output className="flex-1 min-w-0 text-fluid-base font-semibold text-textMain tabular-nums [overflow-wrap:anywhere]" aria-live="polite">{shown}</output>
-                <Button size="icon" variant="ghost" className="shrink-0" disabled={result === null} aria-label={copied ? 'Copied' : 'Copy the result'} title={copied ? 'Copied' : 'Copy the result'} onClick={copy}>
-                  {copied ? <Check size={15} strokeWidth={1.75} aria-hidden="true" /> : <Copy size={15} strokeWidth={1.75} aria-hidden="true" />}
-                </Button>
-              </div>
-            </div>
-            <FormField label="To unit">
-              <Select value={to} onChange={(e) => onChange({ cat: category.id, from: e.target.value === from ? to : from, to: e.target.value, v: text })}>{unitOptions}</Select>
-            </FormField>
-          </div>
+          ))}
         </div>
-        {isLinear && <p className="text-sm text-muted2 tabular-nums [overflow-wrap:anywhere]">1 {from} = {one} {to}</p>}
-        <MagnitudeBar categoryId={category.id} value={value} from={from} />
+      )}
+
+      <Card padding="sm" className="flex flex-col gap-3 min-w-0">
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] items-start gap-2 min-w-0">
+          <FormField label="From" error={text.trim() && !parsed.ok && !parsed.incomplete ? parsed.error : undefined} hint={hint}>
+            <Input value={text} autoComplete="off" spellCheck={false} onChange={(e) => { setText(e.target.value); onChange({ cat: category.id, from, to, v: e.target.value }); }} />
+          </FormField>
+          <FormField label="From unit">
+            <Select value={from} onChange={(e) => pick(e.target.value, e.target.value === to ? from : to)}><UnitOptions category={category} /></Select>
+          </FormField>
+        </div>
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-2 min-w-0">
+          <Button size="icon" variant="secondary" aria-label="Swap the units" title="Swap the units" onClick={() => pick(to, from)}>
+            <ArrowLeftRight size={16} strokeWidth={1.75} aria-hidden="true" className="rotate-90" />
+          </Button>
+          <FormField label="To unit">
+            <Select value={to} onChange={(e) => pick(e.target.value === from ? to : from, e.target.value)}><UnitOptions category={category} /></Select>
+          </FormField>
+        </div>
+        {/* On a line of its own: a long answer shouldn't break in a narrow box. */}
+        <div className="flex items-center gap-2 min-w-0 rounded-[var(--radius-default)] border border-border2 bg-surface2/40 pl-3 pr-1 py-1 min-h-14">
+          <output className="flex-1 min-w-0 text-2xl font-semibold text-textMain tabular-nums [overflow-wrap:anywhere]" aria-live="polite" aria-label="Answer">
+            {shown}{result !== null && <span className="text-base font-medium text-muted2"> {to}</span>}
+          </output>
+          <Button size="icon" variant="ghost" className="shrink-0" disabled={result === null} aria-label={copied ? 'Copied' : 'Copy the result'} title={copied ? 'Copied' : 'Copy the result'} onClick={copy}>
+            {copied ? <Check size={15} strokeWidth={1.75} aria-hidden="true" /> : <Copy size={15} strokeWidth={1.75} aria-hidden="true" />}
+          </Button>
+        </div>
       </Card>
 
+      <Card padding="sm" className="min-w-0">
+        <HowItWorks how={explain(category.id, value, from, to, result)} />
+      </Card>
+
+      {si !== null && si !== 0 && Number.isFinite(si) && (
+        <Card padding="sm" className="min-w-0">
+          <PrefixSlider value={si} symbol={category.siUnit} />
+        </Card>
+      )}
+
       {others.length > 0 && (
-        <section aria-labelledby="all-units" className="flex flex-col gap-2 min-w-0">
-          <p id="all-units" className="text-eyebrow">In every unit</p>
-          <ul className="flex flex-col gap-1 min-w-0">
-            {others.filter((o) => o.unit.id !== from).map((o) => (
-              <li key={o.unit.id} className="min-w-0">
-                <Button
-                  variant="ghost"
-                  className="w-full text-left h-auto"
-                  aria-pressed={o.unit.id === to}
-                  onClick={() => onChange({ cat: category.id, from, to: o.unit.id, v: text })}
-                >
-                  <span className="flex w-full items-baseline justify-between gap-3 min-w-0">
-                    <span className="min-w-0 [overflow-wrap:anywhere] font-normal text-muted2">{o.unit.name}</span>
-                    <span className="min-w-0 text-right tabular-nums [overflow-wrap:anywhere]">{formatNumber(o.value)} {o.unit.id}</span>
-                  </span>
-                </Button>
-              </li>
-            ))}
-          </ul>
+        <section aria-labelledby="all-units" className="flex flex-col gap-3 min-w-0">
+          <p id="all-units" className="text-eyebrow">In other units</p>
+          {UNIT_SYSTEMS.map((system) => {
+            const rows = others.filter((o) => o.unit.system === system.id);
+            if (rows.length === 0) return null;
+            return (
+              <div key={system.id} className="flex flex-col gap-0.5 min-w-0">
+                <p className="text-xs font-medium text-muted2">{system.label}</p>
+                <ul className="flex flex-col gap-0.5 min-w-0">
+                  {rows.map((o) => (
+                    <li key={o.unit.id} className="min-w-0">
+                      <Button variant="ghost" className="w-full text-left h-auto normal-case" aria-pressed={o.unit.id === to} onClick={() => pick(from, o.unit.id)}>
+                        <span className="flex w-full items-baseline justify-between gap-3 min-w-0">
+                          <span className="min-w-0 [overflow-wrap:anywhere] font-normal text-muted2">{o.unit.name}</span>
+                          <span className="min-w-0 text-right tabular-nums [overflow-wrap:anywhere]">{formatNumber(o.value)} {o.unit.id}</span>
+                        </span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </section>
       )}
     </div>
   );
 }
 
-function Landing({ onChange, memory }) {
+function CategoryTile({ category, onOpen }) {
+  const [a, b] = category.defaults;
+  return (
+    <Card as="button" type="button" variant="interactive" padding="sm" className="text-left flex items-start justify-between gap-2 cursor-pointer min-w-0" onClick={() => onOpen(category.id, a, b)}>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{category.label}</span>
+        <span className="block text-xs text-muted2 [overflow-wrap:anywhere]">{a} → {b}</span>
+      </span>
+      <ChevronRight size={15} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
+    </Card>
+  );
+}
+
+function Landing({ state, onChange, memory }) {
   const [query, setQuery] = useState('');
-  const hits = useMemo(() => searchUnits(query).slice(0, 20), [query]);
+  const hits = useMemo(() => searchUnits(query).slice(0, 24), [query]);
+  const group = UNIT_GROUPS.some((g) => g.id === state.group) ? state.group : UNIT_GROUPS[0].id;
   const open = (cat, from, to, v = '1') => onChange({ cat, from, to, v }, { push: true });
   const openUnit = (hit) => {
     const [from, to] = pairFor(hit.category, hit.unit.id, null);
@@ -173,7 +243,7 @@ function Landing({ onChange, memory }) {
         {(field) => (
           <div className="relative">
             <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-            <Input {...field} className="pl-9" value={query} placeholder="hp, kVA, circular mil…" autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
+            <Input {...field} className="pl-9" value={query} placeholder="psi, BTU, centipoise…" autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
           </div>
         )}
       </FormField>
@@ -183,7 +253,7 @@ function Landing({ onChange, memory }) {
           <ul aria-label="Matching units" className="flex flex-col gap-1">
             {hits.map((hit) => (
               <li key={`${hit.category.id}:${hit.unit.id}`}>
-                <Button variant="ghost" className="w-full text-left h-auto" onClick={() => openUnit(hit)}>
+                <Button variant="ghost" className="w-full text-left h-auto normal-case" onClick={() => openUnit(hit)}>
                   <span className="flex w-full items-baseline justify-between gap-3 min-w-0">
                     <span className="min-w-0 [overflow-wrap:anywhere]">{hit.unit.name} ({hit.unit.id})</span>
                     <span className="shrink-0 font-normal text-xs text-muted2">{hit.category.label}</span>
@@ -198,30 +268,34 @@ function Landing({ onChange, memory }) {
           {memory.favourites.length > 0 && (
             <div className="flex flex-col gap-2">
               <h3 className="text-eyebrow">Favourites</h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {memory.favourites.map((f) => (
-                  <Button key={`${f.cat}:${f.from}:${f.to}`} size="sm" variant="secondary" onClick={() => open(f.cat, f.from, f.to)}>{f.from} → {f.to}</Button>
+                  <Button key={`${f.cat}:${f.from}:${f.to}`} size="sm" variant="secondary" className="normal-case" onClick={() => open(f.cat, f.from, f.to)}>{f.from} → {f.to}</Button>
                 ))}
               </div>
             </div>
           )}
 
-          {UNIT_GROUPS.map((group) => (
-            <div key={group.id} className="flex flex-col gap-2 min-w-0">
-              <h3 className="text-eyebrow">{group.label}</h3>
-              <Grid kind="tiles" gap="sm">
-                {UNIT_CATEGORIES.filter((c) => c.group === group.id).map((c) => (
-                  <Card key={c.id} as="button" type="button" variant="interactive" padding="sm" className="text-left flex items-start justify-between gap-2 cursor-pointer min-w-0" onClick={() => open(c.id, c.defaults[0], c.defaults[1])}>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{c.label}</span>
-                      <span className="block text-xs text-muted2 [overflow-wrap:anywhere]">{c.defaults.join(', ')}</span>
-                    </span>
-                    <ChevronRight size={15} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
-                  </Card>
-                ))}
-              </Grid>
+          <div className="flex flex-col gap-2">
+            <h3 className="text-eyebrow">Common conversions</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {COMMON_CONVERSIONS.map(([cat, from, to]) => (
+                <Button key={`${cat}:${from}:${to}`} size="sm" variant="ghost" className="normal-case border border-border2/70" onClick={() => open(cat, from, to)}>{from} → {to}</Button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <div className="flex flex-col gap-2 min-w-0">
+            <h3 className="text-eyebrow">By quantity</h3>
+            <div role="group" aria-label="Show quantities for" className="flex flex-wrap gap-1.5">
+              {UNIT_GROUPS.map((g) => (
+                <Button key={g.id} size="sm" variant={g.id === group ? 'secondary' : 'ghost'} aria-pressed={g.id === group} onClick={() => onChange({ group: g.id })}>{g.label}</Button>
+              ))}
+            </div>
+            <Grid kind="tiles" gap="sm">
+              {categoriesInGroup(group).map((c) => <CategoryTile key={c.id} category={c} onOpen={open} />)}
+            </Grid>
+          </div>
 
           {memory.history.length > 0 && (
             <div className="flex flex-col gap-2 min-w-0">
@@ -238,7 +312,7 @@ function Landing({ onChange, memory }) {
                   if (out === null) return null;
                   return (
                     <li key={`${h.cat}:${h.from}:${h.to}:${h.v}`} className="min-w-0">
-                      <Button variant="ghost" className="w-full text-left h-auto font-normal tabular-nums" onClick={() => open(h.cat, h.from, h.to, h.v)}>
+                      <Button variant="ghost" className="w-full text-left h-auto font-normal normal-case tabular-nums" onClick={() => open(h.cat, h.from, h.to, h.v)}>
                         <span className="w-full min-w-0 [overflow-wrap:anywhere]">{h.v} {h.from} = {formatNumber(out)} {h.to}</span>
                       </Button>
                     </li>
@@ -257,5 +331,5 @@ export default function UnitsPanel({ state, onChange }) {
   const memory = useUnitsMemory();
   return categoryById(state.cat)
     ? <Converter key={state.cat} state={state} onChange={onChange} memory={memory} />
-    : <Landing onChange={onChange} memory={memory} />;
+    : <Landing state={state} onChange={onChange} memory={memory} />;
 }

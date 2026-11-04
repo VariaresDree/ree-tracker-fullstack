@@ -2,7 +2,9 @@
 //
 // A small arithmetic parser for the converter's input and the calculator, with no
 // eval: only what's in the tables below can run. Sign binds looser than ^, so
-// -2^2 is -4, as on a calculator, and 2pi or 3(4) multiply.
+// -2^2 is -4, as on a calculator, and 2pi or 3(4) multiply. Brackets left open at
+// the end close themselves, so sin(30 is sin(30). A sum still being typed, like
+// "2+", is `incomplete`, not wrong: nobody should see an error for it mid-sum.
 
 const CONSTANTS = { pi: Math.PI, e: Math.E };
 
@@ -36,6 +38,8 @@ const FUNCTIONS = {
   exp: () => Math.exp,
 };
 
+const unfinished = (message) => Object.assign(new Error(message), { incomplete: true });
+
 const MAX_LENGTH = 300;
 const MAX_DEPTH = 40;
 
@@ -52,6 +56,8 @@ function tokenize(source) {
     const word = rest.match(/^[a-zA-Z]+/);
     if (word) { tokens.push({ type: 'word', value: word[0] }); i += word[0].length; continue; }
     if ('+-*/^()'.includes(rest[0])) { tokens.push({ type: rest[0] }); i += 1; continue; }
+    // A lone point at the end is a number on its way.
+    if (rest === '.') throw unfinished('That sum isn’t finished yet.');
     throw new Error(`“${rest[0]}” isn’t something I can calculate.`);
   }
   return tokens;
@@ -61,17 +67,22 @@ function tokenize(source) {
  * @param source  e.g. "2*pi*60"
  * @param options.angle  'deg' or 'rad', for sin and its family
  * @param options.ans    what `ans` stands for
- * @returns {{ ok: true, value: number } | { ok: false, error: string }}
+ * @returns {{ ok: true, value: number } | { ok: false, error: string, incomplete: boolean }}
  */
 export function evaluate(source, { angle = 'deg', ans = 0 } = {}) {
   const text = String(source ?? '').trim();
-  if (!text) return { ok: false, error: 'Enter a number.' };
-  if (text.length > MAX_LENGTH) return { ok: false, error: 'That’s too long to calculate.' };
+  if (!text) return { ok: false, error: 'Enter a number.', incomplete: true };
+  if (text.length > MAX_LENGTH) return { ok: false, error: 'That’s too long to calculate.', incomplete: false };
   try {
     const tokens = tokenize(text);
     let at = 0;
     let depth = 0;
     const peek = () => tokens[at];
+    // A bracket left open at the very end closes itself.
+    const closeBracket = () => {
+      if (accept(')') || !peek()) return;
+      throw new Error('Something’s out of place in that.');
+    };
     const accept = (type) => (peek()?.type === type ? tokens[at++] : null);
 
     const nested = (fn) => {
@@ -95,7 +106,8 @@ export function evaluate(source, { angle = 'deg', ans = 0 } = {}) {
       for (;;) {
         if (accept('*')) value *= unary();
         else if (accept('/')) value /= unary();
-        // 2pi, 3(4), (1)(2), 2sin(30)
+        // 2pi, 3(4), (1)(2), 2sin(30), but not 2 3 or 1.2.3
+        else if (peek()?.type === 'num' && tokens[at - 1]?.type === 'num') throw new Error('Something’s out of place in that.');
         else if (['num', 'word', '('].includes(peek()?.type)) value *= power();
         else return value;
       }
@@ -118,26 +130,41 @@ export function evaluate(source, { angle = 'deg', ans = 0 } = {}) {
         if (name === 'ans') return ans;
         if (name in CONSTANTS) return CONSTANTS[name];
         if (!Object.hasOwn(FUNCTIONS, name)) throw new Error(`“${word.value}” isn’t something I can calculate.`);
-        if (!accept('(')) throw new Error(`${name} needs brackets, like ${name}(30).`);
+        if (!accept('(')) {
+          const message = `${name} needs brackets, like ${name}(30).`;
+          throw peek() ? new Error(message) : unfinished(message);
+        }
         const arg = nested(expression);
-        if (!accept(')')) throw new Error('A bracket isn’t closed.');
+        closeBracket();
         return FUNCTIONS[name](angle)(arg);
       }
       if (accept('(')) {
         const value = nested(expression);
-        if (!accept(')')) throw new Error('A bracket isn’t closed.');
+        closeBracket();
         return value;
       }
-      throw new Error(peek() ? 'Something’s out of place in that.' : 'That isn’t finished.');
+      if (peek()) throw new Error('Something’s out of place in that.');
+      throw unfinished('That sum isn’t finished yet.');
     };
 
     const value = expression();
     if (at < tokens.length) throw new Error('Something’s out of place in that.');
-    if (!Number.isFinite(value)) return { ok: false, error: 'That has no finite answer.' };
+    if (!Number.isFinite(value)) return { ok: false, error: 'That has no finite answer.', incomplete: false };
     return { ok: true, value };
   } catch (err) {
-    return { ok: false, error: err.message };
+    return { ok: false, error: err.message, incomplete: !!err.incomplete };
   }
+}
+
+/** The answer so far: a sum still being typed reads as what it holds up to there. */
+export function preview(source, options) {
+  const text = String(source ?? '');
+  for (let end = text.length, tries = 0; end > 0 && tries < 24; end -= 1, tries += 1) {
+    const result = evaluate(text.slice(0, end), options);
+    if (result.ok) return result.value;
+    if (!result.incomplete && end === text.length) return null;
+  }
+  return null;
 }
 
 /** Up to ten significant figures, without a float's noise (0.1+0.2 is 0.3). */

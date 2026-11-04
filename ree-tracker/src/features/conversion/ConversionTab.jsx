@@ -10,9 +10,11 @@ import UnitsPanel from './UnitsPanel';
 
 const BoardTools = lazy(() => import('./BoardTools'));
 const Calculator = lazy(() => import('./Calculator'));
+const PrefixesPanel = lazy(() => import('./PrefixesPanel'));
 
 const VIEWS = [
   { value: 'units', label: 'Units' },
+  { value: 'prefixes', label: 'Prefixes' },
   { value: 'tools', label: 'Tools' },
   { value: 'calculator', label: 'Calculator' },
 ];
@@ -35,12 +37,13 @@ export default function ConversionTab() {
       <SegmentedControl label="Show" value={view} onChange={(next) => update({ view: next === 'units' ? null : next }, { push: true })} options={VIEWS} />
       {view === 'units' && (
         <UnitsPanel
-          state={{ cat: params.get('cat'), from: params.get('from'), to: params.get('to'), v: params.get('v') }}
+          state={{ cat: params.get('cat'), from: params.get('from'), to: params.get('to'), v: params.get('v'), group: params.get('group') }}
           onChange={update}
         />
       )}
       <Suspense fallback={<Skeleton className="h-64" />}>
         {view === 'tools' && <BoardTools tool={params.get('tool')} onTool={(tool) => update({ tool }, { push: true })} />}
+        {view === 'prefixes' && <PrefixesPanel />}
         {view === 'calculator' && <Calculator />}
       </Suspense>
     </div>

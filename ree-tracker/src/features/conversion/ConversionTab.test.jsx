@@ -17,18 +17,93 @@ const output = () => document.querySelector('output');
 beforeEach(() => localStorage.clear());
 
 describe('Units', () => {
-  it('opens on the category tiles, electrical first', () => {
+  it('opens on conversions across systems, and mechanics first', () => {
     at();
-    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(headings).toEqual(['Electrical', 'General']);
-    expect(screen.getByRole('button', { name: /Apparent power/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'psi → kPa' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'BTU → kJ' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mechanics' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^Force/ })).toBeInTheDocument();
+  });
+
+  it('thermodynamics has its own heading, kept in the URL', () => {
+    at();
+    fireEvent.click(screen.getByRole('button', { name: 'Thermodynamics' }));
+    expect(screen.getByTestId('where')).toHaveTextContent('group=thermo');
+    expect(screen.getByRole('button', { name: /^Enthalpy/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Specific heat/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Work, energy and heat/ })).toBeInTheDocument();
+  });
+
+  it('a prefix-only quantity isn’t among the tiles, and a link to one still works', () => {
+    at();
+    for (const g of ['Mechanics', 'Thermodynamics', 'Fluids', 'Electrical', 'General']) {
+      fireEvent.click(screen.getByRole('button', { name: g }));
+      expect(screen.queryByRole('button', { name: /^Voltage/ })).toBeNull();
+    }
+  });
+
+  it('a formula card’s link to a prefix-only quantity opens it', () => {
+    at('&cat=voltage');
+    expect(screen.getByRole('heading', { name: 'Voltage' })).toBeInTheDocument();
+    expect(screen.getByText(/Only the prefix changes/)).toBeInTheDocument();
+  });
+
+  it('a common conversion goes straight there', () => {
+    at();
+    fireEvent.click(screen.getByRole('button', { name: 'kgf/cm² → kPa' }));
+    expect(screen.getByLabelText('From unit')).toHaveValue('kgf/cm²');
+    expect(output()).toHaveTextContent('98.0665');
+  });
+
+  it('a category offers its common pairs', () => {
+    at('&cat=pressure');
+    fireEvent.click(screen.getByRole('button', { name: 'atm → kPa' }));
+    expect(screen.getByLabelText('From unit')).toHaveValue('atm');
+    expect(screen.getByRole('button', { name: 'atm → kPa' })).toHaveAttribute('aria-pressed', 'true');
+    expect(output()).toHaveTextContent('101.325');
+  });
+
+  it('every conversion shows how it works', () => {
+    at('&cat=pressure&from=psi&to=kPa&v=2');
+    const how = screen.getByRole('region', { name: 'How it works' });
+    expect(within(how).getByText('English to SI')).toBeInTheDocument();
+    expect(within(how).getByText('1 psi = 6.894757 kPa')).toBeInTheDocument();
+    expect(within(how).getByText('kPa = psi × 6.894757')).toBeInTheDocument();
+    expect(within(how).getByText('psi = kPa ÷ 6.894757')).toBeInTheDocument();
+    expect(within(how).getByText('2 psi × 6.894757 = 13.78951 kPa')).toBeInTheDocument();
+    expect(within(how).getByText('1 psi = 6894.757 Pa')).toBeInTheDocument();
+    expect(within(how).getByText(/4\.44822 N ÷ \(0\.0254 m\)²/)).toBeInTheDocument();
+  });
+
+  it('a temperature shows its formula, with no multiplier to pretend', () => {
+    at('&cat=temperature&from=%C2%B0F&to=%C2%B0C&v=212');
+    const how = screen.getByRole('region', { name: 'How it works' });
+    expect(within(how).getByText('°C = (°F − 32) × 5/9')).toBeInTheDocument();
+    expect(within(how).getByText('(212 − 32) × 5/9 = 100 °C')).toBeInTheDocument();
+    expect(within(how).getByText(/No single multiplier/)).toBeInTheDocument();
+  });
+
+  it('the other units leave out plain prefix changes, and sort by system', () => {
+    at('&cat=pressure&from=psi&to=kPa&v=1');
+    const list = screen.getByRole('region', { name: 'In other units' });
+    expect(within(list).getByRole('button', { name: /Bar/ })).toBeInTheDocument();
+    expect(within(list).getByRole('button', { name: /Kilogram-force per cm²/ })).toBeInTheDocument();
+    expect(within(list).queryByRole('button', { name: /Kilopascal/ })).toBeNull();
+    expect(within(list).getByText('Metric (not SI)')).toBeInTheDocument();
+  });
+
+  it('the unit lists group by system, symbol first', () => {
+    at('&cat=pressure');
+    const select = screen.getByLabelText('To unit');
+    expect(within(select).getByRole('group', { name: 'English' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'psi · Pound per square inch' })).toBeInTheDocument();
   });
 
   it('a tile opens a conversion in the URL, and All units goes back', () => {
     at();
-    fireEvent.click(screen.getByRole('button', { name: /^Power/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Power and heat rate/ }));
     expect(screen.getByTestId('where')).toHaveTextContent('cat=power');
-    expect(screen.getByRole('heading', { name: 'Power' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Power and heat rate' })).toBeInTheDocument();
     expect(output()).toHaveTextContent('0.746');
     expect(screen.getByText('1 hp = 0.746 kW')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /All units/ }));
@@ -43,7 +118,7 @@ describe('Units', () => {
 
   it('a bad link falls back rather than breaking', () => {
     at('&cat=nope');
-    expect(screen.getByRole('button', { name: /^Power/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Power and heat rate/ })).toBeInTheDocument();
   });
 
   it('a bad unit in a link falls back to the category’s own', () => {
@@ -59,12 +134,22 @@ describe('Units', () => {
     expect(output()).toHaveTextContent('376.99');
   });
 
-  it('a bad sum says why and shows no answer', () => {
+  it('half a sum isn’t an error: it just waits', () => {
     at('&cat=power');
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2+' } });
-    expect(screen.getByText('That isn’t finished.')).toBeInTheDocument();
+    expect(screen.queryByText(/finished/)).toBeNull();
+    expect(screen.getByText('Keep going…')).toBeInTheDocument();
     expect(output()).toHaveTextContent('—');
     expect(screen.getByRole('button', { name: 'Copy the result' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2+3' } });
+    expect(output()).toHaveTextContent('3.73');
+  });
+
+  it('a sum that can’t work says why', () => {
+    at('&cat=power');
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '1/0' } });
+    expect(screen.getByText('That has no finite answer.')).toBeInTheDocument();
+    expect(output()).toHaveTextContent('—');
   });
 
   it('swaps', () => {
@@ -81,23 +166,46 @@ describe('Units', () => {
     expect(screen.getByLabelText('To unit')).toHaveValue('hp');
   });
 
-  it('shows it in every unit, and tapping one makes it the answer', () => {
+  it('shows it in other units, and tapping one makes it the answer', () => {
     at('&cat=power&from=hp&to=kW&v=1');
     fireEvent.click(screen.getByRole('button', { name: /BTU per hour/ }));
     expect(screen.getByLabelText('To unit')).toHaveValue('BTU/h');
     expect(output()).toHaveTextContent('2545.4');
   });
 
-  it('shows where it sits on the SI scale, only where there is one', () => {
-    at('&cat=power&from=kW&to=W&v=1.5');
-    expect(screen.getByRole('img', { name: /that’s 1\.5 kW/ })).toBeInTheDocument();
-  });
+  describe('the prefix slider', () => {
+    const slider = () => screen.getByRole('slider', { name: 'Read it with a prefix' });
 
-  it('no SI scale for a category without one, or a temperature’s line', () => {
-    at('&cat=temperature&from=%C2%B0C&to=%C2%B0F&v=100');
-    expect(output()).toHaveTextContent('212');
-    expect(screen.queryByRole('img')).toBeNull();
-    expect(screen.queryByText(/^1 °C =/)).toBeNull();
+    it('starts on the prefix that reads best', () => {
+      at('&cat=power&from=hp&to=kW&v=2000');
+      expect(slider()).toHaveAttribute('aria-valuetext', '1.492 MW');
+    });
+
+    it('moving it reads the same quantity another way, and leaves the answer alone', () => {
+      at('&cat=power&from=kW&to=hp&v=1.5');
+      expect(slider()).toHaveAttribute('aria-valuetext', '1.5 kW');
+      const before = output().textContent;
+      fireEvent.change(slider(), { target: { value: '4' } });
+      expect(slider()).toHaveAttribute('aria-valuetext', '1500 W');
+      expect(screen.getByText('W with no prefix')).toBeInTheDocument();
+      fireEvent.change(slider(), { target: { value: '6' } });
+      expect(slider()).toHaveAttribute('aria-valuetext', '0.0015 MW');
+      expect(screen.getByText('W ÷ 10⁶')).toBeInTheDocument();
+      fireEvent.change(slider(), { target: { value: '3' } });
+      expect(slider()).toHaveAttribute('aria-valuetext', '1500000 mW');
+      expect(screen.getByText('W × 10³')).toBeInTheDocument();
+      expect(output().textContent).toBe(before);
+    });
+
+    it('isn’t there for a category with no one SI unit, or for zero', () => {
+      at('&cat=temperature&from=%C2%B0C&to=%C2%B0F&v=100');
+      expect(screen.queryByRole('slider')).toBeNull();
+    });
+
+    it('isn’t there for zero', () => {
+      at('&cat=power&from=hp&to=kW&v=0');
+      expect(screen.queryByRole('slider')).toBeNull();
+    });
   });
 
   it('search finds a unit by name and opens it', () => {
@@ -119,8 +227,8 @@ describe('Units', () => {
     expect(screen.getByRole('button', { name: 'Remove hp to kW from favourites' })).toHaveAttribute('aria-pressed', 'true');
     view.unmount();
     at();
-    fireEvent.click(screen.getByRole('button', { name: 'hp → kW' }));
-    expect(screen.getByRole('heading', { name: 'Power' })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByText('Favourites').parentElement).getByRole('button', { name: 'hp → kW' }));
+    expect(screen.getByRole('heading', { name: 'Power and heat rate' })).toBeInTheDocument();
   });
 
   it('recent conversions stay on the device, and clear', async () => {
@@ -134,11 +242,81 @@ describe('Units', () => {
   });
 });
 
+describe('Prefixes', () => {
+  const open = async () => {
+    at('&view=prefixes');
+    await screen.findByLabelText('Value');
+  };
+
+  it('moves between any two prefixes and says how', async () => {
+    await open();
+    expect(output()).toHaveTextContent('1000 W');
+    expect(screen.getByText(/10³ ÷ 10⁰ = 10³, so move the decimal point 3 places to the right/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '4.7' } });
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: 'mega' } });
+    expect(output()).toHaveTextContent('0.0047 MW');
+    expect(screen.getByText(/3 places to the left/)).toBeInTheDocument();
+  });
+
+  it('is exact, with no float noise', async () => {
+    await open();
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '1.1' } });
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: 'micro' } });
+    expect(output()).toHaveTextContent('0.0000011 W');
+  });
+
+  it('swaps', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Swap the prefixes' }));
+    expect(screen.getByLabelText('From')).toHaveValue('no prefix');
+    expect(screen.getByLabelText('To')).toHaveValue('kilo');
+    expect(output()).toHaveTextContent('0.001 kW');
+  });
+
+  it('half a sum waits here too', async () => {
+    await open();
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '2*' } });
+    expect(screen.queryByText(/finished/)).toBeNull();
+    expect(output()).toHaveTextContent('—');
+  });
+
+  it('lists every prefix with its factor', async () => {
+    await open();
+    const row = screen.getByRole('rowheader', { name: 'quetta' }).closest('tr');
+    expect(within(row).getByText('10³⁰')).toBeInTheDocument();
+    const milli = screen.getByRole('rowheader', { name: 'milli' }).closest('tr');
+    expect(within(milli).getByText('10⁻³')).toBeInTheDocument();
+    expect(within(milli).getByText('0.001')).toBeInTheDocument();
+    expect(screen.getAllByRole('rowheader')).toHaveLength(24);
+  });
+});
+
 describe('Board tools', () => {
   const tool = async (name) => {
     at('&view=tools');
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${name}`) }));
   };
+
+  it('equivalents list what reviewers ask, each linked to its conversion', async () => {
+    await tool('Equivalents and constants');
+    expect(screen.getByText('14.6959 psi')).toBeInTheDocument();
+    expect(screen.getByText('550 ft·lbf/s')).toBeInTheDocument();
+    expect(screen.getByText('778.169 ft·lbf')).toBeInTheDocument();
+    expect(screen.getByText('12000 BTU/h')).toBeInTheDocument();
+    expect(screen.getByText('0.287 kJ/(kg·K) = 53.35 ft·lbf/(lb·°R)')).toBeInTheDocument();
+    expect(screen.getByText('14.6959 psi').closest('a')).toHaveAttribute('href', expect.stringContaining('cat=pressure'));
+  });
+
+  it('each tool shows its formula', async () => {
+    await tool('Power triangle');
+    expect(screen.getByText('S = √(P² + Q²)')).toBeInTheDocument();
+  });
+
+  it('half a sum in a tool isn’t an error', async () => {
+    await tool('Per unit');
+    fireEvent.change(screen.getByLabelText('New base (MVA)'), { target: { value: '50*' } });
+    expect(screen.queryByText(/finished/)).toBeNull();
+  });
 
   it('power triangle works from its defaults and draws', async () => {
     await tool('Power triangle');
@@ -213,49 +391,141 @@ describe('Calculator', () => {
     at('&view=calculator');
     await screen.findByLabelText('Sum');
   };
-  const key = (name) => fireEvent.click(screen.getByRole('button', { name }));
+  const key = (name) => fireEvent.click(screen.getByRole('button', { name, exact: true }));
+  const keys = (...names) => names.forEach(key);
+  const sum = () => screen.getByLabelText('Sum');
+  const answer = () => screen.getByRole('status', { name: 'Answer' });
 
   it('answers as you type', async () => {
     await open();
-    fireEvent.change(screen.getByLabelText('Sum'), { target: { value: '2*pi*60' } });
-    expect(output()).toHaveTextContent('376.9911184');
+    fireEvent.change(sum(), { target: { value: '2*pi*60' } });
+    expect(answer()).toHaveTextContent('376.9911184');
   });
 
-  it('the keypad builds a sum', async () => {
+  // The owner's report, through the keypad: every step of building a sum.
+  it('never says a sum is wrong while it’s still being built', async () => {
     await open();
-    key('Sine');
+    for (const name of ['2', 'Plus', 'Sine', '3', '0', 'Close bracket', 'Multiply', 'Open bracket', '4', 'Minus', '1', 'Close bracket']) {
+      key(name);
+      expect(screen.queryByText(/finished/)).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(document.querySelector('[aria-invalid="true"]')).toBeNull();
+    }
+    expect(sum()).toHaveValue('2+sin(30)×(4−1)');
+    expect(answer()).toHaveTextContent('3.5');
+  });
+
+  it('keeps showing the answer so far', async () => {
+    await open();
+    keys('2', 'Plus');
+    expect(answer()).toHaveTextContent('2');
+    keys('3', 'Multiply');
+    expect(answer()).toHaveTextContent('5');
+    key('4');
+    expect(answer()).toHaveTextContent('14');
+  });
+
+  it('equals closes open brackets for you', async () => {
+    await open();
+    keys('Sine', '3', '0', 'Equals');
+    expect(sum()).toHaveValue('0.5');
+    expect(screen.queryByText(/finished/)).toBeNull();
+  });
+
+  it('equals on an unfinished sum says so, then lets you carry on', async () => {
+    await open();
+    keys('2', 'Plus', 'Equals');
+    expect(screen.getByText('That sum isn’t finished yet.')).toBeInTheDocument();
+    expect(sum()).toHaveValue('2+');
     key('3');
-    key('0');
-    key('Close bracket');
-    expect(screen.getByLabelText('Sum')).toHaveValue('sin(30)');
-    expect(output()).toHaveTextContent('0.5');
+    expect(screen.queryByText(/finished/)).toBeNull();
+    key('Equals');
+    expect(sum()).toHaveValue('5');
+  });
+
+  it('equals on nothing does nothing', async () => {
+    await open();
+    key('Equals');
+    expect(screen.queryByText(/finished/)).toBeNull();
+  });
+
+  it('a sum that can’t work says why, once you press equals', async () => {
+    await open();
+    fireEvent.change(sum(), { target: { value: '1/0' } });
+    expect(screen.queryByText('That has no finite answer.')).toBeNull();
+    fireEvent.keyDown(sum(), { key: 'Enter' });
+    expect(screen.getByText('That has no finite answer.')).toBeInTheDocument();
+  });
+
+  it('after equals, a number starts over and an operator carries on', async () => {
+    await open();
+    keys('6', 'Multiply', '7', 'Equals');
+    expect(sum()).toHaveValue('42');
+    key('5');
+    expect(sum()).toHaveValue('5');
+    key('Equals');
+    key('Plus');
+    expect(sum()).toHaveValue('5+');
+  });
+
+  it('ans is the last answer', async () => {
+    await open();
+    keys('6', 'Multiply', '7', 'Equals', 'Last answer', 'Plus', '1');
+    expect(sum()).toHaveValue('ans+1');
+    expect(answer()).toHaveTextContent('43');
+  });
+
+  it('delete takes a whole function name, and clear takes the lot', async () => {
+    await open();
+    keys('Sine', '3');
     key('Delete');
-    expect(screen.getByLabelText('Sum')).toHaveValue('sin(30');
+    expect(sum()).toHaveValue('sin(');
+    key('Delete');
+    expect(sum()).toHaveValue('');
+    keys('1', 'Close bracket', 'Last answer');
     key('Clear');
-    expect(screen.getByLabelText('Sum')).toHaveValue('');
+    expect(sum()).toHaveValue('');
+  });
+
+  it('2nd gives the inverse functions, for one key', async () => {
+    await open();
+    key('Inverse functions');
+    expect(screen.getByRole('button', { name: 'Inverse functions' })).toHaveAttribute('aria-pressed', 'true');
+    keys('Inverse cosine', '0', 'Point', '8', 'Equals');
+    expect(Number(sum().value)).toBeCloseTo(36.8699, 3);
+    expect(screen.getByRole('button', { name: 'Cosine' })).toBeInTheDocument();
+  });
+
+  it('has powers of ten and squares', async () => {
+    await open();
+    keys('5', 'Times ten to the power', '3', 'Equals');
+    expect(sum()).toHaveValue('5000');
+    keys('3', 'Squared', 'Equals');
+    expect(sum()).toHaveValue('9');
+  });
+
+  it('a key goes in at the caret', async () => {
+    await open();
+    fireEvent.change(sum(), { target: { value: '19' } });
+    sum().setSelectionRange(1, 1);
+    key('5');
+    expect(sum()).toHaveValue('159');
+    expect(sum().selectionStart).toBe(2);
   });
 
   it('angles follow the setting', async () => {
     await open();
-    fireEvent.change(screen.getByLabelText('Sum'), { target: { value: 'cos(pi)' } });
+    fireEvent.change(sum(), { target: { value: 'cos(pi)' } });
     fireEvent.click(screen.getByRole('radio', { name: 'Radians' }));
-    expect(output()).toHaveTextContent('-1');
+    expect(answer()).toHaveTextContent('-1');
   });
 
-  it('equals keeps the answer for ans, and the sum in the list', async () => {
+  it('keeps earlier sums, and one can be used again', async () => {
     await open();
-    fireEvent.change(screen.getByLabelText('Sum'), { target: { value: '6*7' } });
-    fireEvent.keyDown(screen.getByLabelText('Sum'), { key: 'Enter' });
-    expect(screen.getByLabelText('Sum')).toHaveValue('42');
-    expect(within(screen.getByRole('list', { name: 'Earlier sums' })).getByText(/6\*7/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Sum'), { target: { value: 'ans+1' } });
-    expect(output()).toHaveTextContent('43');
-  });
-
-  it('a bad sum says why', async () => {
-    await open();
-    fireEvent.change(screen.getByLabelText('Sum'), { target: { value: '1/0' } });
-    expect(screen.getByText('That has no finite answer.')).toBeInTheDocument();
+    keys('6', 'Multiply', '7', 'Equals');
+    const earlier = screen.getByRole('list', { name: 'Earlier sums' });
+    fireEvent.click(within(earlier).getByRole('button', { name: /6×7 = 42/ }));
+    expect(sum()).toHaveValue('6×7');
   });
 });
 
@@ -270,7 +540,7 @@ describe('Practice’s sheet', () => {
     const dialog = screen.getByRole('dialog', { name: 'Calculator and units' });
     expect(within(dialog).getByLabelText('Sum')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Units' }));
-    fireEvent.click(within(dialog).getByRole('button', { name: /^Power/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Power and heat rate/ }));
     expect(within(dialog).getByText('1 hp = 0.746 kW')).toBeInTheDocument();
     expect(screen.getByTestId('where')).toHaveTextContent('');
   });
