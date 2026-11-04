@@ -7,6 +7,7 @@ import { wakeBackend } from './services/wakeBackend';
 import { startConnectionWatch } from './services/connection';
 import { startUpdateWatch, onNewVersionReady } from './services/appUpdate';
 import { startAppHealth } from './services/appHealth';
+import { recoverFromChunkFailure } from './services/chunkRecovery';
 import { apiRequest } from './services/dbQueries';
 import { auth } from './config/firebaseDb';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -23,21 +24,10 @@ startConnectionWatch({ wake: wakeBackend });
 // Admin > App health: this device's version, and errors nothing else caught.
 startAppHealth({ request: apiRequest, whenSignedIn: (fn) => onAuthStateChanged(auth, (user) => { if (user) fn(); }) });
 
-// A screen's code that can't be loaded even after its retries
-// (utils/lazyWithRetry) is usually a chunk from an older version, gone after
-// a deploy. Reload once to get the current one, never in a loop.
-const CHUNK_RELOAD_KEY = 'ree:chunk-reload-at';
-window.addEventListener('vite:preloadError', (event) => {
-  try {
-    const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0);
-    if (Date.now() - last < 60_000) return;
-    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
-  } catch {
-    return;
-  }
-  event.preventDefault();
-  window.location.reload();
-});
+// A screen's code that can't be loaded: a chunk from an older version, gone after a
+// deploy, or a request that failed. The page has to reload to get past it. Left
+// unprevented, so if the reload doesn't come the screen still says what happened.
+window.addEventListener('vite:preloadError', (event) => { recoverFromChunkFailure(event.payload); });
 
 // A toast with Reload, not a blocking confirm(): the dialog stopped whatever
 // the learner was doing (mid-question, mid-exam) to ask. The reload also
