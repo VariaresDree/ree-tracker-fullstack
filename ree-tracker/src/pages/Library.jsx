@@ -2,7 +2,7 @@
 //
 // The learner's study material in one place, in this order (2026-10-31):
 // Handouts (with the learner's own links under them), Formula cards, Notebook,
-// Bookmarks and Imported quizzes. (This
+// Bookmarks, Imported quizzes, and Units and tools. (This
 // was "Materials Hub"; the old "Module Library" was the question-bank
 // authoring tool and moved to Admin.) Handouts are read-only here; uploading
 // and organising them is an Admin tab.
@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
-import { Cloud, BookOpen, Bookmark, FileUp, NotebookPen } from '../components/ui/icons';
+import { Cloud, BookOpen, Bookmark, Calculator, FileUp, NotebookPen } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
@@ -31,6 +31,7 @@ const QuizLauncherTab = lazy(() => import('../features/quiz-launcher/QuizLaunche
 const SharedQuizzes = lazy(() => import('../features/shared-quizzes/SharedQuizzes'));
 // The learner's own links (CELE round), under the handouts: lazy, like the quizzes.
 const LinksTab = lazy(() => import('../features/links/LinksTab'));
+const ConversionTab = lazy(() => import('../features/conversion/ConversionTab'));
 
 const TABS = [
   { id: 'handouts', label: 'Handouts', icon: Cloud },
@@ -38,6 +39,7 @@ const TABS = [
   { id: 'notebook', label: 'Notebook', icon: NotebookPen },
   { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
   { id: 'quizzes', label: 'Imported quizzes', icon: FileUp },
+  { id: 'conversion', label: 'Units and tools', icon: Calculator },
 ];
 
 export default function Library() {
@@ -132,6 +134,14 @@ export default function Library() {
 
       {tab === 'notebook' && (
         <NotebookTab currentUser={currentUser} isOnline={isOnline} />
+      )}
+
+      {tab === 'conversion' && (
+        <ErrorBoundary name="Units and tools">
+          <Suspense fallback={<Skeleton className="h-64" />}>
+            <ConversionTab />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {tab === 'quizzes' && (

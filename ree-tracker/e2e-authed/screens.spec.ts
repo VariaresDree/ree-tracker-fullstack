@@ -15,7 +15,7 @@ const SCREENS = [
   '/practice',
   ...tabs('/exams', ['mock', 'gauntlet', 'battles', 'rankings', 'history', 'paper']),
   ...tabs('/progress', ['overview', 'topics', 'weak-spots', 'confidence', 'habits', 'syllabus', 'plan']),
-  ...tabs('/library', ['handouts', 'formulas', 'notebook', 'bookmarks', 'quizzes']),
+  ...tabs('/library', ['handouts', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion']),
   '/account',
   ...tabs('/admin', ['questions', 'explanations', 'references', 'syllabus', 'handouts', 'ai', 'health']),
   ...['add', 'add&how=import', 'add&how=file', 'add&how=manual', 'review', 'fix'].map((view) => `/admin?tab=questions&view=${view}`),

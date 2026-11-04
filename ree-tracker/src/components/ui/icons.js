@@ -123,4 +123,6 @@ export {
   Wrench,
   ExternalLink,
   Minus,
+  // Unit conversion
+  Star,
 } from 'lucide-react';

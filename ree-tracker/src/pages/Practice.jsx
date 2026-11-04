@@ -3,12 +3,13 @@
 // Practice: the setup screen (presets, due reviews, a custom session), the
 // running session, and the summary when it ends. Other screens start a
 // session here with launchPractice(navigate, preset).
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import LatexRenderer from '../components/LatexRenderer';
 import Scratchpad from '../components/Scratchpad';
+import { lazy } from '../utils/lazyWithRetry';
 import { Button, Badge, Modal, Page, QuestionSurface } from '../components/ui';
 import ItemActions from '../components/exam/ItemActions';
 import KeyLegend from '../components/exam/KeyLegend';
@@ -31,6 +32,9 @@ import { questionTarget } from '../features/notebook/targets';
 import TopicCardsLink from '../features/reference/TopicCardsLink';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
 
+// Only when asked for: a calculator most sessions never open.
+const ToolsSheet = lazy(() => import('../features/conversion/ToolsSheet'));
+
 export default function Practice() {
   const isOnline = useNetworkStatus();
   const { currentUser } = useAuth();
@@ -45,6 +49,7 @@ export default function Practice() {
   } = useReviewSession(currentUser, isOnline);
 
   const [showScratchpad, setShowScratchpad] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const currentQ = session.questions[session.currentIndex];
   const itemRef = useItemFocus(session.currentIndex);
@@ -157,6 +162,7 @@ export default function Practice() {
   const itemActions = (
     <ItemActions
       onScratchpad={() => setShowScratchpad(!showScratchpad)}
+      onTools={() => setShowTools(true)}
       reported={currentQ.isFlagged}
       onReport={handleFlagQuestion}
       bookmarked={isBookmarked}
@@ -178,6 +184,7 @@ export default function Practice() {
           had none, and its solution panel's heading sat under nothing. */}
       <h1 className="sr-only">Practice</h1>
       <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
+      {showTools && <Suspense fallback={null}><ToolsSheet onClose={() => setShowTools(false)} /></Suspense>}
       <Modal
         open={confirmEnd}
         onClose={() => setConfirmEnd(false)}

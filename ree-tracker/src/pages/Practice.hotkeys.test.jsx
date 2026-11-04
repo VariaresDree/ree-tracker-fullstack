@@ -166,3 +166,16 @@ describe('Practice launched from another page', () => {
     expect(screen.queryByText('Starting your session…')).not.toBeInTheDocument();
   });
 });
+
+describe('Practice tools', () => {
+  it('opens the calculator and units in a sheet, and a key typed there doesn’t answer', async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Open calculator and units' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Calculator and units' });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: '1' });
+    expect(handleAnswerSelection).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByRole('dialog', { name: 'Calculator and units' })).not.toBeInTheDocument();
+  });
+});
