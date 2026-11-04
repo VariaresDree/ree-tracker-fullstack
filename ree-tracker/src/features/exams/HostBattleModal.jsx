@@ -7,10 +7,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { normalizeSubject } from '@ree/shared';
+import { SYLLABUS_SUBJECTS, normalizeSubject } from '@ree/shared';
 import { Button, FormField, Modal, Select, cn } from '../../components/ui';
 import { Swords } from '../../components/ui/icons';
 import { PRC_TIMES } from '../../config/examStandards';
+import DrawPicker from '../board-simulator/DrawPicker';
+import { useDrawPrefs } from '../board-simulator/useDrawPrefs';
 import { BATTLE_MODES as MODES } from './battleModes';
 
 export default function HostBattleModal({ open, onClose, isOnline }) {
@@ -23,6 +25,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
   });
   // A second tap while the first request ran created a second lobby.
   const [creating, setCreating] = useState(false);
+  const { prefs: draw, save: saveDraw } = useDrawPrefs();
 
   const handleDeployLobby = async () => {
     if (creating) return;
@@ -45,6 +48,8 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         count: hostConfig.mode === 'prc' || hostConfig.mode === 'blended' ? 100 : hostConfig.count,
         timeLimitMins: finalTime,
         isPrcStandard: hostConfig.mode === 'prc' || hostConfig.mode === 'blended',
+        drawMode: draw.drawMode,
+        ...(draw.drawMode === 'own' ? { ownCounts: draw.ownCounts } : {}),
       };
 
       const battleId = await createMultiplayerBattle(finalConfig, finalTime * 60);
@@ -153,6 +158,12 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
             </Select>
           </FormField>
         )}
+
+        <DrawPicker
+          prefs={draw}
+          onChange={saveDraw}
+          subjects={hostConfig.mode === 'blended' ? SYLLABUS_SUBJECTS : [normalizeSubject(hostConfig.subject)]}
+        />
       </div>
     </Modal>
   );

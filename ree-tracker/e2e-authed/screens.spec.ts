@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { SCREENS, signIn } from './helpers';
 
 // Every screen and every tab, signed in as an admin (so Admin opens too),
 // against the real backend: none may throw or fall back to an error screen.
@@ -7,23 +7,6 @@ import { signIn } from './helpers';
 // Question bank down on first render, and no test opened that screen; this
 // opens them all. An error screen is the ErrorBoundary's "… couldn’t load"
 // (a section) or "Something went wrong" (the whole page).
-
-const tabs = (path: string, ids: string[]) => ids.map((id) => `${path}?tab=${id}`);
-
-const SCREENS = [
-  '/',
-  '/practice',
-  ...tabs('/exams', ['mock', 'gauntlet', 'battles', 'rankings', 'history', 'paper']),
-  ...tabs('/progress', ['overview', 'topics', 'weak-spots', 'confidence', 'habits', 'syllabus', 'plan']),
-  ...tabs('/library', ['handouts', 'files', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion']),
-  '/account',
-  ...tabs('/admin', ['questions', 'explanations', 'references', 'syllabus', 'handouts', 'ai', 'health']),
-  ...['add', 'add&how=import', 'add&how=file', 'add&how=manual', 'review', 'fix'].map((view) => `/admin?tab=questions&view=${view}`),
-  '/simulator',
-  '/diagnostic',
-  '/focus',
-  '/scan',
-];
 
 test('every screen and tab opens without an error', async ({ page }) => {
   test.setTimeout(240_000);

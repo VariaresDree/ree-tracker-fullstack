@@ -52,7 +52,8 @@ async function mintBattleId() {
  * rematch: the last battle's questions) are drawn only to fill a short pool.
  */
 async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOfId = null, avoidIds = null }) {
-    const avoid = avoidIds?.length ? { avoidIds } : {};
+    const groups = await questionPool.groupsForDraw(config);
+    const avoid = { ...(avoidIds?.length ? { avoidIds } : {}), ...(groups ? { groups } : {}) };
     const pool = config.mode === 'blended'
         ? await questionPool.sampleBlendedPool(100, avoid)
         : await questionPool.samplePool({ subject: config.subject, subtopic: config.subtopic, limit: config.count, ...avoid });

@@ -16,6 +16,7 @@ let cardSummary = null;
 vi.mock('../../hooks/useCardReviewSummary', () => ({ useCardReviewSummary: () => cardSummary }));
 let loopData = null;
 vi.mock('../../hooks/useTodayLoop', () => ({ useTodayLoop: () => loopData }));
+vi.mock('../exams/RematchInvites', () => ({ default: () => null }));
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => true }));
 vi.mock('../diagnostic/PlacementPrompt', () => ({ default: () => <div>placement-prompt</div> }));
 let placement;
@@ -59,6 +60,8 @@ const renderPanel = (props) => render(
 );
 
 beforeEach(() => {
+  // The first-run tour has its own test below; the others start after it.
+  localStorage.setItem('ree_tour_seen:u1', '1');
   lastState = null;
   placement = { status: { status: 'completed' }, result: null, plan: null, dismissed: false, dismiss: vi.fn(), isNew: false, settled: true };
   plannerItems = [];
@@ -74,6 +77,22 @@ beforeEach(() => {
 });
 
 describe('TodayPanel', () => {
+  it('someone with no answers gets the tour first, then the onboarding cards', async () => {
+    localStorage.removeItem('ree_tour_seen:u1');
+    renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 0 });
+    expect(await screen.findByRole('heading', { name: 'Your way around' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Set up your review' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    expect(screen.queryByRole('heading', { name: 'Your way around' })).not.toBeInTheDocument();
+    expect(localStorage.getItem('ree_tour_seen:u1')).toBe('1');
+  });
+
+  it('someone who has answered never sees it', () => {
+    localStorage.removeItem('ree_tour_seen:u1');
+    renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 1 });
+    expect(screen.queryByRole('heading', { name: 'Your way around' })).not.toBeInTheDocument();
+  });
+
   it('draws the readiness trend from the daily snapshots', async () => {
     const day = (n) => new Date(Date.now() - n * 86400000).toISOString();
     historyItems = [

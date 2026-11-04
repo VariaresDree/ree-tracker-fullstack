@@ -6,6 +6,8 @@ const prisma = require('../config/db');
 // Single source of truth for subject spellings/filters (re-exported below so
 // existing importers of getSubjectFilter from this module keep working).
 const { getSubjectFilter } = require('../utils/subject');
+const { BOARD_GROUPS, boardWeightedPick, ownBlueprint } = require('@ree/shared/boardItems');
+const { getBoardBlueprint } = require('./boardBlueprint');
 
 // Random sample of question ids. A flat `ORDER BY random()` is biased toward
 // whichever subtopic dominates the bank, so when no subtopic is pinned we
@@ -58,16 +60,49 @@ async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit 
     return rows.map((r) => r.id);
 }
 
+const randomPick = (list, n) => {
+    const copy = [...list];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, n);
+};
+
+// The host's choice of how a battle's questions are picked, the same three a mock
+// offers: null for an even spread. PRC's table if Admin's counts can't be read.
+async function groupsForDraw(config = {}) {
+    if (config.drawMode === 'own') return ownBlueprint(config.ownCounts);
+    if (config.drawMode !== 'board') return null;
+    try {
+        return (await getBoardBlueprint())?.groups || BOARD_GROUPS;
+    } catch {
+        return BOARD_GROUPS;
+    }
+}
+
+// A paper by topic counts, with the same picking a mock uses (boardWeightedPick):
+// only ids and topics are read, so the whole subject's rows are small.
+async function sampleDrawnIds({ subjectValues, subject, limit, groups, excludeIds }) {
+    const rows = await prisma.question.findMany({
+        where: { isFlagged: false, subject: { in: subjectValues }, id: { notIn: excludeIds || [] } },
+        select: { id: true, subtopic: true },
+    });
+    return boardWeightedPick(rows, subject, capOf(limit), randomPick, groups).map((r) => r.id);
+}
+
 // Full question rows in the sampled random order. `avoidIds` are drawn last:
 // only when the rest of the pool can't fill `limit` do any of them return
 // (a small subtopic's rematch repeats as few as it must).
-async function samplePool({ subject = null, subtopic = null, limit = 50, avoidIds = null } = {}) {
+async function samplePool({ subject = null, subtopic = null, limit = 50, avoidIds = null, groups = null } = {}) {
     const subjFilter = getSubjectFilter(subject);
     const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
     const specificSubtopic = subtopic && subtopic !== 'All' ? String(subtopic).trim() : null;
 
     const spec = { subjectValues, subtopic: specificSubtopic };
-    let idList = await sampleQuestionIds({ ...spec, limit, excludeIds: avoidIds || [] });
+    let idList = groups && subjectValues && !specificSubtopic
+        ? await sampleDrawnIds({ subjectValues, subject: normalizeSubject(subject), limit, groups, excludeIds: avoidIds || [] })
+        : await sampleQuestionIds({ ...spec, limit, excludeIds: avoidIds || [] });
     const short = capOf(limit) - idList.length;
     if (avoidIds?.length && short > 0) {
         // Everything else is already in: the top-up can only be avoided ones.
@@ -85,7 +120,7 @@ async function samplePool({ subject = null, subtopic = null, limit = 50, avoidId
 // SyllabusWeight config table is empty/unreachable. Sourced from @ree/shared so
 // the client's own fallback cannot drift from this one — there were four copies
 // with two incompatible key casings.
-const { DEFAULT_SYLLABUS_WEIGHTS, apportionItems } = require('@ree/shared');
+const { DEFAULT_SYLLABUS_WEIGHTS, apportionItems, normalizeSubject } = require('@ree/shared');
 
 // Pure: turn SyllabusWeight rows into a {subject: weight} map, backfilling any
 // missing canonical subject from the default so callers always get all three.
@@ -109,19 +144,19 @@ async function getSyllabusWeights() {
 }
 
 // PRC board TOS blend, driven by the SyllabusWeight config table (Math/ESAS/EE).
-async function sampleBlendedPool(totalCount = 100, { avoidIds = null } = {}) {
+async function sampleBlendedPool(totalCount = 100, { avoidIds = null, groups = null } = {}) {
     // Largest-remainder split, shared with the client's blended pool so both
     // sides compose a blend identically and the counts always sum to total.
     const n = apportionItems(totalCount, await getSyllabusWeights());
     const [math, esas, ee] = await Promise.all([
-        samplePool({ subject: 'Mathematics', limit: n.Mathematics || 0, avoidIds }),
-        samplePool({ subject: 'ESAS', limit: n.ESAS || 0, avoidIds }),
-        samplePool({ subject: 'EE', limit: n.EE || 0, avoidIds }),
+        samplePool({ subject: 'Mathematics', limit: n.Mathematics || 0, avoidIds, groups }),
+        samplePool({ subject: 'ESAS', limit: n.ESAS || 0, avoidIds, groups }),
+        samplePool({ subject: 'EE', limit: n.EE || 0, avoidIds, groups }),
     ]);
     return [...math, ...esas, ...ee];
 }
 
 module.exports = {
-    getSubjectFilter, sampleQuestionIds, samplePool, sampleBlendedPool,
+    getSubjectFilter, sampleQuestionIds, samplePool, sampleBlendedPool, groupsForDraw,
     getSyllabusWeights, normalizeSyllabusWeights, DEFAULT_SYLLABUS_WEIGHTS,
 };

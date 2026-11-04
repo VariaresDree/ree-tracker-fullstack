@@ -6,6 +6,8 @@ const battleIdSchema = z.string().regex(/^[A-Z0-9]{6}$/);
 
 // POST /api/battles — the client sends a pool SPEC, never the pool itself.
 // The server samples the questions so answer keys never round-trip.
+const { ownCountsBySubject } = require('./userSchemas');
+
 const battleCreateSchema = z.object({
     battleId: battleIdSchema,
     config: z.object({
@@ -15,6 +17,9 @@ const battleCreateSchema = z.object({
         count: z.coerce.number().int().min(5).max(100).default(20),
         timeLimitMins: z.coerce.number().int().min(1).max(400).optional(),
         isPrcStandard: z.boolean().default(false),
+        // How the questions are picked, the host's choice (services/questionPool).
+        drawMode: z.enum(['even', 'board', 'own']).optional(),
+        ownCounts: ownCountsBySubject.optional(),
     }).default({ mode: 'custom', count: 20, isPrcStandard: false }),
     timeLimitSecs: z.coerce.number().int().min(60).max(6 * 3600),
 });

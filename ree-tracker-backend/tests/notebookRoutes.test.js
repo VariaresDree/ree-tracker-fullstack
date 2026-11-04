@@ -200,6 +200,20 @@ describe('notes', () => {
         ]);
     });
 
+    it('a card note carries the formula, or a constant its value', async () => {
+        vi.spyOn(prisma.userNote, 'findMany').mockResolvedValue([
+            { targetType: 'card', targetId: 'c1', body: 'a', updatedAt: at(5) },
+            { targetType: 'card', targetId: 'c2', body: 'b', updatedAt: at(4) },
+        ]);
+        vi.spyOn(prisma.question, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.referenceCard, 'findMany').mockResolvedValue([
+            { id: 'c1', subject: 'EE', name: 'Reactance', symbol: null, formulaLatex: 'X_c = 1/(2\pi f C)', valueUnit: null },
+            { id: 'c2', subject: 'ESAS', name: 'g', symbol: null, formulaLatex: null, valueUnit: '9.81 m/s²' },
+        ]);
+        const res = await request(makeApp()).get('/api/user/notes').set(as());
+        expect(res.body.items.map((n) => n.target.formula)).toEqual(['X_c = 1/(2\pi f C)', '9.81 m/s²']);
+    });
+
     it('saves a note on a question that exists, trimmed', async () => {
         vi.spyOn(prisma.question, 'findUnique').mockResolvedValue({ id: 'q1' });
         const upsert = vi.spyOn(prisma.userNote, 'upsert').mockImplementation(async ({ create }) => ({ ...create, updatedAt: at(1) }));

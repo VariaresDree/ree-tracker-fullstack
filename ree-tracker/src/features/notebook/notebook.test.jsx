@@ -135,6 +135,21 @@ describe('notes', () => {
   });
 });
 
+describe('a card’s note', () => {
+  it('shows the card’s formula with the note, and no box when it has none', async () => {
+    apiRequest.mockResolvedValue({
+      items: [
+        { targetType: 'card', targetId: 'c1', body: 'Units!', updatedAt: '2026-10-04T00:00:00Z', target: { subject: 'EE', topic: null, title: 'Reactance', name: 'Reactance', formula: 'X_c = 1/(2 pi f C)' } },
+        { targetType: 'card', targetId: 'c2', body: 'Plain', updatedAt: '2026-10-03T00:00:00Z', target: { subject: 'EE', topic: null, title: 'Older card', name: 'Older card' } },
+      ],
+    });
+    renderAt(<NotesPanel isOnline />);
+    expect(await screen.findByText('$X_c = 1/(2 pi f C)$')).toBeInTheDocument();
+    expect(screen.getByText('Plain')).toBeInTheDocument();
+    expect(screen.queryByText('$null$')).not.toBeInTheDocument();
+  });
+});
+
 describe('mistakes', () => {
   it('recomputes Fixed when marked, and when unmarked', () => {
     const m = mistake('q1');

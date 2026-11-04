@@ -41,7 +41,8 @@ import { cn } from './cn';
 //
 // `fullscreen`, for a viewer: the whole screen, edge to edge, and the body is a
 // flex column for what fills it.
-let openModalCount = 0;
+// Oldest first. The last one is on top, and only it answers Escape.
+const openModals = [];
 let preLockOverflow = '';
 
 const SIZES = {
@@ -89,19 +90,20 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return;
+    const me = {};
     const onKey = (e) => {
-      if (e.key === 'Escape') onCloseRef.current?.();
+      if (e.key === 'Escape' && openModals.at(-1) === me) onCloseRef.current?.();
     };
     document.addEventListener('keydown', onKey);
 
-    if (openModalCount === 0) preLockOverflow = document.body.style.overflow;
-    openModalCount += 1;
+    if (openModals.length === 0) preLockOverflow = document.body.style.overflow;
+    openModals.push(me);
     document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      openModalCount = Math.max(0, openModalCount - 1);
-      if (openModalCount === 0) document.body.style.overflow = preLockOverflow;
+      openModals.splice(openModals.indexOf(me), 1);
+      if (openModals.length === 0) document.body.style.overflow = preLockOverflow;
     };
   }, [open]);
 

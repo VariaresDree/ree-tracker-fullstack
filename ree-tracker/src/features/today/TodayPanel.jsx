@@ -13,7 +13,7 @@
 //
 // All of it always shows. On a phone the first two tiles sit side by side and
 // the target takes the row under them.
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchReadinessHistory } from '../../services/dbQueries';
 import { Badge, Card, CardTitle, CardWatermark, Button, Grid, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';
@@ -26,8 +26,15 @@ import { useReconnectKey } from '../../hooks/useConnection';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
 import { usePlacement } from '../diagnostic/usePlacement';
 import FirstRunCard from '../onboarding/FirstRunCard';
+import RematchInvites from '../exams/RematchInvites';
 import { isEarlyEstimate } from '../analytics/earlyEstimate';
 import { forecastPlan } from '../exams/startingPlan';
+
+const FirstRunTour = lazy(() => import('../onboarding/FirstRunTour'));
+const tourSeen = (uid) => {
+  // The same key FirstRunTour writes; a read here keeps the tour out of Today's chunk.
+  try { return localStorage.getItem(`ree_tour_seen:${uid}`) === '1'; } catch { return false; }
+};
 
 const withSource = (plan, source) => (plan ? { ...plan, source } : null);
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
@@ -266,6 +273,9 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   }, []);
   const trend = readinessTrend(history);
   const placement = usePlacement({ uid, answered });
+  // First of the onboarding cards, for someone who hasn't answered anything yet.
+  const [tourDone, setTourDone] = useState(false);
+  const showTour = answered === 0 && !!uid && !tourDone && !tourSeen(uid);
   const early = isEarlyEstimate({ snapshot, answered });
   // One onboarding card at a time: the placement prompt, then the exam plan.
   const placementCard = !!placement.status && placement.status.status !== 'completed' && !placement.dismissed
@@ -307,10 +317,26 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
 
   return (
     <section aria-label="Today" className="flex flex-col gap-6">
-      <PlacementPrompt status={placement.status} answered={answered} dismissed={placement.dismissed} onDismiss={placement.dismiss} />
-      <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
+      {showTour ? (
+        <Suspense fallback={null}>
+          <FirstRunTour
+            uid={uid}
+            placed={placement.status?.status === 'completed'}
+            hasDate={!!stats?.examDate}
+            hasPlan={!!planTask}
+            onDone={() => setTourDone(true)}
+          />
+        </Suspense>
+      ) : (
+        <>
+          <PlacementPrompt status={placement.status} answered={answered} dismissed={placement.dismissed} onDismiss={placement.dismiss} />
+          <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
+        </>
+      )}
 
       {!settled ? <LeadSkeleton /> : lead && <LeadCard action={lead} navigate={navigate} />}
+
+      <RematchInvites />
 
       <Grid kind="duo" gap="sm">
         <ReadinessTile readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />

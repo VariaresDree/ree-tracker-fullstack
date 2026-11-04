@@ -12,6 +12,7 @@ import { Button, Card, CardTitle, CardWatermark, cn, FormField, Grid, Input } fr
 import { Check, Swords } from '../../components/ui/icons';
 import HostBattleModal from './HostBattleModal';
 import ActiveBattles from './ActiveBattles';
+import RematchInvites from './RematchInvites';
 import BattleHistory from './BattleHistory';
 import { BATTLE_MODES } from './battleModes';
 
@@ -47,6 +48,7 @@ export default function BattlesTab() {
 
   return (
     <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2">
+      <RematchInvites />
       {/* A battle you left part-way, with a way back in. */}
       <ActiveBattles />
       <Grid kind="pair">
@@ -123,7 +125,7 @@ export default function BattlesTab() {
       {/* Finished battles: review, and Rematch. */}
       <BattleHistory onHost={() => setShowHostModal(true)} />
 
-      <HostBattleModal open={showHostModal} onClose={() => setShowHostModal(false)} isOnline={isOnline} />
+      {showHostModal && <HostBattleModal open onClose={() => setShowHostModal(false)} isOnline={isOnline} />}
     </div>
   );
 }

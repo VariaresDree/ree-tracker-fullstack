@@ -38,7 +38,7 @@ router.get('/notes', authMiddleware, async (req, res) => {
                 ? prisma.question.findMany({ where: { id: { in: idsOf('question') } }, select: { id: true, subject: true, subtopic: true, text: true } })
                 : [],
             idsOf('card').length
-                ? prisma.referenceCard.findMany({ where: { id: { in: idsOf('card') } }, select: { id: true, subject: true, name: true, symbol: true } })
+                ? prisma.referenceCard.findMany({ where: { id: { in: idsOf('card') } }, select: { id: true, subject: true, name: true, symbol: true, formulaLatex: true, valueUnit: true } })
                 : [],
         ]);
         const q = new Map(questions.map((x) => [x.id, x]));
@@ -53,7 +53,7 @@ router.get('/notes', authMiddleware, async (req, res) => {
                 // What the note is on, for the list; null when it's gone.
                 target: !target ? null : n.targetType === 'question'
                     ? { subject: normalizeSubject(target.subject || ''), topic: target.subtopic || null, title: snippet(target.text) }
-                    : { subject: normalizeSubject(target.subject || ''), topic: null, title: target.symbol ? `${target.name} (${target.symbol})` : target.name, name: target.name },
+                    : { subject: normalizeSubject(target.subject || ''), topic: null, title: target.symbol ? `${target.name} (${target.symbol})` : target.name, name: target.name, formula: target.formulaLatex || target.valueUnit || null },
             };
         });
         res.status(200).json({ items, truncated: notes.length === NOTES_LIST_MAX });
