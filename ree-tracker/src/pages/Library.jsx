@@ -28,6 +28,7 @@ import MaterialViewer from '../features/materials/MaterialViewer';
 // Lazy, not eagerly imported like the tabs above: this pulls in fflate and
 // the CAQ parser, which most Library visitors will never touch.
 const QuizLauncherTab = lazy(() => import('../features/quiz-launcher/QuizLauncherTab'));
+const SharedQuizzes = lazy(() => import('../features/shared-quizzes/SharedQuizzes'));
 // The learner's own links (CELE round), under the handouts: lazy, like the quizzes.
 const LinksTab = lazy(() => import('../features/links/LinksTab'));
 
@@ -136,7 +137,7 @@ export default function Library() {
       {tab === 'quizzes' && (
         <ErrorBoundary name="Imported quizzes">
           <Suspense fallback={<div className="flex flex-col gap-3"><Skeleton className="h-40" /><Skeleton className="h-16" /></div>}>
-            <QuizLauncherTab />
+            <QuizLauncherTab shared={<ErrorBoundary name="Shared quizzes"><Suspense fallback={null}><SharedQuizzes /></Suspense></ErrorBoundary>} />
           </Suspense>
         </ErrorBoundary>
       )}

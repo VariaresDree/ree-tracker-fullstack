@@ -56,7 +56,7 @@ export const getAuthToken = async (user, forceRefresh = false) => {
     }
 };
 
-export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS, idempotencyKey: idempotencyKeyOverride = null, freshToken = false } = {}) => {
+export const apiRequest = async (endpoint, method = 'GET', body = null, { timeoutMs = REQUEST_TIMEOUT_MS, idempotencyKey: idempotencyKeyOverride = null, freshToken = false, rawBody = null, asBuffer = false } = {}) => {
     const user = auth.currentUser;
     if (!user) throw new Error("You're signed out. Sign in again to continue.");
 
@@ -72,7 +72,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     const url = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${endpoint}`;
 
     const headers = {
-        'Content-Type': 'application/json',
+        'Content-Type': rawBody ? 'application/octet-stream' : 'application/json',
         'Authorization': `Bearer ${token}`,
     };
     // Callers with a stronger notion of request identity than "hash of body"
@@ -96,6 +96,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     const options = { method, headers, signal: controller.signal };
 
     if (body) options.body = JSON.stringify(body);
+    if (rawBody) options.body = rawBody;
 
     let response;
     try {
@@ -123,7 +124,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     // was offline (Firebase refreshes it on a timer that may not have run).
     // One more try with a token fetched fresh, then the 401 stands.
     if (response.status === 401 && !freshToken) {
-        return apiRequest(endpoint, method, body, { timeoutMs, idempotencyKey: idempotencyKeyOverride || idemKey, freshToken: true });
+        return apiRequest(endpoint, method, body, { timeoutMs, idempotencyKey: idempotencyKeyOverride || idemKey, freshToken: true, rawBody, asBuffer });
     }
 
     if (!response.ok) {
@@ -142,7 +143,7 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
     }
 
     if (response.status === 204) return null;
-    return response.json();
+    return asBuffer ? response.arrayBuffer() : response.json();
 };
 
 const safeApiRequest = async (endpoint, method = 'GET', body = null, fallback = null, opts = {}) => {

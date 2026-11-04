@@ -13,6 +13,7 @@ A proposal asked for "local-first" storage with "total device isolation": study 
 
 - **Personal files stay on the device and never upload:** imported quizzes and their attempts, and later My files. They live in their own IndexedDB database (`services/deviceStore.js`), keyed by account.
 - **Graded answers, ratings, notes and plans stay in Postgres,** cached on the device as they are now. A backup file (PR 8) gives the learner a copy, but restoring never writes graded answers.
+- **Quiz files the admin shares live in Postgres** (`QuizFile`, 5 MB each). Downloading one makes a device copy, which then follows the first rule. Scores on it stay on the device.
 - **No guest mode.** Sign in once online, then it runs offline.
 
 ## Why not total isolation

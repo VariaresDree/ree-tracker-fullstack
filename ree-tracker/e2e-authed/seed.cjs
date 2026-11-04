@@ -40,6 +40,7 @@ async function seed() {
         await prisma.battle.deleteMany({ where: { id: BATTLE_ID } });
         await prisma.user.deleteMany({ where: { email: { endsWith: '@e2e.test' } } });
         await prisma.question.deleteMany({ where: { id: { startsWith: 'e2e-' } } });
+        await prisma.quizFile.deleteMany({});
 
         await prisma.user.create({ data: { id: uid, email: EMAIL, displayName: 'E2E Learner' } });
         await prisma.user.create({ data: { id: adminUid, email: ADMIN_EMAIL, displayName: 'E2E Admin', role: 'ADMIN' } });
