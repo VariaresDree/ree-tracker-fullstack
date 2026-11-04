@@ -4,7 +4,7 @@
 // the option text: options are often LaTeX, which reads as noise. Kept out of
 // the component module so Fast Refresh still treats QuestionCard as a pure
 // component boundary.
-const LETTERS = ['A', 'B', 'C', 'D'];
+import { LETTERS } from './examCopy';
 
 export function answerAnnouncement({ isReviewing, selectedOption, correctAnswer, options = [] }) {
   if (!isReviewing || correctAnswer == null) return '';

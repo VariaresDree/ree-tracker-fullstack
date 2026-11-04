@@ -89,6 +89,7 @@ export {
   Download,
   // Misc semantic
   TriangleAlert,
+  Keyboard,
   Calculator,
   ArrowLeftRight,
   Brain,

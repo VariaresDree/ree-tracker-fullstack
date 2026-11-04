@@ -73,7 +73,8 @@ export default function ExamNavigator({ count, currentIndex, onSelect, isAnswere
             // The accent button's fill and ink: white on the raw accent read 4.35:1.
             if (isCurrent) btnClass = 'bg-[color-mix(in_srgb,var(--accent)_88%,black)] border-[var(--accent)] text-[var(--on-accent)] font-bold elevate-1 scale-110';
           } else if (reviewState === 'skipped') {
-            btnClass = 'bg-surface/40 border-border2/30 text-muted opacity-50';
+            // Quiet, and readable: at 50% opacity the number fell to about 2.5:1.
+            btnClass = 'bg-surface/40 border-border2/30 text-muted2';
           } else if (reviewState === 'correct') {
             btnClass = 'bg-[color-mix(in_srgb,var(--accent-success)_10%,transparent)] border-[color-mix(in_srgb,var(--accent-success)_40%,transparent)] text-[var(--accent-success)] font-bold shadow-sm';
           } else {

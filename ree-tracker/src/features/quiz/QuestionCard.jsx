@@ -17,12 +17,12 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import LatexRenderer from '../../components/LatexRenderer';
 import { prefersReducedMotion } from '../../motion/presets';
 import { answerAnnouncement } from './answerAnnouncement';
+import { LETTERS } from './examCopy';
 import { shouldIgnoreHotkey } from '../../utils/hotkeys';
 
 const CONFIDENCE_LEVELS = ['LOW', 'MED', 'HIGH'];
 const HOTKEY_TO_CONFIDENCE = { q: 'LOW', w: 'MED', e: 'HIGH' };
 const HOTKEY_TO_OPTION_INDEX = { 1: 0, a: 0, 2: 1, b: 1, 3: 2, c: 2, 4: 3, d: 3 };
-const LETTERS = ['A', 'B', 'C', 'D'];
 
 /**
  * @typedef {Object} QuestionShape
@@ -303,8 +303,10 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       icon = <XIcon />;
       srState = 'Incorrect — you selected this';
     } else {
-      stateClass = 'bg-surface/10 border-border2/20 text-muted opacity-40 cursor-not-allowed';
-      letterColor = 'text-muted/40';
+      // Quieter than the answer, and still readable: these are worth reading in
+      // a review, and at 40% opacity they fell far under 4.5:1.
+      stateClass = 'bg-surface/10 border-border2/20 text-muted2 cursor-not-allowed';
+      letterColor = 'text-muted2';
     }
   }
 

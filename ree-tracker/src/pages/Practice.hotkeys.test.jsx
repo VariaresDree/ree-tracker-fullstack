@@ -130,7 +130,7 @@ describe('Practice session controls', () => {
   it('Enter on a focused button leaves it to the button', () => {
     sessionState.isAnswered = true;
     renderPage();
-    const next = screen.getByRole('button', { name: /Finish session|Next question/ });
+    const next = screen.getByRole('button', { name: /Finish session|^Next$/ });
     next.focus();
     fireEvent.keyDown(next, { key: 'Enter' });
     expect(loadNextQuestion).not.toHaveBeenCalled();

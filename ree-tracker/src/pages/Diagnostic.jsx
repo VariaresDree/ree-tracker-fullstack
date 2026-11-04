@@ -5,7 +5,7 @@
 // nothing is revealed until the end (answers given with feedback would bias the
 // rest of the sitting). The result places each subject against the PRC marks
 // and, for a new account, seeds the abilities practice starts from.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import ModeGuide from '../features/exams/ModeGuide';
 import { startingPlan } from '../features/exams/startingPlan';
 import ExamPlanForm from '../features/account/ExamPlanForm';
@@ -14,6 +14,12 @@ import toast from 'react-hot-toast';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
 import PomodoroOwner from '../components/PomodoroOwner';
+import KeyLegend from '../components/exam/KeyLegend';
+import SessionActions from '../components/exam/SessionActions';
+import SessionBar from '../components/exam/SessionBar';
+import { KEYS } from '../features/quiz/examCopy';
+import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
+import { shouldIgnoreHotkey } from '../utils/hotkeys';
 import QuestionCard from '../features/quiz/QuestionCard';
 import { presentOptions } from '../features/quiz/presentOptions';
 import { Badge, Button, Card, CardTitle, EmptyState, Grid, Page, PageHeader, ProgressIndicator, QuestionSurface, Skeleton } from '../components/ui';
@@ -101,19 +107,37 @@ export default function Diagnostic() {
     }
   };
 
+  // Enter submits the choice, for someone on the keyboard. On a focused button it
+  // stays that button's.
+  const onEnter = useEffectEvent((e) => {
+    if (e.key !== 'Enter' || shouldIgnoreHotkey(e) || e.target?.closest?.('button, a')) return;
+    submit();
+  });
+  useEffect(() => {
+    if (phase !== 'question') return undefined;
+    const onKey = (e) => onEnter(e);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase]);
+  const itemRef = useItemFocus(item?.id);
+
   if (phase === 'question' && item) {
     return (
       <ExamLayout shortMessage="Placement test" message="Placement test — answers are revealed at the end">
         <PomodoroOwner />
         <h1 className="sr-only">Placement test</h1>
         <Page width="reading">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-xs text-muted2">
-              <span>Question {progress.answered + 1} of about {progress.total}</span>
-              <span>{toDisplaySubject(item.subject)}</span>
-            </div>
-            <ProgressIndicator value={progress.answered} max={progress.total} ariaLabel="Placement test progress" size="sm" />
-          </div>
+          <SessionBar
+            index={progress.answered}
+            total={progress.total}
+            about
+            action={<Button variant="ghost" size="sm" className="shrink-0" onClick={() => navigate('/')}>Save and exit</Button>}
+          >
+            <span className="text-xs text-muted2 truncate">{toDisplaySubject(item.subject)}</span>
+            <KeyLegend keys={KEYS.placement} />
+          </SessionBar>
+          <ProgressIndicator value={progress.answered} max={progress.total} ariaLabel="Placement test progress" size="sm" />
+          <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
           <QuestionSurface>
             <QuestionCard
               // The choices in this sitting's order (keyed by its session id),
@@ -129,12 +153,12 @@ export default function Diagnostic() {
               onConfidenceChange={setConfidence}
             />
           </QuestionSurface>
-          <div className="flex flex-wrap justify-between items-center gap-3">
-            <Button variant="ghost" onClick={() => navigate('/')}>Save and exit</Button>
-            <Button size="lg" onClick={submit} disabled={!selected} loading={submitting}>
+          </div>
+          <SessionActions className="justify-end">
+            <Button className="max-sm:w-full" onClick={submit} disabled={!selected} loading={submitting}>
               Submit answer <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
             </Button>
-          </div>
+          </SessionActions>
         </Page>
       </ExamLayout>
     );

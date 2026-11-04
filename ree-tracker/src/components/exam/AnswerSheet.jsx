@@ -5,8 +5,7 @@
 // Tapping a row goes to that item. In review it also rings the correct bubble.
 // Pure and props-driven, like ExamNavigator, which offers it as a second view.
 import { sheetRowLabel } from './examAnnouncements';
-
-const LETTERS = ['A', 'B', 'C', 'D'];
+import { LETTERS } from '../../features/quiz/examCopy';
 
 /**
  * @param count            items on the sheet

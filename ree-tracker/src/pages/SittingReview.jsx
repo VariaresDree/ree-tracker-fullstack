@@ -42,18 +42,11 @@ import { questionTarget } from '../features/notebook/targets';
 import TopicCardsLink from '../features/reference/TopicCardsLink';
 import BattlePicks from '../features/exams/BattlePicks';
 import { ordinal } from '../features/exams/battleModes';
+import { letterIn } from '../features/quiz/examCopy';
 
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 const CONFIDENCE_LABEL = { HIGH: 'Sure', MED: 'Fairly sure', LOW: 'Unsure' };
-const LETTERS = ['A', 'B', 'C', 'D'];
-// The bubble for an answer on the answer sheet, by its place in the options as
-// listed: the order the learner saw, or the stored order for an older sitting.
-const letterIn = (options, value) => {
-  if (value == null || value === '') return null;
-  const i = (options || []).indexOf(value);
-  return i >= 0 && i < LETTERS.length ? LETTERS[i] : null;
-};
 const BACK = '/exams?tab=history';
 
 const reviewStateOf = (item) => (item.answered === false ? 'skipped' : item.isCorrect ? 'correct' : 'incorrect');

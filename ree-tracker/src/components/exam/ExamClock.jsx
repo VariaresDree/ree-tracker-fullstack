@@ -20,7 +20,6 @@
 // backgrounded tab (where timers are throttled to ~1/minute) because the value
 // is recomputed from the clock rather than decremented.
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '../ui';
 import { Eye, EyeOff } from '../ui/icons';
 import { formatClock } from '../../utils/time';
 import { crossedMilestone } from './examAnnouncements';
@@ -69,34 +68,34 @@ export default function ExamClock({
         if (crossed && showTime && !paused) setSpoken(crossed === 1 ? '1 minute left' : `${crossed} minutes left`);
     }, [remaining, showTime, paused]);
 
+    // One button, the time on it: tapping hides or shows it. A separate eye beside
+    // a roomy clock took most of a phone's one-row bar.
     return (
-        <div className="flex items-center gap-2">
+        <>
             <span role="status" className="sr-only">{spoken}</span>
-            <Button
-                size="icon"
-                variant="ghost"
+            <button
+                type="button"
+                data-testid="exam-clock"
                 onClick={onToggleTime}
                 aria-label={showTime ? 'Hide time' : 'Show time'}
-                className="text-muted hover:text-textMain"
-            >
-                {showTime
-                    ? <Eye size={16} strokeWidth={1.75} aria-hidden="true" />
-                    : <EyeOff size={16} strokeWidth={1.75} aria-hidden="true" />}
-            </Button>
-            <div
-                data-testid="exam-clock"
-                className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-widest px-4 py-1 rounded-[var(--radius-default)] border transition-[filter,opacity,color,background-color,border-color] duration-300 ${!showTime ? 'blur-sm opacity-20' : ''} ${critical ? 'animate-pulse' : 'bg-surface/50 text-textMain border-border2/60 shadow-inner'}`}
+                title={showTime ? 'Hide time' : 'Show time'}
+                // The clock updates every second; announcing it would make a
+                // screen reader unusable for the length of an exam.
+                aria-live="off"
+                className={`touch-target inline-flex items-center gap-1.5 min-h-9 px-2 sm:px-3 text-sm sm:text-base font-bold font-mono tabular-nums rounded-[var(--radius-default)] border cursor-pointer transition-[opacity,color,background-color,border-color] duration-300 ${critical ? 'animate-pulse' : 'bg-surface/50 text-textMain border-border2/60 shadow-inner'}`}
                 style={critical ? {
                     color: 'var(--accent-danger)',
                     background: 'color-mix(in srgb, var(--accent-danger) 10%, transparent)',
                     borderColor: 'color-mix(in srgb, var(--accent-danger) 30%, transparent)',
                 } : undefined}
-                // The clock updates every second; announcing it would make a
-                // screen reader unusable for the length of an exam.
-                aria-live="off"
             >
-                {formatClock(remaining, { pad: true })}
-            </div>
-        </div>
+                {showTime ? (
+                    <>
+                        <Eye size={14} strokeWidth={1.75} aria-hidden="true" className="hidden sm:block text-muted" />
+                        {formatClock(remaining, { pad: true })}
+                    </>
+                ) : <EyeOff size={16} strokeWidth={1.75} aria-hidden="true" />}
+            </button>
+        </>
     );
 }
