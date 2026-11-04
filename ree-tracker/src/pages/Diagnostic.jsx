@@ -21,6 +21,7 @@ import { KEYS } from '../features/quiz/examCopy';
 import ItemReview from '../features/quiz/ItemReview';
 import { reviewItemToQuestion } from '../features/exams/review/retake';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
 import QuestionCard from '../features/quiz/QuestionCard';
 import { presentOptions } from '../features/quiz/presentOptions';
@@ -36,6 +37,7 @@ const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 
 export default function Diagnostic() {
   const navigate = useNavigate();
+  const isOnline = useNetworkStatus();
   const [phase, setPhase] = useState('loading'); // loading | intro | question | result | error
   const [status, setStatus] = useState(null);
   const [sessionId, setSessionId] = useState(null);
@@ -182,8 +184,10 @@ export default function Diagnostic() {
           <Card elevated>
             <EmptyState
               icon={Compass}
-              title="Placement test unavailable"
-              description="The service could not be reached. Check your connection and try again."
+              title={isOnline ? 'Placement test unavailable' : 'The placement test needs a connection'}
+              description={isOnline
+                ? 'The service could not be reached. Check your connection and try again.'
+                : 'It picks each question on the server as you answer, so it can’t run offline. Practice and mock boards still work.'}
               action={<Button onClick={retry}>Try again</Button>}
             />
           </Card>

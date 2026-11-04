@@ -9,7 +9,7 @@
 // at once, and one said "Syncing…" while the other didn't.
 import { useEffect, useSyncExternalStore } from 'react';
 import { refreshOfflinePack } from '../services/dbQueries';
-import { getOfflinePackMeta } from '../services/offlinePack';
+import { getOfflinePackMeta, savePackSizeName } from '../services/offlinePack';
 
 let state = { meta: null, isRefreshing: false };
 let inFlight = null;
@@ -41,6 +41,12 @@ function refresh() {
   return inFlight;
 }
 
+/** Choose Standard or Large, and download it (after any download running). */
+function choosePackSize(name) {
+  savePackSizeName(name);
+  return Promise.resolve(inFlight).then(refresh);
+}
+
 async function checkOnce() {
   const m = await getOfflinePackMeta();
   set({ meta: m });
@@ -54,7 +60,7 @@ async function checkOnce() {
 export function useOfflinePack() {
   const s = useSyncExternalStore(subscribe, getState, getState);
   useEffect(() => { checkOnce().catch(() => {}); }, []);
-  return { meta: s.meta, isRefreshing: s.isRefreshing, refresh, reloadMeta };
+  return { meta: s.meta, isRefreshing: s.isRefreshing, refresh, reloadMeta, choosePackSize };
 }
 
 /** Test seam. */

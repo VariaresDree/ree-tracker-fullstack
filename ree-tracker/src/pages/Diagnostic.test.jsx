@@ -40,6 +40,15 @@ beforeEach(() => Object.values(api).forEach((f) => f.mockReset()));
 const renderPage = () => render(<MemoryRouter><Diagnostic /></MemoryRouter>);
 
 describe('Diagnostic page', () => {
+  it('offline, it says the test needs a connection and that practice still works', async () => {
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true });
+    api.fetchDiagnosticStatus.mockRejectedValue(new Error('[OFFLINE]'));
+    renderPage();
+    expect(await screen.findByText('The placement test needs a connection')).toBeInTheDocument();
+    expect(screen.getByText(/Practice and mock boards still work/)).toBeInTheDocument();
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
+  });
+
   it('Try again asks the server again instead of reloading the app', async () => {
     api.fetchDiagnosticStatus.mockRejectedValueOnce(new Error('[OFFLINE]')).mockResolvedValueOnce({ status: 'none' });
     renderPage();

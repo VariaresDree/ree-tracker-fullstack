@@ -1,6 +1,8 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, fetchNextItem, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, fetchNextItem, saveQuestionToBank } from '../../services/dbQueries';
+import { fetchBookmarks, removeBookmark, saveBookmark } from '../../services/bookmarks';
+import { offlineDrill, offlineMix, unlessOffline } from './offlineSets';
 import { generateQuestionsAI } from '../../services/geminiApi';
 import { TOS as fallbackTOS } from '../../config/constants';
 import { useAiExplanation } from '../quiz/useAiExplanation';
@@ -159,6 +161,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             let freshData = [];
             let adaptive = null;
             let loopCardsDue = target.cardsDue ?? cfg.cardsDue ?? 0;
+            let offlineNote = null;
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
             if (cfg.source === 'items') {
@@ -175,10 +178,16 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (Array.isArray(target.items) && target.items.length > 0) {
                     freshData = target.items.filter(isStep);
                 } else {
-                    if (!isOnline) throw new Error("Today's loop needs a connection.");
-                    const loop = await fetchTodayLoop();
-                    freshData = (loop?.items || []).filter(isStep);
-                    loopCardsDue = loop?.cardsDue || 0;
+                    const loop = isOnline ? await unlessOffline(fetchTodayLoop()) : null;
+                    if (loop) {
+                        freshData = (loop.items || []).filter(isStep);
+                        loopCardsDue = loop.cardsDue || 0;
+                    } else {
+                        // Kept as it comes below, so it's sampled here.
+                        const mix = await offlineMix('today’s loop');
+                        freshData = stratifiedSample(mix.items, cfg.count || 25);
+                        offlineNote = mix.note;
+                    }
                 }
                 if (freshData.length === 0) throw new Error("Nothing is due and no mistakes are open. You're caught up.");
             } else if (cfg.source === 'adaptive') {
@@ -189,21 +198,33 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (!first) throw new Error("No questions match these settings yet.");
                 freshData = [first];
             } else if (cfg.source === 'srs-due') {
-                if (!isOnline) throw new Error("The review queue needs a connection.");
-                freshData = await fetchSrsDue(cfg.count || 20, cfg.subject);
-                if (!freshData || freshData.length === 0) throw new Error("Nothing is due for review right now.");
+                const due = isOnline ? await unlessOffline(fetchSrsDue(cfg.count || 20, cfg.subject)) : null;
+                if (due) {
+                    freshData = due;
+                    if (freshData.length === 0) throw new Error("Nothing is due for review right now.");
+                } else {
+                    const mix = await offlineMix('your review queue');
+                    freshData = mix.items;
+                    offlineNote = mix.note;
+                }
             } else if (cfg.source === 'smart-drill') {
-                if (!isOnline) throw new Error("Smart drill needs a connection.");
-                const drillResult = await fetchSmartDrillQuestions(cfg.count || 10, {
+                const drillResult = isOnline ? await unlessOffline(fetchSmartDrillQuestions(cfg.count || 10, {
                     topicId: target.drillTopicId, topic: target.drillTopic, subject: target.drillSubject, mode: target.drillMode,
-                });
-                freshData = drillResult.items || [];
-                if (freshData.length === 0) throw new Error("Answer a few questions first — the drill targets your weakest topics.");
+                })) : null;
+                if (drillResult) {
+                    freshData = drillResult.items || [];
+                    if (freshData.length === 0) throw new Error("Answer a few questions first — the drill targets your weakest topics.");
+                } else {
+                    const drill = await offlineDrill({ topic: target.drillTopic, subject: target.drillSubject, microTopics: useStore.getState().stats?.microTopics });
+                    freshData = drill.items;
+                    offlineNote = drill.note;
+                }
             } else if (cfg.source === 'bookmarks') {
-                if (!isOnline) throw new Error("Your bookmarks need a connection.");
                 const saved = await fetchBookmarks({ limit: 100 });
                 if (!saved || saved.length === 0) {
-                    throw new Error("No bookmarks yet. Tap the bookmark icon on a question to save it for later.");
+                    throw new Error(isOnline
+                        ? "No bookmarks yet. Tap the bookmark icon on a question to save it for later."
+                        : "Your bookmarks aren’t on this device yet. Connect once to save a copy.");
                 }
                 // Mark them as bookmarked, so the icon shows filled and a tap
                 // removes one instead of adding it again.
@@ -312,6 +333,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 totalAnswered: 0, correctHits: 0,
                 target: adaptive ? adaptive.target : finalSessionQuestions.length,
                 fetchingNext: false,
+                offlineNote,
             });
         } catch (error) {
             toast.error(error.message);
@@ -558,7 +580,7 @@ export const useReviewSession = (currentUser, isOnline) => {
     // PERSISTED bookmark toggle. This used to mutate only the local Set —
     // nothing ever reached /api/bookmarks, which is why the Materials hub's
     // Bookmark Vault stayed empty no matter how much you bookmarked here.
-    // Optimistic Set update, rolled back if the API rejects.
+    // Optimistic Set update, rolled back if the API rejects. Offline it's queued.
     const toggleBookmark = async () => {
         const currentQ = session.questions[session.currentIndex];
         if (!currentQ?.id) return toast.error("Can't bookmark dynamic items.");
@@ -577,14 +599,9 @@ export const useReviewSession = (currentUser, isOnline) => {
                 await saveBookmark(currentUser?.uid, { questionId: currentQ.id });
                 toast.success("Bookmarked — find it in Library › Bookmarks");
             }
-        } catch (err) {
-            // 409 = the server already has it (e.g. bookmarked in another
-            // session) — the optimistic "on" state is correct, keep it.
-            if (!had && err?.status === 409) return;
+        } catch {
             setBookmarks(prev => flip(prev, had));
-            toast.error(err?.message === '[OFFLINE]'
-                ? "Offline — bookmarking needs a connection."
-                : "Bookmark failed.");
+            toast.error("Bookmark failed.");
         }
     };
 

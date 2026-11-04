@@ -14,6 +14,20 @@ const PACK_KEY = 'ree_offline_pack_v1';
 export const OFFLINE_SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 export const PACK_TTL_MS = 24 * 60 * 60 * 1000; // refresh at most ~daily
 
+// Questions per subject. Large stops at what the server gives in one request.
+// Not the whole bank: the pack is one blob read into memory whole.
+export const PACK_SIZES = { standard: 400, large: 2000 };
+const PACK_SIZE_KEY = 'ree:offline-pack-size';
+export const getPackSizeName = () => {
+    try { return localStorage.getItem(PACK_SIZE_KEY) === 'large' ? 'large' : 'standard'; } catch { return 'standard'; }
+};
+export const savePackSizeName = (name) => {
+    try { localStorage.setItem(PACK_SIZE_KEY, name); } catch { /* stays Standard */ }
+};
+export const getPackSize = () => PACK_SIZES[getPackSizeName()];
+// A pack from before there was a choice was Standard.
+export const packSizeOf = (pack) => pack?.perSubject ?? PACK_SIZES.standard;
+
 const SUBJECT_CANONICAL = {
     math: 'Mathematics',
     mathematics: 'Mathematics',
@@ -42,17 +56,15 @@ export const writeOfflinePack = async (pack) => {
 // IndexedDB. Filters a pack by subject (+ optional subtopic) and caps the count.
 export const selectFromPack = (pack, subject, subtopic = 'All', limit = 1000) => {
     if (!pack?.subjects) return [];
-    let list;
+    const t = subtopic && subtopic !== 'All' ? String(subtopic).trim().toLowerCase() : null;
+    const inTopic = (list) => (t ? list.filter((q) => String(q.subtopic || '').trim().toLowerCase() === t) : list);
     if (!subject || subject === 'All') {
-        list = OFFLINE_SUBJECTS.flatMap((s) => pack.subjects[s] || []);
-    } else {
-        list = pack.subjects[canonicalSubject(subject)] || [];
+        // An even share of each, or a limit under one subject's count would be
+        // all Mathematics, the first in the pack.
+        const share = Math.ceil(limit / OFFLINE_SUBJECTS.length);
+        return OFFLINE_SUBJECTS.flatMap((s) => inTopic(pack.subjects[s] || []).slice(0, share)).slice(0, limit);
     }
-    if (subtopic && subtopic !== 'All') {
-        const t = String(subtopic).trim().toLowerCase();
-        list = list.filter((q) => String(q.subtopic || '').trim().toLowerCase() === t);
-    }
-    return list.slice(0, limit);
+    return inTopic(pack.subjects[canonicalSubject(subject)] || []).slice(0, limit);
 };
 
 // Read a subject/subtopic slice from the cached pack. Returns the same shape
@@ -74,8 +86,9 @@ export const getOfflinePackMeta = async () => {
         counts[subj] = n;
         total += n;
     }
-    const stale = !pack.fetchedAt || (Date.now() - pack.fetchedAt) > PACK_TTL_MS;
-    return { exists: total > 0, fetchedAt: pack.fetchedAt || null, counts, total, stale };
+    const perSubject = packSizeOf(pack);
+    const stale = !pack.fetchedAt || (Date.now() - pack.fetchedAt) > PACK_TTL_MS || perSubject !== getPackSize();
+    return { exists: total > 0, fetchedAt: pack.fetchedAt || null, counts, total, stale, perSubject };
 };
 
 // ---- REFERENCE CARDS CACHE ------------------------------------------------

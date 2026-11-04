@@ -55,10 +55,9 @@ describe('SessionSummary', () => {
     expect(screen.getByRole('link', { name: 'See your progress' })).toHaveAttribute('href', '/progress?tab=topics');
   });
 
-  it('offline, the drill (which needs the server) is disabled', () => {
-    renderSummary({ isOnline: false });
-    expect(screen.getByRole('button', { name: /Drill Protection/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Practise again/ })).toBeEnabled();
+  it('the drill can start offline: it draws from the device', () => {
+    renderSummary();
+    expect(screen.getByRole('button', { name: /Drill Protection/ })).toBeEnabled();
   });
 });
 

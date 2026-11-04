@@ -2,10 +2,10 @@
 //
 // Report and save for screens that look back over items (a sitting's review, a
 // session's summary, results lists), where no engine holds them. What's saved is
-// known only from this screen: a 409 says it was saved already, which is fine.
+// known only from this screen.
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { removeBookmark, saveBookmark } from '../../services/dbQueries';
+import { removeBookmark, saveBookmark } from '../../services/bookmarks';
 import { reportQuestion } from '../../services/reportQuestion';
 
 const toggled = (set, id, on) => {
@@ -34,10 +34,9 @@ export function useItemTools(uid) {
     try {
       if (had) await removeBookmark(uid, id);
       else await saveBookmark(uid, { questionId: id });
-    } catch (err) {
-      if (!had && err?.status === 409) return;
+    } catch {
       setSaved((set) => toggled(set, id, had));
-      toast.error(err?.message === '[OFFLINE]' ? 'Offline — bookmarking needs a connection.' : 'Bookmark failed.');
+      toast.error('Bookmark failed.');
     }
   };
 

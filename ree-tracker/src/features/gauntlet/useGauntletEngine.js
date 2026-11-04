@@ -5,8 +5,8 @@ import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import {
     apiRequest, getAnalyticsProfile, fetchVaultQuestions,
-    saveBookmark, removeBookmark,
 } from '../../services/dbQueries';
+import { removeBookmark, saveBookmark } from '../../services/bookmarks';
 import { reportQuestion } from '../../services/reportQuestion';
 import { auth } from '../../config/firebaseDb';
 import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../config/examStandards';
@@ -435,14 +435,13 @@ export const useGauntletEngine = (level) => {
         const write = had ? removeBookmark(uid, q.id) : saveBookmark(uid, { questionId: q.id });
         write
             .then(() => toast.success(had ? "Bookmark removed." : "Bookmarked — find it in Library › Bookmarks."))
-            .catch((err) => {
-                if (!had && err?.status === 409) return; // already saved server-side
+            .catch(() => {
                 const revert = new Set(bookmarksRef.current);
                 if (had) revert.add(idx); else revert.delete(idx);
                 bookmarksRef.current = revert;
                 setBookmarks(revert);
                 persistDraft();
-                toast.error(err?.message === '[OFFLINE]' ? "Offline — bookmarking needs a connection." : "Bookmark failed.");
+                toast.error("Bookmark failed.");
             });
     };
 

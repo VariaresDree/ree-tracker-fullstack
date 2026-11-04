@@ -17,14 +17,13 @@ import { formatDuration } from '../../utils/time';
 /**
  * @param {object} props
  * @param {object} props.summary  buildSessionSummary() plus the session's `config`
- * @param {boolean} props.isOnline
  * @param {boolean} props.loading  a new session is starting
  * @param {() => void} props.onAgain  repeat the same session
  * @param {() => void} props.onRetry  practise just the ones missed
  * @param {(topic: {topic: string, subject: string}) => void} props.onDrill
  * @param {() => void} props.onDone  back to the setup screen
  */
-export default function SessionSummary({ summary, isOnline, loading, onAgain, onRetry, onDrill, onDone }) {
+export default function SessionSummary({ summary, loading, onAgain, onRetry, onDrill, onDone }) {
   // The session screen was scrolled to its last question.
   useEffect(() => { window.scrollTo?.(0, 0); }, []);
 
@@ -71,8 +70,7 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
               <Button
                 variant="secondary"
                 onClick={() => onDrill(weakest)}
-                disabled={loading || !isOnline}
-                title={isOnline ? undefined : 'Needs a connection'}
+                disabled={loading}
               >
                 <Crosshair size={16} strokeWidth={1.75} aria-hidden="true" /> Drill {weakest.topic}
               </Button>

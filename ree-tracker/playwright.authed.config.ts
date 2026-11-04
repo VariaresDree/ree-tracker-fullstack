@@ -7,6 +7,13 @@ import { defineConfig, devices } from '@playwright/test';
 // One worker: the specs share that learner.
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://ree:ree@localhost:5432/ree_ci';
 const EMULATOR = '127.0.0.1:9099';
+const FRONTEND_ENV = {
+  VITE_BACKEND_URL: 'http://localhost:5000',
+  VITE_FIREBASE_AUTH_EMULATOR: `http://${EMULATOR}`,
+  VITE_FIREBASE_PROJECT_ID: 'demo-ree',
+  VITE_FIREBASE_API_KEY: 'demo-key',
+  VITE_FIREBASE_AUTH_DOMAIN: 'localhost',
+};
 
 export default defineConfig({
   testDir: './e2e-authed',
@@ -44,13 +51,16 @@ export default defineConfig({
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
-      env: {
-        VITE_BACKEND_URL: 'http://localhost:5000',
-        VITE_FIREBASE_AUTH_EMULATOR: `http://${EMULATOR}`,
-        VITE_FIREBASE_PROJECT_ID: 'demo-ree',
-        VITE_FIREBASE_API_KEY: 'demo-key',
-        VITE_FIREBASE_AUTH_DOMAIN: 'localhost',
-      },
+      env: FRONTEND_ENV,
+    },
+    {
+      // A built app with its service worker, for zz-offline.spec. NODE_ENV=development
+      // is what lets a build use the Auth emulator: real builds refuse it (firebaseDb.js).
+      command: 'npx vite build --outDir node_modules/.e2e-offline --emptyOutDir && npx vite preview --outDir node_modules/.e2e-offline --port 4173 --strictPort',
+      url: 'http://localhost:4173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
+      env: { ...FRONTEND_ENV, NODE_ENV: 'development' },
     },
   ],
   projects: [

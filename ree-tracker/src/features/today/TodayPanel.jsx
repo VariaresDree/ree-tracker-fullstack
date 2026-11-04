@@ -289,6 +289,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
       : withSource(forecastPlan(snapshot?.subjectForecasts), 'forecast'),
     answered,
     calendar: todayOnCalendar,
+    offline: !isOnline,
   });
 
   // Every source that can put an action first: the loop, due reviews,

@@ -12,14 +12,14 @@ vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <sp
 vi.mock('../../components/SmartText', () => ({ default: ({ text }) => <span>{text}</span> }));
 const toast = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() });
 vi.mock('react-hot-toast', () => ({ default: toast }));
-vi.mock('../../services/dbQueries', () => ({
+vi.mock('../../services/bookmarks', () => ({
   fetchBookmarks: vi.fn(),
   removeBookmark: vi.fn(),
   saveBookmark: vi.fn(),
 }));
 vi.mock('../../services/geminiApi', () => ({ generateMasterExplanation: vi.fn() }));
 
-const { fetchBookmarks, removeBookmark, saveBookmark } = await import('../../services/dbQueries');
+const { fetchBookmarks, removeBookmark, saveBookmark } = await import('../../services/bookmarks');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { default: BookmarkVaultTab } = await import('./BookmarkVaultTab');
 
@@ -71,10 +71,10 @@ describe('Bookmarks states', () => {
     expect(await screen.findByText('Find the current.')).toBeInTheDocument();
   });
 
-  it('offline with nothing loaded says it needs a connection', async () => {
+  it('offline with no copy on the device says what to do', async () => {
     fetchBookmarks.mockResolvedValueOnce([]);
     renderTab(false);
-    expect(await screen.findByText('Bookmarks need a connection')).toBeInTheDocument();
+    expect(await screen.findByText('Your bookmarks aren’t on this device yet')).toBeInTheDocument();
   });
 
   it('removing one offers Undo, which saves it again', async () => {

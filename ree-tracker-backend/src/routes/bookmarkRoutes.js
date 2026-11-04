@@ -58,8 +58,10 @@ router.post('/', authMiddleware, validate(bookmarkCreateSchema), async (req, res
         });
         res.status(201).json({ success: true, id: bookmark.id });
     } catch (error) {
+        // Already saved is what was asked for. A 409 reads as "retry" to the
+        // offline queue, so a replayed bookmark would wait there for ever.
         if (error.code === 'P2002') {
-            return res.status(409).json({ error: 'Already bookmarked.' });
+            return res.status(200).json({ success: true, alreadySaved: true });
         }
         // FK violation → the questionId doesn't exist. Map to 404 instead of 500.
         if (error.code === 'P2003') {
