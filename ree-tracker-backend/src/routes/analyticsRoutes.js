@@ -3,6 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { requireSelf } = require('../middlewares/requireSelf');
 const idempotency = require('../middlewares/idempotency');
+const { clearMistakeTags } = require('../services/mistakeList');
 const { validate } = require('../middlewares/validate');
 const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
@@ -325,6 +326,11 @@ router.delete('/purge', authMiddleware, async (req, res) => {
             await tx.studySession.deleteMany({ where: { userId: req.user.id } });
             await tx.thetaHistory.deleteMany({ where: { userId: req.user.id } });
             await tx.readinessSnapshot.deleteMany({ where: { userId: req.user.id } });
+            // Built from the answers just deleted: left behind, Today kept offering
+            // reviews of them, and an old cause came back on a later miss. Formula card
+            // ratings stay: the learner set those by hand.
+            await tx.sRSCard.deleteMany({ where: { userId: req.user.id } });
+            await clearMistakeTags(tx, req.user.id);
             await tx.user.update({
                 where: { id: req.user.id },
                 // standardError too: a purge used to keep the shrunken SE of
