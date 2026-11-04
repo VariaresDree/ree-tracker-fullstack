@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { pdfWasmPlugin } from './scripts/pdfWasmPlugin.js';
 
 // The build's identity: the commit on Vercel, else the build time. Inlined as
 // __APP_VERSION__ and written to /version.json, which the app compares with
@@ -151,6 +152,7 @@ export default defineConfig(async ({ mode, command }) => {
     },
   },
   plugins: [
+    pdfWasmPlugin(),
     react(),
     tailwindcss(),
     // Bundle visualizer only when ANALYZE=1 so devs don't pay the dep cost
@@ -201,8 +203,9 @@ export default defineConfig(async ({ mode, command }) => {
       workbox: {
         // APP SHELL (JS/CSS/HTML/icons/fonts): precached, i.e. CacheFirst with
         // revision-based invalidation — the shell must boot with zero network.
-        // mjs is pdf.js's worker (1.2 MB): without it, My files' PDFs fail offline.
-        globPatterns: ['**/*.{js,mjs,css,html,ico,png,svg,woff2}'],
+        // mjs and wasm are pdf.js's worker and image decoders: without them, My files'
+        // PDFs fail offline, and scanned ones come out blank.
+        globPatterns: ['**/*.{js,mjs,wasm,css,html,ico,png,svg,woff2}'],
         // Adds a `notificationclick` handler to the generated SW (public/) so a
         // tap on the in-page Pomodoro notification focuses/opens the app. Local
         // notifications only — no push subscription or FCM involved.

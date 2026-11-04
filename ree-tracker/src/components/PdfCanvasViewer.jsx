@@ -103,7 +103,9 @@ export default function PdfCanvasViewer({ blob, title }) {
     (async () => {
       const pdfjs = await import('pdfjs-dist');
       pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
-      task = pdfjs.getDocument({ data: await blob.arrayBuffer(), isEvalSupported: false });
+      // Absolute: the worker resolves it from its own address, in assets/.
+      const wasmUrl = new URL('/pdfjs-wasm/', window.location.origin).href;
+      task = pdfjs.getDocument({ data: await blob.arrayBuffer(), isEvalSupported: false, wasmUrl });
       const pdf = await task.promise;
       const first = await pdf.getPage(1);
       const natural = first.getViewport({ scale: 1 });
