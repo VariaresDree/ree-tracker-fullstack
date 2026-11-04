@@ -11,7 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import RouteFallback from './components/RouteFallback';
 import { TodaySkeleton } from './components/SkeletonLoaders';
 import MainLayout from './layouts/MainLayout';
-import NotificationOptIn from './components/NotificationOptIn';
+import { useStore } from './store/useStore';
 import useMediaQuery from './hooks/useMediaQuery';
 import { RAIL_QUERY } from './layouts/navModel';
 import Login from './pages/Login';
@@ -20,6 +20,8 @@ import AdminRoute from './routes/AdminRoute';
 import { materialsTarget } from './routes/legacyRoutes';
 
 // Lazy Loaded Pages
+// Only ever shown after a finished session, so it stays out of the first download.
+const NotificationOptIn = lazy(() => import('./components/NotificationOptIn'));
 const Today = lazy(() => import('./pages/Today'));
 const Practice = lazy(() => import('./pages/Practice'));
 const Exams = lazy(() => import('./pages/Exams'));
@@ -68,6 +70,7 @@ const SecureAppTerminal = () => {
   // App-lifetime telemetry guardian: 15s safety-net flush, reconnect flush,
   // and a last-gasp keepalive flush when the tab hides/closes.
   useSyncLifecycle();
+  const optInEligible = useStore((st) => st.optInEligible);
 
   // One toast host for both branches. It used to mount only inside the signed-in
   // app, so the login screen's messages ("a reset link is on its way") never
@@ -87,7 +90,7 @@ const SecureAppTerminal = () => {
   return (
     <Router>
       {toaster}
-      <NotificationOptIn />
+      {optInEligible && <Suspense fallback={null}><NotificationOptIn /></Suspense>}
 
       {/* Neutral fallback for all routes; the dashboard nests its own
           skeleton so only "/" shows the dashboard-shaped placeholder. */}

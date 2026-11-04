@@ -5,6 +5,7 @@ import { get, set, del } from 'idb-keyval';
 import { auth } from '../config/firebaseDb';
 import { TOS as fallbackTOS } from '../config/constants';
 import { updateCommandParameters, apiRequest } from '../services/dbQueries';
+import { clearedAnalytics } from '../services/clearedAnalytics';
 import { calculateUpdatedStats } from '../utils/irtMath';
 import { stableBatchKey } from '../utils/contentHash';
 import { classifySyncError, createBackoff, SYNC_OUTCOME } from '../services/syncPolicy';
@@ -735,7 +736,7 @@ export const useStore = create(
         // apiRequest, not a bare fetch: this used to duplicate token fetch, URL
         // resolution and error parsing, and had no timeout or circuit-breaker
         // participation.
-        await apiRequest('/api/analytics/purge', 'DELETE');
+        const purged = await apiRequest('/api/analytics/purge', 'DELETE');
         // The exam plan is a setting, not analytics: the server keeps
         // User.examDate/dailyTarget, so the local copy keeps them too (the
         // form used to show a blank date after a purge).
@@ -747,19 +748,10 @@ export const useStore = create(
         // dashboard fetch (or telemetry sync) will hydrate fresh numbers.
         set({
             stats: {
-                globalStreak: 0,
-                lastActiveDate: null,
-                dailyMath: 0,
-                dailyESAS: 0,
-                dailyEE: 0,
-                matrix: { hc: 0, hw: 0, lc: 0, lw: 0 },
-                blindSpots: [],
-                microTopics: {},
-                activityCalendar: {},
-                thetaHistory: [],
-                totalAnswered: 0,
-                totalCorrect: 0,
-                irt: { theta: 0, consecutiveCorrect: 0, consecutiveWrong: 0 },
+                ...clearedAnalytics(),
+                // Other devices clear themselves when they see this (analyticsSync).
+                // Kept here too, so this one doesn't clear answers made after it.
+                analyticsResetAt: purged?.analyticsResetAt || null,
                 examDate,
                 ...(dailyTarget ? { dailyTarget } : {}),
             },

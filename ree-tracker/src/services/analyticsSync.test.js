@@ -25,6 +25,60 @@ describe('normalizeMicroTopics', () => {
   });
 });
 
+describe('analytics deleted on another device', () => {
+  const TODAY = '2026-11-04';
+  const AT = '2026-11-04T15:00:00.000Z';
+  // This device saved 42 answers. The server now has none.
+  const saved = {
+    microTopics: { Algebra: { attempts: 22, correct: 20 } },
+    matrix: { hc: 30, hw: 2, lc: 5, lw: 5 },
+    activityCalendar: { [TODAY]: 42 },
+    dailyMath: 22, dailyESAS: 3, dailyEE: 17,
+    totalAnswered: 42, totalCorrect: 30, globalStreak: 1, lastActiveDate: TODAY,
+    examDate: '2027-04-01', dailyTarget: 50, gauntletLevel: 3,
+  };
+  const empty = (reset) => ({ profile: { totalAnswered: 0, globalStreak: 0, analyticsResetAt: reset }, microTopics: {}, activityCalendar: {} });
+
+  it('drops what this device saved from before', () => {
+    const out = mergeServerIntoStats(saved, empty(AT), TODAY);
+    expect(out.totalAnswered).toBe(0);
+    expect(out.totalCorrect).toBe(0);
+    expect(out.globalStreak).toBe(0);
+    expect(out.activityCalendar).toEqual({});
+    expect(out.microTopics).toEqual({});
+    expect([out.dailyMath, out.dailyESAS, out.dailyEE]).toEqual([0, 0, 0]);
+    expect(dailyCountsToday(out, TODAY)).toEqual({ dailyMath: 0, dailyESAS: 0, dailyEE: 0 });
+    expect(out.matrix).toEqual({ hc: 0, hw: 0, lc: 0, lw: 0 });
+  });
+
+  it('keeps settings, and remembers the reset', () => {
+    const out = mergeServerIntoStats(saved, empty(AT), TODAY);
+    expect(out).toMatchObject({ examDate: '2027-04-01', dailyTarget: 50, gauntletLevel: 3, analyticsResetAt: AT });
+  });
+
+  it('answers made after a reset this device knows of are kept', () => {
+    const after = { ...saved, analyticsResetAt: AT };
+    const out = mergeServerIntoStats(after, empty(AT), TODAY);
+    expect(out.totalAnswered).toBe(42);
+    expect(out.microTopics.Algebra.attempts).toBe(22);
+  });
+
+  it('an older copy of the dashboard can’t clear it again', () => {
+    const after = { ...saved, analyticsResetAt: AT };
+    const out = mergeServerIntoStats(after, empty('2026-11-01T00:00:00.000Z'), TODAY);
+    expect(out.totalAnswered).toBe(42);
+  });
+
+  it('with no reset on record, nothing changes', () => {
+    expect(mergeServerIntoStats(saved, empty(null), TODAY).totalAnswered).toBe(42);
+    expect(mergeServerIntoStats(saved, { profile: { totalAnswered: 0 }, microTopics: {} }, TODAY).totalAnswered).toBe(42);
+  });
+
+  it('a device with nothing saved yet takes the reset without trouble', () => {
+    expect(mergeServerIntoStats(null, empty(AT), TODAY)).toMatchObject({ totalAnswered: 0, analyticsResetAt: AT });
+  });
+});
+
 describe('mergeServerIntoStats', () => {
   it('returns null with no data, and passthrough when only one side exists', () => {
     expect(mergeServerIntoStats(null, null)).toBeNull();

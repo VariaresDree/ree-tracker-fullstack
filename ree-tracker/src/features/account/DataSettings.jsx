@@ -50,7 +50,7 @@ export default function DataSettings() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <p className="text-sm font-medium text-textMain">Delete all analytics</p>
-          <p className="text-xs text-muted2">Permanently deletes your topic mastery, ability rating, readiness trend, confidence data, study time and history. Your exam plan stays.</p>
+          <p className="text-xs text-muted2">Permanently deletes your topic mastery, ability rating, readiness trend, confidence data, study time and history, on all your devices. Your exam plan, notes, bookmarks and review schedule stay.</p>
         </div>
         <Button size="sm" tone="danger" variant="secondary" onClick={() => setConfirm(true)}>
           <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /> Delete all analytics
