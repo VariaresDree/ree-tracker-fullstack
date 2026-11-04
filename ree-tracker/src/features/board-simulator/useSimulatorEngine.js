@@ -183,7 +183,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
   useEffect(() => {
       if (timeIsUp) {
-          submitExam();
+          submitExam({ timedOut: true });
           setTimeIsUp(false);
       }
   }, [timeIsUp]);
@@ -479,7 +479,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       });
   };
 
-  const submitExam = async () => {
+  const submitExam = async ({ timedOut = false } = {}) => {
     if (isSubmitting || session.isFinished) return;
     setIsSubmitting(true);
     const loadingToastId = toast.loading("Submitting your exam…");
@@ -530,7 +530,8 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                     pending: true, score: null, verdict: null,
                     timeTakenSecs: timeTakenActual, totalItems: finalQs.length,
                     correctItems: null, subjectScores: {}, weakTopics: [],
-                    chronoAnomalies: [], blindSpots: [], pendingAttempts,
+                    chronoAnomalies: [], blindSpots: [], pendingAttempts, timedOut,
+                    unansweredItems: finalQs.filter((_, idx) => finalAns[idx] == null).length,
                     // The battle server records this player's sitting under
                     // battleId:uid; it opens for review once everyone is done.
                     sessionId: currentUser?.uid ? `${config.battleId}:${currentUser.uid}` : null,
@@ -722,7 +723,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
         const weakTopics = Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t);
         const diagnosticsPayload = {
-            score, generalAverage, verdict, timeTakenSecs: timeTakenActual, subjectScores,
+            score, generalAverage, verdict, timeTakenSecs: timeTakenActual, subjectScores, timedOut,
             weakTopics,
             // With each topic's subject, so a weak topic opens a drill on it.
             weakTopicDetails: weakTopics.map((topic) => ({ topic, subject: finalQs.find((q) => q.subtopic === topic)?.subject || null })),
@@ -776,6 +777,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     if (!currentQ || !currentQ.id) return toast.error("Cannot flag dynamic items.");
     try {
         await updateQuestionInBank(currentQ.id, { isFlagged: true });
+        // So its button says "Already reported". Practice and the Gauntlet do
+        // this; here a second tap just reported it again.
+        const flag = (q) => (q.id === currentQ.id ? { ...q, isFlagged: true } : q);
+        questionsRef.current = questionsRef.current.map(flag);
+        setSession(prev => ({ ...prev, questions: prev.questions.map(flag) }));
         toast.success("Thanks — we'll review this question.");
     } catch { toast.error("Flag failed."); }
   };
@@ -922,7 +928,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       questions: mappedQuestions,
       score: diagnostics.score,
       verdict: diagnostics.verdict,
-      diagnostics: { ...diagnostics, pending: false },
+      // Over what submitting recorded, not instead of it: the sitting's id (its
+      // Review every item) and whether the clock ended it live there.
+      diagnostics: { ...prev.diagnostics, ...diagnostics, pending: false, pendingAttempts: undefined },
     }));
 
     // No local record: the battle server records and finalises each

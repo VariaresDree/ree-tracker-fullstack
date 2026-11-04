@@ -88,6 +88,11 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, totalQuestions, isReview, showScratchpad, showSubmit, q, handleSelectConfidence, handleSelectOption, handleIndexChange, toggleMarked]);
 
+  // A battle submitted but still running: its questions have no key yet, so a
+  // review would show every answer as wrong. The results above say it opens when
+  // everyone has finished.
+  if (isReview && session.diagnostics?.pending) return null;
+
   if (!q) return <div className="flex justify-center p-12 text-[var(--accent-text)]"><span className="telemetry-spinner !w-12 !h-12"></span></div>;
 
   const unanswered = session.questions.map((_, i) => i).filter((i) => session.answers[i] == null);
@@ -227,6 +232,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
             showConfidence={true}
             requireConfidence={false}
             hotkeys={false}
+            arrowsMoveItems
             index={currentIndex}
             onSelect={handleSelectOption}
             onConfidenceChange={handleSelectConfidence}

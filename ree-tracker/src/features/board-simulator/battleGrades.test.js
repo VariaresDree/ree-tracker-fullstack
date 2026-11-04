@@ -13,6 +13,15 @@ const questions = [
 const answerKey = { q1: '4', q2: '20 Ω', q3: 'C', q4: 'B' };
 
 describe('computeBattleDiagnostics', () => {
+  it('says what was left blank, how each item went, and where each weak topic is', () => {
+    const { diagnostics } = computeBattleDiagnostics({ questions, answerKey, timeSpentPerQuestion: { 0: 1500, 1: 2500 } });
+    expect(diagnostics.unansweredItems).toBe(1);
+    expect(diagnostics.pacingItems).toHaveLength(4);
+    expect(diagnostics.pacingItems[0]).toMatchObject({ order: 1, subject: 'Mathematics', timeSpentMs: 1500, isCorrect: true });
+    expect(diagnostics.pacingItems[2]).toMatchObject({ order: 3, timeSpentMs: 0, isCorrect: false });
+    expect(diagnostics.weakTopicDetails).toEqual([{ topic: 'AC Circuits', subject: 'EE' }]);
+  });
+
   it('grades against the revealed answer key', () => {
     const { diagnostics } = computeBattleDiagnostics({ questions, answerKey, timeTakenSecs: 300 });
     expect(diagnostics.correctItems).toBe(2); // q1 + q4

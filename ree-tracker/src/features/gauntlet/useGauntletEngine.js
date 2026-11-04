@@ -76,6 +76,8 @@ export const useGauntletEngine = (level) => {
     // A saved run for this level starts on 'resume' (decided here, not in the
     // boot effect, so the first render already shows it).
     const [status, setStatus] = useState(() => bootStatus(level));
+    // Why a tier couldn't load: 'offline', or null for anything else.
+    const [errorKind, setErrorKind] = useState(null);
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState({});
     const [confidences, setConfidences] = useState({});
@@ -281,6 +283,9 @@ export const useGauntletEngine = (level) => {
             setHasSavedSession(true);
         } catch (err) {
             console.error(err);
+            // Blended tiers are built on the server; a subject tier draws from
+            // the offline pack.
+            setErrorKind(err?.message === '[OFFLINE]' ? 'offline' : null);
             setStatus('error');
         }
     };
@@ -775,6 +780,7 @@ export const useGauntletEngine = (level) => {
         currentIndex, setCurrentIndex: handleIndexChange,
         bookmarks, toggleBookmark, flags, toggleFlag,
         hasSavedSession, resumeGauntlet, submitSavedRun, forfeitRun,
+        errorKind,
         handleAnswer, handleConfidence, submitExam
     };
 };

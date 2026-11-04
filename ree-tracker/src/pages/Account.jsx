@@ -7,16 +7,18 @@
 // and the planner (now in Progress) and an admin tool (now in Admin).
 // Sections have anchors (/account#offline) so other screens can link straight
 // to one.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShallow } from 'zustand/react/shallow';
 import { DISPLAY_NAME_MAX } from '@ree/shared';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store/useStore';
+import { useDragScroll } from '../hooks/useDragScroll';
 import { syncDashboardStats } from '../services/analyticsSync';
 import { updateUserProfile } from '../services/dbQueries';
 import { Page, PageHeader, Card, CardTitle, Button, FormField, Input } from '../components/ui';
+import { fadeMask, useScrollFades } from '../components/ui/scrollFade';
 import ThemingArchitecture from '../features/profile/ThemingArchitecture';
 import CredentialsTab from '../features/profile/CredentialsTab';
 import ExamPlanForm from '../features/account/ExamPlanForm';
@@ -31,6 +33,7 @@ import AppVersion from '../features/account/AppVersion';
 // "Sign-in & security" was a long scroll down with no way to see what was there.
 // One row that scrolls sideways and stays in view, so you can jump from anywhere.
 // They wrapped to 200px at the top of the page and were gone once you scrolled.
+// Touch scrolls the row and a mouse drags it. The edges fade where there's more.
 const SECTIONS = [
   ['profile', 'Name'],
   ['exam-plan', 'Exam plan'],
@@ -94,6 +97,9 @@ function NameForm({ currentUser }) {
 export default function Account() {
   const { currentUser, isAdmin } = useAuth();
   const { hash } = useLocation();
+  const stripRef = useRef(null);
+  const drag = useDragScroll();
+  const { fade, onScroll } = useScrollFades(stripRef);
   const { stats, theme, setTheme, plainBackground, setPlainBackground } = useStore(useShallow((s) => ({
     stats: s.stats, theme: s.theme, setTheme: s.setTheme, plainBackground: s.plainBackground, setPlainBackground: s.setPlainBackground,
   })));
@@ -116,17 +122,21 @@ export default function Account() {
     <Page width="narrow">
       <PageHeader title="Account" subtitle={currentUser?.email || undefined} />
 
-      <nav aria-label="Account sections" className="sticky top-[var(--sticky-top,0.75rem)] z-20 flex gap-2 overflow-x-auto [scrollbar-width:none] py-2 rounded-[var(--radius-default)] bg-bg/90 backdrop-blur-sm reduce-transparency:bg-bg reduce-transparency:backdrop-blur-none">
-        {[...SECTIONS, ...(isAdmin ? [['admin', 'Admin']] : [])].map(([id, label]) => (
-          <Link
-            key={id}
-            to={{ hash: id }}
-            aria-current={hash === `#${id}` ? 'location' : undefined}
-            className="touch-target shrink-0 whitespace-nowrap inline-flex items-center px-3 py-1.5 rounded-full border border-border bg-surface2 text-xs font-medium text-muted2 hover:text-textMain hover:bg-surface3 aria-[current]:text-[var(--accent-text)] aria-[current]:border-[color-mix(in_srgb,var(--accent)_45%,transparent)] transition-colors"
-          >
-            {label}
-          </Link>
-        ))}
+      {/* The fade is on the inner row, so the sticky background behind it stays
+          whole and the page doesn't show through as it scrolls under. */}
+      <nav aria-label="Account sections" className="sticky top-[var(--sticky-top,0.75rem)] z-20 py-2 rounded-[var(--radius-default)] bg-bg/90 backdrop-blur-sm reduce-transparency:bg-bg reduce-transparency:backdrop-blur-none">
+        <div ref={stripRef} onScroll={onScroll} {...drag} style={fadeMask(fade)} className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {[...SECTIONS, ...(isAdmin ? [['admin', 'Admin']] : [])].map(([id, label]) => (
+            <Link
+              key={id}
+              to={{ hash: id }}
+              aria-current={hash === `#${id}` ? 'location' : undefined}
+              className="touch-target shrink-0 whitespace-nowrap inline-flex items-center px-3 py-1.5 rounded-full border border-border bg-surface2 text-xs font-medium text-muted2 hover:text-textMain hover:bg-surface3 aria-[current]:text-[var(--accent-text)] aria-[current]:border-[color-mix(in_srgb,var(--accent)_45%,transparent)] transition-colors"
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
       </nav>
 
       <Section id="profile" title="Your name">

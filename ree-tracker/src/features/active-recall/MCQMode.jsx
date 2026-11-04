@@ -31,6 +31,7 @@ export default function MCQMode({ session, setSession, handleAnswerSelection, in
         showConfidence={true}
         requireConfidence={true}
         hotkeys={true}
+        arrowsMoveItems={session.isAnswered}
         index={index}
         headerSlot={headerSlot}
         onSelect={handleAnswerSelection}

@@ -74,6 +74,7 @@ export default function QuestionCard({
   className = '',
   plainText = false,
   announce = true,
+  arrowsMoveItems = false,
 }) {
   const reduceMotion = prefersReducedMotion();
   const isReviewing = state === 'reviewing';
@@ -149,6 +150,11 @@ export default function QuestionCard({
     // reachable — a user could Tab to the group but never Arrow through the
     // rest to hear which one was actually correct.
     if (options.length === 0) return;
+    // Where left and right change the question, they do only that: they also
+    // moved along the choices here, so one key press did both. Clicking a choice
+    // leaves focus on it, so this is the ordinary case, not a keyboard-only one.
+    // Up and down still move between the choices.
+    if (arrowsMoveItems && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
     const count = options.length;
     let next = null;
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = (activeOption + 1) % count;

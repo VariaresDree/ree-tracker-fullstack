@@ -38,6 +38,16 @@ const QUESTIONS = [
 beforeEach(() => { localStorage.clear(); Object.values(api).forEach((f) => f.mockClear()); startStoreSession.mockClear(); });
 
 describe('useSimulatorEngine — retake', () => {
+  it('a mock the clock submitted says so in its results', async () => {
+    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startSimulation({
+      mode: 'subject', subject: 'Mixed', isPrcStandard: false, count: 2, source: 'retake',
+      cognitiveFocus: 'mixed', retake: { sourceSessionId: 's1' }, retakeQuestions: QUESTIONS,
+    }));
+    await act(() => result.current.submitExam({ timedOut: true }));
+    expect(result.current.session.diagnostics.timedOut).toBe(true);
+  });
+
   it('runs the handed-over items at board pace and records position and blanks', async () => {
     const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
     const before = Date.now();

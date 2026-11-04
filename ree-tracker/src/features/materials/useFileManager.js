@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { app } from '../../config/firebaseDb';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import toast from 'react-hot-toast';
 import {
@@ -13,6 +13,19 @@ import {
   commitMaterialLink,
 } from '../../services/dbQueries';
 import { useStore } from '../../store/useStore';
+
+// The Firebase files under an item: its own, or all of a folder's subtree. The
+// server deletes the rows, but it can't reach these.
+function firebaseFilesOf(id, isFolder, folders, materials) {
+  const inFirebase = (m) => m.storagePath?.startsWith('board_materials/');
+  if (!isFolder) return materials.filter((m) => m.id === id && inFirebase(m)).map((m) => m.storagePath);
+  const ids = new Set([id]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const f of folders) if (ids.has(f.parentId) && !ids.has(f.id)) { ids.add(f.id); grew = true; }
+  }
+  return materials.filter((m) => ids.has(m.folderId) && inFirebase(m)).map((m) => m.storagePath);
+}
 
 // The vault UI uses a virtual 'root' id; the backend stores root as a null
 // parent/folder FK (the client display filter already maps null → 'root').
@@ -168,7 +181,11 @@ export const useFileManager = (currentUser, isAdmin) => {
 
   const deleteItem = async (id, isFolder) => {
     try {
+      const files = firebaseFilesOf(id, isFolder, folders, materials);
       if (isFolder) await deleteFolder(id); else await deleteMaterial(id);
+      // The row is gone, so a file that won't delete can't fail the delete. A
+      // delete queued offline (below) leaves its file behind.
+      files.forEach((path) => deleteObject(ref(getStorage(app), path)).catch((err) => console.warn('Handout file not deleted', err)));
       await fetchContents();
       toast.success('Deleted.');
     } catch (error) {

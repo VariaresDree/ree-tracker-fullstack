@@ -36,6 +36,56 @@ const engine = (over = {}) => ({
 });
 
 describe('SimulatorActive', () => {
+  it('holds a battle’s review back until the key arrives: nothing reads as wrong', () => {
+    const noKey = QS.map((q) => ({ ...q, answer: undefined }));
+    render(<SimulatorActive isOnline engine={engine({
+      session: { questions: noKey, answers: { 0: 'C1' }, confidences: {}, isActive: true, isFinished: true, diagnostics: { pending: true } },
+    })} />);
+    expect(screen.queryByRole('radiogroup', { name: 'Answer choices' })).toBeNull();
+    expect(screen.queryByText(/incorrect/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Go to item 1|Item 1/ })).toBeNull();
+  });
+
+  it('opens the review once the key has arrived', () => {
+    render(<SimulatorActive isOnline engine={engine({
+      session: { questions: QS, answers: { 0: 'C1' }, confidences: {}, isActive: true, isFinished: true, diagnostics: { pending: false } },
+    })} />);
+    expect(screen.getByRole('radiogroup', { name: 'Answer choices' })).toBeInTheDocument();
+  });
+
+  it('left and right on a focused choice change the question once, and leave the choices alone', () => {
+    const e = engine();
+    render(<SimulatorActive engine={e} isOnline />);
+    const group = screen.getByRole('radiogroup', { name: 'Answer choices' });
+    const options = within(group).getAllByRole('radio');
+    options[0].focus();
+    fireEvent.keyDown(options[0], { key: 'ArrowRight' });
+    expect(e.handleIndexChange).toHaveBeenCalledTimes(1);
+    expect(e.handleIndexChange).toHaveBeenCalledWith(1);
+    expect(document.activeElement).toBe(options[0]);
+  });
+
+  it('up and down still move between the choices', () => {
+    const e = engine();
+    render(<SimulatorActive engine={e} isOnline />);
+    const options = within(screen.getByRole('radiogroup', { name: 'Answer choices' })).getAllByRole('radio');
+    options[0].focus();
+    fireEvent.keyDown(options[0], { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(options[1]);
+    expect(e.handleIndexChange).not.toHaveBeenCalled();
+  });
+
+  it('the submit dialog links to every open item, however many', () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ ...QS[0], id: `q${i}`, text: `Question ${i}` }));
+    render(<SimulatorActive isOnline engine={engine({
+      session: { questions: many, answers: {}, confidences: {}, isActive: true, isFinished: false },
+    })} />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Submit exam' })[0]);
+    const dialog = screen.getByRole('dialog', { name: 'Submit this exam?' });
+    expect(within(dialog).getAllByRole('button', { name: 'Go to item 30' }).length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText(/more$/)).toBeNull();
+  });
+
   it('offers Submit from the first item and lists what is still open', () => {
     const e = engine();
     render(<SimulatorActive engine={e} isOnline />);

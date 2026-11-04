@@ -39,11 +39,13 @@ vi.mock('../../services/dbQueries', () => ({
 }));
 
 vi.mock('../../config/firebaseDb', () => ({ app: {} }));
+const deleteObjectMock = vi.fn(() => Promise.resolve());
 vi.mock('firebase/storage', () => ({
   getStorage: vi.fn(() => ({})),
-  ref: vi.fn(),
+  ref: vi.fn((_storage, path) => ({ path })),
   uploadBytesResumable: vi.fn(),
   getDownloadURL: vi.fn(),
+  deleteObject: (...args) => deleteObjectMock(...args),
 }));
 vi.mock('browser-image-compression', () => ({ default: vi.fn() }));
 
@@ -87,6 +89,47 @@ describe('useFileManager — offline mutations never fail silently', () => {
 
     expect(queuePendingWrite).toHaveBeenCalledWith('/api/materials/m1', 'DELETE', null);
     expect(result.current.materials.find((m) => m.id === 'm1')).toBeUndefined();
+  });
+
+  it('deleting an uploaded handout also deletes its file', async () => {
+    const result = await bootHook([], [{ id: 'm1', name: 'Notes.pdf', folderId: null, storagePath: 'board_materials/u1/1_notes.pdf' }]);
+    deleteMaterialMock.mockResolvedValueOnce({});
+    apiRequestMock = vi.fn().mockResolvedValue({ folders: [], materials: [] });
+    await act(async () => { await result.current.deleteItem('m1', false); });
+    expect(deleteObjectMock).toHaveBeenCalledWith({ path: 'board_materials/u1/1_notes.pdf' });
+  });
+
+  it('deleting a folder also deletes the files in its whole subtree', async () => {
+    const result = await bootHook(
+      [{ id: 'f1', parentId: null, name: 'A' }, { id: 'f2', parentId: 'f1', name: 'B' }, { id: 'f3', parentId: null, name: 'C' }],
+      [
+        { id: 'm1', folderId: 'f1', name: 'a', storagePath: 'board_materials/u/a.pdf' },
+        { id: 'm2', folderId: 'f2', name: 'b', storagePath: 'board_materials/u/b.pdf' },
+        { id: 'm3', folderId: 'f3', name: 'c', storagePath: 'board_materials/u/c.pdf' },
+      ],
+    );
+    deleteFolderMock.mockResolvedValueOnce({});
+    apiRequestMock = vi.fn().mockResolvedValue({ folders: [], materials: [] });
+    await act(async () => { await result.current.deleteItem('f1', true); });
+    expect(deleteObjectMock.mock.calls.map(([r]) => r.path).sort()).toEqual(['board_materials/u/a.pdf', 'board_materials/u/b.pdf']);
+  });
+
+  it('deleting a link has no file to delete', async () => {
+    const result = await bootHook([], [{ id: 'm2', name: 'Drive notes', folderId: null, storagePath: null }]);
+    deleteMaterialMock.mockResolvedValueOnce({});
+    apiRequestMock = vi.fn().mockResolvedValue({ folders: [], materials: [] });
+    await act(async () => { await result.current.deleteItem('m2', false); });
+    expect(deleteObjectMock).not.toHaveBeenCalled();
+  });
+
+  it('a file that won’t delete doesn’t fail the delete', async () => {
+    const result = await bootHook([], [{ id: 'm3', name: 'Notes.pdf', folderId: null, storagePath: 'board_materials/u1/2.pdf' }]);
+    deleteMaterialMock.mockResolvedValueOnce({});
+    deleteObjectMock.mockRejectedValueOnce(new Error('storage/unauthorized'));
+    apiRequestMock = vi.fn().mockResolvedValue({ folders: [], materials: [] });
+    const errorToastSpy = vi.spyOn(toast, 'error');
+    await act(async () => { await result.current.deleteItem('m3', false); });
+    expect(errorToastSpy).not.toHaveBeenCalled();
   });
 
   it('renameItem (folder): queues a PATCH and updates the name locally', async () => {

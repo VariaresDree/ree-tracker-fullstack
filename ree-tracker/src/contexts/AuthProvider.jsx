@@ -22,6 +22,7 @@ import { getAnalyticsProfile, fetchFeatureFlags, updateUserProfile, BOOT_TIMEOUT
 import { refreshLiveTOS } from '../services/liveTaxonomy';
 import { seedDashboardRequest } from '../services/dashboardSeed';
 import { claimApiCacheFor, purgeApiCache } from '../services/apiCache';
+import { claimDraftsFor } from '../services/draftOwner';
 import { initPushNotifications, teardownPushNotifications } from '../services/pushNotifications';
 import { useStore } from '../store/useStore';
 import { Button } from '../components/ui/Button';
@@ -72,6 +73,8 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       clearTimeout(stallTimer);
       setAuthStalled(false);
+      // Before the exam screens can mount and read a draft.
+      claimDraftsFor(user?.uid);
       setCurrentUser(user);
       // onAuthStateChanged IS the authority on "resolved" — the moment it
       // fires (with a user OR null), loading ends. Everything below (admin

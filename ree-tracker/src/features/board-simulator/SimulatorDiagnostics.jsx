@@ -104,6 +104,8 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
           {!pending && diagnostics.verdict && <Badge tone={tone}>{diagnostics.verdict}</Badge>}
         </div>
 
+        {diagnostics.timedOut && <p className="text-xs text-muted2">Time ran out, so your answers were submitted.</p>}
+
         <Grid kind="kpi" gap="sm">
           <KpiTile compact label="Correct" value={pending ? '—' : `${diagnostics.correctItems} / ${diagnostics.totalItems}`} />
           <KpiTile compact label="Raw score" value={pending || diagnostics.score == null ? '—' : `${diagnostics.score}%`} />

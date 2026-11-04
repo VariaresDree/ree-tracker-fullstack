@@ -160,6 +160,20 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(localStorage.getItem(CACHE_KEY)).not.toBeNull();
   });
 
+  it('a blended tier that can’t reach the server says it’s offline, not that it broke', async () => {
+    apiRequestMock = vi.fn().mockRejectedValue(new Error('[OFFLINE]'));
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.errorKind).toBe('offline');
+  });
+
+  it('any other failure to load is not called offline', async () => {
+    apiRequestMock = vi.fn().mockRejectedValue(new Error('boom'));
+    const { result } = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.errorKind).toBeNull();
+  });
+
   it('ignores a stale cache for a different level and fetches fresh instead', async () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       level: '2',

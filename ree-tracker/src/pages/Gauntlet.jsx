@@ -61,7 +61,7 @@ export default function Gauntlet() {
   const { level } = useParams();
   const navigate = useNavigate();
   const {
-    status, questions, answers, confidences, gauntletEndTime, diagnostics,
+    status, errorKind, questions, answers, confidences, gauntletEndTime, diagnostics,
     currentIndex, setCurrentIndex,
     bookmarks, toggleBookmark, flags, toggleFlag,
     resumeGauntlet, submitSavedRun, forfeitRun,
@@ -140,6 +140,17 @@ export default function Gauntlet() {
             <Button variant="secondary" onClick={() => navigate(BACK_TO_GAUNTLET)}>Back to Exams</Button>
           </div>
         )}
+      />
+    );
+  }
+
+  if (status === 'error' && errorKind === 'offline') {
+    return (
+      <Notice
+        icon={WifiOff}
+        title="This tier needs a connection"
+        description="Its questions come from the server. Nothing was recorded, so try again once you're back online."
+        action={<Button onClick={() => navigate(BACK_TO_GAUNTLET)}>Back to Exams</Button>}
       />
     );
   }
