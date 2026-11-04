@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, Card, EmptyState, Logo } from './ui';
 import { TriangleAlert } from './ui/icons';
 import { reportError } from '../services/appHealth';
+import { isChunkLoadError, recoveryWasTried } from '../services/chunkRecovery';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -15,7 +16,9 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error(`[ErrorBoundary] ${this.props.name || 'App'} crashed:`, error, errorInfo);
-    reportError(error);
+    // A chunk failing alone is usually a deploy or a blip, and appHealth ignores those.
+    // Still failing after recovery isn't, and App health should show it.
+    reportError(isChunkLoadError(error) && recoveryWasTried() ? new Error(`A screen still wouldn't load after reloading: ${error.message.slice(-120)}`) : error);
   }
 
   render() {
@@ -24,14 +27,18 @@ class ErrorBoundary extends React.Component {
         // Cap retries: if the child throws deterministically, "Retry" just
         // resets hasError and re-throws immediately (a flicker loop). After a
         // couple of attempts, offer a full reload instead.
-        const exhausted = this.state.retryCount >= 2;
+        // A failed download can't be retried without a reload: the browser remembers it.
+        const chunk = isChunkLoadError(this.state.error);
+        const exhausted = chunk || this.state.retryCount >= 2;
         return (
           <Card role="alert" aria-live="assertive" style={{ borderColor: 'color-mix(in srgb, var(--accent-danger) 35%, transparent)' }}>
             <EmptyState
               compact
               icon={TriangleAlert}
               title={`${this.props.name} couldn’t load`}
-              description="Something went wrong while showing this part of the page. The rest of the app still works."
+              description={chunk
+                ? 'This part of the app couldn’t be downloaded. Check your connection, then reload the page.'
+                : 'Something went wrong while showing this part of the page. The rest of the app still works.'}
               action={exhausted ? (
                 <Button variant="secondary" onClick={() => window.location.reload()}>Reload page</Button>
               ) : (

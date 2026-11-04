@@ -28,6 +28,7 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 | #226 | Backup and restore (`.reebak`), `GET /api/user/export`, account deletion that clears everything |
 | #227 | Offline gaps closed, and `zz-offline.spec.ts`, a real service worker with the network cut, in airplane mode and on Wi-Fi with no internet |
 | #228 | Battles draw choice, direct rematch invites, two-day board, first-run tour, notes with their cards, rendered heading and contrast sweep |
+| #229 | A screen's code that fails to download recovers by itself (`services/chunkRecovery.js`), and the host stops letting browsers keep a 404 for a day |
 
 **Decisions:**
 - **Files stay on the device, records stay synced.** "Total device isolation" was rejected: Battles, rankings and calibration need other users, ranked scores rest on server re-grading, and phone and tablet have to agree. See `docs/decisions/ADR-003`.
@@ -45,6 +46,7 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 - A Large question pack downloaded from the real server: 6,000 questions, 8.8 MB, 15 seconds.
 
 **Not verified:**
+- **What first failed in the owner's browser** when Library wouldn't load, right after #228 deployed. The site was healthy, and every file loaded from elsewhere. If it comes back, Admin › App health now shows a case that survived recovery; before reloading, check that browser's Network tab for the file's status.
 - **A real phone or tablet,** above all the sticky session bars, pinch zoom in the PDF viewer, airplane mode, and storage and downloads on iOS.
 - **The JBIG2 decoder** has never run on a real file. JPEG 2000 has.
 - **A real rematch invite** between two accounts on production. It's covered by route and component tests and a stubbed browser check, but nothing has played two people through it.
@@ -57,7 +59,7 @@ The owner's ten-PR plan: one exam frame across every session, imported and share
 3. **Performance:** the API sends no compression (`compression` isn't in the backend), so a Large pack is 8.8 MB on the wire. It's worth trying, and worth watching what it costs on 0.1 CPU.
 4. **Later:** spectating and ranked matchmaking once there are enough players, Web Push and a weekly summary after the iOS build decision, and Fix rounds on the bank, starting with the 1,305 answered questions.
 
-**Limit:** the boot download is at 99.6% of its 700 kB budget, about 2.5 KB left. Everything new has to be lazy. The next person to need room should look for something to take out of the entry chunk first.
+**Limit:** the boot download is at 99.8% of its 700 kB budget, about 1.2 KB left. Everything new has to be lazy. The next person to need room should look for something to take out of the entry chunk first.
 
 **Testing:** `e2e-authed` can run most of the way locally. The Auth emulator needs no Java, and a small stand-in on port 5000 replaces the backend, though screens then show thin data. CI still runs it for real. `a11y-sweep.spec.ts` finds rendered contrast and heading problems; run it when a colour or heading changes. A whole E2E run makes more requests than the server's default 3,000 per 15 minutes, so the Playwright config raises `RATE_LIMIT_GLOBAL_MAX` for its test server only. A run where everything fails on "Up next" after a certain point is that limit: look for 429s in the traces.
 

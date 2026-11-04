@@ -1,10 +1,9 @@
 // src/utils/lazyWithRetry.js
 //
-// React.lazy keeps a failed import for good: a screen whose chunk failed to
-// load once (a network blip, the server waking) threw the same error on every
-// "Try again" until the page was reloaded. This retries the import twice, a
-// moment apart, before giving up; a chunk that is really gone (an old version
-// after a deploy) is handled in main.jsx, which reloads once.
+// React.lazy keeps a failed import for good, so this retries it twice, a moment apart.
+// That helps where the browser tries the file again. Chromium doesn't: a page remembers
+// a failed import until it reloads (checked in a real browser), so there the reload in
+// services/chunkRecovery is what fixes it.
 import { lazy as reactLazy } from 'react';
 
 export const IMPORT_RETRY_DELAYS_MS = [600, 1_800];

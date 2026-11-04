@@ -102,11 +102,12 @@ describe('blank-page recovery', () => {
 });
 
 describe('the server’s headers', () => {
-  it('holds assets for a day: the header reaches a 404 and any wrong answer too', () => {
+  it('never lets the browser keep an asset without asking: the header reaches a 404 too', () => {
     const vercel = JSON.parse(readFileSync(resolve(root, '..', 'vercel.json'), 'utf8'));
     const assets = vercel.headers.find((h) => h.source === '/assets/(.*)').headers.find((h) => h.key === 'Cache-Control');
     expect(assets.value).not.toMatch(/immutable/);
-    expect(Number(assets.value.match(/max-age=(\d+)/)[1])).toBeLessThanOrEqual(86400);
+    // A day here kept one failed download failing for a day, through every reload.
+    expect(assets.value).toMatch(/max-age=0/);
   });
 });
 
