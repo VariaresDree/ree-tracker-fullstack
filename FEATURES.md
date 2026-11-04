@@ -810,6 +810,10 @@ every feature add, change, or removal, not on a schedule.
   - **Leaving is safe:** each change is saved, so a closed tab or Leave comes back to the same place, with the same order of choices. A time limit keeps running while away, like the mock; a run with no limit counts only time spent in it. A browser that won't store anything keeps the quiz until the tab closes, and says so.
   - **Never counts:** scores don't reach your progress, streak, readiness or the server. `quizLauncher.isolation.test.js` forbids the store and server modules and any network call. Bad records are skipped and counted, and duplicate choices collapse with a note.
   - **A run has its own route,** `/library/quiz?id=<id>`, with the exam layout (`QuizRunPage.jsx`). **A file that isn't .quiz/.caq is named** ("notes.pdf isn't a quiz file").
+- [x] **Shared quizzes** (2026-11, `features/shared-quizzes/`, `QuizFile` table): quiz files the admin shares with every learner.
+  - **Admin › Handouts › Quiz files:** drop one or several. Each is read in the browser first, showing "36 questions, 2 skipped", before it uploads with a name, subject and description. Edit, replace or delete, with the total used. The same file twice is refused and names where it already is.
+  - **Library › Imported quizzes › Shared quizzes:** tiles by subject with question count and size. **Download** keeps a copy on the device among your quizzes, so it then works offline and takes either mode; **Save file** gives the file itself. A changed file shows **Update available**, and updating keeps your scores and drops an unfinished run. A deleted file stays on devices that have it.
+  - **Stored in Postgres** (5 MB each, `POST`/`PUT`/`PATCH`/`DELETE /api/admin/quiz-files`, `GET /api/quiz-files`, `GET /api/quiz-files/:id/file`): no Firebase and no CORS. List queries never select the bytes. The server-facing code stays outside `features/quiz-launcher`, whose isolation test still forbids any server call, and a shared quiz's scores never leave the device either.
 
 ## Analytics & Forecasting
 

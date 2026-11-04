@@ -52,6 +52,14 @@ export async function recordAttempt(uid, id, attempt) {
   return attempts;
 }
 
+/** A new version of a quiz keeps the old one's scores, oldest first. */
+export async function carryAttempts(uid, fromId, toId) {
+  const attempts = [...await getAttempts(uid, fromId), ...await getAttempts(uid, toId)]
+    .sort((a, b) => (a.at || 0) - (b.at || 0))
+    .slice(-MAX_ATTEMPTS);
+  if (attempts.length > 0) await put(key(uid, 'attempts', toId), attempts);
+}
+
 export async function deleteQuiz(uid, id) {
   await Promise.all(['file', 'run', 'attempts'].map((kind) => remove(key(uid, kind, id))));
 }

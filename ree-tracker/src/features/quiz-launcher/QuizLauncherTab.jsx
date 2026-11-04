@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Card, EmptyState, IconChip, Modal } from '../../components/ui';
-import { CheckCircle2, CircleAlert, Clock, Download, FileText, Play, Trash2 } from '../../components/ui/icons';
+import { CheckCircle2, CircleAlert, Clock, Download, FileText, Lock, Play, Trash2 } from '../../components/ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { canDownloadFiles, downloadBlob } from '../exam-export/deliver';
 import QuizFilePicker from './QuizFilePicker';
@@ -88,7 +88,9 @@ function QuizRow({ entry, onStart, onResume, onDelete }) {
   );
 }
 
-export default function QuizLauncherTab() {
+// `shared` is the quizzes everyone can download. It's a slot, from Library, because
+// that part talks to the server and nothing in this folder may.
+export default function QuizLauncherTab({ shared = null }) {
   const navigate = useNavigate();
   const location = useLocation();
   const uid = useAuth()?.currentUser?.uid;
@@ -142,10 +144,21 @@ export default function QuizLauncherTab() {
           </ul>
         </div>
       ) : loaded && (
-        <EmptyState compact icon={FileText} title="No quizzes yet" description="Add a .quiz or .caq file below and it stays here, ready to take offline." />
+        <EmptyState compact icon={FileText} title="No quizzes yet" description="Add a .quiz or .caq file and it stays here, ready to take offline." />
       )}
 
+      {shared}
+
       <QuizFilePicker compact={entries.length > 0} onFilesSelected={(files) => addQuizFiles(uid, files)} />
+
+      {/* Persistent, unmissable: not a tooltip a user could miss before starting. */}
+      <div className="flex items-start gap-2.5 rounded-[var(--radius-default)] border border-border2 bg-surface2/40 p-3.5">
+        <Lock size={15} strokeWidth={1.75} className="shrink-0 mt-0.5 text-muted2" aria-hidden="true" />
+        <p className="text-xs text-muted2 leading-relaxed">
+          Saved only on this device. Files you add are never uploaded, and scores here don't affect
+          your progress, streak or readiness. Clearing this browser's data removes them.
+        </p>
+      </div>
 
       {open && <QuizSetupSheet quiz={open} onClose={closeSheet} onStart={start} />}
 

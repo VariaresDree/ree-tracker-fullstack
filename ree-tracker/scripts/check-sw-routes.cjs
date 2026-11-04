@@ -44,6 +44,8 @@ const MUST_MATCH = [
 const MUST_NOT_MATCH = [
     '/api/config/tos',
     '/api/config/flags',
+    '/api/quiz-files',         // a current list, and bytes the app keeps itself
+    '/api/quiz-files/abc123/file',
     '/api/questions',
     '/api/reference-cards',
     '/healthz',

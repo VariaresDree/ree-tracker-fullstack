@@ -306,6 +306,7 @@ async function bootstrap() {
     app.use('/api/ai', authMiddleware, aiLimiter, require('./src/routes/aiRoutes'));
     app.use('/api/questions', require('./src/routes/questionRoutes'));
     app.use('/api/materials', require('./src/routes/materialRoutes'));
+    app.use('/api/quiz-files', require('./src/routes/quizFileRoutes'));
     app.use('/api/metadata', require('./src/routes/metadataRoutes'));
     app.use('/api/leaderboard/me', meRateLimiter);
     app.use('/api/leaderboard', require('./src/routes/leaderboardRoutes'));
@@ -340,6 +341,7 @@ async function bootstrap() {
     // Reference flashcard vault (replaced the legacy /api/reference constants+formulas routes).
     app.use('/api/reference-cards', require('./src/routes/referenceCardRoutes'));
     app.use('/api/admin/subtopics', require('./src/routes/adminSubtopicRoutes'));
+    app.use('/api/admin/quiz-files', require('./src/routes/adminQuizFileRoutes'));
     app.use('/api/admin', require('./src/routes/adminRoutes'));
     app.use('/api/review', require('./src/routes/reviewRoutes'));
 

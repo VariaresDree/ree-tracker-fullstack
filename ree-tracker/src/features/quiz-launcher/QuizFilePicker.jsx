@@ -3,7 +3,7 @@
 // alone is unusable on a phone, and this app is mobile-first. Reads files
 // entirely via the browser File API; nothing here ever touches fetch/XHR.
 import { useCallback, useRef, useState } from 'react';
-import { FileUp, Lock } from '../../components/ui/icons';
+import { FileUp } from '../../components/ui/icons';
 
 const ACCEPTED_EXTENSIONS = ['.quiz', '.caq'];
 
@@ -84,15 +84,6 @@ export default function QuizFilePicker({ onFilesSelected, compact = false }) {
             : `${rejected.length} files aren’t quiz files (${rejected.slice(0, 3).join(', ')}${rejected.length > 3 ? '…' : ''}). Choose .quiz or .caq files.`}
         </p>
       )}
-
-      {/* Persistent, unmissable — not a tooltip a user could miss before starting. */}
-      <div className="flex items-start gap-2.5 rounded-[var(--radius-default)] border border-border2 bg-surface2/40 p-3.5">
-        <Lock size={15} strokeWidth={1.75} className="shrink-0 mt-0.5 text-muted2" aria-hidden="true" />
-        <p className="text-xs text-muted2 leading-relaxed">
-          Saved only on this device. Your quiz files are never uploaded, and their scores don't affect
-          your progress, streak or readiness. Clearing this browser's data removes them.
-        </p>
-      </div>
     </div>
   );
 }

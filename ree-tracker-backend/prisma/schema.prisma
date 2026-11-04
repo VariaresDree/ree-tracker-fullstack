@@ -18,6 +18,7 @@ enum Role {
 // 1 & 2. Merged 'users' and 'userData' collections
 model User {
   id               String   @id
+  quizFiles        QuizFile[]
   email            String?  @unique
   displayName      String?
   photoURL         String?
@@ -389,6 +390,29 @@ model Folder {
   materials Material[]
 
   @@index([parentId])
+}
+
+// A quiz file the admin shares (Admin > Handouts > Quiz files). The bytes live
+// here, not in Firebase: these files are a few KB, capped at 5 MB, and storing
+// them here means no CORS and no orphaned objects. List queries must never
+// select `bytes` (services/quizFiles.js has the one select they use).
+model QuizFile {
+  id            String   @id @default(uuid())
+  name          String
+  fileName      String
+  subject       String?
+  description   String?
+  sizeBytes     Int
+  questionCount Int
+  skippedCount  Int      @default(0)
+  checksum      String   @unique
+  bytes         Bytes
+  uploadedBy    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  uploader      User?    @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+  @@index([uploadedBy])
 }
 
 model Material {
