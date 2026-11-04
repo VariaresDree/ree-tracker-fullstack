@@ -13,6 +13,8 @@ import { Button, Card, CardWatermark, Grid, ProgressIndicator, Skeleton, StatusP
 import { Check, Lock, Shield, Swords, Trophy } from '../../components/ui/icons';
 import { GAUNTLET_TIERS, SUBJECT_UNLOCK_LEVEL, isSubjectTier } from '../../config/examStandards';
 import { cooldownLabel, formatLimit, tierState } from './gauntletTierState';
+import SavedRunCard from './SavedRunCard';
+import { readSavedRuns } from './savedRuns';
 
 const tinted = (accent) => ({
   color: accent,
@@ -127,6 +129,7 @@ export default function GauntletTab() {
   // A clock for the cooldown, ticking only while a lock is running. The label
   // is derived from it, not stored.
   const isOnline = useNetworkStatus();
+  const [savedRun] = useState(() => readSavedRuns().gauntlet);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!lockUntil || lockUntil <= Date.now()) return undefined;
@@ -167,6 +170,7 @@ export default function GauntletTab() {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2">
+      {savedRun && <SavedRunCard title={`Unfinished run, level ${savedRun.level}`} summary={savedRun.summary} to={`/gauntlet/${savedRun.level}`} />}
       <Card variant="hero" padding="md" className="flex flex-col gap-2">
         <CardWatermark icon={Shield} />
         <h2 className="text-h2 text-textMain flex items-center gap-3">

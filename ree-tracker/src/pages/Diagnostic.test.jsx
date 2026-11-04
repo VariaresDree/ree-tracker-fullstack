@@ -13,12 +13,14 @@ const api = {
   startDiagnostic: vi.fn(),
   answerDiagnostic: vi.fn(),
   finishDiagnostic: vi.fn(),
+  fetchSittingReview: vi.fn(),
 };
 vi.mock('../services/dbQueries', () => ({
   fetchDiagnosticStatus: (...a) => api.fetchDiagnosticStatus(...a),
   startDiagnostic: (...a) => api.startDiagnostic(...a),
   answerDiagnostic: (...a) => api.answerDiagnostic(...a),
   finishDiagnostic: (...a) => api.finishDiagnostic(...a),
+  fetchSittingReview: (...a) => api.fetchSittingReview(...a),
 }));
 
 const { default: Diagnostic } = await import('./Diagnostic');
@@ -68,6 +70,9 @@ describe('Diagnostic page', () => {
 
   it('runs from the intro to the placement result', async () => {
     api.fetchDiagnosticStatus.mockResolvedValue({ status: 'none' });
+    api.fetchSittingReview.mockResolvedValue({ items: [
+      { questionId: 'q1', subject: 'EE', topic: 'Machines', text: 'Reviewed question', options: ['Henry', 'Farad'], correctAnswer: 'Henry', selectedAnswer: 'Farad', isCorrect: false },
+    ] });
     api.startDiagnostic.mockResolvedValue({ sessionId: 's1', item: item('q1'), progress: { answered: 0, total: 19 } });
     api.answerDiagnostic
       .mockResolvedValueOnce({ done: false, item: item('q2', 'ESAS'), progress: { answered: 1, total: 19 } })
@@ -92,6 +97,8 @@ describe('Diagnostic page', () => {
     expect(screen.getByText('Foundation')).toBeInTheDocument();
     expect(screen.getByText('Board-ready')).toBeInTheDocument();
     // The intro promises the answers at the end: the result links to them.
+    // ...and shows them right there.
+    expect(await screen.findByText('Reviewed question')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Review your answers' })).toHaveAttribute('href', '/exams/sittings/s1');
     // Math is under the 50% floor: the main button starts Practice on it,
     // whatever the average says, and the guide says why.

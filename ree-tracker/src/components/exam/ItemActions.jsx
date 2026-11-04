@@ -3,11 +3,14 @@
 // What you can do with the item in front of you: mark it, work on the scratchpad,
 // report it, save it. Practice, the mock and the Gauntlet each had their own row,
 // with their own words. Leave out a handler and its button goes with it.
-import { Button } from '../ui';
+// `onReport` gets the reason picked: one tap, since a clock may be running.
+import { useState } from 'react';
+import { Button, Modal } from '../ui';
 import { Bookmark, Flag, Pencil, Pin } from '../ui/icons';
-import { COPY } from '../../features/quiz/examCopy';
+import { COPY, REPORT_REASONS } from '../../features/quiz/examCopy';
 
 export default function ItemActions({ marked, onMark, onScratchpad, reported, onReport, bookmarked, onBookmark, children }) {
+  const [reporting, setReporting] = useState(false);
   return (
     <div className="flex gap-1.5">
       {onMark && (
@@ -21,7 +24,7 @@ export default function ItemActions({ marked, onMark, onScratchpad, reported, on
         </Button>
       )}
       {onReport && (
-        <Button size="icon" variant="ghost" tone="danger" onClick={onReport} disabled={reported} aria-label={reported ? COPY.reported : COPY.report} title={reported ? COPY.reported : COPY.report} className={reported ? '' : 'text-muted'}>
+        <Button size="icon" variant="ghost" tone="danger" onClick={() => setReporting(true)} disabled={reported} aria-label={reported ? COPY.reported : COPY.report} title={reported ? COPY.reported : COPY.report} className={reported ? '' : 'text-muted'}>
           <Flag size={16} strokeWidth={1.75} aria-hidden="true" />
         </Button>
       )}
@@ -31,6 +34,15 @@ export default function ItemActions({ marked, onMark, onScratchpad, reported, on
         </Button>
       )}
       {children}
+      <Modal open={reporting} onClose={() => setReporting(false)} title="What’s wrong with this question?" size="sm">
+        <div className="flex flex-col gap-2">
+          {REPORT_REASONS.map((reason) => (
+            <Button key={reason} variant="secondary" className="w-full justify-start text-left" onClick={() => { setReporting(false); onReport(reason); }}>
+              {reason}
+            </Button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

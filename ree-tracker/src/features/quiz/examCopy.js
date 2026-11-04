@@ -17,6 +17,13 @@ export const COPY = {
   keys: 'Keyboard shortcuts',
 };
 
+export const REPORT_REASONS = [
+  'The answer key looks wrong',
+  'The question or a choice has a mistake',
+  'It doesn’t display properly',
+  'Something else',
+];
+
 export const itemOf = (index, total, { about = false } = {}) => `Item ${index + 1} of ${about ? 'about ' : ''}${total}`;
 
 export const LETTERS = ['A', 'B', 'C', 'D'];

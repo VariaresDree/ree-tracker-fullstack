@@ -18,13 +18,15 @@ import KeyLegend from '../components/exam/KeyLegend';
 import SessionActions from '../components/exam/SessionActions';
 import SessionBar from '../components/exam/SessionBar';
 import { KEYS } from '../features/quiz/examCopy';
+import ItemReview from '../features/quiz/ItemReview';
+import { reviewItemToQuestion } from '../features/exams/review/retake';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
 import QuestionCard from '../features/quiz/QuestionCard';
 import { presentOptions } from '../features/quiz/presentOptions';
 import { Badge, Button, Card, CardTitle, EmptyState, Grid, Page, PageHeader, ProgressIndicator, QuestionSurface, Skeleton } from '../components/ui';
 import { Compass, ArrowRight } from '../components/ui/icons';
-import { fetchDiagnosticStatus, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
+import { fetchDiagnosticStatus, fetchSittingReview, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
 import { adaptivePreset, drillPreset } from '../features/active-recall/presets';
 
@@ -238,6 +240,33 @@ function startButton(plan) {
   };
 }
 
+// The answers, on the result itself. If they can't load, the link to the sitting's
+// review below still stands, so this just stays out of the way.
+function PlacementAnswers({ sessionId }) {
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    let live = true;
+    fetchSittingReview(sessionId)
+      .then((res) => {
+        if (!live) return;
+        setItems((res?.items || []).map((i) => ({
+          question: reviewItemToQuestion(i, { asShown: true }),
+          selected: i.selectedAnswer ?? null,
+          isCorrect: !!i.isCorrect,
+        })));
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [sessionId]);
+  if (!items?.length) return null;
+  return (
+    <Card elevated padding="md" className="flex flex-col gap-3">
+      <CardTitle>Your answers</CardTitle>
+      <ItemReview items={items} />
+    </Card>
+  );
+}
+
 function PlacementResult({ result, sessionId }) {
   const gwa = result.projectedGWA;
   const subjects = result.subjects || {};
@@ -272,6 +301,8 @@ function PlacementResult({ result, sessionId }) {
       </Grid>
 
       <ModeGuide start={plan.mode} note={plan.note} />
+
+      {sessionId && <PlacementAnswers sessionId={sessionId} />}
 
       {/* The exam date and daily target, asked here once instead of a silent
           default, with the study plan the placement prompt promised. */}

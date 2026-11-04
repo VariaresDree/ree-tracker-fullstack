@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { generateQuestionsAI } from '../../services/geminiApi';
 import {
-  updateQuestionInBank, fetchVaultQuestions,
+  fetchVaultQuestions,
   finalizeExamSession, syncTelemetryBatch, getAnalyticsProfile,
   fetchMultiplayerBattle, fetchSyllabusWeights, fetchBoardGroups, saveBookmark, removeBookmark
 } from '../../services/dbQueries';
@@ -13,6 +13,7 @@ import { shuffleArray } from '../../utils/shuffle';
 import { applyFocusFilter, boardWeightedSample, stratifiedSample } from './poolFilters';
 import { groupsForDraw } from './drawModes';
 import { computeBattleDiagnostics } from './battleGrades';
+import { reportQuestion } from '../../services/reportQuestion';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
   PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
@@ -772,11 +773,11 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
     }
   };
 
-  const handleFlagQuestion = async () => {
+  const handleFlagQuestion = async (reason) => {
     const currentQ = session.questions[currentIndex];
     if (!currentQ || !currentQ.id) return toast.error("Cannot flag dynamic items.");
     try {
-        await updateQuestionInBank(currentQ.id, { isFlagged: true });
+        await reportQuestion(currentQ.id, reason);
         // So its button says "Already reported". Practice and the Gauntlet do
         // this; here a second tap just reported it again.
         const flag = (q) => (q.id === currentQ.id ? { ...q, isFlagged: true } : q);

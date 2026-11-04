@@ -11,6 +11,23 @@ const q = { id: 'q1', text: 'Q', answer: '42 V', fixedExplanation: 'Use KVL.' };
 
 beforeEach(() => vi.clearAllMocks());
 
+describe('SolutionPanel — opening on its own', () => {
+  const q = { id: 'q', text: 'Q', answer: 'A', fixedExplanation: 'Because of this.' };
+  it('starts open where it’s what comes next', () => {
+    render(<SolutionPanel question={q} isOnline onExplain={() => {}} defaultOpen />);
+    expect(screen.getByText('Because of this.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide solution' })).toBeInTheDocument();
+  });
+  it('stays closed by default', () => {
+    render(<SolutionPanel question={q} isOnline onExplain={() => {}} />);
+    expect(screen.queryByText('Because of this.')).toBeNull();
+  });
+  it('has nothing to open with no solution and no answer to show', () => {
+    render(<SolutionPanel question={{ id: 'q', text: 'Q', answer: 'A' }} isOnline onExplain={() => {}} defaultOpen />);
+    expect(screen.queryByRole('button', { name: 'Hide solution' })).toBeNull();
+  });
+});
+
 describe('SolutionPanel', () => {
   it('shows the written solution on request', () => {
     render(<SolutionPanel question={q} isOnline aiText={null} onExplain={vi.fn()} />);

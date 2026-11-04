@@ -31,11 +31,13 @@ const engine = {
   startSession: vi.fn(),
   endSession: vi.fn(() => Promise.resolve()),
 };
+const reportQuestion = vi.fn();
+vi.mock('../../services/reportQuestion', () => ({ reportQuestion: (...a) => reportQuestion(...a) }));
 vi.mock('../../store/slices', () => ({ useEngineActionsSlice: () => engine }));
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => ({ stats: {}, dynamicTOS: {}, }) } }));
 
 const toast = (await import('react-hot-toast')).default;
-const { apiRequest, fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions, updateQuestionInBank } = await import('../../services/dbQueries');
+const { apiRequest, fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
 const { adaptivePreset, bookmarksPreset, drillPreset, itemsPreset, todayLoopPreset } = await import('./presets');
@@ -136,7 +138,7 @@ describe('flag, AI explanation and leaving mid-session', () => {
 
   it('flags the question it was asked about, even after moving on', async () => {
     let resolveFlag;
-    updateQuestionInBank.mockImplementation(() => new Promise((r) => { resolveFlag = r; }));
+    reportQuestion.mockImplementation(() => new Promise((r) => { resolveFlag = r; }));
     const { result } = setup();
     await startTwo(result);
     const first = result.current.session.questions[0].id;
@@ -190,6 +192,63 @@ describe('flag, AI explanation and leaving mid-session', () => {
       expect.objectContaining({ totalQuestions: 1, correctAnswers: 1 }),
     );
     expect(engine.endSession).toHaveBeenCalled();
+  });
+
+  it('keeps a running session on the device, and goes back to the next item', async () => {
+    const { result, unmount } = setup();
+    await startTwo(result);
+    const [first, second] = result.current.session.questions;
+    act(() => result.current.setSession((s) => ({ ...s, confidence: 'MED' })));
+    act(() => result.current.handleAnswerSelection(first.answer));
+    unmount();
+
+    const again = setup();
+    expect(again.result.current.savedSession.totalAnswered).toBe(1);
+    expect(again.result.current.session.isActive).toBe(false);
+    act(() => again.result.current.resumeSession());
+    const { session } = again.result.current;
+    expect(session.isActive).toBe(true);
+    expect(session.questions[session.currentIndex].id).toBe(second.id);
+    expect(session).toMatchObject({ isAnswered: false, totalAnswered: 1, correctHits: 1 });
+    expect(again.result.current.savedSession).toBeNull();
+  });
+
+  it('coming back doesn’t record what leaving already recorded', async () => {
+    const { result, unmount } = setup();
+    await startTwo(result);
+    const [first] = result.current.session.questions;
+    act(() => result.current.setSession((s) => ({ ...s, confidence: 'MED' })));
+    act(() => result.current.handleAnswerSelection(first.answer));
+    unmount();
+    expect(engine.queuePendingWrite).toHaveBeenCalledTimes(1);
+
+    const again = setup();
+    act(() => again.result.current.resumeSession());
+    await act(() => again.result.current.endSession());
+    expect(apiRequest).not.toHaveBeenCalledWith('/api/analytics/study-sessions', 'POST', expect.anything());
+    expect(engine.queuePendingWrite).toHaveBeenCalledTimes(1);
+    // The summary still covers the whole session.
+    expect(again.result.current.lastSummary.total).toBe(1);
+  });
+
+  it('a session that ended leaves nothing to go back to', async () => {
+    const { result } = setup();
+    await startTwo(result);
+    act(() => result.current.setSession((s) => ({ ...s, confidence: 'MED' })));
+    act(() => result.current.handleAnswerSelection('A'));
+    await act(() => result.current.endSession());
+    expect(localStorage.getItem('ree_practice_cache')).toBeNull();
+  });
+
+  it('discarding forgets it', async () => {
+    const first = setup();
+    await startTwo(first.result);
+    first.unmount();
+    const again = setup();
+    expect(again.result.current.savedSession).not.toBeNull();
+    act(() => again.result.current.discardSavedSession());
+    expect(again.result.current.savedSession).toBeNull();
+    expect(localStorage.getItem('ree_practice_cache')).toBeNull();
   });
 
   it('leaving after the session ended records nothing more', async () => {

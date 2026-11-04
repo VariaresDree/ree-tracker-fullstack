@@ -4,6 +4,7 @@
 // those items (at the board's pace for each), or an untimed Practice session.
 // The review already carries each item's question and key, so neither needs a
 // new request — and both work offline once the review has loaded.
+import { setupConfig } from '../../board-simulator/profiles';
 
 /** Wrong or left blank. A row whose answer wasn't recorded still counts if wrong. */
 export function missedItems(items = []) {
@@ -40,6 +41,26 @@ export function reviewItemToQuestion(item, opts) {
  * it is in the history: 'retake' (a sitting's misses) or 'mistakes' (the
  * Notebook's Mistakes mock).
  */
+/**
+ * The simulator config for retaking `questions`, from the setup `base`. Their
+ * answers from the last sitting don't come along.
+ */
+export function retakeConfig(base, { questions, sourceSessionId = null, kind = 'retake' }) {
+  const subjects = new Set(questions.map((q) => q.subject));
+  return {
+    ...setupConfig(base),
+    mode: 'subject',
+    subject: subjects.size === 1 ? [...subjects][0] : 'Mixed',
+    isPrcStandard: false,
+    count: questions.length,
+    source: 'retake',
+    cognitiveFocus: 'mixed',
+    retake: { sourceSessionId, kind: kind === 'mistakes' ? 'mistakes' : 'retake' },
+    // eslint-disable-next-line no-unused-vars
+    retakeQuestions: questions.map(({ userAnswer, userConf, ...q }) => q),
+  };
+}
+
 export function retakeState({ ownerUid, sourceSessionId, items, kind = 'retake' }) {
   return { retake: { ownerUid, sourceSessionId, kind, questions: items.map(reviewItemToQuestion) } };
 }

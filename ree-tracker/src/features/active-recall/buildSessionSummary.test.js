@@ -43,21 +43,31 @@ describe('buildSessionSummary', () => {
     expect(buildSessionSummary([attempt('q1', 'Protection', true)], questions, 30).weakest).toBeNull();
   });
 
-  it('counts confident misses and lucky guesses, and lists confident misses first', () => {
+  it('counts confident misses and lucky guesses', () => {
     const s = buildSessionSummary([
       attempt('q2', 'Power Systems', false, 'LOW'),
       attempt('q1', 'Protection', false, 'HIGH'),
       attempt('q3', 'Protection', true, 'low'),
     ], questions, 90);
     expect(s).toMatchObject({ confidentMisses: 1, luckyGuesses: 1, missedCount: 2 });
-    expect(s.missed.map((m) => [m.id, m.confident])).toEqual([['q1', true], ['q2', false]]);
-    expect(s.missed[0]).toMatchObject({ text: 'Relay pickup current?', answer: '5 A', topic: 'Protection' });
   });
 
-  it('keeps at most ten missed questions, but counts them all', () => {
+  it('keeps every answered question for the review, in the order answered, with what was picked', () => {
+    const s = buildSessionSummary([
+      { ...attempt('q2', 'Power Systems', false, 'HIGH'), userAnswer: '50 MVA' },
+      attempt('q1', 'Protection', true),
+    ], questions, 90);
+    expect(s.items.map((i) => [i.question.id, i.selected, i.isCorrect, i.confident])).toEqual([
+      ['q2', '50 MVA', false, true],
+      ['q1', null, true, false],
+    ]);
+  });
+
+  it('has no cap on what can be reviewed', () => {
     const many = Array.from({ length: 14 }, (_, i) => attempt(`m${i}`, 'Machines', false));
-    const s = buildSessionSummary(many, [], 600);
-    expect(s.missed).toHaveLength(10);
+    const qs = many.map((a) => ({ id: a.questionId, text: a.questionId, answer: 'x' }));
+    const s = buildSessionSummary(many, qs, 600);
+    expect(s.items).toHaveLength(14);
     expect(s.missedCount).toBe(14);
   });
 });

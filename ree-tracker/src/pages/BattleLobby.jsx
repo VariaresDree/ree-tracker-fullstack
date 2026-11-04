@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
@@ -73,6 +73,16 @@ function BattleRoom({ battleId }) {
     const handleEnterChamber = () => {
         navigate(`/simulator?battleId=${battleId}`);
     };
+
+    // The battle starts while you wait here: straight into the exam, since its
+    // clock is already running. Only on seeing it start: someone who comes back
+    // to a running battle's room came for the room, and has the button.
+    const lastStatus = useRef(battleStatus);
+    useEffect(() => {
+        const was = lastStatus.current;
+        lastStatus.current = battleStatus;
+        if (was === 'WAITING' && battleStatus === 'IN_PROGRESS') navigate(`/simulator?battleId=${battleId}`);
+    }, [battleStatus, battleId, navigate]);
 
     // This player's own row: once they've submitted there is no exam room to
     // go back to, only the time the results are due.

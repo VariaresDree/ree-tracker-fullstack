@@ -24,6 +24,8 @@ import { shouldIgnoreHotkey } from '../../utils/hotkeys';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAiExplanation } from '../quiz/useAiExplanation';
 import SolutionPanel from '../quiz/SolutionPanel';
+import NoteButton, { NoteView } from '../notebook/NoteButton';
+import { questionTarget } from '../notebook/targets';
 import { explanationKey } from '../../services/aiExplanations';
 import SubmitDialog from './SubmitDialog';
 
@@ -108,7 +110,9 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
       onReport={handleFlagQuestion}
       bookmarked={isBookmarked}
       onBookmark={() => toggleBookmark(currentIndex)}
-    />
+    >
+      {isReview && q.id && <NoteButton type="question" targetId={q.id} target={questionTarget(q)} />}
+    </ItemActions>
   );
   const isLast = currentIndex === totalQuestions - 1;
 
@@ -229,6 +233,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
                 onExplain={(force) => ai.explain(q, { force })}
                 showAnswer
               />
+              {q.id && <div className="mt-4"><NoteView type="question" targetId={q.id} target={questionTarget(q)} /></div>}
             </div>
           )}
         </QuestionSurface>

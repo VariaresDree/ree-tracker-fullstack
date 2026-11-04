@@ -40,6 +40,23 @@ const renderPage = (entries = ['/simulator']) => render(<MemoryRouter initialEnt
 
 beforeEach(() => localStorage.clear());
 
+describe('Board Simulator — a battle’s connection', () => {
+  it('says so when it drops mid-exam, and that the answers are safe', () => {
+    engine = baseEngine({
+      config: { battleId: 'ABC123' },
+      session: { isActive: true, isFinished: false, answers: {}, questions: [], diagnostics: null, loading: false },
+    });
+    renderPage();
+    expect(screen.getByRole('status')).toHaveTextContent('Reconnecting… your answers are safe');
+  });
+
+  it('an ordinary mock has no connection to lose', () => {
+    engine = baseEngine({ session: { isActive: true, isFinished: false, answers: {}, questions: [], diagnostics: null, loading: false } });
+    renderPage();
+    expect(screen.queryByText(/Reconnecting/)).toBeNull();
+  });
+});
+
 describe('Board Simulator — full PRC board', () => {
   it('an unfinished board leaves setup usable, and continues on the same session when asked', () => {
     let board = startFullBoard('board-1');

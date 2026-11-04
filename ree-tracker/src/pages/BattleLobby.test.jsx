@@ -2,7 +2,7 @@
 // Start counting only the players who are actually here, and Rematch (or
 // joining the one someone else started) once it's over.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'me' } }) }));
@@ -11,13 +11,14 @@ vi.mock('../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online }))
 const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() });
 vi.mock('react-hot-toast', () => ({ default: toast }));
 let socketState;
+let setSocket;
 // Like the real hook, the state is held by the component: the state taken
 // when the room mounts, so a room left mounted for the next battle would keep
 // the last battle's results.
 const socketCalls = [];
 vi.mock('../hooks/useBattleSocket', async () => {
   const { useState } = await import('react');
-  return { useBattleSocket: (id) => { socketCalls.push(id); return useState(() => socketState)[0]; } };
+  return { useBattleSocket: (id) => { socketCalls.push(id); const [state, set] = useState(() => socketState); setSocket = set; return state; } };
 });
 const requestRematch = vi.fn();
 vi.mock('../services/dbQueries', () => ({ requestRematch: (...a) => requestRematch(...a) }));
@@ -31,7 +32,10 @@ const base = () => ({
 });
 const renderAt = () => render(
   <MemoryRouter initialEntries={['/battle/ABC123']}>
-    <Routes><Route path="/battle/:battleId" element={<BattleLobby />} /></Routes>
+    <Routes>
+      <Route path="/battle/:battleId" element={<BattleLobby />} />
+      <Route path="/simulator" element={<p>exam room</p>} />
+    </Routes>
   </MemoryRouter>,
 );
 
@@ -74,6 +78,22 @@ describe('BattleLobby', () => {
     renderAt();
     expect(screen.queryByRole('button', { name: /Start battle/ })).not.toBeInTheDocument();
     expect(screen.getByText('Waiting for another player to join')).toBeInTheDocument();
+  });
+
+  it('goes straight into the exam when the battle starts while you wait', () => {
+    socketState.participants = [{ id: 'me', displayName: 'Rey', connected: true, finished: false }];
+    renderAt();
+    expect(screen.queryByText('exam room')).toBeNull();
+    act(() => setSocket((s) => ({ ...s, battleStatus: 'IN_PROGRESS' })));
+    expect(screen.getByText('exam room')).toBeInTheDocument();
+  });
+
+  it('coming back to a battle already running stays in the room, with the way in', () => {
+    socketState.battleStatus = 'IN_PROGRESS';
+    socketState.participants = [{ id: 'me', displayName: 'Rey', connected: true, finished: false }];
+    renderAt();
+    expect(screen.queryByText('exam room')).toBeNull();
+    expect(screen.getByRole('button', { name: /Enter exam room/ })).toBeInTheDocument();
   });
 
   it('gives a player who left mid-battle the way back in, with the time left', () => {

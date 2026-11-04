@@ -43,6 +43,8 @@ import TopicCardsLink from '../features/reference/TopicCardsLink';
 import BattlePicks from '../features/exams/BattlePicks';
 import { ordinal } from '../features/exams/battleModes';
 import { letterIn } from '../features/quiz/examCopy';
+import ItemActions from '../components/exam/ItemActions';
+import { useItemTools } from '../features/quiz/useItemTools';
 
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
@@ -79,6 +81,7 @@ export default function SittingReview() {
   const { currentUser } = useAuth();
   const isOnline = useNetworkStatus();
   const ai = useAiExplanation(currentUser?.uid);
+  const tools = useItemTools(currentUser?.uid);
 
   const [state, setState] = useState({ status: 'loading', data: null, error: null });
   const [subject, setSubject] = useState('all');
@@ -309,7 +312,14 @@ export default function SittingReview() {
                 {current.confidence && current.answered !== false && <Badge tone="neutral">{CONFIDENCE_LABEL[current.confidence] || current.confidence}</Badge>}
                 {current.marked && <Badge tone="amber">Marked</Badge>}
                 <span className="ml-auto">
-                  <NoteButton type="question" targetId={current.questionId} target={questionTarget(shownQuestion)} />
+                  <ItemActions
+                    reported={tools.reported.has(current.questionId)}
+                    onReport={(reason) => tools.report(current.questionId, reason)}
+                    bookmarked={tools.saved.has(current.questionId)}
+                    onBookmark={() => tools.toggleSave(current.questionId)}
+                  >
+                    <NoteButton type="question" targetId={current.questionId} target={questionTarget(shownQuestion)} />
+                  </ItemActions>
                 </span>
               </div>
 

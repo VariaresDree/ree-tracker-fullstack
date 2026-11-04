@@ -14,6 +14,50 @@ vi.mock('../../components/NotificationOptIn', () => ({ default: () => null }));
 
 const { default: SimulatorDiagnostics } = await import('./SimulatorDiagnostics');
 
+describe('what comes next', () => {
+  const QS = [
+    { id: 'a', subject: 'EE', text: 'A?', options: ['1', '2'], answer: '1', userAnswer: '2', userConf: 'LOW' },
+    { id: 'b', subject: 'EE', text: 'B?', options: ['1', '2'], answer: '1', userAnswer: '1' },
+    { id: 'c', subject: 'EE', text: 'C?', options: ['1', '2'], answer: '1', userAnswer: null },
+  ];
+  const results = (engine, props = {}) => render(
+    <MemoryRouter>
+      <SimulatorDiagnostics session={{ ...session({ verdict: 'PASSED', score: 80, generalAverage: 80, sessionId: 's1' }), questions: QS }} engine={engine} {...props} />
+    </MemoryRouter>,
+  );
+  const engine = () => ({ config: { timeLimitMins: 60 }, resetToSetup: vi.fn(), startSimulation: vi.fn() });
+
+  it('retakes just the ones missed, without the old answers', () => {
+    const e = engine();
+    results(e);
+    fireEvent.click(screen.getByRole('button', { name: /Retake missed \(2\)/ }));
+    const cfg = e.startSimulation.mock.calls[0][0];
+    expect(cfg).toMatchObject({ source: 'retake', count: 2, subject: 'EE', retake: { sourceSessionId: 's1' } });
+    expect(cfg.retakeQuestions.map((q) => q.id)).toEqual(['a', 'c']);
+    expect(cfg.retakeQuestions[0].userAnswer).toBeUndefined();
+  });
+
+  it('takes another from setup', () => {
+    const e = engine();
+    results(e);
+    fireEvent.click(screen.getByRole('button', { name: 'Take another' }));
+    expect(e.resetToSetup).toHaveBeenCalled();
+  });
+
+  it('a battle points to its room for places and a rematch, not a retake', () => {
+    const e = { ...engine(), config: { battleId: 'ABC123' } };
+    results(e, { isBattle: true });
+    expect(screen.getByRole('link', { name: /Places and rematch/ })).toHaveAttribute('href', '/battle/ABC123');
+    expect(screen.queryByRole('button', { name: /Retake missed/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Take another' })).toBeNull();
+  });
+
+  it('the full board’s last section has its own way out', () => {
+    results(engine(), { onExit: vi.fn(), headingLevel: 2 });
+    expect(screen.queryByRole('button', { name: 'Take another' })).toBeNull();
+  });
+});
+
 describe('a sitting the clock submitted', () => {
   const show = (diagnostics) => render(
     <MemoryRouter><SimulatorDiagnostics session={session(diagnostics)} engine={{ resetToSetup: vi.fn() }} /></MemoryRouter>,

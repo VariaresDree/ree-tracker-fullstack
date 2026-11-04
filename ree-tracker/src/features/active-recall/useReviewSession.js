@@ -1,6 +1,6 @@
 // src/features/active-recall/useReviewSession.js
 import { useState, useRef, useEffect } from 'react';
-import { fetchVaultQuestions, getAnalyticsProfile, updateQuestionInBank, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, fetchNextItem, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
+import { fetchVaultQuestions, getAnalyticsProfile, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, fetchNextItem, saveQuestionToBank, saveBookmark, removeBookmark, fetchBookmarks } from '../../services/dbQueries';
 import { generateQuestionsAI } from '../../services/geminiApi';
 import { TOS as fallbackTOS } from '../../config/constants';
 import { useAiExplanation } from '../quiz/useAiExplanation';
@@ -10,7 +10,9 @@ import { useEngineActionsSlice } from '../../store/slices';
 import { stratifiedSample } from '../../utils/shuffle';
 import { newSittingKey, normalizeSubject } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
+import { reportQuestion } from '../../services/reportQuestion';
 import { buildSessionSummary } from './buildSessionSummary';
+import { clearSavedSession, loadSavedSession, saveSession } from './savedSession';
 import { pickNextLocal } from './adaptiveFallback';
 import toast from 'react-hot-toast';
 
@@ -56,6 +58,8 @@ export const useReviewSession = (currentUser, isOnline) => {
     // learner starts another session or dismisses it. Null after a session
     // with no answers.
     const [lastSummary, setLastSummary] = useState(null);
+    // An unfinished session from before, offered on the setup screen.
+    const [savedSession, setSavedSession] = useState(loadSavedSession);
     // The config the running session started with, presets' targets included,
     // so "Practise again" repeats exactly that session.
     const sessionConfigRef = useRef(null);
@@ -73,6 +77,9 @@ export const useReviewSession = (currentUser, isOnline) => {
     const startTimeRef = useRef(0);
     const sessionStartRef = useRef(0);
     const telemetryBatchRef = useRef([]);
+    // How much of that batch already went out in a study-session record, when
+    // the learner left mid-session and came back.
+    const recordedRef = useRef({ count: 0, correct: 0 });
     // Set while endSession runs, so leaving mid-save doesn't record it twice.
     const endingRef = useRef(false);
     // The adaptive set's state while one runs (null otherwise): its target,
@@ -272,6 +279,8 @@ export const useReviewSession = (currentUser, isOnline) => {
             const shownQuestions = finalSessionQuestions.map((q) => presentOptions(q, sittingKeyRef.current));
 
             telemetryBatchRef.current = [];
+            recordedRef.current = { count: 0, correct: 0 };
+            setSavedSession(null);
             cardsRatedRef.current = 0;
             endingRef.current = false;
             restartQuestionClock();
@@ -345,7 +354,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         // POST (which records aggregate counts, not per-attempt rows).
         telemetryBatchRef.current.push({
             questionId: currentQ.id, subject: currentQ.subject, subtopic: currentQ.subtopic,
-            isCorrect, confidenceLevel: session.confidence, timeSpentMs,
+            isCorrect, confidenceLevel: session.confidence, timeSpentMs, userAnswer: option,
         });
         prefetchAdaptive(session.questions);
     };
@@ -444,6 +453,7 @@ export const useReviewSession = (currentUser, isOnline) => {
     const endSession = async () => {
         if (isSubmitting) return;
         endingRef.current = true;
+        clearSavedSession();
         adaptiveRef.current = null;
         setIsSubmitting(true);
 
@@ -459,7 +469,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             setLastSummary(cardsRated > 0 ? {
                 total: 0, correct: 0, accuracy: 0, avgSecs: null,
                 durationSecs: Math.round((Date.now() - sessionStartRef.current) / 1000),
-                byTopic: [], weakest: null, confidentMisses: 0, luckyGuesses: 0, missed: [], missedCount: 0,
+                byTopic: [], weakest: null, confidentMisses: 0, luckyGuesses: 0, items: [], missedCount: 0,
                 cardsRated, config: sessionConfigRef.current,
             } : null);
             setSession(prev => ({ ...prev, isActive: false, isFinished: true, questions: [] }));
@@ -488,18 +498,22 @@ export const useReviewSession = (currentUser, isOnline) => {
                 mode: config.sessionMode,
                 subject: config.subject,
                 subtopic: config.subtopic === 'All' ? null : config.subtopic,
-                totalQuestions: session.totalAnswered,
-                correctAnswers: session.correctHits,
+                // Less what a record already covers, from leaving and coming back.
+                totalQuestions: session.totalAnswered - recordedRef.current.count,
+                correctAnswers: session.correctHits - recordedRef.current.correct,
                 durationSecs: totalDuration,
             };
+            const hasNewAnswers = summary.totalQuestions > 0;
 
             if (isOnline) {
-                try {
-                    await apiRequest('/api/analytics/study-sessions', 'POST', summary);
-                } catch {
-                    // Backend went unreachable mid-flush — defer the summary instead
-                    // of dropping it, so the session history stays complete.
-                    queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
+                if (hasNewAnswers) {
+                    try {
+                        await apiRequest('/api/analytics/study-sessions', 'POST', summary);
+                    } catch {
+                        // Backend went unreachable mid-flush — defer the summary instead
+                        // of dropping it, so the session history stays complete.
+                        queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
+                    }
                 }
 
                 // Rehydrate from the canonical backend so any drift between
@@ -526,7 +540,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             } else {
                 // Per-attempt telemetry is already queued via recordAttempt; also
                 // defer the aggregate session summary so nothing is lost offline.
-                queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
+                if (hasNewAnswers) queuePendingWrite('/api/analytics/study-sessions', 'POST', summary);
                 toast("Offline — progress will sync when you reconnect.", { id: toastId });
             }
             telemetryBatchRef.current = [];
@@ -574,11 +588,11 @@ export const useReviewSession = (currentUser, isOnline) => {
         }
     };
 
-    const handleFlagQuestion = async () => {
+    const handleFlagQuestion = async (reason) => {
         const currentQ = session.questions[session.currentIndex];
         if (!currentQ?.id) return toast.error("Cannot flag dynamic items.");
         try {
-            await updateQuestionInBank(currentQ.id, { isFlagged: true });
+            await reportQuestion(currentQ.id, reason);
             // By id: the learner may have moved on while the request ran, and
             // writing to the current index flagged the next question instead.
             setSession(prev => ({
@@ -587,6 +601,66 @@ export const useReviewSession = (currentUser, isOnline) => {
             }));
             toast.success("Thanks — we'll review this question.");
         } catch { toast.error("Flag failed."); }
+    };
+
+    // Keep the running session on the device as it moves. Reads refs for what isn't
+    // state, so it writes only when the place in the set changes.
+    const draftNow = () => ({
+        config: sessionConfigRef.current,
+        form: config,
+        questions: session.questions,
+        currentIndex: session.currentIndex,
+        isAnswered: session.isAnswered,
+        target: session.target,
+        totalAnswered: session.totalAnswered,
+        correctHits: session.correctHits,
+        batch: telemetryBatchRef.current,
+        recorded: recordedRef.current,
+        cardsRated: cardsRatedRef.current,
+        sittingKey: sittingKeyRef.current,
+        elapsedMs: Date.now() - sessionStartRef.current,
+        adaptive: adaptiveRef.current
+            ? { target: adaptiveRef.current.target, subject: adaptiveRef.current.subject, start: adaptiveRef.current.start }
+            : null,
+    });
+    useEffect(() => {
+        if (session.isActive && !endingRef.current) saveSession(draftNow());
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the place in the set changes
+    }, [session.isActive, session.currentIndex, session.isAnswered, session.questions.length]);
+
+    const discardSavedSession = () => {
+        clearSavedSession();
+        setSavedSession(null);
+    };
+
+    // Back to where the saved session was: the next unanswered item, or the
+    // answered one when an adaptive set still has to fetch its next.
+    const resumeSession = () => {
+        const d = savedSession;
+        if (!d) return;
+        const atEnd = d.isAnswered && d.currentIndex + 1 >= d.questions.length;
+        telemetryBatchRef.current = d.batch || [];
+        recordedRef.current = d.recorded || { count: 0, correct: 0 };
+        cardsRatedRef.current = d.cardsRated || 0;
+        sittingKeyRef.current = d.sittingKey || newSittingKey();
+        sessionConfigRef.current = d.config;
+        adaptiveRef.current = d.adaptive ? { ...d.adaptive, local: null, prefetch: null, loading: false } : null;
+        endingRef.current = false;
+        if (d.form) setConfig(d.form);
+        sessionStartRef.current = Date.now() - (d.elapsedMs || 0);
+        restartQuestionClock();
+        startStoreSession({ mode: 'ACTIVE_REVIEW', subject: d.config?.subject });
+        setSavedSession(null);
+        setLastSummary(null);
+        setSession({
+            isActive: true, loading: false, isFinished: false,
+            questions: d.questions,
+            currentIndex: d.isAnswered && !atEnd ? d.currentIndex + 1 : d.currentIndex,
+            isAnswered: atEnd, isFlipped: false,
+            confidence: null, selectedOption: null, wrongSelection: null,
+            totalAnswered: d.totalAnswered || 0, correctHits: d.correctHits || 0,
+            target: d.target || d.questions.length, fetchingNext: false,
+        });
     };
 
     // AI explanations are kept per question (useAiExplanation), so moving on
@@ -600,17 +674,21 @@ export const useReviewSession = (currentUser, isOnline) => {
     const leaveRef = useRef(null);
     useEffect(() => {
         leaveRef.current = () => {
-            if (endingRef.current || !session.isActive || telemetryBatchRef.current.length === 0) return;
-            const batch = telemetryBatchRef.current;
-            telemetryBatchRef.current = [];
+            if (endingRef.current || !session.isActive) return;
+            const fresh = telemetryBatchRef.current.slice(recordedRef.current.count);
+            if (fresh.length === 0) return;
+            const correct = fresh.filter(a => a.isCorrect).length;
             queuePendingWrite('/api/analytics/study-sessions', 'POST', {
                 mode: config.sessionMode,
                 subject: config.subject,
                 subtopic: config.subtopic === 'All' ? null : config.subtopic,
-                totalQuestions: batch.length,
-                correctAnswers: batch.filter(a => a.isCorrect).length,
+                totalQuestions: fresh.length,
+                correctAnswers: correct,
                 durationSecs: Math.floor((Date.now() - sessionStartRef.current) / 1000),
             });
+            // The saved session stays, to come back to, knowing this much is recorded.
+            recordedRef.current = { count: recordedRef.current.count + fresh.length, correct: recordedRef.current.correct + correct };
+            saveSession(draftNow());
             endStoreSession();
         };
     });
@@ -626,5 +704,6 @@ export const useReviewSession = (currentUser, isOnline) => {
         handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
         toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
         lastSummary, clearSummary: () => setLastSummary(null),
+        savedSession, resumeSession, discardSavedSession,
     };
 };

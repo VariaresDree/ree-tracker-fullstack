@@ -1,7 +1,7 @@
 // src/services/draftOwner.js
 //
 // An unfinished exam on this browser belongs to whoever sat it. The drafts
-// (mock, Gauntlet, full board) sit in localStorage with no owner, and sign-out
+// (mock, Gauntlet, full board, Practice) sit in localStorage with no owner, and sign-out
 // leaves them, so the next account to sign in here was offered the last one's
 // exam to resume, and to submit under its own name.
 //
@@ -10,7 +10,7 @@
 // were recorded, nearly always the person now signing in, and clearing it would
 // end a running exam when this ships.
 const OWNER_KEY = 'ree-drafts-owner';
-const DRAFT_KEYS = ['ree_sim_cache', 'ree_gauntlet_cache', 'ree_full_board'];
+const DRAFT_KEYS = ['ree_sim_cache', 'ree_gauntlet_cache', 'ree_full_board', 'ree_practice_cache'];
 
 /** Call when an account signs in, before anything reads a draft. */
 export function claimDraftsFor(uid) {
