@@ -17,6 +17,19 @@ const versionFile = () => ({
   },
 });
 
+// An API answer from the service worker's cache isn't the server answering, and
+// apiRequest has to know: on Wi-Fi with no internet, one of these told it the server
+// was back, so the app kept flipping to Online. A new Response, so the page can read
+// the header on a cross-origin answer. Self-contained, since Workbox stringifies it.
+const MARK_FROM_CACHE = {
+  cachedResponseWillBeUsed: async ({ cachedResponse }) => {
+    if (!cachedResponse || cachedResponse.status === 0) return cachedResponse;
+    const headers = new Headers(cachedResponse.headers);
+    headers.set('x-from-sw-cache', '1');
+    return new Response(cachedResponse.body, { status: cachedResponse.status, statusText: cachedResponse.statusText, headers });
+  },
+};
+
 export default defineConfig(async ({ mode, command }) => {
   // VITE_* values are INLINED at build time, so a missing VITE_BACKEND_URL does
   // not fail — it silently ships a production bundle pointing at
@@ -232,6 +245,7 @@ export default defineConfig(async ({ mode, command }) => {
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-content',
+              plugins: [MARK_FROM_CACHE],
               networkTimeoutSeconds: 3,
               expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
@@ -275,6 +289,7 @@ export default defineConfig(async ({ mode, command }) => {
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-user-data',   // asserted equal to services/apiCache.js by check-sw-routes.cjs
+              plugins: [MARK_FROM_CACHE],
               networkTimeoutSeconds: 2.5,
               expiration: { maxEntries: 60, maxAgeSeconds: 24 * 60 * 60 },
               // statuses [200] ONLY — deliberately not [0, 200] like the rules

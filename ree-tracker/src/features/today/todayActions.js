@@ -97,7 +97,7 @@ const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === Str
  * on its own, gets an adaptive set on that subject right after the loop.
  * Nothing is added while every subject clears the floor.
  */
-export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays, start = null, floor = null, answered = Infinity, calendar = null } = {}) {
+export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily, examInDays, start = null, floor = null, answered = Infinity, calendar = null, offline = false } = {}) {
   const actions = [];
 
   const inLoop = loop?.items?.length || 0;
@@ -115,6 +115,17 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
       detail: `${joined}, mixed by board weight${loop.more > 0 ? ` (${loop.more} more wait for the next loop)` : ''}.`,
       cta: 'Start',
       preset: todayLoopPreset(loop),
+    });
+  }
+
+  // Today's loop comes from the server. With none loaded, the device's own set.
+  if (offline && inLoop === 0) {
+    actions.push({
+      key: 'loop',
+      title: 'Practise from this device',
+      detail: 'You’re offline, so this is a mix from the questions saved here, not today’s loop. Your answers sync when you reconnect.',
+      cta: 'Start',
+      preset: todayLoopPreset(),
     });
   }
 

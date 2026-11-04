@@ -14,7 +14,7 @@ const FORMAT = 'ree-backup';
 const VERSION = 1;
 export const PBKDF2_ITERATIONS = 600_000;
 const CHUNK_BYTES = 8 * 1024 * 1024;
-const SETTINGS_KEYS = ['ree-theme', 'ree-texture', 'ree:units', 'ree:quiz-setup', 'ree:practice-builder'];
+const SETTINGS_KEYS = ['ree-theme', 'ree-texture', 'ree:units', 'ree:quiz-setup', 'ree:practice-builder', 'ree:offline-pack-size'];
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

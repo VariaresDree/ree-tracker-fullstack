@@ -17,6 +17,7 @@ const api = {
   fetchMultiplayerBattle: vi.fn(), fetchSyllabusWeights: vi.fn(), saveBookmark: vi.fn(), removeBookmark: vi.fn(),
 };
 vi.mock('../../services/dbQueries', () => api);
+vi.mock('../../services/bookmarks', () => api);
 const storeState = { stats: {}, currentSessionId: 'sess-r', dynamicTOS: {}, queuePendingWrite: vi.fn(), setStats: vi.fn() };
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => storeState } }));
 const startStoreSession = vi.fn();

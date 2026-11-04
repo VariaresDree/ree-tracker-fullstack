@@ -8,9 +8,11 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStore } from '../../store/useStore';
 import { syncDashboardStats } from '../../services/analyticsSync';
+import { useOfflinePack } from '../../hooks/useOfflinePack';
+import { getPackSize, getPackSizeName } from '../../services/offlinePack';
 import OfflineStatusBadge from '../../components/OfflineStatusBadge';
 import StorageSettings from './StorageSettings';
-import { Button, Modal, StatusPill } from '../../components/ui';
+import { Button, Modal, SegmentedControl, StatusPill } from '../../components/ui';
 import { Cloud } from '../../components/ui/icons';
 
 const STATUS = {
@@ -23,6 +25,10 @@ export default function OfflineSyncSettings() {
   const { currentUser } = useAuth();
   const syncStatus = useStore((s) => s.syncStatus);
   const [confirmRestore, setConfirmRestore] = useState(false);
+  const { meta, isRefreshing, choosePackSize } = useOfflinePack();
+  const [packSize, setPackSize] = useState(getPackSizeName);
+  const notThatSizeYet = meta?.exists && !isRefreshing && meta.perSubject !== getPackSize();
+  const choosePack = (name) => { setPackSize(name); choosePackSize(name); };
   const status = STATUS[syncStatus] || { tone: 'danger', label: 'Sync error', detail: 'Retrying automatically.' };
 
   const restore = async () => {
@@ -43,6 +49,21 @@ export default function OfflineSyncSettings() {
         <p className="text-sm font-medium text-textMain mb-1">Offline question pack</p>
         <p className="text-xs text-muted2 mb-3">Questions saved on this device so you can practise without a connection.</p>
         <OfflineStatusBadge />
+        <div className="mt-3 flex flex-col gap-1.5 min-w-0">
+          <span className="text-label">Questions to keep</span>
+          <SegmentedControl
+            label="Questions to keep"
+            value={packSize}
+            onChange={choosePack}
+            options={[
+              { value: 'standard', label: 'Standard', hint: '400 a subject, about 2 MB' },
+              { value: 'large', label: 'Large', hint: '2,000 a subject, about 10 MB' },
+            ]}
+          />
+          {notThatSizeYet && (
+            <p role="status" className="text-xs text-muted2">Not downloaded yet. It downloads the next time you open the app online, or tap Refresh.</p>
+          )}
+        </div>
       </div>
 
       <div className="border-t border-border2/60 pt-5 flex flex-col gap-3">

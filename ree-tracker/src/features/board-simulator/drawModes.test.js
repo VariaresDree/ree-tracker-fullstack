@@ -12,6 +12,7 @@ const api = {
   fetchBoardGroups: vi.fn(), saveBookmark: vi.fn(), removeBookmark: vi.fn(),
 };
 vi.mock('../../services/dbQueries', () => api);
+vi.mock('../../services/bookmarks', () => api);
 const storeState = { stats: {}, currentSessionId: 's', dynamicTOS: {}, queuePendingWrite: vi.fn(), setStats: vi.fn() };
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => storeState } }));
 vi.mock('../../store/slices', () => ({

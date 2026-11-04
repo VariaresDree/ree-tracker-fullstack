@@ -4,7 +4,7 @@ import { invalidateDashboardSeed } from './dashboardSeed';
 import { fnv1a } from '../utils/contentHash';
 import { DEFAULT_SYLLABUS_WEIGHTS, OPTION_ORDER_VERSION, fallbackDisplayName } from '@ree/shared';
 import { shouldShortCircuit, noteNetworkFailure, noteBackendAnswered } from './connection';
-import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
+import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getPackSize, packSizeOf, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
 // ============================================================================
 // API CORE: Circuit Breaker + Secure Fetch Wrapper
@@ -118,7 +118,8 @@ export const apiRequest = async (endpoint, method = 'GET', body = null, { timeou
         clearTimeout(timeoutHandle);
     }
 
-    noteBackendAnswered();
+    // From the service worker's cache, the server said nothing (vite.config.js).
+    if (!response.headers?.get('x-from-sw-cache')) noteBackendAnswered();
 
     // An ID token can be refused when it expired while the device slept or
     // was offline (Firebase refreshes it on a timer that may not have run).
@@ -156,7 +157,7 @@ const safeApiRequest = async (endpoint, method = 'GET', body = null, fallback = 
 };
 
 // --- NORMALIZER: Translates PostgreSQL Schema to Legacy React Schema ---
-const normalizeQuestions = (data) => {
+export const normalizeQuestions = (data) => {
     if (!data) return [];
     let items = Array.isArray(data) ? data : (data?.items || []);
     return items.map(q => ({
@@ -363,6 +364,9 @@ export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 
 // explanations) into IndexedDB for offline sessions. Called on app load when
 // online (see useOfflinePack) and on manual "Download".
 //
+// A slow subject shouldn't cut the download short (it's in the background).
+const PACK_TIMEOUT_MS = 120_000;
+
 // Concurrent callers share one build: the phone header and Account each mount
 // a status badge, and both would otherwise download the whole pack at once.
 let inFlightPackBuild = null;
@@ -373,12 +377,14 @@ export const refreshOfflinePack = (opts) => {
     return inFlightPackBuild;
 };
 
-const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
+const buildOfflinePack = async ({ perSubject = getPackSize() } = {}) => {
     if (!navigator.onLine) return getOfflinePackMeta();
 
     const existing = (await getOfflinePack()) || {};
     const existingSubjects = existing.subjects || {};
     const existingChecksums = existing.checksums || {};
+    const sameSize = packSizeOf(existing) === perSubject;
+    let complete = true;
 
     // Cheap manifest → per-subject content checksums, so we re-download ONLY the
     // subjects whose questions actually changed (delta), not the whole bank. If
@@ -392,17 +398,17 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
     const subjects = { ...existingSubjects };
     const checksums = { ...existingChecksums };
 
-    // Fetch subjects in parallel; each mapper catches its own failure so
-    // Promise.all won't reject, and unchanged subjects are skipped entirely.
-    await Promise.all(OFFLINE_SUBJECTS.map(async (subj) => {
+    // One subject at a time: a Large pack is 6,000 rows, on a 0.1 CPU server.
+    // Each catches its own failure, and unchanged subjects are skipped entirely.
+    for (const subj of OFFLINE_SUBJECTS) {
         const serverSum = manifest?.[subj]?.checksum;
         const haveCached = Array.isArray(existingSubjects[subj]) && existingSubjects[subj].length > 0;
         // Delta: a subject whose server checksum matches what we already cached
         // is up to date — skip the download.
-        if (serverSum && haveCached && existingChecksums[subj] === serverSum) return;
+        if (sameSize && serverSum && haveCached && existingChecksums[subj] === serverSum) continue;
         try {
             const qp = new URLSearchParams({ subject: subj, subtopic: 'All', limit: perSubject, sort: 'random' });
-            const data = await apiRequest(`/api/questions?${qp.toString()}`);
+            const data = await apiRequest(`/api/questions?${qp.toString()}`, 'GET', null, { timeoutMs: PACK_TIMEOUT_MS });
             subjects[subj] = normalizeQuestions(data);
             // Store the SERVER checksum so the next refresh can compare. null when
             // no manifest was available → forces a re-check next time (safe).
@@ -410,8 +416,9 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
         } catch {
             // Preserve whatever we already cached for this subject on failure.
             subjects[subj] = existingSubjects[subj] || [];
+            complete = false;
         }
-    }));
+    }
 
     // Don't overwrite a good pack with an all-empty one (e.g. auth token not
     // ready, or every request failed) — that would suppress auto-retry for a day.
@@ -423,6 +430,8 @@ const buildOfflinePack = async ({ perSubject = 400 } = {}) => {
         fetchedAt: Date.now(),
         subjects,
         checksums,
+        // Only once every subject is that size, so a failed one is tried again.
+        perSubject: complete ? perSubject : packSizeOf(existing),
     });
     return getOfflinePackMeta();
 };
@@ -545,14 +554,7 @@ export const updateDynamicTOS = async (newTOS) => apiRequest('/api/config/tos', 
 // FCM device tokens (Phase 4.2) — registered by the Capacitor native app only.
 export const registerDeviceToken = async (token, platform) => apiRequest('/api/user/device-token', 'POST', { token, platform });
 export const unregisterDeviceToken = async (token) => apiRequest('/api/user/device-token', 'DELETE', { token });
-export const saveBookmark = async (uid, itemData) => apiRequest('/api/bookmarks', 'POST', itemData);
-export const removeBookmark = async (uid, itemId) => apiRequest(`/api/bookmarks/${itemId}`, 'DELETE');
-// Newest first, with answers (the vault and a bookmarks practice session both
-// need them). The server caps `limit` at 100; [] when offline.
-export const fetchBookmarks = async ({ limit = 100 } = {}) => {
-    const data = await safeApiRequest(`/api/bookmarks?limit=${limit}`, 'GET', null, null);
-    return normalizeQuestions(data);
-};
+// (Bookmarks moved to services/bookmarks.js, which queues them offline.)
 // (updateBookmarkCache removed — it targeted a /api/bookmarks/:id/cache route
 // that never existed. AI explanations stay on the device, keyed by question,
 // and never overwrite the shared solution; updateQuestionCache is gone too.)

@@ -22,6 +22,7 @@ const LABELS = [
   ['/api/exams/grade', () => 'A Gauntlet run'],
   ['/api/exams/gauntlet/forfeit', () => 'A Gauntlet forfeit'],
   ['/api/user/mistakes', () => 'A mistake tag'],
+  ['/api/bookmarks', (m) => (m === 'DELETE' ? 'Removing a bookmark' : 'A bookmark')],
   ['/api/user/notes', (m) => (m === 'DELETE' ? 'Deleting a note' : 'A note')],
   ['/api/user/card-reviews', () => 'A formula card rating'],
   ['/api/user/focus-blocks', (m) => (m === 'DELETE' ? 'Deleting a focus block' : 'A focus block')],

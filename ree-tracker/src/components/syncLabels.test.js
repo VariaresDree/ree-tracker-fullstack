@@ -7,6 +7,8 @@ describe('sync labels', () => {
     expect(syncActionLabel('/api/user/notes/question/q1', 'DELETE')).toBe('Deleting a note');
     expect(syncActionLabel('/api/exams/sessions/abc/finalize', 'POST')).toBe('A finished mock board');
     expect(syncActionLabel('/api/materials/m1', 'PATCH')).toBe('A file change');
+    expect(syncActionLabel('/api/bookmarks', 'POST')).toBe('A bookmark');
+    expect(syncActionLabel('/api/bookmarks/q1', 'DELETE')).toBe('Removing a bookmark');
     expect(syncActionLabel('/api/something-new', 'POST')).toBe('A saved change');
     expect(syncActionLabel(undefined)).toBe('A saved change');
   });

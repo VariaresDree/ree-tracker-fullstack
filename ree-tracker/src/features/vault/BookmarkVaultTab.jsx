@@ -5,7 +5,8 @@
 //
 // A failed load shows an error with Try again, and offline says so; both used
 // to read "No bookmarks yet". Removing one offers Undo. Built on the shared
-// primitives, with no glyphs standing in for icons.
+// primitives, with no glyphs standing in for icons. Offline it shows the copy on
+// this device, and changes wait in the queue.
 //
 // A subject filter and a search narrow the list; Practise then runs exactly
 // what's on screen (from the saved copies, so it works offline too). With no
@@ -18,7 +19,7 @@ import { presentOptions } from '../quiz/presentOptions';
 import { Badge, Button, Card, EmptyState, Input, SectionHeader, SegmentedControl, Skeleton } from '../../components/ui';
 import { Bookmark, Check, CloudOff, Play, Search, TriangleAlert, X } from '../../components/ui/icons';
 import { bookmarksPreset, itemsPreset, launchPractice } from '../active-recall/presets';
-import { fetchBookmarks, removeBookmark, saveBookmark } from '../../services/dbQueries';
+import { fetchBookmarks, removeBookmark, saveBookmark } from '../../services/bookmarks';
 import SmartText from '../../components/SmartText';
 import LatexRenderer from '../../components/LatexRenderer';
 import SolutionPanel from '../quiz/SolutionPanel';
@@ -162,8 +163,9 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
   const restore = async (item, index) => {
     try {
       await saveBookmark(currentUser.uid, { questionId: item.id });
-    } catch (err) {
-      if (err?.status !== 409) { toast.error("Couldn't restore the bookmark."); return; }
+    } catch {
+      toast.error("Couldn't restore the bookmark.");
+      return;
     }
     setBookmarks((prev) => {
       if (prev.some((b) => b.id === item.id)) return prev;
@@ -210,8 +212,8 @@ export default function BookmarkVaultTab({ currentUser, isOnline }) {
     body = (
       <EmptyState
         icon={CloudOff}
-        title="Bookmarks need a connection"
-        description="Reconnect to see the questions you saved."
+        title="Your bookmarks aren’t on this device yet"
+        description="Connect once to save a copy, and they’ll be here offline after that."
         action={<Button variant="secondary" onClick={loadBookmarks}>Try again</Button>}
       />
     );

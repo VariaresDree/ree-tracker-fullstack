@@ -95,12 +95,12 @@ describe('ReviewSetup — presets', () => {
     expect(screen.getByRole('link', { name: 'Take the placement test' })).toHaveAttribute('href', '/diagnostic');
   });
 
-  it('offline, a tile that needs a connection says so and can’t start, and Quick 20 leads at once', () => {
+  it('offline, every tile can start, and Quick 20 leads at once', () => {
     const props = baseProps();
     render(<MemoryRouter><ReviewSetup {...props} isOnline={false} /></MemoryRouter>);
-    expect(screen.getAllByText('Needs a connection')).toHaveLength(2);
-    expect(screen.getByRole('button', { name: 'Start Weak spots' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Start Bookmarks' })).toBeDisabled();
+    expect(screen.queryByText('Needs a connection')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start Weak spots' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Start Bookmarks' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Start Flashcards' })).toBeEnabled();
     // No queue to wait for offline.
     expect(screen.getByRole('heading', { level: 2, name: 'Quick 20' })).toBeInTheDocument();
@@ -224,9 +224,9 @@ describe('ReviewSetup — Build your own', () => {
     expect(started(props)).toMatchObject({ source: 'library', studyMode: 'interleaved', subject: 'All' });
   });
 
-  it('offline, it can only draw from the bank', () => {
+  it('offline, it can draw from the bank or your bookmarks, but not AI', () => {
     show({ ...baseProps(), isOnline: false });
-    expect(builder().getByRole('radio', { name: /Saved/ })).toBeDisabled();
+    expect(builder().getByRole('radio', { name: /Saved/ })).toBeEnabled();
     expect(builder().getByRole('radio', { name: /AI/ })).toBeDisabled();
     expect(builder().getByRole('button', { name: 'Start session' })).toBeEnabled();
   });

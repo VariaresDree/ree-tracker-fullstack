@@ -40,7 +40,6 @@ const PRESETS = [
     name: 'Quick 20',
     meta: '20 mixed questions across all three subjects',
     short: 'Mixed, all subjects',
-    needsConnection: false,
     overrides: quickReviewPreset(20),
   },
   {
@@ -51,7 +50,6 @@ const PRESETS = [
     name: 'Adaptive set',
     meta: '20 questions picked one at a time to match your level',
     short: 'Matched to your level',
-    needsConnection: false,
     overrides: adaptivePreset({ count: 20 }),
   },
   {
@@ -60,7 +58,6 @@ const PRESETS = [
     name: 'Weak spots',
     meta: 'An adaptive drill on your weakest topics',
     short: 'Your weakest topics',
-    needsConnection: true,
     overrides: drillPreset({ count: 20 }),
   },
   {
@@ -69,7 +66,6 @@ const PRESETS = [
     name: 'Flashcards',
     meta: '20 cards for definitions and facts',
     short: 'Definitions and facts',
-    needsConnection: false,
     // Conceptual items only: a calculation as a flip card shows a bare number
     // on the back, with nothing to recall.
     overrides: { ...quickReviewPreset(20), sessionMode: 'flashcard', cognitiveFocus: 'conceptual' },
@@ -80,7 +76,6 @@ const PRESETS = [
     name: 'Bookmarks',
     meta: '20 of the questions you saved',
     short: 'Questions you saved',
-    needsConnection: true,
     overrides: bookmarksPreset(20),
   },
 ];
@@ -136,7 +131,7 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
     startSession(preset.overrides);
   };
 
-  const customDisabled = session.loading || (!isOnline && view.source !== 'library');
+  const customDisabled = session.loading || (!isOnline && view.source === 'ai');
   const { summary: srs, loading: srsLoading } = useSrsSummary({ enabled: isOnline });
   const dueCount = srs?.due || 0;
   // The hero is the due reviews when any are due; otherwise Quick 20, which
@@ -220,7 +215,6 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
           is left; with four, two by two, then four across. */}
       <Grid kind={gridPresets.length === 4 ? 'kpi' : 'tiles'} gap="sm" className="stagger-fade-in">
         {gridPresets.map((preset, i) => {
-          const offline = preset.needsConnection && !isOnline;
           const starting = session.loading && launchingPreset === preset.id;
           const Icon = preset.icon;
           return (
@@ -232,7 +226,7 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
               padding="sm"
               aria-label={`Start ${preset.name}`}
               aria-busy={starting || undefined}
-              disabled={offline || session.loading}
+              disabled={session.loading}
               onClick={() => launchPreset(preset)}
               className={cn(
                 'flex items-center gap-3 min-w-0 text-left cursor-pointer disabled:cursor-default disabled:opacity-60',
@@ -242,7 +236,7 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
               <IconChip icon={Icon} size="sm" />
               <span className="min-w-0 flex flex-col">
                 <span className="text-sm font-semibold text-textMain">{preset.name}</span>
-                <span className="text-xs text-muted2">{starting ? 'Starting…' : offline ? 'Needs a connection' : preset.short}</span>
+                <span className="text-xs text-muted2">{starting ? 'Starting…' : preset.short}</span>
               </span>
             </Card>
           );
@@ -336,7 +330,7 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
                 onChange={(source) => build({ ...view, source })}
                 options={[
                   { value: 'library', label: 'Bank' },
-                  { value: 'bookmarks', label: 'Saved', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
+                  { value: 'bookmarks', label: 'Saved' },
                   { value: 'ai', label: 'AI', hint: isOnline ? undefined : 'needs a connection', disabled: !isOnline },
                 ]}
               />

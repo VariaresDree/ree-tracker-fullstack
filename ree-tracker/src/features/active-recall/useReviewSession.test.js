@@ -9,8 +9,13 @@ vi.mock('react-hot-toast', () => {
   return { default: toast };
 });
 vi.mock('../../services/geminiApi', () => ({ generateQuestionsAI: vi.fn(), generateMasterExplanation: vi.fn() }));
-vi.mock('../../services/dbQueries', () => ({
+vi.mock('../../services/bookmarks', () => ({
   fetchBookmarks: vi.fn(),
+  saveBookmark: vi.fn(),
+  removeBookmark: vi.fn(),
+}));
+vi.mock('../../services/offlinePack', () => ({ getOfflineQuestions: vi.fn() }));
+vi.mock('../../services/dbQueries', () => ({
   fetchVaultQuestions: vi.fn(),
   fetchSmartDrillQuestions: vi.fn(),
   fetchSrsDue: vi.fn(),
@@ -37,7 +42,9 @@ vi.mock('../../store/slices', () => ({ useEngineActionsSlice: () => engine }));
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => ({ stats: {}, dynamicTOS: {}, }) } }));
 
 const toast = (await import('react-hot-toast')).default;
-const { apiRequest, fetchBookmarks, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions } = await import('../../services/dbQueries');
+const { fetchBookmarks } = await import('../../services/bookmarks');
+const { getOfflineQuestions } = await import('../../services/offlinePack');
+const { apiRequest, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
 const { adaptivePreset, bookmarksPreset, drillPreset, itemsPreset, todayLoopPreset } = await import('./presets');
@@ -77,7 +84,15 @@ describe('bookmarks source', () => {
 
     const offline = setup(false);
     await act(() => offline.result.current.startSession(bookmarksPreset()));
-    expect(toast.error).toHaveBeenLastCalledWith('Your bookmarks need a connection.');
+    expect(toast.error).toHaveBeenLastCalledWith(expect.stringMatching(/aren’t on this device yet/));
+  });
+
+  it('offline with a copy on the device, the session runs', async () => {
+    fetchBookmarks.mockResolvedValue([{ id: 'b1', text: 'Saved', options: ['A', 'B'], answer: 'A', subject: 'EE', subtopic: 'Machines' }]);
+    const { result } = setup(false);
+    await act(() => result.current.startSession(bookmarksPreset()));
+    expect(result.current.session.isActive).toBe(true);
+    expect(result.current.session.questions[0].id).toBe('b1');
   });
 });
 
@@ -357,16 +372,48 @@ describe("today's loop source", () => {
     expect(result.current.session.questions.map((x) => x.id)).toEqual(['e1', 's1', 'e2', 'm1']);
   });
 
-  it('says you are caught up when the loop is empty, and needs a connection to load one', async () => {
+  it('says you are caught up when the loop is empty', async () => {
     fetchTodayLoop.mockResolvedValue({ items: [], cardsDue: 0 });
     const { result } = setup();
     await act(() => result.current.startSession(todayLoopPreset()));
     expect(result.current.session.isActive).toBe(false);
     expect(toast.error).toHaveBeenLastCalledWith(expect.stringMatching(/caught up/));
+  });
 
-    const offline = setup(false);
-    await act(() => offline.result.current.startSession(todayLoopPreset()));
-    expect(toast.error).toHaveBeenLastCalledWith("Today's loop needs a connection.");
+  it('offline, it draws from the device and says so, without asking the server', async () => {
+    fetchTodayLoop.mockClear();
+    getOfflineQuestions.mockResolvedValue(['a', 'b', 'c'].map((id) => ({ id, text: `Q ${id}`, options: ['A', 'B'], answer: 'A', subject: 'EE', subtopic: 'Machines' })));
+    const { result } = setup(false);
+    await act(() => result.current.startSession(todayLoopPreset()));
+    expect(fetchTodayLoop).not.toHaveBeenCalled();
+    expect(result.current.session.isActive).toBe(true);
+    expect(result.current.session.questions).toHaveLength(3);
+    expect(result.current.session.offlineNote).toMatch(/not today’s loop/);
+  });
+
+  it('a request that finds no connection falls back too, though the app still thought it was online', async () => {
+    fetchTodayLoop.mockRejectedValue(new Error('[OFFLINE]'));
+    getOfflineQuestions.mockResolvedValue([{ id: 'a', text: 'Q', options: ['A', 'B'], answer: 'A', subject: 'EE', subtopic: 'Machines' }]);
+    const { result } = setup();
+    await act(() => result.current.startSession(todayLoopPreset()));
+    expect(result.current.session.isActive).toBe(true);
+    expect(result.current.session.offlineNote).toMatch(/not today’s loop/);
+  });
+
+  it('a refusal from the server is still an error, not a set from the device', async () => {
+    fetchTodayLoop.mockRejectedValue(Object.assign(new Error('Nope'), { status: 403 }));
+    const { result } = setup();
+    await act(() => result.current.startSession(todayLoopPreset()));
+    expect(result.current.session.isActive).toBe(false);
+    expect(toast.error).toHaveBeenLastCalledWith('Nope');
+  });
+
+  it('offline with no pack, it says what to do', async () => {
+    getOfflineQuestions.mockResolvedValue([]);
+    const { result } = setup(false);
+    await act(() => result.current.startSession(todayLoopPreset()));
+    expect(result.current.session.isActive).toBe(false);
+    expect(toast.error).toHaveBeenLastCalledWith(expect.stringMatching(/Connect once/));
   });
 });
 

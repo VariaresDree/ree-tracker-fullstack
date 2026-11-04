@@ -126,7 +126,6 @@ export default function Practice() {
       return (
         <SessionSummary
           summary={lastSummary}
-          isOnline={isOnline}
           loading={session.loading}
           onAgain={() => startSession(lastSummary.config)}
           onRetry={() => startSession(itemsPreset(lastSummary.items.filter((i) => !i.isCorrect).map((i) => i.question)))}
@@ -234,6 +233,7 @@ export default function Practice() {
         <KeyLegend keys={config.sessionMode === 'mcq' ? KEYS.practice : KEYS.flashcards} />
       </SessionBar>
 
+      {session.offlineNote && <p role="status" className="text-xs text-muted2 min-w-0">{session.offlineNote}</p>}
       <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
       <QuestionSurface className="overflow-hidden transition-colors duration-700">
 

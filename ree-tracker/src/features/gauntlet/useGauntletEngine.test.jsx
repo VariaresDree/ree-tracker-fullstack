@@ -42,6 +42,10 @@ vi.mock('../../store/slices', () => ({
 
 let apiRequestMock;
 let getAnalyticsProfileMock;
+vi.mock('../../services/bookmarks', () => ({
+  saveBookmark: vi.fn().mockResolvedValue({}),
+  removeBookmark: vi.fn().mockResolvedValue({}),
+}));
 vi.mock('../../services/dbQueries', () => ({
   apiRequest: (...args) => apiRequestMock(...args),
   getAnalyticsProfile: (...args) => getAnalyticsProfileMock(...args),

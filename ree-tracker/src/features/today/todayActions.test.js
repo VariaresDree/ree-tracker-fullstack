@@ -8,6 +8,19 @@ import { buildTodayActions, dailyProgress, daysToExam, pickPlanTask, readinessTr
 const forecast = (actions) => ({ recommendedActions: actions });
 
 describe('buildTodayActions', () => {
+  it('offline, with no loop loaded, it leads with a set from the device and says what it is', () => {
+    const [first] = buildTodayActions({ offline: true, daily: { done: 0, target: 50 } });
+    expect(first).toMatchObject({ key: 'loop', title: 'Practise from this device', preset: expect.objectContaining({ source: 'today-loop', items: null }) });
+    expect(first.detail).toMatch(/not today’s loop/);
+  });
+
+  it('offline with a loop already loaded, it keeps that one', () => {
+    const loop = { items: [{ id: 'a', text: 'x' }], counts: { due: 1 } };
+    const actions = buildTodayActions({ offline: true, loop });
+    expect(actions.filter((a) => a.key === 'loop')).toHaveLength(1);
+    expect(actions[0].title).toBe("Start today's loop");
+  });
+
   it('orders: due reviews, then the forecast\'s top fix, then today\'s target, then a mock', () => {
     const actions = buildTodayActions({
       srs: { due: 12, overdue: 3 },
