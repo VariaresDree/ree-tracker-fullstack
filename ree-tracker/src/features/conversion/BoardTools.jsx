@@ -4,6 +4,7 @@
 // boardMath.js, drawn where a picture helps. Drawn in theme colours, except the
 // resistor's bands, which are facts about the part.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Card, FormField, Grid, Input, Select, SegmentedControl } from '../../components/ui';
 import { ChevronLeft, ChevronRight } from '../../components/ui/icons';
 import {
@@ -11,6 +12,7 @@ import {
   rectToPolar, resistorValue, threePhase, withPrefix, wyeToDelta,
 } from './boardMath';
 import { evaluate, formatNumber } from './calc';
+import { CONSTANTS, EQUIVALENTS, readRow } from './equivalents';
 
 const num = (text) => {
   const result = evaluate(text);
@@ -20,7 +22,7 @@ const num = (text) => {
 function NumField({ label, value, onChange }) {
   const result = evaluate(value);
   return (
-    <FormField label={label} error={value.trim() && !result.ok ? result.error : undefined}>
+    <FormField label={label} error={value.trim() && !result.ok && !result.incomplete ? result.error : undefined}>
       <Input value={value} autoComplete="off" spellCheck={false} onChange={(e) => onChange(e.target.value)} />
     </FormField>
   );
@@ -38,6 +40,14 @@ function Results({ items }) {
     </Grid>
   );
 }
+
+// The sum behind a tool, on show: the method is what the board tests.
+const Formula = ({ children }) => (
+  <div className="flex flex-col gap-1 min-w-0">
+    <p className="text-sm text-muted2">The formula</p>
+    {children.map((line) => <p key={line} className="rounded-[var(--radius-default)] bg-surface2/60 px-3 py-2 text-sm text-textMain [overflow-wrap:anywhere]">{line}</p>)}
+  </div>
+);
 
 const Needs = ({ children }) => <p role="status" className="text-sm text-muted2">{children}</p>;
 const fields = 'grid grid-cols-2 gap-3 min-w-0';
@@ -100,6 +110,7 @@ function PowerTriangleTool() {
           ]} />
         </>
       ) : <Needs>Those values can’t make a triangle. Power factor runs from 0 to 1, and S is at least P.</Needs>}
+      <Formula>{['S = √(P² + Q²)', 'pf = P ÷ S = cos θ', 'Q = P tan θ']}</Formula>
     </div>
   );
 }
@@ -155,6 +166,7 @@ function PhasorTool() {
           <Results items={[['Rectangular', formatRect(rect)], ['Polar', formatPolar(rect)]]} />
         </>
       ) : <Needs>Enter both values to see it drawn.</Needs>}
+      <Formula>{['a + jb = r ∠ θ', 'r = √(a² + b²), θ = tan⁻¹(b ÷ a)', 'a = r cos θ, b = r sin θ']}</Formula>
     </div>
   );
 }
@@ -210,6 +222,7 @@ function DeltaWyeTool() {
       {out ? (
         <Results items={toBranches.flatMap(([key, name]) => [[name, formatRect(out[key])], [`${name}, polar`, formatPolar(out[key])]])} />
       ) : <Needs>Those values can’t be converted: a branch or their sum is zero.</Needs>}
+      <Formula>{from === 'delta' ? ['Za = Zab Zca ÷ (Zab + Zbc + Zca)', 'Balanced: ZY = ZΔ ÷ 3'] : ['Zab = (Za Zb + Zb Zc + Zc Za) ÷ Zc', 'Balanced: ZΔ = 3 ZY']}</Formula>
     </div>
   );
 }
@@ -237,6 +250,7 @@ function PerUnitTool() {
           ['New base Z', `${formatNumber(out.zBaseNew, 6)} Ω`],
         ]} />
       ) : <Needs>Bases have to be above zero.</Needs>}
+      <Formula>{['Z new = Z old × (S new ÷ S old) × (V old ÷ V new)²', 'Z base = kV² ÷ MVA']}</Formula>
     </div>
   );
 }
@@ -266,6 +280,7 @@ function ThreePhaseTool() {
           ['Reactive', withPrefix(out.Q, 'VAR')],
         ]} />
       ) : <Needs>Voltage has to be above zero, and power factor from 0 to 1.</Needs>}
+      <Formula>{[connection === 'wye' ? 'Wye: V phase = V line ÷ √3, I phase = I line' : 'Delta: V phase = V line, I phase = I line ÷ √3', 'S = √3 × V line × I line', 'P = S × pf, Q = S × sin θ']}</Formula>
     </div>
   );
 }
@@ -274,6 +289,8 @@ function ThreePhaseTool() {
 
 function AwgTool() {
   return (
+    <div className="flex flex-col gap-4 min-w-0">
+      <Formula>{['d in inches = 0.005 × 92^((36 − n) ÷ 39)', 'cmil = (d in mils)²']}</Formula>
     <div className="min-w-0 overflow-x-auto">
       <table className="w-full text-sm tabular-nums">
         <caption className="sr-only">American wire gauge sizes</caption>
@@ -296,6 +313,49 @@ function AwgTool() {
           ))}
         </tbody>
       </table>
+    </div>
+    </div>
+  );
+}
+
+// ---- Equivalents ------------------------------------------------------------
+
+function EquivalentsTool() {
+  return (
+    <div className="flex flex-col gap-5 min-w-0">
+      <p className="text-sm text-muted2">The ones reviewers expect you to know. Worked out from the same table as the converter. Tap one to see how it works.</p>
+      <Grid kind="pair" gap="sm">
+        {EQUIVALENTS.map((group) => (
+          <Card key={group.title} padding="sm" className="flex flex-col gap-2 min-w-0">
+            <p className="text-sm font-semibold text-textMain">{group.title}: {group.lead}</p>
+            <ul className="flex flex-col gap-0.5 min-w-0">
+              {group.rows.map((r) => {
+                const { text, link } = readRow(r);
+                return (
+                  <li key={link} className="min-w-0">
+                    <Link to={link} className="flex items-baseline justify-between gap-3 pointer-coarse:min-h-11 py-1 text-sm tabular-nums hover:underline min-w-0">
+                      <span className="text-muted2 shrink-0">{r.value} {r.from} =</span>
+                      <span className="font-medium text-textMain text-right [overflow-wrap:anywhere]">{text}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        ))}
+      </Grid>
+      <section aria-labelledby="board-constants" className="flex flex-col gap-2 min-w-0">
+        <p id="board-constants" className="text-eyebrow">Constants</p>
+        <ul className="flex flex-col min-w-0">
+          {CONSTANTS.map((c) => (
+            <li key={c.name} className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-x-4 border-t border-border2/40 py-2 text-sm min-w-0">
+              <span className="text-muted2 [overflow-wrap:anywhere]">{c.name}</span>
+              <span className="font-medium text-textMain tabular-nums [overflow-wrap:anywhere] sm:text-right">{c.values.join(' = ')}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-muted2">Rounded as reviewers quote them. A problem that gives its own value wins.</p>
+      </section>
     </div>
   );
 }
@@ -339,6 +399,7 @@ function ResistorTool() {
         })}
       </svg>
       <p className="text-2xl font-semibold text-textMain tabular-nums" aria-live="polite">{text}</p>
+      <Formula>{[count === 4 ? 'Value = (digit 1, digit 2) × multiplier' : 'Value = (digit 1, digit 2, digit 3) × multiplier']}</Formula>
       <div className={fields}>
         {used.map((id, i) => (
           <BandSelect key={i} label={`Digit ${i + 1}`} value={id} options={DIGITS} onChange={(next) => setDigits((all) => all.map((d, j) => (j === i ? next : d)))} />
@@ -353,6 +414,7 @@ function ResistorTool() {
 // ---- The list ---------------------------------------------------------------
 
 const TOOLS = [
+  { id: 'equivalents', label: 'Equivalents and constants', about: 'atm, hp, BTU, kcal, g, R', Tool: EquivalentsTool },
   { id: 'triangle', label: 'Power triangle', about: 'P, Q, S and power factor', Tool: PowerTriangleTool },
   { id: 'phasor', label: 'Phasor', about: 'Polar and rectangular, drawn', Tool: PhasorTool },
   { id: 'deltawye', label: 'Δ and Y', about: 'Impedance, either way', Tool: DeltaWyeTool },

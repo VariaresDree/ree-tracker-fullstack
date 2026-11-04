@@ -8,6 +8,10 @@ section 1).
 [`FEATURES.md`](../FEATURES.md) is the complete record of what the app does;
 [`ROADMAP.md`](../ROADMAP.md) is the phase plan. This file is the short list.
 
+## Units and tools: future additions
+
+Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
+
 ## 0c. Handover, third round of 2026-11-03 (read this first)
 
 The owner's seven-PR plan: nothing folded away, board counts in Admin, a choice of mock draw, and a simpler, more visual app.
