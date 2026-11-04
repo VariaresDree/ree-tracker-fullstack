@@ -21,6 +21,7 @@ const SETTLE_WAIT_MS = 8000;
 // A rematch re-checks the old battle's settings with the create rules (minus
 // the id, which the server mints).
 const rematchSettingsSchema = battleCreateSchema.omit({ battleId: true });
+const INVITE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 // Create a battle from a pool SPEC (services/battleCreate). Always uses the
 // authenticated user as host — never trust a body field for the FK.
@@ -92,6 +93,40 @@ router.get('/me/active', authMiddleware, async (req, res) => {
 
 const HISTORY_DEFAULT = 20;
 const HISTORY_MAX = 100;
+
+// GET /api/battles/me/invites: rematches someone else started from a battle the
+// caller played, still waiting to start and less than a day old. Owner-scoped.
+// A lobby nobody started never closes, so without the age limit it would stay.
+router.get('/me/invites', authMiddleware, async (req, res) => {
+    try {
+        const since = new Date(Date.now() - INVITE_MAX_AGE_MS);
+        const rows = await prisma.battleOutcome.findMany({
+            where: {
+                userId: req.user.id,
+                battle: { rematch: { is: { status: 'WAITING', createdAt: { gte: since }, hostId: { not: req.user.id } } } },
+            },
+            select: {
+                battle: {
+                    select: {
+                        rematch: { select: { id: true, hostId: true, config: true } },
+                        participants: { select: { userId: true, displayName: true } },
+                    },
+                },
+            },
+            take: 10,
+        });
+        res.status(200).json({
+            items: rows.map(({ battle }) => ({
+                battleId: battle.rematch.id,
+                config: battle.rematch.config,
+                by: battle.participants.find((p) => p.userId === battle.rematch.hostId)?.displayName || null,
+            })),
+        });
+    } catch (error) {
+        logger.error('battle invites failed', { error: error.message });
+        res.status(500).json({ error: 'Couldn’t load your invites.' });
+    }
+});
 
 // GET /api/battles/me/history?limit=20&before=<ISO time> — the caller's
 // finished battles, newest first: the format, their place and score, the

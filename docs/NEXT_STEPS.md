@@ -12,7 +12,56 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0c. Handover, third round of 2026-11-03 (read this first)
+## 0d. Handover, round of 2026-11-04 (read this first)
+
+The owner's ten-PR plan: one exam frame across every session, imported and shared quizzes, unit conversion, files on the device, backup, and offline proven with the network cut.
+
+| PR | What |
+|---|---|
+| #218 | Mouse drag on the jump strips, and nine exam bugs |
+| #219 | One session frame (`SessionBar`, `SessionActions`, `useItemFocus`) for Practice, Mock, Battles, Gauntlet and Placement |
+| #220 | One results card with next steps, resuming runs, reporting with a reason |
+| #221 | Imported quizzes kept on the device, in Practice and Exam modes (`services/deviceStore.js`, ADR-003) |
+| #222 | Shared quiz files: Admin uploads, learners download (`QuizFile`, in Postgres) |
+| #223, #224 | Units and tools, ESAS first (`@ree/shared/units`, 46 quantities, 291 units), with how each conversion works |
+| #225 | My files, saving handouts offline through Drive's API, a storage meter, a real PDF viewer |
+| #226 | Backup and restore (`.reebak`), `GET /api/user/export`, account deletion that clears everything |
+| #227 | Offline gaps closed, and `zz-offline.spec.ts`, a real service worker with the network cut, in airplane mode and on Wi-Fi with no internet |
+| #228 | Battles draw choice, direct rematch invites, two-day board, first-run tour, notes with their cards, rendered heading and contrast sweep |
+
+**Decisions:**
+- **Files stay on the device, records stay synced.** "Total device isolation" was rejected: Battles, rankings and calibration need other users, ranked scores rest on server re-grading, and phone and tablet have to agree. See `docs/decisions/ADR-003`.
+- Sign in once, then offline. No guest mode.
+- Timed exams get the scratchpad only. Practice gets scratchpad, converter and calculator.
+- Imported quiz scores never count toward ratings, readiness or streaks, since their keys aren't vetted.
+- **Quiz files' subjects are the admin's to set.** All 13 are General for now, and that's the owner's call.
+- Restore never overwrites, and never brings back graded answers.
+- The exam date is the first of two days in a row, as in PRC's 2026 schedules. No subject is tied to either day, because PRC changed the order in September 2026.
+
+**Verified live:**
+- The owner saved a real 15.4 MB, 1,056-page handout, and it draws. The owner uploaded 13 quizzes, and one ran in Practice.
+- The owner tried backup and restore: "seems fine".
+- In a fresh Chromium the service worker precaches all 275 files, and the app boots offline.
+- A Large question pack downloaded from the real server: 6,000 questions, 8.8 MB, 15 seconds.
+
+**Not verified:**
+- **A real phone or tablet,** above all the sticky session bars, pinch zoom in the PDF viewer, airplane mode, and storage and downloads on iOS.
+- **The JBIG2 decoder** has never run on a real file. JPEG 2000 has.
+- **A real rematch invite** between two accounts on production. It's covered by route and component tests and a stubbed browser check, but nothing has played two people through it.
+- **A battle drawn by Board's counts** on the real bank, for the same reason. The picking is the mock's own code, tested on the server with stubbed rows.
+- **A restore on an account with real data** beyond the owner's own try. It adds only what's missing.
+
+**Next, in order:**
+1. **Features:** tag questions by subtopic with AI help and review, then subtopic counts, drills and ticks from answers. Fill the Thin topics through Add › Import. More in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
+2. **Reliability:** the multi-device first-answer undercount (reconcile from the server's calendar on focus), scanned PDFs as images to a vision model, cold starts (a waking message, or an always-on instance).
+3. **Performance:** the API sends no compression (`compression` isn't in the backend), so a Large pack is 8.8 MB on the wire. It's worth trying, and worth watching what it costs on 0.1 CPU.
+4. **Later:** spectating and ranked matchmaking once there are enough players, Web Push and a weekly summary after the iOS build decision, and Fix rounds on the bank, starting with the 1,305 answered questions.
+
+**Limit:** the boot download is at 99.5% of its 700 kB budget, about 3.6 KB left. Everything new has to be lazy. The next person to need room should look for something to take out of the entry chunk first.
+
+**Testing:** `e2e-authed` can run most of the way locally. The Auth emulator needs no Java, and a small stand-in on port 5000 replaces the backend, though screens then show thin data. CI still runs it for real. `a11y-sweep.spec.ts` finds rendered contrast and heading problems; run it when a colour or heading changes.
+
+## 0c. Handover, third round of 2026-11-03
 
 The owner's seven-PR plan: nothing folded away, board counts in Admin, a choice of mock draw, and a simpler, more visual app.
 

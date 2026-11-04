@@ -40,6 +40,11 @@ export function readinessTrend(snapshots, now = new Date()) {
   return { scores: points.map((p) => Math.round(p.score)), delta: Math.round(latest.score - base.score) };
 }
 
+// The exam date is the first of the board's two days, which have run in a row in
+// PRC's 2026 schedules, so 0 is day one and -1 is day two. Which subjects fall on
+// which day isn't assumed, because PRC changes it.
+export const isBoardDay = (days) => days === 0 || days === -1;
+
 /** Whole days until the exam date (YYYY-MM-DD), or null. */
 export function daysToExam(examDate, now = new Date()) {
   if (!examDate) return null;
@@ -196,7 +201,7 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
     });
   }
 
-  if (planTask?.kind !== 'mock') {
+  if (planTask?.kind !== 'mock' && !isBoardDay(examInDays)) {
     actions.push({
       key: 'mock',
       title: 'Sit a timed mock board',

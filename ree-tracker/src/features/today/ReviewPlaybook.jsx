@@ -43,7 +43,7 @@ export default function ReviewPlaybook({ open, onClose, phase, daysLeft, reviewM
         </ol>
 
         <p className="text-sm text-textMain">
-          <span className="tabular-nums">{daysLeft === 0 ? 'Today is the exam.' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} to the exam.`}</span>{' '}
+          <span className="tabular-nums">{daysLeft === 0 ? 'Today is day one of the exam.' : daysLeft === -1 ? 'Today is day two of the exam.' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} to the exam.`}</span>{' '}
           {book.aim}
         </p>
 

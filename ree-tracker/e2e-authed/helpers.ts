@@ -9,6 +9,24 @@ const ACCOUNTS = {
   admin: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
 };
 
+const tabs = (path: string, ids: string[]) => ids.map((id) => `${path}?tab=${id}`);
+
+/** Every screen and tab, for an admin. */
+export const SCREENS = [
+  '/',
+  '/practice',
+  ...tabs('/exams', ['mock', 'gauntlet', 'battles', 'rankings', 'history', 'paper']),
+  ...tabs('/progress', ['overview', 'topics', 'weak-spots', 'confidence', 'habits', 'syllabus', 'plan']),
+  ...tabs('/library', ['handouts', 'files', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion']),
+  '/account',
+  ...tabs('/admin', ['questions', 'explanations', 'references', 'syllabus', 'handouts', 'ai', 'health']),
+  ...['add', 'add&how=import', 'add&how=file', 'add&how=manual', 'review', 'fix'].map((view) => `/admin?tab=questions&view=${view}`),
+  '/simulator',
+  '/diagnostic',
+  '/focus',
+  '/scan',
+];
+
 /** Sign in through the real login form, against the Auth emulator (the learner unless told otherwise). */
 export async function signIn(page: Page, who: keyof typeof ACCOUNTS = 'learner') {
   const { email, password } = ACCOUNTS[who];

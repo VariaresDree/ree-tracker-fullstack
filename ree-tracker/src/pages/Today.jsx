@@ -28,8 +28,9 @@ import { Page, PageHeader, StatusPill } from '../components/ui';
 import { CalendarDays, Flame } from '../components/ui/icons';
 
 function examLabel(days) {
-  if (days < 0) return { tone: 'danger', text: 'Exam date has passed' };
-  if (days === 0) return { tone: 'amber', text: 'Exam today' };
+  if (days < -1) return { tone: 'danger', text: 'Exam date has passed' };
+  if (days === -1) return { tone: 'amber', text: 'Day 2 of 2' };
+  if (days === 0) return { tone: 'amber', text: 'Day 1 of 2' };
   return { tone: days <= 14 ? 'amber' : 'success', text: `${days} day${days === 1 ? '' : 's'} to the exam` };
 }
 
@@ -42,7 +43,8 @@ const nextDateText = (next) => (next ? `${next.entry.title} ${inDaysLabel(next.i
 function ExamCountdown({ examDate, next, reviewMode }) {
   const [open, setOpen] = useState(false);
   const days = daysToExam(examDate);
-  const phase = reviewPhase(days);
+  // Day two is still the last phase; past that there's none.
+  const phase = reviewPhase(days === -1 ? 0 : days);
   if (days == null) {
     return (
       <Link to="/account#exam-plan" className="touch-target inline-flex items-center text-xs text-muted2 hover:text-textMain hover:underline underline-offset-2">

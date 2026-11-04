@@ -31,9 +31,11 @@ export function StatusPill({ status, tone, children, dot = true, className }) {
   const label = children ?? status;
   const style = accent
     ? {
-        color: accent,
+        // Leaning to the main text colour, since the tint below brings the background
+        // up towards the label (themeContrast.test.js measures it on every theme).
+        color: `color-mix(in srgb, ${accent} 40%, var(--text-main))`,
         borderColor: `color-mix(in srgb, ${accent} 35%, transparent)`,
-        background: `color-mix(in srgb, ${accent} 12%, transparent)`,
+        background: `color-mix(in srgb, ${accent} 8%, transparent)`,
       }
     : undefined;
 

@@ -67,7 +67,7 @@ export default function ExamPlanForm({ onDirtyChange, onSaved, submitLabel = 'Sa
   return (
     <form onSubmit={save} noValidate className="flex flex-col gap-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <FormField label="Exam date" hint={days == null ? 'Not set yet. Clear the date to remove it.' : days > 1 ? `${days} days to go` : days === 1 ? '1 day to go' : days === 0 ? 'Today' : 'This date has passed'}>
+        <FormField label="Exam date" hint={days == null ? 'The first of the board’s two days. Not set yet. Clear the date to remove it.' : days > 1 ? `${days} days to go` : days === 1 ? '1 day to go' : days === 0 ? 'Today, day one' : days === -1 ? 'Today, day two' : 'This date has passed'}>
           <Input type="date" value={examDate} onChange={(e) => { setExamDate(e.target.value); onDirtyChange?.(true); }} />
         </FormField>
         <FormField

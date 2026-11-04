@@ -77,7 +77,7 @@ export default function LibraryOverview({ serverStats, vaultMetadata, resyncVaul
                   const count = vaultMetadata ? vaultMetadata[`${safeSubj}_${sub}`] || 0 : 0;
                   return (
                     <div key={sub} className="flex justify-between items-center text-xs group shrink-0">
-                      <span className={`truncate pr-3 transition-colors ${count > 0 ? 'text-textMain font-medium' : 'text-muted2 opacity-50'}`} title={sub}>{sub}</span>
+                      <span className={`truncate pr-3 transition-colors ${count > 0 ? 'text-textMain font-medium' : 'text-muted2'}`} title={sub}>{sub}</span>
                       <span
                         className="font-mono text-micro px-2 py-0.5 rounded-[var(--radius-sm)] border tabular-nums"
                         style={count > 0

@@ -11,6 +11,9 @@ import toast from 'react-hot-toast';
 
 const REMATCH_NEEDS_CONNECTION = 'Rematch needs a connection. Reconnect and try again.';
 
+// Even spread is the default, and goes unsaid.
+const DRAW_LABEL = { board: 'Board’s counts', own: 'Host’s own counts' };
+
 export default function BattleLobby() {
     const { battleId } = useParams();
     // One room per battle: a rematch opens the new battle on this same route,
@@ -213,6 +216,7 @@ function BattleRoom({ battleId }) {
                                 Subject: {battleConfig.config?.mode === 'blended' ? 'Full mock' : battleConfig.config?.subject}
                             </Badge>
                             <Badge tone="neutral">Questions: {battleConfig.questionCount || '?'}</Badge>
+                            {DRAW_LABEL[battleConfig.config?.drawMode] && <Badge tone="neutral">{DRAW_LABEL[battleConfig.config.drawMode]}</Badge>}
                             <Badge tone="velocity">Time: {Math.round((battleConfig.timeLimitSecs || 0) / 60)} min</Badge>
                         </div>
                     )}

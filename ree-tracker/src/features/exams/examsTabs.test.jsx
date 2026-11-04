@@ -14,7 +14,9 @@ let online = true;
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online }));
 let storeStats;
 vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats }) }));
+const createMultiplayerBattle = vi.hoisted(() => vi.fn(async () => 'ABC123'));
 vi.mock('../../services/dbQueries', () => ({
+  createMultiplayerBattle,
   fetchMultiplayerBattle: vi.fn(),
   fetchActiveBattles: vi.fn(async () => ({ items: [], serverNow: Date.now() })),
   fetchPaginatedLeaderboard: vi.fn(),
@@ -22,6 +24,10 @@ vi.mock('../../services/dbQueries', () => ({
 }));
 // Past battles has its own tests (BattleHistory.test.jsx).
 vi.mock('./BattleHistory', () => ({ default: () => <section aria-label="Past battles" /> }));
+vi.mock('./RematchInvites', () => ({ default: () => null }));
+const drawPrefs = vi.hoisted(() => ({ value: { drawMode: 'even', ownCounts: {} } }));
+vi.mock('../board-simulator/useDrawPrefs', () => ({ useDrawPrefs: () => ({ prefs: drawPrefs.value, save: vi.fn() }) }));
+vi.mock('../board-simulator/DrawPicker', () => ({ default: () => <p>How questions are picked</p> }));
 
 const { fetchPaginatedLeaderboard, fetchLeaderboardMe } = await import('../../services/dbQueries');
 const { default: BattlesTab } = await import('./BattlesTab');
@@ -65,6 +71,29 @@ describe('BattlesTab', () => {
     expect(formats.map((r) => r.textContent.trim())).toEqual(
       expect.arrayContaining([expect.stringMatching(/Custom mock/), expect.stringMatching(/One subject/), expect.stringMatching(/Mixed paper/)]),
     );
+  });
+});
+
+describe('hosting a battle', () => {
+  const host = async () => {
+    renderTab(<BattlesTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
+    expect(screen.getByText('How questions are picked')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create lobby' }));
+    await vi.waitFor(() => expect(createMultiplayerBattle).toHaveBeenCalled());
+    return createMultiplayerBattle.mock.calls.at(-1)[0];
+  };
+
+  it('sends the host’s draw choice with the spec', async () => {
+    drawPrefs.value = { drawMode: 'board', ownCounts: {} };
+    const config = await host();
+    expect(config.drawMode).toBe('board');
+    expect(config.ownCounts).toBeUndefined();
+  });
+
+  it('their own counts go along only when they’re the choice', async () => {
+    drawPrefs.value = { drawMode: 'own', ownCounts: { EE: { Machines: 5 } } };
+    expect((await host()).ownCounts).toEqual({ EE: { Machines: 5 } });
   });
 });
 

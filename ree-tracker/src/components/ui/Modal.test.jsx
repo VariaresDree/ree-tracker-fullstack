@@ -7,9 +7,25 @@
 // which made the outer modal capture 'hidden' as its "restore" value and
 // left document.body.style.overflow stuck on 'hidden' forever after both
 // modals closed — the reported "can't scroll after Accept All" freeze.
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { Modal } from './Modal';
+
+describe('Modal — Escape', () => {
+  it('closes only the one on top', () => {
+    const outer = vi.fn();
+    const inner = vi.fn();
+    const { rerender } = render(<Modal open onClose={outer} title="Outer"><p>o</p></Modal>);
+    rerender(<Modal open onClose={outer} title="Outer"><Modal open onClose={inner} title="Inner"><p>i</p></Modal></Modal>);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(outer).not.toHaveBeenCalled();
+
+    rerender(<Modal open onClose={outer} title="Outer"><p>o</p></Modal>);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(outer).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('Modal — body scroll lock', () => {
   it('restores the original overflow after nested modals close, even across parent re-renders', () => {

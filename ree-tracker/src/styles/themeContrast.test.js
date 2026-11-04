@@ -251,6 +251,24 @@ describe('theme contrast (WCAG AA)', () => {
             expect(failures).toEqual([]);
         });
     }
+    // StatusPill: its label on its own 8% tint, over a card or a panel. Found by the
+    // rendered sweep (e2e-authed/a11y-sweep.spec.ts): amber read 4.01-4.25:1 on the
+    // mid-tone themes, since the tint brings the background up towards the text. The
+    // label is 40% the tone, the rest the main text colour; the numbers match StatusPill.
+    const PILL_TINT = 0.06;
+    const pillSrc = fs.readFileSync(new URL('../components/ui/StatusPill.jsx', import.meta.url), 'utf8');
+    const PILL_TONES = [...pillSrc.match(/const TONE_VAR = \{([\s\S]*?)\};/)[1].matchAll(/(\w+):\s*'(var\([^']+\))'/g)].map((m) => [m[1], m[2]]);
+    for (const [name, t] of Object.entries(all)) {
+        it(`${name}: a status pill's label reads on its own tint`, () => {
+            const failures = PILL_TONES.flatMap(([tone, value]) => ['--bg-surface', '--bg-surface2'].map((bg) => {
+                const accent = resolve(t, value);
+                const fg = resolve(t, `color-mix(in srgb, ${value} 40%, var(--text-main))`);
+                return { pair: `${tone} pill on ${bg}`, ratio: +contrast(fg, mix(accent, resolve(t, t[bg]), PILL_TINT)).toFixed(2) };
+            })).filter((r) => r.ratio < 4.5);
+            expect(failures).toEqual([]);
+        });
+    }
+
     for (const name of ['light', 'paper', 'sakura']) {
         it(`${name}: brand colours used as text clear the floor`, () => {
             const t = all[name];

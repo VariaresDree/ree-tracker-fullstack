@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { toDisplaySubject } from '@ree/shared';
 import { Badge, Button, Card, EmptyState, SegmentedControl, Skeleton } from '../../components/ui';
 import { CloudOff, StickyNote, TriangleAlert } from '../../components/ui/icons';
+import LatexRenderer from '../../components/LatexRenderer';
 import SmartText from '../../components/SmartText';
 import NoteEditor from './NoteEditor';
 import { useNotes } from './notesStore';
@@ -28,6 +29,11 @@ function NoteCard({ note }) {
       <div className="text-sm font-medium text-textMain line-clamp-2 overflow-hidden">
         {note.target ? <SmartText text={note.target.title} /> : <span className="text-muted2">No longer in the app</span>}
       </div>
+      {isCard && note.target?.formula && (
+        <div className="text-sm text-textMain overflow-x-auto math-scroll-mobile no-scrollbar min-w-0 rounded-[var(--radius-default)] bg-surface2 px-3 py-2">
+          <LatexRenderer content={`$${note.target.formula}$`} />
+        </div>
+      )}
       <p className="text-sm text-textMain whitespace-pre-wrap [overflow-wrap:anywhere] border-l-2 pl-3" style={{ borderColor: 'var(--color-reeAmber)' }}>
         {note.body}
       </p>

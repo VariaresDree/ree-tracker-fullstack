@@ -517,6 +517,7 @@ export const createMultiplayerBattle = async (config, timeLimitSecs) => {
 export const fetchMultiplayerBattle = async (battleId) => apiRequest(`/api/battles/${battleId}`);
 // The running battles you're in, for "Return to battle": { items, serverNow }.
 export const fetchActiveBattles = async () => apiRequest('/api/battles/me/active');
+export const fetchRematchInvites = async () => apiRequest('/api/battles/me/invites');
 // Your finished battles, newest first: { items, nextBefore }. Pass the last
 // page's `nextBefore` as `before` for the next one (null: nothing older).
 export const fetchBattleHistory = async ({ before = null, limit = 20 } = {}) => {

@@ -1,11 +1,29 @@
 import { describe, it, expect } from 'vitest';
 import { todayManila, dayBefore } from '@ree/shared';
-import { buildTodayActions, dailyProgress, daysToExam, pickPlanTask, readinessTrend } from './todayActions';
+import { buildTodayActions, dailyProgress, daysToExam, isBoardDay, pickPlanTask, readinessTrend } from './todayActions';
 
 // "What should I do next?" — one ordered shortlist assembled from the review
 // queue, the forecast's prescription, today's target and the exam calendar.
 
 const forecast = (actions) => ({ recommendedActions: actions });
+
+describe('the board’s two days', () => {
+  it('the exam date is day one, the next day is day two, and only after that has it passed', () => {
+    expect(isBoardDay(1)).toBe(false);
+    expect(isBoardDay(0)).toBe(true);
+    expect(isBoardDay(-1)).toBe(true);
+    expect(isBoardDay(-2)).toBe(false);
+    expect(isBoardDay(null)).toBe(false);
+  });
+
+  it('no mock board is offered on either day', () => {
+    const keys = (examInDays) => buildTodayActions({ examInDays }).map((a) => a.key);
+    expect(keys(1)).toContain('mock');
+    expect(keys(0)).not.toContain('mock');
+    expect(keys(-1)).not.toContain('mock');
+    expect(keys(-2)).toContain('mock');
+  });
+});
 
 describe('buildTodayActions', () => {
   it('offline, with no loop loaded, it leads with a set from the device and says what it is', () => {

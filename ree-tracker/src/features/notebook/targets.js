@@ -20,4 +20,5 @@ export const cardTarget = (card) => ({
   topic: card?.subtopicTag || null,
   title: card?.symbol ? `${card.name} (${card.symbol})` : card?.name || '',
   name: card?.name || '',
+  formula: card?.formulaLatex || card?.valueUnit || null,
 });
