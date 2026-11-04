@@ -96,7 +96,7 @@ export default function StorageSettings() {
         </div>
         {state?.persisted === true
           ? <p className="text-xs text-muted2">The browser won’t clear this site’s storage on its own. Clearing its data by hand still removes everything here.</p>
-          : <p className="text-xs text-muted2">A browser can clear a whole site’s data when it runs short of space, so keep the originals of anything important.</p>}
+          : <p className="text-xs text-muted2">A browser can clear a whole site’s data when it runs short of space, so make a backup now and then, in Your data below.</p>}
         {state?.persisted === false && canProtect && (
           <div>
             <Button size="sm" variant="secondary" onClick={protect}>Ask the browser to protect it</Button>

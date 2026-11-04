@@ -4,7 +4,7 @@
 // still being read and any that failed. A plain module store (never src/store:
 // this feature stays isolated), so the list doesn't flicker on switching tabs.
 import { useSyncExternalStore } from 'react';
-import { __clearQuizMemory, carryAttempts, deleteQuiz, getQuiz, listQuizzes, quizIdFor, saveQuiz } from './quizStore';
+import { __clearQuizMemory, carryAttempts, deleteQuiz, getQuiz, getRun, listQuizzes, mergeAttempts, quizIdFor, saveQuiz, saveRun } from './quizStore';
 import { parseCaqArchive } from './caqParser';
 
 let state = { entries: [], loaded: false };
@@ -59,6 +59,25 @@ export async function addDownloadedQuiz(uid, { buffer, fileName, shared, replace
   }
   await refreshQuizzes(uid);
   if (!kept) setEntries((entries) => entries.map((e) => (e.id === id ? { ...e, onlyInMemory: true } : e)));
+  return id;
+}
+
+/** A quiz from a backup: kept if it's new, its scores merged, and its run back if none is here. */
+export async function restoreQuiz(uid, { buffer, fileName, addedAt, shared, attempts, run }) {
+  const id = await quizIdFor(buffer);
+  const existing = await getQuiz(uid, id);
+  if (!existing) {
+    await saveQuiz(uid, {
+      id,
+      fileName,
+      addedAt,
+      file: new Blob([buffer], { type: 'application/zip' }),
+      result: await parseCaqArchive(buffer),
+      shared: shared || null,
+    });
+  }
+  await mergeAttempts(uid, id, attempts);
+  if (run && !(await getRun(uid, id))) await saveRun(uid, id, run);
   return id;
 }
 

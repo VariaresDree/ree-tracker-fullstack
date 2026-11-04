@@ -8,6 +8,7 @@ import { deleteUser } from 'firebase/auth';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStore } from '../../store/useStore';
 import { deleteAccount } from '../../services/dbQueries';
+import { deleteDeviceData } from '../../services/deviceStore';
 import { purgeSimulationLedger } from '../../services/simulationLedger';
 import { Button, FormField, Input, Modal } from '../../components/ui';
 import { TriangleAlert, LogOut } from '../../components/ui/icons';
@@ -84,6 +85,7 @@ export default function SecuritySettings() {
       await deleteAccount();
       await deleteUser(currentUser);
       try { await purgeSimulationLedger(uid); } catch { /* device-only, best-effort */ }
+      try { await deleteDeviceData(uid); } catch { /* device-only, best-effort */ }
       await resetStore();
       toast.success('Account deleted.', { id: toastId });
     } catch (err) {

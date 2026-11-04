@@ -7,7 +7,7 @@
 // and the planner (now in Progress) and an admin tool (now in Admin).
 // Sections have anchors (/account#offline) so other screens can link straight
 // to one.
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShallow } from 'zustand/react/shallow';
@@ -17,7 +17,9 @@ import { useStore } from '../store/useStore';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { syncDashboardStats } from '../services/analyticsSync';
 import { updateUserProfile } from '../services/dbQueries';
-import { Page, PageHeader, Card, CardTitle, Button, FormField, Input } from '../components/ui';
+import { Page, PageHeader, Card, CardTitle, Button, FormField, Input, Skeleton } from '../components/ui';
+import ErrorBoundary from '../components/ErrorBoundary';
+import { lazy } from '../utils/lazyWithRetry';
 import { fadeMask, useScrollFades } from '../components/ui/scrollFade';
 import ThemingArchitecture from '../features/profile/ThemingArchitecture';
 import CredentialsTab from '../features/profile/CredentialsTab';
@@ -28,6 +30,9 @@ import Milestones from '../features/account/Milestones';
 import DataSettings from '../features/account/DataSettings';
 import SecuritySettings from '../features/account/SecuritySettings';
 import AppVersion from '../features/account/AppVersion';
+
+// Lazy: it brings the quiz parser, and most visits to Account never use it.
+const BackupSettings = lazy(() => import('../features/backup/BackupSettings'));
 
 // Jump links to each section: Account is nine sections long, and on a phone
 // "Sign-in & security" was a long scroll down with no way to see what was there.
@@ -169,7 +174,16 @@ export default function Account() {
       </Section>
 
       <Section id="data" title="Your data">
-        <DataSettings />
+        <div className="flex flex-col gap-5 min-w-0">
+          <ErrorBoundary name="Backup">
+            <Suspense fallback={<Skeleton className="h-40" />}>
+              <BackupSettings />
+            </Suspense>
+          </ErrorBoundary>
+          <div className="border-t border-border2/60 pt-5">
+            <DataSettings />
+          </div>
+        </div>
       </Section>
 
       <Section id="security" title="Sign-in & security">
