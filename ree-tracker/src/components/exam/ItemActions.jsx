@@ -6,10 +6,10 @@
 // `onReport` gets the reason picked: one tap, since a clock may be running.
 import { useState } from 'react';
 import { Button, Modal } from '../ui';
-import { Bookmark, Flag, Pencil, Pin } from '../ui/icons';
+import { Bookmark, Calculator, Flag, Pencil, Pin } from '../ui/icons';
 import { COPY, REPORT_REASONS } from '../../features/quiz/examCopy';
 
-export default function ItemActions({ marked, onMark, onScratchpad, reported, onReport, bookmarked, onBookmark, children }) {
+export default function ItemActions({ marked, onMark, onScratchpad, onTools, reported, onReport, bookmarked, onBookmark, children }) {
   const [reporting, setReporting] = useState(false);
   return (
     <div className="flex gap-1.5">
@@ -21,6 +21,11 @@ export default function ItemActions({ marked, onMark, onScratchpad, reported, on
       {onScratchpad && (
         <Button size="icon" variant="ghost" onClick={onScratchpad} aria-label={COPY.scratchpad} title={COPY.scratchpad} className="text-muted hover:text-textMain">
           <Pencil size={16} strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+      )}
+      {onTools && (
+        <Button size="icon" variant="ghost" onClick={onTools} aria-label={COPY.tools} title={COPY.tools} className="text-muted2">
+          <Calculator size={16} strokeWidth={1.75} aria-hidden="true" />
         </Button>
       )}
       {onReport && (

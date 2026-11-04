@@ -28,6 +28,7 @@ vi.mock('../features/materials/MaterialViewer', () => ({ default: ({ material, o
 vi.mock('../features/vault/BookmarkVaultTab', () => ({ default: () => <p>bookmarks</p> }));
 vi.mock('../features/notebook/NotebookTab', () => ({ default: () => <section><h2>Notebook</h2><p>notebook</p></section> }));
 vi.mock('../features/quiz-launcher/QuizLauncherTab', () => ({ default: () => <p>quizzes</p> }));
+vi.mock('../features/conversion/ConversionTab', () => ({ default: () => <p>conversion</p> }));
 vi.mock('../features/links/LinksTab', () => ({ default: ({ embedded }) => <><h2>{embedded ? 'Your links' : 'Links'}</h2><p>links</p></> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
 vi.mock('../features/analytics/ExplanationReview', () => ({ default: () => <p>explanation-review</p> }));
@@ -97,10 +98,10 @@ describe('Library (learner)', () => {
         expect(screen.getByRole('tab', { name: /^Formula cards/ })).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('has no tab that leads nowhere: unit conversion comes back when it’s built', () => {
+    it('units and tools has its own tab, and opens from a link', async () => {
         at('/library?tab=conversion', Library);
-        expect(screen.queryByRole('tab', { name: /Unit conversion/ })).not.toBeInTheDocument();
-        expect(screen.getByRole('tab', { name: 'Handouts' })).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByRole('tab', { name: /Units and tools/, selected: true })).toBeInTheDocument();
+        expect(await screen.findByText('conversion')).toBeInTheDocument();
     });
 
     it('opens formula cards from an old /materials deep link, keeping its search', () => {
@@ -113,16 +114,16 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Handouts', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes']);
+        expect(tabs).toEqual(['Handouts', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes', 'Units and tools']);
     });
 });
 
 describe('Library headings', () => {
     // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
     // formula-card panels check their outlines in their own tests.
-    it.each(['handouts', 'formulas', 'notebook', 'bookmarks', 'quizzes'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['handouts', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/library?tab=${tab}`, Library);
-        if (tab === 'quizzes') await screen.findByText(tab);
+        if (tab === 'quizzes' || tab === 'conversion') await screen.findByText(tab);
         if (tab === 'handouts') await screen.findByText('links');
         expectNoSkippedLevels(container);
     });

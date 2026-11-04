@@ -113,6 +113,11 @@ describe('Gauntlet — the same tools as the mock', () => {
     expect(screen.getByRole('dialog', { name: 'Scratchpad' })).toBeInTheDocument();
   });
 
+  it('has no calculator: a timed exam keeps the scratchpad only', () => {
+    renderAtIndex(0, 3);
+    expect(screen.queryByRole('button', { name: 'Open calculator and units' })).not.toBeInTheDocument();
+  });
+
   it('marks an item for review, by button or M, and the submit dialog lists it', () => {
     const toggleMarked = vi.fn();
     renderAtIndex(1, 3, 'active', { toggleMarked, marked: new Set([2]) });

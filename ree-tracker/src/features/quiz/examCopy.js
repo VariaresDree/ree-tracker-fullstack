@@ -8,6 +8,7 @@ export const COPY = {
   save: 'Save to bookmarks',
   saved: 'Remove from bookmarks',
   scratchpad: 'Open scratchpad',
+  tools: 'Open calculator and units',
   mark: 'Mark for review (M)',
   unmark: 'Unmark for review',
   submit: 'Submit exam',

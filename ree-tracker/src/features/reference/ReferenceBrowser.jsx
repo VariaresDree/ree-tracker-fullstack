@@ -21,10 +21,11 @@
 import { Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
+import { categoryForCard } from '../conversion/unitLink';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
 import { Input, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
-import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer } from '../../components/ui/icons';
+import { BookOpen, Calculator, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import Flashcard from './Flashcard';
 import { GENERAL, groupCards } from './groupCards';
@@ -76,6 +77,17 @@ const VIEW_OPTIONS = (browseLabel) => [
 
 const sheetPrintPath = (subject, topic) => `/print/formulas?${new URLSearchParams({ subject, ...(topic ? { topic } : {}) })}`;
 
+// Beside the card, not on it: the whole card is the button that flips it.
+function UnitsLink({ card }) {
+  const category = categoryForCard(card);
+  if (!category) return null;
+  return (
+    <Link to={`/library?tab=conversion&cat=${category}`} className="self-end inline-flex items-center gap-1 pointer-coarse:min-h-11 text-xs font-medium text-[var(--accent-text)] hover:underline">
+      <Calculator size={12} strokeWidth={1.75} aria-hidden="true" /> Convert these units
+    </Link>
+  );
+}
+
 // A topic's cards, under its tag headings when it has any, with a chip per tag
 // to narrow down to one.
 function TopicCards({ cards }) {
@@ -84,7 +96,12 @@ function TopicCards({ cards }) {
   const shown = groups.filter((g) => !only || g.label === only);
   const grid = (list) => (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-      {list.map((card) => <Flashcard key={card.id} card={card} hideTag />)}
+      {list.map((card) => (
+        <div key={card.id} className="flex flex-col gap-1 min-w-0">
+          <Flashcard card={card} hideTag />
+          <UnitsLink card={card} />
+        </div>
+      ))}
     </div>
   );
   if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards);
