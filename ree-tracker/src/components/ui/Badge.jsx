@@ -1,23 +1,21 @@
 import { cn } from './cn';
 
-// Success and danger take a lighter tint than the rest: at 15% a results screen's
-// verdict fell just under 4.5:1 (axe). Danger's text also leans to the theme's text
-// colour, which raises its contrast in light and dark themes alike, on a card or a
-// darker inset.
+// Each label leans to the theme's text colour, on a light tint of its tone, the same
+// as StatusPill: a stronger tint brings the background up towards the label, and "You"
+// on Rankings read 4.25:1. themeContrast.test.js measures these numbers on every theme.
 const tones = {
   neutral: 'bg-surface2 text-muted2 border-border',
   velocity:
-    'bg-[color-mix(in_srgb,var(--accent-velocity)_15%,transparent)] text-[var(--accent-text)] border-[color-mix(in_srgb,var(--accent-velocity)_35%,transparent)]',
+    'bg-[color-mix(in_srgb,var(--accent-velocity)_8%,transparent)] text-[color-mix(in_srgb,var(--accent-text)_40%,var(--text-main))] border-[color-mix(in_srgb,var(--accent-velocity)_35%,transparent)]',
   signal:
-    'bg-[color-mix(in_srgb,var(--accent-signal)_15%,transparent)] text-[var(--accent-signal)] border-[color-mix(in_srgb,var(--accent-signal)_35%,transparent)]',
+    'bg-[color-mix(in_srgb,var(--accent-signal)_8%,transparent)] text-[color-mix(in_srgb,var(--accent-signal)_40%,var(--text-main))] border-[color-mix(in_srgb,var(--accent-signal)_35%,transparent)]',
   success:
-    'bg-[color-mix(in_srgb,var(--accent-success)_12%,transparent)] text-[var(--accent-success)] border-[color-mix(in_srgb,var(--accent-success)_35%,transparent)]',
+    'bg-[color-mix(in_srgb,var(--accent-success)_8%,transparent)] text-[color-mix(in_srgb,var(--accent-success)_40%,var(--text-main))] border-[color-mix(in_srgb,var(--accent-success)_35%,transparent)]',
   danger:
-    'bg-[color-mix(in_srgb,var(--accent-danger)_12%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_75%,var(--text-main))] border-[color-mix(in_srgb,var(--accent-danger)_35%,transparent)]',
-  // A conditional pass, "Today", "N marked". Callers asked for it before it
-  // existed, so those badges rendered with no colour at all.
+    'bg-[color-mix(in_srgb,var(--accent-danger)_8%,transparent)] text-[color-mix(in_srgb,var(--accent-danger)_40%,var(--text-main))] border-[color-mix(in_srgb,var(--accent-danger)_35%,transparent)]',
+  // A conditional pass, "Today", "N marked".
   amber:
-    'bg-[color-mix(in_srgb,var(--color-reeAmber)_15%,transparent)] text-[var(--color-reeAmber-text)] border-[color-mix(in_srgb,var(--color-reeAmber)_35%,transparent)]',
+    'bg-[color-mix(in_srgb,var(--color-reeAmber)_8%,transparent)] text-[color-mix(in_srgb,var(--color-reeAmber-text)_40%,var(--text-main))] border-[color-mix(in_srgb,var(--color-reeAmber)_35%,transparent)]',
 };
 
 export function Badge({ tone = 'neutral', className, children }) {

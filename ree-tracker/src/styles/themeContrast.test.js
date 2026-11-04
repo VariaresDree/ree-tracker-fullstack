@@ -269,6 +269,26 @@ describe('theme contrast (WCAG AA)', () => {
         });
     }
 
+    // Badge: the same numbers, its tint and its label's tone read from its source, so a
+    // stronger tint or a new tone is measured here. Each badge's tint can differ from
+    // its label's colour, as velocity's does.
+    const badgeSrc = fs.readFileSync(new URL('../components/ui/Badge.jsx', import.meta.url), 'utf8');
+    const BADGE_TONES = [...badgeSrc.matchAll(/(\w+):\s*
+?\s*'bg-\[color-mix\(in_srgb,(var\([^)]+\))_(\d+)%,transparent\)\] text-\[color-mix\(in_srgb,(var\([^)]+\))_(\d+)%,var\(--text-main\)\)\]/g)]
+        .map((m) => ({ tone: m[1], tintVar: m[2], tint: Number(m[3]) / 100, label: m[4], lean: m[5] }));
+    it('reads every coloured badge tone from its source', () => {
+        expect(BADGE_TONES.map((b) => b.tone).sort()).toEqual(['amber', 'danger', 'signal', 'success', 'velocity']);
+    });
+    for (const [name, t] of Object.entries(all)) {
+        it(`${name}: a badge's label reads on its own tint`, () => {
+            const failures = BADGE_TONES.flatMap(({ tone, tintVar, tint: share, label, lean }) => ['--bg-surface', '--bg-surface2'].map((bg) => {
+                const fg = resolve(t, `color-mix(in srgb, ${label} ${lean}%, var(--text-main))`);
+                return { pair: `${tone} badge on ${bg}`, ratio: +contrast(fg, mix(resolve(t, tintVar), resolve(t, t[bg]), share)).toFixed(2) };
+            })).filter((r) => r.ratio < 4.5);
+            expect(failures).toEqual([]);
+        });
+    }
+
     for (const name of ['light', 'paper', 'sakura']) {
         it(`${name}: brand colours used as text clear the floor`, () => {
             const t = all[name];
