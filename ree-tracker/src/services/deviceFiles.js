@@ -26,6 +26,10 @@ export function fileKind({ type = '', name = '' }) {
 /** Refuses what can't fit, before anything is written. Passes if the browser won't say. */
 export async function checkSpace(size) {
   if (size > MAX_FILE_BYTES) throw new Error(`That’s ${formatBytes(size)}. Files can be up to ${formatBytes(MAX_FILE_BYTES)}.`);
+  await checkFreeSpace(size);
+}
+
+export async function checkFreeSpace(size) {
   try {
     const { usage = 0, quota } = await navigator.storage.estimate();
     if (quota !== undefined && quota - usage < size) {
@@ -55,6 +59,19 @@ export async function addDeviceFile(uid, blob, { name, kind, source = null }) {
     throw err;
   }
   return meta;
+}
+
+/** Put a file back from a backup, under its own id. One already here stays as it is. */
+export async function restoreDeviceFile(uid, meta, blob) {
+  if (await deviceGet(metaKey(uid, meta.id))) return false;
+  await deviceSet(blobKey(uid, meta.id), blob);
+  try {
+    await deviceSet(metaKey(uid, meta.id), meta);
+  } catch (err) {
+    await deviceDel(blobKey(uid, meta.id));
+    throw err;
+  }
+  return true;
 }
 
 /** Every file's details, newest first. Reads no file's bytes. */

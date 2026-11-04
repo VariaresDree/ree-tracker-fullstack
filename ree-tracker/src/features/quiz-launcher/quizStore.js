@@ -60,6 +60,16 @@ export async function carryAttempts(uid, fromId, toId) {
   if (attempts.length > 0) await put(key(uid, 'attempts', toId), attempts);
 }
 
+/** Attempts from a backup, merged with any here. The same attempt isn't counted twice. */
+export async function mergeAttempts(uid, id, incoming = []) {
+  const here = await getAttempts(uid, id);
+  const seen = new Set(here.map((a) => a.at));
+  const attempts = [...here, ...incoming.filter((a) => !seen.has(a.at))]
+    .sort((a, b) => (a.at || 0) - (b.at || 0))
+    .slice(-MAX_ATTEMPTS);
+  if (attempts.length > 0) await put(key(uid, 'attempts', id), attempts);
+}
+
 export async function deleteQuiz(uid, id) {
   await Promise.all(['file', 'run', 'attempts'].map((kind) => remove(key(uid, kind, id))));
 }

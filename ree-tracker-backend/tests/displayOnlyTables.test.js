@@ -13,30 +13,34 @@ import { join, relative, resolve } from 'node:path';
 
 const SRC = resolve(__dirname, '..', 'src');
 
+// The learner's own data export reads every table and hands the rows back to them.
+// It feeds no engine, so it doesn't weaken what this guards.
+const EXPORT = 'routes/dataExportRoutes.js';
+
 // model accessor / SQL table name -> the only files allowed to use it
 const DISPLAY_ONLY = {
     // selfReportSignals reads the topics flagged "to improve" for the study
     // planner only (the test below pins who may require it).
-    outsideScore: ['routes/outsideScoreRoutes.js', 'services/selfReportSignals.js'],
+    outsideScore: ['routes/outsideScoreRoutes.js', 'services/selfReportSignals.js', EXPORT],
     // selfReportSignals reads the learner's own topic ratings for the planner only.
-    syllabusProgress: ['routes/syllabusRoutes.js', 'services/selfReportSignals.js'],
-    userSubtopic: ['routes/userSubtopicRoutes.js'],
+    syllabusProgress: ['routes/syllabusRoutes.js', 'services/selfReportSignals.js', EXPORT],
+    userSubtopic: ['routes/userSubtopicRoutes.js', EXPORT],
     // The notebook's reads live in services/mistakeList.js (shared with the
     // Today loop, which only picks which questions to practise).
-    mistakeTag: ['routes/mistakeRoutes.js', 'services/mistakeList.js'],
-    userNote: ['routes/noteRoutes.js'],
-    focusBlock: ['services/focusTime.js'],
+    mistakeTag: ['routes/mistakeRoutes.js', 'services/mistakeList.js', EXPORT],
+    userNote: ['routes/noteRoutes.js', EXPORT],
+    focusBlock: ['services/focusTime.js', EXPORT],
     // Printed paper sets and their scanned sheets: scores on the learner's
     // own printouts, marked from photos, never θ, readiness or the rankings.
     // Key dates and rest days shape the study plan's days, and nothing else.
-    keyDate: ['routes/keyDateRoutes.js', 'services/planCalendar.js'],
+    keyDate: ['routes/keyDateRoutes.js', 'services/planCalendar.js', EXPORT],
     // Sets to finish and personal links (CELE round): display only, every way.
-    practiceSet: ['routes/practiceSetRoutes.js'],
-    userLink: ['routes/userLinkRoutes.js'],
+    practiceSet: ['routes/practiceSetRoutes.js', EXPORT],
+    userLink: ['routes/userLinkRoutes.js', EXPORT],
     // A User column, not a table: how a learner's mocks are picked, and no more.
     drawPrefs: ['routes/drawPrefsRoutes.js'],
-    printedSet: ['routes/printedSetRoutes.js'],
-    scannedSheet: ['routes/printedSetRoutes.js'],
+    printedSet: ['routes/printedSetRoutes.js', EXPORT],
+    scannedSheet: ['routes/printedSetRoutes.js', EXPORT],
 };
 
 function sourceFiles(dir) {

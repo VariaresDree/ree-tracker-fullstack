@@ -81,13 +81,23 @@ router.put('/profile', authMiddleware, validate(profileUpdateSchema), async (req
 // cascades via the schema's onDelete: Cascade relations. The client calls
 // this right before deleting the Firebase Auth identity; previously no such
 // route existed, so "Delete account" left the whole server record orphaned.
+//
+// Four tables hold a user id with no foreign key, so no cascade reaches them. Their
+// rows go first, in one transaction with the user. A battle they hosted stays, because
+// it's other players' history too, but its host is no longer them.
+const DELETED_HOST = 'deleted-account';
 router.delete('/profile', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
     try {
-        await prisma.user.delete({ where: { id: req.user.id } });
+        await prisma.$transaction([
+            prisma.questionFlag.deleteMany({ where: { userId } }),
+            prisma.idempotencyRecord.deleteMany({ where: { userId } }),
+            prisma.leaderboardEntry.deleteMany({ where: { userId } }),
+            prisma.battle.updateMany({ where: { hostId: userId }, data: { hostId: DELETED_HOST } }),
+            prisma.user.deleteMany({ where: { id: userId } }),
+        ]);
         return res.status(200).json({ success: true });
     } catch (error) {
-        // P2025 = no row to delete (account never synced) — nothing to purge.
-        if (error.code === 'P2025') return res.status(200).json({ success: true });
         logger.error('Account deletion failed', { error: error.message, uid: req.user.id });
         return res.status(500).json({ error: 'Account deletion failed.' });
     }

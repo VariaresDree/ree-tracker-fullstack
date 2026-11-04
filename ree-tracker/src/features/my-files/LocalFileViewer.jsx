@@ -56,7 +56,7 @@ export default function LocalFileViewer({ uid, file }) {
   if (file.kind === 'pdf') {
     return (
       <Suspense fallback={<p role="status" className="p-6 text-center text-sm text-muted2">Opening {file.name}…</p>}>
-        <PdfCanvasViewer blob={state.blob} title={file.name} />
+        <PdfCanvasViewer blob={state.blob} title={file.name} placeKey={`ree:pdf-place:${file.id}`} />
       </Suspense>
     );
   }

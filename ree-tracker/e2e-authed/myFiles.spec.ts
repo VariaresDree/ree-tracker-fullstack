@@ -31,7 +31,7 @@ test('a file stays on the device, and a PDF draws', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Open sample.pdf' }).click();
   const dialog = page.getByRole('dialog', { name: 'sample.pdf' });
-  await expect(dialog.getByText('Page 1 of 2')).toBeVisible({ timeout: 20_000 });
+  await expect(dialog.getByText('of 2', { exact: true })).toBeVisible({ timeout: 20_000 });
   const painted = dialog.getByRole('img', { name: 'Page 1 of 2' });
   await expect(painted).toBeVisible();
   await expect.poll(() => painted.evaluate((c: HTMLCanvasElement) => {
