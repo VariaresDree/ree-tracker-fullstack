@@ -136,7 +136,6 @@ test('a running Practice session has no serious accessibility violations, before
   // Answered, with the solution open: the result, the solution panel and Next.
   await page.getByRole('radiogroup', { name: 'Confidence level' }).getByRole('radio').first().click();
   await page.getByRole('radiogroup', { name: 'Answer choices' }).getByRole('radio').first().click();
-  await page.getByRole('button', { name: 'Show solution' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Solution' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Next$|Finish session/ })).toBeVisible();
   await expectNoSeriousViolations(page);

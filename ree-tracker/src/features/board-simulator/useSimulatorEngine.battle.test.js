@@ -17,6 +17,8 @@ const api = {
   fetchMultiplayerBattle: vi.fn(), fetchSyllabusWeights: vi.fn(), saveBookmark: vi.fn(), removeBookmark: vi.fn(),
 };
 vi.mock('../../services/dbQueries', () => api);
+const reportQuestion = vi.fn();
+vi.mock('../../services/reportQuestion', () => ({ reportQuestion: (...a) => reportQuestion(...a) }));
 const storeState = { stats: {}, currentSessionId: null, dynamicTOS: {}, queuePendingWrite: vi.fn(), setStats: vi.fn() };
 vi.mock('../../store/useStore', () => ({ useStore: { getState: () => storeState } }));
 vi.mock('../../store/slices', () => ({
@@ -117,18 +119,20 @@ describe('useSimulatorEngine — coming back to a battle', () => {
 
   it('reporting a question marks it, so its button says so', async () => {
     api.fetchMultiplayerBattle.mockResolvedValue(battle());
-    api.updateQuestionInBank.mockResolvedValue({});
+    reportQuestion.mockReset();
+    reportQuestion.mockResolvedValue({ status: 'sent' });
     const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
     await act(() => result.current.startMultiplayerBattle('ABC123'));
-    await act(() => result.current.handleFlagQuestion());
-    expect(api.updateQuestionInBank).toHaveBeenCalledTimes(1);
+    await act(() => result.current.handleFlagQuestion('The answer key looks wrong'));
+    expect(reportQuestion).toHaveBeenCalledWith(result.current.session.questions[0].id, 'The answer key looks wrong');
     expect(result.current.session.questions[0].isFlagged).toBe(true);
     expect(result.current.session.questions[1].isFlagged).toBeFalsy();
   });
 
   it('a report that fails leaves the button as it was', async () => {
     api.fetchMultiplayerBattle.mockResolvedValue(battle());
-    api.updateQuestionInBank.mockRejectedValue(new Error('nope'));
+    reportQuestion.mockReset();
+    reportQuestion.mockRejectedValue(new Error('nope'));
     const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
     await act(() => result.current.startMultiplayerBattle('ABC123'));
     await act(() => result.current.handleFlagQuestion());

@@ -5,8 +5,9 @@ import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import {
     apiRequest, getAnalyticsProfile, fetchVaultQuestions,
-    saveBookmark, removeBookmark, updateQuestionInBank,
+    saveBookmark, removeBookmark,
 } from '../../services/dbQueries';
+import { reportQuestion } from '../../services/reportQuestion';
 import { auth } from '../../config/firebaseDb';
 import { getGauntletTier, isSubjectTier, SUBJECT_UNLOCK_LEVEL } from '../../config/examStandards';
 import toast from 'react-hot-toast';
@@ -458,12 +459,12 @@ export const useGauntletEngine = (level) => {
     // authenticated user (unlike the full-edit PUT, which is admin-gated),
     // but there's no unflag endpoint for non-admins, so this can't toggle off
     // once set — same constraint the Simulator already lives with.
-    const toggleFlag = async (idx) => {
+    const toggleFlag = async (idx, reason) => {
         if (flagsRef.current.has(idx)) return;
         const q = questionsRef.current?.[idx];
         if (!q?.id) { toast.error("Cannot flag dynamic items."); return; }
         try {
-            await updateQuestionInBank(q.id, { isFlagged: true });
+            await reportQuestion(q.id, reason);
             const next = new Set(flagsRef.current);
             next.add(idx);
             flagsRef.current = next;

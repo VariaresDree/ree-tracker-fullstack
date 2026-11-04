@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { claimDraftsFor } from './draftOwner';
 
-const DRAFTS = ['ree_sim_cache', 'ree_gauntlet_cache', 'ree_full_board'];
+const DRAFTS = ['ree_sim_cache', 'ree_gauntlet_cache', 'ree_full_board', 'ree_practice_cache'];
 const put = () => DRAFTS.forEach((k) => localStorage.setItem(k, '{"x":1}'));
 const left = () => DRAFTS.filter((k) => localStorage.getItem(k) != null);
 

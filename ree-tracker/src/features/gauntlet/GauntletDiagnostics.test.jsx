@@ -15,6 +15,9 @@ vi.mock('../../services/aiExplanations', async (orig) => ({
   saveExplanation: vi.fn().mockResolvedValue(),
 }));
 
+let answered = 0;
+vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: { totalAnswered: answered } }) }));
+
 const { default: GauntletDiagnostics } = await import('./GauntletDiagnostics');
 
 const base = {
@@ -70,5 +73,27 @@ describe('GauntletDiagnostics', () => {
     renderResult({ outcome: 'advanced', verdict: VERDICT.PASSED, isPassed: true, ladderLevel: 3, lockUntil: null });
     expect(screen.getByRole('heading', { level: 1, name: 'Tier passed' })).toBeInTheDocument();
     expect(screen.getByText('Level 3 is open.')).toBeInTheDocument();
+  });
+});
+
+describe('GauntletDiagnostics — the next tier', () => {
+  const show = (over) => render(<MemoryRouter><GauntletDiagnostics diagnostics={{ ...base, ...over }} level="1" /></MemoryRouter>);
+
+  it('offers the tier a pass just opened, when you have the answers for it', () => {
+    answered = 100000;
+    show({ isPassed: true, outcome: 'advanced', ladderLevel: 2 });
+    expect(screen.getByRole('button', { name: /Start tier 2/ })).toBeEnabled();
+  });
+
+  it('not before you have enough answers', () => {
+    answered = 0;
+    show({ isPassed: true, outcome: 'advanced', ladderLevel: 2 });
+    expect(screen.queryByRole('button', { name: /Start tier/ })).toBeNull();
+  });
+
+  it('not after a run that didn’t pass', () => {
+    answered = 100000;
+    show({ isPassed: false, outcome: 'failed' });
+    expect(screen.queryByRole('button', { name: /Start tier/ })).toBeNull();
   });
 });

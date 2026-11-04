@@ -8,18 +8,24 @@
 // three follow as small tiles, closest to the board first, and the whole tile is
 // the way in. All four had equal weight, and then each its own badge, paragraph
 // and button.
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Card, CardWatermark, Grid, IconChip } from '../../components/ui';
 import { ArrowRight, ChevronRight } from '../../components/ui/icons';
 import { SIM_PROFILES } from '../board-simulator/profiles';
+import SavedRunCard from './SavedRunCard';
+import { readSavedRuns } from './savedRuns';
 
 const FOLLOWERS = ['prc_blended', 'prc_subject', 'custom'];
 const byId = (id) => SIM_PROFILES.find((p) => p.id === id);
 
 export default function MockBoardTab() {
   const board = byId('prc_full');
+  const [saved] = useState(readSavedRuns);
   return (
     <div className="flex flex-col gap-4">
+      {saved.mock && <SavedRunCard title="Unfinished mock board" summary={saved.mock.summary} to="/simulator" />}
+      {saved.board && !saved.mock && <SavedRunCard title="Full PRC board in progress" summary={saved.board.summary} to="/simulator" action="Continue" />}
       <Card as="section" variant="hero" padding="md" aria-labelledby="mock-lead" className="flex flex-col gap-2">
         <CardWatermark icon={board.icon} />
         <p className="text-eyebrow">The real thing</p>

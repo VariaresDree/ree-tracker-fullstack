@@ -34,6 +34,7 @@ import SessionActions from '../components/exam/SessionActions';
 import SessionBar, { SubmitLabel } from '../components/exam/SessionBar';
 import { COPY, KEYS, letterIn } from '../features/quiz/examCopy';
 import { getGauntletTier } from '../config/examStandards';
+import { readSavedRuns } from '../features/exams/savedRuns';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
 import { shouldIgnoreHotkey } from '../utils/hotkeys';
 import { Button, Modal, EmptyState, Badge, Page, QuestionSurface } from '../components/ui';
@@ -64,8 +65,13 @@ function Notice({ icon, title, description, action }) {
   );
 }
 
+// A new level is a new run: Start tier N from a result lands on this same route.
 export default function Gauntlet() {
   const { level } = useParams();
+  return <GauntletRun key={level} level={level} />;
+}
+
+function GauntletRun({ level }) {
   const navigate = useNavigate();
   const {
     status, errorKind, questions, answers, confidences, gauntletEndTime, diagnostics,
@@ -111,7 +117,7 @@ export default function Gauntlet() {
         <Notice
           icon={TriangleAlert}
           title="You have an unfinished run"
-          description="A Gauntlet run for this level is saved on this device. Pick up where you left off, or submit it as it stands."
+          description={`${readSavedRuns().gauntlet?.summary || 'A Gauntlet run for this level is saved on this device'}. Pick up where you left off, or submit it as it stands.`}
           action={(
             <div className="flex flex-wrap items-center justify-center gap-2">
               <Button tone="amber" onClick={() => resumeGauntlet()}>Resume run</Button>
@@ -225,7 +231,7 @@ export default function Gauntlet() {
       onMark={toggleMarked ? () => toggleMarked(currentIndex) : undefined}
       onScratchpad={() => setShowScratchpad((v) => !v)}
       reported={isFlagged}
-      onReport={() => toggleFlag(currentIndex)}
+      onReport={(reason) => toggleFlag(currentIndex, reason)}
       bookmarked={isBookmarked}
       onBookmark={() => toggleBookmark(currentIndex)}
     />

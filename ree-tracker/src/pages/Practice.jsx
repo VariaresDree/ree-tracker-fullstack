@@ -18,7 +18,7 @@ import { COPY, KEYS } from '../features/quiz/examCopy';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
 import ReviewSetup from '../features/active-recall/ReviewSetup';
 import SessionSummary from '../features/active-recall/SessionSummary';
-import { drillPreset } from '../features/active-recall/presets';
+import { drillPreset, itemsPreset } from '../features/active-recall/presets';
 import MCQMode from '../features/active-recall/MCQMode';
 import FlashcardMode from '../features/active-recall/FlashcardMode';
 import LoopCardStep from '../features/active-recall/LoopCardStep';
@@ -41,6 +41,7 @@ export default function Practice() {
     handleAnswerSelection, handleFlashcardReveal, handleFlashcardRating, markCardRated,
     toggleBookmark, handleFlagQuestion, explainQuestion, safeTOS, isSubmitting,
     lastSummary, clearSummary, aiText, aiLoading,
+    savedSession, resumeSession, discardSavedSession,
   } = useReviewSession(currentUser, isOnline);
 
   const [showScratchpad, setShowScratchpad] = useState(false);
@@ -123,6 +124,7 @@ export default function Practice() {
           isOnline={isOnline}
           loading={session.loading}
           onAgain={() => startSession(lastSummary.config)}
+          onRetry={() => startSession(itemsPreset(lastSummary.items.filter((i) => !i.isCorrect).map((i) => i.question)))}
           onDrill={(t) => startSession(drillPreset({ topic: t.topic, subject: t.subject }))}
           onDone={clearSummary}
         />
@@ -130,7 +132,18 @@ export default function Practice() {
   }
 
   if (!session.isActive) {
-      return <ReviewSetup config={config} isOnline={isOnline} startSession={startSession} session={session} safeTOS={safeTOS} />;
+      return (
+        <ReviewSetup
+          config={config}
+          isOnline={isOnline}
+          startSession={startSession}
+          session={session}
+          safeTOS={safeTOS}
+          saved={savedSession}
+          onResume={resumeSession}
+          onDiscard={discardSavedSession}
+        />
+      );
   }
 
   if (!currentQ) return <div className="flex justify-center items-center h-64 text-[var(--accent-text)]"><span className="telemetry-spinner !w-12 !h-12"></span></div>;
@@ -141,6 +154,17 @@ export default function Practice() {
   // target, not what has loaded so far.
   const total = session.target || session.questions.length;
   const isLastQuestion = session.currentIndex + 1 >= total;
+  const itemActions = (
+    <ItemActions
+      onScratchpad={() => setShowScratchpad(!showScratchpad)}
+      reported={currentQ.isFlagged}
+      onReport={handleFlagQuestion}
+      bookmarked={isBookmarked}
+      onBookmark={toggleBookmark}
+    >
+      <NoteButton type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
+    </ItemActions>
+  );
 
   return (
     // `relative`: the Scratchpad covers the session from md up (absolute,
@@ -221,22 +245,13 @@ export default function Practice() {
                   session={session}
                   setSession={setSession}
                   handleAnswerSelection={handleAnswerSelection}
-                  headerSlot={
-                    <ItemActions
-                      onScratchpad={() => setShowScratchpad(!showScratchpad)}
-                      reported={currentQ.isFlagged}
-                      onReport={handleFlagQuestion}
-                      bookmarked={isBookmarked}
-                      onBookmark={toggleBookmark}
-                    >
-                      <NoteButton type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
-                    </ItemActions>
-                  }
+                  headerSlot={itemActions}
               />
           ) : (
               // Flashcard mode still has its own flip surface; the prompt
               // rendering there is handled inside FlashcardMode.
               <>
+                  <div className="flex justify-end mb-4">{itemActions}</div>
                   <div className="text-xl sm:text-2xl font-medium text-textMain leading-relaxed relative z-10 mb-10 overflow-x-auto math-scroll-mobile drop-shadow-sm [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0">
                       <LatexRenderer content={currentQ.text || currentQ.question} />
                   </div>
@@ -255,6 +270,7 @@ export default function Practice() {
                       aiLoading={aiLoading}
                       onExplain={(force) => explainQuestion(currentQ, { force })}
                       headingLevel={2}
+                      defaultOpen
                   />
                   {/* A miss: the formula cards for its topic, when it has any. */}
                   {session.wrongSelection != null && (

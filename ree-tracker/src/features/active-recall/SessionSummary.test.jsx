@@ -15,7 +15,7 @@ const summary = buildSessionSummary([
 ], [{ id: 'q1', text: 'Relay pickup current?', answer: '5 A' }], 95);
 
 const renderSummary = (props = {}) => {
-  const handlers = { onAgain: vi.fn(), onDrill: vi.fn(), onDone: vi.fn() };
+  const handlers = { onRetry: vi.fn(), onAgain: vi.fn(), onDrill: vi.fn(), onDone: vi.fn() };
   render(
     <MemoryRouter>
       <SessionSummary summary={summary} isOnline loading={false} {...handlers} {...props} />
@@ -29,13 +29,13 @@ describe('SessionSummary', () => {
     renderSummary();
     expect(screen.getByRole('heading', { level: 1, name: 'Session complete' })).toBeInTheDocument();
     expect(screen.getByText('3 questions in 1m 35s.')).toBeInTheDocument();
-    expect(screen.getByText('2/3')).toBeInTheDocument();
-    expect(screen.getByText('67% correct')).toBeInTheDocument();
+    expect(screen.getByText('67%')).toBeInTheDocument();
+    expect(screen.getByText('2 of 3 correct')).toBeInTheDocument();
     expect(screen.getByText('1 wrong while you were sure.')).toBeInTheDocument();
     expect(screen.getByText(/1 right while unsure/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'How you did by topic' })).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Protection: 1 of 2 correct' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: 'Questions you missed' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Review every item' })).toBeInTheDocument();
     expect(screen.getByText('Relay pickup current?')).toBeInTheDocument();
     expect(screen.getByText('5 A')).toBeInTheDocument();
     // The reminder offer sits in the page, not over the buttons.
@@ -46,6 +46,8 @@ describe('SessionSummary', () => {
     const h = renderSummary();
     fireEvent.click(screen.getByRole('button', { name: /Practise again/ }));
     expect(h.onAgain).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /Retry missed \(\d+\)/ }));
+    expect(h.onRetry).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /Drill Protection/ }));
     expect(h.onDrill).toHaveBeenCalledWith(expect.objectContaining({ topic: 'Protection', subject: 'EE' }));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));

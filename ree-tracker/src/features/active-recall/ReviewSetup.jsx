@@ -100,7 +100,7 @@ function Field({ label, children }) {
   );
 }
 
-export default function ReviewSetup({ config, session, safeTOS, isOnline, startSession }) {
+export default function ReviewSetup({ config, session, safeTOS, isOnline, startSession, saved, onResume, onDiscard }) {
   const [launchingPreset, setLaunchingPreset] = useState(null);
   const [params, setParams] = useSearchParams();
   const location = useLocation();
@@ -151,6 +151,17 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
   return (
     <Page>
       <PageHeader title="Practice" />
+
+      {saved && (
+        <Card padding="sm" className="flex flex-wrap items-center gap-3" role="region" aria-label="Unfinished session" style={{ borderColor: 'color-mix(in srgb, var(--color-reeAmber) 45%, transparent)' }}>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-textMain">Continue your session</p>
+            <p className="text-xs text-muted2 tabular-nums">{saved.totalAnswered || 0} of {saved.target || saved.questions.length} answered</p>
+          </div>
+          <Button size="sm" onClick={onResume}>Continue</Button>
+          <Button size="sm" variant="ghost" onClick={onDiscard}>Discard</Button>
+        </Card>
+      )}
       {srsLoading ? (
         // Holds the hero's place while the queue loads, so the page doesn't
         // jump when it arrives.

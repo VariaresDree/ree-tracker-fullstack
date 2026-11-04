@@ -16,9 +16,9 @@ import { hideExamSession } from '../services/dbQueries';
 import MainLayout from '../layouts/MainLayout';
 import ExamLayout from '../layouts/ExamLayout';
 import PomodoroOwner from '../components/PomodoroOwner';
-import { Card, Button, Page } from '../components/ui';
+import { Card, Button, Page, StatusPill } from '../components/ui';
 import { Layers } from '../components/ui/icons';
-import { setupConfig } from '../features/board-simulator/profiles';
+import { retakeConfig } from '../features/exams/review/retake';
 import { formatClock } from '../utils/time';
 import { toDisplaySubject } from '@ree/shared';
 
@@ -119,18 +119,7 @@ export default function BoardSimulator() {
     retakeStarted.current = true;
     navigate(location.pathname, { replace: true, state: null });
     if (!currentUser?.uid || retake.ownerUid !== currentUser.uid || !Array.isArray(retake.questions) || retake.questions.length === 0) return;
-    const subjects = new Set(retake.questions.map((q) => q.subject));
-    engine.startSimulation({
-      ...setupConfig(engine.config),
-      mode: 'subject',
-      subject: subjects.size === 1 ? [...subjects][0] : 'Mixed',
-      isPrcStandard: false,
-      count: retake.questions.length,
-      source: 'retake',
-      cognitiveFocus: 'mixed',
-      retake: { sourceSessionId: retake.sourceSessionId || null, kind: retake.kind === 'mistakes' ? 'mistakes' : 'retake' },
-      retakeQuestions: retake.questions,
-    });
+    engine.startSimulation(retakeConfig(engine.config, { questions: retake.questions, sourceSessionId: retake.sourceSessionId || null, kind: retake.kind }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
@@ -259,6 +248,14 @@ export default function BoardSimulator() {
 
   const content = (
     <Page width={pageWidth}>
+
+      {/* The opponents card just vanished when the connection dropped. Answers
+          are kept and sent again on reconnecting. */}
+      {activeBattleId && !battleConnected && engine.session.isActive && !engine.session.isFinished && (
+        <div role="status" className="self-center">
+          <StatusPill tone="amber">Reconnecting… your answers are safe</StatusPill>
+        </div>
+      )}
 
       {activeBattleId && battleConnected && opponentProgress.length > 0 && engine.session.isActive && !engine.session.isFinished && (
         <Card

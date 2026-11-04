@@ -144,7 +144,7 @@ describe('Practice session headings', () => {
     sessionState = { ...sessionState, isAnswered: true, questions: [{ ...QUESTION, fixedExplanation: 'One henry is one weber per ampere.' }] };
     const { container } = renderPage();
     expect(screen.getByRole('heading', { level: 1, name: 'Practice' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Show solution' }));
+    // Open by default: it's what comes next after answering.
     expect(screen.getByRole('heading', { level: 2, name: 'Solution' })).toBeInTheDocument();
     expectNoSkippedLevels(container);
   });

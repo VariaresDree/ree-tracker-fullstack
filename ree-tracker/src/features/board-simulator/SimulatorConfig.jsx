@@ -7,6 +7,7 @@ import { Card, Button, FormField, PageHeader, Select, SegmentedControl, Modal, S
 import { FileText, TriangleAlert } from '../../components/ui/icons';
 import { PRC_TIMES } from '../../config/examStandards';
 import { SIM_PROFILES, configForProfile } from './profiles';
+import { readSavedRuns } from '../exams/savedRuns';
 import { FULL_BOARD_SECTIONS } from './fullBoard';
 import { prcSectionSeconds, SYLLABUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { AI_SOURCE_MESSAGE } from '../exam-export/drawExamPaper';
@@ -117,7 +118,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             <div className="flex flex-col gap-1.5 min-w-0">
               <StatusPill tone="amber">In progress</StatusPill>
               <p className="text-textMain font-semibold">Resume your last exam?</p>
-              <p className="text-sm text-muted2">You have an unfinished mock board saved on this device.</p>
+              <p className="text-sm text-muted2">{readSavedRuns().mock?.summary || 'You have an unfinished mock board saved on this device.'}</p>
             </div>
             <Button tone="amber" onClick={engine.resumeSimulation} className="w-full sm:w-auto">
               Resume exam

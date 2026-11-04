@@ -14,14 +14,24 @@ import { useNavigate, Link } from 'react-router-dom';
 import { VERDICT, GENERAL_AVERAGE, SUBJECT_FLOOR } from '@ree/shared';
 import LatexRenderer from '../../components/LatexRenderer';
 import NotificationOptIn from '../../components/NotificationOptIn';
-import { Badge, Button, Card, EmptyState, Grid, KpiTile, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
-import { Shield, TriangleAlert, ClipboardList, Clock, Play } from '../../components/ui/icons';
+import { Badge, Button, Card, EmptyState, Grid, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
+import { Shield, TriangleAlert, ClipboardList, Clock, Play, RotateCcw, Swords } from '../../components/ui/icons';
+import ItemActions from '../../components/exam/ItemActions';
+import ResultsCard from '../../components/exam/ResultsCard';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { explanationKey } from '../../services/aiExplanations';
 import PacingPanel from '../exams/PacingPanel';
+import { retakeConfig } from '../exams/review/retake';
+import NoteButton from '../notebook/NoteButton';
+import { questionTarget } from '../notebook/targets';
+import SolutionPanel from '../quiz/SolutionPanel';
+import { useAiExplanation } from '../quiz/useAiExplanation';
+import { useItemTools } from '../quiz/useItemTools';
 import { formatDuration, formatTimeOfDay } from '../../utils/time';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
-const TONE_COLOR = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber-text)', danger: 'var(--accent-danger)' };
 const SUBJECTS = [
   { key: 'Math', label: 'Mathematics' },
   { key: 'ESAS', label: 'ESAS' },
@@ -56,6 +66,10 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
   const Section = `h${headingLevel + 1}`;
   const navigate = useNavigate();
   const { diagnostics } = session;
+  const uid = useAuth()?.currentUser?.uid;
+  const isOnline = useNetworkStatus();
+  const ai = useAiExplanation(uid);
+  const tools = useItemTools(uid);
   const resultsBy = diagnostics?.pending ? diagnostics.resultsBy : null;
   const resultsDue = useIsPast(resultsBy);
   if (!diagnostics) return null;
@@ -64,6 +78,11 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
   const hasGwa = typeof diagnostics.generalAverage === 'number';
   const tone = VERDICT_TONE[diagnostics.verdict] || 'neutral';
   const title = headingLevel === 1 ? (isBattle ? 'Battle results' : 'Mock board results') : 'Last section';
+
+  // A retake or another mock, from the results of an ordinary one. A battle has its
+  // room for what comes next, and the full board's result has its own way out.
+  const canGoAgain = !pending && !isBattle && !onExit && !!engine?.startSimulation;
+  const missed = (session.questions || []).filter((q) => q.answer != null && q.userAnswer !== q.answer);
 
   const leave = () => {
     onExit?.();
@@ -74,59 +93,60 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
   return (
     <>
       {headingLevel === 1 && <PageHeader title={title} />}
-      <Card elevated padding="lg" className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            {headingLevel > 1 && <Heading className="text-eyebrow mb-2">{title}</Heading>}
-            {pending ? (
-              <div className="flex flex-col gap-2" role="status">
-                <p className="text-display text-3xl text-textMain">Waiting for the other players</p>
-                <p className="text-sm text-muted2">Your answers are locked in. Scores, the answer key and the review open when everyone has finished or the time runs out.</p>
-                {resultsBy && !resultsDue && (
-                  <p className="text-sm text-textMain">Results by {formatTimeOfDay(resultsBy)} at the latest, even if someone has left.</p>
-                )}
-                {resultsDue && onCheckResults && (
-                  <Button size="sm" variant="secondary" className="self-start" onClick={onCheckResults}>Check for results</Button>
-                )}
-                {submitPending && <StatusPill tone="amber">Reconnecting to send your answers…</StatusPill>}
-              </div>
-            ) : (
-              <>
-                <p className="text-display text-6xl sm:text-7xl tabular-nums" style={{ color: TONE_COLOR[tone] || 'var(--text-main)' }}>
-                  {hasGwa ? diagnostics.generalAverage.toFixed(1) : diagnostics.score}%
-                </p>
-                <p className="text-sm text-muted2 mt-1">
-                  {hasGwa ? 'General weighted average' : 'Score'} · pass needs {GENERAL_AVERAGE}% with no subject under {SUBJECT_FLOOR}%
-                </p>
-              </>
+      <ResultsCard
+        score={pending ? null : `${hasGwa ? diagnostics.generalAverage.toFixed(1) : diagnostics.score}%`}
+        tone={tone}
+        caption={`${hasGwa ? 'General weighted average' : 'Score'} · pass needs ${GENERAL_AVERAGE}% with no subject under ${SUBJECT_FLOOR}%`}
+        verdict={!pending ? diagnostics.verdict : null}
+        notes={[diagnostics.timedOut && 'Time ran out, so your answers were submitted.']}
+        tiles={[
+          { label: 'Correct', value: pending ? '—' : `${diagnostics.correctItems} / ${diagnostics.totalItems}` },
+          { label: 'Raw score', value: pending || diagnostics.score == null ? '—' : `${diagnostics.score}%` },
+          { label: 'Left blank', value: diagnostics.unansweredItems ?? '—' },
+          { label: 'Time used', value: formatDuration(diagnostics.timeTakenSecs) },
+        ]}
+        actions={(
+          <>
+            {diagnostics.sessionId && !pending && (
+              <Button as={Link} to={`/exams/sittings/${encodeURIComponent(diagnostics.sessionId)}`}>
+                <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review every item
+              </Button>
             )}
+            {canGoAgain && missed.length > 0 && (
+              <Button variant="secondary" onClick={() => engine.startSimulation(retakeConfig(engine.config, { questions: missed, sourceSessionId: diagnostics.sessionId }))}>
+                <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" /> Retake missed ({missed.length})
+              </Button>
+            )}
+            {canGoAgain && <Button variant="secondary" onClick={() => engine.resetToSetup()}>Take another</Button>}
+            {isBattle && !pending && engine?.config?.battleId && (
+              <Button variant="secondary" as={Link} to={`/battle/${engine.config.battleId}`}>
+                <Swords size={16} strokeWidth={1.75} aria-hidden="true" /> Places and rematch
+              </Button>
+            )}
+            <Button variant="ghost" onClick={leave}>Back to Exams</Button>
+          </>
+        )}
+      >
+        {headingLevel > 1 && <Heading className="text-eyebrow mb-2">{title}</Heading>}
+        {pending && (
+          <div className="flex flex-col gap-2" role="status">
+            <p className="text-display text-3xl text-textMain">Waiting for the other players</p>
+            <p className="text-sm text-muted2">Your answers are locked in. Scores, the answer key and the review open when everyone has finished or the time runs out.</p>
+            {resultsBy && !resultsDue && (
+              <p className="text-sm text-textMain">Results by {formatTimeOfDay(resultsBy)} at the latest, even if someone has left.</p>
+            )}
+            {resultsDue && onCheckResults && (
+              <Button size="sm" variant="secondary" className="self-start" onClick={onCheckResults}>Check for results</Button>
+            )}
+            {submitPending && <StatusPill tone="amber">Reconnecting to send your answers…</StatusPill>}
           </div>
-          {!pending && diagnostics.verdict && <Badge tone={tone}>{diagnostics.verdict}</Badge>}
-        </div>
-
-        {diagnostics.timedOut && <p className="text-xs text-muted2">Time ran out, so your answers were submitted.</p>}
-
-        <Grid kind="kpi" gap="sm">
-          <KpiTile compact label="Correct" value={pending ? '—' : `${diagnostics.correctItems} / ${diagnostics.totalItems}`} />
-          <KpiTile compact label="Raw score" value={pending || diagnostics.score == null ? '—' : `${diagnostics.score}%`} />
-          <KpiTile compact label="Left blank" value={diagnostics.unansweredItems ?? '—'} />
-          <KpiTile compact label="Time used" value={formatDuration(diagnostics.timeTakenSecs)} />
-        </Grid>
-
-        <div className="flex flex-wrap gap-3">
-          {diagnostics.sessionId && !pending && (
-            <Button as={Link} to={`/exams/sittings/${encodeURIComponent(diagnostics.sessionId)}`}>
-              <ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" /> Review every item
-            </Button>
-          )}
-          <Button variant="secondary" onClick={leave}>Back to Exams</Button>
-        </div>
+        )}
         {isBattle && !pending && (
           <p className="text-xs text-muted2 flex items-center gap-2">
             <Clock size={14} strokeWidth={1.75} aria-hidden="true" /> Your progress can take a minute to catch up after a battle.
           </p>
         )}
-      </Card>
+      </ResultsCard>
 
       {!pending && (
         <>
@@ -200,6 +220,26 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
                         <div className="text-sm font-semibold text-textMain [&_p]:!m-0 overflow-x-auto [overflow-wrap:anywhere]"><LatexRenderer content={q.answer} /></div>
                       </div>
                     </Grid>
+                    {q.id && (
+                      <ItemActions
+                        reported={tools.reported.has(q.id) || q.isFlagged}
+                        onReport={(reason) => tools.report(q.id, reason)}
+                        bookmarked={tools.saved.has(q.id)}
+                        onBookmark={() => tools.toggleSave(q.id)}
+                      >
+                        <NoteButton type="question" targetId={q.id} target={questionTarget(q)} />
+                      </ItemActions>
+                    )}
+                    <SolutionPanel
+                      key={explanationKey(q)}
+                      question={q}
+                      isOnline={isOnline}
+                      aiText={ai.textFor(q)}
+                      aiLoading={ai.isLoading(q)}
+                      onExplain={(force) => ai.explain(q, { force })}
+                      headingLevel={headingLevel + 2}
+                      defaultOpen
+                    />
                   </li>
                 ))}
               </ul>

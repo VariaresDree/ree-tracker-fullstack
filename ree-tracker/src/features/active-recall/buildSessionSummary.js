@@ -7,8 +7,6 @@
 // are cleared) and tested without rendering.
 import { normalizeSubject } from '@ree/shared';
 
-const MAX_MISSED = 10;
-
 // Lengths of time print through utils/time (formatDuration).
 
 /**
@@ -20,14 +18,17 @@ const MAX_MISSED = 10;
  *   total: number, correct: number, accuracy: number, durationSecs: number, avgSecs: number|null,
  *   byTopic: Array<{topic, subject, total, correct, missed, accuracy}>,
  *   weakest: object|null, confidentMisses: number, luckyGuesses: number,
- *   missed: Array<{id, text, answer, topic, subject, confident: boolean}>, missedCount: number,
+ *   items: Array<{question, selected, isCorrect, confident: boolean}>, missedCount: number,
  * }}  null when nothing was answered
  */
 export function buildSessionSummary(attempts, questions, durationSecs) {
   if (!attempts?.length) return null;
   const byId = new Map((questions || []).map((q) => [q.id, q]));
   const topics = new Map();
-  const missed = [];
+  // Every answered question with what was picked, for the review. Answers only
+  // come back here: a question never answered isn't reviewed.
+  const items = [];
+  let missedCount = 0;
   let correct = 0;
   let timed = 0;
   let timeMs = 0;
@@ -47,16 +48,10 @@ export function buildSessionSummary(attempts, questions, durationSecs) {
       if (confidence === 'LOW') luckyGuesses += 1;
     } else {
       if (confidence === 'HIGH') confidentMisses += 1;
-      const q = byId.get(a.questionId);
-      missed.push({
-        id: a.questionId,
-        text: q?.text || q?.question || '',
-        answer: q?.answer || '',
-        topic,
-        subject,
-        confident: confidence === 'HIGH',
-      });
+      missedCount += 1;
     }
+    const q = byId.get(a.questionId);
+    if (q) items.push({ question: q, selected: a.userAnswer ?? null, isCorrect: !!a.isCorrect, confident: confidence === 'HIGH' });
     topics.set(key, row);
     if (a.timeSpentMs > 0) {
       timed += 1;
@@ -79,8 +74,7 @@ export function buildSessionSummary(attempts, questions, durationSecs) {
     weakest: byTopic.find((t) => t.missed > 0) || null,
     confidentMisses,
     luckyGuesses,
-    // Confident misses first: they cost the most on the board.
-    missed: [...missed].sort((a, b) => Number(b.confident) - Number(a.confident)).slice(0, MAX_MISSED),
-    missedCount: missed.length,
+    items,
+    missedCount,
   };
 }

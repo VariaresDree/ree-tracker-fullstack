@@ -25,15 +25,16 @@ const BODY = 'text-sm sm:text-base text-textMain/90 leading-relaxed overflow-x-a
  * @param aiLoading    true while one is being generated
  * @param onExplain    (force) => Promise<string|null>
  * @param showAnswer   when there is no written solution, show the answer line
+ * @param defaultOpen  the solution starts open, where it's what comes next
  * @param headingLevel the panels' heading level: 3 under a page's h2 sections
  *                     (a sitting's Items, Bookmarks, the Notebook, the mock
  *                     review); 2 in a running Practice session, which has
  *                     only its h1
  */
-export default function SolutionPanel({ question, isOnline, aiText, aiLoading, onExplain, showAnswer = false, headingLevel = 3 }) {
+export default function SolutionPanel({ question, isOnline, aiText, aiLoading, onExplain, showAnswer = false, defaultOpen = false, headingLevel = 3 }) {
   const Heading = `h${headingLevel}`;
-  const [view, setView] = useState(null); // 'solution' | 'ai' | null
   const solution = question?.fixedExplanation || null;
+  const [view, setView] = useState(defaultOpen && (solution || showAnswer) ? 'solution' : null); // 'solution' | 'ai' | null
   const aiUnavailable = !isOnline && !aiText;
 
   const toggleAi = async () => {
@@ -54,11 +55,13 @@ export default function SolutionPanel({ question, isOnline, aiText, aiLoading, o
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Not a bare flex-1: in the phone's column flex-basis:0 takes the height, and
+          the buttons collapsed to their text. Stretching is only for the row. */}
       <div className="flex flex-col sm:flex-row gap-3">
         {(solution || showAnswer) && (
           <Button
             variant="secondary"
-            className="flex-1"
+            className="w-full sm:w-auto sm:flex-1"
             aria-expanded={view === 'solution'}
             onClick={() => setView(view === 'solution' ? null : 'solution')}
           >
@@ -67,7 +70,7 @@ export default function SolutionPanel({ question, isOnline, aiText, aiLoading, o
         )}
         <Button
           variant="outline"
-          className="flex-1"
+          className="w-full sm:w-auto sm:flex-1"
           aria-expanded={view === 'ai'}
           onClick={toggleAi}
           loading={aiLoading && view === 'ai'}

@@ -5,8 +5,9 @@
 // end on a toast and drop straight back to the setup screen.
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import LatexRenderer from '../../components/LatexRenderer';
-import { Button, Card, CardWatermark, Grid, KpiTile, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
+import ResultsCard from '../../components/exam/ResultsCard';
+import ItemReview from '../quiz/ItemReview';
+import { Button, Card, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
 import { CheckCircle2, Crosshair, RotateCcw } from '../../components/ui/icons';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
@@ -19,14 +20,15 @@ import { formatDuration } from '../../utils/time';
  * @param {boolean} props.isOnline
  * @param {boolean} props.loading  a new session is starting
  * @param {() => void} props.onAgain  repeat the same session
+ * @param {() => void} props.onRetry  practise just the ones missed
  * @param {(topic: {topic: string, subject: string}) => void} props.onDrill
  * @param {() => void} props.onDone  back to the setup screen
  */
-export default function SessionSummary({ summary, isOnline, loading, onAgain, onDrill, onDone }) {
+export default function SessionSummary({ summary, isOnline, loading, onAgain, onRetry, onDrill, onDone }) {
   // The session screen was scrolled to its last question.
   useEffect(() => { window.scrollTo?.(0, 0); }, []);
 
-  const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, missed, missedCount } = summary;
+  const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, items = [], missedCount } = summary;
   const tone = accuracy >= 70 ? 'success' : accuracy >= 50 ? 'amber' : 'danger';
   // Formula cards rated inside Today's loop; the rest of the cards due are
   // next, in Library › Formula cards.
@@ -46,15 +48,40 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
       />
 
       {/* The screen's hero: the score, what it means, and what to do next. */}
-      <Card variant="hero" padding="md" className="flex flex-col gap-4">
-        <CardWatermark icon={CheckCircle2} />
-        {total > 0 && (
-          <Grid kind="tiles" gap="sm">
-            <KpiTile compact label="Score" value={`${correct}/${total}`} hint={`${accuracy}% correct`} />
-            <KpiTile compact label="Time" value={formatDuration(durationSecs)} />
-            <KpiTile compact label="Per question" value={avgSecs != null ? `${avgSecs}s` : '—'} hint="average" />
-          </Grid>
+      <ResultsCard
+        watermark={CheckCircle2}
+        score={total > 0 ? `${accuracy}%` : null}
+        tone={tone}
+        caption={total > 0 ? `${correct} of ${total} correct` : null}
+        tiles={total > 0 ? [
+          { label: 'Time', value: formatDuration(durationSecs) },
+          { label: 'Per question', value: avgSecs != null ? `${avgSecs}s` : '—', hint: 'average' },
+        ] : []}
+        actions={(
+          <>
+            {missedCount > 0 && onRetry && (
+              <Button onClick={onRetry} loading={loading} disabled={loading}>
+                {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Retry missed ({missedCount})
+              </Button>
+            )}
+            <Button variant={missedCount > 0 && onRetry ? 'secondary' : 'primary'} onClick={onAgain} loading={loading} disabled={loading}>
+              {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Practise again
+            </Button>
+            {weakest && (
+              <Button
+                variant="secondary"
+                onClick={() => onDrill(weakest)}
+                disabled={loading || !isOnline}
+                title={isOnline ? undefined : 'Needs a connection'}
+              >
+                <Crosshair size={16} strokeWidth={1.75} aria-hidden="true" /> Drill {weakest.topic}
+              </Button>
+            )}
+            <Button variant="secondary" as={Link} to="/progress?tab=topics">See your progress</Button>
+            <Button variant="ghost" onClick={onDone} disabled={loading}>Done</Button>
+          </>
         )}
+        details={(<>
         {cardsRated > 0 && (
           <p className="text-sm text-textMain">
             {cardsRated} formula card{cardsRated === 1 ? '' : 's'} rated. Each comes back when it’s due.
@@ -84,25 +111,8 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
             <Button variant="secondary" as={Link} to="/library?tab=formulas" className="w-full sm:w-auto">Review cards</Button>
           </Card>
         )}
-
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
-          <Button onClick={onAgain} loading={loading} disabled={loading}>
-            {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Practise again
-          </Button>
-          {weakest && (
-            <Button
-              variant="secondary"
-              onClick={() => onDrill(weakest)}
-              disabled={loading || !isOnline}
-              title={isOnline ? undefined : 'Needs a connection'}
-            >
-              <Crosshair size={16} strokeWidth={1.75} aria-hidden="true" /> Drill {weakest.topic}
-            </Button>
-          )}
-          <Button variant="secondary" as={Link} to="/progress?tab=topics">See your progress</Button>
-          <Button variant="ghost" onClick={onDone} disabled={loading}>Done</Button>
-        </div>
-      </Card>
+        </>)}
+      />
 
       {/* The one-time reminder offer after a first session, as a card here
           rather than a floating one over the buttons above. */}
@@ -132,30 +142,9 @@ export default function SessionSummary({ summary, isOnline, loading, onAgain, on
         </SectionCard>
       )}
 
-      {missed.length > 0 && (
-        <SectionCard
-          eyebrow="Review"
-          title={missedCount > missed.length ? `Questions you missed (first ${missed.length} of ${missedCount})` : 'Questions you missed'}
-        >
-          <ol className="flex flex-col gap-3">
-            {missed.map((m) => (
-              <li key={m.id} className="p-4 rounded-[var(--radius-default)] border border-border bg-surface2/40 flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted2">
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{m.topic}</span>
-                  {m.confident && <StatusPill tone="danger" dot={false}>Wrong while sure</StatusPill>}
-                </div>
-                <div className="text-sm text-textMain leading-relaxed overflow-x-auto [&_p]:!m-0">
-                  <LatexRenderer content={m.text} />
-                </div>
-                {m.answer && (
-                  <div className="text-sm text-muted2 flex flex-wrap gap-1.5 [&_p]:!m-0">
-                    <span className="font-medium" style={{ color: 'var(--accent-success)' }}>Answer:</span>
-                    <LatexRenderer content={m.answer} />
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
+      {items.length > 0 && (
+        <SectionCard eyebrow="Review" title="Review every item">
+          <ItemReview items={items} />
         </SectionCard>
       )}
     </Page>

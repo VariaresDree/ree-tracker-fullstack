@@ -1,6 +1,6 @@
 // One bar and one set of actions for every session, so a phone sees the question
 // and not a stack of chrome, and Next is never a scroll away.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SessionBar from './SessionBar';
 import SessionActions from './SessionActions';
@@ -60,6 +60,18 @@ describe('ItemActions', () => {
     render(<ItemActions onMark={() => {}} marked onBookmark={() => {}} bookmarked />);
     expect(screen.getByRole('button', { name: 'Unmark for review' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Remove from bookmarks' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('ItemActions — reporting', () => {
+  it('asks why, in one tap, and sends the reason', () => {
+    const onReport = vi.fn();
+    render(<ItemActions onReport={onReport} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem with this question' }));
+    expect(onReport).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'The answer key looks wrong' }));
+    expect(onReport).toHaveBeenCalledWith('The answer key looks wrong');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 
