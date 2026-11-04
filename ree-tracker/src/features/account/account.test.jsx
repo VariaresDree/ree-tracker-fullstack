@@ -135,6 +135,17 @@ describe('DataSettings — nothing destructive without a confirm', () => {
         expect(purgeApiCache).toHaveBeenCalledTimes(1);
     });
 
+    it('says plainly what goes and what stays, before and in the confirm', () => {
+        render(<DataSettings />);
+        const goes = /due reviews and mistake tags/;
+        const stays = /notes, bookmarks and formula card ratings/;
+        expect(screen.getByText(goes)).toHaveTextContent(stays);
+        fireEvent.click(screen.getByRole('button', { name: /delete all analytics/i }));
+        const confirm = screen.getByRole('dialog', { name: 'Delete all analytics?' });
+        expect(confirm).toHaveTextContent(goes);
+        expect(confirm).toHaveTextContent(stays);
+    });
+
     it('says how many unsynced changes it discards', () => {
         state.syncQueue = [{}, {}];
         state.pendingWrites = [{}];

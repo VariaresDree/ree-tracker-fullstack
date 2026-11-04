@@ -22,7 +22,7 @@ function makeApp() {
 }
 
 const deleter = () => ({ deleteMany: vi.fn().mockResolvedValue({ count: 0 }) });
-const TABLES = ['questionAttempt', 'examSession', 'activityLog', 'userTopicPerformance', 'forecastSnapshot', 'userAbility', 'studySession', 'thetaHistory', 'readinessSnapshot'];
+const TABLES = ['questionAttempt', 'examSession', 'activityLog', 'userTopicPerformance', 'forecastSnapshot', 'userAbility', 'studySession', 'thetaHistory', 'readinessSnapshot', 'sRSCard', 'mistakeTag'];
 
 beforeEach(() => {
     verifyIdToken.mockImplementation(async (token) => ({ uid: token, email: `${token}@example.com` }));

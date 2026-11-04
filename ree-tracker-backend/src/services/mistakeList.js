@@ -78,4 +78,7 @@ async function loadMistakes(userId) {
     return { items: buildMistakes({ wrong, correct, questions, tags, ids }), truncated };
 }
 
-module.exports = { loadMistakes, withoutOpenBattles };
+/** Part of deleting analytics, in its transaction. Tags describe answers it removes. */
+const clearMistakeTags = (tx, userId) => tx.mistakeTag.deleteMany({ where: { userId } });
+
+module.exports = { loadMistakes, withoutOpenBattles, clearMistakeTags };

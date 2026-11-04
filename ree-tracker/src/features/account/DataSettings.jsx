@@ -50,7 +50,7 @@ export default function DataSettings() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <p className="text-sm font-medium text-textMain">Delete all analytics</p>
-          <p className="text-xs text-muted2">Permanently deletes your topic mastery, ability rating, readiness trend, confidence data, study time and history, on all your devices. Your exam plan, notes, bookmarks and review schedule stay.</p>
+          <p className="text-xs text-muted2">Permanently deletes your topic mastery, ability rating, readiness trend, confidence data, study time, history, due reviews and mistake tags, on all your devices. Your exam plan, notes, bookmarks and formula card ratings stay.</p>
         </div>
         <Button size="sm" tone="danger" variant="secondary" onClick={() => setConfirm(true)}>
           <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /> Delete all analytics
@@ -71,7 +71,7 @@ export default function DataSettings() {
           </>
         }
       >
-        <p className="text-sm text-muted2">This permanently deletes your topic mastery, ability rating, readiness trend, confidence data, study time and history. It can’t be undone. Your exam date and daily target are kept.</p>
+        <p className="text-sm text-muted2">This permanently deletes your topic mastery, ability rating, readiness trend, confidence data, study time, history, due reviews and mistake tags. It can’t be undone. Your exam plan, notes, bookmarks and formula card ratings are kept.</p>
         {unsynced > 0 && (
           <p className="text-sm text-textMain mt-3">
             {unsynced === 1 ? '1 change on this device hasn’t' : `${unsynced} changes on this device haven’t`} synced yet. {unsynced === 1 ? 'It is' : 'They are'} discarded too.
