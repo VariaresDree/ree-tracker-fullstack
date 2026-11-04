@@ -106,13 +106,51 @@ describe('Gauntlet — layouts', () => {
   });
 });
 
+describe('Gauntlet — the same tools as the mock', () => {
+  it('has a scratchpad', () => {
+    renderAtIndex(0, 3);
+    fireEvent.click(screen.getByRole('button', { name: 'Open scratchpad' }));
+    expect(screen.getByRole('dialog', { name: 'Scratchpad' })).toBeInTheDocument();
+  });
+
+  it('marks an item for review, by button or M, and the submit dialog lists it', () => {
+    const toggleMarked = vi.fn();
+    renderAtIndex(1, 3, 'active', { toggleMarked, marked: new Set([2]) });
+    fireEvent.click(screen.getByRole('button', { name: 'Mark for review (M)' }));
+    expect(toggleMarked).toHaveBeenCalledWith(1);
+    fireEvent.keyDown(window, { key: 'm' });
+    expect(toggleMarked).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: /submit exam/i }));
+    expect(within(screen.getByRole('dialog', { name: 'Submit this exam?' })).getByText(/item is marked for review/)).toBeInTheDocument();
+  });
+
+  it('left and right change the item, once, and stop at the ends', () => {
+    renderAtIndex(0, 3);
+    const options = within(screen.getByRole('radiogroup', { name: 'Answer choices' })).getAllByRole('radio');
+    options[0].focus();
+    fireEvent.keyDown(options[0], { key: 'ArrowRight' });
+    expect(engineState.setCurrentIndex).toHaveBeenCalledTimes(1);
+    expect(engineState.setCurrentIndex).toHaveBeenCalledWith(1);
+    expect(document.activeElement).toBe(options[0]);
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(engineState.setCurrentIndex).toHaveBeenCalledTimes(1);
+  });
+
+  it('keys wait while the scratchpad is open', () => {
+    renderAtIndex(0, 3);
+    fireEvent.click(screen.getByRole('button', { name: 'Open scratchpad' }));
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(engineState.setCurrentIndex).not.toHaveBeenCalled();
+  });
+});
+
 describe('Gauntlet — Submit', () => {
-  it('is in the toolbar from the first item, next to the clock, and asks first with the unanswered items', () => {
+  it('is in reach from the first item, and asks first with the unanswered items', () => {
     renderAtIndex(0, 3, 'active', { answers: { 1: 'B' } });
     expect(screen.getByRole('button', { name: /^next$/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /submit exam/i }));
     const dialog = screen.getByRole('dialog', { name: 'Submit this exam?' });
-    expect(within(dialog).getByText(/items are unanswered/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/items are left blank/)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Go to item 1' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Go to item 3' })).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: 'Go to item 2' })).not.toBeInTheDocument();
@@ -130,10 +168,10 @@ describe('Gauntlet — Submit', () => {
     expect(engineState.submitExam).not.toHaveBeenCalled();
   });
 
-  it('on the last item Next is replaced by a second Submit', () => {
+  it('on the last item Next is off, and Submit is still there', () => {
     renderAtIndex(2, 3);
-    expect(screen.getAllByRole('button', { name: /submit exam/i })).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: /^next$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(screen.getAllByRole('button', { name: /submit exam/i })).toHaveLength(1);
   });
 });
 

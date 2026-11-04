@@ -15,7 +15,7 @@
 // as not passing it and locks the ladder for 12 hours; a saved run is resumed
 // or submitted as it stands — there is no "start fresh" around the lock.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGauntletEngine } from '../features/gauntlet/useGauntletEngine';
 import GauntletDiagnostics from '../features/gauntlet/GauntletDiagnostics';
@@ -25,13 +25,20 @@ import ExamLayout from '../layouts/ExamLayout';
 import MainLayout from '../layouts/MainLayout';
 import ExamNavigator from '../components/exam/ExamNavigator';
 import ExamClock from '../components/exam/ExamClock';
+import ItemActions from '../components/exam/ItemActions';
+import KeyLegend from '../components/exam/KeyLegend';
 import PomodoroOwner from '../components/PomodoroOwner';
 import PaceIndicator from '../components/exam/PaceIndicator';
+import Scratchpad from '../components/Scratchpad';
+import SessionActions from '../components/exam/SessionActions';
+import SessionBar, { SubmitLabel } from '../components/exam/SessionBar';
+import { COPY, KEYS, letterIn } from '../features/quiz/examCopy';
 import { getGauntletTier } from '../config/examStandards';
-import { Button, Modal, EmptyState, Badge, StatusPill, Page, QuestionSurface, StickyToolbar } from '../components/ui';
-import { TriangleAlert, Flag, Bookmark, WifiOff } from '../components/ui/icons';
+import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
+import { shouldIgnoreHotkey } from '../utils/hotkeys';
+import { Button, Modal, EmptyState, Badge, Page, QuestionSurface } from '../components/ui';
+import { TriangleAlert, WifiOff } from '../components/ui/icons';
 
-const LETTERS = ['A', 'B', 'C', 'D'];
 const BACK_TO_GAUNTLET = '/exams?tab=gauntlet';
 
 function Waiting({ label }) {
@@ -63,13 +70,31 @@ export default function Gauntlet() {
   const {
     status, errorKind, questions, answers, confidences, gauntletEndTime, diagnostics,
     currentIndex, setCurrentIndex,
-    bookmarks, toggleBookmark, flags, toggleFlag,
+    bookmarks, toggleBookmark, flags, toggleFlag, marked, toggleMarked,
     resumeGauntlet, submitSavedRun, forfeitRun,
     handleAnswer, handleConfidence, submitExam,
   } = useGauntletEngine(level);
 
   const [showTime, setShowTime] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
+  const [showScratchpad, setShowScratchpad] = useState(false);
+  const itemRef = useItemFocus(currentIndex);
+
+  // Left, right and M, as in the mock. QuestionCard's own hotkeys pick the choice
+  // and the confidence.
+  const lastIndex = (questions?.length || 0) - 1;
+  useEffect(() => {
+    if (status !== 'active') return undefined;
+    const onKey = (e) => {
+      if (shouldIgnoreHotkey(e) || showScratchpad || showSubmit) return;
+      const key = e.key.toLowerCase();
+      if (key === 'arrowleft' && currentIndex > 0) setCurrentIndex(currentIndex - 1);
+      if (key === 'arrowright' && currentIndex < lastIndex) setCurrentIndex(currentIndex + 1);
+      if (key === 'm') toggleMarked?.(currentIndex);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [status, currentIndex, lastIndex, showScratchpad, showSubmit, setCurrentIndex, toggleMarked]);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [confirmSubmitSaved, setConfirmSubmitSaved] = useState(false);
 
@@ -180,10 +205,10 @@ export default function Gauntlet() {
   const isBookmarked = bookmarks.has(currentIndex);
   const isFlagged = flags.has(currentIndex) || !!currentQ?.isFlagged;
   const unanswered = questions.map((_, i) => i).filter((i) => answers[i] == null || answers[i] === '');
-  const letterOf = (idx) => {
-    const i = (questions[idx]?.options || []).indexOf(answers[idx]);
-    return i >= 0 && i < LETTERS.length ? LETTERS[i] : null;
-  };
+  const letterOf = (idx) => letterIn(questions[idx]?.options, answers[idx]);
+  const isMarked = marked?.has(currentIndex);
+  const markedList = [...(marked || [])].sort((a, b) => a - b);
+  const isLast = currentIndex === questions.length - 1;
 
   const leave = () => {
     setShowLeaveConfirm(false);
@@ -193,19 +218,18 @@ export default function Gauntlet() {
     navigate(BACK_TO_GAUNTLET);
   };
 
-  // Report + save to bookmarks, injected into QuestionCard's headerSlot.
+  // Injected into QuestionCard's headerSlot.
   const itemActions = (
-    <div className="flex gap-2">
-      <Button size="icon" variant="ghost" tone="danger" onClick={() => toggleFlag(currentIndex)} disabled={isFlagged} aria-label={isFlagged ? 'Already reported' : 'Report a problem with this question'} title={isFlagged ? 'Already reported' : 'Report a problem'} className={isFlagged ? '' : 'text-muted'}>
-        <Flag size={16} strokeWidth={1.75} aria-hidden="true" />
-      </Button>
-      <Button size="icon" variant="ghost" tone="amber" onClick={() => toggleBookmark(currentIndex)} aria-label={isBookmarked ? 'Remove from bookmarks' : 'Save to bookmarks'} aria-pressed={isBookmarked} title={isBookmarked ? 'Remove from bookmarks' : 'Save to bookmarks'} className={isBookmarked ? '' : 'text-muted'}>
-        <Bookmark size={16} strokeWidth={1.75} fill={isBookmarked ? 'currentColor' : 'none'} aria-hidden="true" />
-      </Button>
-    </div>
+    <ItemActions
+      marked={isMarked}
+      onMark={toggleMarked ? () => toggleMarked(currentIndex) : undefined}
+      onScratchpad={() => setShowScratchpad((v) => !v)}
+      reported={isFlagged}
+      onReport={() => toggleFlag(currentIndex)}
+      bookmarked={isBookmarked}
+      onBookmark={() => toggleBookmark(currentIndex)}
+    />
   );
-
-  const clock = <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />;
 
   return (
     <ExamLayout
@@ -220,6 +244,7 @@ export default function Gauntlet() {
         onClose={() => setShowSubmit(false)}
         onSubmit={() => submitExam()}
         unanswered={unanswered}
+        marked={markedList}
         onJump={setCurrentIndex}
       />
 
@@ -242,74 +267,70 @@ export default function Gauntlet() {
       </Modal>
 
       <Page>
-        {/* Toolbar. Two rows on phones (leave + clock, then level, count,
-            pace and Submit), one row from md. */}
-        <StickyToolbar>
-          <div className="flex w-full md:w-auto items-center justify-between gap-3">
-            <Button variant="ghost" tone="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
-              Leave
-            </Button>
-            <div className="md:hidden">{clock}</div>
-          </div>
-          <div className="flex w-full md:w-auto flex-wrap items-center justify-between md:justify-end gap-2 sm:gap-3">
-            <Badge tone="velocity">Level {level}</Badge>
-            <StatusPill tone="success" className="tabular-nums">
-              {answeredCount}/{questions.length} answered
-            </StatusPill>
-            {tier && (
-              <PaceIndicator
-                endTime={gauntletEndTime}
-                totalSecs={tier.timeLimitSecs}
-                totalItems={questions.length}
-                answered={answeredCount}
-                hidden={!showTime}
-              />
-            )}
-            <div className="hidden md:block">{clock}</div>
-            <Button size="sm" tone="danger" onClick={() => setShowSubmit(true)}>
-              Submit exam
-            </Button>
-          </div>
-        </StickyToolbar>
-
-        <ExamNavigator
-          count={questions.length}
-          currentIndex={currentIndex}
-          onSelect={setCurrentIndex}
-          isAnswered={(idx) => answers[idx] != null && answers[idx] !== ''}
-          sheet={{ letterOf }}
-        />
-
-        <QuestionSurface className="min-h-[420px]">
-          <QuestionCard
-            question={currentQ}
-            selectedOption={answers[currentIndex] ?? null}
-            confidence={confidences?.[currentIndex] ?? null}
-            state="answering"
-            showConfidence={true}
-            requireConfidence={false}
-            hotkeys={true}
-            index={currentIndex}
-            onSelect={(opt) => handleAnswer(currentIndex, opt)}
-            onConfidenceChange={(lvl) => handleConfidence?.(currentIndex, lvl)}
-            headerSlot={itemActions}
-          />
-        </QuestionSurface>
-
-        <div className="flex flex-wrap justify-between items-center gap-3">
-          <Button variant="secondary" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
-            Previous
-          </Button>
-          {currentIndex === questions.length - 1 ? (
-            <Button size="lg" tone="danger" onClick={() => setShowSubmit(true)}>
-              Submit exam
-            </Button>
-          ) : (
-            <Button variant="secondary" onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}>
-              Next
-            </Button>
+        <SessionBar
+          index={currentIndex}
+          total={questions.length}
+          answered={answeredCount}
+          action={<Button variant="ghost" tone="danger" size="sm" className="shrink-0" onClick={() => setShowLeaveConfirm(true)}>Leave</Button>}
+          detail={<span className="hidden sm:contents"><Badge tone="velocity">Level {level}</Badge></span>}
+        >
+          {tier && (
+            <PaceIndicator
+              endTime={gauntletEndTime}
+              totalSecs={tier.timeLimitSecs}
+              totalItems={questions.length}
+              answered={answeredCount}
+              hidden={!showTime}
+            />
           )}
+          <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
+          <KeyLegend keys={KEYS.exam} />
+        </SessionBar>
+
+        {/* Under the question on a phone, so the question comes first. */}
+        <div className="max-md:order-last min-w-0">
+          <ExamNavigator
+            count={questions.length}
+            currentIndex={currentIndex}
+            onSelect={setCurrentIndex}
+            isAnswered={(idx) => answers[idx] != null && answers[idx] !== ''}
+            isMarked={(idx) => !!marked?.has(idx)}
+            sheet={{ letterOf }}
+          />
         </div>
+
+        <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
+          {/* md:isolate: from md up the Scratchpad is an overlay inside this card;
+              on a phone it's a sheet on the layer scale (see SimulatorActive). */}
+          <QuestionSurface className="min-h-[420px] overflow-hidden md:isolate">
+            <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
+            <QuestionCard
+              question={currentQ}
+              selectedOption={answers[currentIndex] ?? null}
+              confidence={confidences?.[currentIndex] ?? null}
+              state="answering"
+              showConfidence={true}
+              requireConfidence={false}
+              hotkeys={true}
+              arrowsMoveItems
+              onSelect={(opt) => handleAnswer(currentIndex, opt)}
+              onConfidenceChange={(lvl) => handleConfidence?.(currentIndex, lvl)}
+              headerSlot={itemActions}
+            />
+          </QuestionSurface>
+        </div>
+
+        <SessionActions>
+          <Button variant="secondary" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
+            {COPY.previous}
+          </Button>
+          <Button tone="danger" variant={isLast ? undefined : 'outline'} className="mx-auto" aria-label={COPY.submit} onClick={() => setShowSubmit(true)}>
+            <SubmitLabel />
+          </Button>
+          <Button className="ml-auto" onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))} disabled={isLast}>
+            {COPY.next}
+          </Button>
+        </SessionActions>
       </Page>
     </ExamLayout>
   );

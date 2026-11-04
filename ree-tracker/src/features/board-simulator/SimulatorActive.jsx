@@ -10,11 +10,16 @@
 import { useState, useEffect } from 'react';
 import Scratchpad from '../../components/Scratchpad';
 import QuestionCard from '../quiz/QuestionCard';
-import { Button, StatusPill, Badge, QuestionSurface, StickyToolbar } from '../../components/ui';
-import { Pencil, Flag, Bookmark, Pin } from '../../components/ui/icons';
+import { Button, Badge, QuestionSurface } from '../../components/ui';
 import ExamClock from '../../components/exam/ExamClock';
 import ExamNavigator from '../../components/exam/ExamNavigator';
+import ItemActions from '../../components/exam/ItemActions';
+import KeyLegend from '../../components/exam/KeyLegend';
 import PaceIndicator from '../../components/exam/PaceIndicator';
+import SessionActions from '../../components/exam/SessionActions';
+import SessionBar, { SubmitLabel } from '../../components/exam/SessionBar';
+import { COPY, KEYS, letterIn } from '../quiz/examCopy';
+import { ITEM_FOCUS_CLASS, useItemFocus } from '../../hooks/useItemFocus';
 import { shouldIgnoreHotkey } from '../../utils/hotkeys';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAiExplanation } from '../quiz/useAiExplanation';
@@ -22,12 +27,6 @@ import SolutionPanel from '../quiz/SolutionPanel';
 import { explanationKey } from '../../services/aiExplanations';
 import SubmitDialog from './SubmitDialog';
 
-const LETTERS = ['A', 'B', 'C', 'D'];
-const letterIn = (options, value) => {
-  if (value == null) return null;
-  const i = (options || []).indexOf(value);
-  return i >= 0 && i < LETTERS.length ? LETTERS[i] : null;
-};
 const NO_MARKS = new Set();
 
 export default function SimulatorActive({ engine, onExitReview, isOnline }) {
@@ -40,6 +39,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
 
   const [showScratchpad, setShowScratchpad] = useState(false);
   const [showSubmit, setShowSubmit] = useState(false);
+  const itemRef = useItemFocus(currentIndex);
 
   // Post-exam explanations, kept per question (features/quiz/useAiExplanation).
   const { currentUser } = useAuth();
@@ -100,32 +100,17 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
 
   // Per-question actions, injected into QuestionCard's header slot.
   const itemActions = (
-    <div className="flex gap-1.5">
-      {!isReview && toggleMarked && (
-        <Button
-          size="icon"
-          variant="ghost"
-          tone="amber"
-          onClick={() => toggleMarked(currentIndex)}
-          aria-pressed={isMarked}
-          aria-label={isMarked ? 'Unmark for review' : 'Mark for review (M)'}
-          title={isMarked ? 'Unmark for review' : 'Mark for review (M)'}
-          className={isMarked ? '' : 'text-muted'}
-        >
-          <Pin size={16} strokeWidth={1.75} fill={isMarked ? 'currentColor' : 'none'} aria-hidden="true" />
-        </Button>
-      )}
-      <Button size="icon" variant="ghost" onClick={() => setShowScratchpad(!showScratchpad)} aria-label="Toggle scratchpad" className="text-muted hover:text-textMain">
-        <Pencil size={16} strokeWidth={1.75} aria-hidden="true" />
-      </Button>
-      <Button size="icon" variant="ghost" tone="danger" onClick={handleFlagQuestion} disabled={q?.isFlagged} aria-label={q?.isFlagged ? 'Already reported' : 'Report a problem with this question'} className={q?.isFlagged ? '' : 'text-muted'}>
-        <Flag size={16} strokeWidth={1.75} aria-hidden="true" />
-      </Button>
-      <Button size="icon" variant="ghost" tone="amber" onClick={() => toggleBookmark(currentIndex)} aria-label={isBookmarked ? 'Remove from bookmarks' : 'Save to bookmarks'} className={isBookmarked ? '' : 'text-muted'}>
-        <Bookmark size={16} strokeWidth={1.75} fill={isBookmarked ? 'currentColor' : 'none'} aria-hidden="true" />
-      </Button>
-    </div>
+    <ItemActions
+      marked={isMarked}
+      onMark={!isReview && toggleMarked ? () => toggleMarked(currentIndex) : undefined}
+      onScratchpad={() => setShowScratchpad(!showScratchpad)}
+      reported={q?.isFlagged}
+      onReport={handleFlagQuestion}
+      bookmarked={isBookmarked}
+      onBookmark={() => toggleBookmark(currentIndex)}
+    />
   );
+  const isLast = currentIndex === totalQuestions - 1;
 
   return (
     <>
@@ -151,69 +136,60 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
           and header (45, 50) in the review. */}
       <div className="flex flex-col gap-6 min-w-0">
 
-        {/* Toolbar: submit (always reachable) / answered count / pace / clock.
-            Two rows on a phone so the answered count isn't the first thing hidden. */}
-        <StickyToolbar>
-          <div className="flex w-full sm:w-auto items-center justify-between gap-2">
-            {!isReview ? (
-              <Button tone="danger" size="sm" onClick={() => setShowSubmit(true)} disabled={isSubmitting}>
-                Submit exam
-              </Button>
-            ) : (
-              <Button variant="secondary" size="sm" onClick={() => (onExitReview ? onExitReview() : engine.resetToSetup())}>
-                Exit review
-              </Button>
-            )}
-            <Badge tone="velocity" className="tabular-nums sm:hidden">
-              {isReview ? 'Review' : `${answeredCount}/${totalQuestions}`}
-            </Badge>
-          </div>
+        <SessionBar
+          index={currentIndex}
+          total={totalQuestions}
+          answered={isReview ? undefined : answeredCount}
+          action={isReview ? (
+            <Button variant="secondary" size="sm" className="shrink-0" onClick={() => (onExitReview ? onExitReview() : engine.resetToSetup())}>
+              Exit review
+            </Button>
+          ) : undefined}
+          detail={!isReview && markedList.length > 0 ? <span className="hidden sm:contents"><Badge tone="amber" className="tabular-nums">{markedList.length} marked</Badge></span> : undefined}
+        >
+          {!isReview && (
+            <PaceIndicator
+              endTime={examEndTime}
+              totalSecs={examTotalSecs}
+              totalItems={totalQuestions}
+              answered={answeredCount}
+              hidden={!showTime}
+            />
+          )}
+          {!isReview && (
+            <ExamClock
+              endTime={examEndTime}
+              showTime={showTime}
+              onToggleTime={() => setShowTime(!showTime)}
+            />
+          )}
+          <KeyLegend keys={KEYS.exam} />
+        </SessionBar>
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-            <StatusPill tone="success" className="hidden md:inline-flex">Hotkeys on</StatusPill>
-            <Badge tone="velocity" className="hidden sm:inline-flex tabular-nums">
-              {isReview ? 'Review mode' : `${answeredCount} of ${totalQuestions} answered`}
-            </Badge>
-            {!isReview && markedList.length > 0 && <Badge tone="amber" className="tabular-nums">{markedList.length} marked</Badge>}
-            {!isReview && (
-              <PaceIndicator
-                endTime={examEndTime}
-                totalSecs={examTotalSecs}
-                totalItems={totalQuestions}
-                answered={answeredCount}
-                hidden={!showTime}
-              />
-            )}
-            {!isReview && (
-              <ExamClock
-                endTime={examEndTime}
-                showTime={showTime}
-                onToggleTime={() => setShowTime(!showTime)}
-              />
-            )}
-          </div>
-        </StickyToolbar>
-
-        <ExamNavigator
-          count={totalQuestions}
-          currentIndex={currentIndex}
-          onSelect={handleIndexChange}
-          isAnswered={(idx) => session.answers[idx] != null}
-          isMarked={(idx) => marked.has(idx)}
-          reviewStateOf={isReview
-            ? (idx) => (session.answers[idx] == null ? 'skipped' : session.answers[idx] === session.questions[idx].answer ? 'correct' : 'incorrect')
-            : undefined}
-          sheet={{
-            letterOf: (idx) => letterIn(session.questions[idx]?.options, session.answers[idx]),
-            correctLetterOf: isReview ? (idx) => letterIn(session.questions[idx]?.options, session.questions[idx]?.answer) : undefined,
-          }}
-        />
+        {/* Under the question on a phone, so the question comes first. */}
+        <div className="max-md:order-last min-w-0">
+          <ExamNavigator
+            count={totalQuestions}
+            currentIndex={currentIndex}
+            onSelect={handleIndexChange}
+            isAnswered={(idx) => session.answers[idx] != null}
+            isMarked={(idx) => marked.has(idx)}
+            reviewStateOf={isReview
+              ? (idx) => (session.answers[idx] == null ? 'skipped' : session.answers[idx] === session.questions[idx].answer ? 'correct' : 'incorrect')
+              : undefined}
+            sheet={{
+              letterOf: (idx) => letterIn(session.questions[idx]?.options, session.answers[idx]),
+              correctLetterOf: isReview ? (idx) => letterIn(session.questions[idx]?.options, session.questions[idx]?.answer) : undefined,
+            }}
+          />
+        </div>
 
         {/* Exam canvas: QuestionCard owns the prompt + confidence + choices + reveal */}
         {/* md:isolate: from md up the Scratchpad is an overlay (z 40) inside
             this card, and the card keeps it below the sticky toolbar (z 30)
             when the question scrolls under it. On a phone the Scratchpad is a
             sheet on the layer scale, so nothing contains it. */}
+        <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
         <QuestionSurface
           className="overflow-hidden md:isolate transition-colors duration-700"
           style={{
@@ -233,7 +209,6 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
             requireConfidence={false}
             hotkeys={false}
             arrowsMoveItems
-            index={currentIndex}
             onSelect={handleSelectOption}
             onConfidenceChange={handleSelectConfidence}
             headerSlot={itemActions}
@@ -256,24 +231,22 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
               />
             </div>
           )}
-
-          {/* Previous / next, and Submit on the last item */}
-          <div className="flex flex-wrap justify-between items-center pt-8 mt-4 border-t border-border2/50 gap-3">
-            <Button variant="secondary" onClick={() => handleIndexChange(currentIndex - 1)} disabled={currentIndex === 0}>
-              Previous
-            </Button>
-
-            {!isReview && currentIndex === totalQuestions - 1 ? (
-              <Button tone="danger" size="lg" onClick={() => setShowSubmit(true)} disabled={isSubmitting}>
-                Submit exam
-              </Button>
-            ) : (
-              <Button onClick={() => handleIndexChange(currentIndex + 1)} disabled={currentIndex === totalQuestions - 1}>
-                Next
-              </Button>
-            )}
-          </div>
         </QuestionSurface>
+        </div>
+
+        <SessionActions>
+          <Button variant="secondary" onClick={() => handleIndexChange(currentIndex - 1)} disabled={currentIndex === 0}>
+            {COPY.previous}
+          </Button>
+          {!isReview && (
+            <Button tone="danger" variant={isLast ? undefined : 'outline'} className="mx-auto" aria-label={COPY.submit} onClick={() => setShowSubmit(true)} disabled={isSubmitting}>
+              <SubmitLabel />
+            </Button>
+          )}
+          <Button className="ml-auto" onClick={() => handleIndexChange(currentIndex + 1)} disabled={isLast}>
+            {COPY.next}
+          </Button>
+        </SessionActions>
       </div>
     </>
   );

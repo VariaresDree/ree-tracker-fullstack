@@ -6,6 +6,7 @@
 //
 // It slides away while reading down a page (hooks/useHideOnScroll), since any
 // fixed bar covers what scrolls behind it. Keyboard focus brings it back.
+import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import useHideOnScroll from '../hooks/useHideOnScroll';
 import { PRIMARY_NAV, activeNavId } from './navModel';
@@ -14,6 +15,12 @@ export default function BottomBar() {
   const { pathname } = useLocation();
   const active = activeNavId(pathname);
   const { hidden, show } = useHideOnScroll(pathname);
+
+  // A session's Next bar sits above this one, and comes down when it hides.
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-bottom-bar-hidden', hidden);
+    return () => document.documentElement.removeAttribute('data-bottom-bar-hidden');
+  }, [hidden]);
 
   return (
     <nav

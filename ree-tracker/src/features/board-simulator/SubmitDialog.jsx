@@ -46,7 +46,7 @@ export default function SubmitDialog({ open, onClose, onSubmit, unanswered = [],
         {allDone
           ? <p className="text-sm text-muted2">Every item is answered. You can’t change your answers after submitting.</p>
           : <p className="text-sm text-muted2">You can’t change your answers after submitting. Blank items count as wrong.</p>}
-        <ItemLinks label={unanswered.length === 1 ? 'item is unanswered' : 'items are unanswered'} indices={unanswered} onJump={jump} />
+        <ItemLinks label={unanswered.length === 1 ? 'item is left blank' : 'items are left blank'} indices={unanswered} onJump={jump} />
         <ItemLinks label={marked.length === 1 ? 'item is marked for review' : 'items are marked for review'} indices={marked} onJump={jump} />
       </div>
     </Modal>

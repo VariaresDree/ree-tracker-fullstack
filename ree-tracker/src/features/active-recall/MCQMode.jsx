@@ -17,7 +17,7 @@ import QuestionCard from '../quiz/QuestionCard';
 // during an active answer phase functions as a cheat code that compromises
 // the calibration analytics. The panel is still available on demand from
 // the Materials Hub / sidebar where it doesn't undermine the assessment.
-export default function MCQMode({ session, setSession, handleAnswerSelection, index, headerSlot }) {
+export default function MCQMode({ session, setSession, handleAnswerSelection, headerSlot }) {
   const currentQ = session.questions[session.currentIndex];
   if (!currentQ) return null;
 
@@ -32,7 +32,6 @@ export default function MCQMode({ session, setSession, handleAnswerSelection, in
         requireConfidence={true}
         hotkeys={true}
         arrowsMoveItems={session.isAnswered}
-        index={index}
         headerSlot={headerSlot}
         onSelect={handleAnswerSelection}
         onConfidenceChange={(level) => setSession((prev) => ({ ...prev, confidence: level }))}

@@ -115,6 +115,9 @@ export const useGauntletEngine = (level) => {
     const [diagnostics, setDiagnostics] = useState(null);
     const [bookmarks, setBookmarks] = useState(new Set());
     const [flags, setFlags] = useState(new Set());
+    // Items to come back to in this run, as in the mock. Only in the draft.
+    const [marked, setMarked] = useState(new Set());
+    const markedRef = useRef(new Set());
     const [hasSavedSession, setHasSavedSession] = useState(() => !!savedRunFor(level));
     // Another level while mounted (the route param changed): its saved run,
     // if any, decides the starting state, adjusted while rendering.
@@ -173,6 +176,7 @@ export const useGauntletEngine = (level) => {
                 endTime: endTimeRef.current,
                 bookmarks: Array.from(bookmarksRef.current || []),
                 flags: Array.from(flagsRef.current || []),
+                marked: Array.from(markedRef.current || []),
                 timeSpentPerQuestion: timeSpentPerQuestionRef.current,
                 runId: runIdRef.current,
                 ...(seededRef.current ? { optionOrder: OPTION_ORDER_VERSION } : {}),
@@ -263,6 +267,8 @@ export const useGauntletEngine = (level) => {
             setCurrentIndex(0);
             setBookmarks(new Set());
             setFlags(new Set());
+            setMarked(new Set());
+            markedRef.current = new Set();
 
             // The clock starts once the questions are on screen. It used to
             // start before the fetch, so a slow connection ate into the run.
@@ -340,6 +346,8 @@ export const useGauntletEngine = (level) => {
             currentIndexRef.current = restoredIndex;
             bookmarksRef.current = restoredBookmarks;
             flagsRef.current = restoredFlags;
+            markedRef.current = new Set(parsed.marked || []);
+            setMarked(markedRef.current);
 
             setQuestions(restoredQuestions);
             setAnswers(restoredAnswers);
@@ -435,6 +443,14 @@ export const useGauntletEngine = (level) => {
                 persistDraft();
                 toast.error(err?.message === '[OFFLINE]' ? "Offline — bookmarking needs a connection." : "Bookmark failed.");
             });
+    };
+
+    const toggleMarked = (idx) => {
+        const next = new Set(markedRef.current);
+        if (next.has(idx)) next.delete(idx); else next.add(idx);
+        markedRef.current = next;
+        setMarked(next);
+        persistDraft();
     };
 
     // One-way "report anomaly" — mirrors useSimulatorEngine.js's
@@ -781,6 +797,7 @@ export const useGauntletEngine = (level) => {
         bookmarks, toggleBookmark, flags, toggleFlag,
         hasSavedSession, resumeGauntlet, submitSavedRun, forfeitRun,
         errorKind,
+        marked, toggleMarked,
         handleAnswer, handleConfidence, submitExam
     };
 };

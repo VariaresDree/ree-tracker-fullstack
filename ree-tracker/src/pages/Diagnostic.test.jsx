@@ -76,7 +76,7 @@ describe('Diagnostic page', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Start placement test' }));
     expect(await screen.findByText('Question q1')).toBeInTheDocument();
-    expect(screen.getByText('Question 1 of about 19')).toBeInTheDocument();
+    expect(screen.getByText('Item 1 of about 19')).toBeInTheDocument();
 
     // Submit is disabled until an option is chosen.
     const submit = screen.getByRole('button', { name: /Submit answer/ });

@@ -6,14 +6,15 @@ export default function ExamLayout({
   message = 'Exam in progress — the clock is running, and results come at the end',
 }) {
   return (
-    // Sticky children sit just under the exam banner; there is no bottom bar.
+    // Sticky children sit at the top of the screen once the banner has scrolled
+    // away, and there is no bottom bar, only the home indicator to clear.
     <div
       className="exam-environment min-h-dvh flex flex-col bg-bg"
-      style={{ '--sticky-top': 'calc(max(0.5rem, env(safe-area-inset-top)) + 2.25rem)', '--bottom-bar-h': '0px' }}
+      style={{ '--sticky-top': 'max(0.5rem, env(safe-area-inset-top))', '--bottom-bar-h': 'env(safe-area-inset-bottom, 0px)' }}
     >
-      {/* Minimalist high-contrast warning header (sticky so it stays visible).
-          Copy + size step down on phones so it stays one line and doesn't
-          double the sticky chrome above the toolbar.
+      {/* Minimalist high-contrast warning header. It scrolls away: it stuck above
+          the session bar for the whole exam, when the running clock says the same
+          thing. Copy + size step down on phones so it stays one line.
           shortMessage/message default to plain mock-board copy. The old
           default promised "real-time penalties" that don't exist, and the
           Gauntlet (which shares this layout) passes its own pair.
@@ -23,7 +24,7 @@ export default function ExamLayout({
           forest, organs, electrical and retrowave themes, whose danger is a
           light pink. themeContrast.test.js measures the pair in every theme. */}
       <header
-        className="sticky top-0 z-[50] flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-xs sm:text-[0.8rem] font-semibold tracking-wide uppercase"
+        className="flex items-center justify-center gap-2 px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-xs sm:text-[0.8rem] font-semibold tracking-wide uppercase"
         style={{
           background: 'color-mix(in srgb, var(--accent-danger) 88%, black)',
           color: 'var(--on-danger)',
@@ -42,7 +43,7 @@ export default function ExamLayout({
           scrolled (the window does), but overflow-y-auto made it the scroll
           container of the sticky exam toolbar, so the toolbar and its clock
           scrolled away on a long question. */}
-      <main id="main-content" className="flex-1 min-w-0 overflow-x-clip flex justify-center px-4 py-6 sm:py-8">
+      <main id="main-content" className="flex-1 min-w-0 overflow-x-clip flex justify-center px-4 py-3 sm:py-8">
         <div className="w-full max-w-[1000px]">{children}</div>
       </main>
     </div>

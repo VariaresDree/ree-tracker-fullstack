@@ -174,6 +174,23 @@ describe('useGauntletEngine — resume cache + offline submit', () => {
     expect(result.current.errorKind).toBeNull();
   });
 
+  it('keeps items marked for review in the draft, through a resume', async () => {
+    const first = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(first.result.current.status).toBe('active'));
+    act(() => first.result.current.toggleMarked(2));
+    expect(first.result.current.marked.has(2)).toBe(true);
+    expect(JSON.parse(localStorage.getItem(CACHE_KEY)).marked).toEqual([2]);
+    act(() => first.result.current.toggleMarked(2));
+    expect(first.result.current.marked.has(2)).toBe(false);
+    act(() => first.result.current.toggleMarked(4));
+    first.unmount();
+
+    const second = renderHook(() => useGauntletEngine('1'), { wrapper });
+    await waitFor(() => expect(second.result.current.status).toBe('resume'));
+    act(() => { second.result.current.resumeGauntlet(); });
+    expect(second.result.current.marked.has(4)).toBe(true);
+  });
+
   it('ignores a stale cache for a different level and fetches fresh instead', async () => {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       level: '2',

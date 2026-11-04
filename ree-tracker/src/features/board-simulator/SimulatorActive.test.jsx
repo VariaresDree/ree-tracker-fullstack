@@ -91,7 +91,7 @@ describe('SimulatorActive', () => {
     render(<SimulatorActive engine={e} isOnline />);
     fireEvent.click(screen.getAllByRole('button', { name: 'Submit exam' })[0]);
     const dialog = screen.getByRole('dialog', { name: 'Submit this exam?' });
-    expect(within(dialog).getByText(/items are unanswered/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/items are left blank/)).toBeInTheDocument();
     expect(within(dialog).getByText(/item is marked for review/)).toBeInTheDocument();
     // Jump back to unanswered item 2.
     fireEvent.click(within(dialog).getAllByRole('button', { name: 'Go to item 2' })[0]);

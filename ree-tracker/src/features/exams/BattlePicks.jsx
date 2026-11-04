@@ -6,8 +6,8 @@
 // nothing for a question it has no picks for.
 import { useId } from 'react';
 import { formatDuration } from '../../utils/time';
+import { LETTERS } from '../quiz/examCopy';
 
-const LETTERS = ['A', 'B', 'C', 'D'];
 const MAX_TEXT = 40;
 
 /** "B, right, 42s"; "left blank". The letter is the option's place in the review's list (the order you saw). */

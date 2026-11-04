@@ -9,8 +9,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import LatexRenderer from '../components/LatexRenderer';
 import Scratchpad from '../components/Scratchpad';
-import { Button, Badge, StatusPill, Modal, Page, StickyToolbar, QuestionSurface } from '../components/ui';
-import { Pencil, Flag, Bookmark } from '../components/ui/icons';
+import { Button, Badge, Modal, Page, QuestionSurface } from '../components/ui';
+import ItemActions from '../components/exam/ItemActions';
+import KeyLegend from '../components/exam/KeyLegend';
+import SessionActions from '../components/exam/SessionActions';
+import SessionBar from '../components/exam/SessionBar';
+import { COPY, KEYS } from '../features/quiz/examCopy';
+import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
 import ReviewSetup from '../features/active-recall/ReviewSetup';
 import SessionSummary from '../features/active-recall/SessionSummary';
 import { drillPreset } from '../features/active-recall/presets';
@@ -41,6 +46,7 @@ export default function Practice() {
   const [showScratchpad, setShowScratchpad] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const currentQ = session.questions[session.currentIndex];
+  const itemRef = useItemFocus(session.currentIndex);
 
   // Deep links (Today's next steps, Progress, the planner) navigate here with a
   // session preset in router state. Auto-start once, then clear the state so
@@ -165,29 +171,39 @@ export default function Practice() {
         </p>
       </Modal>
 
-      <StickyToolbar>
-        <Button variant="ghost" tone="danger" size="sm" onClick={() => (session.totalAnswered > 0 ? setConfirmEnd(true) : endSession())} disabled={isSubmitting}>
+      <SessionBar
+        index={session.currentIndex}
+        total={total}
+        action={(
+          <Button variant="ghost" tone="danger" size="sm" className="shrink-0" onClick={() => (session.totalAnswered > 0 ? setConfirmEnd(true) : endSession())} disabled={isSubmitting}>
             End session
-        </Button>
-        <div className="flex items-center gap-3">
-            <StatusPill tone="success" className="hidden sm:inline-flex">Hotkeys on</StatusPill>
-            <Badge tone={config.sessionMode === 'mcq' ? 'velocity' : 'signal'}>
-                {config.sessionMode === 'mcq' ? 'MCQ' : 'Flashcards'}
-            </Badge>
-            {/* Labelled: a bare "02:41" didn't say it was this question's time,
-                or why it turns red (past three minutes, the board's slowest
-                pace). */}
-            <div className="flex flex-col items-end leading-tight">
-                <span className="text-micro text-muted2">This question</span>
-                <QuestionTimer
-                  key={questionStartedAt}
-                  startedAt={questionStartedAt}
-                  running={!session.isAnswered && !session.isFlipped && !session.isFinished}
-                />
-            </div>
+          </Button>
+        )}
+        detail={session.totalAnswered > 0 && (
+          <span className="shrink-0 text-xs text-muted2 tabular-nums max-[359px]:hidden">
+            <span style={{ color: 'var(--accent-success)' }} className="font-semibold">{session.correctHits}</span>/{session.totalAnswered} correct
+          </span>
+        )}
+      >
+        <span className="hidden sm:contents">
+          <Badge tone={config.sessionMode === 'mcq' ? 'velocity' : 'signal'}>
+            {config.sessionMode === 'mcq' ? 'MCQ' : 'Flashcards'}
+          </Badge>
+        </span>
+        {/* Labelled: a bare "02:41" didn't say it was this question's time, or
+            why it turns red (past three minutes, the board's slowest pace). */}
+        <div className="flex flex-col items-end leading-tight">
+          <span className="text-micro text-muted2 max-sm:sr-only">This question</span>
+          <QuestionTimer
+            key={questionStartedAt}
+            startedAt={questionStartedAt}
+            running={!session.isAnswered && !session.isFlipped && !session.isFinished}
+          />
         </div>
-      </StickyToolbar>
+        <KeyLegend keys={config.sessionMode === 'mcq' ? KEYS.practice : KEYS.flashcards} />
+      </SessionBar>
 
+      <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
       <QuestionSurface className="overflow-hidden transition-colors duration-700">
 
           {/* Prompt + subject eyebrow + Item N badge are owned by QuestionCard
@@ -205,20 +221,16 @@ export default function Practice() {
                   session={session}
                   setSession={setSession}
                   handleAnswerSelection={handleAnswerSelection}
-                  index={session.currentIndex}
                   headerSlot={
-                    <div className="flex gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => setShowScratchpad(!showScratchpad)} aria-label="Open scratchpad" className="text-muted hover:text-textMain">
-                        <Pencil size={16} strokeWidth={1.75} aria-hidden="true" />
-                      </Button>
-                      <Button size="icon" variant="ghost" tone="danger" onClick={handleFlagQuestion} disabled={currentQ.isFlagged} aria-label={currentQ.isFlagged ? 'Already flagged' : 'Flag question'} className={currentQ.isFlagged ? '' : 'text-muted'}>
-                        <Flag size={16} strokeWidth={1.75} aria-hidden="true" />
-                      </Button>
-                      <Button size="icon" variant="ghost" tone="amber" onClick={toggleBookmark} aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark question'} className={isBookmarked ? '' : 'text-muted'}>
-                        <Bookmark size={16} strokeWidth={1.75} fill={isBookmarked ? 'currentColor' : 'none'} aria-hidden="true" />
-                      </Button>
+                    <ItemActions
+                      onScratchpad={() => setShowScratchpad(!showScratchpad)}
+                      reported={currentQ.isFlagged}
+                      onReport={handleFlagQuestion}
+                      bookmarked={isBookmarked}
+                      onBookmark={toggleBookmark}
+                    >
                       <NoteButton type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
-                    </div>
+                    </ItemActions>
                   }
               />
           ) : (
@@ -230,14 +242,6 @@ export default function Practice() {
                   </div>
                   <FlashcardMode session={session} handleFlashcardReveal={handleFlashcardReveal} handleFlashcardRating={handleFlashcardRating} />
               </>
-          )}
-
-          {session.isAnswered && currentQ.kind === 'card' && (
-              <div className="mt-8 flex justify-end">
-                  <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion}>
-                      {isLastQuestion ? 'Finish session' : 'Next'}
-                  </Button>
-              </div>
           )}
 
           {session.isAnswered && currentQ.kind !== 'card' && (
@@ -257,19 +261,18 @@ export default function Practice() {
                       <TopicCardsLink topicId={currentQ.topicId} topic={currentQ.subtopic || currentQ.topic} subject={currentQ.subject} />
                   )}
                   <NoteView type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
-
-                  <div className="flex justify-between items-center mt-4 gap-3 flex-wrap">
-                      <div className="text-eyebrow bg-surface2/50 border border-border2/60 px-4 py-2 rounded-full">
-                          Correct: <span className="text-sm" style={{ color: 'var(--accent-success)' }}>{session.correctHits}</span> / {session.totalAnswered}
-                      </div>
-
-                      <Button tone={isLastQuestion ? 'success' : 'accent'} size="lg" onClick={loadNextQuestion} loading={session.fetchingNext}>
-                          {isLastQuestion ? 'Finish session' : 'Next question'}
-                      </Button>
-                  </div>
               </div>
           )}
       </QuestionSurface>
+      </div>
+
+      {session.isAnswered && (
+          <SessionActions className="justify-end">
+              <Button className="max-sm:w-full" tone={isLastQuestion ? 'success' : 'accent'} onClick={loadNextQuestion} loading={session.fetchingNext}>
+                  {isLastQuestion ? COPY.finish : COPY.next}
+              </Button>
+          </SessionActions>
+      )}
     </Page>
   );
 }
