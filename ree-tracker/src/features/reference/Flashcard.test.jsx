@@ -100,6 +100,82 @@ describe('Flashcard — active-face height tracking', () => {
   });
 });
 
+describe('Flashcard — asking', () => {
+  const front = () => document.querySelector('.flip-front');
+  const back = () => document.querySelector('.flip-back');
+
+  it('shows the formula up front when it is only a reference', () => {
+    render(<Flashcard card={CARD} />);
+    expect(front().textContent).toContain('X_c = 1/(2*pi*f*C)');
+    expect(front().textContent).toContain('Tap to flip');
+  });
+
+  it("asks for the formula: the name on the front, the answer only on the back", () => {
+    render(<Flashcard card={CARD} ask="formula" />);
+    expect(front().textContent).toContain('Capacitive Reactance');
+    expect(front().textContent).toContain('What’s the formula?');
+    expect(front().textContent).not.toContain('1/(2*pi*f*C)');
+    expect(back().textContent).toContain('1/(2*pi*f*C)');
+    expect(screen.getByRole('button')).toHaveAccessibleDescription(/What’s the formula\?/);
+  });
+
+  it('asks for a value, on a constant', () => {
+    render(<Flashcard card={{ ...CARD, kind: 'constant', formulaLatex: null, valueUnit: '8.854e-12' }} ask="formula" />);
+    expect(front().textContent).toContain('What’s its value?');
+    expect(front().textContent).not.toContain('8.854');
+    expect(back().textContent).toContain('8.854');
+  });
+
+  it("asks for the name: not on the front, in its title or in the button's name", () => {
+    const { container } = render(<Flashcard card={CARD} ask="name" />);
+    expect(front().textContent).toContain('1/(2*pi*f*C)');
+    expect(front().textContent).toContain('What is this called?');
+    expect(front().textContent).not.toContain('Capacitive');
+    expect(front().querySelector('[title*="Capacitive"]')).toBeNull();
+    // Its tag, "Capacitance", would all but say it.
+    expect(front().textContent).not.toContain('Capacitance');
+    expect(front().querySelector('[title*="Capacitance"]')).toBeNull();
+    expect(front().textContent).toContain('Electric Circuits 1');
+    const button = screen.getByRole('button');
+    expect(button.getAttribute('aria-label')).not.toContain('Capacitive');
+    fireEvent.click(button);
+    expect(button.getAttribute('aria-label')).toContain('Capacitive');
+    expect(container.querySelector('.flip-back').textContent).toContain('Capacitive');
+  });
+});
+
+describe('Flashcard — the back', () => {
+  const back = () => document.querySelector('.flip-back');
+
+  it('stands alone: the name, the formula, each symbol, what it is for, the tip', () => {
+    render(<Flashcard card={CARD} />);
+    const text = back().textContent;
+    for (const part of ['Capacitive Reactance', 'X_c = 1/(2*pi*f*C)', 'Where', 'frequency', 'Hz', 'What it’s for', 'Opposition a capacitor', 'Board tip', 'Watch the units.']) {
+      expect(text).toContain(part);
+    }
+  });
+
+  it('says what unit a formula gives, or that it has none', () => {
+    const { unmount } = render(<Flashcard card={{ ...CARD, valueUnit: 'Ω' }} />);
+    expect(back().textContent).toMatch(/Result in\s*Ω/);
+    unmount();
+    render(<Flashcard card={{ ...CARD, dimensionless: true }} />);
+    expect(back().textContent).toContain('No unit');
+  });
+
+  it('leads a constant with its value, and its definition comes second', () => {
+    render(<Flashcard card={{ ...CARD, kind: 'constant', valueUnit: '8.854e-12', formulaLatex: 'e = C d / A' }} />);
+    const text = back().textContent;
+    expect(text.indexOf('8.854e-12')).toBeLessThan(text.indexOf('e = C d / A'));
+    expect(text).not.toMatch(/Result in/);
+  });
+
+  it('never prints the string "null" as a unit', () => {
+    render(<Flashcard card={{ ...CARD, variables: [{ symbol: 'x', meaning: 'a ratio', unit: 'null' }] }} />);
+    expect(back().textContent).not.toContain('null');
+  });
+});
+
 describe('Flashcard description', () => {
   it('describes the face on show, so its content reaches a screen reader', () => {
     render(<Flashcard card={CARD} />);

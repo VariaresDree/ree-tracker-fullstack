@@ -9,6 +9,7 @@ import { toDisplaySubject } from '@ree/shared';
 import { Badge, Button, Card, EmptyState, SegmentedControl, Skeleton } from '../../components/ui';
 import { CloudOff, StickyNote, TriangleAlert } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
+import { withMathDelimiters } from '../../utils/mathDelimiters';
 import SmartText from '../../components/SmartText';
 import NoteEditor from './NoteEditor';
 import { useNotes } from './notesStore';
@@ -31,7 +32,7 @@ function NoteCard({ note }) {
       </div>
       {isCard && note.target?.formula && (
         <div className="text-sm text-textMain overflow-x-auto math-scroll-mobile no-scrollbar min-w-0 rounded-[var(--radius-default)] bg-surface2 px-3 py-2">
-          <LatexRenderer content={`$${note.target.formula}$`} />
+          <LatexRenderer content={withMathDelimiters(note.target.formula)} />
         </div>
       )}
       <p className="text-sm text-textMain whitespace-pre-wrap [overflow-wrap:anywhere] border-l-2 pl-3" style={{ borderColor: 'var(--color-reeAmber)' }}>

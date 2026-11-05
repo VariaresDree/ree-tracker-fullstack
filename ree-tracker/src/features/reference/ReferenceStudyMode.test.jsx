@@ -38,7 +38,8 @@ describe('ReferenceStudyMode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'card Ohm' }));
     const good = screen.getByRole('button', { name: /Good/ });
-    expect(good).toHaveTextContent('tomorrow');
+    expect(good).toHaveTextContent('4 days');
+    expect(screen.getByRole('button', { name: /Again/ })).toHaveTextContent('tomorrow');
     fireEvent.click(good);
     expect(rate).toHaveBeenCalledWith('a', 'good');
     expect(screen.getByText('card Watt')).toBeInTheDocument();
@@ -54,11 +55,28 @@ describe('ReferenceStudyMode', () => {
   });
 
   it('shows the longer interval a card has earned', () => {
-    const row = rateCard(rateCard(NEW_CARD, 'good'), 'good'); // 6 days
+    const row = rateCard(rateCard(NEW_CARD, 'good'), 'good'); // 10 days
     render(<ReferenceStudyMode cards={CARDS} reviews={{ rate: vi.fn(() => Promise.resolve()), rowFor: () => row }} onExit={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'card Ohm' }));
     expect(screen.getByRole('button', { name: /Good/ })).toHaveTextContent(/days|mo/);
     expect(screen.getByRole('button', { name: /Again/ })).toHaveTextContent('tomorrow');
+  });
+});
+
+describe('ReferenceStudyMode, with a dialog open over it', () => {
+  // A dialog's keys bubble here through React's tree, portal or not.
+  it('leaves its keys alone: no rating from a digit, no exit on Escape', () => {
+    const rate = vi.fn(() => Promise.resolve('sent'));
+    const onExit = vi.fn();
+    render(<ReferenceStudyMode cards={[{ id: 'a', name: 'Ohm', valueUnit: '$\\text{V}$', kind: 'formula' }]} reviews={{ rate, rowFor: () => null }} onExit={onExit} />);
+    fireEvent.click(screen.getByRole('button', { name: 'card Ohm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Convert these units' }));
+    return screen.findByRole('dialog', { name: 'Calculator and units' }).then((dialog) => {
+      fireEvent.keyDown(dialog, { key: '1' });
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+      expect(rate).not.toHaveBeenCalled();
+      expect(onExit).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -72,7 +90,7 @@ describe('card review rows', () => {
     ];
     const { value, count } = overlayQueuedRatings({ items: [] }, writes, 'u1');
     expect(count).toBe(2);
-    expect(value.items).toEqual([expect.objectContaining({ cardId: 'a', interval: 6, repetitions: 2 })]);
+    expect(value.items).toEqual([expect.objectContaining({ cardId: 'a', interval: 10, repetitions: 2 })]);
   });
 
   it('lists the due cards you can see, soonest first', () => {

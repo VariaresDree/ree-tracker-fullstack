@@ -53,7 +53,7 @@ describe('Flashcard — description/exam-tip/variable-meaning render as math, no
     render(<Flashcard card={CARD} />);
     fireEvent.click(screen.getByRole('button'));
 
-    const variablesHeading = screen.getByText('Variables');
+    const variablesHeading = screen.getByText('Where');
     const variablesBlock = variablesHeading.parentElement;
     expect(variablesBlock.querySelectorAll('.katex').length).toBeGreaterThan(0);
     expect(variablesBlock.textContent).not.toContain('$');

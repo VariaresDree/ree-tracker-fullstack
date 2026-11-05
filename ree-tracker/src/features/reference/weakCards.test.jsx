@@ -59,7 +59,7 @@ describe('PrintFormulas', () => {
     render(<MemoryRouter><PrintFormulas /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1, name: 'Formulas to keep in sight' })).toBeInTheDocument();
     expect(screen.getByText(/1 card you last rated Again or Hard/)).toBeInTheDocument();
-    expect(screen.getByText('N_s = 120f/P')).toBeInTheDocument();
+    expect(screen.getByText(/N_s = 120f\/P/)).toBeInTheDocument();
     expect(screen.getByText(/poles/)).toBeInTheDocument();
     expect(screen.getByText('Poles, not pole pairs.')).toBeInTheDocument();
     expect(screen.queryByText('Chain rule')).not.toBeInTheDocument();

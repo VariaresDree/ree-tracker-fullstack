@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { NOTE_MAX } from '@ree/shared';
 import { Button, FormField, Modal, Textarea } from '../../components/ui';
 import { NotebookPen } from '../../components/ui/icons';
+import LatexRenderer from '../../components/LatexRenderer';
 import { saveNote } from './notesStore';
 
 export default function NoteEditor({ open, onClose, type, targetId, target, initial = '' }) {
@@ -47,7 +48,7 @@ export default function NoteEditor({ open, onClose, type, targetId, target, init
       )}
     >
       <div className="flex flex-col gap-3">
-        {target?.title && <p className="text-sm text-muted2 line-clamp-2">On: {target.title}</p>}
+        {target?.title && <p className="text-sm text-muted2 line-clamp-2">On: <LatexRenderer content={target.title} inline /></p>}
         <FormField
           label={`Your note on this ${what}`}
           hint={<span className="tabular-nums" aria-live="polite">{left < 100 ? `${left} characters left` : `Up to ${NOTE_MAX} characters`}</span>}

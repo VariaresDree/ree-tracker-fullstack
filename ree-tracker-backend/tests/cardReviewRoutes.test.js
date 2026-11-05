@@ -49,20 +49,46 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('rating rules', () => {
-    it('maps Again / Hard / Good / Easy onto SM-2 and a Manila midnight', () => {
+    it('maps Again / Hard / Good / Easy onto a Manila midnight', () => {
         const at = new Date('2026-10-10T15:30:00Z'); // 23:30 Manila
+        const again = rateCard(NEW_CARD, 'again', at);
+        expect(again).toMatchObject({ interval: 1, repetitions: 0 });
+        expect(again.nextReviewDate.toISOString()).toBe('2026-10-10T16:00:00.000Z'); // the next Manila midnight, 30 minutes on
         const good = rateCard(NEW_CARD, 'good', at);
-        expect(good).toMatchObject({ interval: 1, repetitions: 1 });
-        expect(good.nextReviewDate.toISOString()).toBe('2026-10-10T16:00:00.000Z'); // the next Manila midnight, 30 minutes on
-        expect(rateCard(good, 'good', at).interval).toBe(6);
+        expect(good).toMatchObject({ interval: 4, repetitions: 1 });
+        expect(rateCard(good, 'good', at).interval).toBe(10); // 4 x ease 2.5
         expect(rateCard(rateCard(good, 'good', at), 'again', at)).toMatchObject({ interval: 1, repetitions: 0 });
         expect(rateCard(NEW_CARD, 'easy', at).easeFactor).toBeGreaterThan(rateCard(NEW_CARD, 'hard', at).easeFactor);
         expect(() => rateCard(NEW_CARD, 'meh', at)).toThrow();
     });
 
-    it('is the same SM-2 step the question reviews use', () => {
+    // Every button said "tomorrow" on a new card, and Hard, Good and Easy matched
+    // at every step after, so the choice looked like it did nothing.
+    it('gives a new card four different answers', () => {
+        const days = ['again', 'hard', 'good', 'easy'].map((r) => rateCard(NEW_CARD, r).interval);
+        expect(days).toEqual([1, 2, 4, 7]);
+    });
+
+    it('keeps the four apart at any step, whatever the ease, and Hard still moves on', () => {
+        const states = [1, 2, 3, 4, 6, 10, 30, 200].flatMap((interval) => [1.3, 1.5, 2.5, 3].map((easeFactor) => ({ interval, easeFactor, repetitions: 2 })));
+        for (const state of states) {
+            const [again, hard, good, easy] = ['again', 'hard', 'good', 'easy'].map((r) => rateCard(state, r).interval);
+            expect(again).toBe(1);
+            expect(hard).toBeGreaterThan(state.interval);
+            expect(good).toBeGreaterThan(hard);
+            expect(easy).toBeGreaterThan(good);
+        }
+    });
+
+    it('starts over after Again, as a new card does', () => {
+        const lapsed = rateCard({ interval: 30, easeFactor: 2.5, repetitions: 4 }, 'again');
+        expect(rateCard(lapsed, 'good').interval).toBe(4);
+    });
+
+    it('leaves the question reviews on their own SM-2 step', () => {
         expect(engine.scheduleNext).toBe(scheduleNext);
         expect(engine.manilaDueInstant).toBe(manilaDueInstant);
+        expect(scheduleNext(NEW_CARD, 4)).toMatchObject({ interval: 1, repetitions: 1 });
     });
 
     it('schedules a queued rating from when it was made, within a week, never the future', () => {
@@ -82,19 +108,19 @@ describe('POST /api/user/card-reviews/:cardId', () => {
     it('starts a card on its first rating and moves it on the next', async () => {
         const first = await rate('c1', { rating: 'good', reviewId: 'r-00000001' });
         expect(first.status).toBe(200);
-        expect(first.body.item).toMatchObject({ interval: 1, repetitions: 1 });
+        expect(first.body.item).toMatchObject({ interval: 4, repetitions: 1 });
         expect(first.body.item).not.toHaveProperty('lastReviewId');
         expect(prisma.cardReview.create.mock.calls[0][0].data).toMatchObject({ userId: UID, cardId: 'c1', lastReviewId: 'r-00000001' });
 
         const second = await rate('c1', { rating: 'good', reviewId: 'r-00000002' });
-        expect(second.body.item).toMatchObject({ interval: 6, repetitions: 2 });
+        expect(second.body.item).toMatchObject({ interval: 10, repetitions: 2 });
         expect(prisma.cardReview.update.mock.calls[0][0].where).toEqual({ userId_cardId: { userId: UID, cardId: 'c1' } });
     });
 
     it('a replayed rating changes nothing', async () => {
         await rate('c1', { rating: 'good', reviewId: 'r-00000001' });
         const again = await rate('c1', { rating: 'good', reviewId: 'r-00000001' });
-        expect(again.body.item).toMatchObject({ interval: 1, repetitions: 1 });
+        expect(again.body.item).toMatchObject({ interval: 4, repetitions: 1 });
         expect(prisma.cardReview.update).not.toHaveBeenCalled();
     });
 
@@ -121,7 +147,7 @@ describe("the study plan's formula-cards task", () => {
         prisma.plannerTask.findFirst.mockRejectedValue(new Error('db down'));
         const res = await rate('c1', { rating: 'good', reviewId: 'r-00000001' });
         expect(res.status).toBe(200);
-        expect(res.body.item).toMatchObject({ interval: 1 });
+        expect(res.body.item).toMatchObject({ interval: 4 });
     });
 });
 

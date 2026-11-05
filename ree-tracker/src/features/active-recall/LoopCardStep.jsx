@@ -8,6 +8,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { CARD_RATINGS } from '@ree/shared/srs';
 import Flashcard from '../reference/Flashcard';
+import UnitsLink from '../reference/UnitsLink';
 import CardRatingButtons from '../reference/CardRatingButtons';
 import { useCardReviews } from '../reference/useCardReviews';
 
@@ -24,21 +25,23 @@ export default function LoopCardStep({ card, rated, onRated }) {
   };
 
   const onKeyDown = (e) => {
+    if (e.target.closest?.('[role="dialog"]')) return; // The converter's keys are its own.
     if (['1', '2', '3', '4'].includes(e.key)) rate(CARD_RATINGS[Number(e.key) - 1]);
   };
 
   return (
     <div className="flex flex-col items-center gap-5" onKeyDown={onKeyDown}>
       <p className="text-eyebrow self-start">Formula card due for review</p>
-      <div className="w-full max-w-md">
-        <Flashcard card={card} onFlip={(flipped) => { if (flipped) setSeen(true); }} />
+      <div className="w-full max-w-md flex flex-col gap-1">
+        <Flashcard card={card} ask="formula" onFlip={(flipped) => { if (flipped) setSeen(true); }} />
+        <UnitsLink card={card} />
       </div>
       {rated ? (
         <p className="text-sm text-muted2 text-center">Rated. It comes back when it's due.</p>
       ) : seen ? (
         <CardRatingButtons row={reviews.rowFor(card.id)} onRate={rate} />
       ) : (
-        <p className="text-xs text-muted2 text-center max-w-md">Flip the card, then rate how well you knew it.</p>
+        <p className="text-xs text-muted2 text-center max-w-md">Say it or write it down first. Flip the card, then rate how well you knew it.</p>
       )}
     </div>
   );

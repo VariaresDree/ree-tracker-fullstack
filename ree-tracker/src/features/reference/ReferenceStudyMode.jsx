@@ -16,11 +16,12 @@ import { CARD_RATINGS } from '@ree/shared/srs';
 import { Button, EmptyState, StatusPill } from '../../components/ui';
 import { CheckCircle2, ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
 import Flashcard from './Flashcard';
+import UnitsLink from './UnitsLink';
 import CardRatingButtons from './CardRatingButtons';
 import PractiseTopicsButton from './PractiseTopicsButton';
 import { topicsOf } from './practiseTopics';
 
-export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse' }) {
+export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse', ask = 'formula' }) {
   const [index, setIndex] = useState(0);
   // Cards whose back has been seen in this session: the ones that can be rated.
   const [seen, setSeen] = useState(() => new Set());
@@ -52,6 +53,9 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
   };
 
   const handleKeyDown = (e) => {
+    // A dialog's keys reach here through React's tree: typing 1 in the converter
+    // would rate the card, and Escape would leave the session along with the sheet.
+    if (e.target.closest?.('[role="dialog"]')) return;
     if (e.key === 'ArrowLeft') goPrev();
     else if (e.key === 'ArrowRight') goNext();
     else if (e.key === 'Escape') onExit();
@@ -95,18 +99,20 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
         <StatusPill tone="neutral" dot={false}>{mode === 'review' ? 'Review ' : ''}{index + 1} / {cards.length}</StatusPill>
       </div>
 
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md flex flex-col gap-1">
         <Flashcard
           key={card.id}
           card={card}
+          ask={ask}
           onFlip={(flipped) => { if (flipped) setSeen((prev) => (prev.has(card.id) ? prev : new Set(prev).add(card.id))); }}
         />
+        <UnitsLink card={card} />
       </div>
 
       {reviews && (canRate ? (
         <CardRatingButtons row={reviews.rowFor(card.id)} onRate={rateCurrent} />
       ) : (
-        <p className="text-xs text-muted2 text-center max-w-md">Flip the card, then rate how well you knew it, and it comes back for review when it's due.</p>
+        <p className="text-xs text-muted2 text-center max-w-md">Say it or write it down first. Flip the card, then rate how well you knew it, and it comes back for review when it's due.</p>
       ))}
 
       <div className="flex items-center gap-3">
