@@ -57,19 +57,38 @@ function manilaDueInstant(at, intervalDays) {
 const CARD_RATINGS = ['again', 'hard', 'good', 'easy'];
 const CARD_RATING_LABELS = { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
 const CARD_RATING_QUALITY = { again: 1, hard: 3, good: 4, easy: 5 };
+// Days until a card you've just met comes back. SM-2's first steps ignore the
+// rating, so all four buttons said "tomorrow" on every new card.
+const FIRST_CARD_INTERVAL = { again: 1, hard: 2, good: 4, easy: 7 };
+
+/** Days until the next review. Each rating lands later than the one before it, at any step. */
+function cardInterval(card, rating) {
+    if (rating === 'again') return 1;
+    const prev = Number.isFinite(card?.interval) ? card.interval : 0;
+    if (!card?.repetitions || prev < 1) return FIRST_CARD_INTERVAL[rating];
+    const ease = Number.isFinite(card.easeFactor) ? card.easeFactor : NEW_CARD.easeFactor;
+    const hard = Math.max(prev + 1, Math.round(prev * 1.2));
+    if (rating === 'hard') return hard;
+    const good = Math.max(hard + 1, Math.round(prev * ease));
+    if (rating === 'good') return good;
+    return Math.max(good + 1, Math.round(prev * ease * 1.3));
+}
 
 /**
  * A formula card's schedule after one rating at `at`:
  * { easeFactor, interval, repetitions, nextReviewDate, lastReviewed, lastRating }.
  * `lastRating` is the rating itself, kept so the cards last rated Again or
- * Hard can be listed (Library › Formula cards › Print weak formulas).
+ * Hard can be listed (Library › Formula cards › Print weak formulas). Ease and
+ * repetitions move as in SM-2; the interval is the card's own, so question
+ * reviews (scheduleNext) are untouched.
  */
 function rateCard(card, rating, at = new Date()) {
     const quality = CARD_RATING_QUALITY[rating];
     if (quality == null) throw new Error(`Unknown rating: ${rating}`);
     const when = at instanceof Date ? at : new Date(at);
-    const next = scheduleNext(card || NEW_CARD, quality);
-    return { ...next, nextReviewDate: manilaDueInstant(when, next.interval), lastReviewed: when, lastRating: rating };
+    const interval = cardInterval(card || NEW_CARD, rating);
+    const next = { ...scheduleNext(card || NEW_CARD, quality), interval };
+    return { ...next, nextReviewDate: manilaDueInstant(when, interval), lastReviewed: when, lastRating: rating };
 }
 
 module.exports = {

@@ -14,7 +14,7 @@ import { useAppearance } from '../hooks/useAppearance';
 import { useReferenceCards } from '../features/reference/useReferenceCards';
 import { useCardReviews } from '../features/reference/useCardReviews';
 import { topicName, weakCards } from '../features/reference/weakCards';
-import LatexRenderer from '../components/LatexRenderer';
+import CardBody, { CardMath } from '../features/reference/CardBody';
 import { Button, EmptyState, SegmentedControl, Skeleton } from '../components/ui';
 import { ChevronLeft, Printer } from '../components/ui/icons';
 import '../features/reference/printFormulas.css';
@@ -23,21 +23,11 @@ const SUBJECTS = [{ value: 'all', label: 'All' }, { value: 'Mathematics', label:
 const fmtDay = (ymd) => new Date(`${ymd}T00:00:00+08:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
 
 function SheetCard({ card }) {
-  const variables = Array.isArray(card.variables) ? card.variables.filter((v) => v?.symbol) : [];
   return (
     <article className="pf-card">
       <p className="pf-topic">{card.subject}{topicName(card) ? ` · ${topicName(card)}` : ''}</p>
-      <h2>{card.name}{card.symbol ? <> (<LatexRenderer content={card.symbol} inline />)</> : null}</h2>
-      {card.formulaLatex && <div className="pf-formula"><LatexRenderer content={card.formulaLatex} /></div>}
-      {card.valueUnit && !card.formulaLatex && <div className="pf-formula"><LatexRenderer content={card.valueUnit} /></div>}
-      {variables.length > 0 && (
-        <ul className="pf-vars">
-          {variables.map((v) => (
-            <li key={v.symbol}><LatexRenderer content={v.symbol} inline />: {v.meaning}{v.unit ? ` (${v.unit})` : ''}</li>
-          ))}
-        </ul>
-      )}
-      {card.purposeExamTip && <p className="pf-tip"><strong>Board tip:</strong> <LatexRenderer content={card.purposeExamTip} inline /></p>}
+      <h2>{card.name}{card.symbol ? <> (<CardMath value={card.symbol} inline />)</> : null}</h2>
+      <CardBody card={card} compact />
     </article>
   );
 }

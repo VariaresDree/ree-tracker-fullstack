@@ -3,6 +3,15 @@
    white like paper; printed, only the sheet prints, two columns, no card split
    across a page. */
 .pf-sheet {
+  /* CardBody draws in the theme's colours; on paper they're ink, in every theme. */
+  --color-textMain: #111;
+  --color-muted: #444;
+  --color-muted2: #333;
+  --color-bg: #f7f7f7;
+  --color-border: #ccc;
+  --color-reeAmber: #8a5a00;
+  --color-reeAmber-text: #6b4500;
+  --accent-text: #111;
   background: #fff;
   color: #111;
   max-width: 210mm;
@@ -24,9 +33,9 @@
 }
 .pf-card h2 { font-size: 11pt; font-weight: 700; margin: 0 0 1mm; }
 .pf-card .pf-topic { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; color: #555; margin: 0 0 2mm; }
-.pf-card .pf-formula { font-size: 12pt; margin: 2mm 0; overflow-x: auto; }
-.pf-card .pf-vars { font-size: 9pt; margin: 1mm 0 0; padding: 0; list-style: none; }
-.pf-card .pf-tip { font-size: 9pt; margin: 2mm 0 0; color: #333; }
+.pf-card [data-card-answer] { font-size: 12pt; }
+.pf-card [data-card-where], .pf-card .text-fluid-sm { font-size: 9pt; }
+.pf-card .text-eyebrow { font-size: 7.5pt; color: #555; }
 .pf-sheet .katex-error { color: #111 !important; }
 
 @media (max-width: 639px) {
@@ -39,7 +48,7 @@
   html, body { background: #fff !important; }
   body::before, body::after { display: none !important; }
   .pf-screen-only { display: none !important; }
-  .pf-page { padding: 0 !important; }
+  .pf-page { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
   .pf-sheet { box-shadow: none; padding: 0; max-width: none; border-radius: 0; }
   .pf-cards { column-count: 2; }
 }
