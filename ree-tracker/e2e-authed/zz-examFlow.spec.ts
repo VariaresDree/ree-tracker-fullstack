@@ -27,8 +27,16 @@ test('a mock runs to its results: one row of chrome, actions in reach, no seriou
   const bar = page.locator('[data-session-bar]');
   await expect(bar).toBeVisible();
   expect((await bar.boundingBox())!.height).toBeLessThan(70);
+  // All of it, on the narrowest phone too: ExamLayout clips what overflows, and a
+  // bare toBeInViewport passes for a button with one pixel showing.
   const submit = page.getByRole('button', { name: 'Submit exam' });
-  await expect(submit).toBeInViewport();
+  await expect(submit).toBeInViewport({ ratio: 1 });
+  await page.setViewportSize({ width: 320, height: 568 });
+  await expect(submit).toBeInViewport({ ratio: 1 });
+  await page.setViewportSize({ width: 375, height: 667 });
+  // To the page's end first: a control half under the sticky footer reads as too
+  // small a target at that one scroll position, whatever its real size.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await expectNoSeriousViolations(page);
 
   await page.getByRole('radiogroup', { name: 'Answer choices' }).getByRole('radio').first().click();

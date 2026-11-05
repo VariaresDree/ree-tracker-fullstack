@@ -167,8 +167,51 @@ export default function QuestionCard({
     optionRefs.current[next]?.focus();
   };
 
+  // A pick the learner can still change comes first, then how sure they are of it,
+  // and the choices stay close under the question. Where a pick commits the answer
+  // (requireConfidence), the rating has to come before it. A blank rating counts as
+  // medium in calibration, so the row asks once something is picked.
+  const needsRating = !requireConfidence && selectedOption != null && !confidence;
+  const confidenceRow = showConfidence && !isReviewing && (
+    <fieldset className="border-0 p-0 m-0">
+      <legend className="text-eyebrow mb-2 flex items-center gap-2">
+        Confidence
+        {/* The amber text form, opaque: a 70%-alpha amber read under 4.5:1. */}
+        {requireConfidence && <span className="normal-case font-bold ml-1" style={{ color: 'var(--color-reeAmber-text)' }}>(required)</span>}
+        {needsRating && <span className="normal-case font-bold ml-1" style={{ color: 'var(--color-reeAmber-text)' }}>How sure are you?</span>}
+      </legend>
+      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Confidence level">
+        {CONFIDENCE_LEVELS.map((level, i) => {
+          const isSelected = confidence === level;
+          return (
+            <button
+              key={level}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              onClick={() => onConfidenceChange?.(level)}
+              className={`min-h-11 py-2 rounded-[var(--radius-default)] border text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-[color,background-color,border-color] duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
+                isSelected
+                  ? 'bg-surface3 border-textMain text-textMain'
+                  : needsRating
+                    ? 'bg-surface2/30 border-[color-mix(in_srgb,var(--color-reeAmber)_60%,transparent)] text-muted hover:text-textMain hover:bg-surface2'
+                    : 'bg-surface2/30 border-border2/50 text-muted hover:border-textMain/40 hover:text-textMain hover:bg-surface2'
+              }`}
+            >
+              {level}
+              {/* The button's own colour, not 30% of it (1.3:1). */}
+              <span className="text-micro font-mono font-normal hidden sm:inline">
+                [{['Q', 'W', 'E'][i]}]
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+
   return (
-    <div className={`flex flex-col gap-6 relative z-10 ${className}`}>
+    <div className={`flex flex-col gap-5 relative z-10 ${className}`}>
       {/* Grading changes colours and each option's sr-only state, but a
           screen-reader user would have to go looking for it. Always mounted,
           so the change is what gets announced. */}
@@ -205,45 +248,10 @@ export default function QuestionCard({
         {plainText ? <div className="whitespace-pre-wrap break-words">{prompt}</div> : <LatexRenderer content={prompt} />}
       </div>
 
-      {/* Confidence selector */}
-      {showConfidence && !isReviewing && (
-        <fieldset className="border-0 p-0 m-0">
-          <legend className="text-eyebrow mb-3 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-reeAmber)' }}></span>
-            Confidence
-            {/* The amber text form, opaque: a 70%-alpha amber read under 4.5:1. */}
-            {requireConfidence && <span className="normal-case font-bold ml-1" style={{ color: 'var(--color-reeAmber-text)' }}>(required)</span>}
-          </legend>
-          <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Confidence level">
-            {CONFIDENCE_LEVELS.map((level, i) => {
-              const isSelected = confidence === level;
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  onClick={() => onConfidenceChange?.(level)}
-                  className={`py-3.5 rounded-[var(--radius-default)] border-2 text-xs font-bold uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 transition-[color,background-color,border-color,box-shadow,translate,scale] duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
-                    isSelected
-                      ? 'bg-surface3 border-textMain text-textMain shadow-md'
-                      : 'bg-surface2/30 border-border2/50 text-muted hover:border-textMain/40 hover:text-textMain hover:bg-surface2'
-                  } ${!reduceMotion && isSelected ? 'scale-[1.02]' : ''} ${!reduceMotion && !isSelected ? 'hover:-translate-y-0.5' : ''}`}
-                >
-                  {level}
-                  {/* The button's own colour, not 30% of it (1.3:1). */}
-                  <span className="text-micro font-mono font-normal hidden sm:inline">
-                    [{['Q', 'W', 'E'][i]}]
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-      )}
+      {requireConfidence && confidenceRow}
 
       {/* Options A–D */}
-      <div className="flex flex-col gap-3.5" role="radiogroup" aria-label="Answer choices" onKeyDown={onOptionsKeyDown}>
+      <div className="flex flex-col gap-2.5 sm:gap-3" role="radiogroup" aria-label="Answer choices" onKeyDown={onOptionsKeyDown}>
         {options.map((opt, i) => (
           <OptionRow
             key={i}
@@ -260,6 +268,8 @@ export default function QuestionCard({
           />
         ))}
       </div>
+
+      {!requireConfidence && confidenceRow}
     </div>
   );
 }
@@ -328,12 +338,13 @@ function OptionRow({ opt, letter, isSelected, isCorrectAnswer, isReviewing, onCl
       onClick={onClick}
       ref={innerRef}
       tabIndex={tabIndex}
-      className={`group p-5 sm:p-6 rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-[color,background-color,border-color,box-shadow,translate,scale] duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
+      className={`group px-3.5 py-3 sm:px-5 sm:py-4 min-h-12 gap-3 text-base rounded-[var(--radius-lg)] border text-left flex items-center w-full transition-[color,background-color,border-color,box-shadow,translate,scale] duration-200 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-color)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${stateClass} ${scaleClass} ${hoverLift}`}
     >
-      <span className={`w-8 shrink-0 font-black font-mono text-base sm:text-lg tracking-wider transition-colors duration-200 ${letterColor}`}>
-        {letter}.
+      {/* The name keeps "A." for a screen reader; the chip already reads as a letter. */}
+      <span className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-full border border-current font-bold font-mono text-sm transition-colors duration-200 ${letterColor}`}>
+        {letter}<span className="sr-only">.</span>
       </span>
-      <div className={`flex-1 flex items-center overflow-x-auto math-scroll-mobile [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0 ${innerClass}`}>
+      <div className={`flex-1 min-w-0 flex items-center overflow-x-auto math-scroll-mobile !pb-0 [&_p]:!m-0 [&_.katex-display]:!m-0 [&_.katex-display]:!py-0 ${innerClass}`}>
         {plainText ? <div className="whitespace-pre-wrap break-words">{opt}</div> : <LatexRenderer content={opt} />}
       </div>
       {srState && <span className="sr-only">{srState}</span>}

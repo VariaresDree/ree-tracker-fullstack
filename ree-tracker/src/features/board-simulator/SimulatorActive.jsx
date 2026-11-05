@@ -16,9 +16,9 @@ import ExamNavigator from '../../components/exam/ExamNavigator';
 import ItemActions from '../../components/exam/ItemActions';
 import KeyLegend from '../../components/exam/KeyLegend';
 import PaceIndicator from '../../components/exam/PaceIndicator';
-import SessionActions from '../../components/exam/SessionActions';
-import SessionBar, { SubmitLabel } from '../../components/exam/SessionBar';
-import { COPY, KEYS, letterIn } from '../quiz/examCopy';
+import { SessionNav } from '../../components/exam/SessionActions';
+import SessionBar, { SubmitButton } from '../../components/exam/SessionBar';
+import { KEYS, letterIn } from '../quiz/examCopy';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../../hooks/useItemFocus';
 import { shouldIgnoreHotkey } from '../../utils/hotkeys';
 import { useAuth } from '../../contexts/AuthContext';
@@ -130,6 +130,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
         submitting={isSubmitting}
         unanswered={unanswered}
         marked={markedList}
+        total={totalQuestions}
         onJump={handleIndexChange}
       />
 
@@ -150,7 +151,11 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
             </Button>
           ) : undefined}
           detail={!isReview && markedList.length > 0 ? <span className="hidden sm:contents"><Badge tone="amber" className="tabular-nums">{markedList.length} marked</Badge></span> : undefined}
+          submit={isReview ? undefined : (
+            <SubmitButton allAnswered={unanswered.length === 0} disabled={isSubmitting} onClick={() => setShowSubmit(true)} />
+          )}
         >
+          <KeyLegend keys={KEYS.exam} />
           {!isReview && (
             <PaceIndicator
               endTime={examEndTime}
@@ -167,7 +172,6 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
               onToggleTime={() => setShowTime(!showTime)}
             />
           )}
-          <KeyLegend keys={KEYS.exam} />
         </SessionBar>
 
         {/* Under the question on a phone, so the question comes first. */}
@@ -239,19 +243,14 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
         </QuestionSurface>
         </div>
 
-        <SessionActions>
-          <Button variant="secondary" onClick={() => handleIndexChange(currentIndex - 1)} disabled={currentIndex === 0}>
-            {COPY.previous}
-          </Button>
-          {!isReview && (
-            <Button tone="danger" variant={isLast ? undefined : 'outline'} className="mx-auto" aria-label={COPY.submit} onClick={() => setShowSubmit(true)} disabled={isSubmitting}>
-              <SubmitLabel />
-            </Button>
-          )}
-          <Button className="ml-auto" onClick={() => handleIndexChange(currentIndex + 1)} disabled={isLast}>
-            {COPY.next}
-          </Button>
-        </SessionActions>
+        <SessionNav
+          atStart={currentIndex === 0}
+          atEnd={isLast}
+          onPrevious={() => handleIndexChange(currentIndex - 1)}
+          onNext={() => handleIndexChange(currentIndex + 1)}
+          onReview={isReview ? undefined : () => setShowSubmit(true)}
+          disabled={isSubmitting}
+        />
       </div>
     </>
   );

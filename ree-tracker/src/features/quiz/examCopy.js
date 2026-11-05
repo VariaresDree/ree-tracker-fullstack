@@ -12,6 +12,8 @@ export const COPY = {
   mark: 'Mark for review (M)',
   unmark: 'Unmark for review',
   submit: 'Submit exam',
+  submitShort: 'Submit',
+  reviewAndSubmit: 'Review and submit',
   previous: 'Previous',
   next: 'Next',
   finish: 'Finish session',

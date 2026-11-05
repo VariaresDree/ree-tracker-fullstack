@@ -30,9 +30,9 @@ import KeyLegend from '../components/exam/KeyLegend';
 import PomodoroOwner from '../components/PomodoroOwner';
 import PaceIndicator from '../components/exam/PaceIndicator';
 import Scratchpad from '../components/Scratchpad';
-import SessionActions from '../components/exam/SessionActions';
-import SessionBar, { SubmitLabel } from '../components/exam/SessionBar';
-import { COPY, KEYS, letterIn } from '../features/quiz/examCopy';
+import { SessionNav } from '../components/exam/SessionActions';
+import SessionBar, { LeaveButton, SubmitButton } from '../components/exam/SessionBar';
+import { KEYS, letterIn } from '../features/quiz/examCopy';
 import { getGauntletTier } from '../config/examStandards';
 import { readSavedRuns } from '../features/exams/savedRuns';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
@@ -251,6 +251,7 @@ function GauntletRun({ level }) {
         onSubmit={() => submitExam()}
         unanswered={unanswered}
         marked={markedList}
+        total={questions.length}
         onJump={setCurrentIndex}
       />
 
@@ -277,9 +278,11 @@ function GauntletRun({ level }) {
           index={currentIndex}
           total={questions.length}
           answered={answeredCount}
-          action={<Button variant="ghost" tone="danger" size="sm" className="shrink-0" onClick={() => setShowLeaveConfirm(true)}>Leave</Button>}
+          action={<LeaveButton tone="danger" onClick={() => setShowLeaveConfirm(true)} />}
           detail={<span className="hidden sm:contents"><Badge tone="velocity">Level {level}</Badge></span>}
+          submit={<SubmitButton allAnswered={unanswered.length === 0} onClick={() => setShowSubmit(true)} />}
         >
+          <KeyLegend keys={KEYS.exam} />
           {tier && (
             <PaceIndicator
               endTime={gauntletEndTime}
@@ -290,7 +293,6 @@ function GauntletRun({ level }) {
             />
           )}
           <ExamClock endTime={gauntletEndTime} showTime={showTime} onToggleTime={() => setShowTime((v) => !v)} />
-          <KeyLegend keys={KEYS.exam} />
         </SessionBar>
 
         {/* Under the question on a phone, so the question comes first. */}
@@ -326,17 +328,13 @@ function GauntletRun({ level }) {
           </QuestionSurface>
         </div>
 
-        <SessionActions>
-          <Button variant="secondary" onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))} disabled={currentIndex === 0}>
-            {COPY.previous}
-          </Button>
-          <Button tone="danger" variant={isLast ? undefined : 'outline'} className="mx-auto" aria-label={COPY.submit} onClick={() => setShowSubmit(true)}>
-            <SubmitLabel />
-          </Button>
-          <Button className="ml-auto" onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))} disabled={isLast}>
-            {COPY.next}
-          </Button>
-        </SessionActions>
+        <SessionNav
+          atStart={currentIndex === 0}
+          atEnd={isLast}
+          onPrevious={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+          onNext={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
+          onReview={() => setShowSubmit(true)}
+        />
       </Page>
     </ExamLayout>
   );

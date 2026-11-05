@@ -60,17 +60,33 @@ const getConfidenceButton = (level) =>
 describe('QuestionCard — rendering', () => {
   it('renders the prompt + four options + confidence selector by default', () => {
     Harness();
-    // 2 radiogroups: Confidence + Answer choices
+    // 2 radiogroups: the choices, then how sure you are of the one you picked
     const groups = screen.getAllByRole('radiogroup');
     expect(groups).toHaveLength(2);
-    expect(groups[0]).toHaveAttribute('aria-label', 'Confidence level');
-    expect(groups[1]).toHaveAttribute('aria-label', 'Answer choices');
+    expect(groups[0]).toHaveAttribute('aria-label', 'Answer choices');
+    expect(groups[1]).toHaveAttribute('aria-label', 'Confidence level');
 
     // 3 confidence options + 4 answer options = 7 radios
     expect(screen.getAllByRole('radio')).toHaveLength(7);
 
     // Prompt rendered via the mocked LatexRenderer
     expect(screen.getAllByTestId('latex')[0]).toHaveTextContent('What is $\\sin(2x)$?');
+  });
+
+  it('asks for the rating first only where a pick commits the answer', () => {
+    Harness({ requireConfidence: true });
+    const groups = screen.getAllByRole('radiogroup');
+    expect(groups[0]).toHaveAttribute('aria-label', 'Confidence level');
+    expect(groups[1]).toHaveAttribute('aria-label', 'Answer choices');
+  });
+
+  it('asks how sure you are once something is picked, and stops once it is rated', () => {
+    const { rerender } = render(<QuestionCard question={Q} selectedOption={null} state="answering" />);
+    expect(screen.queryByText('How sure are you?')).toBeNull();
+    rerender(<QuestionCard question={Q} selectedOption={Q.options[0]} state="answering" />);
+    expect(screen.getByText('How sure are you?')).toBeInTheDocument();
+    rerender(<QuestionCard question={Q} selectedOption={Q.options[0]} confidence="HIGH" state="answering" />);
+    expect(screen.queryByText('How sure are you?')).toBeNull();
   });
 
   it('renders subject › subtopic eyebrow and Item N badge when given an index', () => {
