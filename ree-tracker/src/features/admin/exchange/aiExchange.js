@@ -110,12 +110,12 @@ function toCard(block) {
     topic: fields.topic || '',
     subtopicTag: fields.tag || null,
     name: fields.name || '',
-    symbol: fields.symbol || null,
-    formulaLatex: sectionText(block, 'FORMULA') || null,
-    valueUnit: sectionText(block, 'VALUE') || null,
-    description: sectionText(block, 'MEANING'),
+    symbol: tidyMath(fields.symbol) || null,
+    formulaLatex: tidyMath(sectionText(block, 'FORMULA')) || null,
+    valueUnit: tidyMath(sectionText(block, 'VALUE')) || null,
+    description: tidyMath(sectionText(block, 'MEANING')),
     variables: readVariables(sectionText(block, 'VARIABLES')),
-    purposeExamTip: sectionText(block, 'TIP') || null,
+    purposeExamTip: tidyMath(sectionText(block, 'TIP')) || null,
     dimensionless: /^(true|yes)$/i.test(fields.dimensionless || ''),
   };
 }

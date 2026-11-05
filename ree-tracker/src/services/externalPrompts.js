@@ -130,12 +130,12 @@ For a formula: $X_c = \\frac{1}{2\\pi f C}$
 ---VALUE---
 For a constant: the exact value with units, such as $8.854\\times10^{-12}$ F/m. For a formula: the unit of its result.
 ---MEANING---
-One to three plain sentences on what it represents.
+One short plain sentence, under 140 characters, on what it gives you.
 ---VARIABLES---
 $f$ | frequency | $\\text{Hz}$
 $C$ | capacitance | $\\text{F}$
 ---TIP---
-How it's used in board problems, and one common trap.
+One short sentence, under 180 characters: the one trap or check that matters.
 ===END===`;
 
 /** The prompt for writing new formula and constant cards. */
@@ -143,6 +143,7 @@ export function buildCardImportPrompt({ subject, topic, topics = [], count = 10,
   const specific = !!topic;
   return [
     'You compile the formula and constant flashcards for a Philippine Registered Electrical Engineer (REE) board exam reviewer. Every value, unit and formula must be exactly right: a wrong constant teaches the wrong number. Use SI units and the values in standard references (CODATA for physical constants, the PEC 2017 for code values, standard engineering handbooks). Never round a standard constant. If you are not sure of an entry, leave it out rather than guess.',
+    'A card is read at a glance and printed on a sheet. The name is plain words with no LaTeX, under 60 characters. A constant is its value: leave FORMULA out rather than invent a definition such as pi = C/d.',
     '',
     `Write ${Math.min(count, MAX_PER_MESSAGE)} cards for ${SUBJECT_SCOPE[subject] || subject}: only formulas and constants that board problems use, no definitions or theories.`,
     specific
@@ -153,7 +154,7 @@ export function buildCardImportPrompt({ subject, topic, topics = [], count = 10,
     existingNames.length ? `Already in the library, so skip these: ${existingNames.slice(0, 150).join('; ')}.` : null,
     '',
     `"tag" names the family of cards this one belongs to, in 2 to 4 words in Title Case ("AC Power", "Resonance", "Annuities"): a family of at least two cards, never the card's own name, and never a word like "Formulas" or "Misc".${existingTags.length ? ` Reuse one of these when it fits: ${existingTags.slice(0, 60).join('; ')}.` : ''}`,
-    'For a formula, VARIABLES lists every symbol in it, the defined symbol included (known constants like \\pi aside), one per line as: symbol | meaning | unit.',
+    'For a formula, VARIABLES lists every symbol in it, the defined symbol included (known constants like \\pi aside), one per line as: symbol | meaning | unit. Leave the unit out when it has none: never write "dimensionless", "none" or "unit of x".',
     '',
     MATH_RULES,
     '',

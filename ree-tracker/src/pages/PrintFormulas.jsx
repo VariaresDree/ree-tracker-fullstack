@@ -26,7 +26,7 @@ function SheetCard({ card }) {
   return (
     <article className="pf-card">
       <p className="pf-topic">{card.subject}{topicName(card) ? ` · ${topicName(card)}` : ''}</p>
-      <h2>{card.name}{card.symbol ? <> (<CardMath value={card.symbol} inline />)</> : null}</h2>
+      <h2>{card.name}{card.symbol ? <> <span className="whitespace-nowrap">(<CardMath value={card.symbol} inline />)</span></> : null}</h2>
       <CardBody card={card} compact />
     </article>
   );

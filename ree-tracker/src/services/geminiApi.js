@@ -290,6 +290,8 @@ export const generateQuestionsFromText = async (rawText, subject, subtopic, coun
 //   topic: an EXACT topic name from the shared taxonomy (dynamicTOS[subject]).
 export const REFERENCE_SYSTEM = `You compile the formula and constant flashcards for a Philippine Registered Electrical Engineer (REE) board exam reviewer. Every value, unit and formula must be exactly right: a wrong constant teaches the wrong number. Use SI units and the values in standard references (CODATA for physical constants, the PEC 2017 for code values, standard engineering handbooks). Never round a standard constant. If you are not sure of an entry, leave it out rather than guess. Write formulas in the form reviewees will meet on the board, and name the trap reviewees fall into with each one.
 
+A card is read at a glance and printed on a sheet, so keep it short: a name in plain words, one short sentence on what it gives you, and one short sentence for the trap. A constant is its value: never invent a defining formula for it, such as pi = C/d.
+
 ${MATH_RULES}
 ${JSON_MATH_RULE}`;
 
@@ -317,22 +319,22 @@ const generateReferenceCardBatch = async (kind, subject, topic, count, existingN
       {
         "kind": "${kind}",
         "symbol": "short symbol wrapped in $ delimiters (e.g. '$X_c$'); null only if the entry truly has none",
-        "name": "Full name (e.g. 'Capacitive Reactance')",
+        "name": "Full name in plain words, no LaTeX, under 60 characters (e.g. 'Capacitive Reactance')",
         "formulaLatex": ${kind === 'formula'
             ? '"REQUIRED — the expression as LaTeX, WRAPPED IN $ DELIMITERS so it renders (e.g. \'$X_c = \\\\frac{1}{2\\\\pi f C}$\')"'
-            : '"a defining relation as LaTeX WRAPPED IN $ DELIMITERS, or null"'},
+            : 'null'},
         "valueUnit": ${kind === 'constant'
             ? '"REQUIRED — the exact value WITH units as LaTeX, WRAPPED IN $ DELIMITERS (e.g. \'$8.854\\\\times10^{-12}$ F/m\'); if genuinely dimensionless set dimensionless true instead of inventing a value"'
             : '"the unit of the result WRAPPED IN $ DELIMITERS (e.g. \'$\\\\Omega$\'), or null"'},
-        "description": "REQUIRED — 1-3 plain-language sentences on what it represents",
+        "description": "REQUIRED — ONE short plain sentence, under 140 characters, on what it gives you. Don't restate the formula.",
         "variables": [ { "symbol": "$f$", "meaning": "frequency", "unit": "$\\\\text{Hz}$" } ],
-        "purposeExamTip": "REQUIRED — how it is applied in board problem-solving, plus one common trap/mistake to watch for",
+        "purposeExamTip": "REQUIRED — ONE short sentence, under 180 characters: the one trap or check that board problems turn on",
         "subject": "${subject}",
         "topic": "${topic}",
         "subtopicTag": "the card's family, see the rule below, or null",
         "dimensionless": false
       }
-    3. For formulas: "variables" lists EVERY symbol in formulaLatex, the defined symbol included (known constants like \\pi aside), each with meaning and unit. For a constant: "variables" is [].
+    3. For formulas: "variables" lists EVERY symbol in formulaLatex, the defined symbol included (known constants like \\pi aside), each with a meaning of a few words and its SI unit in $\\\\text{}$, or a null unit when it has none. Never write "dimensionless", "none", "unit of x" or the word "null" as a unit. For a constant: "variables" is [].
     ${tagRule(existingTags)}
     4. All math/units MUST be valid LaTeX AND wrapped in $ delimiters (e.g. "$V = IR$", never bare "V = IR") — the renderer only typesets delimited expressions; anything else displays as literal source text to the student. Use standard engineering values; DO NOT round standard constants. ZERO HALLUCINATION — only well-established, board-relevant content.
     5. "topic" must be EXACTLY "${topic}" and "subject" EXACTLY "${subject}".
@@ -348,12 +350,12 @@ const generateReferenceCardBatch = async (kind, subject, topic, count, existingN
 const CARD_FIELDS = `{
         "kind": "formula" or "constant",
         "symbol": "short symbol in $ delimiters (e.g. '$X_c$'), or null",
-        "name": "full name (e.g. 'Capacitive Reactance')",
-        "formulaLatex": "for a formula: the expression as LaTeX in $ delimiters (e.g. '$X_c = \\\\frac{1}{2\\\\pi f C}$'); for a constant: null",
+        "name": "full name in plain words, no LaTeX, under 60 characters (e.g. 'Capacitive Reactance')",
+        "formulaLatex": "for a formula: the expression as LaTeX in $ delimiters (e.g. '$X_c = \\\\frac{1}{2\\\\pi f C}$'); for a constant: null, never an invented definition",
         "valueUnit": "for a constant: the exact value with units in $ delimiters (e.g. '$8.854\\\\times10^{-12}$ F/m'); for a formula: the unit of the result in $ delimiters, or null",
-        "description": "1-3 plain sentences on what it represents",
+        "description": "one short plain sentence, under 140 characters, on what it gives you",
         "variables": [ { "symbol": "$f$", "meaning": "frequency", "unit": "$\\\\text{Hz}$" } ],
-        "purposeExamTip": "how it is used in board problems, and one common trap",
+        "purposeExamTip": "one short sentence, under 180 characters: the one trap or check that matters",
         "subject": "<subject>",
         "topic": "<one of the topics listed>",
         "subtopicTag": "the card's family, or null",
@@ -383,7 +385,7 @@ export const generateReferenceCardsFromSource = async ({ subject, topic = null, 
       ${CARD_FIELDS}
     2. Only formulas and constants. No definitions, theories or concepts as cards.
     3. Copy values and formulas faithfully from the material; fix only obvious typos. Use standard values where the material is unreadable, and leave out anything you can't read or aren't sure of.
-    4. For a formula, "variables" lists every symbol in it, the defined symbol included (known constants like \\pi aside). For a constant, "variables" is [].
+    4. For a formula, "variables" lists every symbol in it, the defined symbol included (known constants like \\pi aside), with its SI unit or a null unit, never "dimensionless" or "unit of x". For a constant, "variables" is [].
     ${tagRule(existingTags)}
     5. All math in $ delimiters, as valid KaTeX. Write peso amounts as ₱ outside math.
     6. At most 15 cards per answer; prefer the ones board problems use most.${skip}`;

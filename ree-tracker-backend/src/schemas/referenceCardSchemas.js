@@ -6,7 +6,13 @@
 // coverage, subject/taxonomy normalization) live in validateCardRules so the
 // approve/debt paths can re-check stored rows without re-parsing.
 const { z } = require('zod');
+const { hasUnbalancedMath } = require('@ree/shared');
 const { normalizeSubject, SUBJECT_VARIANTS } = require('../utils/subject');
+
+// A card is read at a glance and printed on a sheet. Tips ran to 480 characters.
+// Counted on the source, so these leave room for LaTeX in a short sentence.
+const MAX_DESCRIPTION = 180;
+const MAX_TIP = 240;
 
 // A card is a formula or a constant. 'concept' is retired (2026-10-31): old
 // concept rows stay in the table for admins to re-type, but no new one is made
@@ -108,6 +114,19 @@ function validateCardRules(card) {
             reasons.push('missing-value-unit');
         }
     }
+    // A constant's value, not just its unit: "$\\text{F/m}$" tells you nothing to recall.
+    if (card.kind === 'constant' && card.valueUnit && !/\d/.test(card.valueUnit)) reasons.push('constant-needs-value');
+
+    // The name is shown as plain text everywhere, so LaTeX in it shows as source.
+    if (/[$\\]/.test(String(card.name ?? ''))) reasons.push('latex-in-name');
+    const vars = Array.isArray(card.variables) ? card.variables : [];
+    const mathFields = [
+        card.symbol, card.formulaLatex, card.valueUnit, card.description, card.purposeExamTip,
+        ...vars.flatMap((v) => [v?.symbol, v?.meaning, v?.unit]),
+    ];
+    if (mathFields.some(hasUnbalancedMath)) reasons.push('unbalanced-math');
+    if (String(card.description ?? '').trim().length > MAX_DESCRIPTION) reasons.push('description-too-long');
+    if (String(card.purposeExamTip ?? '').trim().length > MAX_TIP) reasons.push('tip-too-long');
     return reasons;
 }
 
@@ -120,4 +139,6 @@ module.exports = {
     aiIntakeSchema,
     tagRenameSchema,
     validateCardRules,
+    MAX_DESCRIPTION,
+    MAX_TIP,
 };
