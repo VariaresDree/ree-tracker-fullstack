@@ -80,7 +80,7 @@ export function useSyncLifecycle() {
 
     // 3. Last-gasp flush on hide/close
     const onHide = () => {
-      const { syncQueue, currentSessionId, currentSessionMode, currentSubject } = useStore.getState();
+      const { syncQueue, ownerUid, currentSessionId, currentSessionMode, currentSubject } = useStore.getState();
 
       // Durability FIRST, offline-safe: mirror the live queue to localStorage
       // (a SYNCHRONOUS API) so a fast close can't lose the last attempt(s) in
@@ -106,6 +106,9 @@ export function useSyncLifecycle() {
 
       const user = auth.currentUser;
       if (!user || syncQueue.length === 0 || !navigator.onLine) return;
+      // The queue can be another account's, and these answers would land in this
+      // one's analytics. The store's flush quarantines them on the next open.
+      if (ownerUid && ownerUid !== user.uid) return;
 
       const batch = syncQueue.slice(0, KEEPALIVE_MAX_ATTEMPTS);
       // getIdToken() is async, but Firebase caches the current token — read

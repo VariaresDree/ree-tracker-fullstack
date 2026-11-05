@@ -16,7 +16,7 @@
 // packages). A live end-to-end check (answer offline, reconnect, watch
 // Profile/Arena update without a Dashboard visit) is still recommended before
 // treating this as fully confirmed.
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { useSyncLifecycle } from './useSyncLifecycle';
 import { useStore } from '../store/useStore';
@@ -90,5 +90,58 @@ describe('useSyncLifecycle — app-wide dashboard-aggregate reconcile', () => {
     } finally {
       auth.currentUser = { uid: 'user-1' };
     }
+  });
+});
+
+// The store's flush refuses a queue that belongs to another account. The last
+// send on page hide skipped that check, so hiding the tab could post account A's
+// queued answers under account B's token.
+describe('useSyncLifecycle — the last send on page hide', () => {
+  const attempt = { id: 'a1', questionId: 'q1' };
+  let fetchMock;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    const { auth } = await import('../config/firebaseDb');
+    auth.currentUser = { uid: 'user-b', accessToken: 'token-b' };
+    useStore.setState({ syncQueue: [attempt], ownerUid: 'user-b' });
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    localStorage.removeItem('ree_pending_sync');
+    const { auth } = await import('../config/firebaseDb');
+    auth.currentUser = { uid: 'user-1' };
+    useStore.setState({ syncQueue: [], ownerUid: undefined });
+  });
+
+  it('sends the signed-in account its own queue', () => {
+    render(<Harness />);
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.keepalive).toBe(true);
+    expect(options.headers.Authorization).toBe('Bearer token-b');
+  });
+
+  it('sends nothing when the queue belongs to another account, and still keeps it', () => {
+    useStore.setState({ ownerUid: 'user-a' });
+    render(<Harness />);
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('ree_pending_sync'))).toEqual([attempt]);
+    expect(useStore.getState().syncQueue).toEqual([attempt]);
+  });
+
+  it('sends a queue with no owner yet, as the store\'s flush does', () => {
+    useStore.setState({ ownerUid: null });
+    render(<Harness />);
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
