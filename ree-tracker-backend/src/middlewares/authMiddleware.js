@@ -57,7 +57,10 @@ module.exports = async (req, res, next) => {
         // are O(1) Set lookups. ~1ms amortized cost.
         await ensureUserExists(decodedToken);
     } catch (error) {
-        logger.error('Auth verification failed', { route: req.originalUrl, error: error.message });
+        // Tokens last an hour and the client retries once with a fresh one, so
+        // expiry is routine. Only error-level lines reach Admin › App health.
+        const level = error.code === 'auth/id-token-expired' ? 'warn' : 'error';
+        logger[level]('Auth verification failed', { path: req.originalUrl, error: error.message });
         return res.status(401).json({ error: 'Unauthorized: Session expired or invalid. Token refresh required.' });
     }
     // Outside the try: an error further down the chain is the route's to
