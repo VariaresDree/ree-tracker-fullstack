@@ -132,7 +132,7 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
           answered={practice ? undefined : score.answered}
           action={<LeaveButton onClick={onLeave} />}
           detail={practice && score.answered > 0 && (
-            <span className="shrink-0 text-xs text-muted2 tabular-nums max-sm:hidden">
+            <span className="shrink-0 text-xs text-muted2 tabular-nums max-[359px]:hidden">
               <span style={{ color: 'var(--accent-success)' }} className="font-semibold">{score.correct}</span>/{score.answered} correct
             </span>
           )}
