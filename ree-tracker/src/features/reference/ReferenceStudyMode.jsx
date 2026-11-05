@@ -12,7 +12,7 @@
 // questions on each topic rated (practiseTopics.js).
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { CARD_RATINGS } from '@ree/shared';
+import { CARD_RATINGS } from '@ree/shared/srs';
 import { Button, EmptyState, StatusPill } from '../../components/ui';
 import { CheckCircle2, ChevronLeft, ChevronRight, X } from '../../components/ui/icons';
 import Flashcard from './Flashcard';

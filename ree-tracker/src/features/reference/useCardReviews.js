@@ -10,7 +10,7 @@
 //     laid over the server's copy with the same SM-2 step the server runs
 //     (@ree/shared rateCard). The server's answer replaces the row once sent.
 import { useCallback, useMemo } from 'react';
-import { NEW_CARD, rateCard } from '@ree/shared';
+import { NEW_CARD, rateCard } from '@ree/shared/srs';
 import { useSyncedUserData } from '../../hooks/useSyncedUserData';
 import { writeOrQueue } from '../../services/writeOrQueue';
 

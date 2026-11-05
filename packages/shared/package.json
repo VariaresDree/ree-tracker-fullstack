@@ -17,7 +17,8 @@
     "./outsideScores": "./src/outsideScores.js",
     "./subtopics": "./src/subtopics.js",
     "./boardItems": "./src/boardItems.js",
-    "./units": "./src/units.js"
+    "./units": "./src/units.js",
+    "./srs": "./src/srs.js"
   },
   "files": [
     "src"

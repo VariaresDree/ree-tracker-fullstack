@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { NEW_CARD, rateCard } from '@ree/shared';
+import { NEW_CARD, rateCard } from '@ree/shared/srs';
 
 vi.mock('./Flashcard', () => ({
   default: ({ card, onFlip }) => <button type="button" onClick={() => onFlip?.(true)}>card {card.name}</button>,
