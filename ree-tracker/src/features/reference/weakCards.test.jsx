@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { rateCard, NEW_CARD } from '@ree/shared';
+import { rateCard, NEW_CARD } from '@ree/shared/srs';
 import { isWeakReview, pickRecallTopic, weakCards } from './weakCards';
 
 const card = (id, subject, topic, extra = {}) => ({ id, subject, name: `Card ${id}`, topic: topic ? { name: topic } : null, ...extra });

@@ -1,11 +1,12 @@
 // src/components/exam/SessionActions.jsx
 //
-// Previous, Next and Submit, kept in view at the foot of the screen: under a long
+// Previous and Next, kept in view at the foot of the screen: under a long
 // solution, Next was a scroll away after every question. In the app's layout it
 // sits above the phone's bottom bar, and comes down with it when the bar slides
 // away (BottomBar marks <html> while it's hidden). It also clears the floating
 // focus timer.
-import { cn } from '../ui';
+import { Button, cn } from '../ui';
+import { COPY } from '../../features/quiz/examCopy';
 
 export default function SessionActions({ className, children }) {
   return (
@@ -22,5 +23,22 @@ export default function SessionActions({ className, children }) {
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * Previous at the left, Next at the right, for a session you finish yourself. On
+ * the last item Next becomes `reviewLabel`, which opens the submit dialog, so a
+ * tap on the last item is never a dead button. Without `onReview` (reading back a
+ * finished exam) Next just stops there.
+ */
+export function SessionNav({ atStart, atEnd, onPrevious, onNext, onReview, reviewLabel = COPY.reviewAndSubmit, disabled = false }) {
+  return (
+    <SessionActions>
+      <Button variant="secondary" onClick={onPrevious} disabled={atStart}>{COPY.previous}</Button>
+      {atEnd && onReview
+        ? <Button className="ml-auto" onClick={onReview} disabled={disabled}>{reviewLabel}</Button>
+        : <Button className="ml-auto" onClick={onNext} disabled={atEnd}>{COPY.next}</Button>}
+    </SessionActions>
   );
 }

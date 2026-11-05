@@ -173,10 +173,14 @@ describe('Gauntlet — Submit', () => {
     expect(engineState.submitExam).not.toHaveBeenCalled();
   });
 
-  it('on the last item Next is off, and Submit is still there', () => {
+  it('on the last item Next becomes Review and submit, which only opens the dialog', () => {
     renderAtIndex(2, 3);
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
     expect(screen.getAllByRole('button', { name: /submit exam/i })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review and submit' }));
+    expect(screen.getByRole('dialog', { name: 'Submit this exam?' })).toBeInTheDocument();
+    expect(engineState.submitExam).not.toHaveBeenCalled();
   });
 });
 

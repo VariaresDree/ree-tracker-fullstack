@@ -7,19 +7,19 @@
 // reaches your progress or the server.
 import { useEffect, useEffectEvent, useState } from 'react';
 import ExamLayout from '../../layouts/ExamLayout';
-import { Button, Page, QuestionSurface } from '../../components/ui';
+import { Page, QuestionSurface } from '../../components/ui';
 import ExamClock from '../../components/exam/ExamClock';
 import ExamNavigator from '../../components/exam/ExamNavigator';
 import ItemActions from '../../components/exam/ItemActions';
 import KeyLegend from '../../components/exam/KeyLegend';
 import PaceIndicator from '../../components/exam/PaceIndicator';
-import SessionActions from '../../components/exam/SessionActions';
-import SessionBar, { SubmitLabel } from '../../components/exam/SessionBar';
+import { SessionNav } from '../../components/exam/SessionActions';
+import SessionBar, { LeaveButton, SubmitButton } from '../../components/exam/SessionBar';
 import SubmitDialog from '../../components/exam/SubmitDialog';
 import Scratchpad from '../../components/Scratchpad';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../../hooks/useItemFocus';
 import { shouldIgnoreHotkey } from '../../utils/hotkeys';
-import { COPY, KEYS, letterIn } from '../quiz/examCopy';
+import { KEYS, letterIn } from '../quiz/examCopy';
 import QuestionCard from '../quiz/QuestionCard';
 import CaqResults, { QuizNotes } from './CaqResults';
 import { missedIds } from './quizRun';
@@ -106,6 +106,8 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
     if (!practice || answer == null) return null;
     return answer === shown[i].answer ? 'correct' : 'incorrect';
   };
+  // Practice has already shown every answer, so with nothing blank there's nothing to confirm.
+  const askToFinish = () => (practice && blanks.length === 0 ? finish() : setShowSubmit(true));
 
   return (
     <ExamLayout {...BANNER}>
@@ -118,6 +120,7 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
           onSubmit={() => finish()}
           unanswered={blanks}
           marked={marked}
+          total={shown.length}
           onJump={goTo}
           title={practice ? 'Finish this quiz?' : undefined}
           submitLabel={practice ? 'Finish' : undefined}
@@ -127,13 +130,17 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
           index={run.index}
           total={shown.length}
           answered={practice ? undefined : score.answered}
-          action={<Button variant="ghost" size="sm" className="shrink-0" onClick={onLeave}>Leave</Button>}
+          action={<LeaveButton onClick={onLeave} />}
           detail={practice && score.answered > 0 && (
             <span className="shrink-0 text-xs text-muted2 tabular-nums max-[359px]:hidden">
               <span style={{ color: 'var(--accent-success)' }} className="font-semibold">{score.correct}</span>/{score.answered} correct
             </span>
           )}
+          submit={practice
+            ? <SubmitButton label="Finish" name="Finish" allAnswered={blanks.length === 0} onClick={askToFinish} />
+            : <SubmitButton allAnswered={blanks.length === 0} onClick={askToFinish} />}
         >
+          <KeyLegend keys={practice ? KEYS.quizPractice : KEYS.quizExam} />
           {run.deadline ? (
             <>
               <PaceIndicator endTime={run.deadline} totalSecs={run.limitSecs} totalItems={shown.length} answered={score.answered} hidden={!showTime} />
@@ -142,7 +149,6 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
           ) : (
             <CountUp baseMs={initialRun.elapsedMs} since={openedAt} />
           )}
-          <KeyLegend keys={practice ? KEYS.quizPractice : KEYS.quizExam} />
         </SessionBar>
 
         {/* Under the question on a phone, so the question comes first. */}
@@ -182,24 +188,14 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
           </QuestionSurface>
         </div>
 
-        <SessionActions>
-          <Button variant="secondary" onClick={() => goTo(run.index - 1)} disabled={run.index === 0}>{COPY.previous}</Button>
-          {practice ? (
-            <Button
-              variant={isLast ? undefined : 'outline'}
-              tone={isLast ? 'success' : undefined}
-              className="mx-auto"
-              onClick={() => (blanks.length > 0 ? setShowSubmit(true) : finish())}
-            >
-              Finish
-            </Button>
-          ) : (
-            <Button tone="danger" variant={isLast ? undefined : 'outline'} className="mx-auto" aria-label={COPY.submit} onClick={() => setShowSubmit(true)}>
-              <SubmitLabel />
-            </Button>
-          )}
-          <Button className="ml-auto" onClick={() => goTo(run.index + 1)} disabled={isLast}>{COPY.next}</Button>
-        </SessionActions>
+        <SessionNav
+          atStart={run.index === 0}
+          atEnd={isLast}
+          onPrevious={() => goTo(run.index - 1)}
+          onNext={() => goTo(run.index + 1)}
+          onReview={askToFinish}
+          reviewLabel={practice ? 'Finish quiz' : undefined}
+        />
 
       </Page>
     </ExamLayout>

@@ -25,14 +25,15 @@ export default function PaceIndicator({ endTime, totalSecs, totalItems, answered
 
   const gap = Math.abs(pace.answered - pace.expected);
   const label = pace.status === 'onPace' ? 'On pace' : pace.status === 'ahead' ? `Ahead by ${gap}` : `Behind by ${gap}`;
-  // The words go on a wider screen; a phone's one-row bar has room for the sign.
-  const short = pace.status === 'onPace' ? null : pace.status === 'ahead' ? `+${gap}` : `−${gap}`;
+  // The words go on a wider screen; a phone's one-row bar has room for the sign,
+  // and the narrowest has none, so Submit is never the thing pushed out of it.
+  const short = pace.status === 'onPace' ? '+0' : pace.status === 'ahead' ? `+${gap}` : `−${gap}`;
   const tone = pace.status === 'behind' ? 'amber' : 'success';
   return (
-    <span title={`At an even pace you'd have about ${pace.expected} answered by now.`}>
+    <span className="max-[359px]:hidden" title={`At an even pace you'd have about ${pace.expected} answered by now.`}>
       <StatusPill tone={tone} className="tabular-nums">
-        <span className={short ? 'max-sm:sr-only' : ''}>{label}</span>
-        {short && <span aria-hidden="true" className="sm:hidden">{short}</span>}
+        <span className="max-sm:sr-only">{label}</span>
+        <span aria-hidden="true" className="sm:hidden">{short}</span>
       </StatusPill>
     </span>
   );

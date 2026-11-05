@@ -107,6 +107,24 @@ describe('SimulatorActive', () => {
     expect(e.submitExam).toHaveBeenCalledTimes(1);
   });
 
+  it('has Review and submit on the last item, and only the dialog submits', () => {
+    const e = engine({ currentIndex: 2 });
+    render(<SimulatorActive engine={e} isOnline />);
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Review and submit' }));
+    expect(within(screen.getByRole('dialog', { name: 'Submit this exam?' })).getByText('1 of 3 answered')).toBeInTheDocument();
+    expect(e.submitExam).not.toHaveBeenCalled();
+  });
+
+  it('reading back a finished exam offers no way to submit', () => {
+    render(<SimulatorActive isOnline engine={engine({
+      currentIndex: 2,
+      session: { questions: QS, answers: { 0: 'C1' }, confidences: {}, isActive: true, isFinished: true, diagnostics: { pending: false } },
+    })} />);
+    expect(screen.queryByRole('button', { name: /submit/i })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+
   it('marking for review is not saving to bookmarks', () => {
     const e = engine();
     render(<SimulatorActive engine={e} isOnline />);

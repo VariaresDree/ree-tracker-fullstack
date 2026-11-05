@@ -1,9 +1,10 @@
 // One bar and one set of actions for every session, so a phone sees the question
 // and not a stack of chrome, and Next is never a scroll away.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import SessionBar from './SessionBar';
-import SessionActions from './SessionActions';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import SessionBar, { LeaveButton, SubmitButton } from './SessionBar';
+import SessionActions, { SessionNav } from './SessionActions';
+import SubmitDialog from './SubmitDialog';
 import ItemActions from './ItemActions';
 import KeyLegend from './KeyLegend';
 import { KEYS, letterIn } from '../../features/quiz/examCopy';
@@ -30,6 +31,28 @@ describe('SessionBar', () => {
     rerender(<SessionBar index={0} total={5} />);
     expect(screen.queryByText(/answered/)).toBeNull();
   });
+
+  it('keeps Submit last and unshrinkable, giving up the answered count on a phone', () => {
+    render(<SessionBar index={0} total={5} answered={3} submit={<SubmitButton onClick={() => {}} />}><span>clock</span></SessionBar>);
+    const submit = screen.getByRole('button', { name: 'Submit exam' });
+    expect(submit).toHaveTextContent(/^Submit$/);
+    expect(submit.className).toMatch(/shrink-0/);
+    expect(submit.previousElementSibling).toHaveTextContent('clock');
+    expect(screen.getByText('3 answered').className).toMatch(/max-sm:hidden/);
+  });
+
+  it('fills Submit only once every item is answered', () => {
+    const { rerender } = render(<SubmitButton onClick={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Submit exam' }).className).toMatch(/border-\[var\(--btn-accent\)\]/);
+    rerender(<SubmitButton allAnswered onClick={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Submit exam' }).className).not.toMatch(/border-\[var\(--btn-accent\)\]/);
+  });
+
+  it('Leave keeps its name when a phone shows only the icon', () => {
+    render(<LeaveButton onClick={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Leave' })).toBeInTheDocument();
+    expect(screen.getByText('Leave').className).toMatch(/max-sm:hidden/);
+  });
 });
 
 describe('SessionActions', () => {
@@ -39,6 +62,64 @@ describe('SessionActions', () => {
     expect(bar.className).toMatch(/sticky/);
     expect(bar.className).toMatch(/bottom-\[calc\(var\(--bottom-bar-h/);
     expect(bar.className).toMatch(/data-bottom-bar-hidden/);
+  });
+});
+
+describe('SessionNav', () => {
+  const props = () => ({ onPrevious: vi.fn(), onNext: vi.fn(), onReview: vi.fn() });
+
+  it('has Previous and Next, with no way to submit between them', () => {
+    const p = props();
+    render(<SessionNav atStart atEnd={false} {...p} />);
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(p.onNext).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: /submit/i })).toBeNull();
+  });
+
+  it('turns Next into Review and submit on the last item', () => {
+    const p = props();
+    render(<SessionNav atStart={false} atEnd {...p} />);
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Review and submit' }));
+    expect(p.onReview).toHaveBeenCalledTimes(1);
+  });
+
+  it('just stops at the end when there is nothing to submit', () => {
+    render(<SessionNav atStart={false} atEnd onPrevious={() => {}} onNext={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+});
+
+describe('SubmitDialog', () => {
+  const dialog = (props = {}) => render(<SubmitDialog open onClose={() => {}} onSubmit={() => {}} onJump={() => {}} {...props} />);
+
+  it('says how much is answered when something is still open', () => {
+    dialog({ unanswered: [3, 7], total: 100 });
+    expect(screen.getByText('98 of 100 answered')).toBeInTheDocument();
+    expect(screen.getByText(/items are left blank/)).toBeInTheDocument();
+  });
+
+  it('leaves the count out when everything is done', () => {
+    dialog({ total: 100 });
+    expect(screen.queryByText(/of 100 answered/)).toBeNull();
+    expect(screen.getByText(/Every item is answered/)).toBeInTheDocument();
+  });
+
+  // A second tap on "Review and submit" can land where the confirm appears.
+  it('ignores taps on the confirm for a moment after opening', () => {
+    vi.useFakeTimers();
+    try {
+      dialog();
+      const confirm = screen.getByRole('button', { name: 'Submit exam' });
+      // Every Button has `disabled:pointer-events-none`; this is the plain class.
+      expect(confirm.className).toMatch(/(^|\s)pointer-events-none/);
+      expect(confirm).toBeEnabled();
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(confirm.className).not.toMatch(/(^|\s)pointer-events-none/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

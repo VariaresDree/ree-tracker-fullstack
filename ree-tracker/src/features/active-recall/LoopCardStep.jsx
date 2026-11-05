@@ -6,7 +6,7 @@
 // it doesn't touch ability, the forecast or today's target.
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { CARD_RATINGS } from '@ree/shared';
+import { CARD_RATINGS } from '@ree/shared/srs';
 import Flashcard from '../reference/Flashcard';
 import CardRatingButtons from '../reference/CardRatingButtons';
 import { useCardReviews } from '../reference/useCardReviews';

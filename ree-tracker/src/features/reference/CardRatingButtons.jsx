@@ -3,7 +3,7 @@
 // Again / Hard / Good / Easy for a flipped formula card, each saying when the
 // card comes back (the same SM-2 step the server runs, @ree/shared rateCard).
 // Study mode and a card inside Today's loop both rate with these.
-import { CARD_RATINGS, CARD_RATING_LABELS, NEW_CARD, rateCard } from '@ree/shared';
+import { CARD_RATINGS, CARD_RATING_LABELS, NEW_CARD, rateCard } from '@ree/shared/srs';
 import { Button } from '../../components/ui';
 
 /** When a card comes back, as a rating button says it: "tomorrow", "6 days", "2 mo". */
