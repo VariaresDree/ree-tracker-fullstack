@@ -39,6 +39,20 @@ function cardSnapshot(card) {
     return content;
 }
 
+// Everyone's math reaches the renderer in $ delimiters: another AI's \( \) would
+// otherwise be wrapped whole, and show as source.
+const unbracket = (value) => (typeof value === 'string' ? value.replace(/\\\((.+?)\\\)/g, '$$$1$$') : value);
+const cardMath = (value) => withMathDelimiters(unbracket(value));
+
+// What models write when a symbol has no unit. They're not units, and they read as
+// nonsense in the Where table: 5 live rows said "null", others "unit of f".
+const NOT_A_UNIT = /^(null|none|n\/?a|-+|dimensionless|unitless|decimal|depends on.*|unit of.*)$/i;
+const cardUnit = (unit) => {
+    if (typeof unit !== 'string') return unit ?? null;
+    const words = unit.replace(/\$|\\text\{|\}/g, '').trim();
+    return NOT_A_UNIT.test(words) ? null : cardMath(unit);
+};
+
 /**
  * Resolve + normalize a validated payload into Prisma create/update data.
  * Strict taxonomy: the topic NAME must resolve to a real Topic row of the
@@ -62,20 +76,21 @@ async function toCardData(payload) {
     const variables = Array.isArray(payload.variables)
         ? payload.variables.map((v) => ({
             ...v,
-            symbol: withMathDelimiters(v?.symbol),
-            unit: withMathDelimiters(v?.unit),
+            symbol: cardMath(v?.symbol),
+            meaning: unbracket(v?.meaning),
+            unit: cardUnit(v?.unit),
         }))
         : [];
     return {
         data: {
             kind: payload.kind,
-            symbol: withMathDelimiters(payload.symbol) ?? null,
+            symbol: cardMath(payload.symbol) ?? null,
             name: String(payload.name).trim(),
-            formulaLatex: withMathDelimiters(payload.formulaLatex) ?? null,
-            valueUnit: withMathDelimiters(payload.valueUnit) ?? null,
-            description: payload.description,
+            formulaLatex: cardMath(payload.formulaLatex) ?? null,
+            valueUnit: cardMath(payload.valueUnit) ?? null,
+            description: unbracket(payload.description),
             variables,
-            purposeExamTip: payload.purposeExamTip ?? null,
+            purposeExamTip: unbracket(payload.purposeExamTip) ?? null,
             subject: normalizeSubject(payload.subject),
             topicId: topicRow?.id ?? null,
             subtopicTag: payload.subtopicTag ?? null,

@@ -82,6 +82,36 @@ describe('checkVariableCoverage', () => {
     });
 });
 
+describe('validateCardRules — a card has to stay readable', () => {
+    const reasonsFor = (over) => validateCardRules({ ...completeFormulaCard, ...over });
+    const constant = { ...completeFormulaCard, kind: 'constant', formulaLatex: null, variables: [] };
+
+    it('keeps LaTeX out of the name, which shows as plain text everywhere', () => {
+        expect(reasonsFor({ name: 'Reactance $X_c$' })).toContain('latex-in-name');
+        expect(reasonsFor({ name: 'Reactance \\Omega' })).toContain('latex-in-name');
+        expect(reasonsFor({ name: 'Stefan-Boltzmann Constant' })).toEqual([]);
+    });
+
+    it('refuses a $ left open in any field, a variable included', () => {
+        expect(reasonsFor({ purposeExamTip: 'Use $X_c in ohms.' })).toContain('unbalanced-math');
+        expect(reasonsFor({ variables: [{ symbol: '$f$', meaning: 'frequency', unit: '$\\text{Hz' }] })).toContain('unbalanced-math');
+        expect(reasonsFor({ purposeExamTip: 'Use $X_c$ in ohms.' })).toEqual([]);
+    });
+
+    it('holds a description and a tip to about a sentence', () => {
+        expect(reasonsFor({ description: 'x'.repeat(181) })).toContain('description-too-long');
+        expect(reasonsFor({ description: 'x'.repeat(180) })).toEqual([]);
+        expect(reasonsFor({ purposeExamTip: 'x'.repeat(241) })).toContain('tip-too-long');
+        expect(reasonsFor({ purposeExamTip: 'x'.repeat(240) })).toEqual([]);
+    });
+
+    it('needs a constant to hold a value, not just its unit', () => {
+        expect(validateCardRules({ ...constant, valueUnit: '$\\text{F/m}$' })).toContain('constant-needs-value');
+        expect(validateCardRules({ ...constant, valueUnit: '$8.854 \\times 10^{-12}\\ \\text{F/m}$' })).toEqual([]);
+        expect(validateCardRules({ ...constant, valueUnit: null, dimensionless: true })).toEqual([]);
+    });
+});
+
 describe('validateCardRules — the required-field gate (Pillar 5)', () => {
     it('accepts a complete formula card', () => {
         expect(validateCardRules(completeFormulaCard)).toEqual([]);

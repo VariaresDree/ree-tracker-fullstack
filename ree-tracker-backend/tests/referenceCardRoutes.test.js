@@ -79,6 +79,34 @@ describe('POST /ai-intake', () => {
         expect(createSpy.mock.calls[1][0].data).toMatchObject({ variables: [], dimensionless: false, status: 'PENDING' });
     });
 
+    it('brings another AI\'s \\( \\) into $ delimiters, in every field', async () => {
+        const res = await intake([formula({
+            symbol: '\\(X_c\\)',
+            formulaLatex: '\\(X_c = \\frac{1}{\\omega C}\\)',
+            description: 'Opposition of \\(C\\) to AC.',
+            purposeExamTip: 'Use \\(\\omega\\) and \\(C\\) in SI.',
+            variables: [{ symbol: '\\(C\\)', meaning: 'the capacitance \\(C\\)', unit: '\\(\\text{F}\\)' }],
+        })]);
+        expect(res.body.rejected).toEqual([]);
+        expect(createSpy.mock.calls[0][0].data).toMatchObject({
+            symbol: '$X_c$',
+            formulaLatex: '$X_c = \\frac{1}{\\omega C}$',
+            description: 'Opposition of $C$ to AC.',
+            purposeExamTip: 'Use $\\omega$ and $C$ in SI.',
+            variables: [{ symbol: '$C$', meaning: 'the capacitance $C$', unit: '$\\text{F}$' }],
+        });
+    });
+
+    it.each(['null', 'None', 'dimensionless', '$\\text{dimensionless}$', '$\\text{decimal}$', 'depends on context', '$\\text{unit of }f$', '-'])('drops "%s", which is not a unit', async (unit) => {
+        await intake([formula({ variables: [{ symbol: '$x$', meaning: 'a ratio', unit }] })]);
+        expect(createSpy.mock.calls[0][0].data.variables[0].unit).toBeNull();
+    });
+
+    it('keeps a real unit as it came', async () => {
+        await intake([formula({ variables: [{ symbol: '$V$', meaning: 'voltage', unit: '$\\text{V}$' }, { symbol: '$R$', meaning: 'resistance', unit: '\\Omega' }, { symbol: '$n$', meaning: 'turns' }] })]);
+        expect(createSpy.mock.calls[0][0].data.variables.map((v) => v.unit)).toEqual(['$\\text{V}$', '$\\Omega$', null]);
+    });
+
     it('says why each card was refused, by position', async () => {
         const res = await intake([
             formula({ formulaLatex: null }),

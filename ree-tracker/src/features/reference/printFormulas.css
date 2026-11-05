@@ -45,7 +45,7 @@
 
 @media print {
   @page { margin: 12mm; }
-  html, body { background: #fff !important; }
+  html, body { background: #fff !important; color-scheme: light !important; }
   body::before, body::after { display: none !important; }
   .pf-screen-only { display: none !important; }
   .pf-page { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
