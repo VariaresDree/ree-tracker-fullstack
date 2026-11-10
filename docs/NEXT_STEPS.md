@@ -12,7 +12,48 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0e. Handover, round of 2026-11-10 (read this first)
+## 0f. Handover, optimization round of 2026-11-10/11 (read this first)
+
+The owner asked for a performance and debugging pass, a first-run tour, a topic for hosted battles, and a simpler Admin › Formula cards. Measured the live database first (read-only); the plan file is `help-me-improve-my-bubbly-toucan.md` on the owner's machine.
+
+| PR | What |
+|---|---|
+| #241 | Egress: Answer positions stopped re-reading the whole bank (183 reads, about 3 GB of the 5 GB monthly egress); Today reads only the 25 it shows; Practice and mocks ask for a pool sized to the session (`poolLimit`); two server caches fixed |
+| #242 | Host a battle: a Topic for the custom mock (the server already drew by one topic) |
+| #243 | Admin › Formula cards in four sections: Review, Cards (by subject and syllabus topic, Needs fixing, Retired), Add, Sources |
+| #244 | Getting started: Today's checklist (placement, exam date, plan, first set), a skip kept on the account (`User.tourDoneAt`); settings drop the 30 s dashboard cache |
+| #245 | Frontend: one kept read of the card deck, search 30 at a time, the PDF viewer leak, the offline pack's summary |
+| #246 | The question-history archive script, and this handover |
+
+**Your actions:**
+1. **Archive, then trim, the history** (#246). On your computer, in `ree-tracker-backend`, put the database URL in `.env` as `DATABASE_URL` (Supabase › Connect › Session pooler; `.env` is git-ignored), then:
+   - `npm run history:archive` shows the counts (expect about 28,500 versions and 14,000 review copies) and writes nothing;
+   - `npm run history:archive -- --archive=history-2026-11.jsonl.gz` writes the archive and `history-2026-11.jsonl.gz.json`. It reads about 50 MB from Supabase (1% of the monthly egress);
+   - copy both files somewhere safe (Drive, or a private Supabase Storage bucket);
+   - `npm run history:archive -- --delete --archive=history-2026-11.jsonl.gz --confirm=TRIM`;
+   - in Supabase › SQL editor: `VACUUM FULL "QuestionVersion", "QuestionPendingReview";` (or ask the next session to run it). Expect the database near 100 MB.
+2. **Check Today on your account.** Getting started shows once for everyone not set up, you included. Skip ends it on every device.
+3. **Try Admin › Formula cards › Cards** signed in, and **Host a battle** on one topic.
+4. Still owed from earlier rounds: a real phone check, filing the 13 quiz files.
+
+**Decisions:**
+- Database egress is the free tier's real limit, not CPU or query time (no query averages over 0.75 s). Measure rows x 1.2 KB before adding a list read.
+- The API is already Brotli-compressed at Render's edge: no `compression` package.
+- History trims keep every `EXTERNAL_FIX` version (grading reads them) and each question's two newest versions.
+- Getting started stays inline (nothing covers the page), so the signed-in E2E wait on "Up next" is unaffected.
+
+**Not verified:**
+- #241 to #245 signed in on production. Each has unit tests, and #243 and #244 were rendered in real Chromium with fixtures and axe.
+- The egress saving: re-read `calls` and `rows` in `pg_stat_statements` a few days after #241 deployed. The baseline is in the egress-round memory note; Supabase's daily egress bars should show it too.
+- #244's migration on production (`20261112000000_user_tour_done`): check `_prisma_migrations` after Render's next build.
+
+**Next, in order of value:**
+1. Subtopic tagging for questions, then drills and battles by subtopic (the finer third level, `SyllabusSubtopic`).
+2. Expire battle lobbies that never start; per-row stored verdicts for Answer positions if it's run often.
+3. The boot download is at 99.6% of 700 kB (about 3 KB left): the next eager feature needs room first (Login page, or the stylesheet's theme blocks).
+4. A blank confidence recorded as MED (`useSimulatorEngine.js`), which skews calibration.
+
+## 0e. Handover, round of 2026-11-10
 
 The owner's eight-PR plan (exam frame, formula cards, file organizer, Units and tools, App health), finished: all eight merged with every check green and deployed to production by 2026-11-10 (#239 at `f12b906`). Plan file: `help-me-improve-my-floofy-turing.md`, kept on the owner's machine.
 

@@ -42,7 +42,8 @@
     "migrate:status": "prisma migrate status",
     "migrate:baseline": "prisma migrate resolve --applied 0_init",
     "migrate:cutover": "node scripts/migrateCutover.js",
-    "migrate:cutover:check": "node scripts/migrateCutover.js --check"
+    "migrate:cutover:check": "node scripts/migrateCutover.js --check",
+    "history:archive": "node scripts/archiveHistory.js"
   },
   "keywords": [],
   "author": "",

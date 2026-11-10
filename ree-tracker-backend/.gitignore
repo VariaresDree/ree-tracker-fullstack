@@ -3,3 +3,7 @@ node_modules/
 firebase-service-account.json
 /src/generated/prisma
 /uploads/
+
+# Question-history archives (scripts/archiveHistory.js): full question text, kept off git.
+*.jsonl.gz
+*.jsonl.gz.json
