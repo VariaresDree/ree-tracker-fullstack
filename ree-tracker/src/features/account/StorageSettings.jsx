@@ -9,14 +9,14 @@ import { Button, ProgressIndicator, StatusPill } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { deviceEntries } from '../../services/deviceStore';
 import { listDeviceFiles } from '../../services/deviceFiles';
-import { getOfflinePack } from '../../services/offlinePack';
+import { getOfflinePackMeta } from '../../services/offlinePack';
 import { formatBytes } from '../../utils/bytes';
 
 async function measure(uid) {
   const [files, quizzes, pack, estimate, persisted] = await Promise.all([
     listDeviceFiles(uid),
     deviceEntries(`${uid || 'local'}:quiz:file:`),
-    getOfflinePack().catch(() => null),
+    getOfflinePackMeta().catch(() => null),
     navigator.storage?.estimate?.().catch(() => null) ?? null,
     navigator.storage?.persisted?.().catch(() => null) ?? null,
   ]);
@@ -27,7 +27,7 @@ async function measure(uid) {
     { label: 'My files', size: sum(own), count: own.length },
     { label: 'Saved handouts', size: sum(handouts), count: handouts.length },
     { label: 'Imported quizzes', size: quizzes.reduce((n, [, q]) => n + (q.file?.size || 0), 0), count: quizzes.length },
-    { label: 'Question pack', size: pack ? new Blob([JSON.stringify(pack)]).size : 0 },
+    { label: 'Question pack', size: pack?.bytes || 0 },
   ];
   const known = rows.reduce((n, r) => n + r.size, 0);
   const usage = estimate?.usage;

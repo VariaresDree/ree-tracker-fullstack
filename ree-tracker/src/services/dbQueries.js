@@ -665,17 +665,36 @@ export const clearStudyPlan = async () => apiRequest('/api/user/tasks/clear-plan
 // LIVE-card GET is cached to IndexedDB so the vault renders offline after a
 // first online fetch; all writes are admin-only (enforced server-side).
 // ----------------------------------------------------------------------
-export const fetchReferenceCards = async () => {
-    try {
-        const data = await apiRequest('/api/reference-cards');
-        const items = data?.items || [];
-        await writeReferenceCardsCache(items);
-        return items;
-    } catch (err) {
-        if (err.message === '[OFFLINE]') return (await getReferenceCardsCache())?.items || [];
-        throw err;
-    }
+// One read of the live deck serves every screen for ten minutes: Library's
+// tabs remount on every switch, and the missed-question card links want it
+// too; each read was the whole deck again, and a rewrite of the device copy.
+// Overlapping calls share the request. Only a read from the server is kept:
+// offline, the device copy answers each time, and coming back online reads
+// the server again. A failure isn't kept. Admin passes `fresh`, and every
+// card write drops the kept read, so a change shows at once.
+const CARDS_KEEP_MS = 10 * 60 * 1000;
+let cardsRead = null; // { at, promise }
+export const forgetReferenceCards = () => { cardsRead = null; };
+export const fetchReferenceCards = ({ fresh = false } = {}) => {
+    if (!fresh && cardsRead && Date.now() - cardsRead.at < CARDS_KEEP_MS) return cardsRead.promise;
+    const entry = { at: Date.now(), promise: null };
+    entry.promise = (async () => {
+        try {
+            const data = await apiRequest('/api/reference-cards');
+            const items = data?.items || [];
+            await writeReferenceCardsCache(items);
+            return items;
+        } catch (err) {
+            if (cardsRead === entry) cardsRead = null;
+            if (err.message === '[OFFLINE]') return (await getReferenceCardsCache())?.items || [];
+            throw err;
+        }
+    })();
+    cardsRead = entry;
+    return entry.promise;
 };
+// A card write, then the kept read is dropped (whether or not the write landed).
+const thenForgetCards = (request) => request.finally(forgetReferenceCards);
 export const fetchPendingReferenceCards = async () => {
     const data = await apiRequest('/api/reference-cards/pending');
     return data?.items || [];
@@ -686,18 +705,18 @@ export const fetchRetiredReferenceCards = async () => {
     const data = await apiRequest('/api/reference-cards/retired');
     return data?.items || [];
 };
-export const createReferenceCard = (body) => apiRequest('/api/reference-cards', 'POST', body);
-export const updateReferenceCard = (id, body) => apiRequest(`/api/reference-cards/${id}`, 'PUT', body);
-export const approveReferenceCard = (id) => apiRequest(`/api/reference-cards/${id}/approve`, 'PUT', {});
+export const createReferenceCard = (body) => thenForgetCards(apiRequest('/api/reference-cards', 'POST', body));
+export const updateReferenceCard = (id, body) => thenForgetCards(apiRequest(`/api/reference-cards/${id}`, 'PUT', body));
+export const approveReferenceCard = (id) => thenForgetCards(apiRequest(`/api/reference-cards/${id}/approve`, 'PUT', {}));
 export const rejectReferenceCard = (id, reviewNote) => apiRequest(`/api/reference-cards/${id}/reject`, 'PUT', reviewNote ? { reviewNote } : {});
-export const deleteReferenceCard = (id) => apiRequest(`/api/reference-cards/${id}`, 'DELETE');
+export const deleteReferenceCard = (id) => thenForgetCards(apiRequest(`/api/reference-cards/${id}`, 'DELETE'));
 // { queued: [ids], rejected: [{index, reasons}] } — incomplete AI output never queues.
 // `options.idempotencyKey`: queueing the same rows again is a new attempt, not a
 // retry to answer from the last response.
 export const intakeReferenceCards = (cards, options) => apiRequest('/api/reference-cards/ai-intake', 'POST', { cards }, options);
-export const renameReferenceTag = (body) => apiRequest('/api/reference-cards/tags/rename', 'POST', body);
+export const renameReferenceTag = (body) => thenForgetCards(apiRequest('/api/reference-cards/tags/rename', 'POST', body));
 // { approved, failed:[{id, reason}] } — same Accept-All contract as questions.
-export const bulkApproveReferenceCards = (ids) => apiRequest('/api/reference-cards/approve-bulk', 'POST', { ids });
+export const bulkApproveReferenceCards = (ids) => thenForgetCards(apiRequest('/api/reference-cards/approve-bulk', 'POST', { ids }));
 export const fetchReferenceSources = async () => {
     const data = await apiRequest('/api/reference-cards/sources');
     return data?.items || [];

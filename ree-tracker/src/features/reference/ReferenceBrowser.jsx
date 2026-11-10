@@ -36,6 +36,8 @@ import { dueCardIds, useCardReviews } from './useCardReviews';
 import { pickRecallTopic, weakCards } from './weakCards';
 import { normalizeSubject } from '@ree/shared';
 
+const RESULTS_PAGE = 30;
+
 // The server's topic key (trim + lowercase): a topic named by another screen
 // (a learner's stats row) can differ from the card's label in case or spaces.
 const topicKey = (s) => String(s ?? '').trim().toLowerCase();
@@ -190,6 +192,10 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const [kind, setKind] = useState(KINDS.has(initialKind) ? initialKind : 'all');
   const [search, setSearch] = useState(initialSearch);
   const deferredSearch = useDeferredValue(search);
+  // Search results come RESULTS_PAGE at a time: each is a two-faced card with its
+  // own LaTeX, and a short query matched most of the deck. A new search starts over.
+  const [shown, setShown] = useState({ q: '', n: RESULTS_PAGE });
+  const resultsLimit = shown.q === deferredSearch ? shown.n : RESULTS_PAGE;
 
   // Hierarchy position: null selectedSubject = at the subject grid; etc.
   // Restored from this browser session unless another screen deep-linked a
@@ -464,13 +470,18 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           <>
             <p className="text-eyebrow">{countLabel(searchResults.length)} matching "{deferredSearch.trim()}"</p>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-              {searchResults.map((card) => (
+              {searchResults.slice(0, resultsLimit).map((card) => (
                 <div key={card.id} className="flex flex-col gap-1 min-w-0">
                   <Flashcard card={card} />
                   <UnitsLink card={card} />
                 </div>
               ))}
             </div>
+            {searchResults.length > resultsLimit && (
+              <Button variant="secondary" size="sm" className="self-start" onClick={() => setShown({ q: deferredSearch, n: resultsLimit + RESULTS_PAGE })}>
+                Show {Math.min(RESULTS_PAGE, searchResults.length - resultsLimit)} more of {searchResults.length - resultsLimit}
+              </Button>
+            )}
           </>
         )
       ) : !selectedSubject ? (

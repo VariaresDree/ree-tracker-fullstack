@@ -8,7 +8,7 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 const fetchReferenceCards = vi.fn();
 vi.mock('../../services/dbQueries', () => ({ fetchReferenceCards: (...a) => fetchReferenceCards(...a) }));
 const { default: TopicCardsLink } = await import('./TopicCardsLink');
-const { useTopicCards, resetTopicCards } = await import('./useTopicCards');
+const { useTopicCards } = await import('./useTopicCards');
 
 const CARDS = [
   { id: 'a', subject: 'EE', topic: { id: 't-m', name: 'Machines' } },
@@ -23,7 +23,6 @@ function Probe() {
 }
 
 beforeEach(() => {
-  resetTopicCards();
   fetchReferenceCards.mockReset();
   fetchReferenceCards.mockResolvedValue(CARDS);
 });
@@ -53,7 +52,8 @@ describe('TopicCardsLink', () => {
 });
 
 describe('useTopicCards', () => {
-  it('reads the card list once for every link, and only when wanted', async () => {
+  // Keeping and sharing the read is fetchReferenceCards' job (services/referenceCardsRead.test.js).
+  it('reads the cards only when wanted, and gives each link its topic', async () => {
     const off = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }, { enabled: false }));
     expect(off.result.current).toEqual([]);
     expect(fetchReferenceCards).not.toHaveBeenCalled();
@@ -62,33 +62,14 @@ describe('useTopicCards', () => {
     const two = renderHook(() => useTopicCards({ topicId: 't-p' }));
     await waitFor(() => expect(two.result.current.map((c) => c.id)).toEqual(['c']));
     expect(one.result.current.map((c) => c.id)).toEqual(['a', 'b']);
-    expect(fetchReferenceCards).toHaveBeenCalledTimes(1);
   });
 
-  it("doesn't keep an empty read (offline, nothing saved yet), and coming back online drops a kept one", async () => {
-    fetchReferenceCards.mockResolvedValueOnce([]);
-    const offline = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }));
-    await waitFor(() => expect(fetchReferenceCards).toHaveBeenCalledTimes(1));
-    expect(offline.result.current).toEqual([]);
-    const later = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }));
-    await waitFor(() => expect(later.result.current).toHaveLength(2));
-    expect(fetchReferenceCards).toHaveBeenCalledTimes(2);
-
-    // Kept now; reconnecting asks again (cards approved meanwhile show).
-    renderHook(() => useTopicCards({ topicId: 't-p' }));
-    expect(fetchReferenceCards).toHaveBeenCalledTimes(2);
-    window.dispatchEvent(new Event('online'));
-    renderHook(() => useTopicCards({ topicId: 't-p' }));
-    await waitFor(() => expect(fetchReferenceCards).toHaveBeenCalledTimes(3));
-  });
-
-  it('asks again after a failed read, rather than remembering "no cards"', async () => {
+  it('a failed read shows no cards, and the next link asks again', async () => {
     fetchReferenceCards.mockRejectedValueOnce(new Error('500'));
     const first = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }));
     await waitFor(() => expect(fetchReferenceCards).toHaveBeenCalledTimes(1));
     expect(first.result.current).toEqual([]);
     const again = renderHook(() => useTopicCards({ topic: 'Machines', subject: 'EE' }));
     await waitFor(() => expect(again.result.current).toHaveLength(2));
-    expect(fetchReferenceCards).toHaveBeenCalledTimes(2);
   });
 });

@@ -18,7 +18,8 @@ vi.mock('idb-keyval', () => {
   };
 });
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1' } }) }));
-vi.mock('../../services/offlinePack', () => ({ getOfflinePack: async () => ({ q: 'x'.repeat(98) }) }));
+// The pack's size comes from its summary; the pack itself isn't read.
+vi.mock('../../services/offlinePack', () => ({ getOfflinePackMeta: async () => ({ exists: true, bytes: 106 }) }));
 
 let persisted;
 const persist = vi.fn(async () => { persisted = true; return true; });
