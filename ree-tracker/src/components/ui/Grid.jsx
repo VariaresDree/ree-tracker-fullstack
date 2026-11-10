@@ -7,6 +7,7 @@ import { cn } from './cn';
 // given, beside the sidebar, inside a card or on a phone.
 //   kpi    2, then 4 from 48rem: headline figures
 //   tiles  2, then 3 from 32rem: small figures (never a column of tiny tiles)
+//   icons  2, then 3 from 20rem, 4 from 42rem, 6 from 56rem: icon tiles
 //   duo    2, then 3 from 42rem: tiles with more in them. One that needs the
 //          whole row on a phone takes `col-span-2 @2xl:col-span-1`
 //   pair   1, then 2 from 42rem: two panels side by side
@@ -24,6 +25,7 @@ import { cn } from './cn';
 const KINDS = {
   kpi: 'grid-cols-2 @3xl:grid-cols-4',
   tiles: 'grid-cols-2 @lg:grid-cols-3',
+  icons: 'grid-cols-2 @xs:grid-cols-3 @2xl:grid-cols-4 @4xl:grid-cols-6',
   duo: 'grid-cols-2 @2xl:grid-cols-3',
   pair: 'grid-cols-1 @2xl:grid-cols-2',
   cards: 'grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3',

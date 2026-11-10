@@ -1,18 +1,29 @@
 // src/features/conversion/UnitsPanel.jsx
 //
 // Unit conversion, for changing between SI, other metric units and English ones.
-// Pick a common conversion, a category or a search result, then convert: every
+// Pick a quantity's tile, a favourite or a search result, then convert: every
 // conversion shows its multiplier, its formula and why. Changing only a prefix has
 // its own screen. The state comes from outside, so Library can keep it in the URL
 // and Practice's tools sheet can hold it for the moment. No network, no rates.
 import { useEffect, useMemo, useState } from 'react';
-import { COMMON_CONVERSIONS, UNIT_GROUPS, UNIT_SYSTEMS, categoriesInGroup, categoryById, convert, convertAll, inSiUnit, searchUnits, unitIn } from '@ree/shared/units';
-import { Button, Card, FormField, Grid, Input, Select, StatusPill } from '../../components/ui';
-import { ArrowLeftRight, Check, ChevronLeft, ChevronRight, Copy, Search, Star, Trash2 } from '../../components/ui/icons';
+import { UNIT_CATEGORIES, UNIT_GROUPS, UNIT_SYSTEMS, categoryById, convert, convertAll, inSiUnit, searchUnits, unitIn } from '@ree/shared/units';
+import { Button, Card, FormField, Grid, Input, SegmentedControl, Select, StatusPill } from '../../components/ui';
+import { ArrowLeftRight, Check, ChevronLeft, Copy, Search, Star, Trash2 } from '../../components/ui/icons';
 import { evaluate, formatNumber } from './calc';
 import { explain } from './explain';
+import IconTile from './IconTile';
 import PrefixSlider from './PrefixSlider';
 import { useUnitsMemory } from './unitsMemory';
+import { GROUP_TONE, UNIT_TILES } from './unitTiles';
+
+// Each quantity once, under its own group: `alsoIn` would show pressure three times.
+const SHOWN = UNIT_CATEGORIES.filter((c) => UNIT_GROUPS.some((g) => g.id === c.group));
+const shortName = (c) => UNIT_TILES[c.id]?.short || c.label;
+const A_TO_Z = [...SHOWN].sort((a, b) => shortName(a).localeCompare(shortName(b)));
+const ORDERS = [
+  { value: 'groups', label: 'Groups' },
+  { value: 'az', label: 'A–Z' },
+];
 
 const pairFor = (category, from, to) => {
   const a = unitIn(category, from)?.id || category.defaults[0];
@@ -217,20 +228,20 @@ function Converter({ state, onChange, memory }) {
 function CategoryTile({ category, onOpen }) {
   const [a, b] = category.defaults;
   return (
-    <Card as="button" type="button" variant="interactive" padding="sm" className="text-left flex items-start justify-between gap-2 cursor-pointer min-w-0" onClick={() => onOpen(category.id, a, b)}>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{category.label}</span>
-        <span className="block text-xs text-muted2 [overflow-wrap:anywhere]">{a} → {b}</span>
-      </span>
-      <ChevronRight size={15} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
-    </Card>
+    <IconTile
+      icon={UNIT_TILES[category.id]?.icon}
+      tone={GROUP_TONE[category.group]}
+      title={shortName(category)}
+      detail={`${a} ⇄ ${b}`}
+      label={`${category.label}: ${a} to ${b}`}
+      onClick={() => onOpen(category.id, a, b)}
+    />
   );
 }
 
-function Landing({ state, onChange, memory }) {
+function Landing({ onChange, memory }) {
   const [query, setQuery] = useState('');
   const hits = useMemo(() => searchUnits(query).slice(0, 24), [query]);
-  const group = UNIT_GROUPS.some((g) => g.id === state.group) ? state.group : UNIT_GROUPS[0].id;
   const open = (cat, from, to, v = '1') => onChange({ cat, from, to, v }, { push: true });
   const openUnit = (hit) => {
     const [from, to] = pairFor(hit.category, hit.unit.id, null);
@@ -266,36 +277,46 @@ function Landing({ state, onChange, memory }) {
       ) : (
         <>
           {memory.favourites.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-eyebrow">Favourites</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {memory.favourites.map((f) => (
-                  <Button key={`${f.cat}:${f.from}:${f.to}`} size="sm" variant="secondary" className="normal-case" onClick={() => open(f.cat, f.from, f.to)}>{f.from} → {f.to}</Button>
-                ))}
-              </div>
-            </div>
+            <section aria-labelledby="units-favourites" className="flex flex-col gap-2 min-w-0">
+              <h3 id="units-favourites" className="text-eyebrow">Favourites</h3>
+              <Grid kind="icons" gap="sm">
+                {memory.favourites.map((f) => {
+                  const category = categoryById(f.cat);
+                  if (!category) return null;
+                  return (
+                    <IconTile
+                      key={`${f.cat}:${f.from}:${f.to}`}
+                      icon={UNIT_TILES[category.id]?.icon}
+                      tone={GROUP_TONE[category.group] || 'accent'}
+                      title={`${f.from} → ${f.to}`}
+                      detail={shortName(category)}
+                      label={`${category.label}: ${f.from} to ${f.to}`}
+                      onClick={() => open(f.cat, f.from, f.to)}
+                    />
+                  );
+                })}
+              </Grid>
+            </section>
           )}
 
-          <div className="flex flex-col gap-2">
-            <h3 className="text-eyebrow">Common conversions</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_CONVERSIONS.map(([cat, from, to]) => (
-                <Button key={`${cat}:${from}:${to}`} size="sm" variant="ghost" className="normal-case border border-border2/70" onClick={() => open(cat, from, to)}>{from} → {to}</Button>
-              ))}
+          <section aria-labelledby="units-quantities" className="flex flex-col gap-3 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 id="units-quantities" className="text-eyebrow">Quantities</h3>
+              <SegmentedControl label="Sort quantities" size="sm" value={memory.order} onChange={memory.setOrder} options={ORDERS} />
             </div>
-          </div>
-
-          <div className="flex flex-col gap-2 min-w-0">
-            <h3 className="text-eyebrow">By quantity</h3>
-            <div role="group" aria-label="Show quantities for" className="flex flex-wrap gap-1.5">
-              {UNIT_GROUPS.map((g) => (
-                <Button key={g.id} size="sm" variant={g.id === group ? 'secondary' : 'ghost'} aria-pressed={g.id === group} onClick={() => onChange({ group: g.id })}>{g.label}</Button>
-              ))}
-            </div>
-            <Grid kind="tiles" gap="sm">
-              {categoriesInGroup(group).map((c) => <CategoryTile key={c.id} category={c} onOpen={open} />)}
-            </Grid>
-          </div>
+            {memory.order === 'az' ? (
+              <Grid kind="icons" gap="sm">
+                {A_TO_Z.map((c) => <CategoryTile key={c.id} category={c} onOpen={open} />)}
+              </Grid>
+            ) : UNIT_GROUPS.map((g) => (
+              <div key={g.id} role="group" aria-labelledby={`units-group-${g.id}`} className="flex flex-col gap-2 min-w-0">
+                <p id={`units-group-${g.id}`} className="text-sm font-semibold text-muted2">{g.label}</p>
+                <Grid kind="icons" gap="sm">
+                  {SHOWN.filter((c) => c.group === g.id).map((c) => <CategoryTile key={c.id} category={c} onOpen={open} />)}
+                </Grid>
+              </div>
+            ))}
+          </section>
 
           {memory.history.length > 0 && (
             <div className="flex flex-col gap-2 min-w-0">
@@ -331,5 +352,5 @@ export default function UnitsPanel({ state, onChange }) {
   const memory = useUnitsMemory();
   return categoryById(state.cat)
     ? <Converter key={state.cat} state={state} onChange={onChange} memory={memory} />
-    : <Landing state={state} onChange={onChange} memory={memory} />;
+    : <Landing onChange={onChange} memory={memory} />;
 }

@@ -12,6 +12,7 @@ export function SegmentedControl({
   size = 'md',
   fullWidth = false,
   columns,
+  stackIcons = false,
   className,
 }) {
   const refs = useRef([]);
@@ -72,13 +73,14 @@ export function SegmentedControl({
               // reads as cramped for a one-time, high-stakes choice like exam
               // setup — deliberately larger than the 44px touch floor so it
               // feels chunky/tactile on desktop too, not just compliant.
+              stackIcons && 'max-sm:px-1 max-sm:text-xs',
               size === 'sm' ? 'min-h-8 px-2.5 text-xs' : size === 'lg' ? 'min-h-12 px-4 text-sm' : 'min-h-9 px-3 text-sm',
               selected
                 ? 'bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent-text)] border border-[color-mix(in_srgb,var(--accent)_45%,transparent)]'
                 : 'text-muted2 hover:text-textMain hover:bg-surface2 border border-transparent'
             )}
           >
-            <span className="inline-flex items-center gap-1.5">
+            <span className={cn('inline-flex items-center gap-1.5', stackIcons && 'max-sm:flex-col max-sm:gap-0.5')}>
               {Icon && <Icon size={14} strokeWidth={1.75} aria-hidden="true" />}
               {opt.label}
             </span>

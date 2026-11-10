@@ -17,29 +17,39 @@ const output = () => document.querySelector('output');
 beforeEach(() => localStorage.clear());
 
 describe('Units', () => {
-  it('opens on conversions across systems, and mechanics first', () => {
+  it('tabs run Units, Tools, Prefixes, Calculator', () => {
     at();
-    expect(screen.getByRole('button', { name: 'psi → kPa' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'BTU → kJ' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mechanics' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /^Force/ })).toBeInTheDocument();
+    const tabs = within(screen.getByRole('radiogroup', { name: 'Show' })).getAllByRole('radio');
+    expect(tabs.map((t) => t.textContent)).toEqual(['Units', 'Tools', 'Prefixes', 'Calculator']);
   });
 
-  it('thermodynamics has its own heading, kept in the URL', () => {
+  it('every quantity is a tile under its group, each once, with no common-conversions row', () => {
     at();
-    fireEvent.click(screen.getByRole('button', { name: 'Thermodynamics' }));
-    expect(screen.getByTestId('where')).toHaveTextContent('group=thermo');
-    expect(screen.getByRole('button', { name: /^Enthalpy/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Specific heat/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Work, energy and heat/ })).toBeInTheDocument();
+    expect(screen.queryByText('Common conversions')).toBeNull();
+    for (const g of ['Mechanics', 'Thermodynamics', 'Fluids', 'Electrical', 'General']) expect(screen.getByRole('group', { name: g })).toBeInTheDocument();
+    const thermo = within(screen.getByRole('group', { name: 'Thermodynamics' }));
+    expect(thermo.getByRole('button', { name: /^Enthalpy/ })).toBeInTheDocument();
+    expect(thermo.getByRole('button', { name: /^Specific heat/ })).toBeInTheDocument();
+    // Pressure belongs to mechanics, and shows only there.
+    expect(screen.getAllByRole('button', { name: /^Pressure/ })).toHaveLength(1);
+    expect(within(screen.getByRole('group', { name: 'Mechanics' })).getByRole('button', { name: 'Pressure and stress: psi to kPa' })).toBeInTheDocument();
+  });
+
+  it('A–Z lists the same tiles alphabetically, and the choice is remembered', () => {
+    const first = at();
+    fireEvent.click(screen.getByRole('radio', { name: 'A–Z' }));
+    expect(screen.queryByRole('group', { name: 'Mechanics' })).toBeNull();
+    const names = screen.getAllByRole('button', { name: /: / }).map((b) => b.querySelector('span').textContent);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    expect(names).toHaveLength(39);
+    first.unmount();
+    at();
+    expect(screen.getByRole('radio', { name: 'A–Z' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('a prefix-only quantity isn’t among the tiles, and a link to one still works', () => {
     at();
-    for (const g of ['Mechanics', 'Thermodynamics', 'Fluids', 'Electrical', 'General']) {
-      fireEvent.click(screen.getByRole('button', { name: g }));
-      expect(screen.queryByRole('button', { name: /^Voltage/ })).toBeNull();
-    }
+    expect(screen.queryByRole('button', { name: /^Voltage/ })).toBeNull();
   });
 
   it('a formula card’s link to a prefix-only quantity opens it', () => {
@@ -48,11 +58,11 @@ describe('Units', () => {
     expect(screen.getByText(/Only the prefix changes/)).toBeInTheDocument();
   });
 
-  it('a common conversion goes straight there', () => {
+  it('a tile goes straight to its pair', () => {
     at();
-    fireEvent.click(screen.getByRole('button', { name: 'kgf/cm² → kPa' }));
-    expect(screen.getByLabelText('From unit')).toHaveValue('kgf/cm²');
-    expect(output()).toHaveTextContent('98.0665');
+    fireEvent.click(screen.getByRole('button', { name: 'Pressure and stress: psi to kPa' }));
+    expect(screen.getByLabelText('From unit')).toHaveValue('psi');
+    expect(output()).toHaveTextContent('6.894757');
   });
 
   it('a category offers its common pairs', () => {
@@ -227,7 +237,7 @@ describe('Units', () => {
     expect(screen.getByRole('button', { name: 'Remove hp to kW from favourites' })).toHaveAttribute('aria-pressed', 'true');
     view.unmount();
     at();
-    fireEvent.click(within(screen.getByText('Favourites').parentElement).getByRole('button', { name: 'hp → kW' }));
+    fireEvent.click(within(screen.getByRole('region', { name: 'Favourites' })).getByRole('button', { name: 'Power and heat rate: hp to kW' }));
     expect(screen.getByRole('heading', { name: 'Power and heat rate' })).toBeInTheDocument();
   });
 

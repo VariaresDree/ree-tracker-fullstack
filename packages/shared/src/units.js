@@ -512,22 +512,6 @@ const UNIT_CATEGORIES = [
     { id: 'inductance', label: 'Inductance', group: 'prefix', siUnit: 'H', defaults: ['mH', 'H'], units: si('H', 'Henry', ['n', 'µ', 'm', '']) },
 ];
 
-// What the front of Units and tools offers first: across systems, heavy on ESAS.
-const COMMON_CONVERSIONS = [
-    ['pressure', 'psi', 'kPa'],
-    ['pressure', 'kgf/cm²', 'kPa'],
-    ['energy', 'BTU', 'kJ'],
-    ['energy', 'kcal', 'kJ'],
-    ['power', 'hp', 'kW'],
-    ['temperature', '°F', '°C'],
-    ['enthalpy', 'BTU/lb', 'kJ/kg'],
-    ['specificheat', 'BTU/(lb·°F)', 'kJ/(kg·K)'],
-    ['force', 'lbf', 'N'],
-    ['mass', 'lb', 'kg'],
-    ['length', 'ft', 'm'],
-    ['flow', 'gpm', 'L/s'],
-];
-
 // All 24 SI prefixes, from BIPM's list (the last four added in 2022).
 const SI_PREFIXES = [
     { name: 'quetta', symbol: 'Q', exp: 30 },
@@ -601,6 +585,6 @@ function searchUnits(query) {
 }
 
 module.exports = {
-    UNIT_SYSTEMS, UNIT_GROUPS, UNIT_CATEGORIES, COMMON_CONVERSIONS, SI_PREFIXES,
+    UNIT_SYSTEMS, UNIT_GROUPS, UNIT_CATEGORIES, SI_PREFIXES,
     categoryById, categoriesInGroup, unitIn, convert, convertAll, inSiUnit, searchUnits,
 };

@@ -10,7 +10,7 @@ import UnitsPanel from './UnitsPanel';
 
 export default function ToolsSheet({ onClose, category = null }) {
   const [view, setView] = useState(category ? 'units' : 'calculator');
-  const [units, setUnits] = useState({ cat: category, from: null, to: null, v: null, group: null });
+  const [units, setUnits] = useState({ cat: category, from: null, to: null, v: null });
   return (
     <Modal open onClose={onClose} title="Calculator and units" size="lg">
       <div className="flex flex-col gap-4 min-w-0">
