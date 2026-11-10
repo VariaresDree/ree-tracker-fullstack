@@ -13,7 +13,8 @@ vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { 
 let online = true;
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online }));
 let storeStats;
-vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats }) }));
+const TOS = { EE: ['Electromagnetism', 'Electric Circuits 2'], Mathematics: ['Calculus 1'] };
+vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats, dynamicTOS: TOS }) }));
 const createMultiplayerBattle = vi.hoisted(() => vi.fn(async () => 'ABC123'));
 vi.mock('../../services/dbQueries', () => ({
   createMultiplayerBattle,
@@ -33,6 +34,7 @@ const { fetchPaginatedLeaderboard, fetchLeaderboardMe } = await import('../../se
 const { default: BattlesTab } = await import('./BattlesTab');
 const { default: GauntletTab } = await import('./GauntletTab');
 const { default: RankingsTab } = await import('./RankingsTab');
+const { battleLabel } = await import('./battleModes');
 
 // IntersectionObserver drives the rankings' infinite scroll; jsdom lacks it.
 globalThis.IntersectionObserver = class { observe() {} disconnect() {} };
@@ -94,6 +96,51 @@ describe('hosting a battle', () => {
   it('their own counts go along only when they’re the choice', async () => {
     drawPrefs.value = { drawMode: 'own', ownCounts: { EE: { Machines: 5 } } };
     expect((await host()).ownCounts).toEqual({ EE: { Machines: 5 } });
+  });
+
+  it('with all topics, no topic is sent', async () => {
+    drawPrefs.value = { drawMode: 'even', ownCounts: {} };
+    expect((await host()).subtopic).toBeUndefined();
+  });
+
+  it('a custom battle on one topic sends it, without a draw choice', async () => {
+    drawPrefs.value = { drawMode: 'own', ownCounts: { EE: { Machines: 5 } } };
+    renderTab(<BattlesTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
+    const topic = screen.getByLabelText('Topic');
+    expect(within(topic).getAllByRole('option').map((o) => o.textContent)).toEqual(['All topics', 'Electromagnetism', 'Electric Circuits 2']);
+    fireEvent.change(topic, { target: { value: 'Electric Circuits 2' } });
+    // One topic leaves nothing to pick by.
+    expect(screen.queryByText('How questions are picked')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create lobby' }));
+    await vi.waitFor(() => expect(createMultiplayerBattle).toHaveBeenCalled());
+    const config = createMultiplayerBattle.mock.calls.at(-1)[0];
+    expect(config).toMatchObject({ mode: 'subject', subject: 'EE', subtopic: 'Electric Circuits 2', count: 20 });
+    expect(config.drawMode).toBeUndefined();
+    expect(config.ownCounts).toBeUndefined();
+  });
+
+  it('a new subject starts on all of its topics, and a PRC paper has no topic', () => {
+    renderTab(<BattlesTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
+    fireEvent.change(screen.getByLabelText('Topic'), { target: { value: 'Electromagnetism' } });
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Mathematics' } });
+    const topic = screen.getByLabelText('Topic');
+    expect(topic).toHaveValue('All');
+    expect(within(topic).getAllByRole('option').map((o) => o.textContent)).toEqual(['All topics', 'Calculus 1']);
+    fireEvent.click(screen.getByRole('radio', { name: /One subject/ }));
+    expect(screen.queryByLabelText('Topic')).not.toBeInTheDocument();
+    expect(screen.getByText('How questions are picked')).toBeInTheDocument();
+  });
+});
+
+describe('battleLabel', () => {
+  it('names the topic of a one-topic battle', () => {
+    expect(battleLabel({ mode: 'subject', subject: 'EE', subtopic: 'Electric Circuits 2' })).toBe('EE · Electric Circuits 2');
+    expect(battleLabel({ mode: 'subject', subject: 'EE', subtopic: 'All' })).toBe('EE');
+    expect(battleLabel({ mode: 'subject', subject: 'EE' })).toBe('EE');
+    expect(battleLabel({ mode: 'blended', subject: 'Blended' })).toBe('Full mock');
+    expect(battleLabel(null)).toBe('Battle');
   });
 });
 

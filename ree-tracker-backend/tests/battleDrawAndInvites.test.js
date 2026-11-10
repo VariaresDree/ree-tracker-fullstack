@@ -78,6 +78,24 @@ describe('createBattle', () => {
         expect(create.mock.calls[0][0].data.config).toMatchObject({ drawMode: 'own', ownCounts: { EE: { Machines: 5 } } });
     });
 
+    it('a battle on one topic draws only from it, and keeps it for a rematch', async () => {
+        const raw = vi.spyOn(prisma, '$queryRawUnsafe').mockResolvedValue(['q1', 'q2', 'q3', 'q4', 'q5', 'q6'].map((id) => ({ id })));
+        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => ({ id, subtopic: 'Electric Circuits 2' })));
+        const create = vi.spyOn(prisma.battle, 'create').mockImplementation(async ({ data }) => data);
+        const config = { mode: 'subject', subject: 'EE', subtopic: 'Electric Circuits 2', count: 10 };
+        const battle = await battleCreate.createBattle({ hostId: UID, battleId: 'ABC123', config, timeLimitSecs: 600 });
+        const [sql, subjects, topic, limit] = raw.mock.calls[0];
+        expect(sql).toContain('"subtopic" = $2');
+        expect(subjects).toContain('EE');
+        expect([topic, limit]).toEqual(['Electric Circuits 2', 10]);
+        // Fewer in the topic than asked: the battle is as long as its pool.
+        expect(battle.config).toMatchObject({ subtopic: 'Electric Circuits 2', count: 6 });
+        expect(create).toHaveBeenCalledTimes(1);
+        // The rematch re-reads the stored settings through the create schema.
+        const again = battleCreateSchema.omit({ battleId: true }).parse({ config: battle.config, timeLimitSecs: 600 });
+        expect(again.config.subtopic).toBe('Electric Circuits 2');
+    });
+
     it('the schema keeps the choice, and refuses one it doesn’t know', () => {
         const base = { battleId: 'ABC123', timeLimitSecs: 600 };
         const ok = battleCreateSchema.parse({ ...base, config: { mode: 'subject', subject: 'EE', drawMode: 'board' } });
