@@ -4,7 +4,8 @@
 // the button that flips it. It opens the converter over the card, at the quantity
 // the card uses, so a study session isn't lost to get there. No conversion for this
 // card's units, no link.
-import { lazy, Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { lazy } from '../../utils/lazyWithRetry';
 import { Button } from '../../components/ui';
 import { Calculator } from '../../components/ui/icons';
 import { categoryForCard } from '../conversion/unitLink';
