@@ -21,7 +21,10 @@ import CardRatingButtons from './CardRatingButtons';
 import PractiseTopicsButton from './PractiseTopicsButton';
 import { topicsOf } from './practiseTopics';
 
-export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse', ask = 'formula' }) {
+// A drill passes the rest: `onFinish(rated)` takes over the end, with each `{ card, rating }`;
+// `tools` sit under the card; `noteFor(card)` is a line above the ratings; `keysPaused`
+// while its scratchpad has the keyboard.
+export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse', ask = 'formula', onFinish, tools = null, noteFor, keysPaused = false }) {
   const [index, setIndex] = useState(0);
   // Cards whose back has been seen in this session: the ones that can be rated.
   const [seen, setSeen] = useState(() => new Set());
@@ -45,8 +48,10 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
   const rateCurrent = (rating) => {
     if (!canRate) return;
     const id = card.id;
-    setRatedCards((prev) => [...prev, card]);
-    if (atEnd) setDone(true);
+    const allRated = [...ratedCards, { card, rating }];
+    setRatedCards(allRated);
+    if (atEnd && onFinish) onFinish(allRated);
+    else if (atEnd) setDone(true);
     else goNext();
     wrapperRef.current?.focus({ preventScroll: true });
     reviews.rate(id, rating).catch(() => toast.error("Couldn't save that rating. Rate the card again."));
@@ -55,7 +60,7 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
   const handleKeyDown = (e) => {
     // A dialog's keys reach here through React's tree: typing 1 in the converter
     // would rate the card, and Escape would leave the session along with the sheet.
-    if (e.target.closest?.('[role="dialog"]')) return;
+    if (keysPaused || e.target.closest?.('[role="dialog"]')) return;
     if (e.key === 'ArrowLeft') goPrev();
     else if (e.key === 'ArrowRight') goNext();
     else if (e.key === 'Escape') onExit();
@@ -63,7 +68,7 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
   };
 
   if (done) {
-    const topics = topicsOf(ratedCards);
+    const topics = topicsOf(ratedCards.map((r) => r.card));
     return (
       <EmptyState
         icon={CheckCircle2}
@@ -94,7 +99,7 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
     >
       <div className="w-full flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" onClick={onExit}>
-          <X size={14} strokeWidth={1.75} aria-hidden="true" /> Exit {mode === 'review' ? 'review' : 'study mode'}
+          <X size={14} strokeWidth={1.75} aria-hidden="true" /> Exit {mode === 'review' ? 'review' : mode === 'drill' ? 'drill' : 'study mode'}
         </Button>
         <StatusPill tone="neutral" dot={false}>{mode === 'review' ? 'Review ' : ''}{index + 1} / {cards.length}</StatusPill>
       </div>
@@ -106,11 +111,17 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
           ask={ask}
           onFlip={(flipped) => { if (flipped) setSeen((prev) => (prev.has(card.id) ? prev : new Set(prev).add(card.id))); }}
         />
-        <UnitsLink card={card} />
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          {tools}
+          <span className="ml-auto"><UnitsLink card={card} /></span>
+        </div>
       </div>
 
       {reviews && (canRate ? (
-        <CardRatingButtons row={reviews.rowFor(card.id)} onRate={rateCurrent} />
+        <>
+          {noteFor?.(card) && <p className="text-xs text-muted2 text-center max-w-md">{noteFor(card)}</p>}
+          <CardRatingButtons row={reviews.rowFor(card.id)} onRate={rateCurrent} />
+        </>
       ) : (
         <p className="text-xs text-muted2 text-center max-w-md">Say it or write it down first. Flip the card, then rate how well you knew it, and it comes back for review when it's due.</p>
       ))}

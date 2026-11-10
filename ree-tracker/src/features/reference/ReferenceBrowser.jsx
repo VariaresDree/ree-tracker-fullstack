@@ -24,10 +24,12 @@ import { Link } from 'react-router-dom';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
 import { Input, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
-import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer } from '../../components/ui/icons';
+import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer, Target } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
 import Flashcard from './Flashcard';
 import UnitsLink from './UnitsLink';
+
+const FormulaDrill = lazy(() => import('./drill/FormulaDrill'));
 import { GENERAL, groupCards } from './groupCards';
 import ReferenceStudyMode from './ReferenceStudyMode';
 import { dueCardIds, useCardReviews } from './useCardReviews';
@@ -210,6 +212,8 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   // start from either the subject-level topic grid or the subtopic leaf.
   const [studyCards, setStudyCards] = useState([]);
   const [studyMode, setStudyMode] = useState('browse');
+  const [drilling, setDrilling] = useState(false);
+  const busy = studying || drilling;
   const startStudying = (cardsToStudy, mode = 'browse') => {
     setStudyCards(cardsToStudy);
     setStudyMode(mode);
@@ -231,7 +235,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
       .map((r) => new Date(r.nextReviewDate).getTime());
     return later.length ? Math.min(...later) : null;
   }, [reviews.items, cardById, now]);
-  const leaveStudy = () => { setStudying(false); setNow(Date.now()); };
+  const leaveStudy = () => { setStudying(false); setDrilling(false); setNow(Date.now()); };
 
   // The CELE tips: a wall of only the formulas you still miss (printed), and
   // a topic drawn at random whose formulas you recall cold.
@@ -310,6 +314,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     setSelectedSubject(null);
     setSelectedTopic(null);
     setStudying(false);
+    setDrilling(false);
     setView('browse');
   };
 
@@ -328,8 +333,17 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   if (selectedSubject) breadcrumbItems.push({ label: selectedSubject });
   if (selectedTopic) breadcrumbItems.push({ label: selectedTopic });
 
+  const drillScopes = () => [
+    ...(selectedTopic && cardsInTopic.length > 0 ? [{ id: 'topic', label: 'This topic', cards: cardsInTopic }]
+      : selectedSubject && cardsInSubject.length > 0 ? [{ id: 'subject', label: 'This subject', cards: cardsInSubject }] : []),
+    { id: 'all', label: 'All', cards: kindFiltered },
+    ...(dueCards.length > 0 ? [{ id: 'due', label: 'Due', cards: dueCards }] : []),
+    ...(weak.length > 0 ? [{ id: 'weak', label: 'Weak', cards: weak }] : []),
+  ];
+
   const navigateBreadcrumb = (index) => {
     setStudying(false);
+    setDrilling(false);
     if (index === 0) resetHierarchy();
     else if (index === 1) { setSelectedTopic(null); setView('browse'); }
   };
@@ -381,19 +395,24 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           />
         </div>
         <SegmentedControl label="Card kind" size="sm" value={kind} onChange={setKind} options={KIND_OPTIONS} />
-        {!studying && cards.length > 0 && (
+        {!busy && cards.length > 0 && (
+          <Button size="sm" variant="secondary" onClick={() => setDrilling(true)}>
+            <Target size={14} strokeWidth={1.75} aria-hidden="true" /> Drill
+          </Button>
+        )}
+        {!busy && cards.length > 0 && (
           <Button size="sm" variant="secondary" onClick={drawTopic}>
             <Shuffle size={14} strokeWidth={1.75} aria-hidden="true" /> Random topic
           </Button>
         )}
-        {!studying && weak.length > 0 && (
+        {!busy && weak.length > 0 && (
           <Button size="sm" variant="secondary" as={Link} to="/print/formulas">
             <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print weak formulas ({weak.length})
           </Button>
         )}
       </div>
 
-      {!studying && dueCards.length > 0 && (
+      {!busy && dueCards.length > 0 && (
         // The tab's hero while cards are due: the one thing to do here first.
         <Card variant="hero" padding="md" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" aria-live="polite">
           <CardWatermark icon={History} />
@@ -407,7 +426,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           <Button className="shrink-0 w-full sm:w-auto" onClick={() => startStudying(dueCards, 'review')}>Review now</Button>
         </Card>
       )}
-      {!studying && recall && (
+      {!busy && recall && (
         <Card variant="inset" padding="md" className="flex flex-col gap-3" aria-live="polite">
           <p className="text-eyebrow">Random topic · {recall.subject}</p>
           <p className="text-lg font-semibold text-textMain">Recall every formula for: {recall.topic}</p>
@@ -419,7 +438,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           </div>
         </Card>
       )}
-      {!studying && dueCards.length === 0 && reviews.items.length > 0 && nextDue && (
+      {!busy && dueCards.length === 0 && reviews.items.length > 0 && nextDue && (
         <p className="text-xs text-muted2">
           Card reviews: all caught up. Next one due {new Date(nextDue).toDateString() === new Date(now).toDateString() ? `at ${formatTimeOfDay(nextDue)}` : new Date(nextDue).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}.
         </p>
@@ -427,7 +446,11 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
 
       {!isSearching && <Breadcrumb items={breadcrumbItems} onNavigate={navigateBreadcrumb} />}
 
-      {studying ? (
+      {drilling ? (
+        <Suspense fallback={<SheetFallback />}>
+          <FormulaDrill scopes={drillScopes()} pool={cards} reviews={reviews} onExit={leaveStudy} />
+        </Suspense>
+      ) : studying ? (
         <ReferenceStudyMode cards={studyCards} mode={studyMode} reviews={reviews} onExit={leaveStudy} />
       ) : isSearching ? (
         searchResults.length === 0 ? (
