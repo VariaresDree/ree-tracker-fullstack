@@ -14,7 +14,7 @@ import { addDownloadedQuiz, useQuizSession } from '../quiz-launcher/quizSession'
 import { downloadQuizFile, lastQuizFiles, listQuizFiles, plainError } from './quizFilesApi';
 import { bySubject, countLine, deviceFileName, formatSize, sharedState } from './sharedState';
 
-function SharedTile({ file, entries, onStart }) {
+export function SharedTile({ file, entries, onStart, where }) {
   const uid = useAuth()?.currentUser?.uid;
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -51,6 +51,7 @@ function SharedTile({ file, entries, onStart }) {
         <p className="text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{file.name}</p>
         {file.description && <p className="text-xs text-muted2 mt-0.5 [overflow-wrap:anywhere]">{file.description}</p>}
         <p className="text-xs text-muted2 mt-1 tabular-nums">{countLine(file.questionCount)} · {formatSize(file.sizeBytes)}</p>
+        {where && <p className="text-xs text-muted2 mt-0.5 [overflow-wrap:anywhere]">{where}</p>}
       </div>
       {kind !== 'new' && (
         <div>

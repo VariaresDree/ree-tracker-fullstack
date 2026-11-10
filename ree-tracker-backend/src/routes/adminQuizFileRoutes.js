@@ -24,6 +24,10 @@ function readUpload(req, schema) {
     return { meta: meta.data, bytes: req.body, sizeBytes: req.body.length, checksum: checksumOf(req.body) };
 }
 
+// A folder named that isn't there: a plain 404, which the offline queue drops. As
+// a 500 it would be retried for ever.
+const noFolder = (res) => res.status(404).json({ error: 'That folder isn’t there any more.', code: 'NO_FOLDER' });
+
 async function refuseDuplicate(res, checksum) {
     const other = await prisma.quizFile.findUnique({ where: { checksum }, select: { name: true } });
     return res.status(409).json({ error: `That file is already here, as ${other?.name || 'another quiz'}.`, code: 'DUPLICATE' });
@@ -46,6 +50,7 @@ router.post('/', rawFile, async (req, res) => {
         return res.status(201).json({ item });
     } catch (error) {
         if (error.code === 'P2002') return refuseDuplicate(res, upload.checksum);
+        if (error.code === 'P2003') return noFolder(res);
         logger.error('Quiz file upload failed', { error: error.message });
         return res.status(500).json({ error: "Couldn't upload that quiz." });
     }
@@ -77,6 +82,7 @@ router.patch('/:id', validate(quizFileUpdateSchema), async (req, res) => {
         return res.status(200).json({ item });
     } catch (error) {
         if (error.code === 'P2025') return res.status(404).json({ error: 'Quiz file not found.' });
+        if (error.code === 'P2003') return noFolder(res);
         logger.error('Quiz file update failed', { error: error.message });
         return res.status(500).json({ error: "Couldn't save those changes." });
     }

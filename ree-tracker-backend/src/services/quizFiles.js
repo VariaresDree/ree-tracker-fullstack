@@ -13,6 +13,7 @@ const LIST_SELECT = {
     questionCount: true,
     skippedCount: true,
     checksum: true,
+    folderId: true,
     createdAt: true,
     updatedAt: true,
 };

@@ -391,6 +391,7 @@ model Folder {
   children  Folder[]   @relation("FolderTree")
   createdAt DateTime   @default(now())
   materials Material[]
+  quizFiles QuizFile[]
 
   @@index([parentId])
 }
@@ -411,11 +412,15 @@ model QuizFile {
   checksum      String   @unique
   bytes         Bytes
   uploadedBy    String?
+  // Its handouts folder, or the top level. A folder delete moves it up, not out.
+  folderId      String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   uploader      User?    @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+  folder        Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([uploadedBy])
+  @@index([folderId])
 }
 
 model Material {

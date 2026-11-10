@@ -8,6 +8,7 @@ const renameItem = vi.fn();
 const deleteItem = vi.fn();
 const navigateToFolder = vi.fn();
 const uploadAndCommitMaterial = vi.fn();
+const moveItems = vi.fn();
 const toastSuccess = vi.fn();
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: (...a) => toastSuccess(...a), error: vi.fn() }) }));
 
@@ -18,14 +19,30 @@ const hook = {
     { id: 'm2', name: 'Machines quiz', type: 'pdf', url: 'u2', folderId: 'f1', createdAt: '2026-01-02' },
     { id: 'm3', name: 'Core losses', type: 'image', url: 'u3', folderId: 'f2', createdAt: '2026-01-03' },
   ],
+  quizFiles: [
+    { id: 'q1', name: 'Terms-10', folderId: null, sizeBytes: 100, createdAt: '2026-01-01' },
+    { id: 'q2', name: 'Terms-2', folderId: null, sizeBytes: 100, createdAt: '2026-01-05' },
+    { id: 'q3', name: 'Machines drill', folderId: 'f2', sizeBytes: 100, createdAt: '2026-01-02' },
+  ],
   currentFolderId: 'root',
   breadcrumbs: [{ id: 'root', name: 'Handouts' }],
   isUploading: false, dragOverFolderId: null, isLoading: false, loadError: null, reload: vi.fn(),
   navigateToFolder, navigateToBreadcrumb: vi.fn(), revealFolder: vi.fn(), createFolder: vi.fn(), uploadAndCommitMaterial, addMaterialRecord: vi.fn(),
-  deleteItem, renameItem, moveItem: vi.fn(),
+  deleteItem, renameItem, moveItem: vi.fn(), moveItems, putQuizFile: vi.fn(), dropQuizFile: vi.fn(),
   handleDragStart: vi.fn(), handleDragOver: vi.fn(), handleDragLeave: vi.fn(), handleDrop: vi.fn(),
 };
 vi.mock('./useFileManager', () => ({ useFileManager: () => hook }));
+// The two quiz sections have their own tests; here, only what they're handed.
+vi.mock('../shared-quizzes/FolderQuizzes', () => ({
+  default: ({ files, whereOf }) => <ul aria-label="Quiz tiles">{files.map((f) => <li key={f.id}>{f.name}{whereOf ? ` in ${whereOf(f)}` : ''}</li>)}</ul>,
+}));
+vi.mock('../shared-quizzes/AdminQuizFiles', () => ({
+  default: ({ files, folderId, onToggle, selecting }) => (
+    <ul aria-label="Admin quiz files" data-folder={folderId}>
+      {files.map((f) => <li key={f.id}>{f.name}{selecting && <input type="checkbox" aria-label={`Select ${f.name}`} onChange={() => onToggle(f)} />}</li>)}
+    </ul>
+  ),
+}));
 
 const { default: CloudVaultTab } = await import('./CloudVaultTab');
 const show = (props = {}) => render(<CloudVaultTab currentUser={{ uid: 'u1' }} isAdmin={false} onViewMaterial={vi.fn()} {...props} />);
@@ -39,7 +56,7 @@ describe('the handouts list', () => {
   it('keeps folders and files apart, and counts what a folder holds, subfolders included', () => {
     show();
     const folders = screen.getByRole('region', { name: 'Folders' });
-    expect(within(folders).getByText('2 files')).toBeInTheDocument();
+    expect(within(folders).getByText('2 files · 1 quiz file')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Files' })).getByText('Top notes')).toBeInTheDocument();
   });
 
@@ -134,5 +151,87 @@ describe('admin actions', () => {
     const box = screen.getByRole('button', { name: 'Rename file' }).parentElement;
     expect(box.className).toMatch(/group-focus-within:opacity-100/);
     expect(box.className).toMatch(/pointer-coarse:opacity-100/);
+  });
+});
+
+describe('quiz files in the folders', () => {
+  it('a learner sees the open folder’s quiz files, numbered names in order', async () => {
+    show();
+    const tiles = await screen.findByRole('list', { name: 'Quiz tiles' });
+    expect(within(tiles).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Terms-2', 'Terms-10']);
+  });
+
+  it('search finds a quiz file in any folder, and says where it is', async () => {
+    show();
+    fireEvent.change(screen.getByLabelText('Search handouts'), { target: { value: 'drill' } });
+    expect(await screen.findByText('Machines drill in Machines / Transformers')).toBeInTheDocument();
+  });
+
+  it('newest first is remembered on this device', async () => {
+    const first = show();
+    fireEvent.change(screen.getByLabelText('Sort files'), { target: { value: 'date' } });
+    first.unmount();
+    show();
+    expect(screen.getByLabelText('Sort files')).toHaveValue('date');
+    const tiles = await screen.findByRole('list', { name: 'Quiz tiles' });
+    expect(within(tiles).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Terms-2', 'Terms-10']);
+  });
+
+  it('a file shows its kind as an icon with a name, not a code', () => {
+    show();
+    const files = screen.getByRole('region', { name: 'Files' });
+    expect(within(files).getByText('PDF')).toBeInTheDocument();
+  });
+
+  it('the admin’s quiz section gets the open folder, for uploads', async () => {
+    show({ isAdmin: true });
+    expect(await screen.findByRole('list', { name: 'Admin quiz files' })).toHaveAttribute('data-folder', 'root');
+    expect(screen.queryByRole('list', { name: 'Quiz tiles' })).toBeNull();
+  });
+});
+
+describe('moving', () => {
+  it('Move on one file picks a folder in the sheet, and moves it there', async () => {
+    moveItems.mockResolvedValue();
+    show({ isAdmin: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Move Top notes' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Move 1 item' });
+    expect(within(sheet).getByRole('button', { name: 'Move here' })).toBeDisabled();
+    fireEvent.click(within(sheet).getByLabelText('Transformers'));
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Move here' }));
+    await vi.waitFor(() => expect(moveItems).toHaveBeenCalledWith([{ id: 'm1', type: 'material' }], 'f2'));
+  });
+
+  it('selects several, quiz files too, and moves them together', async () => {
+    moveItems.mockResolvedValue();
+    show({ isAdmin: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Top notes' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Terms-2' }));
+    expect(screen.getByText('2 items selected')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Move…' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Move 2 items' });
+    fireEvent.click(within(sheet).getByLabelText('Machines'));
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Move here' }));
+    await vi.waitFor(() => expect(moveItems).toHaveBeenCalledWith([{ id: 'm1', type: 'material' }, { id: 'q2', type: 'quiz' }], 'f1'));
+    await vi.waitFor(() => expect(screen.queryByText(/selected/)).toBeNull());
+  });
+
+  it('a folder can’t be moved into itself or below itself', async () => {
+    show({ isAdmin: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Move Machines' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Move 1 item' });
+    expect(within(sheet).queryByLabelText('Machines')).toBeNull();
+    expect(within(sheet).queryByLabelText('Transformers')).toBeNull();
+    // It's where the folder is now, so it's marked and can't be picked to move to.
+    fireEvent.click(within(sheet).getByLabelText(/^Handouts \(top level\)/));
+    expect(within(sheet).getByText('here now')).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: 'Move here' })).toBeDisabled();
+  });
+
+  it('deleting a folder says its quiz files move to the top level', () => {
+    show({ isAdmin: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete folder' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('1 quiz file inside moves to the top level instead.');
   });
 });

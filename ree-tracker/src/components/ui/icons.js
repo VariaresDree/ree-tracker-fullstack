@@ -164,4 +164,9 @@ export {
   Network,
   Percent,
   Superscript,
+  // Handouts: moving, selecting, kinds
+  FolderInput,
+  SquareCheck,
+  Video,
+  Link,
 } from 'lucide-react';
