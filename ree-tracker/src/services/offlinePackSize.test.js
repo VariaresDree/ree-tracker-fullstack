@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Standard or Large: a change of size has to download again even though the bank
 // hasn't changed, and a failed download has to be tried again rather than marked done.
-let stored = null;
+// IndexedDB by key: the pack and its summary are two entries.
+const idb = new Map();
+const PACK = 'ree_offline_pack_v1';
+const META = 'ree_offline_pack_meta_v1';
+const stored = () => idb.get(PACK);
 vi.mock('idb-keyval', () => ({
-  get: async () => stored,
-  set: async (_k, v) => { stored = v; },
-  del: async () => { stored = null; },
+  get: async (k) => idb.get(k),
+  set: async (k, v) => { idb.set(k, v); },
+  del: async (k) => { idb.delete(k); },
   createStore: () => ({}),
 }));
 vi.mock('../config/firebaseDb', () => ({ auth: { currentUser: { uid: 'u1', getIdToken: async () => 't' } } }));
@@ -20,7 +24,7 @@ let failing = null;
 const questionCalls = () => fetch.mock.calls.map(([u]) => String(u)).filter((u) => u.includes('/api/questions?'));
 
 beforeEach(() => {
-  stored = null;
+  idb.clear();
   failing = null;
   localStorage.clear();
   vi.stubGlobal('fetch', vi.fn(async (url) => {
@@ -57,7 +61,7 @@ describe('the pack’s size', () => {
     await refreshOfflinePack();
     expect(questionCalls()).toHaveLength(3);
     expect(questionCalls()[0]).toContain('limit=400');
-    expect(stored.perSubject).toBe(400);
+    expect(stored().perSubject).toBe(400);
     await refreshOfflinePack();
     expect(questionCalls()).toHaveLength(3);
   });
@@ -70,13 +74,14 @@ describe('the pack’s size', () => {
     await refreshOfflinePack();
     expect(questionCalls()).toHaveLength(3);
     expect(questionCalls()[0]).toContain('limit=2000');
-    expect(stored.perSubject).toBe(2000);
+    expect(stored().perSubject).toBe(2000);
     expect((await getOfflinePackMeta()).stale).toBe(false);
   });
 
   it('a pack from before the choice counts as Standard', async () => {
     await refreshOfflinePack();
-    delete stored.perSubject;
+    delete stored().perSubject;
+    idb.delete(META); // and no summary then, either
     fetch.mockClear();
     await refreshOfflinePack();
     expect(questionCalls()).toHaveLength(0);
@@ -87,14 +92,14 @@ describe('the pack’s size', () => {
     savePackSizeName('large');
     failing = 'EE';
     await refreshOfflinePack();
-    expect(stored.subjects.EE).toHaveLength(2);
-    expect(stored.perSubject).toBe(PACK_SIZES.standard);
+    expect(stored().subjects.EE).toHaveLength(2);
+    expect(stored().perSubject).toBe(PACK_SIZES.standard);
     expect((await getOfflinePackMeta()).stale).toBe(true);
     failing = null;
     fetch.mockClear();
     await refreshOfflinePack();
     expect(questionCalls()).toHaveLength(3);
-    expect(stored.perSubject).toBe(PACK_SIZES.large);
+    expect(stored().perSubject).toBe(PACK_SIZES.large);
   });
 });
 
@@ -106,5 +111,23 @@ describe('selectFromPack across all subjects', () => {
     const out = selectFromPack(large, 'All', 'All', 1000);
     expect(out).toHaveLength(1000);
     for (const s of SUBJECTS) expect(out.filter((q) => q.subject === s).length).toBeGreaterThanOrEqual(330);
+  });
+});
+
+describe('the pack summary', () => {
+  it('is written with the pack, so the badge never reads the questions', async () => {
+    await refreshOfflinePack();
+    const summary = idb.get(META);
+    expect(summary).toMatchObject({ total: 6, counts: { Mathematics: 2, ESAS: 2, EE: 2 }, perSubject: PACK_SIZES.standard });
+    expect(summary.bytes).toBeGreaterThan(0);
+    idb.delete(PACK); // were the pack read, this would say there is none
+    expect(await getOfflinePackMeta()).toMatchObject({ exists: true, total: 6, bytes: summary.bytes });
+  });
+
+  it('a pack saved before there was a summary gets one on first read', async () => {
+    await refreshOfflinePack();
+    idb.delete(META);
+    expect((await getOfflinePackMeta()).total).toBe(6);
+    expect(idb.get(META)).toMatchObject({ total: 6 });
   });
 });

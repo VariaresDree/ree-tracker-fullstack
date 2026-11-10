@@ -13,7 +13,8 @@
 //
 // All of it always shows. On a phone the first two tiles sit side by side and
 // the target takes the row under them.
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { lazy } from '../../utils/lazyWithRetry';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchReadinessHistory } from '../../services/dbQueries';
 import { Badge, Card, CardTitle, CardWatermark, Button, Grid, Skeleton, ProgressIndicator, Sparkline } from '../../components/ui';

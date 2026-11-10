@@ -27,7 +27,6 @@ vi.mock('idb-keyval', () => ({ get: async () => undefined, set: async () => {}, 
 vi.mock('../services/geminiApi', () => ({ generateMasterExplanation: vi.fn() }));
 
 const { default: SittingReview } = await import('./SittingReview');
-const { resetTopicCards } = await import('../features/reference/useTopicCards');
 
 const item = (order, over = {}) => ({
   order, questionId: `q${order}`, subject: 'EE', topic: 'Machines', text: `Question ${order}`,
@@ -64,7 +63,6 @@ const renderAt = (path = '/exams/sittings/sess-1') => render(
 );
 
 beforeEach(() => {
-  resetTopicCards();
   fetchSittingReview.mockReset();
   fetchBattleReplay.mockReset();
   requestRematch.mockReset();
