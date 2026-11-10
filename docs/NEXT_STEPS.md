@@ -14,7 +14,7 @@ Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mo
 
 ## 0e. Handover, round of 2026-11-10 (read this first)
 
-The owner's eight-PR plan (exam frame, formula cards, file organizer, Units and tools, App health), finished. Plan file: `help-me-improve-my-floofy-turing.md`.
+The owner's eight-PR plan (exam frame, formula cards, file organizer, Units and tools, App health), finished: all eight merged with every check green and deployed to production by 2026-11-10 (#239 at `f12b906`). Plan file: `help-me-improve-my-floofy-turing.md`, kept on the owner's machine.
 
 | PR | What |
 |---|---|
@@ -25,7 +25,7 @@ The owner's eight-PR plan (exam frame, formula cards, file organizer, Units and 
 | #236 | Formula drills: Recall, Choose and Match (`features/reference/drill/`). Only a new, due or Again rating moves a schedule |
 | #237 | Units and tools: tabs Units, Tools, Prefixes, Calculator; every quantity and tool an icon tile (`unitTiles.js`); Common conversions removed |
 | #238 | Quiz files in the handouts folder tree (`QuizFile.folderId`), a Move sheet with multi-select instead of Cut and Paste, number-aware remembered sort, kind icons |
-| this PR | My files folders on the device, carried in backups, and this handover |
+| #239 | My files folders on the device, carried in backups, and this handover |
 
 **Your actions:**
 1. **File the 13 quiz files** in Admin › Handouts: **Select**, tick them, **Move…**. All 13 are at the top level (checked in the database 2026-11-10, after #238's migration applied at 07:11 UTC).
@@ -42,7 +42,7 @@ The owner's eight-PR plan (exam frame, formula cards, file organizer, Units and 
 
 **Not verified:**
 - A real phone or tablet (still owed from earlier rounds too).
-- #233 to #238 signed in on production. Read-only database checks only, plus CI's signed-in E2E.
+- #233 to #239 signed in on production. Checked instead: read-only database queries (#238's migration applied, 13 quiz files at the top level), each PR's real-Chromium proof with stubs, and CI's signed-in E2E against a real server and Postgres.
 
 **Next, in order of value:**
 1. Subtopic tagging for questions, then drills and counts by subtopic.
@@ -54,6 +54,8 @@ The owner's eight-PR plan (exam frame, formula cards, file organizer, Units and 
 7. `TodayPanel` still uses React's own `lazy`, not `lazyWithRetry`.
 
 **Working notes:** the boot download is at 99.4% of 700 kB, so everything new loads lazily, and Tailwind classes from lazy code still land in the eager stylesheet. A full local frontend run sometimes times out a lazy-loading test under load; rerun it alone before believing it.
+
+**Starting the next round:** check the owner actions above first (a read-only count of `QuizFile` rows with a `folderId` shows whether the quiz files were filed), ask what the phone check turned up, then plan from Next. Work one PR at a time from a fresh `origin/main`, run `npm ci` in a new worktree, and write production data only with the owner's approval of that change.
 
 ## 0d. Handover, round of 2026-11-04
 
