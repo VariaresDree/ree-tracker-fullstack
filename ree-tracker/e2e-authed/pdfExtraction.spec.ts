@@ -71,7 +71,7 @@ test.describe('reading a PDF', () => {
   test('formula cards read a PDF too', async ({ page }) => {
     const sent = await stubAi(page, []);
     await page.goto('/admin?tab=references');
-    await page.getByRole('radio', { name: 'AI generate' }).click();
+    await page.getByRole('radio', { name: 'Add' }).click();
     await page.getByRole('radio', { name: 'From a file' }).click();
     await page.getByLabel('Reviewer file').setInputFiles(pdfFile('sheet.pdf', SENTENCE));
     await page.getByRole('button', { name: /^Make cards from/ }).click();

@@ -1,32 +1,31 @@
 // src/features/reference/ReferenceAdminV2.jsx
-// Admin console for the reference flashcard vault (replaces ReferenceAdmin):
-//   1. Review queue — AI-submitted cards, per-card approve/reject/edit + the
+// Admin › Formula cards, in four sections (seven until 2026-11-10):
+//   1. Review — AI-submitted cards, per-card approve/reject/edit + the
 //      same confirmation-gated "Accept All" pattern as the question queue.
-//   2. Add card — manual creation through the full required-field gate
-//      (taxonomy dropdowns from the SHARED dynamicTOS, dynamic variables
-//      editor, dimensionless exception, source citation).
-//   3. AI generate — schema-locked generation, from a topic or from a file (a
-//      reviewer's PDF or photos of its pages); rows are previewed with
-//      per-row completeness state and only complete rows can be queued
-//      (the server re-validates and rejects incomplete output pre-queue).
-//   4. Live cards — edit / re-categorize / delete published cards, and the
-//      retired concept cards learners no longer see, to re-type or delete.
+//   2. Cards — every published card by subject and topic, as learners find
+//      them, with Needs fixing (the required-field report) and Retired as
+//      filters and tag renames under each topic (admin/CardsPanel.jsx).
+//   3. Add — AI generation (from a topic, a reviewer file, or another AI's
+//      reply; rows previewed with per-row completeness, only complete rows
+//      queued, re-validated by the server) and writing one by hand through
+//      the full required-field gate.
+//   4. Sources — CRUD over the authoritative citations (textbook/code/PEC).
 // Cards are formulas and constants only (2026-10-31).
-//   5. Sources — CRUD over the authoritative citations (textbook/code/PEC).
-//   6. Data debt — the Pillar-5 report of any card failing required fields.
-import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useStore } from '../../store/useStore';
 import {
     Button, Card, Modal, FormField, Input, Select, Textarea,
     SegmentedControl, Badge, StatusPill, EmptyState, Skeleton,
 } from '../../components/ui';
-import { Shield, Sparkles, Plus, X, Layers, BookOpen, RefreshCw, Pencil, Search, Copy } from '../../components/ui/icons';
+import { Shield, Sparkles, Plus, X, RefreshCw, Pencil, Copy, Trash2 } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
 import { isKnownTopic, labelForGenerated } from '../../utils/topicLabels';
 import { refreshLiveTOS } from '../../services/liveTaxonomy';
 import Flashcard from './Flashcard';
+import CardsPanel from './admin/CardsPanel';
+import { SYLLABUS_SUBJECTS as SUBJECTS } from '@ree/shared';
 import { cardReasonWords } from './cardReasons';
 import { buildCardImportPrompt, MAX_PER_MESSAGE } from '../../services/externalPrompts';
 import { parseExchange } from '../admin/exchange/aiExchange';
@@ -41,43 +40,27 @@ import {
     intakeReferenceCards, renameReferenceTag, fetchReferenceSources, createReferenceSource, deleteReferenceSource,
 } from '../../services/dbQueries';
 
-const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 const KINDS = [
     { value: 'formula', label: 'Formula' },
     { value: 'constant', label: 'Constant' },
 ];
-// AI generate: write cards for a topic, or read them out of a reviewer.
+// Add: write cards for a topic, read them out of a reviewer or another AI's reply, or write one by hand.
 const AI_SOURCES = [
     { value: 'topic', label: 'From a topic' },
     { value: 'file', label: 'From a file' },
     { value: 'paste', label: 'From another AI' },
+    { value: 'manual', label: 'Write one' },
 ];
 const FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_IMAGES = 6;
 const PDF_PAGES = 40;
 const nameKey = (n) => String(n || '').toLowerCase().trim();
 
-// Live Cards toolbar. "Difficulty / Priority" was requested but ReferenceCard
-// has no such column — Type and Needs-attention are the two sorts that
-// actually read from real fields and are useful for an admin list: group by
-// kind, or surface incomplete cards (via the same quickMissing check the AI
-// preview already uses) so they're the first thing you see.
-const LIVE_SORT_OPTIONS = [
-    { value: 'az', label: 'Alphabetical (A–Z)' },
-    { value: 'subject', label: 'Subject' },
-    { value: 'subtopic', label: 'Subtopic' },
-    { value: 'recent', label: 'Recently added' },
-    { value: 'type', label: 'Card type' },
-    { value: 'attention', label: 'Needs attention first' },
-];
 const PANELS = [
-    { value: 'queue', label: 'Review queue' },
-    { value: 'create', label: 'Add card' },
-    { value: 'ai', label: 'AI generate' },
-    { value: 'live', label: 'Live cards' },
-    { value: 'coverage', label: 'Coverage' },
+    { value: 'queue', label: 'Review' },
+    { value: 'cards', label: 'Cards' },
+    { value: 'add', label: 'Add' },
     { value: 'sources', label: 'Sources' },
-    { value: 'debt', label: 'Data debt' },
 ];
 
 const EMPTY_FORM = {
@@ -256,12 +239,6 @@ export default function ReferenceAdminV2() {
     const [debt, setDebt] = useState(null);
     const [loadingPanel, setLoadingPanel] = useState(true);
 
-    // Live Cards toolbar — client-side only (live is already fully loaded
-    // per-panel; no new endpoint for a search/sort over data already in hand).
-    const [liveSearch, setLiveSearch] = useState('');
-    const [liveSort, setLiveSort] = useState('recent');
-    const deferredLiveSearch = useDeferredValue(liveSearch);
-
     // Create/edit
     const [form, setForm] = useState(EMPTY_FORM);
     const [editing, setEditing] = useState(null); // card being edited (modal)
@@ -287,6 +264,7 @@ export default function ReferenceAdminV2() {
     const [aiReplyProblems, setAiReplyProblems] = useState([]);
     const [retired, setRetired] = useState([]);
     const [renaming, setRenaming] = useState(null); // { subject, topic, from, to }
+    const [deleting, setDeleting] = useState(null); // the card a delete waits to confirm
 
     // Bulk accept
     const [showBulkConfirm, setShowBulkConfirm] = useState(false);
@@ -307,10 +285,12 @@ export default function ReferenceAdminV2() {
         const jobs = [];
         if (panel === 'queue') jobs.push(fetchPendingReferenceCards().then((x) => { if (!ignore) setPending(x); }));
         // Live cards too wherever a card can be edited: its tag suggestions.
-        if (panel !== 'sources' && panel !== 'debt') jobs.push(fetchReferenceCards().then((x) => { if (!ignore) setLive(x); }));
-        if (panel === 'live') jobs.push(fetchRetiredReferenceCards().then((x) => { if (!ignore) setRetired(x); }));
-        if (panel === 'debt') jobs.push(fetchReferenceCardDebt().then((x) => { if (!ignore) setDebt(x); }));
-        if (panel === 'sources' || panel === 'create' || panel === 'queue' || panel === 'ai') {
+        if (panel !== 'sources') jobs.push(fetchReferenceCards().then((x) => { if (!ignore) setLive(x); }));
+        if (panel === 'cards') {
+            jobs.push(fetchRetiredReferenceCards().then((x) => { if (!ignore) setRetired(x); }));
+            jobs.push(fetchReferenceCardDebt().then((x) => { if (!ignore) setDebt(x); }));
+        }
+        if (panel === 'sources' || panel === 'add' || panel === 'queue') {
             jobs.push(fetchReferenceSources().then((x) => { if (!ignore) setSources(x); }));
         }
         Promise.all(jobs)
@@ -379,6 +359,8 @@ export default function ReferenceAdminV2() {
             toast.success('Card updated.');
             setPending((p) => p.map((c) => (c.id === editing.id ? (res?.item || c) : c)));
             setLive((p) => p.map((c) => (c.id === editing.id ? (res?.item || c) : c)));
+            // Saved through the required-field gate, so it no longer needs fixing.
+            setDebt((d) => (d ? { ...d, items: (d.items || []).filter((x) => x.card?.id !== editing.id) } : d));
             // A retired concept card saved as a formula or constant is live again.
             if (editing.kind === 'concept' && res?.item) {
                 setRetired((p) => p.filter((c) => c.id !== editing.id));
@@ -389,16 +371,21 @@ export default function ReferenceAdminV2() {
             toast.error(err?.body?.reasons ? `Incomplete: ${err.body.reasons.join(', ')}` : (err.message || 'Update failed.'));
         } finally { setBusy(false); }
     };
-    const handleDelete = async (card) => {
-        if (!window.confirm(`Delete "${card.name}"? Every learner's review progress on this card is lost. The audit history is kept. To change the card, use Edit instead.`)) return;
+    const confirmDelete = async () => {
+        const card = deleting;
+        setBusy(true);
         try {
             await deleteReferenceCard(card.id);
             setLive((p) => p.filter((c) => c.id !== card.id));
             setPending((p) => p.filter((c) => c.id !== card.id));
             setRetired((p) => p.filter((c) => c.id !== card.id));
+            setDebt((d) => (d ? { ...d, items: (d.items || []).filter((x) => x.card?.id !== card.id) } : d));
             toast.success('Card deleted.');
+            setDeleting(null);
         } catch { toast.error('Delete failed.'); }
+        finally { setBusy(false); }
     };
+    const openEditor = (card) => { setEditing(card); setEditForm(cardToForm(card)); };
 
     // ── AI generation ──────────────────────────────────────────────────────
     const clearDrafts = () => { setAiRows([]); setAiSelected(new Set()); setAiDuplicates(new Set()); setAiRefusals({}); };
@@ -531,16 +518,6 @@ export default function ReferenceAdminV2() {
     const aiTopics = dynamicTOS?.[aiSubject] || [];
     const completeAiCount = useMemo(() => aiRows.filter((r) => quickMissing(r, dynamicTOS).length === 0).length, [aiRows, dynamicTOS]);
 
-    // Coverage: per topic, what learners can open, thinnest first.
-    const coverage = useMemo(() => SUBJECTS.map((subject) => ({
-        subject,
-        rows: (dynamicTOS?.[subject] || []).map((topic) => {
-            const cards = live.filter((c) => c.subject === subject && c.topic?.name === topic);
-            const formulas = cards.filter((c) => c.kind === 'formula').length;
-            return { topic, total: cards.length, formulas, constants: cards.length - formulas, tags: tagsIn(cards, subject, topic) };
-        }).sort((a, b) => a.total - b.total),
-    })), [dynamicTOS, live]);
-
     const submitRename = async () => {
         if (!renaming?.to?.trim()) return toast.error('Type the new tag.');
         setBusy(true);
@@ -554,85 +531,9 @@ export default function ReferenceAdminV2() {
         finally { setBusy(false); }
     };
 
-    // Live Cards: real-time search across name/symbol/subtopicTag/description,
-    // then one of six sorts. Search and sort are independent — a search term
-    // narrows the set, the sort orders whatever's left.
-    const filteredSortedLive = useMemo(() => {
-        const q = deferredLiveSearch.trim().toLowerCase();
-        const filtered = q
-            ? live.filter((c) => [c.name, c.symbol, c.subtopicTag, c.description].some(
-                (f) => typeof f === 'string' && f.toLowerCase().includes(q),
-            ))
-            : live;
-
-        const sorted = [...filtered];
-        switch (liveSort) {
-            case 'az':
-                sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                break;
-            case 'subject':
-                sorted.sort((a, b) => (a.subject || '').localeCompare(b.subject || '') || (a.name || '').localeCompare(b.name || ''));
-                break;
-            case 'subtopic':
-                // Untagged cards sort last within their subject, not first —
-                // "no subtopic yet" isn't alphabetically before real ones.
-                sorted.sort((a, b) => {
-                    const at = a.subtopicTag || '￿';
-                    const bt = b.subtopicTag || '￿';
-                    return at.localeCompare(bt) || (a.name || '').localeCompare(b.name || '');
-                });
-                break;
-            case 'type':
-                sorted.sort((a, b) => (a.kind || '').localeCompare(b.kind || '') || (a.name || '').localeCompare(b.name || ''));
-                break;
-            case 'attention':
-                // Reuses quickMissing (already trusted for the AI-preview
-                // completeness gate) rather than a second definition of
-                // "complete" — most-incomplete first.
-                sorted.sort((a, b) => quickMissing(b).length - quickMissing(a).length);
-                break;
-            case 'recent':
-            default:
-                sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-                break;
-        }
-        return sorted;
-    }, [live, deferredLiveSearch, liveSort]);
-
-    const cardRow = (card, actions) => (
-        <Card key={card.id} padding="sm" className="flex flex-col gap-2 min-w-0">
-            <div className="flex items-start justify-between gap-3 min-w-0">
-                <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <Badge tone={card.kind === 'concept' ? 'neutral' : 'velocity'} className="uppercase">{card.kind === 'concept' ? 'Concept (retired)' : card.kind}</Badge>
-                        <span className="font-bold text-sm text-textMain line-clamp-1 [overflow-wrap:anywhere]" title={card.name}>{card.name}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                        <Badge tone="neutral">{card.subject}</Badge>
-                        {card.topic?.name && <Badge tone="neutral" className="truncate max-w-[160px]" title={card.topic.name}>{card.topic.name}</Badge>}
-                        {card.subtopicTag && <Badge tone="signal" className="truncate max-w-[120px]" title={card.subtopicTag}>{card.subtopicTag}</Badge>}
-                    </div>
-                </div>
-                <div className="flex gap-2 shrink-0">{actions}</div>
-            </div>
-            {(card.formulaLatex || card.valueUnit) && (
-                <div className="bg-bg border border-border rounded-[var(--radius-default)] px-3 py-2 math-scroll-mobile min-w-0 text-sm">
-                    {/* withMathDelimiters here to match Flashcard.jsx's student-facing
-                        render exactly — without it this admin preview could show raw
-                        LaTeX for a card whose formula field lacks $ delimiters even
-                        though the same card renders correctly for students. */}
-                    <LatexRenderer content={withMathDelimiters(card.formulaLatex || card.valueUnit)} />
-                </div>
-            )}
-            <div className="text-xs text-muted2 line-clamp-2 [overflow-wrap:anywhere] [&_p]:!m-0">
-                <LatexRenderer content={card.description} />
-            </div>
-        </Card>
-    );
-
     return (
         <div className="flex flex-col gap-5 animate-in fade-in">
-            <SegmentedControl label="Reference admin sections" size="sm" value={panel} onChange={switchPanel} options={PANELS} columns={3} className="self-start" />
+            <SegmentedControl label="Reference admin sections" size="sm" value={panel} onChange={switchPanel} options={PANELS} className="self-start" />
 
             {loadingPanel && (
                 <div className="flex flex-col gap-3">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-24" />)}</div>
@@ -673,19 +574,23 @@ export default function ReferenceAdminV2() {
                 )
             )}
 
-            {/* 2 ── ADD CARD */}
-            {!loadingPanel && panel === 'create' && (
-                <div className="max-w-2xl flex flex-col gap-4">
-                    <CardForm form={form} setForm={setForm} sources={sources} dynamicTOS={dynamicTOS} cards={live} />
-                    <Button onClick={submitCreate} loading={busy} disabled={busy} className="self-start">Create card (goes live)</Button>
-                </div>
+            {/* 2 ── CARDS */}
+            {!loadingPanel && panel === 'cards' && (
+                <CardsPanel live={live} retired={retired} debt={debt?.items || []} dynamicTOS={dynamicTOS}
+                    onEdit={openEditor} onDelete={setDeleting}
+                    onRenameTag={(tag) => setRenaming({ ...tag, to: tag.from })} />
             )}
 
-            {/* 3 ── AI GENERATE */}
-            {!loadingPanel && panel === 'ai' && (
+            {/* 3 ── ADD: by AI, or by hand */}
+            {!loadingPanel && panel === 'add' && (
                 <div className="flex flex-col gap-4">
                     <SegmentedControl label="Make cards" size="sm" value={aiSource} onChange={(v) => { setAiSource(v); clearDrafts(); }} options={AI_SOURCES} className="self-start" />
-                    {aiSource === 'topic' ? (
+                    {aiSource === 'manual' ? (
+                        <div className="max-w-2xl flex flex-col gap-4">
+                            <CardForm form={form} setForm={setForm} sources={sources} dynamicTOS={dynamicTOS} cards={live} />
+                            <Button onClick={submitCreate} loading={busy} disabled={busy} className="self-start">Create card (goes live)</Button>
+                        </div>
+                    ) : aiSource === 'topic' ? (
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
                                 <FormField label="Kind"><Select value={aiKind} onChange={(e) => setAiKind(e.target.value)}>{KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}</Select></FormField>
@@ -790,97 +695,7 @@ export default function ReferenceAdminV2() {
                 </div>
             )}
 
-            {/* 4b ── RETIRED CONCEPT CARDS */}
-            {!loadingPanel && panel === 'live' && retired.length > 0 && (
-                <div className="flex flex-col gap-3 border border-border rounded-[var(--radius-lg)] p-4">
-                    <p className="text-sm text-muted2">
-                        <span className="font-semibold text-textMain">{retired.length} concept card{retired.length === 1 ? '' : 's'}</span> retired. Formula cards are formulas and constants now, so learners don't see these. Edit one to make it a formula or a constant, or delete it.
-                    </p>
-                    {retired.map((card) => cardRow(card, (
-                        <>
-                            <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Re-type</Button>
-                            <Button size="sm" variant="outline" tone="danger" onClick={() => handleDelete(card)}>Delete</Button>
-                        </>
-                    )))}
-                </div>
-            )}
-
-            {/* 4 ── LIVE CARDS */}
-            {!loadingPanel && panel === 'live' && (
-                live.length === 0 ? (
-                    <EmptyState icon={BookOpen} title="No live cards yet" description="Approve cards from the review queue (or create one manually) and they appear here." />
-                ) : (
-                    <div className="flex flex-col gap-3">
-                        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                            <FormField label="Search" className="flex-1 min-w-0">
-                                <div className="relative">
-                                    <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-                                    <Input
-                                        value={liveSearch}
-                                        onChange={(e) => setLiveSearch(e.target.value)}
-                                        placeholder="Search by name, symbol, subtopic, or description…"
-                                        className="!pl-9"
-                                        aria-label="Search live cards"
-                                    />
-                                </div>
-                            </FormField>
-                            <FormField label="Sort by" className="sm:w-56 shrink-0">
-                                <Select value={liveSort} onChange={(e) => setLiveSort(e.target.value)} aria-label="Sort live cards">
-                                    {LIVE_SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                </Select>
-                            </FormField>
-                        </div>
-
-                        {filteredSortedLive.length === 0 ? (
-                            <EmptyState icon={Search} title="No cards match"
-                                description={`Nothing matches "${deferredLiveSearch.trim()}" across name, symbol, subtopic, or description.`}
-                                action={<Button size="sm" variant="ghost" onClick={() => setLiveSearch('')}>Clear search</Button>} />
-                        ) : (
-                            <>
-                                <p className="text-eyebrow">
-                                    {filteredSortedLive.length} of {live.length} live card{live.length === 1 ? '' : 's'}
-                                </p>
-                                {filteredSortedLive.map((card) => cardRow(card, (
-                                    <>
-                                        <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Edit</Button>
-                                        <Button size="sm" variant="outline" tone="danger" onClick={() => handleDelete(card)}>Delete</Button>
-                                    </>
-                                )))}
-                            </>
-                        )}
-                    </div>
-                )
-            )}
-
-            {/* 4c ── COVERAGE */}
-            {!loadingPanel && panel === 'coverage' && (
-                <div className="flex flex-col gap-6">
-                    <p className="text-xs text-muted2 max-w-2xl">What learners can open under each topic, thinnest first. A tag names a family of at least two cards; a tag on one card shows no heading. Press a tag to rename it, or to merge it into another by giving it that tag's name.</p>
-                    {coverage.filter((g) => g.rows.length > 0).map((g) => (
-                        <section key={g.subject} aria-label={g.subject} className="flex flex-col gap-2">
-                            <h3 className="text-fluid-base font-bold text-textMain">{g.subject} · {g.rows.filter((r) => r.total > 0).length} of {g.rows.length} topics have cards</h3>
-                            {g.rows.map((r) => (
-                                <Card key={r.topic} variant="inset" data-testid="coverage-row" className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-2.5 min-w-0">
-                                    <span data-testid="coverage-topic" className="text-sm font-semibold text-textMain min-w-0 sm:w-64 shrink-0 [overflow-wrap:anywhere]">{r.topic}</span>
-                                    {r.total === 0
-                                        ? <StatusPill tone="warning" dot={false}>No cards</StatusPill>
-                                        : <span className="text-xs text-muted2 shrink-0">{r.formulas} formula{r.formulas === 1 ? '' : 's'} · {r.constants} constant{r.constants === 1 ? '' : 's'}</span>}
-                                    <div className="flex gap-1.5 flex-wrap min-w-0">
-                                        {r.tags.map((tag) => (
-                                            <Button key={tag} size="sm" variant="ghost" aria-label={`Rename tag ${tag}`}
-                                                onClick={() => setRenaming({ subject: g.subject, topic: r.topic, from: tag, to: tag })}>
-                                                {tag}
-                                            </Button>
-                                        ))}
-                                    </div>
-                                </Card>
-                            ))}
-                        </section>
-                    ))}
-                </div>
-            )}
-
-            {/* 5 ── SOURCES */}
+            {/* 4 ── SOURCES */}
             {!loadingPanel && panel === 'sources' && (
                 <div className="flex flex-col gap-4 max-w-2xl">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -911,25 +726,7 @@ export default function ReferenceAdminV2() {
                 </div>
             )}
 
-            {/* 6 ── DATA DEBT */}
-            {!loadingPanel && panel === 'debt' && (
-                !debt || debt.items?.length === 0 ? (
-                    <EmptyState icon={Layers} title="No data debt"
-                        description={`Every card (${debt?.checked ?? 0} checked) passes the required-field rules. Incomplete cards can't be created going forward.`} />
-                ) : (
-                    <div className="flex flex-col gap-3">
-                        <p className="text-xs text-muted2"><span className="font-bold text-textMain">{debt.items.length}</span> of {debt.checked} cards are incomplete — fix them via Edit so the cards stay trustworthy.</p>
-                        {debt.items.map(({ card, reasons }) => cardRow(card, (
-                            <>
-                                <StatusPill tone="danger">{reasons.join(' · ')}</StatusPill>
-                                <Button size="sm" variant="outline" onClick={() => { setEditing(card); setEditForm(cardToForm(card)); }}>Fix</Button>
-                            </>
-                        )))}
-                    </div>
-                )
-            )}
-
-            {/* Edit modal (pending, live, or debt cards) */}
+            {/* Edit modal (pending, live, retired, or a draft) */}
             <Modal open={!!editing} onClose={() => !busy && setEditing(null)} size="lg" icon={Pencil} title={editing ? `Edit: ${editing.name}` : 'Edit card'}
                 footer={
                     <>
@@ -938,6 +735,17 @@ export default function ReferenceAdminV2() {
                     </>
                 }>
                 {editing && <CardForm form={editForm} setForm={setEditForm} sources={sources} dynamicTOS={dynamicTOS} cards={live} />}
+            </Modal>
+
+            {/* Delete a published card */}
+            <Modal open={!!deleting} onClose={() => !busy && setDeleting(null)} tone="danger" icon={Trash2} title={deleting ? `Delete "${deleting.name}"?` : 'Delete card'}
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setDeleting(null)} disabled={busy}>Cancel</Button>
+                        <Button tone="danger" onClick={confirmDelete} loading={busy} disabled={busy}>Delete</Button>
+                    </>
+                }>
+                <p className="text-sm text-muted2">Every learner's review progress on this card is lost. The audit history is kept. To change the card, use Edit instead.</p>
             </Modal>
 
             {/* Rename or merge a tag */}

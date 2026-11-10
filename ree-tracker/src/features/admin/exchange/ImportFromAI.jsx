@@ -91,7 +91,7 @@ export default function ImportFromAI({ onSaved }) {
     });
     // Read onto what's already here: replies can come back one message at a time.
     setItems((list) => [...list, ...found]);
-    setProblems(parsed.cards.length ? [...parsed.problems, 'This reply has formula cards. Import those in Formula cards › AI generate › From another AI.'] : parsed.problems);
+    setProblems(parsed.cards.length ? [...parsed.problems, 'This reply has formula cards. Import those in Formula cards › Add › From another AI.'] : parsed.problems);
     if (found.length) setReply('');
   };
 
