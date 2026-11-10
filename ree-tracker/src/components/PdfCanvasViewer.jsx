@@ -120,7 +120,11 @@ export default function PdfCanvasViewer({ blob, title, placeKey = null }) {
       pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
       // Absolute: the worker resolves it from its own address, in assets/.
       const wasmUrl = new URL('/pdfjs-wasm/', window.location.origin).href;
-      task = pdfjs.getDocument({ data: await blob.arrayBuffer(), isEvalSupported: false, wasmUrl });
+      const data = await blob.arrayBuffer();
+      // Closed while the library or the file loaded: cleanup has run with no
+      // task to destroy, so opening one now would keep the whole PDF in the worker.
+      if (!live) return;
+      task = pdfjs.getDocument({ data, isEvalSupported: false, wasmUrl });
       const pdf = await task.promise;
       // Page 2 stands for the rest: a cover is often another shape.
       const sample = await pdf.getPage(Math.min(2, pdf.numPages));

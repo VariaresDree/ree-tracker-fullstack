@@ -32,7 +32,8 @@ export function useReferenceCards() {
         let ignore = false;
         // Serves the IDB cache transparently when offline; an offline user with
         // no cache yet gets [] (the tab renders its empty state).
-        fetchReferenceCards()
+        // Try again reads the server again; a remount (a tab switch) uses the kept read.
+        fetchReferenceCards({ fresh: tick > 0 })
             .then((items) => { if (!ignore) { setCards(learnerCards(items)); setLoadError(false); } })
             .catch(() => { if (!ignore) setLoadError(true); }) // online but failed — keep what we had
             .finally(() => { if (!ignore) setLoading(false); });

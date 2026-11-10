@@ -11,6 +11,10 @@
 import { get, set, del } from 'idb-keyval';
 
 const PACK_KEY = 'ree_offline_pack_v1';
+// What the badge and Storage need to know about the pack, kept beside it: the
+// pack is one entry of up to 6,000 questions (8.8 MB), and every read of it
+// loads all of them. The badges read this on each mount.
+const META_KEY = 'ree_offline_pack_meta_v1';
 export const OFFLINE_SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 export const PACK_TTL_MS = 24 * 60 * 60 * 1000; // refresh at most ~daily
 
@@ -47,9 +51,36 @@ export const getOfflinePack = async () => {
     try { return (await get(PACK_KEY)) || null; } catch { return null; }
 };
 
+// Counts, time and size, from the pack in hand.
+const summarize = (pack) => {
+    const counts = {};
+    let total = 0;
+    for (const subj of OFFLINE_SUBJECTS) {
+        const n = Array.isArray(pack?.subjects?.[subj]) ? pack.subjects[subj].length : 0;
+        counts[subj] = n;
+        total += n;
+    }
+    return { fetchedAt: pack?.fetchedAt || null, counts, total, perSubject: packSizeOf(pack), bytes: new Blob([JSON.stringify(pack)]).size };
+};
+
 export const writeOfflinePack = async (pack) => {
     await set(PACK_KEY, pack);
+    try { await set(META_KEY, summarize(pack)); } catch { /* the next read rebuilds it from the pack */ }
     return pack;
+};
+
+// The summary, without reading the pack. A pack saved before there was one
+// is read once, and its summary kept.
+const readSummary = async () => {
+    try {
+        const kept = await get(META_KEY);
+        if (kept && typeof kept.total === 'number' && kept.counts) return kept;
+    } catch { /* read the pack instead */ }
+    const pack = await getOfflinePack();
+    if (!pack?.subjects) return null;
+    const made = summarize(pack);
+    try { await set(META_KEY, made); } catch { /* read the pack again next time */ }
+    return made;
 };
 
 // Pure, storage-free selector — extracted so it can be unit-tested without
@@ -75,20 +106,10 @@ export const getOfflineQuestions = async (subject, subtopic = 'All', limit = 100
 };
 
 export const getOfflinePackMeta = async () => {
-    const pack = await getOfflinePack();
-    if (!pack?.subjects) {
-        return { exists: false, fetchedAt: null, counts: {}, total: 0, stale: true };
-    }
-    const counts = {};
-    let total = 0;
-    for (const subj of OFFLINE_SUBJECTS) {
-        const n = Array.isArray(pack.subjects[subj]) ? pack.subjects[subj].length : 0;
-        counts[subj] = n;
-        total += n;
-    }
-    const perSubject = packSizeOf(pack);
-    const stale = !pack.fetchedAt || (Date.now() - pack.fetchedAt) > PACK_TTL_MS || perSubject !== getPackSize();
-    return { exists: total > 0, fetchedAt: pack.fetchedAt || null, counts, total, stale, perSubject };
+    const s = await readSummary();
+    if (!s) return { exists: false, fetchedAt: null, counts: {}, total: 0, stale: true, bytes: 0 };
+    const stale = !s.fetchedAt || (Date.now() - s.fetchedAt) > PACK_TTL_MS || s.perSubject !== getPackSize();
+    return { exists: s.total > 0, fetchedAt: s.fetchedAt, counts: s.counts, total: s.total, stale, perSubject: s.perSubject, bytes: s.bytes || 0 };
 };
 
 // ---- REFERENCE CARDS CACHE ------------------------------------------------

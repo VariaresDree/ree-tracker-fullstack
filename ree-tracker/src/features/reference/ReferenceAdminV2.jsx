@@ -285,7 +285,7 @@ export default function ReferenceAdminV2() {
         const jobs = [];
         if (panel === 'queue') jobs.push(fetchPendingReferenceCards().then((x) => { if (!ignore) setPending(x); }));
         // Live cards too wherever a card can be edited: its tag suggestions.
-        if (panel !== 'sources') jobs.push(fetchReferenceCards().then((x) => { if (!ignore) setLive(x); }));
+        if (panel !== 'sources') jobs.push(fetchReferenceCards({ fresh: true }).then((x) => { if (!ignore) setLive(x); }));
         if (panel === 'cards') {
             jobs.push(fetchRetiredReferenceCards().then((x) => { if (!ignore) setRetired(x); }));
             jobs.push(fetchReferenceCardDebt().then((x) => { if (!ignore) setDebt(x); }));
@@ -392,7 +392,7 @@ export default function ReferenceAdminV2() {
     // What's in the library this moment, and the live syllabus: pending cards
     // change as rows are queued, and a stale list let a repeat through.
     const libraryNow = async () => {
-        const [liveCards, pendingCards] = await Promise.all([fetchReferenceCards(), fetchPendingReferenceCards(), refreshLiveTOS()]);
+        const [liveCards, pendingCards] = await Promise.all([fetchReferenceCards({ fresh: true }), fetchPendingReferenceCards(), refreshLiveTOS()]);
         const cards = [...liveCards, ...pendingCards];
         return { cards, tags: [...new Set(cards.filter((c) => c.subject === aiSubject && c.subtopicTag).map((c) => c.subtopicTag.trim()))] };
     };
