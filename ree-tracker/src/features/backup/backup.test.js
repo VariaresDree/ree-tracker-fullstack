@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { unzipSync } from 'fflate';
 import * as idb from 'idb-keyval';
-import { addDeviceFile, getDeviceFileBlob, listDeviceFiles } from '../../services/deviceFiles';
+import { addDeviceFile, createDeviceFolder, getDeviceFileBlob, listDeviceFiles, listDeviceFolders } from '../../services/deviceFiles';
 import { addQuizFiles, __resetQuizSession, refreshQuizzes } from '../quiz-launcher/quizSession';
 import { getAttempts, getRun, listQuizzes, recordAttempt, saveRun } from '../quiz-launcher/quizStore';
 import { planAccountRestore, runAccountRestore } from './accountRestore';
@@ -139,6 +139,25 @@ describe('a backup, there and back', () => {
     expect(await getAttempts('u1', quizId)).toEqual([{ at: 100, pct: 50 }]);
     expect((await getRun('u1', quizId)).answers).toEqual({ q: 'a' });
     expect(localStorage.getItem('ree:units')).toBe('{"favourites":[]}');
+  });
+
+  it('brings folders back, with each file in its own', async () => {
+    const folder = await createDeviceFolder('u1', 'Terms');
+    await addDeviceFile('u1', new Blob(['x'], { type: 'text/plain' }), { name: 'in.txt', kind: 'text', folderId: folder.id });
+    const handle = await unlockBackup(await openBackup(await buildBackup('u1', {})));
+    fresh();
+    await restoreDevice('u1', handle);
+    expect(await listDeviceFolders('u1')).toEqual([folder]);
+    expect((await listDeviceFiles('u1'))[0].folderId).toBe(folder.id);
+  });
+
+  it('a backup from before folders restores, with its files at the top level', async () => {
+    await fill();
+    const handle = await unlockBackup(await openBackup(await buildBackup('u1', {})));
+    delete handle.index.folders;
+    fresh();
+    expect(await restoreDevice('u1', handle)).toMatchObject({ files: 1 });
+    expect(await listDeviceFolders('u1')).toEqual([]);
   });
 
   it('leaves saved handouts out unless asked', async () => {

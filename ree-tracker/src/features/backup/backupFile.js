@@ -4,7 +4,7 @@
 // account's rows, and your device files split into 8 MB pieces. With a passphrase, every
 // entry but the manifest is sealed on its own with AES-GCM, so memory stays bounded
 // and no file name or score can be read without it. A lost passphrase can't be recovered.
-import { checkFreeSpace, getDeviceFileBlob, listDeviceFiles, restoreDeviceFile } from '../../services/deviceFiles';
+import { checkFreeSpace, getDeviceFileBlob, listDeviceFiles, listDeviceFolders, restoreDeviceFile, restoreDeviceFolders } from '../../services/deviceFiles';
 import { deviceEntries } from '../../services/deviceStore';
 import { getAttempts, getRun } from '../quiz-launcher/quizStore';
 import { refreshQuizzes, restoreQuiz } from '../quiz-launcher/quizSession';
@@ -106,7 +106,9 @@ export async function buildBackup(uid, { email = null, passphrase = '', includeH
     ...(key ? { kdf: { name: 'PBKDF2-SHA256', iterations, salt: toBase64(salt) }, cipher: 'AES-GCM' } : {}),
   }, null, 2)));
 
-  const index = { createdAt: now.toISOString(), uid, email, settings: readSettings(), files: [], quizzes: [], hasAccount: !!account };
+  // Folders ride in the index with no version bump: an older app ignores them, and
+  // reading one from before them takes `index.folders ?? []`.
+  const index = { createdAt: now.toISOString(), uid, email, settings: readSettings(), folders: await listDeviceFolders(uid), files: [], quizzes: [], hasAccount: !!account };
 
   const files = (await listDeviceFiles(uid)).filter((f) => includeHandouts || f.source?.kind !== 'handout');
   for (const [i, meta] of files.entries()) {
@@ -211,6 +213,8 @@ export async function restoreDevice(uid, handle, { onProgress = () => {} } = {})
   const { index, blobOf } = handle;
   const { newFiles, newQuizzes, bytes } = await previewDevice(uid, handle);
   await checkFreeSpace(bytes);
+  // The folders first, so a restored file lands in its folder.
+  await restoreDeviceFolders(uid, Array.isArray(index.folders) ? index.folders : []);
   for (const [i, file] of newFiles.entries()) {
     onProgress(`Restoring file ${i + 1} of ${newFiles.length}…`);
     const { parts, ...meta } = file;

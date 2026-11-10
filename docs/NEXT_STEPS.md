@@ -12,7 +12,50 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0d. Handover, round of 2026-11-04 (read this first)
+## 0e. Handover, round of 2026-11-10 (read this first)
+
+The owner's eight-PR plan (exam frame, formula cards, file organizer, Units and tools, App health), finished. Plan file: `help-me-improve-my-floofy-turing.md`.
+
+| PR | What |
+|---|---|
+| #232 | App health: `auth/id-token-expired` logs at warn (it fired once ever; the app already retries a 401), and the page-hide keepalive gained the account guard the normal flush has, so account A's queued answers can't post under B |
+| #233 | Exam frame: Submit beside the clock, Next becomes **Review and submit** on the last item, nothing ends an exam in one tap; tighter option rows; `srs` out of the boot download |
+| #234 | Formula cards: one layout (`CardBody.jsx`) for card and print sheet, real recall (`ask`), ratings whose intervals differ, no raw LaTeX on the print sheet |
+| #235 | Card content: one standard on every way in, the 67 live cards rewritten, new cards for the empty topics (all accepted live, 172 now) |
+| #236 | Formula drills: Recall, Choose and Match (`features/reference/drill/`). Only a new, due or Again rating moves a schedule |
+| #237 | Units and tools: tabs Units, Tools, Prefixes, Calculator; every quantity and tool an icon tile (`unitTiles.js`); Common conversions removed |
+| #238 | Quiz files in the handouts folder tree (`QuizFile.folderId`), a Move sheet with multi-select instead of Cut and Paste, number-aware remembered sort, kind icons |
+| this PR | My files folders on the device, carried in backups, and this handover |
+
+**Your actions:**
+1. **File the 13 quiz files** in Admin › Handouts: **Select**, tick them, **Move…**. All 13 are at the top level (checked in the database 2026-11-10, after #238's migration applied at 07:11 UTC).
+2. **Skim the new EE cards.** You accepted all of them within minutes, so their formulas have had only my check against published sources.
+3. **Dismiss the old token row** in Admin › App health, if it's still there. New ones won't appear.
+4. **Try it on a real phone:** Submit beside the clock, the Units tile grid, the Move sheet, My files folders. Every screen here was proven in real Chromium builds at 320 to 768 px with axe, never on a device.
+
+**Decisions:**
+- Submit sits in both places, doing different jobs. Both open the review dialog.
+- Recall is written on paper or the scratchpad and self-graded; typed-formula grading was skipped on purpose.
+- Choose and Match save only Again on a miss: recognizing isn't recalling. Drills never touch the rating, readiness or streak.
+- One folder tree for handouts and quiz files. A folder delete moves quiz files to the top level (FK sets null) but deletes handouts, as before.
+- My files folders live on the device only (ADR-003), and deleting one never deletes a file.
+
+**Not verified:**
+- A real phone or tablet (still owed from earlier rounds too).
+- #233 to #238 signed in on production. Read-only database checks only, plus CI's signed-in E2E.
+
+**Next, in order of value:**
+1. Subtopic tagging for questions, then drills and counts by subtopic.
+2. A "convert this" drill, and worked problems under each tool.
+3. Thermo, fluids and mechanics calculators, and a complex-number mode (`UNITS_AND_TOOLS.md`).
+4. Folders for imported quizzes and Your links; multi-select in My files (it has single Move only).
+5. A blank confidence is recorded as MED (`useSimulatorEngine.js`), which skews calibration: record it as unrated.
+6. The multi-device first-answer undercount, API compression, cold-start messaging.
+7. `TodayPanel` still uses React's own `lazy`, not `lazyWithRetry`.
+
+**Working notes:** the boot download is at 99.4% of 700 kB, so everything new loads lazily, and Tailwind classes from lazy code still land in the eager stylesheet. A full local frontend run sometimes times out a lazy-loading test under load; rerun it alone before believing it.
+
+## 0d. Handover, round of 2026-11-04
 
 The owner's ten-PR plan, finished: one exam frame across every session, imported and shared quizzes, unit conversion, files on the device, backup, and offline proven with the network cut. Two fixes followed, for problems found while checking it live.
 

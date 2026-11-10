@@ -1,8 +1,10 @@
 // src/services/deviceFiles.js
 //
 // My files: PDFs, images, text and audio kept only on this device, by account. The
-// bytes and the details are stored apart, so a list never reads a whole file. Nothing
-// here can reach a server, which deviceFiles.isolation.test.js holds it to.
+// bytes and the details are stored apart, so a list never reads a whole file. The
+// folders are one record of their own, outside the file rows, and a file names its
+// folder (`folderId`, null at the top level). Nothing here can reach a server,
+// which deviceFiles.isolation.test.js holds it to.
 import { deviceDel, deviceEntries, deviceGet, deviceSet } from './deviceStore';
 import { formatBytes } from '../utils/bytes';
 
@@ -11,6 +13,7 @@ export const MAX_FILE_BYTES = 200 * 1024 * 1024;
 const owner = (uid) => uid || 'local';
 const metaKey = (uid, id) => `${owner(uid)}:file:meta:${id}`;
 const blobKey = (uid, id) => `${owner(uid)}:file:blob:${id}`;
+const foldersKey = (uid) => `${owner(uid)}:file:folders`;
 
 const EXTENSION_KIND = { pdf: 'pdf', txt: 'text', md: 'text', csv: 'text', log: 'text' };
 
@@ -44,13 +47,13 @@ export async function checkFreeSpace(size) {
  * Keep a file on this device. The bytes go first, so a details row never points at
  * nothing; if the details can't be written, the bytes come back out.
  * @param blob    a File or Blob
- * @param details { name, kind, source? } `source` says what it came from, such as a handout.
+ * @param details { name, kind, source?, folderId? } `source` says what it came from, such as a handout.
  * @returns the saved details
  */
-export async function addDeviceFile(uid, blob, { name, kind, source = null }) {
+export async function addDeviceFile(uid, blob, { name, kind, source = null, folderId = null }) {
   await checkSpace(blob.size);
   const id = crypto.randomUUID();
-  const meta = { id, name, kind, mime: blob.type || '', size: blob.size, addedAt: Date.now(), source };
+  const meta = { id, name, kind, mime: blob.type || '', size: blob.size, addedAt: Date.now(), source, folderId };
   await deviceSet(blobKey(uid, id), blob);
   try {
     await deviceSet(metaKey(uid, id), meta);
@@ -93,4 +96,66 @@ export async function renameDeviceFile(uid, id, name) {
 export async function deleteDeviceFile(uid, id) {
   await deviceDel(metaKey(uid, id));
   await deviceDel(blobKey(uid, id));
+}
+
+/** A file into a folder (null is the top level). */
+export async function moveDeviceFile(uid, id, folderId) {
+  const meta = await deviceGet(metaKey(uid, id));
+  if (!meta) return null;
+  const next = { ...meta, folderId: folderId || null };
+  await deviceSet(metaKey(uid, id), next);
+  return next;
+}
+
+// --- Folders: [{ id, name, parentId }] in one record, so a change is one write.
+
+export const listDeviceFolders = async (uid) => (await deviceGet(foldersKey(uid))) || [];
+const saveFolders = (uid, folders) => deviceSet(foldersKey(uid), folders);
+
+/** The folder and every folder under it. */
+export function folderSubtree(folders, id) {
+  const ids = new Set([id]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const f of folders) if (ids.has(f.parentId) && !ids.has(f.id)) { ids.add(f.id); grew = true; }
+  }
+  return ids;
+}
+
+export async function createDeviceFolder(uid, name, parentId = null) {
+  const folder = { id: crypto.randomUUID(), name, parentId: parentId || null };
+  await saveFolders(uid, [...await listDeviceFolders(uid), folder]);
+  return folder;
+}
+
+export async function renameDeviceFolder(uid, id, name) {
+  await saveFolders(uid, (await listDeviceFolders(uid)).map((f) => (f.id === id ? { ...f, name } : f)));
+}
+
+/** Refuses a move into itself or below itself, which would cut it off from the top. */
+export async function moveDeviceFolder(uid, id, parentId) {
+  const folders = await listDeviceFolders(uid);
+  if (parentId && folderSubtree(folders, id).has(parentId)) throw new Error('A folder can’t go inside itself.');
+  await saveFolders(uid, folders.map((f) => (f.id === id ? { ...f, parentId: parentId || null } : f)));
+}
+
+/** Removes the folder only: what was in it, files and folders, moves up a level. */
+export async function deleteDeviceFolder(uid, id) {
+  const folders = await listDeviceFolders(uid);
+  const gone = folders.find((f) => f.id === id);
+  if (!gone) return;
+  const up = gone.parentId || null;
+  for (const file of await listDeviceFiles(uid)) {
+    if (file.folderId === id) await moveDeviceFile(uid, file.id, up);
+  }
+  await saveFolders(uid, folders.filter((f) => f.id !== id).map((f) => (f.parentId === id ? { ...f, parentId: up } : f)));
+}
+
+/** From a backup: the folders not here yet. One already here stays as it is. */
+export async function restoreDeviceFolders(uid, incoming) {
+  const folders = await listDeviceFolders(uid);
+  const have = new Set(folders.map((f) => f.id));
+  const added = incoming.filter((f) => f?.id && typeof f.name === 'string' && !have.has(f.id)).map(({ id, name, parentId }) => ({ id, name, parentId: parentId || null }));
+  if (added.length) await saveFolders(uid, [...folders, ...added]);
+  return added.length;
 }

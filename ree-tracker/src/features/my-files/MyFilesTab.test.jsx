@@ -182,3 +182,69 @@ describe('Opening a file', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('no longer on this device');
   });
 });
+
+describe('folders in My files', () => {
+  const newFolder = async (name) => {
+    fireEvent.click(await screen.findByRole('button', { name: 'New folder' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New folder' });
+    fireEvent.change(within(dialog).getByLabelText('Folder name'), { target: { value: name } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+    return screen.findByRole('button', { name: `Open folder ${name}` });
+  };
+
+  it('a folder opens in the URL, a file added there stays there, and the path goes back', async () => {
+    renderTab();
+    fireEvent.click(await newFolder('Terms'));
+    expect(screen.getByTestId('where')).toHaveTextContent('dir=');
+    expect(await screen.findByText('This folder is empty')).toBeInTheDocument();
+    pick(text('in-terms.txt'));
+    expect(await screen.findByRole('button', { name: 'Open in-terms.txt' })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Folder path' })).getByRole('button', { name: 'My files' }));
+    expect(screen.queryByRole('button', { name: 'Open in-terms.txt' })).toBeNull();
+    expect(await screen.findByText('1 file')).toBeInTheDocument();
+  });
+
+  it('moves a file into a folder through the sheet', async () => {
+    await addFile('u1', text('loose.txt'), { name: 'loose.txt', kind: 'text' });
+    renderTab();
+    await newFolder('Machines');
+    fireEvent.click(screen.getByRole('button', { name: 'Move loose.txt' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Move 1 item' });
+    fireEvent.click(within(sheet).getByLabelText('Machines'));
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Move here' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open loose.txt' })).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Open folder Machines' }));
+    expect(await screen.findByRole('button', { name: 'Open loose.txt' })).toBeInTheDocument();
+  });
+
+  it('deleting a folder keeps its files, a level up, and says so first', async () => {
+    renderTab();
+    fireEvent.click(await newFolder('Old'));
+    pick(text('keep.txt'));
+    await screen.findByRole('button', { name: 'Open keep.txt' });
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Folder path' })).getByRole('button', { name: 'My files' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete folder Old' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this folder?' });
+    expect(dialog).toHaveTextContent('no file is deleted: what’s in it moves up to My files');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete folder' }));
+    expect(await screen.findByRole('button', { name: 'Open keep.txt' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open folder Old' })).toBeNull();
+  });
+
+  it('search looks in every folder and says where a file is', async () => {
+    renderTab();
+    fireEvent.click(await newFolder('Deep'));
+    pick(text('ohm.txt'));
+    await screen.findByRole('button', { name: 'Open ohm.txt' });
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Folder path' })).getByRole('button', { name: 'My files' }));
+    fireEvent.change(await screen.findByLabelText('Search your files'), { target: { value: 'ohm' } });
+    expect(await screen.findByRole('button', { name: 'Open ohm.txt' })).toBeInTheDocument();
+    expect(screen.getByText('Deep')).toBeInTheDocument();
+  });
+
+  it('a file whose folder is gone shows at the top level', async () => {
+    await addFile('u1', text('orphan.txt'), { name: 'orphan.txt', kind: 'text', folderId: 'no-such-folder' });
+    renderTab();
+    expect(await screen.findByRole('button', { name: 'Open orphan.txt' })).toBeInTheDocument();
+  });
+});
