@@ -3,13 +3,17 @@
 // Host a battle: pick a format, subject and length, create the lobby, and go
 // to it. The formats share their names and icons with the mock-board profiles
 // (features/board-simulator/profiles.js), so a "One subject (PRC clock)"
-// battle and mock board are the same thing.
+// battle and mock board are the same thing. A custom battle can be on one
+// topic, as a custom mock can; the server draws only from it, and the draw
+// choice then has nothing to pick (drawModes.drawApplies, the mock's rule).
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { SYLLABUS_SUBJECTS, normalizeSubject } from '@ree/shared';
 import { Button, FormField, Modal, Select, cn } from '../../components/ui';
 import { Swords } from '../../components/ui/icons';
+import { useStore } from '../../store/useStore';
+import { drawApplies } from '../board-simulator/drawModes';
 import { PRC_TIMES } from '../../config/examStandards';
 import DrawPicker from '../board-simulator/DrawPicker';
 import { useDrawPrefs } from '../board-simulator/useDrawPrefs';
@@ -22,7 +26,12 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
     subject: 'EE',
     count: 20,
     timeLimitMins: 30,
+    subtopic: 'All',
   });
+  const topics = useStore((s) => s.dynamicTOS)?.[hostConfig.subject] || [];
+  // Only a custom battle is on one topic: a PRC paper covers its subject.
+  const subtopic = hostConfig.mode === 'custom' ? hostConfig.subtopic : 'All';
+  const drawShown = drawApplies({ mode: hostConfig.mode, subtopic });
   // A second tap while the first request ran created a second lobby.
   const [creating, setCreating] = useState(false);
   const { prefs: draw, save: saveDraw } = useDrawPrefs();
@@ -48,8 +57,9 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         count: hostConfig.mode === 'prc' || hostConfig.mode === 'blended' ? 100 : hostConfig.count,
         timeLimitMins: finalTime,
         isPrcStandard: hostConfig.mode === 'prc' || hostConfig.mode === 'blended',
-        drawMode: draw.drawMode,
-        ...(draw.drawMode === 'own' ? { ownCounts: draw.ownCounts } : {}),
+        ...(drawShown
+          ? { drawMode: draw.drawMode, ...(draw.drawMode === 'own' ? { ownCounts: draw.ownCounts } : {}) }
+          : { subtopic }),
       };
 
       const battleId = await createMultiplayerBattle(finalConfig, finalTime * 60);
@@ -118,7 +128,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
             <Select
               disabled={hostConfig.mode === 'blended'}
               value={hostConfig.mode === 'blended' ? 'Blended' : hostConfig.subject}
-              onChange={(e) => setHostConfig({ ...hostConfig, subject: e.target.value })}
+              onChange={(e) => setHostConfig({ ...hostConfig, subject: e.target.value, subtopic: 'All' })}
             >
               {hostConfig.mode === 'blended' ? (
                 <option value="Blended">Math, ESAS & EE blended</option>
@@ -146,6 +156,15 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         </div>
 
         {hostConfig.mode === 'custom' && (
+          <FormField label="Topic" hint="Everyone answers questions from this topic only.">
+            <Select value={hostConfig.subtopic} onChange={(e) => setHostConfig({ ...hostConfig, subtopic: e.target.value })}>
+              <option value="All">All topics</option>
+              {topics.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </FormField>
+        )}
+
+        {hostConfig.mode === 'custom' && (
           <FormField label="Time limit" className="sm:max-w-[50%]">
             <Select
               value={hostConfig.timeLimitMins}
@@ -159,11 +178,13 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
           </FormField>
         )}
 
-        <DrawPicker
-          prefs={draw}
-          onChange={saveDraw}
-          subjects={hostConfig.mode === 'blended' ? SYLLABUS_SUBJECTS : [normalizeSubject(hostConfig.subject)]}
-        />
+        {drawShown && (
+          <DrawPicker
+            prefs={draw}
+            onChange={saveDraw}
+            subjects={hostConfig.mode === 'blended' ? SYLLABUS_SUBJECTS : [normalizeSubject(hostConfig.subject)]}
+          />
+        )}
       </div>
     </Modal>
   );

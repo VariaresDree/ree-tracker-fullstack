@@ -18,11 +18,12 @@ export const BATTLE_MODES = [
   description: m.description || profile(m.profile).description,
 }));
 
-/** A battle's format in a word or two, from its saved config: "EE", "Full mock". */
+/** A battle's format in a few words, from its saved config: "EE", "EE · Electric Circuits 2", "Full mock". */
 export function battleLabel(config) {
   if (!config) return 'Battle';
   if (config.mode === 'blended') return 'Full mock';
-  return config.subject || 'Battle';
+  const subject = config.subject || 'Battle';
+  return config.subtopic && config.subtopic !== 'All' ? `${subject} · ${config.subtopic}` : subject;
 }
 
 /** 1 → "1st", 2 → "2nd", 3 → "3rd", 11 → "11th", 22 → "22nd". */
