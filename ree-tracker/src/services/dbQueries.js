@@ -2,6 +2,7 @@
 import { auth } from '../config/firebaseDb';
 import { invalidateDashboardSeed } from './dashboardSeed';
 import { fnv1a } from '../utils/contentHash';
+import { stratifiedSample } from '../utils/shuffle';
 import { DEFAULT_SYLLABUS_WEIGHTS, OPTION_ORDER_VERSION, fallbackDisplayName } from '@ree/shared';
 import { shouldShortCircuit, noteNetworkFailure, noteBackendAnswered } from './connection';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getPackSize, packSizeOf, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
@@ -352,7 +353,10 @@ export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 
         return normalizeQuestions(data);
     } catch (err) {
         if (err.message === '[OFFLINE]') {
-            const cached = await getOfflineQuestions(subject, subtopic, limit);
+            // The pack keeps its order, so its first `limit` would be the same
+            // questions every session. Sampled from the whole slice instead,
+            // spread across topics as the server's answer is.
+            const cached = stratifiedSample(await getOfflineQuestions(subject, subtopic, Infinity), Number(limit) || 50);
             if (cached.length > 0) return cached;
         }
         throw err;

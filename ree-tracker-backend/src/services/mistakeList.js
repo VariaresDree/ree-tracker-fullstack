@@ -37,8 +37,12 @@ async function withoutOpenBattles(attempts, now = Date.now()) {
     return attempts.filter((a) => !(a.mode === 'BATTLE' && a.sessionId && open.has(String(a.sessionId).split(':')[0])));
 }
 
-/** @returns {Promise<{ items: object[], truncated: boolean }>} newest first */
-async function loadMistakes(userId) {
+/**
+ * `questionSelect` is what's read of each question: all of QUESTION_SELECT for
+ * the notebook, less for a caller that only orders or counts them (Today's loop).
+ * @returns {Promise<{ items: object[], truncated: boolean }>} newest first
+ */
+async function loadMistakes(userId, questionSelect = QUESTION_SELECT) {
     const recentWrong = await prisma.questionAttempt.findMany({
         where: {
             userId,
@@ -68,7 +72,7 @@ async function loadMistakes(userId) {
             where: { userId, isCorrect: true, questionId: { in: ids } },
             select: { questionId: true, answeredAt: true, createdAt: true, mode: true, sessionId: true },
         }),
-        prisma.question.findMany({ where: { id: { in: ids } }, select: QUESTION_SELECT }),
+        prisma.question.findMany({ where: { id: { in: ids } }, select: questionSelect }),
         prisma.mistakeTag.findMany({
             where: { userId, questionId: { in: ids } },
             select: { questionId: true, cause: true, resolvedAt: true },

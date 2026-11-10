@@ -26,6 +26,11 @@ const LOOP_MAX = 25;
 const CARD_MAX = 8;
 const DUE_SCAN_MAX = 100;
 const BOARD_SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
+// All that ordering the loop needs of a question. Up to 400 candidates are
+// read to show LOOP_MAX, and with their text and explanations that was about
+// 0.4 MB out of the database on every Today open; the rest is read for the
+// ones shown (loadTodayLoop).
+const CANDIDATE_SELECT = { id: true, subject: true, subtopic: true, type: true };
 
 /** A mistake row back into the question shape Practice uses. */
 const mistakeToQuestion = (m) => ({
@@ -101,11 +106,11 @@ async function loadTodayLoop(userId, now = new Date(), { withCards = false } = {
     const [dueCards, mistakes, weights, cardsDue, cardRows] = await Promise.all([
         prisma.sRSCard.findMany({
             where: { userId, nextReviewDate: { lte: now }, question: { isFlagged: false } },
-            include: { question: true },
+            select: { question: { select: CANDIDATE_SELECT } },
             orderBy: { nextReviewDate: 'asc' },
             take: DUE_SCAN_MAX,
         }),
-        loadMistakes(userId),
+        loadMistakes(userId, CANDIDATE_SELECT),
         getSyllabusWeights(),
         prisma.cardReview.count({ where: { userId, nextReviewDate: { lte: now }, card: LEARNER_CARD_WHERE } }),
         withCards
@@ -127,7 +132,20 @@ async function loadTodayLoop(userId, now = new Date(), { withCards = false } = {
         cards: cardRows.map((r) => r.card).filter(Boolean),
         weights,
     });
-    return { ...loop, cardsDue };
+    // The whole question, for the ones shown: a due review as its row, a
+    // mistake in the shape it always had (mistakeToQuestion).
+    const shown = loop.items.filter((i) => i.kind !== 'card').map((i) => i.id);
+    const rows = shown.length ? await prisma.question.findMany({ where: { id: { in: shown } } }) : [];
+    const rowById = new Map(rows.map((r) => [r.id, r]));
+    const items = loop.items.map((item) => {
+        if (item.kind === 'card') return item;
+        const row = rowById.get(item.id);
+        if (!row) return null; // deleted since the first read
+        return item.loop.reason === 'due'
+            ? { ...row, loop: item.loop }
+            : { ...item, text: row.text, options: Array.isArray(row.options) ? row.options : [], answer: row.answer ?? null, fixedExplanation: row.fixedExplanation || null };
+    }).filter(Boolean);
+    return { ...loop, items, cardsDue };
 }
 
 module.exports = { buildTodayLoop, loadTodayLoop, interleave, LOOP_MAX, CARD_MAX };

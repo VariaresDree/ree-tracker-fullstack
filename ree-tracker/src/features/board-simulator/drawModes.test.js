@@ -130,12 +130,24 @@ describe('the sitting draws as chosen', () => {
 
   it('a PRC paper covers the whole subject, even with a topic left in the setup', async () => {
     await sit({ ...PRC, subtopic: 'Small' });
-    expect(api.fetchVaultQuestions).toHaveBeenCalledWith('EE', 'All', 2000);
+    // An even 100-item paper asks for 300, not the old 2,000.
+    expect(api.fetchVaultQuestions).toHaveBeenCalledWith('EE', 'All', 300);
+    expect(api.fetchVaultQuestions).toHaveBeenCalledTimes(1);
   });
 
   it('a custom mock still honours its pinned topic', async () => {
     await sit({ mode: 'subject', subject: 'EE', isPrcStandard: false, count: 10, source: 'library', subtopic: 'Small', cognitiveFocus: 'mixed', drawMode: 'board' });
-    expect(api.fetchVaultQuestions).toHaveBeenCalledWith('EE', 'Small', 2000);
+    expect(api.fetchVaultQuestions).toHaveBeenCalledWith('EE', 'Small', 60);
     expect(api.fetchBoardGroups).not.toHaveBeenCalled();
+  });
+
+  it('asks for the old 2,000 when the first pool leaves the paper short', async () => {
+    // A focus that matches little: 4 calculation items in the first 150, 30 in the bank.
+    const calc = (n) => topic('Big', n).map((q) => ({ ...q, type: 'calculation' }));
+    api.fetchVaultQuestions.mockImplementation(async (_s, _t, limit) => (limit < 2000 ? [...calc(4), ...topic('Small', 146)] : [...calc(30), ...topic('Small', 500)]));
+    const questions = await sit({ mode: 'subject', subject: 'EE', isPrcStandard: false, count: 20, source: 'library', subtopic: 'All', cognitiveFocus: 'calculation' });
+    expect(api.fetchVaultQuestions.mock.calls.map((c) => c[2])).toEqual([150, 2000]);
+    expect(questions).toHaveLength(20);
+    expect(questions.every((q) => q.type === 'calculation')).toBe(true);
   });
 });

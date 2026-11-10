@@ -519,3 +519,27 @@ describe("formula cards in today's loop", () => {
     expect(result.current.lastSummary).toMatchObject({ total: 0, cardsRated: 1, config: expect.objectContaining({ source: 'today-loop' }) });
   });
 });
+
+describe('question bank source', () => {
+  const library = { source: 'library', studyMode: 'subject', subject: 'EE', subtopic: 'All', count: 20, sessionMode: 'mcq' };
+  const bank = (n, type) => Array.from({ length: n }, (_, i) => ({ ...q(`${type}-${i}`, 'EE', `Topic ${i % 5}`), type }));
+
+  it('asks for a pool sized to the session, not the old 1,000', async () => {
+    fetchVaultQuestions.mockResolvedValue(bank(60, 'conceptual'));
+    const { result } = setup();
+    await act(() => result.current.startSession({ ...library, cognitiveFocus: 'mixed' }));
+    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 60]]);
+    expect(result.current.session.questions).toHaveLength(20);
+  });
+
+  it('asks for the old 1,000 when the focus leaves the first pool short', async () => {
+    fetchVaultQuestions.mockImplementation(async (_s, _t, limit) => (limit < 1000
+      ? [...bank(5, 'calculation'), ...bank(145, 'conceptual')]
+      : [...bank(40, 'calculation'), ...bank(500, 'conceptual')]));
+    const { result } = setup();
+    await act(() => result.current.startSession({ ...library, cognitiveFocus: 'calculation' }));
+    expect(fetchVaultQuestions.mock.calls.map((c) => c[2])).toEqual([150, 1000]);
+    expect(result.current.session.questions).toHaveLength(20);
+    expect(result.current.session.questions.every((x) => x.type === 'calculation')).toBe(true);
+  });
+});

@@ -14,6 +14,13 @@ vi.mock('../../services/dbQueries', () => ({
   updateQuestionInBank: (...a) => updateQuestionInBank(...a),
 }));
 vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
+const readUserCache = vi.fn();
+const writeUserCache = vi.fn();
+vi.mock('../../services/userCache', () => ({
+  readUserCache: (...a) => readUserCache(...a),
+  writeUserCache: (...a) => writeUserCache(...a),
+}));
+vi.mock('../../contexts/AuthContext', async (original) => ({ ...(await original()), useAuth: () => ({ currentUser: { uid: 'admin-1' } }) }));
 const { default: AnswerPositions } = await import('./AnswerPositions');
 
 const AUDIT = {
@@ -26,7 +33,10 @@ const AUDIT = {
 };
 
 // A block body: a function returned from beforeEach runs as its teardown.
-beforeEach(() => { fetchOptionAudit.mockReset(); fixOptionKeys.mockReset(); fetchQuestionById.mockReset(); updateQuestionInBank.mockReset(); });
+beforeEach(() => {
+  fetchOptionAudit.mockReset(); fixOptionKeys.mockReset(); fetchQuestionById.mockReset(); updateQuestionInBank.mockReset();
+  readUserCache.mockReset().mockResolvedValue(null); writeUserCache.mockReset();
+});
 
 describe('AnswerPositions', () => {
   it('reads the bank only when asked, then shows the balance and what to fix', async () => {
@@ -41,6 +51,16 @@ describe('AnswerPositions', () => {
     expect(screen.getByText(/explanations name an option by letter/)).toBeInTheDocument();
     expect(screen.getByText(/questions keep the stored order/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
+    expect(writeUserCache).toHaveBeenCalledWith('admin-1', 'optionAudit', AUDIT);
+  });
+
+  it('opens on the last check kept on this device, without reading the bank', async () => {
+    readUserCache.mockResolvedValue(AUDIT);
+    render(<AnswerPositions />);
+    expect(await screen.findByText(/10 live questions/)).toBeInTheDocument();
+    expect(readUserCache).toHaveBeenCalledWith('admin-1', 'optionAudit');
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
+    expect(fetchOptionAudit).not.toHaveBeenCalled();
   });
 
   it('says when the check fails', async () => {
@@ -50,9 +70,9 @@ describe('AnswerPositions', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t check the bank');
   });
 
-  it('fixes keys that match an option up to form, then checks again', async () => {
+  it('fixes keys that match an option up to form, and updates the result without reading the bank again', async () => {
     const withFix = { ...AUDIT, keyFixes: [{ id: 'q-m', from: '1 - k^3', to: '$1 - k^3$' }] };
-    fetchOptionAudit.mockResolvedValueOnce(withFix).mockResolvedValueOnce({ ...AUDIT, positions: { ...AUDIT.positions, missing: 0 }, samples: { ...AUDIT.samples, missing: [] }, keyFixes: [], checkedAt: '2026-10-14T00:01:00Z' });
+    fetchOptionAudit.mockResolvedValue(withFix);
     fixOptionKeys.mockResolvedValue({ fixed: ['q-m'], skipped: [] });
     render(<AnswerPositions />);
     fireEvent.click(screen.getByRole('button', { name: 'Check the bank' }));
@@ -60,14 +80,17 @@ describe('AnswerPositions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use the option’s text' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Fixed 1 answer.');
     expect(fixOptionKeys).toHaveBeenCalledWith(['q-m']);
-    expect(fetchOptionAudit).toHaveBeenCalledTimes(2);
+    expect(fetchOptionAudit).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/answers aren’t one of the options/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Use the option/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open question q-m' })).not.toBeInTheDocument();
+    // The device's copy follows, so the card reopens on what was fixed.
+    expect(writeUserCache).toHaveBeenLastCalledWith('admin-1', 'optionAudit', expect.objectContaining({ keyFixes: [], positions: expect.objectContaining({ missing: 0 }) }));
   });
 
   it('counts keys already fixed (a second press) as fixed, and sends one request per press', async () => {
     const withFix = { ...AUDIT, keyFixes: [{ id: 'q-m', from: 'x', to: '$x$' }, { id: 'q-n', from: 'y', to: '$y$' }] };
-    fetchOptionAudit.mockResolvedValueOnce(withFix).mockResolvedValueOnce({ ...AUDIT, keyFixes: [], checkedAt: '2026-10-14T00:02:00Z' });
+    fetchOptionAudit.mockResolvedValue(withFix);
     let resolve;
     fixOptionKeys.mockImplementation(() => new Promise((r) => { resolve = r; }));
     render(<AnswerPositions />);
@@ -78,9 +101,12 @@ describe('AnswerPositions', () => {
     expect(fixOptionKeys).toHaveBeenCalledTimes(1);
     resolve({ fixed: [], skipped: [{ id: 'q-m', reason: 'already-an-option' }, { id: 'q-n', reason: 'no-single-match' }] });
     expect(await screen.findByRole('status')).toHaveTextContent('Fixed 1 answer; 1 had changed since the check and was left alone.');
+    // Neither is offered again, and the bank isn't read for it.
+    expect(screen.queryByRole('button', { name: /Use the option/ })).not.toBeInTheDocument();
+    expect(fetchOptionAudit).toHaveBeenCalledTimes(1);
   });
 
-  it('opens a listed question in the editor, saves it, then checks again', async () => {
+  it('opens a listed question in the editor, saves it, and takes it off the lists without reading the bank again', async () => {
     const q = { id: 'q-m', subject: 'EE', subtopic: '', type: 'conceptual', difficulty: 2, text: 'Which gate inverts its input?', options: ['NOT', 'AND', 'OR', 'XOR'], answer: 'NOT', fixedExplanation: '' };
     fetchOptionAudit.mockResolvedValue({ ...AUDIT, brokenMath: 1, duplicateOptions: 0, samples: { ...AUDIT.samples, brokenMath: ['q-m'], duplicateOptions: [] } });
     fetchQuestionById.mockResolvedValue(q);
@@ -93,6 +119,7 @@ describe('AnswerPositions', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateQuestionInBank).toHaveBeenCalledWith('q-m', expect.objectContaining({ id: 'q-m', difficulty: 2, isFlagged: false })));
     expect(await screen.findByText('Question saved.')).toBeInTheDocument();
-    expect(fetchOptionAudit).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Open question q-m' })).not.toBeInTheDocument();
+    expect(fetchOptionAudit).toHaveBeenCalledTimes(1);
   });
 });

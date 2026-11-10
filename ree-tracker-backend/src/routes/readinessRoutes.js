@@ -4,6 +4,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const readinessCache = require('../services/readinessCache');
+const questionBankCache = require('../services/questionBankCache');
 const { recordDailySnapshot } = require('../services/readinessSnapshots');
 const { computeReadiness, CONSISTENCY_WINDOW_DAYS } = require('../services/readinessService');
 
@@ -32,8 +33,13 @@ router.get('/', authMiddleware, async (req, res) => {
         // Calculus") would otherwise count as two covered topics. Attempts
         // attribute through their question's topicId; unmapped/legacy rows
         // COALESCE back to the stored label. Tagged templates = bound params.
+        // The bank's topic count is the same for everyone and moves only when
+        // the bank does, so it is kept with the other bank-wide numbers
+        // (questionBankCache, dropped on every question write). It scans the
+        // whole bank: 355 ms a time, and it ran on every uncached Today open.
+        const bankTopics = questionBankCache.get('topic-count');
         const [[totalRow], [coveredRow]] = await Promise.all([
-            prisma.$queryRaw`
+            bankTopics ? [bankTopics] : prisma.$queryRaw`
                 SELECT COUNT(DISTINCT COALESCE(t."name", q."subtopic"))::int AS "n"
                 FROM "Question" q
                 LEFT JOIN "Topic" t ON t."id" = q."topicId"
@@ -48,6 +54,7 @@ router.get('/', authMiddleware, async (req, res) => {
                   AND q."isFlagged" = false
             `,
         ]);
+        if (!bankTopics && totalRow) questionBankCache.set('topic-count', totalRow);
         const totalTopicCount = totalRow?.n ?? 0;
         const coveredTopicCount = coveredRow?.n ?? 0;
 
