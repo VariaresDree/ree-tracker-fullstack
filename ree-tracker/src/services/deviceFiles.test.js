@@ -1,7 +1,7 @@
 // src/services/deviceFiles.test.js
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as idb from 'idb-keyval';
-import { MAX_FILE_BYTES, addDeviceFile, checkSpace, deleteDeviceFile, fileKind, getDeviceFileBlob, listDeviceFiles, renameDeviceFile } from './deviceFiles';
+import { MAX_FILE_BYTES, addDeviceFile, checkSpace, createDeviceFolder, deleteDeviceFile, deleteDeviceFolder, fileKind, getDeviceFileBlob, listDeviceFiles, listDeviceFolders, moveDeviceFile, moveDeviceFolder, renameDeviceFile, renameDeviceFolder, restoreDeviceFolders } from './deviceFiles';
 import { deleteDeviceData } from './deviceStore';
 
 vi.mock('idb-keyval', () => {
@@ -136,5 +136,53 @@ describe('removing everything on sign-out', () => {
     idb.__data.set('ab:file:meta:1', {});
     await deleteDeviceData('a');
     expect(idb.__data.has('ab:file:meta:1')).toBe(true);
+  });
+});
+
+describe('folders on the device', () => {
+  it('a file goes into a folder and back out, and the list still reads no bytes', async () => {
+    const folder = await createDeviceFolder('u1', 'Terms');
+    const { id } = await addDeviceFile('u1', blob(), { name: 'a.txt', kind: 'text', folderId: folder.id });
+    expect((await listDeviceFiles('u1'))[0].folderId).toBe(folder.id);
+    await moveDeviceFile('u1', id, null);
+    expect((await listDeviceFiles('u1'))[0].folderId).toBeNull();
+  });
+
+  it('deleting a folder deletes no file: its files and folders move up a level', async () => {
+    const top = await createDeviceFolder('u1', 'Top');
+    const mid = await createDeviceFolder('u1', 'Mid', top.id);
+    const low = await createDeviceFolder('u1', 'Low', mid.id);
+    const { id } = await addDeviceFile('u1', blob(), { name: 'a.txt', kind: 'text', folderId: mid.id });
+    await deleteDeviceFolder('u1', mid.id);
+    expect((await listDeviceFiles('u1'))[0].folderId).toBe(top.id);
+    expect(await getDeviceFileBlob('u1', id)).toBeTruthy();
+    const folders = await listDeviceFolders('u1');
+    expect(folders.map((f) => f.id)).toEqual([top.id, low.id]);
+    expect(folders.find((f) => f.id === low.id).parentId).toBe(top.id);
+  });
+
+  it('a folder can’t move inside itself or below itself', async () => {
+    const top = await createDeviceFolder('u1', 'Top');
+    const mid = await createDeviceFolder('u1', 'Mid', top.id);
+    await expect(moveDeviceFolder('u1', top.id, mid.id)).rejects.toThrow('inside itself');
+    await expect(moveDeviceFolder('u1', top.id, top.id)).rejects.toThrow('inside itself');
+    await moveDeviceFolder('u1', mid.id, null);
+    expect((await listDeviceFolders('u1')).find((f) => f.id === mid.id).parentId).toBeNull();
+  });
+
+  it('renames, keeps folders per account, and a wipe takes them too', async () => {
+    const f = await createDeviceFolder('u1', 'Old');
+    await renameDeviceFolder('u1', f.id, 'New');
+    expect((await listDeviceFolders('u1'))[0].name).toBe('New');
+    expect(await listDeviceFolders('u2')).toEqual([]);
+    await deleteDeviceData('u1');
+    expect(await listDeviceFolders('u1')).toEqual([]);
+  });
+
+  it('a backup’s folders are added, and one already here stays as it is', async () => {
+    const here = await createDeviceFolder('u1', 'Mine');
+    const added = await restoreDeviceFolders('u1', [{ id: here.id, name: 'Theirs', parentId: null }, { id: 'b1', name: 'From backup', parentId: here.id }, { name: 'no id' }]);
+    expect(added).toBe(1);
+    expect(await listDeviceFolders('u1')).toEqual([here, { id: 'b1', name: 'From backup', parentId: here.id }]);
   });
 });
