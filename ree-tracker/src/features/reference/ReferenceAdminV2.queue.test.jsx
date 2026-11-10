@@ -1,8 +1,8 @@
-// Admin › Formula cards: what happens to generated cards the server refuses,
-// and the Coverage panel. A refused card used to vanish with a count that
+// Admin › Formula cards: what happens to generated cards the server refuses
+// (Add), and reviewing (Review). Coverage is in Cards now (ReferenceAdminV2.cards.test.jsx). A refused card used to vanish with a count that
 // called every failure "incomplete".
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const db = {
   fetchReferenceCards: vi.fn(), fetchPendingReferenceCards: vi.fn(), fetchReferenceCardDebt: vi.fn(),
@@ -41,7 +41,7 @@ beforeEach(() => {
 async function generateRows(rows) {
   generate.mockResolvedValue(rows);
   render(<ReferenceAdminV2 />);
-  fireEvent.click(await screen.findByRole('radio', { name: 'AI generate' }));
+  fireEvent.click(await screen.findByRole('radio', { name: 'Add' }));
   fireEvent.change(await screen.findByLabelText('Topic'), { target: { value: 'Circuits' } });
   fireEvent.click(screen.getByRole('button', { name: /^Generate/ }));
   await screen.findByText(rows[0].name);
@@ -117,7 +117,7 @@ $V$ | voltage | V
     const execCommand = vi.fn(() => true);
     document.execCommand = execCommand;
     render(<ReferenceAdminV2 />);
-    fireEvent.click(await screen.findByRole('radio', { name: 'AI generate' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'Add' }));
     fireEvent.click(await screen.findByRole('radio', { name: 'From another AI' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy prompt' }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/Prompt copied/)));
@@ -133,39 +133,11 @@ $V$ | voltage | V
 
   it('says so when the reply has no cards', async () => {
     render(<ReferenceAdminV2 />);
-    fireEvent.click(await screen.findByRole('radio', { name: 'AI generate' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'Add' }));
     fireEvent.click(await screen.findByRole('radio', { name: 'From another AI' }));
     fireEvent.change(screen.getByLabelText(/The AI's reply/), { target: { value: 'Sorry.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Read the reply' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn't find any/);
-  });
-});
-
-describe('Coverage', () => {
-  it('lists empty topics first, with counts and tags', async () => {
-    db.fetchReferenceCards.mockResolvedValue([
-      liveCard('1', 'A', 'Circuits', 'formula', 'AC power'),
-      liveCard('2', 'B', 'Circuits', 'constant', 'AC power'),
-      liveCard('3', 'C', 'Machines'),
-    ]);
-    render(<ReferenceAdminV2 />);
-    fireEvent.click(await screen.findByRole('radio', { name: 'Coverage' }));
-    const rows = await screen.findAllByTestId('coverage-row');
-    expect(rows.map((r) => within(r).getByTestId('coverage-topic').textContent)).toEqual(['Empty topic', 'Machines', 'Circuits']);
-    expect(rows[2].textContent).toMatch(/1 formula/);
-    expect(rows[2].textContent).toMatch(/1 constant/);
-    expect(rows[0].textContent).toMatch(/No cards/);
-  });
-
-  it('renames a tag across its topic', async () => {
-    db.fetchReferenceCards.mockResolvedValue([liveCard('1', 'A', 'Circuits', 'formula', 'AC power')]);
-    db.renameReferenceTag.mockResolvedValue({ updated: 1 });
-    render(<ReferenceAdminV2 />);
-    fireEvent.click(await screen.findByRole('radio', { name: 'Coverage' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Rename tag AC power/ }));
-    fireEvent.change(await screen.findByLabelText(/New tag/), { target: { value: 'Power triangle' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
-    await waitFor(() => expect(db.renameReferenceTag).toHaveBeenCalledWith({ subject: 'EE', topic: 'Circuits', from: 'AC power', to: 'Power triangle' }));
   });
 });
 
