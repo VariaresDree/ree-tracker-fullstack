@@ -202,7 +202,8 @@ export const useStore = create(
       // Parameters", Profile "Edit Identity Matrix", and the Strategic Planner —
       // can call this one action and stay in sync. Throws on failure so the
       // caller can surface a real error toast (no more false "write failure").
-      saveExamConfig: async ({ examDate, dailyTarget } = {}) => {
+      // Also Getting started (`tourDone`), kept in the same settings row.
+      saveExamConfig: async ({ examDate, dailyTarget, tourDone } = {}) => {
         const currentUser = auth.currentUser;
         if (!currentUser) throw new Error('Authentication required.');
 
@@ -211,6 +212,7 @@ export const useStore = create(
         // dropped here, so a date once set could never be removed.
         if (examDate !== undefined) payload.examDate = examDate || null;
         if (dailyTarget !== undefined && dailyTarget !== null) payload.dailyTarget = Number(dailyTarget);
+        if (tourDone !== undefined) payload.tourDone = !!tourDone;
         if (Object.keys(payload).length === 0) return { queued: false };
 
         // Offline, it's queued (the latest plan replaces an older queued one)
@@ -224,7 +226,9 @@ export const useStore = create(
           queued = true;
         }
 
-        set((state) => ({ stats: { ...(state.stats || {}), ...payload } }));
+        const { tourDone: done, ...shown } = payload;
+        if (done !== undefined) shown.tourDoneAt = done ? new Date().toISOString() : null;
+        set((state) => ({ stats: { ...(state.stats || {}), ...shown } }));
         return { queued };
       },
 

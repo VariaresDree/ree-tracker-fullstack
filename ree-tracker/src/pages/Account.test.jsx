@@ -1,13 +1,14 @@
 // Account: jump links to each section, and the exam plan form isn't wiped by
 // stats arriving while it's being edited.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useState } from 'react';
 
 const auth = { currentUser: { uid: 'u1', email: 'rey@example.com', displayName: 'Rey' }, isAdmin: false, updateDisplayName: vi.fn() };
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => auth }));
-let storeState = { stats: null, theme: 'dark', setTheme: vi.fn() };
+const saveExamConfig = vi.fn(() => Promise.resolve({ queued: false }));
+let storeState = { stats: null, theme: 'dark', setTheme: vi.fn(), saveExamConfig };
 const listeners = new Set();
 vi.mock('../store/useStore', async () => {
   const { useSyncExternalStore } = await import('react');
@@ -67,5 +68,27 @@ describe('Account', () => {
     fireEvent.change(screen.getByLabelText('plan'), { target: { value: '75' } });
     setStats({ examDate: '2027-04-01', dailyTarget: 60 });
     expect(screen.getByLabelText('plan')).toHaveValue('75');
+  });
+
+  it('brings Getting started back once it was skipped, on the account and this device', async () => {
+    setStats(null);
+    const { unmount } = render(<MemoryRouter><Account /></MemoryRouter>);
+    expect(screen.queryByRole('button', { name: 'Show Getting started again' })).not.toBeInTheDocument();
+    unmount();
+
+    localStorage.setItem('ree_tour_seen:u1', '1');
+    setStats({ tourDoneAt: '2026-11-11T00:00:00.000Z' });
+    render(
+      <MemoryRouter initialEntries={['/account']}>
+        <Routes>
+          <Route path="/account" element={<Account />} />
+          <Route path="/" element={<p>today-page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Show Getting started again' }));
+    expect(await screen.findByText('today-page')).toBeInTheDocument();
+    expect(saveExamConfig).toHaveBeenCalledWith({ tourDone: false });
+    await waitFor(() => expect(localStorage.getItem('ree_tour_seen:u1')).toBeNull());
   });
 });

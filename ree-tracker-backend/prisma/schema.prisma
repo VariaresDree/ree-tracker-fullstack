@@ -41,6 +41,8 @@ model User {
   // When this account's analytics were last deleted. Sent with the dashboard, so every
   // device drops the numbers it saved from before, not just the one that pressed it.
   analyticsResetAt DateTime?
+  // When the learner finished or skipped Today's Getting started card; null shows it.
+  tourDoneAt       DateTime?
   dailyTarget      Int?     @default(50)
   // Scheduled reminder (phone app push): the Manila hour to send it (null =
   // off) and the Manila day it last went out, so it goes once a day.

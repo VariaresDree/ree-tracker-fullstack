@@ -77,20 +77,44 @@ beforeEach(() => {
 });
 
 describe('TodayPanel', () => {
-  it('someone with no answers gets the tour first, then the onboarding cards', async () => {
+  it('a new account gets Getting started first, in place of the other onboarding cards', async () => {
     localStorage.removeItem('ree_tour_seen:u1');
-    renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 0 });
-    expect(await screen.findByRole('heading', { name: 'Your way around' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Set up your review' })).not.toBeInTheDocument();
+    placement = { ...placement, status: { status: 'not_started' }, isNew: true };
+    renderPanel({ readiness: null, stats: { dailyTarget: 50, tourDoneAt: null }, answered: 0 });
+    expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+    expect(screen.queryByText('placement-prompt')).not.toBeInTheDocument();
+    expect(screen.queryByText('first-run-card')).not.toBeInTheDocument();
+    // Up next still leads underneath: nothing is covered.
+    expect(await screen.findByText('Up next')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
-    expect(screen.queryByRole('heading', { name: 'Your way around' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
     expect(localStorage.getItem('ree_tour_seen:u1')).toBe('1');
   });
 
-  it('someone who has answered never sees it', () => {
+  it('someone who has answered but never set up sees it too, ticked as far as they got', async () => {
     localStorage.removeItem('ree_tour_seen:u1');
-    renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 1 });
-    expect(screen.queryByRole('heading', { name: 'Your way around' })).not.toBeInTheDocument();
+    renderPanel({ readiness: null, stats: { dailyTarget: 50, tourDoneAt: null }, answered: 12 });
+    expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
+    // Placed (the default here) and practised.
+    expect(screen.getByText(/^2 of 4 done/)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['before a sync has said either way', { dailyTarget: 50 }],
+    ['once skipped on the account, on any device', { dailyTarget: 50, tourDoneAt: '2026-11-11T00:00:00.000Z' }],
+  ])('stays away %s', async (_, stats) => {
+    localStorage.removeItem('ree_tour_seen:u1');
+    renderPanel({ readiness: null, stats, answered: 0 });
+    await screen.findByText('Up next');
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
+  });
+
+  it('leaves once all four are done', async () => {
+    localStorage.removeItem('ree_tour_seen:u1');
+    plannerItems = [{ id: 'p1', kind: 'drill', topic: 'Protection', subject: 'EE', topicId: 't', targetCount: 15, dueDate: '2026-10-08', text: 'Drill Protection — 15 questions', progress: { count: 4, target: 15, done: false } }];
+    renderPanel({ readiness: null, stats: { dailyTarget: 50, tourDoneAt: null, examDate: '2027-04-10' }, answered: 5 });
+    expect(await screen.findByText('Drill Protection — 15 questions')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
   });
 
   it('draws the readiness trend from the daily snapshots', async () => {

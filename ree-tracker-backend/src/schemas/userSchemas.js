@@ -9,8 +9,10 @@ const profileUpdateSchema = z.object({
 const settingsUpdateSchema = z.object({
     examDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'examDate must be YYYY-MM-DD').nullable().optional(),
     dailyTarget: z.number().int().min(1).max(500).optional(),
+    // Getting started: true when finished or skipped, false to show it again.
+    tourDone: z.boolean().optional(),
 }).refine(
-    (d) => d.examDate !== undefined || d.dailyTarget !== undefined,
+    (d) => d.examDate !== undefined || d.dailyTarget !== undefined || d.tourDone !== undefined,
     { message: 'No valid settings provided.' },
 );
 
