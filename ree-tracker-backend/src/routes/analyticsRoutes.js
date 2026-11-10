@@ -257,6 +257,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                     globalStreak, thetaRating: user.thetaRating,
                     lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
                     analyticsResetAt: user.analyticsResetAt,
+                    tourDoneAt: user.tourDoneAt,
                     dailyMath, dailyESAS, dailyEE,
                     totalAnswered,
                     // The Gauntlet ladder as the server keeps it. Until the

@@ -5,6 +5,7 @@ const { validate } = require('../middlewares/validate');
 const { profileUpdateSchema, settingsUpdateSchema, deviceTokenSchema } = require('../schemas/userSchemas');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const dashboardCache = require('../services/dashboardCache');
 const { fallbackDisplayName } = require('@ree/shared');
 
 const emailPrefix = (email) => (email && email.includes('@') ? email.split('@')[0] : null);
@@ -105,11 +106,15 @@ router.delete('/profile', authMiddleware, async (req, res) => {
 
 router.put('/settings', authMiddleware, validate(settingsUpdateSchema), async (req, res) => {
     try {
-        const { examDate, dailyTarget } = req.body;
+        const { examDate, dailyTarget, tourDone } = req.body;
         const data = {};
         if (examDate !== undefined) data.examDate = examDate;
         if (dailyTarget !== undefined) data.dailyTarget = dailyTarget;
-        await prisma.user.update({ where: { id: req.user.id }, data });
+        if (tourDone !== undefined) data.tourDoneAt = tourDone ? new Date() : null;
+        await prisma.user.update({ where: { id: req.user.id }, data, select: { id: true } });
+        // The dashboard carries these back, and its 30 s cache would undo a
+        // change made a moment ago (a skipped Getting started card came back).
+        dashboardCache.invalidate(req.user.id);
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Settings update failed.' });

@@ -8,7 +8,7 @@
 // Sections have anchors (/account#offline) so other screens can link straight
 // to one.
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useShallow } from 'zustand/react/shallow';
 import { DISPLAY_NAME_MAX } from '@ree/shared';
@@ -30,6 +30,7 @@ import Milestones from '../features/account/Milestones';
 import DataSettings from '../features/account/DataSettings';
 import SecuritySettings from '../features/account/SecuritySettings';
 import AppVersion from '../features/account/AppVersion';
+import { forgetTourSeen, tourSeen } from '../features/onboarding/tourKey';
 
 // Lazy: it brings the quiz parser, and most visits to Account never use it.
 const BackupSettings = lazy(() => import('../features/backup/BackupSettings'));
@@ -50,6 +51,30 @@ const SECTIONS = [
   ['data', 'Your data'],
   ['security', 'Sign-in & security'],
 ];
+
+// Getting started back on Today, on every device (it's kept on the account).
+function TourAgain({ uid, skipped }) {
+  const navigate = useNavigate();
+  const saveExamConfig = useStore((s) => s.saveExamConfig);
+  const [busy, setBusy] = useState(false);
+  const again = async () => {
+    setBusy(true);
+    try {
+      await saveExamConfig({ tourDone: false });
+      forgetTourSeen(uid);
+      navigate('/');
+    } catch (err) {
+      toast.error(err?.message || 'Couldn’t bring it back. Try again.');
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-muted2">Getting started is the checklist on Today for a new account: placement test, exam date, study plan, first practice set. It leaves once all four are done, or when skipped.</p>
+      {skipped && <Button variant="secondary" className="self-start" onClick={again} loading={busy} disabled={busy}>Show Getting started again</Button>}
+    </div>
+  );
+}
 
 function Section({ id, title, description, children }) {
   return (
@@ -191,6 +216,7 @@ export default function Account() {
       </Section>
 
       <Section id="about" title="About this app">
+        <TourAgain uid={currentUser?.uid} skipped={!!stats?.tourDoneAt || tourSeen(currentUser?.uid)} />
         <AppVersion />
       </Section>
 

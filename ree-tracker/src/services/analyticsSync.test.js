@@ -25,6 +25,22 @@ describe('normalizeMicroTopics', () => {
   });
 });
 
+describe('Getting started on the account', () => {
+  const TODAY = '2026-11-04';
+  const AT = '2026-11-04T15:00:00.000Z';
+  const sql = (profile) => ({ profile: { totalAnswered: 0, ...profile }, microTopics: {}, activityCalendar: {} });
+
+  it('the account’s answer wins, both ways', () => {
+    expect(mergeServerIntoStats({ tourDoneAt: null }, sql({ tourDoneAt: AT }), TODAY).tourDoneAt).toBe(AT);
+    expect(mergeServerIntoStats({ tourDoneAt: AT }, sql({ tourDoneAt: null }), TODAY).tourDoneAt).toBeNull();
+  });
+
+  it('an older server that never says keeps the device’s, or null', () => {
+    expect(mergeServerIntoStats({ tourDoneAt: AT }, sql({}), TODAY).tourDoneAt).toBe(AT);
+    expect(mergeServerIntoStats({}, sql({}), TODAY).tourDoneAt).toBeNull();
+  });
+});
+
 describe('analytics deleted on another device', () => {
   const TODAY = '2026-11-04';
   const AT = '2026-11-04T15:00:00.000Z';

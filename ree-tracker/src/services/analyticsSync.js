@@ -182,6 +182,10 @@ export function mergeServerIntoStats(savedStats, sqlData, today = todayManila())
     ),
     examDate: stats?.examDate || sqlData.profile?.examDate || null,
     dailyTarget: stats?.dailyTarget || sqlData.profile?.dailyTarget || 50,
+    // Getting started, finished or skipped: the account's answer wins, so
+    // another device's choice reaches this one. Undefined until a sync has
+    // said either way, which keeps Today from showing the card too early.
+    tourDoneAt: sqlData.profile && 'tourDoneAt' in sqlData.profile ? sqlData.profile.tourDoneAt : (stats?.tourDoneAt ?? null),
     ...mergeGauntlet(stats, sqlData.profile),
     cloudTimestamp: Date.now(),
   };

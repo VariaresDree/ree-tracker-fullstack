@@ -26,15 +26,12 @@ import { useReconnectKey } from '../../hooks/useConnection';
 import PlacementPrompt from '../diagnostic/PlacementPrompt';
 import { usePlacement } from '../diagnostic/usePlacement';
 import FirstRunCard from '../onboarding/FirstRunCard';
+import { tourSeen } from '../onboarding/tourKey';
 import RematchInvites from '../exams/RematchInvites';
 import { isEarlyEstimate } from '../analytics/earlyEstimate';
 import { forecastPlan } from '../exams/startingPlan';
 
 const FirstRunTour = lazy(() => import('../onboarding/FirstRunTour'));
-const tourSeen = (uid) => {
-  // The same key FirstRunTour writes; a read here keeps the tour out of Today's chunk.
-  try { return localStorage.getItem(`ree_tour_seen:${uid}`) === '1'; } catch { return false; }
-};
 
 const withSource = (plan, source) => (plan ? { ...plan, source } : null);
 import { buildTodayActions, dailyProgress, daysToExam, readinessTrend } from './todayActions';
@@ -273,9 +270,13 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   }, []);
   const trend = readinessTrend(history);
   const placement = usePlacement({ uid, answered });
-  // First of the onboarding cards, for someone who hasn't answered anything yet.
+  // Getting started, until its four steps are done or it's skipped (here, on
+  // the account, or on this device). It waits for a sync to say (undefined
+  // until then), so a device doesn't flash a card finished on another.
   const [tourDone, setTourDone] = useState(false);
-  const showTour = answered === 0 && !!uid && !tourDone && !tourSeen(uid);
+  const placed = placement.status?.status === 'completed';
+  const setUp = placed && !!stats?.examDate && !!planTask && answered > 0;
+  const showTour = !!uid && stats?.tourDoneAt === null && !tourDone && !setUp && !tourSeen(uid);
   const early = isEarlyEstimate({ snapshot, answered });
   // One onboarding card at a time: the placement prompt, then the exam plan.
   const placementCard = !!placement.status && placement.status.status !== 'completed' && !placement.dismissed
@@ -321,9 +322,10 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
         <Suspense fallback={null}>
           <FirstRunTour
             uid={uid}
-            placed={placement.status?.status === 'completed'}
+            placed={placed}
             hasDate={!!stats?.examDate}
             hasPlan={!!planTask}
+            practised={answered > 0}
             onDone={() => setTourDone(true)}
           />
         </Suspense>
