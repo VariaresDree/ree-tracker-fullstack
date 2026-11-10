@@ -17,15 +17,15 @@ The owner's direction (2026-11-04):
 | A unit | Add a row with `S`, `M`, `E` or `O` for its system. A `note` says where the factor comes from | `packages/shared/src/units.js` |
 | A quantity | Add a category with a `group`, `defaults` that cross systems, and `pairs` | Same file |
 | A nonlinear pair | Give the units `toBase`/`fromBase`, and each pair a formula in `BY_FORMULA` | `units.js`, `explain.js` |
-| A common conversion on the front | Add to `COMMON_CONVERSIONS` | `units.js` |
+| A quantity's tile (icon, short name) | Add to `UNIT_TILES`; a test fails on a gap | `unitTiles.js` |
 | A board equivalent | Add a row: it's worked out from the table | `equivalents.js` |
 | A constant | Add it to `CONSTANTS`, as reviewers quote it | `equivalents.js` |
-| A tool | Put the arithmetic in `boardMath.js` with worked examples, then add a component and a `TOOLS` row. Show its formula with `Formula` | `BoardTools.jsx` |
+| A tool | Put the arithmetic in `boardMath.js` with worked examples, then add a component, a `TOOLS` row and its icon in `TOOL_ICONS`. Show its formula with `Formula` | `BoardTools.jsx` |
 | A formula card's link | Add its symbol to `BY_SYMBOL` | `unitLink.js` |
 
 **Every number needs a test against a published value,** not the code's own factor (`conversion.test.js`). Tests already check that each unit has a system, each category's first conversion crosses systems, every pair round-trips, and every pair can explain itself.
 
-**Everything stays lazy.** The boot download is at 99.3% of its budget. `@ree/shared/units` is never re-exported from `client.js`.
+**Everything stays lazy.** The boot download is at 99.3% of its budget. Icons come through the `components/ui/icons` barrel. `@ree/shared/units` is never re-exported from `client.js`.
 
 ## What could come next
 

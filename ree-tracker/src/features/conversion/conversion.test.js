@@ -3,7 +3,8 @@
 // Known values from published definitions, not the code's own factors. A wrong
 // factor here means a wrong answer on a study tool, so each is checked directly.
 import { describe, it, expect } from 'vitest';
-import { COMMON_CONVERSIONS, SI_PREFIXES, UNIT_CATEGORIES, UNIT_GROUPS, UNIT_SYSTEMS, categoriesInGroup, categoryById, convert, convertAll, inSiUnit, searchUnits, unitIn } from '@ree/shared/units';
+import { SI_PREFIXES, UNIT_CATEGORIES, UNIT_GROUPS, UNIT_SYSTEMS, categoriesInGroup, categoryById, convert, convertAll, inSiUnit, searchUnits, unitIn } from '@ree/shared/units';
+import { GROUP_TONE, UNIT_TILES } from './unitTiles';
 import { AWG_TABLE, awg, baseImpedance, changeBase, deltaToWye, formatPolar, formatRect, polarToRect, powerTriangle, rectToPolar, resistorValue, scalePosition, threePhase, withPrefix, wyeToDelta } from './boardMath';
 import { evaluate, formatNumber, preview } from './calc';
 import { CONSTANTS, EQUIVALENTS, readRow } from './equivalents';
@@ -200,14 +201,18 @@ describe('the table itself', () => {
     expect(convertAll('power', 1, 'kg')).toEqual([]);
   });
 
-  it('the common conversions on the front are all real, and all cross systems', () => {
-    for (const [cat, from, to] of COMMON_CONVERSIONS) {
-      const category = categoryById(cat);
-      const a = unitIn(category, from);
-      const b = unitIn(category, to);
-      expect(a && b, `${cat}: ${from} to ${to}`).toBeTruthy();
-      expect(a.system).not.toBe(b.system);
+  it('every quantity on the front has a tile, and its pair crosses systems', () => {
+    const shown = UNIT_CATEGORIES.filter((c) => UNIT_GROUPS.some((g) => g.id === c.group));
+    for (const c of shown) {
+      expect(UNIT_TILES[c.id], c.id).toBeDefined();
+      expect(GROUP_TONE[c.group], c.group).toBeDefined();
+      const [from, to] = c.defaults.map((id) => unitIn(c, id));
+      expect(from && to, c.id).toBeTruthy();
     }
+    // Only the quantities that cross systems: a few (decibels, data) don't have two.
+    const crossing = shown.filter((c) => new Set(c.units.map((x) => x.system)).size > 1);
+    for (const c of crossing) expect(unitIn(c, c.defaults[0]).system, c.id).not.toBe(unitIn(c, c.defaults[1]).system);
+    expect(Object.keys(UNIT_TILES).sort()).toEqual(shown.map((c) => c.id).sort());
   });
 
   it('a quantity can sit under more than one heading, and prefix-only ones under none', () => {

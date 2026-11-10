@@ -1,6 +1,6 @@
 // src/features/conversion/unitsMemory.js
 //
-// Favourite pairs and recent conversions, on this device. A convenience: it reads
+// Favourite pairs, recent conversions and how the tiles are sorted, on this device. A convenience: it reads
 // as empty if the browser won't store anything.
 import { useCallback, useState } from 'react';
 
@@ -10,9 +10,9 @@ const MAX_HISTORY = 8;
 const read = () => {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) || '{}');
-    return { favourites: stored.favourites || [], history: stored.history || [] };
+    return { favourites: stored.favourites || [], history: stored.history || [], order: stored.order === 'az' ? 'az' : 'groups' };
   } catch {
-    return { favourites: [], history: [] };
+    return { favourites: [], history: [], order: 'groups' };
   }
 };
 const write = (value) => {
@@ -37,12 +37,14 @@ export function useUnitsMemory() {
     favourites: m.favourites.some((f) => samePair(f, pair)) ? m.favourites.filter((f) => !samePair(f, pair)) : [...m.favourites, pair],
   })), [update]);
   const clearHistory = useCallback(() => update((m) => ({ ...m, history: [] })), [update]);
+  const setOrder = useCallback((order) => update((m) => ({ ...m, order })), [update]);
 
   return {
     ...memory,
     remember,
     toggleFavourite,
     clearHistory,
+    setOrder,
     isFavourite: (cat, from, to) => memory.favourites.some((f) => samePair(f, { cat, from, to })),
   };
 }

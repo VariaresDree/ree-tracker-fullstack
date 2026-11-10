@@ -5,6 +5,7 @@
 import { Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SegmentedControl, Skeleton } from '../../components/ui';
+import { Calculator as CalculatorIcon, Ruler, Superscript, Wrench } from '../../components/ui/icons';
 import { lazy } from '../../utils/lazyWithRetry';
 import UnitsPanel from './UnitsPanel';
 
@@ -13,10 +14,10 @@ const Calculator = lazy(() => import('./Calculator'));
 const PrefixesPanel = lazy(() => import('./PrefixesPanel'));
 
 const VIEWS = [
-  { value: 'units', label: 'Units' },
-  { value: 'prefixes', label: 'Prefixes' },
-  { value: 'tools', label: 'Tools' },
-  { value: 'calculator', label: 'Calculator' },
+  { value: 'units', label: 'Units', icon: Ruler },
+  { value: 'tools', label: 'Tools', icon: Wrench },
+  { value: 'prefixes', label: 'Prefixes', icon: Superscript },
+  { value: 'calculator', label: 'Calculator', icon: CalculatorIcon },
 ];
 
 export default function ConversionTab() {
@@ -34,10 +35,10 @@ export default function ConversionTab() {
   return (
     <div className="flex flex-col gap-5 min-w-0">
       <h2 className="sr-only">Units and tools</h2>
-      <SegmentedControl label="Show" value={view} onChange={(next) => update({ view: next === 'units' ? null : next }, { push: true })} options={VIEWS} />
+      <SegmentedControl label="Show" value={view} onChange={(next) => update({ view: next === 'units' ? null : next }, { push: true })} options={VIEWS} stackIcons />
       {view === 'units' && (
         <UnitsPanel
-          state={{ cat: params.get('cat'), from: params.get('from'), to: params.get('to'), v: params.get('v'), group: params.get('group') }}
+          state={{ cat: params.get('cat'), from: params.get('from'), to: params.get('to'), v: params.get('v') }}
           onChange={update}
         />
       )}

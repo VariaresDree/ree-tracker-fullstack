@@ -6,7 +6,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Card, FormField, Grid, Input, Select, SegmentedControl } from '../../components/ui';
-import { ChevronLeft, ChevronRight } from '../../components/ui/icons';
+import { ChevronLeft } from '../../components/ui/icons';
+import IconTile from './IconTile';
+import { TOOL_ICONS } from './unitTiles';
 import {
   AWG_TABLE, BAND_COLOURS, changeBase, deltaToWye, formatPolar, formatRect, polarToRect, powerTriangle,
   rectToPolar, resistorValue, threePhase, withPrefix, wyeToDelta,
@@ -440,15 +442,9 @@ export default function BoardTools({ tool, onTool }) {
     );
   }
   return (
-    <Grid kind="tiles" gap="sm">
+    <Grid kind="icons" gap="sm">
       {TOOLS.map((t) => (
-        <Card key={t.id} as="button" type="button" variant="interactive" padding="sm" className="text-left flex items-start justify-between gap-2 cursor-pointer min-w-0" onClick={() => onTool(t.id)}>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{t.label}</span>
-            <span className="block text-xs text-muted2 [overflow-wrap:anywhere]">{t.about}</span>
-          </span>
-          <ChevronRight size={15} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
-        </Card>
+        <IconTile key={t.id} icon={TOOL_ICONS[t.id]} tone="amber" title={t.label} detail={t.about} label={`${t.label}: ${t.about}`} onClick={() => onTool(t.id)} />
       ))}
     </Grid>
   );
