@@ -91,7 +91,7 @@ describe('GET /api/user/today-loop', () => {
         vi.spyOn(prisma.questionAttempt, 'findMany').mockImplementation(async ({ where }) => (where.isCorrect
             ? []
             : [{ questionId: 'miss-math', subject: 'Mathematics', subtopic: 't', selectedAnswer: 'B', confidenceLevel: 'MED', timeSpentMs: 1000, answeredAt: new Date(), createdAt: new Date(), mode: 'DRILL' }]));
-        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => q(id, 'Mathematics')));
+        const questions = vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => q(id, 'Mathematics')));
         vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
         const cards = vi.spyOn(prisma.cardReview, 'count').mockResolvedValue(3);
@@ -107,10 +107,19 @@ describe('GET /api/user/today-loop', () => {
         expect(res.body).toMatchObject({ counts: { due: 1, mistakes: 1 }, cardsDue: 3, more: 0 });
         expect(srs.mock.calls[0][0].where.userId).toBe('uid-loop');
         expect(cards.mock.calls[0][0].where).toMatchObject({ userId: 'uid-loop', card: { status: 'LIVE', kind: { in: ['formula', 'constant'] } } });
+        // Candidates are read without their text or explanation; the whole
+        // question only for the ones shown, never the one left out.
+        const slim = { id: true, subject: true, subtopic: true, type: true };
+        expect(srs.mock.calls[0][0].select).toEqual({ question: { select: slim } });
+        expect(questions.mock.calls.map(([arg]) => arg)).toEqual([
+            { where: { id: { in: ['miss-math'] } }, select: slim },
+            { where: { id: { in: ['due-ee', 'miss-math'] } } },
+        ]);
     });
 
     it('with ?cards=1, the due cards come in the session; without it, nothing changes for an older app', async () => {
         vi.spyOn(prisma.sRSCard, 'findMany').mockResolvedValue([{ question: q('due-ee', 'EE') }]);
+        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => q(id, 'EE')));
         vi.spyOn(prisma.questionAttempt, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);

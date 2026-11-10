@@ -10,6 +10,7 @@ import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { stratifiedSample } from '../../utils/shuffle';
+import { poolLimit } from '../board-simulator/poolFilters';
 import { newSittingKey, normalizeSubject } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
 import { reportQuestion } from '../../services/reportQuestion';
@@ -159,6 +160,10 @@ export const useReviewSession = (currentUser, isOnline) => {
         adaptiveRef.current = null;
         try {
             let freshData = [];
+            // The cognitive focus, when one is set.
+            const inFocus = (list) => (cfg.cognitiveFocus === 'conceptual' ? list.filter((q) => q.type !== 'calculation')
+                : cfg.cognitiveFocus === 'calculation' ? list.filter((q) => q.type === 'calculation')
+                    : list);
             let adaptive = null;
             let loopCardsDue = target.cardsDue ?? cfg.cardsDue ?? 0;
             let offlineNote = null;
@@ -267,20 +272,20 @@ export const useReviewSession = (currentUser, isOnline) => {
                     }
                 }
             } else {
-                // 🚀 FIXED: Fetch up to 1000 questions to create a massive Supabase randomization pool
+                // A pool a few times the session, already spread across topics
+                // by the server (poolLimit); it was 1,000 questions to pick 20.
+                // The old 1,000 only when the focus left too few of the first.
                 const subTarget = cfg.subtopic === 'All' ? 'All' : cfg.subtopic;
-                freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000);
+                const want = cfg.count || 20;
+                const limit = poolLimit(want, { filtered: cfg.cognitiveFocus === 'conceptual' || cfg.cognitiveFocus === 'calculation', max: 1000 });
+                freshData = await fetchVaultQuestions(cfg.subject, subTarget, limit);
+                if (limit < 1000 && inFocus(freshData || []).length < want) freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000);
             }
 
             if (!freshData || freshData.length === 0) throw new Error("No questions match these settings yet.");
 
             // 2. 🚀 STRICT COGNITIVE FOCUS FILTERING
-            let filteredData = freshData;
-            if (cfg.cognitiveFocus === 'conceptual') {
-                filteredData = freshData.filter(q => q.type !== 'calculation');
-            } else if (cfg.cognitiveFocus === 'calculation') {
-                filteredData = freshData.filter(q => q.type === 'calculation');
-            }
+            const filteredData = inFocus(freshData);
 
             if (filteredData.length === 0) {
                 throw new Error(`No ${cfg.cognitiveFocus} questions found for this topic. Try the mixed focus or another topic.`);

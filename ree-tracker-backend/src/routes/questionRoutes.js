@@ -26,7 +26,9 @@ const { questionsForChecking, replacePreview, replaceQuestions } = require('../s
 // each of the eight write sites, where one would eventually be missed and the
 // staleness would be silent.
 router.use((req, res, next) => {
-    if (req.method === 'GET') return next();
+    // POST /review draws a session's questions and writes nothing: counted as a
+    // write, every Quick review start threw both caches away.
+    if (req.method === 'GET' || req.path === '/review') return next();
     if (typeof res.on === 'function') {
         res.on('finish', () => {
             if (res.statusCode < 300) questionBankCache.invalidateAll();

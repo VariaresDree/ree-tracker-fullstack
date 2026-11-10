@@ -88,6 +88,7 @@ function auditOptions(rows) {
 }
 
 /** The audit of the live (unflagged) bank. */
+// shortcut: reads the whole live bank per run (~1 KB a row out of the database, the free tier's tightest limit); store a verdict per row once runs pass a few a day or the bank passes 50k
 async function auditLiveBank() {
     const rows = await prisma.question.findMany({
         where: { isFlagged: false },

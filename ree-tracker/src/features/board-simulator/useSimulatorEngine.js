@@ -11,7 +11,7 @@ import { useStore } from '../../store/useStore';
 import { normalizeMicroTopics } from '../../services/analyticsSync';
 import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray } from '../../utils/shuffle';
-import { applyFocusFilter, boardWeightedSample, stratifiedSample } from './poolFilters';
+import { applyFocusFilter, boardWeightedSample, deepestGroup, poolLimit, stratifiedSample } from './poolFilters';
 import { groupsForDraw } from './drawModes';
 import { computeBattleDiagnostics } from './battleGrades';
 import { reportQuestion } from '../../services/reportQuestion';
@@ -204,14 +204,6 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           ? (config.mode === 'blended' ? 100 : (PRC_EXAM_FORMAT[config.subject]?.items || 100))
           : (config.count || 20);
 
-      // Cognitive Filter: Forgiving matching to prevent 0-item crashes
-      // (poolFilters, shared with the printed paper). When the focus matches
-      // nothing, the raw mix is used instead.
-      const applyFilter = (rawPool) => {
-          const { pool: filtered, fallback } = applyFocusFilter(rawPool, config.cognitiveFocus);
-          if (fallback) toast("No questions matched that focus, so this mock uses the mixed set.");
-          return filtered;
-      };
 
       if (config.source === 'retake') {
           // A past sitting's misses (Exams › Past sittings › Review). The
@@ -226,6 +218,29 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           const sample = (filtered, subject, count) => (drawGroups
               ? boardWeightedSample(filtered, subject, count, drawGroups)
               : stratifiedSample(filtered, count));
+          // One subject's share of the paper. It asks for what the share needs
+          // (poolLimit), and for the old 2,000 only when that came back short
+          // or the focus matched nothing in it. Cognitive filter: forgiving
+          // matching (poolFilters, shared with the printed paper), so when
+          // the focus matches nothing at all the mixed set is used instead.
+          const focused = !!config.cognitiveFocus && config.cognitiveFocus !== 'mixed';
+          const drawSubject = async (subject, subtopic, count) => {
+              if (!(count > 0)) return []; // a subject the blend gives no items
+              const draw = async (limit) => {
+                  const raw = await fetchVaultQuestions(subject, subtopic, limit);
+                  const { pool: filtered, fallback } = applyFocusFilter(raw || [], config.cognitiveFocus);
+                  return { fallback, picked: sample(filtered, subject, count) };
+              };
+              const limit = poolLimit(count, {
+                  filtered: focused,
+                  perTopic: deepestGroup(subject, count, drawGroups),
+                  topics: (dynamicTOS?.[subject] || []).length,
+              });
+              let got = await draw(limit);
+              if (limit < 2000 && (got.fallback || got.picked.length < count)) got = await draw(2000);
+              if (got.fallback) toast("No questions matched that focus, so this mock uses the mixed set.");
+              return got.picked;
+          };
           if (config.mode === 'blended') {
               // Blend by the PRC syllabus weights (server config, one source of
               // truth shared with the backend sampler); falls back to 25/30/45.
@@ -235,21 +250,16 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               // 10-item blend into 3/3/5 = 11).
               const dist = apportionItems(totalCount, w);
               for (const subj of ['Mathematics', 'ESAS', 'EE']) {
-                  // Direct Deep Fetch: Pulling 2000 ensures we have enough data even after filtering
-                  const raw = await fetchVaultQuestions(subj, 'All', 2000);
-                  const filtered = applyFilter(raw || []);
-                  pool = pool.concat(sample(filtered, subj, dist[subj] || 0));
+                  pool = pool.concat(await drawSubject(subj, 'All', dist[subj] || 0));
               }
               timeLimitSecs = config.isPrcStandard ? PRC_TIMES.BLENDED : timeLimitSecs;
           } else {
               // Direct Deep Fetch
               // A PRC paper covers its whole subject, whatever the setup last held.
               const targetSubtopic = config.isPrcStandard || config.subtopic === 'All' || !config.subtopic ? 'All' : config.subtopic;
-              const raw = await fetchVaultQuestions(config.subject, targetSubtopic, 2000);
-              const filtered = applyFilter(raw || []);
-              // Stratify so a single-subject sim spans its subtopics rather than
+              // Stratified so a single-subject sim spans its subtopics rather than
               // collapsing onto the dominant one. (No-op for a pinned subtopic.)
-              pool = sample(filtered, config.subject, totalCount);
+              pool = await drawSubject(config.subject, targetSubtopic, totalCount);
               // PRC schedule from @ree/shared: Math 5h, ESAS 4h, EE 6h.
               timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }

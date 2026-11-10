@@ -192,7 +192,8 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             prisma.user.findUnique({ where: { id: req.user.id }, select: { dailyTarget: true } }),
             loadTopicSignals(req.user.id),
             getSyllabusWeights(),
-            loadMistakes(req.user.id).catch(() => ({ items: [] })),
+            // Only each mistake's topic is used here, so only that is read.
+            loadMistakes(req.user.id, { id: true, subject: true, subtopic: true }).catch(() => ({ items: [] })),
             prisma.cardReview.findMany({
                 where: { userId: req.user.id, card: LEARNER_CARD_WHERE, nextReviewDate: { lt: manilaMidnight(today, 15) } },
                 select: { nextReviewDate: true },

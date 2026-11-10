@@ -16,15 +16,23 @@
 //     options.
 // Every listed id opens that question in the editor (QuestionEditModal), so
 // a row can be fixed here without looking it up elsewhere.
-// Checked on demand: it reads the whole bank.
-import { useRef, useState } from 'react';
+// Checked on demand: a check reads the whole live bank (about 1 KB a question
+// out of the database), so nothing else here does. The last result is kept on
+// this device and shown on opening, and a fix or an edit updates it in place:
+// checking again after each one read the bank 183 times in four weeks.
+import { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { fetchOptionAudit, fixOptionKeys, fetchQuestionById, updateQuestionInBank } from '../../services/dbQueries';
+import { readUserCache, writeUserCache } from '../../services/userCache';
 import QuestionEditModal from '../library/QuestionEditModal';
 import LatexRenderer from '../../components/LatexRenderer';
 import { Button, Card, ProgressIndicator } from '../../components/ui';
 import { ListChecks } from '../../components/ui/icons';
 
 const LETTERS = ['A', 'B', 'C', 'D'];
+const CACHE = 'optionAudit';
+// Ids, or key fixes ({ id }), without the ones in `gone`.
+const without = (list, gone) => (list || []).filter((x) => !gone.includes(x.id ?? x));
 
 function IdList({ ids, total, onOpen }) {
   if (!ids?.length) return null;
@@ -74,6 +82,7 @@ function KeyFixes({ fixes, onFixed }) {
     setStatus('saving');
     try {
       onFixed(await fixOptionKeys(fixes.map((f) => f.id)));
+      setStatus('idle');
     } catch {
       setStatus('error');
     } finally {
@@ -109,6 +118,21 @@ export default function AnswerPositions() {
   // The question open in the editor, and its save.
   const [editing, setEditing] = useState(null);
   const [edit, setEdit] = useState({ saving: false, error: '', loadingId: null });
+  const uid = useAuth()?.currentUser?.uid;
+
+  // The last check on this device, unless one has already come back.
+  useEffect(() => {
+    let live = true;
+    readUserCache(uid, CACHE).then((saved) => {
+      if (live && saved?.positions) setState((s) => (s.audit ? s : { status: 'done', audit: saved }));
+    });
+    return () => { live = false; };
+  }, [uid]);
+
+  const keep = (audit) => {
+    setState({ status: 'done', audit });
+    writeUserCache(uid, CACHE, audit);
+  };
 
   const open = async (id) => {
     setEdit({ saving: false, error: '', loadingId: id });
@@ -126,7 +150,13 @@ export default function AnswerPositions() {
       await updateQuestionInBank(q.id, q);
       closeEditor();
       setFixNote('Question saved.');
-      check();
+      // It leaves the lists; whether the edit cleared its finding is for the next check.
+      const { audit } = state;
+      keep({
+        ...audit,
+        samples: Object.fromEntries(Object.entries(audit.samples).map(([k, ids]) => [k, without(ids, [q.id])])),
+        keyFixes: without(audit.keyFixes, [q.id]),
+      });
     } catch (err) {
       setEdit((e) => ({ ...e, saving: false, error: `Couldn’t save: ${err.message}` }));
     }
@@ -135,8 +165,7 @@ export default function AnswerPositions() {
   const check = async () => {
     setState((s) => ({ ...s, status: 'loading' }));
     try {
-      const audit = await fetchOptionAudit();
-      setState({ status: 'done', audit });
+      keep(await fetchOptionAudit());
     } catch {
       setState((s) => ({ ...s, status: 'error' }));
     }
@@ -181,6 +210,7 @@ export default function AnswerPositions() {
           </ul>
           <p className="text-xs text-muted2">
             {audit.total} live questions{p.other > 0 ? `; ${p.other} with the answer past D` : ''}. An even bank sits near 25% each.
+            {audit.checkedAt ? ` Checked ${new Date(audit.checkedAt).toLocaleString()}.` : ''} A fix or an edit updates the lists below straight away; check again for a fresh count.
           </p>
           <ul className="flex flex-col gap-3">
             <Finding count={p.missing} ids={audit.samples.missing} onOpen={open}>
@@ -192,10 +222,17 @@ export default function AnswerPositions() {
               fixes={audit.keyFixes}
               onFixed={({ fixed, skipped }) => {
                 // A key that is already its option's text is done, whoever fixed it.
-                const done = fixed.length + skipped.filter((k) => k.reason === 'already-an-option').length;
+                const doneIds = [...fixed, ...skipped.filter((k) => k.reason === 'already-an-option').map((k) => k.id)];
+                const done = doneIds.length;
                 const left = skipped.length - (done - fixed.length);
                 setFixNote(`Fixed ${done} ${done === 1 ? 'answer' : 'answers'}${left ? `; ${left} had changed since the check and ${left === 1 ? 'was' : 'were'} left alone` : ''}.`);
-                check();
+                // Those keys can be graded now; none of the ones tried is offered again.
+                keep({
+                  ...audit,
+                  positions: { ...p, missing: Math.max(0, p.missing - done) },
+                  samples: { ...audit.samples, missing: without(audit.samples.missing, doneIds) },
+                  keyFixes: without(audit.keyFixes, [...fixed, ...skipped.map((k) => k.id)]),
+                });
               }}
             />
             {audit.brokenMath != null && (
