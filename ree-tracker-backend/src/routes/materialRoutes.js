@@ -7,21 +7,23 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const storage = require('../services/storage');
 const { wouldCreateCycle, subtreeIds } = require('../services/folderTree');
+const { LIST_SELECT: QUIZ_LIST_SELECT } = require('../services/quizFiles');
 
 // --- LIST ---
 // A file the client uploaded to Firebase (useFileManager.js). The client deletes
 // those too: this server's storage driver never held them.
 const isFirebasePath = (p) => typeof p === 'string' && p.length <= 500 && p.startsWith('board_materials/') && !p.includes('..');
 
-// GET /api/materials — returns folders + materials in one payload so the
-// Materials Hub UI can build its tree without a second roundtrip.
+// GET /api/materials — returns folders, materials and shared quiz files (never
+// their bytes) in one payload, so the tree builds without a second roundtrip.
 router.get('/', authMiddleware, async (req, res) => {
     try {
         // Capped: the shared vault grows without bound and this endpoint
         // returned every folder AND every material on each load.
         const folders = await prisma.folder.findMany({ take: 2000, orderBy: { name: 'asc' } });
         const materials = await prisma.material.findMany({ take: 2000, orderBy: { createdAt: 'desc' } });
-        return res.status(200).json({ success: true, folders, materials, driver: storage.driverName });
+        const quizFiles = await prisma.quizFile.findMany({ select: QUIZ_LIST_SELECT, take: 500, orderBy: { name: 'asc' } });
+        return res.status(200).json({ success: true, folders, materials, quizFiles, driver: storage.driverName });
     } catch (error) {
         logger.error('Material fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: "Couldn't load the shared files." });
@@ -97,7 +99,8 @@ router.delete('/folders/:id', authMiddleware, requireAdmin, async (req, res) => 
             if (m.storagePath && !isFirebasePath(m.storagePath)) await storage.delete(m.storagePath).catch(() => {});
         }
         // The self-relation FK cascades every descendant Folder row; Material's
-        // existing FK cascades every Material row in the subtree.
+        // existing FK cascades every Material row in the subtree. Quiz files in
+        // it move to the top level (their FK sets null): the bytes live in the row.
         await prisma.folder.delete({ where: { id: req.params.id } });
         return res.status(200).json({ success: true, deletedFolders: targetIds.size, deletedMaterials: contained.length });
     } catch (error) {

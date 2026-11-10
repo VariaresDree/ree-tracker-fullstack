@@ -53,8 +53,8 @@ const OFFLINE = () => Object.assign(new Error('[OFFLINE]'), {});
 
 const currentUser = { uid: 'user-1' };
 
-async function bootHook(seedFolders, seedMaterials) {
-  apiRequestMock.mockResolvedValueOnce({ success: true, folders: seedFolders, materials: seedMaterials });
+async function bootHook(seedFolders, seedMaterials, seedQuizzes = []) {
+  apiRequestMock.mockResolvedValueOnce({ success: true, folders: seedFolders, materials: seedMaterials, quizFiles: seedQuizzes });
   const { result } = renderHook(() => useFileManager(currentUser, true), { wrapper: MemoryRouter });
   await waitFor(() => expect(result.current.isLoading).toBe(false));
   return result;
@@ -189,5 +189,36 @@ describe('useFileManager — offline mutations never fail silently', () => {
     expect(toastSpy).toHaveBeenCalledWith('Delete failed.');
     // Not removed locally — a real failure must not pretend it worked.
     expect(result.current.materials.find((m) => m.id === 'm1')).toBeDefined();
+  });
+
+  it('moves a quiz file through its own route, not /api/materials', async () => {
+    const result = await bootHook([{ id: 'f1', name: 'EE', parentId: null }], [], [{ id: 'q1', name: 'AC', folderId: null }]);
+    apiRequestMock.mockResolvedValue({ success: true, folders: [], materials: [], quizFiles: [] });
+    const success = vi.spyOn(toast, 'success');
+    await act(async () => { await result.current.moveItems([{ id: 'q1', type: 'quiz' }], 'f1'); });
+    expect(apiRequestMock).toHaveBeenCalledWith('/api/admin/quiz-files/q1', 'PATCH', { folderId: 'f1' });
+    expect(updateMaterialMock).not.toHaveBeenCalled();
+    expect(success).toHaveBeenCalledWith('Moved.');
+  });
+
+  it('moves several at once, refreshing once, and queues a quiz move offline', async () => {
+    const result = await bootHook([{ id: 'f1', name: 'EE', parentId: null }], [{ id: 'm1', name: 'Notes', folderId: null }], [{ id: 'q1', name: 'AC', folderId: null }]);
+    updateMaterialMock.mockResolvedValue({});
+    apiRequestMock.mockImplementation(async (endpoint) => {
+      if (endpoint.startsWith('/api/admin/quiz-files')) throw OFFLINE();
+      return { success: true, folders: [], materials: [], quizFiles: [] };
+    });
+    apiRequestMock.mockClear();
+    await act(async () => { await result.current.moveItems([{ id: 'm1', type: 'material' }, { id: 'q1', type: 'quiz' }], 'f1'); });
+    expect(queuePendingWrite).toHaveBeenCalledWith('/api/admin/quiz-files/q1', 'PATCH', { folderId: 'f1' });
+    expect(apiRequestMock.mock.calls.filter(([e]) => e === '/api/materials')).toHaveLength(1);
+  });
+
+  it('a server from before quiz folders: falls back to its quiz list, at the top level', async () => {
+    apiRequestMock.mockResolvedValueOnce({ success: true, folders: [], materials: [] });
+    apiRequestMock.mockResolvedValueOnce({ items: [{ id: 'q1', name: 'AC' }] });
+    const { result } = renderHook(() => useFileManager(currentUser, false), { wrapper: MemoryRouter });
+    await waitFor(() => expect(result.current.quizFiles).toEqual([{ id: 'q1', name: 'AC' }]));
+    expect(apiRequestMock).toHaveBeenCalledWith('/api/quiz-files');
   });
 });

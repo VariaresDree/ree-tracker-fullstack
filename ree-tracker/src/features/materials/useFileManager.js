@@ -46,6 +46,8 @@ const isOfflineErr = (e) => e?.message?.includes('[OFFLINE]');
 export const useFileManager = (currentUser, isAdmin) => {
   const [folders, setFolders] = useState([]);
   const [materials, setMaterials] = useState([]);
+  // Shared quiz files, which sit in the same folders (never their bytes).
+  const [quizFiles, setQuizFiles] = useState([]);
   // The open folder lives in the URL, pushed: Back goes up a level, and a reload
   // or a shared link stays put. A folder that's gone is the top level.
   const [params, setParams] = useSearchParams();
@@ -66,6 +68,9 @@ export const useFileManager = (currentUser, isAdmin) => {
     if (data && data.success) {
       setFolders(data.folders || []);
       setMaterials(data.materials || []);
+      if (Array.isArray(data.quizFiles)) setQuizFiles(data.quizFiles);
+      // A server from before quiz folders: its own list, all at the top level.
+      else Promise.resolve().then(() => apiRequest('/api/quiz-files')).then((r) => setQuizFiles(r?.items || []), () => setQuizFiles([]));
     }
     setLoadError(null);
     setIsLoading(false);
@@ -220,30 +225,45 @@ export const useFileManager = (currentUser, isAdmin) => {
     }
   };
 
-  const moveItem = async (itemId, itemType, targetFolderId) => {
+  // Moves each of [{ id, type }] ('folder' | 'material' | 'quiz') into one folder,
+  // then refreshes once. A quiz file has its own route: /api/materials would 404.
+  const routeFor = (id, type, folderId) => {
+    if (type === 'folder') return [`/api/materials/folders/${id}`, { parentId: folderId }];
+    if (type === 'quiz') return [`/api/admin/quiz-files/${encodeURIComponent(id)}`, { folderId }];
+    return [`/api/materials/${id}`, { folderId }];
+  };
+  const moveItems = async (items, targetFolderId) => {
     const folderId = toBackendFolderId(targetFolderId);
-    try {
-      if (itemType === 'folder') await updateFolder(itemId, { parentId: folderId });
-      else await updateMaterial(itemId, { folderId });
-      await fetchContents();
-      toast.success('Moved.');
-    } catch (error) {
-      if (isOfflineErr(error)) {
-        const endpoint = itemType === 'folder' ? `/api/materials/folders/${itemId}` : `/api/materials/${itemId}`;
-        const body = itemType === 'folder' ? { parentId: folderId } : { folderId };
+    let moved = 0;
+    let queued = 0;
+    let failed = 0;
+    for (const { id, type } of items) {
+      const [endpoint, body] = routeFor(id, type, folderId);
+      try {
+        if (type === 'folder') await updateFolder(id, body);
+        else if (type === 'quiz') await apiRequest(endpoint, 'PATCH', body);
+        else await updateMaterial(id, body);
+        moved += 1;
+      } catch (error) {
+        if (!isOfflineErr(error)) { failed += 1; continue; }
         useStore.getState().queuePendingWrite(endpoint, 'PATCH', body);
-        // Reflect the move locally NOW — this is exactly what
-        // apiCreateFolder/deleteFolder/etc. would have done via
-        // fetchContents() had the request succeeded, so the item doesn't sit
-        // in its pre-move location looking like nothing happened.
-        if (itemType === 'folder') setFolders(prev => prev.map(f => f.id === itemId ? { ...f, parentId: folderId } : f));
-        else setMaterials(prev => prev.map(m => m.id === itemId ? { ...m, folderId } : m));
-        toast('Offline — saved locally, move will sync when you reconnect.');
-      } else {
-        toast.error('Move failed.');
+        // Shown where it will be once the queued write lands.
+        if (type === 'folder') setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, parentId: folderId } : f)));
+        else if (type === 'quiz') setQuizFiles((prev) => prev.map((q) => (q.id === id ? { ...q, folderId } : q)));
+        else setMaterials((prev) => prev.map((m) => (m.id === id ? { ...m, folderId } : m)));
+        queued += 1;
       }
     }
+    if (moved > 0) await fetchContents();
+    if (failed > 0) toast.error(failed === items.length ? 'Move failed.' : `Moved ${moved + queued}; ${failed} didn’t move.`);
+    else if (queued > 0) toast('Offline — saved locally, move will sync when you reconnect.');
+    else toast.success(moved === 1 ? 'Moved.' : `Moved ${moved} items.`);
   };
+  const moveItem = (itemId, itemType, targetFolderId) => moveItems([{ id: itemId, type: itemType }], targetFolderId);
+
+  // The quiz files section saves its own changes; these keep the list in step.
+  const putQuizFile = useCallback((item) => setQuizFiles((prev) => [...prev.filter((q) => q.id !== item.id), item]), []);
+  const dropQuizFile = useCallback((id) => setQuizFiles((prev) => prev.filter((q) => q.id !== id)), []);
 
   // --- UNIFIED UPLOAD WITH COMPRESSION ---
   const uploadAndCommitMaterial = async (file, customTitle) => {
@@ -357,9 +377,9 @@ export const useFileManager = (currentUser, isAdmin) => {
   };
 
   return {
-    folders, materials, currentFolderId, breadcrumbs, isLoading, loadError, reload: fetchContents, isUploading, dragOverFolderId,
+    folders, materials, quizFiles, currentFolderId, breadcrumbs, isLoading, loadError, reload: fetchContents, isUploading, dragOverFolderId,
     navigateToFolder, navigateToBreadcrumb, revealFolder, createFolder, uploadAndCommitMaterial, addMaterialRecord,
-    deleteItem, renameItem, moveItem,
+    deleteItem, renameItem, moveItem, moveItems, putQuizFile, dropQuizFile,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   };
 };

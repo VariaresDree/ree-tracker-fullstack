@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
+import { useState } from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { apiRequest } from '../../services/dbQueries';
 import AdminQuizFiles from './AdminQuizFiles';
@@ -31,18 +32,37 @@ beforeEach(() => {
   });
 });
 
-const stage = async (file = fixture('ac-circuits.quiz')) => {
-  render(<AdminQuizFiles />);
+// What the handouts list does around it: holds the files and takes the changes.
+function Harness({ folderId = 'root', onMove = vi.fn(), selecting = false }) {
+  const [files, setFiles] = useState(items);
+  const [picked, setPicked] = useState([]);
+  return (
+    <AdminQuizFiles
+      files={files}
+      total={{ count: files.length, bytes: files.reduce((sum, f) => sum + f.sizeBytes, 0) }}
+      folderId={folderId}
+      onSaved={(item) => setFiles((prev) => [...prev.filter((f) => f.id !== item.id), item])}
+      onDeleted={(id) => setFiles((prev) => prev.filter((f) => f.id !== id))}
+      selecting={selecting}
+      isSelected={(f) => picked.includes(f.id)}
+      onToggle={(f) => setPicked((prev) => [...prev, f.id])}
+      onMove={onMove}
+    />
+  );
+}
+
+const stage = async (file = fixture('ac-circuits.quiz'), props = {}) => {
+  render(<Harness {...props} />);
   await screen.findByText('Stored quiz');
   fireEvent.change(pickerInput(), { target: { files: [file] } });
 };
 
 describe('Admin quiz files', () => {
   it('lists what’s shared, with the total used', async () => {
-    render(<AdminQuizFiles />);
+    render(<Harness />);
     expect(await screen.findByText('Stored quiz')).toBeInTheDocument();
     expect(screen.getByText('EE · 10 questions, 1 skipped · 2.0 KB')).toBeInTheDocument();
-    expect(screen.getByText(/1 shared · 2\.0 KB in the database/)).toBeInTheDocument();
+    expect(screen.getByText(/1 here · 1 shared · 2\.0 KB in the database/)).toBeInTheDocument();
   });
 
   it('shows what a file holds before anything uploads', async () => {
@@ -92,7 +112,7 @@ describe('Admin quiz files', () => {
   });
 
   it('edits a file’s details', async () => {
-    render(<AdminQuizFiles />);
+    render(<Harness />);
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Stored quiz' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit quiz file' });
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Renamed' } });
@@ -105,7 +125,7 @@ describe('Admin quiz files', () => {
   });
 
   it('replacing shows what the new file holds first', async () => {
-    render(<AdminQuizFiles />);
+    render(<Harness />);
     fireEvent.click(await screen.findByRole('button', { name: 'Replace the file for Stored quiz' }));
     fireEvent.change(replaceInput(), { target: { files: [fixture('alternators.quiz')] } });
     const dialog = await screen.findByRole('dialog', { name: 'Replace this file?' });
@@ -120,7 +140,7 @@ describe('Admin quiz files', () => {
   });
 
   it('a replacement that can’t be read can’t be confirmed', async () => {
-    render(<AdminQuizFiles />);
+    render(<Harness />);
     fireEvent.click(await screen.findByRole('button', { name: 'Replace the file for Stored quiz' }));
     fireEvent.change(replaceInput(), { target: { files: [new File(['x'], 'notes.pdf')] } });
     const dialog = await screen.findByRole('dialog', { name: 'Replace this file?' });
@@ -129,7 +149,7 @@ describe('Admin quiz files', () => {
   });
 
   it('delete asks first, and says downloaded copies stay', async () => {
-    render(<AdminQuizFiles />);
+    render(<Harness />);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Stored quiz' }));
     const dialog = await screen.findByRole('dialog', { name: 'Delete this quiz file?' });
     expect(dialog).toHaveTextContent('keeps their copy');
@@ -140,12 +160,37 @@ describe('Admin quiz files', () => {
   });
 
   it('a failed delete keeps the file and says why', async () => {
-    render(<AdminQuizFiles />);
+    render(<Harness />);
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Stored quiz' }));
     apiRequest.mockImplementation(async () => { throw new Error('[OFFLINE]'); });
     const dialog = await screen.findByRole('dialog', { name: 'Delete this quiz file?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('You’re offline');
     expect(screen.getAllByText('Stored quiz').length).toBeGreaterThan(0);
+  });
+
+  it('uploads into the open folder', async () => {
+    await stage(fixture('ac-circuits.quiz'), { folderId: 'fold1' });
+    await screen.findByText('36 questions');
+    fireEvent.click(screen.getByRole('button', { name: 'Upload file' }));
+    await screen.findByText('ac-circuits');
+    const [endpoint] = apiRequest.mock.calls.find(([, m]) => m === 'POST');
+    expect(new URLSearchParams(endpoint.split('?')[1]).get('folderId')).toBe('fold1');
+  });
+
+  it('Move hands the file to the handouts list’s Move sheet, and selecting shows a box', async () => {
+    const onMove = vi.fn();
+    render(<Harness onMove={onMove} selecting />);
+    fireEvent.click(screen.getByRole('button', { name: 'Move Stored quiz' }));
+    expect(onMove).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }));
+    const box = screen.getByRole('checkbox', { name: 'Select Stored quiz' });
+    fireEvent.click(box);
+    expect(box).toBeChecked();
+  });
+
+  it('with nothing shared at all, says so', () => {
+    items = [];
+    render(<Harness />);
+    expect(screen.getByText('No quiz files shared yet')).toBeInTheDocument();
   });
 });

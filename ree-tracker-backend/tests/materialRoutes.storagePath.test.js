@@ -64,3 +64,26 @@ describe('a handout uploaded to Firebase keeps its file path', () => {
         expect(driverDelete).toHaveBeenCalledWith('root/ab12-notes.pdf');
     });
 });
+
+describe('the handouts list', () => {
+    beforeEach(() => {
+        verifyIdToken.mockImplementation(async (token) => ({ uid: token, email: `${token}@example.com` }));
+        vi.spyOn(prisma.user, 'upsert').mockResolvedValue({ id: 'learner', role: 'USER' });
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ id: 'learner', role: 'USER' });
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    it('carries the shared quiz files too, without their bytes', async () => {
+        const { LIST_SELECT } = require('../src/services/quizFiles');
+        vi.spyOn(prisma.folder, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.material, 'findMany').mockResolvedValue([]);
+        const quizzes = vi.spyOn(prisma.quizFile, 'findMany').mockResolvedValue([{ id: 'q1', name: 'AC', folderId: 'f1' }]);
+        const app = express();
+        app.use('/api/materials', routes);
+        const res = await request(app).get('/api/materials').set(as('learner'));
+        expect(res.status).toBe(200);
+        expect(res.body.quizFiles).toEqual([{ id: 'q1', name: 'AC', folderId: 'f1' }]);
+        expect(quizzes.mock.calls[0][0].select).toBe(LIST_SELECT);
+        expect(LIST_SELECT.folderId).toBe(true);
+    });
+});

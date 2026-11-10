@@ -26,7 +26,6 @@ const MaterialViewer = lazy(() => import('../../features/materials/MaterialViewe
 const SyllabusAdmin = lazy(() => import('../../features/admin/syllabus/SyllabusAdmin'));
 const AiStatusPanel = lazy(() => import('../../features/admin/ai/AiStatusPanel'));
 const AppHealthPanel = lazy(() => import('../../features/admin/health/AppHealthPanel'));
-const AdminQuizFiles = lazy(() => import('../../features/shared-quizzes/AdminQuizFiles'));
 
 const TABS = [
   { id: 'questions', label: 'Question bank', icon: Library },
@@ -73,7 +72,6 @@ export default function Admin() {
           {tab === 'handouts' && (
             <div className="flex flex-col gap-10">
               <CloudVaultTab currentUser={currentUser} isAdmin onViewMaterial={setViewingMaterial} />
-              <AdminQuizFiles />
             </div>
           )}
 

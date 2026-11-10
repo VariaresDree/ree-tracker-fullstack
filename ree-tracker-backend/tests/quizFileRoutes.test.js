@@ -159,6 +159,32 @@ describe('shared quiz file routes', () => {
             expect(quizFile.update).not.toHaveBeenCalled();
         });
 
+        it('uploads into a folder, or the top level when none is named', async () => {
+            await postFile(app, 'admin', ZIP, `${QUERY}&folderId=fold1`);
+            expect(quizFile.create.mock.calls[0][0].data.folderId).toBe('fold1');
+            await postFile(app, 'admin');
+            expect(quizFile.create.mock.calls[1][0].data.folderId).toBeNull();
+        });
+
+        it('moves into a folder and back to the top level', async () => {
+            await request(app).patch('/api/admin/quiz-files/f1').set(as('admin')).send({ folderId: 'fold1' });
+            expect(quizFile.update.mock.calls[0][0].data).toEqual({ folderId: 'fold1' });
+            await request(app).patch('/api/admin/quiz-files/f1').set(as('admin')).send({ folderId: null });
+            expect(quizFile.update.mock.calls[1][0].data).toEqual({ folderId: null });
+        });
+
+        it('a folder that’s gone is a 404, not a 500 the offline queue would retry for ever', async () => {
+            const gone = () => Object.assign(new Error('fk'), { code: 'P2003' });
+            quizFile.update.mockRejectedValueOnce(gone());
+            const moved = await request(app).patch('/api/admin/quiz-files/f1').set(as('admin')).send({ folderId: 'gone' });
+            expect(moved.status).toBe(404);
+            expect(moved.body.code).toBe('NO_FOLDER');
+            quizFile.create.mockRejectedValueOnce(gone());
+            const uploaded = await postFile(app, 'admin', ZIP, `${QUERY}&folderId=gone`);
+            expect(uploaded.status).toBe(404);
+            expect(uploaded.body.code).toBe('NO_FOLDER');
+        });
+
         it('deletes, and a missing one is a 404', async () => {
             quizFile.delete.mockResolvedValueOnce({});
             expect((await request(app).delete('/api/admin/quiz-files/f1').set(as('admin'))).status).toBe(200);

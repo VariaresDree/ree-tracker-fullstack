@@ -1,14 +1,16 @@
 // src/features/materials/CloudVaultTab.jsx
 //
-// Library › Handouts: folders and files (PDFs, images, video, audio, links).
-// Learners browse, search and open; admins also organise. A failed load shows
-// an error with Try again and offline says so — both used to read "This folder
-// is empty" — and the first load has a skeleton.
-import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
+// Library › Handouts: folders, files (PDFs, images, video, audio, links) and the
+// shared quiz files, in one tree. Learners browse, search and open; admins also
+// organise, moving one item or a selection through the Move sheet. A failed load
+// shows an error with Try again and offline says so — both used to read "This
+// folder is empty" — and the first load has a skeleton.
+import React, { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useFileManager } from './useFileManager';
-import { Button, Card, EmptyState, FormField, Grid, Input, Modal, Select, Skeleton } from '../../components/ui';
-import { FolderOpen, FileText, FileUp, Pencil, Plus, Scissors, X, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
+import { Button, Card, EmptyState, FormField, Grid, IconChip, Input, Modal, Select, Skeleton, StickyToolbar } from '../../components/ui';
+import { FolderOpen, FolderInput, FileAudio, FileImage, FileText, FileType, FileUp, Link, Pencil, Plus, SquareCheck, Video, X, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
+import { lazy } from '../../utils/lazyWithRetry';
+import { byName, readSort, sortItems, writeSort } from './sortNames';
 import { readRecentHandouts, rememberHandout } from './recentHandouts';
 import SaveOffline from './SaveOffline';
 import { useMyFiles } from '../my-files/filesStore';
@@ -16,9 +18,26 @@ import { useMyFiles } from '../my-files/filesStore';
 // Actions on a tile: in view on a phone, on hover or keyboard focus otherwise.
 const TILE_ACTIONS = 'flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1';
 const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+const contentsLine = (files, quizzes) => [plural(files, 'file'), quizzes > 0 && plural(quizzes, 'quiz file')].filter(Boolean).join(' · ');
+
+const MoveSheet = lazy(() => import('./MoveSheet'));
+const AdminQuizFiles = lazy(() => import('../shared-quizzes/AdminQuizFiles'));
+const FolderQuizzes = lazy(() => import('../shared-quizzes/FolderQuizzes'));
+
+// A file's kind, as an icon with its name: it was a text badge in a mono font.
+const KINDS = {
+  pdf: { icon: FileText, label: 'PDF', tone: 'accent' },
+  image: { icon: FileImage, label: 'Image', tone: 'amber' },
+  audio: { icon: FileAudio, label: 'Audio', tone: 'signal' },
+  video: { icon: Video, label: 'Video', tone: 'danger' },
+  link: { icon: Link, label: 'Link', tone: 'success' },
+};
+const kindOf = (type) => KINDS[type] || { icon: FileType, label: type === 'file' || !type ? 'File' : type, tone: 'muted' };
+const keyOf = (type, id) => `${type}:${id}`;
+const CHECKBOX = 'size-5 shrink-0 accent-[var(--accent)] cursor-pointer';
 
 export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, openMaterialId = null }) {
-  const [sortBy, setSortBy] = useState('name');
+  const [sortBy, setSortBy] = useState(readSort);
   const [search, setSearch] = useState('');
   const query = useDeferredValue(search).trim().toLowerCase();
   const uid = currentUser?.uid;
@@ -29,13 +48,16 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
   const [uploadMode, setUploadMode] = useState('local');
   const [newMaterial, setNewMaterial] = useState({ name: '', url: '', type: 'pdf' });
   const [editingItem, setEditingItem] = useState({ id: null, type: null, newName: '' });
-  const [clipboard, setClipboard] = useState(null);
+  // Admin: picking several to move at once, and what the Move sheet is moving.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState(() => new Map());
+  const [moving, setMoving] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, type: null, name: '' });
 
   const {
-    folders, materials, currentFolderId, breadcrumbs, isLoading, loadError, reload, isUploading, dragOverFolderId,
+    folders, materials, quizFiles = [], currentFolderId, breadcrumbs, isLoading, loadError, reload, isUploading, dragOverFolderId,
     navigateToFolder, navigateToBreadcrumb, revealFolder, createFolder, uploadAndCommitMaterial, addMaterialRecord,
-    deleteItem, renameItem, moveItem,
+    deleteItem, renameItem, moveItems, putQuizFile, dropQuizFile,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   } = useFileManager(currentUser, isAdmin);
   const { files: deviceFiles } = useMyFiles(uid);
@@ -75,17 +97,22 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
 
   const recentFiles = recentIds.map((id) => materials.find((m) => m.id === id)).filter(Boolean);
 
-  const handleCut = (item, type, e) => {
-    e.stopPropagation();
-    if (!isAdmin) return;
-    setClipboard({ id: item.id, type, name: item.name, oldParentId: item.parentId || 'root' });
-    toast.success(`Cut "${item.name}". Open the folder to move it to and choose Paste here.`);
+  const isSelected = (type, item) => selected.has(keyOf(type, item.id));
+  const toggle = (type, item) => setSelected((prev) => {
+    const next = new Map(prev);
+    if (next.has(keyOf(type, item.id))) next.delete(keyOf(type, item.id));
+    else next.set(keyOf(type, item.id), { id: item.id, type });
+    return next;
+  });
+  const stopSelecting = () => { setSelecting(false); setSelected(new Map()); };
+  const startMove = (items, e) => {
+    e?.stopPropagation();
+    if (isAdmin && items.length > 0) setMoving(items);
   };
-
-  const handlePaste = async () => {
-    if (!clipboard || !isAdmin) return;
-    await moveItem(clipboard.id, clipboard.type, currentFolderId);
-    setClipboard(null);
+  const finishMove = async (target) => {
+    await moveItems(moving, target);
+    setMoving(null);
+    stopSelecting();
   };
 
   const handleLocalFileUpload = async (e) => {
@@ -141,7 +168,8 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
     }
     const nestedFolders = folderIds.size - 1;
     const containedMaterials = materials.filter((m) => folderIds.has(m.folderId || 'root')).length;
-    return { nestedFolders, containedMaterials };
+    const containedQuizzes = quizFiles.filter((q) => folderIds.has(q.folderId || 'root')).length;
+    return { nestedFolders, containedMaterials, containedQuizzes };
   };
 
   const confirmDelete = (id, type, name) => {
@@ -180,32 +208,25 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
   const matches = (item) => item.name.toLowerCase().includes(query);
   const visibleFolders = folders
     .filter(f => (query ? matches(f) : (f.parentId || 'root') === currentFolderId))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const visibleMaterials = materials
-    .filter(m => (query ? matches(m) : (m.folderId || 'root') === currentFolderId))
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
+    .sort(byName);
+  const visibleMaterials = sortItems(materials.filter(m => (query ? matches(m) : (m.folderId || 'root') === currentFolderId)), sortBy);
+  const visibleQuizzes = sortItems(quizFiles.filter(q => (query ? matches(q) : (q.folderId || 'root') === currentFolderId)), sortBy);
+  const nothingHere = visibleFolders.length === 0 && visibleMaterials.length === 0 && visibleQuizzes.length === 0;
+  const loaded = !(isLoading && folders.length === 0 && materials.length === 0) && !(loadError && folders.length === 0 && materials.length === 0);
+  const movingFolders = new Set((moving || []).filter((x) => x.type === 'folder').map((x) => x.id));
 
   return (
     <div className="animate-in fade-in flex flex-col gap-6">
-      {clipboard && isAdmin && (
-        <div className="bg-reeBlue/10 border border-reeBlue/30 p-3 rounded-[var(--radius-lg)] flex flex-wrap justify-between items-center gap-3 animate-in slide-in-from-top-4 shadow-sm">
-          <div className="flex items-center gap-3 text-sm min-w-0">
-            {clipboard.type === 'folder'
-              ? <FolderOpen size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" />
-              : <FileText size={20} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-text)]" />}
-            <span className="text-textMain font-medium min-w-0 [overflow-wrap:anywhere]">Moving <span className="font-bold text-[var(--accent-text)]">"{clipboard.name}"</span></span>
-          </div>
+      {selecting && isAdmin && (
+        <StickyToolbar role="region" aria-label="Selection">
+          <p className="text-sm text-textMain font-medium tabular-nums" aria-live="polite">{plural(selected.size, 'item')} selected</p>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setClipboard(null)}>Cancel</Button>
-            <Button size="sm" onClick={handlePaste} disabled={clipboard.id === currentFolderId}>
-              Paste here
+            <Button size="sm" variant="secondary" onClick={stopSelecting}>Done</Button>
+            <Button size="sm" disabled={selected.size === 0} onClick={() => startMove([...selected.values()])}>
+              <FolderInput size={14} strokeWidth={1.75} aria-hidden="true" /> Move…
             </Button>
           </div>
-        </div>
+        </StickyToolbar>
       )}
 
       <div className="flex flex-wrap justify-between items-end border-b border-border2 pb-6 gap-4">
@@ -237,13 +258,14 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
             </div>
           </FormField>
           <FormField label="Sort files" className="w-40">
-            <Select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+            <Select value={sortBy} onChange={(e) => { setSortBy(e.target.value); writeSort(e.target.value); }}>
               <option value="name">Name (A–Z)</option>
               <option value="date">Newest first</option>
             </Select>
           </FormField>
           {isAdmin && (
             <>
+              <Button variant="secondary" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}><SquareCheck size={16} strokeWidth={1.75} aria-hidden="true" /> Select</Button>
               <Button variant="secondary" onClick={() => setIsCreatingFolder(true)}><Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Folder</Button>
               <Button onClick={() => setIsAddingMaterial(true)}><Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Add a file or link</Button>
             </>
@@ -343,18 +365,18 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
             action={<Button onClick={reload}>Try again</Button>}
           />
         )
-      ) : query && visibleFolders.length === 0 && visibleMaterials.length === 0 ? (
+      ) : query && nothingHere ? (
         <EmptyState
           icon={Search}
           title="Nothing matches"
           description={`No handout or folder has "${search.trim()}" in its name.`}
           action={<Button variant="secondary" onClick={() => setSearch('')}>Clear search</Button>}
         />
-      ) : visibleFolders.length === 0 && visibleMaterials.length === 0 ? (
+      ) : nothingHere ? (
         <EmptyState
           icon={FolderOpen}
           title="This folder is empty"
-          description={isAdmin ? 'Create a folder or add a file to start.' : 'Nothing has been added here yet.'}
+          description={isAdmin ? 'Create a folder, add a file or upload a quiz file below.' : 'Nothing has been added here yet.'}
         />
       ) : (
         <div className="flex flex-col gap-6">
@@ -376,7 +398,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         <Grid kind="cards" className="@5xl:grid-cols-4">
           {visibleFolders.map(f => {
             const isDropTarget = dragOverFolderId === f.id;
-            const inside = countSubtree(f.id).containedMaterials;
+            const inside = countSubtree(f.id);
             return (
               // A choice card like the rest of the app's. A folder a file is
               // dragged over takes an accent ring (it was a fixed blue border
@@ -390,15 +412,23 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                 onDragOver={(e) => handleDragOver(e, f.id)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, f.id)}
-                onClick={() => navigateToFolder(f.id, f.name)}
+                onClick={() => (selecting ? toggle('folder', f) : navigateToFolder(f.id, f.name))}
                 className={`cursor-pointer flex justify-between items-start group min-h-[72px] ${
                   isDropTarget ? 'ring-2 ring-[color-mix(in_srgb,var(--accent)_70%,transparent)]' : ''
                 }`}
               >
                 <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0 pointer-events-none">
+                  {selecting && (
+                    <input type="checkbox" aria-label={`Select ${f.name}`} checked={isSelected('folder', f)} onChange={() => toggle('folder', f)} onClick={(e) => e.stopPropagation()} className={`${CHECKBOX} pointer-events-auto mt-0.5`} />
+                  )}
                   <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className="opacity-90 group-hover:scale-110 transition-transform text-[var(--accent-text)] shrink-0" />
                   {editingItem.id === f.id && editingItem.type === 'folder' ? (
                     <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded-[var(--radius-sm)] w-full font-bold pointer-events-auto" />
+                  ) : selecting ? (
+                    <span title={f.name} className="text-left font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5">
+                      {f.name}
+                      <span className="block font-normal text-xs text-muted2">{contentsLine(inside.containedMaterials, inside.containedQuizzes)}</span>
+                    </span>
                   ) : (
                     <span
                       role="button"
@@ -411,16 +441,16 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                       className="pointer-events-auto text-left font-bold text-sm text-textMain line-clamp-2 [overflow-wrap:anywhere] leading-relaxed pt-0.5 rounded-[var(--radius-sm)] cursor-pointer"
                     >
                       {f.name}
-                      <span className="block font-normal text-xs text-muted2">{plural(inside, 'file')}</span>
+                      <span className="block font-normal text-xs text-muted2">{contentsLine(inside.containedMaterials, inside.containedQuizzes)}</span>
                     </span>
                   )}
                 </div>
-                {isAdmin && (
+                {isAdmin && !selecting && (
                   <div className={`${TILE_ACTIONS} ml-2 shrink-0`}>
                     {!(editingItem.id === f.id && editingItem.type === 'folder') && (
                       <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-text)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
-                    <button onClick={(e) => handleCut(f, 'folder', e)} aria-label="Cut folder to move" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => startMove([{ id: f.id, type: 'folder' }], e)} aria-label={`Move ${f.name}`} className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><FolderInput size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
@@ -441,19 +471,23 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               padding="md"
               draggable={isAdmin ? "true" : "false"}
               onDragStart={(e) => handleDragStart(e, m, 'material')}
-              onClick={() => { if (editingItem.id !== m.id) openFile(m); }}
+              onClick={() => { if (selecting) toggle('material', m); else if (editingItem.id !== m.id) openFile(m); }}
               className="flex flex-col justify-between group cursor-pointer"
             >
-              <div className="flex justify-between items-start">
-                <span className={`px-2 py-0.5 bg-bg border border-border2 text-micro font-mono rounded-[var(--radius-sm)] uppercase font-bold tracking-wider ${m.type === 'video' ? 'text-reeRed-text' : m.type === 'audio' ? 'text-reePurple-text' : m.type === 'image' ? 'text-reeAmber-text' : 'text-reeCyan-text'}`}>
-                    {m.type}
+              <div className="flex justify-between items-start gap-2">
+                <span className="inline-flex items-center gap-2 text-xs font-medium text-muted2 min-w-0">
+                  {selecting && (
+                    <input type="checkbox" aria-label={`Select ${m.name}`} checked={isSelected('material', m)} onChange={() => toggle('material', m)} onClick={(e) => e.stopPropagation()} className={CHECKBOX} />
+                  )}
+                  <IconChip icon={kindOf(m.type).icon} tone={kindOf(m.type).tone} size="sm" />
+                  {kindOf(m.type).label}
                 </span>
-                {isAdmin && (
+                {isAdmin && !selecting && (
                   <div className={`${TILE_ACTIONS} -mt-1 -mr-1`}>
                     {!(editingItem.id === m.id && editingItem.type === 'material') && (
                       <button onClick={(e) => initiateRename(m, 'material', e)} aria-label="Rename file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
-                    <button onClick={(e) => handleCut(m, 'material', e)} aria-label="Cut file to move" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Scissors size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => startMove([{ id: m.id, type: 'material' }], e)} aria-label={`Move ${m.name}`} className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><FolderInput size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     <button onClick={(e) => { e.stopPropagation(); confirmDelete(m.id, 'material', m.name); }} aria-label="Delete file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
@@ -480,7 +514,42 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         </Grid>
         </section>
         )}
+        {!isAdmin && visibleQuizzes.length > 0 && (
+          <Suspense fallback={<Skeleton className="h-24" />}>
+            <FolderQuizzes files={visibleQuizzes} whereOf={query ? (q) => (q.folderId ? folderPath(q.folderId) : null) : undefined} />
+          </Suspense>
+        )}
         </div>
+      )}
+
+      {isAdmin && loaded && (
+        <Suspense fallback={<Skeleton className="h-24" />}>
+          <AdminQuizFiles
+            files={visibleQuizzes}
+            total={{ count: quizFiles.length, bytes: quizFiles.reduce((sum, q) => sum + (q.sizeBytes || 0), 0) }}
+            folderId={currentFolderId}
+            onSaved={putQuizFile}
+            onDeleted={dropQuizFile}
+            selecting={selecting}
+            isSelected={(q) => isSelected('quiz', q)}
+            onToggle={(q) => toggle('quiz', q)}
+            onMove={(q) => startMove([{ id: q.id, type: 'quiz' }])}
+          />
+        </Suspense>
+      )}
+
+      {moving && (
+        <Suspense fallback={null}>
+          <MoveSheet
+            folders={folders}
+            rootLabel="Handouts (top level)"
+            exclude={movingFolders}
+            count={moving.length}
+            current={query ? null : currentFolderId}
+            onMove={finishMove}
+            onClose={() => setMoving(null)}
+          />
+        </Suspense>
       )}
 
       <Modal
@@ -500,6 +569,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           {deleteModal.type === 'folder' && (deleteModal.nestedFolders > 0 || deleteModal.containedMaterials > 0)
             ? `This deletes ${deleteModal.nestedFolders > 0 ? `${deleteModal.nestedFolders} nested folder${deleteModal.nestedFolders === 1 ? '' : 's'}` : ''}${deleteModal.nestedFolders > 0 && deleteModal.containedMaterials > 0 ? ' and ' : ''}${deleteModal.containedMaterials > 0 ? `${deleteModal.containedMaterials} file${deleteModal.containedMaterials === 1 ? '' : 's'}` : ''} inside it too. This can't be undone.`
             : "This can't be undone."}
+          {deleteModal.type === 'folder' && deleteModal.containedQuizzes > 0 && ` ${plural(deleteModal.containedQuizzes, 'quiz file')} inside ${deleteModal.containedQuizzes === 1 ? 'moves' : 'move'} to the top level instead.`}
         </p>
       </Modal>
     </div>
