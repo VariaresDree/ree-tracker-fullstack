@@ -29,7 +29,8 @@ import { FULL_BOARD_SECTIONS, loadFullBoard, recordSection } from './fullBoard';
 // is MED (the neutral middle, as battles already did); an UNANSWERED item is
 // LOW. It used to default to HIGH, which turned every blank into a
 // "confidently wrong" blind spot and inflated the dashboard matrix.
-const confidenceFor = (answer, picked) => (answer != null ? (picked || 'MED') : 'LOW');
+// No confidence chosen (or no answer) is UNRATED; it was MED or LOW, which skewed calibration.
+const confidenceFor = (answer, picked) => (answer != null ? (picked || 'UNRATED') : 'UNRATED');
 import toast from 'react-hot-toast';
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
@@ -847,7 +848,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         const a = saved[q.id];
         if (a?.userAnswer == null) return;
         answers[idx] = a.userAnswer;
-        confidences[idx] = a.confidenceLevel || 'MED';
+        confidences[idx] = a.confidenceLevel || 'UNRATED';
       });
       const restored = Object.keys(answers).length;
 

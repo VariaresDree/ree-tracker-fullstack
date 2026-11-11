@@ -510,7 +510,7 @@ export const useGauntletEngine = (level) => {
         const gradePayload = questionsRef.current.map((q, idx) => ({
             questionId: q.id,
             userAnswer: answersRef.current[idx] || '',
-            confidenceLevel: confidencesRef.current[idx] || 'MED',
+            confidenceLevel: confidencesRef.current[idx] || 'UNRATED',
             timeSpentMs: timeSpentPerQuestionRef.current[idx] || 0,
             clientAttemptId: `${runId}:${q.id}`,
             itemIndex: idx,

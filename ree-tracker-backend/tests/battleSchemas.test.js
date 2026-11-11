@@ -37,7 +37,8 @@ describe('battleAnswerSchema', () => {
     it('accepts a live answer and defaults optional fields', () => {
         const r = battleAnswerSchema.safeParse({ battleId: 'A1B2C3', questionId: 'q1', userAnswer: '42' });
         expect(r.success).toBe(true);
-        expect(r.data.confidenceLevel).toBe('MED');
+        // No confidence chosen is UNRATED, left out of calibration (it was MED).
+        expect(r.data.confidenceLevel).toBe('UNRATED');
         expect(r.data.timeSpentMs).toBe(0);
     });
 

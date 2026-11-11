@@ -120,7 +120,7 @@ router.post('/grade', authMiddleware, validate(gradeSchema), idempotency(), asyn
                 attempts: recordable.map((a) => ({
                     questionId: a.questionId,
                     userAnswer: a.userAnswer,
-                    confidenceLevel: a.confidenceLevel || 'LOW',
+                    confidenceLevel: a.confidenceLevel || 'UNRATED',
                     timeSpentMs: a.timeSpentMs || 0,
                     clientAttemptId: a.clientAttemptId,
                     itemIndex: a.itemIndex,

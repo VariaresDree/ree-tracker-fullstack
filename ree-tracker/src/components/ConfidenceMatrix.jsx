@@ -6,8 +6,9 @@ import { Crosshair, CircleAlert } from './ui/icons';
 const CELLS = [
   { key: 'hc', label: 'Mastery', sub: 'High confidence · correct', color: 'var(--accent-success)' },
   { key: 'hw', label: 'Blind spot', sub: 'High confidence · wrong', color: 'var(--accent-danger)' },
-  { key: 'lc', label: 'Imposter', sub: 'Low confidence · correct', color: 'var(--color-reeAmber-text)' },
-  { key: 'lw', label: 'Deficient', sub: 'Low confidence · wrong', color: 'var(--text-muted2)' },
+  // The bottom row holds low AND medium: "Not sure", not "Low confidence".
+  { key: 'lc', label: 'Imposter', sub: 'Not sure · correct', color: 'var(--color-reeAmber-text)' },
+  { key: 'lw', label: 'Deficient', sub: 'Not sure · wrong', color: 'var(--text-muted2)' },
 ];
 
 function ConfidenceMatrix({ stats }) {

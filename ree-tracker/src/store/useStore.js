@@ -239,7 +239,7 @@ export const useStore = create(
             subject: attemptData.subject,
             subtopic: attemptData.subtopic,
             isCorrect: attemptData.isCorrect,
-            confidenceLevel: attemptData.confidenceLevel?.toUpperCase() || 'MED',
+            confidenceLevel: attemptData.confidenceLevel?.toUpperCase() || 'UNRATED',
             timeSpentMs: attemptData.timeSpentMs,
             createdAt: new Date().toISOString()
         };
@@ -268,7 +268,7 @@ export const useStore = create(
       recordAttempt: (event) => {
         const {
           questionId, subject = 'General', subtopic = 'General',
-          isCorrect, confidenceLevel = 'MED', timeSpentMs = 0, userAnswer = null,
+          isCorrect, confidenceLevel = 'UNRATED', timeSpentMs = 0, userAnswer = null,
         } = event || {};
         if (!questionId) return;
 
@@ -283,7 +283,7 @@ export const useStore = create(
             subject,
             subtopic,
             isCorrect: !!isCorrect,
-            confidenceLevel: String(confidenceLevel || 'MED').toUpperCase(),
+            confidenceLevel: String(confidenceLevel || 'UNRATED').toUpperCase(),
             timeSpentMs: Number(timeSpentMs) || 0,
             // Selected option (MCQ) so the server re-grades authoritatively on
             // sync. OMITTED (not null) for flashcards — the bulk schema's
@@ -295,7 +295,7 @@ export const useStore = create(
           const updatedStats = calculateUpdatedStats(
             state.stats || {},
             !!isCorrect,
-            String(confidenceLevel || 'MED').toLowerCase(),
+            String(confidenceLevel || 'UNRATED').toLowerCase(),
             subtopic,
             subject,
             questionId,

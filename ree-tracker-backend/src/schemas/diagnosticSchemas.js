@@ -15,7 +15,7 @@ const diagnosticAnswerSchema = z.object({
     sessionId: z.string().min(1).max(64),
     questionId: z.string().min(1).max(200),
     userAnswer: z.string().max(500),
-    confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).optional(),
+    confidenceLevel: z.enum(['LOW', 'MED', 'HIGH', 'UNRATED']).optional(),
     timeSpentMs: z.number().optional().default(0).transform(storableTimeMs),
 }).strip();
 

@@ -92,7 +92,7 @@ export default function Diagnostic() {
         sessionId,
         questionId: item.id,
         userAnswer: selected,
-        confidenceLevel: confidence || 'MED',
+        confidenceLevel: confidence || 'UNRATED',
         timeSpentMs: Date.now() - shownAt.current,
       });
       if (res.done) { setResult(res.result); setPhase('result'); return; }

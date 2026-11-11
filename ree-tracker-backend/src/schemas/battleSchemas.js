@@ -29,7 +29,7 @@ const battleCreateSchema = z.object({
 const battleAttemptItem = z.object({
     questionId: z.string().min(1).max(64),
     userAnswer: z.string().max(500).nullable().default(null),
-    confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).default('MED'),
+    confidenceLevel: z.enum(['LOW', 'MED', 'HIGH', 'UNRATED']).default('UNRATED'),
     timeSpentMs: z.number().nonnegative().max(3_600_000).default(0),
 });
 

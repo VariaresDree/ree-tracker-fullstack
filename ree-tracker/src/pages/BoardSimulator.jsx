@@ -167,7 +167,7 @@ export default function BoardSimulator() {
       // parameter defaulted to 0 and this call site never passed anything,
       // because the engine's internal timing ref wasn't exposed at all until
       // now. Number(idx) since Object.entries keys are strings.
-      if (q?.id) sendAnswer(q.id, ans, engine.session.confidences?.[idx] || 'MED', engine.getElapsedMs(Number(idx)));
+      if (q?.id) sendAnswer(q.id, ans, engine.session.confidences?.[idx] || 'UNRATED', engine.getElapsedMs(Number(idx)));
     }
   }, [engine.session.answers, activeBattleId, battleConnected]);
 

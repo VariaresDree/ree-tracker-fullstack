@@ -84,7 +84,7 @@ function mapAttemptRows(attempts, qMap, { userId, sessionId = null, mode = 'LEGA
                 // Provenance for the estimator gate (stripped before the DB write):
                 // true only when the server re-graded against the master key.
                 _serverGraded: serverGraded,
-                confidenceLevel: String(a.confidenceLevel || 'LOW').toUpperCase(),
+                confidenceLevel: String(a.confidenceLevel || 'UNRATED').toUpperCase(),
                 // storableTimeMs, not parseInt: parseInt stringifies its input
                 // first, so any value >= 1e21 became exponential notation and
                 // parseInt("1e+21") returned 1 — a 1ms answer, silently. It also

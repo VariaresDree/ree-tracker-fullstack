@@ -158,7 +158,7 @@ function answersToJson(answers) {
     for (const [questionId, a] of answers || []) {
         out[questionId] = {
             userAnswer: a.userAnswer ?? null,
-            confidenceLevel: a.confidenceLevel ?? 'MED',
+            confidenceLevel: a.confidenceLevel ?? 'UNRATED',
             timeSpentMs: Number.isFinite(a.timeSpentMs) ? a.timeSpentMs : 0,
         };
     }
@@ -179,7 +179,7 @@ function answersFromJson(json, answerKey) {
             questionId,
             userAnswer,
             isCorrect: gradeAnswer(answerKey, questionId, userAnswer),
-            confidenceLevel: ['LOW', 'MED', 'HIGH'].includes(a.confidenceLevel) ? a.confidenceLevel : 'MED',
+            confidenceLevel: ['LOW', 'MED', 'HIGH', 'UNRATED'].includes(a.confidenceLevel) ? a.confidenceLevel : 'UNRATED',
             timeSpentMs: Number.isFinite(a.timeSpentMs) ? a.timeSpentMs : 0,
         });
     }
@@ -196,7 +196,7 @@ function publicAnswers(answers) {
     const out = {};
     for (const [questionId, a] of entries) {
         if (!a || a.userAnswer == null) continue;
-        out[questionId] = { userAnswer: a.userAnswer, confidenceLevel: a.confidenceLevel ?? 'MED' };
+        out[questionId] = { userAnswer: a.userAnswer, confidenceLevel: a.confidenceLevel ?? 'UNRATED' };
     }
     return out;
 }
@@ -210,7 +210,7 @@ function fillBlanks(participant, answerKey) {
     for (const questionId of Object.keys(answerKey || {})) {
         if (participant.answers.has(questionId)) continue;
         participant.answers.set(questionId, {
-            questionId, userAnswer: null, isCorrect: false, confidenceLevel: 'MED', timeSpentMs: 0,
+            questionId, userAnswer: null, isCorrect: false, confidenceLevel: 'UNRATED', timeSpentMs: 0,
         });
         filled += 1;
     }

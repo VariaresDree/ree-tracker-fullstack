@@ -169,8 +169,8 @@ export default function QuestionCard({
 
   // A pick the learner can still change comes first, then how sure they are of it,
   // and the choices stay close under the question. Where a pick commits the answer
-  // (requireConfidence), the rating has to come before it. A blank rating counts as
-  // medium in calibration, so the row asks once something is picked.
+  // (requireConfidence), the rating has to come before it. A blank rating is
+  // left out of calibration, so the row asks once something is picked.
   const needsRating = !requireConfidence && selectedOption != null && !confidence;
   const confidenceRow = showConfidence && !isReviewing && (
     <fieldset className="border-0 p-0 m-0">

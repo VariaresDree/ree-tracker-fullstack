@@ -55,7 +55,10 @@ let activityCalendar = { ...(currentStats?.activityCalendar || {}) };
     
     const matrixConf = (confidence === 'high') ? 'high' : 'low';
     
-    if (matrixConf === 'high') {
+    // No confidence chosen: it says nothing about calibration, so it's left out.
+    if (confidence === 'unrated') {
+        // (not counted)
+    } else if (matrixConf === 'high') {
         if (isCorrect) matrix.hc += 1;
         else matrix.hw += 1;
     } else {
@@ -99,8 +102,8 @@ let microTopics = { ...(currentStats?.microTopics || {}) };
     let newTheta = currentStats?.irt?.theta || 0;
     
     let thetaShift = isCorrect 
-        ? (confidence === 'high' ? 0.05 : confidence === 'med' ? 0.03 : 0.01)
-        : (confidence === 'high' ? -0.05 : confidence === 'med' ? -0.03 : -0.01);
+        ? (confidence === 'high' ? 0.05 : confidence === 'med' || confidence === 'unrated' ? 0.03 : 0.01)
+        : (confidence === 'high' ? -0.05 : confidence === 'med' || confidence === 'unrated' ? -0.03 : -0.01);
     
     // Clamp to the 3PL scale (±4) that the server now persists — this optimistic
     // value is a throwaway placeholder reconciled server-side on session end; only

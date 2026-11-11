@@ -74,7 +74,7 @@ function gradeAttempts(attempts, qMap, userId) {
             // theta estimator, which consumes server-graded rows only, would drop
             // every board-sim attempt.
             userAnswer: attempt.userAnswer,
-            confidenceLevel: attempt.confidence || attempt.confidenceLevel || 'LOW',
+            confidenceLevel: attempt.confidence || attempt.confidenceLevel || 'UNRATED',
             timeSpentMs: storableTimeMs((attempt.timeSpentSecs || 0) * 1000),
             clientAttemptId: attempt.clientAttemptId,
             questionDifficulty: masterQ?.difficulty || 0.0,
