@@ -12,7 +12,45 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0f. Handover, optimization round of 2026-11-10/11 (read this first)
+## 0g. Handover, learner-loop round of 2026-11-11 (read this first)
+
+The owner asked for the next round after the optimization one: help learners track, test, assess and analyze, and fix what was found on the way. Usage measured first (read-only): 95% of answers are Practice, the tools around it go unused, reviews piled up (303 of 646 cards overdue), sessions ended at a dead end, and no question was tagged with a subtopic. Plan file: `help-me-improve-my-bubbly-toucan.md` on the owner's machine. Then, near the 5 GB egress limit, a second egress pass.
+
+| PR | What |
+|---|---|
+| #247 | A review pile that drains: at most 30 reviews a day (`DAILY_REVIEW_CAP`), the rest "later"; a card answered right after waiting over a day gets 3 days, not 1; `SRSCard.createdAt` |
+| #248 | After a session, a next step: no pass-mark verdict on review sessions or under 10 questions; Drill a topic only after 2 misses; Back to Today, Open mistakes, Next loop |
+| #249 | Honest confidence: a blank is `UNRATED`, left out of calibration and the matrix (it was MED); the client omits the field so either server version accepts it |
+| #250 | Today tells the truth: the date card for anyone without a date, "made a plan" means any plan task, the fifth readiness term, the forecast's weights, one spelling ("Math" rows became "Mathematics", migration) |
+| #251 | Tag questions by subtopic (Admin › Question bank › Subtopics): `Question.subtopicId`, the in-app AI's `classify` task saves sure picks and queues the rest for review, or another AI by copy and paste |
+| #252 | Egress: Answer positions reads only the ~150 suspect rows Postgres flags (it read all 16,910, about 16 MB a press); Practice's focus is drawn by the server |
+| #253 | Study by subtopic: Practice, a custom mock and Host a battle offer the topic's subtopics with 10+ tagged questions; Progress › Syllabus shows each one's count and your accuracy, with Drill |
+
+**Your actions:**
+1. **Tag the bank** (#251): Admin › Question bank › Subtopics, a subject at a time. Tag with the in-app AI, then work through To review. Nothing appears for learners until a subtopic has 10 tagged questions.
+2. **Copy the history archive to Drive**: `C:\Users\g16\Documents\ree-history\history-2026-11-11.jsonl.gz` and its `.json` manifest (the trim and VACUUM FULL are done: 156 MB to 92 MB).
+3. **Watch Supabase › Usage › Egress** for a few days. This cycle's total won't go down, only the daily bars. Measured on 2026-11-11 evening: about 3 MB of rows in 30 minutes of use.
+4. Still owed: a real phone check, filing the 13 quiz files.
+
+**Decisions:**
+- Review cap 30 a day, overdue-correct gets 3 days (owner's choice: cap and spread).
+- AI tags: sure picks with a listed name save at once; the rest wait for the admin (owner's choice).
+- A blank confidence is `UNRATED` (owner's choice). The SRS schedules it as MED did.
+- Every SQL filter that decides what the audit reads is exact or looser than its JS rule, never stricter; `tests/integration/optionAudit.dbtest.js` holds the two equal.
+- A preset clears a subtopic pick, because presets merge into Practice's saved form.
+
+**Not verified:**
+- A live AI tagging run (needs the deploy and the providers).
+- The new screens signed in on production; each has unit tests and CI's signed-in E2E opens Admin › Question bank › Subtopics.
+- The egress drop over days: compare `pg_stat_statements` rows for the audit query (`calls` was 186 on 2026-11-11 14:10 UTC; each press now returns about 150 rows, not 16,910).
+
+**Next, in order of value:**
+1. Run the tagging, then check a Practice set on one subtopic draws only from it.
+2. Smart drill by subtopic (not done: Practice covers a subtopic drill), and per-subtopic mastery in the forecast.
+3. Expire battle lobbies that never start (one stuck lobby exists).
+4. The boot download is at 99.7% of 700 kB: the next eager feature needs room first.
+
+## 0f. Handover, optimization round of 2026-11-10/11
 
 The owner asked for a performance and debugging pass, a first-run tour, a topic for hosted battles, and a simpler Admin › Formula cards. Measured the live database first (read-only); the plan file is `help-me-improve-my-bubbly-toucan.md` on the owner's machine.
 
@@ -26,7 +64,7 @@ The owner asked for a performance and debugging pass, a first-run tour, a topic 
 | #246 | The question-history archive script, and this handover |
 
 **Your actions:**
-1. **Archive, then trim, the history** (#246). On your computer, in `ree-tracker-backend`, put the database URL in `.env` as `DATABASE_URL` (Supabase › Connect › Session pooler; `.env` is git-ignored), then:
+1. **Archive, then trim, the history** (#246). **Done 2026-11-11** with the owner's permission (archive in Documents/ree-history; database 156 MB to 92 MB). On your computer, in `ree-tracker-backend`, put the database URL in `.env` as `DATABASE_URL` (Supabase › Connect › Session pooler; `.env` is git-ignored), then:
    - `npm run history:archive` shows the counts (expect about 28,500 versions and 14,000 review copies) and writes nothing;
    - `npm run history:archive -- --archive=history-2026-11.jsonl.gz` writes the archive and `history-2026-11.jsonl.gz.json`. It reads about 50 MB from Supabase (1% of the monthly egress);
    - copy both files somewhere safe (Drive, or a private Supabase Storage bucket);
