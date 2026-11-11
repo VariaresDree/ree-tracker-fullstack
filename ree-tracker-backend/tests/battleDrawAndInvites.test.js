@@ -96,6 +96,23 @@ describe('createBattle', () => {
         expect(again.config.subtopic).toBe('Electric Circuits 2');
     });
 
+    it('a battle on one subtopic draws only its tagged questions, and keeps it for a rematch', async () => {
+        const raw = vi.spyOn(prisma, '$queryRawUnsafe').mockResolvedValue(['q1', 'q2', 'q3', 'q4', 'q5', 'q6'].map((id) => ({ id })));
+        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => ({ id, subtopic: 'Electric Circuits 2' })));
+        vi.spyOn(prisma.battle, 'create').mockImplementation(async ({ data }) => data);
+        const config = battleCreateSchema.parse({
+            battleId: 'ABC123', timeLimitSecs: 600,
+            config: { mode: 'subject', subject: 'EE', subtopic: 'Electric Circuits 2', subtopicId: 'sub-ac', subtopicName: 'AC Circuits', count: 10 },
+        }).config;
+        const battle = await battleCreate.createBattle({ hostId: UID, battleId: 'ABC123', config, timeLimitSecs: 600 });
+        const [sql, ...params] = raw.mock.calls[0];
+        expect(sql).toContain('"subtopicId" = $6');
+        expect(params[5]).toBe('sub-ac');
+        expect(battle.config).toMatchObject({ subtopicId: 'sub-ac', subtopicName: 'AC Circuits' });
+        const again = battleCreateSchema.omit({ battleId: true }).parse({ config: battle.config, timeLimitSecs: 600 });
+        expect(again.config.subtopicId).toBe('sub-ac');
+    });
+
     it('the schema keeps the choice, and refuses one it doesn’t know', () => {
         const base = { battleId: 'ABC123', timeLimitSecs: 600 };
         const ok = battleCreateSchema.parse({ ...base, config: { mode: 'subject', subject: 'EE', drawMode: 'board' } });

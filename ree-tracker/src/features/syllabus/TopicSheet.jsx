@@ -89,7 +89,7 @@ function Figure({ label, className, children }) {
   );
 }
 
-export default function TopicSheet({ row, rows, ready, status, actions, onSave, onDrill, onClose }) {
+export default function TopicSheet({ row, rows, ready, status, actions, onSave, onDrill, onDrillSubtopic, onClose }) {
   const { done, total } = subtopicProgress(rows);
   const hasList = ready && total > 0;
   const band = bandOf(row);
@@ -141,7 +141,8 @@ export default function TopicSheet({ row, rows, ready, status, actions, onSave, 
           )}
         </div>
 
-        <TopicContents topicId={row.topicId} name={row.name} rows={rows} ready={ready} status={status} actions={actions} onFinished={finished} />
+        <TopicContents topicId={row.topicId} name={row.name} rows={rows} ready={ready} status={status} actions={actions} onFinished={finished}
+          onDrillSubtopic={onDrillSubtopic ? (sub) => onDrillSubtopic(row, sub) : undefined} />
 
         {/* Your own rating (the CELE "Meta topics"): saved as you let go. Two scales,
             because being sure of a topic and dreading it aren't opposites. */}

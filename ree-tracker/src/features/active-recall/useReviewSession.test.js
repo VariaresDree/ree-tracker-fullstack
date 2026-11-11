@@ -529,15 +529,29 @@ describe('question bank source', () => {
     fetchVaultQuestions.mockResolvedValue(bank(60, 'conceptual'));
     const { result } = setup();
     await act(() => result.current.startSession({ ...library, cognitiveFocus: 'mixed' }));
-    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 60, 'random', { focus: undefined }]]);
+    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 60, 'random', { focus: undefined, subtopicId: undefined }]]);
     expect(result.current.session.questions).toHaveLength(20);
+  });
+
+  it('a subtopic is drawn by the server too', async () => {
+    fetchVaultQuestions.mockResolvedValue(bank(60, 'conceptual'));
+    const { result } = setup();
+    await act(() => result.current.startSession({ ...library, studyMode: 'subtopic', subtopic: 'Topic 1', subtopicId: 's1', subtopicName: 'AC', cognitiveFocus: 'mixed' }));
+    expect(fetchVaultQuestions.mock.calls[0]).toEqual(['EE', 'Topic 1', 60, 'random', { focus: undefined, subtopicId: 's1' }]);
+  });
+
+  it('a stale subtopic on a subject-wide session is not sent', async () => {
+    fetchVaultQuestions.mockResolvedValue(bank(60, 'conceptual'));
+    const { result } = setup();
+    await act(() => result.current.startSession({ ...library, studyMode: 'subject', subtopicId: 's1', cognitiveFocus: 'mixed' }));
+    expect(fetchVaultQuestions.mock.calls[0][4]).toEqual({ focus: undefined, subtopicId: undefined });
   });
 
   it('a focus is drawn by the server, so one pool is enough', async () => {
     fetchVaultQuestions.mockResolvedValue(bank(150, 'calculation'));
     const { result } = setup();
     await act(() => result.current.startSession({ ...library, cognitiveFocus: 'calculation' }));
-    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 150, 'random', { focus: 'calculation' }]]);
+    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 150, 'random', { focus: 'calculation', subtopicId: undefined }]]);
     expect(result.current.session.questions).toHaveLength(20);
   });
 

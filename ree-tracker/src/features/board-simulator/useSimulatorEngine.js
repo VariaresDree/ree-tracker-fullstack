@@ -226,10 +226,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           // matching (poolFilters, shared with the printed paper), so when
           // the focus matches nothing at all the mixed set is used instead.
           const focused = !!config.cognitiveFocus && config.cognitiveFocus !== 'mixed';
-          const drawSubject = async (subject, subtopic, count) => {
+          const drawSubject = async (subject, subtopic, count, subtopicId) => {
               if (!(count > 0)) return []; // a subject the blend gives no items
               const draw = async (limit) => {
-                  const raw = await fetchVaultQuestions(subject, subtopic, limit);
+                  const raw = await (subtopicId ? fetchVaultQuestions(subject, subtopic, limit, 'random', { subtopicId }) : fetchVaultQuestions(subject, subtopic, limit));
                   const { pool: filtered, fallback } = applyFocusFilter(raw || [], config.cognitiveFocus);
                   return { fallback, picked: sample(filtered, subject, count) };
               };
@@ -261,7 +261,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               const targetSubtopic = config.isPrcStandard || config.subtopic === 'All' || !config.subtopic ? 'All' : config.subtopic;
               // Stratified so a single-subject sim spans its subtopics rather than
               // collapsing onto the dominant one. (No-op for a pinned subtopic.)
-              pool = await drawSubject(config.subject, targetSubtopic, totalCount);
+              // One subtopic of that topic, when one was picked (Question.subtopicId).
+              const subtopicId = targetSubtopic !== 'All' && config.subtopicId ? config.subtopicId : undefined;
+              pool = await drawSubject(config.subject, targetSubtopic, totalCount, subtopicId);
               // PRC schedule from @ree/shared: Math 5h, ESAS 4h, EE 6h.
               timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }

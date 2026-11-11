@@ -13,6 +13,9 @@ const BASE = {
   studyMode: 'interleaved',
   subject: 'All',
   subtopic: 'All',
+  // Presets merge into Practice's saved form, so each clears a subtopic drill's pick.
+  subtopicId: null,
+  subtopicName: null,
   cognitiveFocus: 'mixed',
 };
 
@@ -38,6 +41,18 @@ export const drillPreset = ({ topicId, topic, subject, mode, count = 10 } = {}) 
   drillTopic: topic || null,
   drillSubject: subject || null,
   drillMode: mode || null,
+});
+
+/** Questions tagged with one subtopic of a topic (Question.subtopicId). */
+export const subtopicDrillPreset = ({ subject, topic, subtopicId, subtopicName, count = 10 } = {}) => ({
+  ...BASE,
+  studyMode: 'subtopic',
+  subject,
+  subtopic: topic,
+  subtopicId,
+  subtopicName: subtopicName || null,
+  count,
+  source: 'library',
 });
 
 /**

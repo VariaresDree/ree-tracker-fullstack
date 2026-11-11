@@ -19,19 +19,29 @@ export const BUILDER_COUNTS = [10, 20, 50, 100];
 
 export function customView(config) {
   const scoped = STUDY_MODES.includes(config.studyMode);
+  const inTopic = config.studyMode === 'subtopic' && !!config.subtopicId;
   return {
     ...config,
     studyMode: scoped ? config.studyMode : 'interleaved',
     subject: scoped ? config.subject : 'All',
     subtopic: scoped ? config.subtopic : 'All',
+    subtopicId: inTopic ? config.subtopicId : null,
+    subtopicName: inTopic ? config.subtopicName || null : null,
     source: CUSTOM_SOURCES.includes(config.source) ? config.source : 'library',
   };
 }
 
 /** Which subject and topic, in the session's terms. 'All' means every one. */
 export function chooseScope(view, subject, topic = 'All') {
-  if (subject === 'All') return { ...view, studyMode: 'interleaved', subject: 'All', subtopic: 'All' };
-  return { ...view, studyMode: topic === 'All' ? 'subject' : 'subtopic', subject, subtopic: topic };
+  const none = { subtopicId: null, subtopicName: null };
+  if (subject === 'All') return { ...view, ...none, studyMode: 'interleaved', subject: 'All', subtopic: 'All' };
+  return { ...view, ...none, studyMode: topic === 'All' ? 'subject' : 'subtopic', subject, subtopic: topic };
+}
+
+/** One subtopic of the picked topic (Question.subtopicId), or null for all of it. */
+export function chooseSubtopic(view, sub) {
+  if (view.studyMode !== 'subtopic') return view;
+  return { ...view, subtopicId: sub?.id ?? null, subtopicName: sub?.name ?? null };
 }
 
 /** A topic retired since it was remembered falls back to its whole subject. */
@@ -43,7 +53,7 @@ export function liveScope(view, topicsBySubject) {
 /** "20 choice · EE · mixed", with the source when it isn't the bank. */
 export function builderSummary(view) {
   const where = view.studyMode === 'interleaved' ? 'all subjects'
-    : view.studyMode === 'subtopic' ? view.subtopic
+    : view.studyMode === 'subtopic' ? view.subtopicName || view.subtopic
       : SUBJECT_LABEL[view.subject] || view.subject;
   return [
     `${view.count} ${view.sessionMode === 'flashcard' ? 'cards' : 'choice'}`,
@@ -65,8 +75,8 @@ export function readRememberedBuilder() {
 }
 
 export function rememberBuilder(view) {
-  const { studyMode, subject, subtopic, sessionMode, cognitiveFocus, count, source } = view;
+  const { studyMode, subject, subtopic, subtopicId, subtopicName, sessionMode, cognitiveFocus, count, source } = view;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ studyMode, subject, subtopic, sessionMode, cognitiveFocus, count, source }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ studyMode, subject, subtopic, subtopicId, subtopicName, sessionMode, cognitiveFocus, count, source }));
   } catch { /* it holds for this visit */ }
 }

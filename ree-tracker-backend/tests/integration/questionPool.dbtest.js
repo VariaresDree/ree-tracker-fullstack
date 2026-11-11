@@ -76,3 +76,44 @@ describe('a focus drawn by the server', () => {
         }
     });
 });
+
+describe('drawn by subtopic', () => {
+    const TAG = `${RUN}-tag`;
+    beforeAll(async () => {
+        await prisma.topic.create({ data: { id: `${TAG}-topic`, subject: 'EE', name: `${TAG} Topic`, normKey: `${TAG} topic` } });
+        await prisma.syllabusSubtopic.createMany({
+            data: [
+                { id: `${TAG}-s1`, topicId: `${TAG}-topic`, name: 'One', normKey: 'one' },
+                { id: `${TAG}-s2`, topicId: `${TAG}-topic`, name: 'Two', normKey: 'two' },
+            ],
+        });
+        await prisma.question.createMany({
+            data: [1, 2, 3].map((n) => ({
+                id: `${TAG}-q${n}`, subject: 'EE', subtopic: `${TAG} Topic`, topicId: `${TAG}-topic`, text: `t${n}`, options: ['A', 'B'], answer: 'A',
+                subtopicId: n === 3 ? `${TAG}-s2` : `${TAG}-s1`, type: n === 2 ? 'calculation' : 'conceptual',
+            })),
+        });
+    });
+    afterAll(async () => {
+        await prisma.question.deleteMany({ where: { id: { startsWith: TAG } } });
+        await prisma.syllabusSubtopic.deleteMany({ where: { topicId: `${TAG}-topic` } });
+        await prisma.topic.deleteMany({ where: { id: `${TAG}-topic` } });
+    });
+
+    it('only that subtopic’s questions, on every branch, and with a focus', async () => {
+        const mine = (ids) => ids.filter((id) => id.startsWith(TAG)).sort();
+        const s1 = `${TAG}-s1`;
+        for (const spec of [{ subtopic: `${TAG} Topic` }, { subjectValues: ['EE'], subtopic: `${TAG} Topic` }, { subjectValues: ['EE'] }, {}]) {
+            expect(mine(await questionPool.sampleQuestionIds({ ...spec, limit: 2000, subtopicId: s1 }))).toEqual([`${TAG}-q1`, `${TAG}-q2`]);
+            expect(mine(await questionPool.sampleQuestionIds({ ...spec, limit: 2000, subtopicId: s1, focus: 'calculation' }))).toEqual([`${TAG}-q2`]);
+        }
+        const pool = await questionPool.samplePool({ subject: 'EE', subtopic: `${TAG} Topic`, subtopicId: `${TAG}-s2`, limit: 10 });
+        expect(pool.map((q) => q.id)).toEqual([`${TAG}-q3`]);
+    });
+
+    it('a subtopic removed untags its questions rather than delete them', async () => {
+        await prisma.syllabusSubtopic.delete({ where: { id: `${TAG}-s2` } });
+        const q = await prisma.question.findUnique({ where: { id: `${TAG}-q3` }, select: { subtopicId: true } });
+        expect(q).toEqual({ subtopicId: null });
+    });
+});

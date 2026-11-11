@@ -56,7 +56,7 @@ async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOf
     const avoid = { ...(avoidIds?.length ? { avoidIds } : {}), ...(groups ? { groups } : {}) };
     const pool = config.mode === 'blended'
         ? await questionPool.sampleBlendedPool(100, avoid)
-        : await questionPool.samplePool({ subject: config.subject, subtopic: config.subtopic, limit: config.count, ...avoid });
+        : await questionPool.samplePool({ subject: config.subject, subtopic: config.subtopic, subtopicId: config.subtopicId, limit: config.count, ...avoid });
 
     if (pool.length === 0) return null;
 
