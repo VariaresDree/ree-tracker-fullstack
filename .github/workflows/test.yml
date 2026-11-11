@@ -240,8 +240,22 @@ jobs:
         run: npx prisma migrate deploy
         working-directory: ree-tracker-backend
 
+      # --with-deps runs apt-get, and on 2026-11-11 the runner couldn't resolve
+      # Ubuntu's mirror (azure.archive.ubuntu.com) for an hour, failing every
+      # E2E run before a test ran. Tried twice (a healthy install takes about a
+      # minute; a dead mirror took 8), then the browser alone: the runner image
+      # already has Chromium's libraries (the packages that failed were fonts,
+      # and no spec compares screenshots). A library truly missing would stop
+      # Chromium launching, so the specs still fail loudly.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          for attempt in 1 2; do
+            if timeout 300 npx playwright install --with-deps chromium; then exit 0; fi
+            echo "Install with system packages failed (attempt $attempt)."
+            sleep 30
+          done
+          echo "::warning::apt mirrors unreachable; installing Chromium without system packages."
+          npx playwright install chromium
         working-directory: ree-tracker
 
       - name: Signed-in specs
