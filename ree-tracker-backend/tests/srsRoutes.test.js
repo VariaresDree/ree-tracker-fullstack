@@ -66,20 +66,30 @@ describe('GET /api/srs/due', () => {
 
 describe('GET /api/srs/summary', () => {
     it('folds subject spellings and reports due, overdue, total and the next due time', async () => {
-        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([
-            { subject: 'Math', due: 2, overdue: 1, total: 5, nextDueAt: new Date('2026-10-05T16:00:00Z') },
-            { subject: 'Mathematics', due: 1, overdue: 0, total: 2, nextDueAt: new Date('2026-10-03T16:00:00Z') },
-            { subject: 'EE', due: 4, overdue: 4, total: 9, nextDueAt: null },
-        ]);
+        vi.spyOn(prisma, '$queryRaw')
+            .mockResolvedValueOnce([
+                { subject: 'Math', due: 2, overdue: 1, total: 5, nextDueAt: new Date('2026-10-05T16:00:00Z') },
+                { subject: 'Mathematics', due: 1, overdue: 0, total: 2, nextDueAt: new Date('2026-10-03T16:00:00Z') },
+                { subject: 'EE', due: 4, overdue: 4, total: 9, nextDueAt: null },
+            ])
+            .mockResolvedValueOnce([{ due: 7, done: 0 }]);
 
         const res = await request(makeApp()).get('/api/srs/summary').set(as(UID));
 
         expect(res.status).toBe(200);
         expect(res.body).toMatchObject({
-            due: 7, overdue: 5, total: 16,
+            due: 7, overdue: 5, total: 16, later: 0, doneToday: 0, dueTotal: 7, cap: 30,
             bySubject: { Mathematics: 3, EE: 4 },
             nextDueAt: '2026-10-03T16:00:00.000Z',
         });
+    });
+
+    it('asks for at most 30 a day: the rest wait, and what was done today counts', async () => {
+        vi.spyOn(prisma, '$queryRaw')
+            .mockResolvedValueOnce([{ subject: 'EE', due: 169, overdue: 160, total: 200, nextDueAt: null }])
+            .mockResolvedValueOnce([{ due: 169, done: 12 }]);
+        const res = await request(makeApp()).get('/api/srs/summary').set(as(UID));
+        expect(res.body).toMatchObject({ due: 18, later: 151, doneToday: 12, dueTotal: 169, overdue: 160 });
     });
 
     it('the client-trusting POST /review is gone', async () => {

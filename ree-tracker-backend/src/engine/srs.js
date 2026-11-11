@@ -16,6 +16,12 @@
 // schedules formula-card ratings the same way; re-exported here unchanged.
 const { MIN_EASE, NEW_CARD, scheduleNext, manilaDueInstant } = require('@ree/shared');
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+// A card answered right after waiting over a day past its date. SM-2 alone
+// brings a lapsed card back the next day however long it waited, so a backlog
+// served 30 a day never drained: these go out 3 days instead.
+const OVERDUE_MIN_INTERVAL = 3;
+
 /**
  * SM-2 quality (0-5) from what the learner did. Confidence separates a solid
  * recall (5) from a lucky one (3); a confident MISS is a blind spot and scores
@@ -44,7 +50,7 @@ function shouldTrack({ isCorrect, confidenceLevel }, hasCard) {
  * Fold a batch of answers (in answer order) into the card state to write.
  *
  * @param {Array<{questionId, isCorrect, confidenceLevel, answeredAt}>} attempts
- * @param {Map<string, {easeFactor, interval, repetitions}>} existing stored cards by questionId
+ * @param {Map<string, {easeFactor, interval, repetitions, nextReviewDate?}>} existing stored cards by questionId
  * @returns {Map<string, {easeFactor, interval, repetitions, nextReviewDate, lastReviewed}>}
  */
 function foldCardUpdates(attempts, existing) {
@@ -55,6 +61,8 @@ function foldCardUpdates(attempts, existing) {
         if (!shouldTrack(a, !!current)) continue;
         const at = a.answeredAt instanceof Date ? a.answeredAt : new Date(a.answeredAt || Date.now());
         const next = scheduleNext(current || NEW_CARD, qualityFor(a));
+        const waited = current?.nextReviewDate ? at - new Date(current.nextReviewDate) : 0;
+        if (a.isCorrect && waited > DAY_MS && next.interval < OVERDUE_MIN_INTERVAL) next.interval = OVERDUE_MIN_INTERVAL;
         out.set(a.questionId, {
             ...next,
             nextReviewDate: manilaDueInstant(at, next.interval),
@@ -72,4 +80,5 @@ module.exports = {
     manilaDueInstant,
     shouldTrack,
     foldCardUpdates,
+    OVERDUE_MIN_INTERVAL,
 };

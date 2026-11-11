@@ -81,7 +81,7 @@ describe('sending', () => {
             claims.add(where.id);
             return { count: 1 };
         });
-        vi.spyOn(prisma.sRSCard, 'count').mockResolvedValue(0);
+        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ due: 0, done: 0 }]);
         vi.spyOn(prisma.cardReview, 'count').mockResolvedValue(0);
         vi.spyOn(prisma.plannerTask, 'findFirst').mockResolvedValue(null);
         const send = vi.spyOn(pushService, 'sendToUser').mockResolvedValue({ delivered: 1 });
@@ -95,6 +95,17 @@ describe('sending', () => {
         const second = await sendDueReminders({ now });
         expect(second.sent).toBe(0);
         expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('counts only today’s share of the reviews, as Today does', async () => {
+        vi.spyOn(prisma.user, 'findMany').mockResolvedValue([{ id: 'c', globalStreak: 0, activityLogs: [{ date: '2026-10-14' }] }]);
+        vi.spyOn(prisma.user, 'updateMany').mockResolvedValue({ count: 1 });
+        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ due: 169, done: 0 }]);
+        vi.spyOn(prisma.cardReview, 'count').mockResolvedValue(0);
+        vi.spyOn(prisma.plannerTask, 'findFirst').mockResolvedValue(null);
+        const send = vi.spyOn(pushService, 'sendToUser').mockResolvedValue({ delivered: 1 });
+        await sendDueReminders({ now });
+        expect(send.mock.calls[0][1]).toMatchObject({ title: '30 reviews due' });
     });
 });
 
