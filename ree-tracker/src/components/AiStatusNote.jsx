@@ -7,7 +7,7 @@ import { aiStatusMessage } from '../utils/aiStatusMessage';
 
 const COLOR = { amber: 'var(--color-reeAmber-text)', danger: 'var(--accent-danger)' };
 
-/** `task`: report | explain | practice | author | verify | vision. */
+/** `task`: report | explain | practice | author | verify | vision | classify. */
 export default function AiStatusNote({ task, className = '' }) {
   const { status } = useAiStatus();
   const msg = aiStatusMessage(status?.tasks?.[task]);

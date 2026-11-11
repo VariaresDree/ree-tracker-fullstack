@@ -196,6 +196,28 @@ const TASKS = {
             'openrouter:@pick:nemotron-3-ultra|deepseek-r1|qwen3-235b|gpt-oss-120b|*',
         ],
     },
+    // Admin: sorting questions into their topic's subtopics (Tag subtopics).
+    // A short pick from a fixed list, so a fast model at temperature 0; the
+    // admin reviews every answer the model isn't sure of.
+    classify: {
+        label: 'Subtopic tagging',
+        audience: 'admin',
+        tier: 'fast',
+        json: true,
+        perModelTimeoutMs: 30_000,
+        budgetMs: 70_000,
+        maxTokens: 8_000,
+        temperature: 0,
+        reasoningEffort: 'low',
+        chain: [
+            'groq:openai/gpt-oss-120b',
+            'cerebras:gpt-oss-120b',
+            GROQ_ALT,
+            OR_GENERAL,
+            'gemini:gemini-2.5-flash',
+            'gemini:gemini-2.5-flash-lite',
+        ],
+    },
     // Admin: questions read out of a photo or scanned page.
     vision: {
         label: 'Image extraction',

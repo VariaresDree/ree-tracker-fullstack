@@ -5,11 +5,16 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
 const idempotency = require('../middlewares/idempotency');
-const { questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { tagBulkSchema, tagClearSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
 const { normalizeSubject } = require('@ree/shared');
+
+// A subtopic tag belongs to the question's topic: moving the question to
+// another topic (or to none) drops the tag rather than leave it pointing
+// outside. Same topic, tag kept.
+const untagIfMoved = (previous, topic) => ((topic?.id ?? null) === previous.topicId ? {} : { subtopicId: null });
 const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
 const { openBattleQuestionIds } = require('../services/answerGate');
@@ -20,6 +25,7 @@ const optionAudit = require('../services/optionAudit');
 const { matchOption } = require('../utils/sanitizeOptions');
 const { importQuestions } = require('../services/questionImport');
 const { questionsForChecking, replacePreview, replaceQuestions } = require('../services/questionReplace');
+const { taggingOverview, questionsForTagging, applyTags, clearTags } = require('../services/subtopicTagging');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
 // flag, explanation change — can move the vault counts or the pack-manifest
@@ -183,7 +189,7 @@ router.put('/quarantine/:id/approve', authMiddleware, requireAdmin, async (req, 
         await prisma.$transaction([
             prisma.question.update({
                 where: { id: req.params.id },
-                data: { isFlagged: false, subject: req.body.subject === undefined ? undefined : normalizeSubject(req.body.subject), subtopic: topic?.name || req.body.subtopic, topicId: topic?.id ?? null }
+                data: { isFlagged: false, subject: req.body.subject === undefined ? undefined : normalizeSubject(req.body.subject), subtopic: topic?.name || req.body.subtopic, topicId: topic?.id ?? null, ...untagIfMoved(previous, topic) }
             }),
             prisma.questionVersion.create({
                 data: { questionId: previous.id, action: 'APPROVED', editor: req.user?.id || null, snapshot: buildVersionSnapshot(previous) },
@@ -284,6 +290,49 @@ router.post('/replace-bulk', authMiddleware, requireAdmin, validate(questionRepl
     } catch (error) {
         logger.error('Question replace error', { error: error.message });
         return res.status(500).json({ error: 'Nothing was changed. Try again.' });
+    }
+});
+
+// Subtopic tags (Admin › Question bank › Tag subtopics).
+router.get('/tagging-overview', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        return res.status(200).json(await taggingOverview({ subject: req.query.subject }));
+    } catch (error) {
+        logger.error('Tagging overview error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the topics.' });
+    }
+});
+
+router.get('/for-tagging', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { topicId, all, limit, offset } = req.query;
+        if (typeof topicId !== 'string' || !topicId) return res.status(400).json({ error: 'Pick a topic.' });
+        const page = await questionsForTagging({
+            topicId, untagged: all !== '1', limit: parseInt(limit, 10) || 50, offset: Math.max(0, parseInt(offset, 10) || 0),
+        });
+        if (!page) return res.status(404).json({ error: 'No such topic.' });
+        return res.status(200).json(page);
+    } catch (error) {
+        logger.error('Questions for tagging error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the questions.' });
+    }
+});
+
+router.post('/tag-bulk', authMiddleware, requireAdmin, validate(tagBulkSchema), idempotency(), async (req, res) => {
+    try {
+        return res.status(200).json({ success: true, ...await applyTags(req.body.items) });
+    } catch (error) {
+        logger.error('Tag save error', { error: error.message });
+        return res.status(500).json({ error: 'Nothing was saved. Try again.' });
+    }
+});
+
+router.post('/tag-clear', authMiddleware, requireAdmin, validate(tagClearSchema), idempotency(), async (req, res) => {
+    try {
+        return res.status(200).json({ success: true, ...await clearTags(req.body) });
+    } catch (error) {
+        logger.error('Tag clear error', { error: error.message });
+        return res.status(500).json({ error: 'Nothing was cleared. Try again.' });
     }
 });
 
@@ -393,6 +442,7 @@ router.put('/:id', authMiddleware, requireAdmin, validate(questionUpdateSchema),
                     subject: data.subject === undefined ? undefined : normalizeSubject(data.subject),
                     subtopic: topic !== undefined ? (topic?.name || data.subtopic) : undefined,
                     topicId: topic !== undefined ? (topic?.id ?? null) : undefined,
+                    ...(topic !== undefined ? untagIfMoved(previous, topic) : {}),
                     text: data.text,
                     options: data.options,
                     answer,

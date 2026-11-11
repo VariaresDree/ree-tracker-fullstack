@@ -55,6 +55,7 @@ const AI_TIMEOUT_MS = {
     author: 125_000,
     verify: 115_000,
     vision: 125_000,
+    classify: 80_000,
 };
 
 const OFFLINE_MESSAGE = 'Cannot connect to AI while offline.';
@@ -62,7 +63,7 @@ const OFFLINE_MESSAGE = 'Cannot connect to AI while offline.';
 // Admin tasks are long and run on free-tier keys, where a whole chain can fail
 // in a bad minute (every model rate limited at once). One more try a few
 // seconds later usually lands; learner tasks fail fast instead.
-const RETRY_TASKS = new Set(['author', 'verify', 'vision']);
+const RETRY_TASKS = new Set(['author', 'verify', 'vision', 'classify']);
 export const AI_RETRY_DELAY_MS = 4_000;
 
 // Why each model failed, in the words of Admin › AI status.
