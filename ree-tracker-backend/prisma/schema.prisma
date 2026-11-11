@@ -176,6 +176,11 @@ model Question {
   // (which is rewritten to the canonical topic name once mapped).
   topicId          String?
   topic            Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  // A subtopic inside topicId (Admin › Question bank › Tag subtopics). Named
+  // subtopicId because `subtopic` above already holds the topic's name.
+  // Cleared wherever topicId changes, so it never points outside its topic.
+  subtopicId       String?
+  syllabusSubtopic SyllabusSubtopic? @relation(fields: [subtopicId], references: [id], onDelete: SetNull)
   text             String
   options          String[]
   answer           String
@@ -228,6 +233,7 @@ model Question {
   // index they full-scan the question bank on every readiness cache-miss and
   // every battle create.
   @@index([isFlagged, subtopic])
+  @@index([subtopicId])
   // Analytics/readiness aggregate attempts through Question→Topic joins.
   @@index([topicId])
 }
@@ -1241,6 +1247,7 @@ model SyllabusSubtopic {
   updatedAt DateTime @updatedAt
   topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
   userRows  UserSubtopic[]
+  questions Question[]
 
   @@unique([topicId, normKey])
   @@index([topicId, active, sortOrder])

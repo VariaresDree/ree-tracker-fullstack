@@ -12,6 +12,7 @@ const probe = (name) => ({ default: (props) => {
 vi.mock('../../features/admin/ai/QuestionGenerator', () => probe('generator'));
 vi.mock('../../features/admin/exchange/ImportFromAI', () => probe('import'));
 vi.mock('../../features/admin/exchange/FixWithAI', () => probe('fix-with-ai'));
+vi.mock('../../features/admin/exchange/TagSubtopics', () => probe('tag-subtopics'));
 vi.mock('../../features/admin/AnswerPositions', () => probe('answer-positions'));
 vi.mock('../../features/library/LibraryIngestion', () => probe('from-a-file'));
 vi.mock('../../features/library/LibraryOverview', () => probe('overview'));
@@ -50,7 +51,7 @@ describe('Question bank views', () => {
     expect(screen.getByRole('radio', { name: 'Bank' })).toBeChecked();
     expect(shown('overview')).toBe(true);
     expect(shown('grid')).toBe(true);
-    for (const name of ['generator', 'import', 'from-a-file', 'manual', 'review-queue', 'fix-with-ai', 'answer-positions']) {
+    for (const name of ['generator', 'import', 'from-a-file', 'manual', 'review-queue', 'fix-with-ai', 'answer-positions', 'tag-subtopics']) {
       expect(mounted).not.toHaveBeenCalledWith(name);
     }
   });
@@ -83,6 +84,9 @@ describe('Question bank views', () => {
     pick('Fix');
     expect(shown('fix-with-ai')).toBe(true);
     expect(shown('answer-positions')).toBe(true);
+    pick('Subtopics');
+    expect(shown('tag-subtopics')).toBe(true);
+    expect(shown('fix-with-ai')).toBe(false);
   });
 
   it('switching away keeps a tool mounted, so work in progress survives', () => {

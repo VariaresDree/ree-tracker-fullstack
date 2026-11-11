@@ -21,6 +21,7 @@ import LibraryIngestion from '../../features/library/LibraryIngestion';
 import QuestionGenerator from '../../features/admin/ai/QuestionGenerator';
 import ImportFromAI from '../../features/admin/exchange/ImportFromAI';
 import FixWithAI from '../../features/admin/exchange/FixWithAI';
+import TagSubtopics from '../../features/admin/exchange/TagSubtopics';
 import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import ReviewQueue from '../../features/library/ReviewQueue';
@@ -33,6 +34,7 @@ const VIEWS = [
   { value: 'add', label: 'Add' },
   { value: 'review', label: 'Review' },
   { value: 'fix', label: 'Fix' },
+  { value: 'tag', label: 'Subtopics' },
 ];
 const ADD_WAYS = [
   { value: 'generate', label: 'Generate' },
@@ -172,6 +174,10 @@ export default function QuestionBank() {
       <Pane opened={openedViews} id="fix" current={view}>
         <FixWithAI onSaved={onSaved} />
         <AnswerPositions />
+      </Pane>
+
+      <Pane opened={openedViews} id="tag" current={view}>
+        <TagSubtopics />
       </Pane>
     </div>
   );

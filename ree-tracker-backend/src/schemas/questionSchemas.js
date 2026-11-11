@@ -89,4 +89,13 @@ const questionReplaceSchema = z.object({
 });
 const replacePreviewSchema = z.object({ ids: z.array(z.string().min(1).max(100)).min(1).max(200) });
 
-module.exports = { questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
+// Subtopic tags (services/subtopicTagging). null untags.
+const tagBulkSchema = z.object({
+    items: z.array(z.object({
+        id: z.string().min(1).max(100),
+        subtopicId: z.string().min(1).max(100).nullable(),
+    })).min(1).max(200),
+});
+const tagClearSchema = z.object({ topicId: z.string().min(1).max(100) });
+
+module.exports = { tagBulkSchema, tagClearSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };

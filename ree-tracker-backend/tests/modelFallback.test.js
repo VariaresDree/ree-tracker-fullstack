@@ -140,7 +140,7 @@ describe('runTask', () => {
     });
 
     it('gives each admin model at most about 45% of the budget, so a stalled one leaves room for others', () => {
-        for (const id of ['author', 'verify', 'vision']) {
+        for (const id of ['author', 'verify', 'vision', 'classify']) {
             expect(TASKS[id].perModelTimeoutMs / TASKS[id].budgetMs).toBeLessThanOrEqual(0.46);
         }
     });
