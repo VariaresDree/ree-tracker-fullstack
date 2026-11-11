@@ -1,7 +1,7 @@
 import { MotionConfig, motion } from 'motion/react';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Stat, Skeleton } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
-import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
+import { DEFAULT_SYLLABUS_WEIGHTS, GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
 import { isEarlyEstimate } from './earlyEstimate';
 
 // Motion presets — spring tuned to settle in ~700ms with a 6% overshoot.
@@ -17,10 +17,12 @@ const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 
 // One-line definition of the feature, shown in every state so the user
 // understands what they're looking at even before any data lands.
+const pctOf = (w) => Math.round(w * 100);
 const ABOUT_TRAJECTORY =
-  'Your chance of passing under the PRC rule: a 70% weighted average with no subject below 50%.';
+  `Your chance of passing under the PRC rule: a 70% weighted average (Mathematics ${pctOf(DEFAULT_SYLLABUS_WEIGHTS.Mathematics)}%, ESAS ${pctOf(DEFAULT_SYLLABUS_WEIGHTS.ESAS)}%, EE ${pctOf(DEFAULT_SYLLABUS_WEIGHTS.EE)}%) with no subject below 50%.`;
 
-export function TrajectoryCard() {
+/** @param {{ answered?: number }} props  answers so far, so "Early estimate" agrees with Today's */
+export function TrajectoryCard({ answered = Infinity } = {}) {
   const { snapshot, loading, error, recompute } = useForecast();
 
   if (loading && !snapshot) {
@@ -79,7 +81,7 @@ export function TrajectoryCard() {
   const binding = projection?.bindingSubject;
   // Cold start: no topic-level signal yet means the projection is mostly the
   // prior. Say so rather than implying these are hardened numbers.
-  const early = isEarlyEstimate({ snapshot });
+  const early = isEarlyEstimate({ snapshot, answered });
 
   return (
     <MotionConfig reducedMotion="user">

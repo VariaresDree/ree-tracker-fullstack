@@ -4,9 +4,11 @@
 // plan) writes a task per day; until now nothing outside the planner said what
 // today's was, so a generated plan was easy to forget.
 //
-// Undefined while the tasks are loading, so Today can hold its lead action
-// until it knows; null when there is no task today, offline, or on a failed
-// request (which used to leave it loading for good).
+// `task`: undefined while the tasks are loading, so Today can hold its lead
+// action until it knows; null when there is no task today, offline, or on a
+// failed request (which used to leave it loading for good). `hasPlan`: any
+// plan task at all. "Make your study plan" un-ticked itself on a rest day or
+// once today's task was done, when it read today's task instead.
 import { useEffect, useState } from 'react';
 import { fetchPlannerTasks } from '../../services/dbQueries';
 import { todayManila } from '../../utils/manilaDate';
@@ -25,7 +27,7 @@ export function usePlanToday({ enabled = true } = {}) {
     return () => { live = false; };
   }, [enabled]);
 
-  if (!enabled) return null;
-  if (tasks === null) return undefined;
-  return pickPlanTask(tasks, todayManila());
+  if (!enabled) return { task: null, hasPlan: false };
+  if (tasks === null) return { task: undefined, hasPlan: false };
+  return { task: pickPlanTask(tasks, todayManila()), hasPlan: tasks.length > 0 };
 }

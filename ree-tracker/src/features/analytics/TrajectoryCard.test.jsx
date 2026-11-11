@@ -56,3 +56,20 @@ describe('TrajectoryCard', () => {
     expect(screen.getByText('Topnotcher chance')).toBeInTheDocument();
   });
 });
+
+describe('TrajectoryCard and Today agree', () => {
+  it('under 100 answers it is an early estimate, as on Today', () => {
+    forecast = { snapshot: snapshot(), loading: false, error: null, recompute: vi.fn() };
+    const { unmount } = render(<TrajectoryCard answered={40} />);
+    expect(screen.getByText('Early estimate')).toBeInTheDocument();
+    unmount();
+    render(<TrajectoryCard answered={400} />);
+    expect(screen.queryByText('Early estimate')).not.toBeInTheDocument();
+  });
+
+  it('names the board’s subject weights beside the rule', () => {
+    forecast = { snapshot: snapshot(), loading: false, error: null, recompute: vi.fn() };
+    render(<TrajectoryCard answered={400} />);
+    expect(screen.getByText(/Mathematics 25%, ESAS 30%, EE 45%/)).toBeInTheDocument();
+  });
+});

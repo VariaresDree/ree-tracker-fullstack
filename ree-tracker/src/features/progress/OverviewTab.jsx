@@ -95,7 +95,7 @@ export default function OverviewTab({ stats, kpi, today }) {
             <ThetaVelocityChart history={stats?.thetaHistory} range={range} />
           </Suspense>
         </Panel>
-        <TrajectoryCard />
+        <TrajectoryCard answered={stats?.totalAnswered} />
       </Grid>
 
       <Link

@@ -63,6 +63,9 @@ const BREAKDOWN = [
   ['accuracyRate', 'Accuracy'],
   ['thetaNormalized', 'Ability'],
   ['consistency', 'Consistency'],
+  // The fifth term: the share of practised topics above 40% accuracy (the
+  // server sends the share below, blindSpotRatio).
+  ['blindSpotRatio', 'Topics above 40%', true],
 ];
 
 // Beside a number that is still mostly the starting guess (earlyEstimate.js).
@@ -102,10 +105,10 @@ function ReadinessTile({ readiness, trend, settled, isOnline, early }) {
           )}
           {readiness.breakdown && (
             <dl className="mt-auto pt-1 flex flex-col gap-1 text-xs">
-              {BREAKDOWN.map(([key, label]) => (
+              {BREAKDOWN.map(([key, label, invert]) => (
                 <div key={key} className="flex justify-between gap-2">
                   <dt className="text-muted2">{label}</dt>
-                  <dd className="text-textMain tabular-nums">{readiness.breakdown[key] ?? 0}%</dd>
+                  <dd className="text-textMain tabular-nums">{invert ? 100 - (readiness.breakdown[key] ?? 0) : (readiness.breakdown[key] ?? 0)}%</dd>
                 </div>
               ))}
             </dl>
@@ -251,7 +254,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   const { summary: srs, loading: srsLoading } = useSrsSummary({ enabled: isOnline });
   const cards = useCardReviewSummary({ enabled: isOnline });
   const loop = useTodayLoop({ enabled: isOnline });
-  const planTask = usePlanToday({ enabled: isOnline });
+  const { task: planTask, hasPlan } = usePlanToday({ enabled: isOnline });
   const calendar = usePlanCalendar({ fetchIfOlderThanMs: CALENDAR_FRESH_MS });
   const todayOnCalendar = calendarToday(calendar, today || todayManila());
   const daily = dailyProgress(stats, today);
@@ -276,7 +279,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   // until then), so a device doesn't flash a card finished on another.
   const [tourDone, setTourDone] = useState(false);
   const placed = placement.status?.status === 'completed';
-  const setUp = placed && !!stats?.examDate && !!planTask && answered > 0;
+  const setUp = placed && !!stats?.examDate && hasPlan && answered > 0;
   const showTour = !!uid && stats?.tourDoneAt === null && !tourDone && !setUp && !tourSeen(uid);
   const early = isEarlyEstimate({ snapshot, answered });
   // One onboarding card at a time: the placement prompt, then the exam plan.
@@ -325,7 +328,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
             uid={uid}
             placed={placed}
             hasDate={!!stats?.examDate}
-            hasPlan={!!planTask}
+            hasPlan={hasPlan}
             practised={answered > 0}
             onDone={() => setTourDone(true)}
           />
@@ -333,7 +336,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
       ) : (
         <>
           <PlacementPrompt status={placement.status} answered={answered} dismissed={placement.dismissed} onDismiss={placement.dismiss} />
-          <FirstRunCard uid={uid} show={!stats?.examDate && placement.isNew && placement.settled && !placementCard} />
+          <FirstRunCard uid={uid} show={!stats?.examDate && placement.settled && !placementCard} />
         </>
       )}
 
