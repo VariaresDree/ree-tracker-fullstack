@@ -52,6 +52,16 @@ describe('buildTodayActions', () => {
     expect(actions[2].title).toBe('40 more to hit today’s target');
   });
 
+  it('says how many reviews wait for later days, past today’s 30', () => {
+    const [srsAction] = buildTodayActions({ srs: { due: 30, overdue: 30, later: 139 } });
+    expect(srsAction.title).toBe('Review 30 due questions');
+    expect(srsAction.detail).toMatch(/139 more wait for later days.$/);
+    const [loopAction] = buildTodayActions({ loop: { items: [{ id: 'a' }], counts: { due: 1 }, more: 0, reviewsLater: 12 } });
+    expect(loopAction.detail).toMatch(/12 more wait for later days.$/);
+    const [plain] = buildTodayActions({ srs: { due: 4, overdue: 0, later: 0 } });
+    expect(plain.detail).not.toMatch(/later days/);
+  });
+
   it('a DRILL prescription becomes a targeted drill on that topic', () => {
     const [fix] = buildTodayActions({ forecast: forecast([{ type: 'DRILL', payload: { topic: 'Calculus', subject: 'Mathematics' } }]) });
     expect(fix).toMatchObject({ key: 'fix', title: 'Drill Calculus', preset: expect.objectContaining({ source: 'smart-drill', drillTopic: 'Calculus' }) });

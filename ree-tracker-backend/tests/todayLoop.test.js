@@ -95,6 +95,7 @@ describe('GET /api/user/today-loop', () => {
         vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
         const cards = vi.spyOn(prisma.cardReview, 'count').mockResolvedValue(3);
+        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ due: 2, done: 0 }]);
         vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([
             { battle: { id: 'LIVE01', questions: [{ id: 'in-battle' }], startedAt: new Date(), timeLimitSecs: 600, createdAt: new Date() } },
         ]);
@@ -124,6 +125,7 @@ describe('GET /api/user/today-loop', () => {
         vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.cardReview, 'count').mockResolvedValue(1);
+        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ due: 1, done: 0 }]);
         vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
         const rows = vi.spyOn(prisma.cardReview, 'findMany').mockResolvedValue([{ card: { id: 'c1', subject: 'EE', name: 'Ohm', status: 'LIVE' } }]);
 
@@ -135,5 +137,22 @@ describe('GET /api/user/today-loop', () => {
         expect(res.body.items.map((i) => i.id)).toEqual(['due-ee', 'card:c1']);
         expect(res.body.counts).toMatchObject({ due: 1, cards: 1 });
         expect(rows.mock.calls[0][0]).toMatchObject({ where: { userId: 'uid-loop', card: { status: 'LIVE' } }, take: 8 });
+    });
+
+    it('holds no more due reviews than are left of today’s 30, and says how many wait', async () => {
+        const due = Array.from({ length: 40 }, (_, i) => ({ question: q(`d${i}`, 'EE') }));
+        vi.spyOn(prisma.sRSCard, 'findMany').mockResolvedValue(due);
+        vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => q(id, 'EE')));
+        vi.spyOn(prisma.questionAttempt, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.mistakeTag, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.cardReview, 'count').mockResolvedValue(0);
+        vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
+        // 169 due, 22 already done today: 8 left today.
+        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ due: 169, done: 22 }]);
+        const res = await request(makeApp()).get('/api/user/today-loop').set({ Authorization: 'Bearer uid-loop' });
+        expect(res.body.counts.due).toBe(8);
+        expect(res.body.more).toBe(0);
+        expect(res.body.reviewsLater).toBe(161);
     });
 });

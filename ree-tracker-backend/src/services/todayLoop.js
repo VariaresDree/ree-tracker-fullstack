@@ -20,6 +20,7 @@ const { normalizeSubject } = require('@ree/shared');
 const { getSyllabusWeights, DEFAULT_SYLLABUS_WEIGHTS } = require('./questionPool');
 const { loadMistakes } = require('./mistakeList');
 const { lockedQuestionIds } = require('./answerGate');
+const { reviewBudget } = require('./reviewBudget');
 const { CARD_SELECT, LEARNER_CARD_WHERE } = require('./referenceCardView');
 
 const LOOP_MAX = 25;
@@ -103,7 +104,7 @@ function buildTodayLoop({ due = [], mistakes = [], cards = [], weights = DEFAULT
 }
 
 async function loadTodayLoop(userId, now = new Date(), { withCards = false } = {}) {
-    const [dueCards, mistakes, weights, cardsDue, cardRows] = await Promise.all([
+    const [dueCards, mistakes, weights, cardsDue, cardRows, budget] = await Promise.all([
         prisma.sRSCard.findMany({
             where: { userId, nextReviewDate: { lte: now }, question: { isFlagged: false } },
             select: { question: { select: CANDIDATE_SELECT } },
@@ -121,8 +122,10 @@ async function loadTodayLoop(userId, now = new Date(), { withCards = false } = {
                 select: { card: { select: CARD_SELECT } },
             })
             : Promise.resolve([]),
+        reviewBudget(userId, now),
     ]);
-    const due = dueCards.map((c) => c.question).filter(Boolean);
+    // Today's share of the due reviews (the daily cap); the rest wait for later days.
+    const due = dueCards.map((c) => c.question).filter(Boolean).slice(0, budget.today);
     const open = mistakes.items.filter((m) => !m.fixed).map(mistakeToQuestion);
     // Never hand a live battle's key to its own player.
     const locked = await lockedQuestionIds(userId, [...due, ...open].map((q) => q.id));
@@ -145,7 +148,7 @@ async function loadTodayLoop(userId, now = new Date(), { withCards = false } = {
             ? { ...row, loop: item.loop }
             : { ...item, text: row.text, options: Array.isArray(row.options) ? row.options : [], answer: row.answer ?? null, fixedExplanation: row.fixedExplanation || null };
     }).filter(Boolean);
-    return { ...loop, items, cardsDue };
+    return { ...loop, items, cardsDue, reviewsLater: budget.later };
 }
 
 module.exports = { buildTodayLoop, loadTodayLoop, interleave, LOOP_MAX, CARD_MAX };

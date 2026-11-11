@@ -100,3 +100,38 @@ describe('foldCardUpdates — one batch, in answer order', () => {
         expect(updates.get('q9')).toMatchObject({ repetitions: 3, interval: 15 });
     });
 });
+
+describe('a backlog drains', () => {
+    const at = new Date('2026-11-12T02:00:00Z'); // 10:00 Manila
+    const lapsed = { easeFactor: 2.3, interval: 1, repetitions: 0 };
+
+    it('a card answered right after waiting over a day goes out 3 days, not 1', () => {
+        const waited = new Map([['q1', { ...lapsed, nextReviewDate: new Date('2026-11-05T16:00:00Z') }]]);
+        const card = foldCardUpdates([{ questionId: 'q1', isCorrect: true, confidenceLevel: 'MED', answeredAt: at }], waited).get('q1');
+        expect(card.interval).toBe(3);
+        expect(card.nextReviewDate.toISOString()).toBe('2026-11-14T16:00:00.000Z');
+    });
+
+    it('on time, or wrong, keeps SM-2 as it was', () => {
+        const onTime = new Map([['q1', { ...lapsed, nextReviewDate: new Date('2026-11-11T16:00:00Z') }]]);
+        expect(foldCardUpdates([{ questionId: 'q1', isCorrect: true, confidenceLevel: 'MED', answeredAt: at }], onTime).get('q1').interval).toBe(1);
+        const waited = new Map([['q1', { ...lapsed, nextReviewDate: new Date('2026-11-05T16:00:00Z') }]]);
+        expect(foldCardUpdates([{ questionId: 'q1', isCorrect: false, confidenceLevel: 'MED', answeredAt: at }], waited).get('q1').interval).toBe(1);
+    });
+
+    it('a longer interval is never shortened', () => {
+        const waited = new Map([['q1', { easeFactor: 2.5, interval: 6, repetitions: 2, nextReviewDate: new Date('2026-11-01T16:00:00Z') }]]);
+        expect(foldCardUpdates([{ questionId: 'q1', isCorrect: true, confidenceLevel: 'HIGH', answeredAt: at }], waited).get('q1').interval).toBe(15);
+    });
+});
+
+describe('reviewShare — 30 a day', () => {
+    const { reviewShare, DAILY_REVIEW_CAP } = require('@ree/shared/srs');
+    it('splits what is due into today and later, after what was done today', () => {
+        expect(DAILY_REVIEW_CAP).toBe(30);
+        expect(reviewShare({ due: 169 })).toEqual({ today: 30, later: 139 });
+        expect(reviewShare({ due: 139, doneToday: 30 })).toEqual({ today: 0, later: 139 });
+        expect(reviewShare({ due: 12, doneToday: 5 })).toEqual({ today: 12, later: 0 });
+        expect(reviewShare({ due: 0 })).toEqual({ today: 0, later: 0 });
+    });
+});

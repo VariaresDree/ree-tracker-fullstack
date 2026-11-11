@@ -201,6 +201,7 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
           </h2>
           <p className="text-sm text-muted2 max-w-prose">
             Spaced review of what you missed or weren't sure of{srs.overdue > 0 ? ` · ${srs.overdue} overdue` : ''}.
+            {srs.later > 0 && ` At most 30 a day: ${srs.later} more wait for later days.`}
           </p>
           <div className="pt-1">
             <Button size="lg" className="w-full sm:w-auto" loading={session.loading && launchingPreset === 'srs-due'} disabled={session.loading} onClick={startDue}>

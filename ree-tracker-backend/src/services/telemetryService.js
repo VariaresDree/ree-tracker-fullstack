@@ -368,7 +368,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
         if (questionIds.length > 0) {
             const storedCards = await db.sRSCard.findMany({
                 where: { userId, questionId: { in: questionIds } },
-                select: { questionId: true, easeFactor: true, interval: true, repetitions: true },
+                select: { questionId: true, easeFactor: true, interval: true, repetitions: true, nextReviewDate: true },
             });
             // Answer order, not arrival order — SM-2 is a sequential fold.
             const cardUpdates = foldCardUpdates(byAnsweredAt(newOnly), new Map(storedCards.map((c) => [c.questionId, c])));

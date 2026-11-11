@@ -646,6 +646,9 @@ model SRSCard {
   repetitions     Int      @default(0)
   nextReviewDate  DateTime
   lastReviewed    DateTime @default(now())
+  // When the card was started: a card started before today and answered today
+  // is one of today's reviews (services/reviewBudget.js).
+  createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   question        Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 

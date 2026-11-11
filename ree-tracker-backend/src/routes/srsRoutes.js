@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
+const { reviewBudget } = require('../services/reviewBudget');
 const logger = require('../utils/logger');
 const { getSubjectFilter, normalizeSubject } = require('../utils/subject');
 const { manilaDueInstant } = require('../engine/srs');
@@ -82,7 +83,10 @@ router.get('/summary', authMiddleware, async (req, res) => {
             JOIN "Question" q ON q."id" = c."questionId"
             WHERE c."userId" = ${req.user.id} AND q."isFlagged" = false
             GROUP BY q."subject"`;
-        res.status(200).json(foldSummaryRows(rows));
+        const summary = foldSummaryRows(rows);
+        // Today's share under the daily cap; the rest wait for later days.
+        const budget = await reviewBudget(req.user.id, now);
+        res.status(200).json({ ...summary, due: budget.today, later: budget.later, doneToday: budget.doneToday, dueTotal: summary.due, cap: budget.cap });
     } catch (error) {
         logger.error('SRS summary error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to fetch the review summary.' });

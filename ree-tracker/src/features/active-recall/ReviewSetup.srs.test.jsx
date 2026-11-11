@@ -42,6 +42,13 @@ describe('ReviewSetup — due for review', () => {
     expect(props.startSession).toHaveBeenCalledWith(expect.objectContaining({ source: 'srs-due', count: 30, subject: 'All' }));
   });
 
+  it('asks for 30 a day and says how many wait for later days', async () => {
+    fetchSrsSummary.mockResolvedValue({ due: 30, later: 139, overdue: 160, total: 200, bySubject: {}, nextDueAt: null });
+    render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 2, name: '30 questions due for review' })).toBeInTheDocument();
+    expect(screen.getByText(/At most 30 a day: 139 more wait for later days./)).toBeInTheDocument();
+  });
+
   it('says when the next review is due once the queue is clear', async () => {
     const tomorrow = new Date(Date.now() + 20 * 3600 * 1000).toISOString();
     fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 8, bySubject: {}, nextDueAt: tomorrow });

@@ -18,6 +18,7 @@
 'use strict';
 
 const prisma = require('../config/db');
+const { reviewBudget } = require('./reviewBudget');
 const pushService = require('./pushService');
 const { effectiveStreak, dayBefore, manilaDateOf } = require('@ree/shared');
 const logger = require('../utils/logger');
@@ -110,13 +111,14 @@ async function sendDueReminders({ now = new Date() } = {}) {
         const { count } = await prisma.user.updateMany({ where: { id: u.id, ...notSentToday(today) }, data: { reminderLastSentOn: today } });
         if (count !== 1) continue;
         try {
-            const [dueQuestions, dueCards, planTask] = await Promise.all([
-                prisma.sRSCard.count({ where: { userId: u.id, nextReviewDate: { lte: now }, question: { isFlagged: false } } }),
+            const [budget, dueCards, planTask] = await Promise.all([
+                reviewBudget(u.id, now),
                 prisma.cardReview.count({ where: { userId: u.id, nextReviewDate: { lte: now }, card: LEARNER_CARD_WHERE } }),
                 prisma.plannerTask.findFirst({ where: { userId: u.id, dueDate: today, completed: false }, select: { text: true }, orderBy: { createdAt: 'asc' } }),
             ]);
             const { streak, studiedToday } = streakStatus({ globalStreak: u.globalStreak, activityDates: (u.activityLogs || []).map((a) => a.date) }, today);
-            const message = pickReminder({ streak, studiedToday, dueQuestions, dueCards, planTask });
+            // Today's share under the daily cap, as Today shows it.
+            const message = pickReminder({ streak, studiedToday, dueQuestions: budget.today, dueCards, planTask });
             if (!message) { quiet += 1; continue; }
             const result = await pushService.sendToUser(u.id, message);
             if (result?.delivered > 0) sent += 1;

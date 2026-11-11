@@ -9,6 +9,23 @@
 const { manilaDateOf } = require('./manilaDate');
 
 const MIN_EASE = 1.3;
+// Question reviews a learner is asked for in one Manila day. Every miss starts
+// a review due the next morning, and with nothing capping a day a learner who
+// missed a week came back to 169 due, a pile that answering 25 a day couldn't
+// shrink. The rest wait their turn, oldest first.
+const DAILY_REVIEW_CAP = 30;
+
+/**
+ * Today's share of the due reviews: what's left of the cap after the ones
+ * already done today, and what waits for later days.
+ * @param {{ due: number, doneToday?: number }} counts  due now, and reviewed today
+ * @returns {{ today: number, later: number }}
+ */
+function reviewShare({ due = 0, doneToday = 0 } = {}) {
+    const room = Math.max(0, DAILY_REVIEW_CAP - Math.max(0, doneToday));
+    const today = Math.min(Math.max(0, due), room);
+    return { today, later: Math.max(0, due - today) };
+}
 const NEW_CARD = Object.freeze({ easeFactor: 2.5, interval: 0, repetitions: 0 });
 const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000; // UTC+8, no DST
 
@@ -94,6 +111,8 @@ function rateCard(card, rating, at = new Date()) {
 module.exports = {
     MIN_EASE,
     NEW_CARD,
+    DAILY_REVIEW_CAP,
+    reviewShare,
     scheduleNext,
     manilaDueInstant,
     CARD_RATINGS,

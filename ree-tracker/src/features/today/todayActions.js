@@ -13,6 +13,8 @@ import { NEW_LEARNER_MAX } from '../exams/startingPlan';
 const MAX_ACTIONS = 4;
 const DEFAULT_TARGET = 50;
 const DUE_SESSION_MAX = 30;
+// The server asks for at most 30 reviews a day (@ree/shared reviewShare); the rest wait.
+const laterLine = (n) => (n > 0 ? ` ${n} more wait for later days.` : '');
 
 /**
  * Today's answers against the daily target, with the per-subject counts.
@@ -117,7 +119,7 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
     actions.push({
       key: 'loop',
       title: "Start today's loop",
-      detail: `${joined}, mixed by board weight${loop.more > 0 ? ` (${loop.more} more wait for the next loop)` : ''}.`,
+      detail: `${joined}, mixed by board weight${loop.more > 0 ? ` (${loop.more} more wait for the next loop)` : ''}.${laterLine(loop.reviewsLater)}`,
       cta: 'Start',
       preset: todayLoopPreset(loop),
     });
@@ -139,9 +141,9 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
     actions.push({
       key: 'srs',
       title: `Review ${n} due question${n === 1 ? '' : 's'}`,
-      detail: srs.overdue > 0
+      detail: (srs.overdue > 0
         ? `${srs.overdue} overdue — spaced review of what you missed or weren't sure of.`
-        : "Spaced review of what you missed or weren't sure of.",
+        : "Spaced review of what you missed or weren't sure of.") + laterLine(srs.later),
       cta: 'Review',
       preset: dueReviewPreset(Math.min(n, DUE_SESSION_MAX)),
     });
