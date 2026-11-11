@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { classifySyncError, SYNC_OUTCOME } from '../../services/syncPolicy';
 import { decideGauntletOutcome, forfeitGauntlet, normalizeSubject, OPTION_ORDER_VERSION } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
+import { confidenceField } from '../../utils/confidence';
 
 // What a graded run did to the ladder: 'advanced' / 'passed' / 'cleared' are
 // passes; 'failed' locks; 'locked' (started during a lock) changes nothing.
@@ -510,7 +511,7 @@ export const useGauntletEngine = (level) => {
         const gradePayload = questionsRef.current.map((q, idx) => ({
             questionId: q.id,
             userAnswer: answersRef.current[idx] || '',
-            confidenceLevel: confidencesRef.current[idx] || 'MED',
+            ...confidenceField(confidencesRef.current[idx]),
             timeSpentMs: timeSpentPerQuestionRef.current[idx] || 0,
             clientAttemptId: `${runId}:${q.id}`,
             itemIndex: idx,

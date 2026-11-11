@@ -118,6 +118,8 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
                 { kind: 'day', k1: '2026-09-02', k2: null, n: 10 },
                 { kind: 'daily', k1: 'Mathematics', k2: null, n: 4 },
                 { kind: 'matrix', k1: 'high', k2: true, n: 3 },
+                // No confidence chosen: left out of the matrix.
+                { kind: 'matrix', k1: 'UNRATED', k2: true, n: 5 },
                 { kind: 'mode', k1: 'BOARD_SIM', k2: true, n: 3 },
             ])
             .mockResolvedValueOnce([{
@@ -138,6 +140,7 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         expect(d.profile.totalAnswered).toBe(10);          // Σ activityCalendar
         expect(d.activityCalendar['2026-09-02']).toBe(10);
         expect(d.matrix.hc).toBe(3);
+        expect(d.matrix).toEqual({ hc: 3, hw: 0, lc: 0, lw: 0 });
         expect(d.modeBreakdown.BOARD_SIM).toEqual({ attempts: 3, correct: 3 });
         expect(d.microTopics.Algebra.totalAttempts).toBe(10);
         expect(d.microTopics.Algebra.totalTimeSecs).toBe(90);  // ms -> s at the boundary

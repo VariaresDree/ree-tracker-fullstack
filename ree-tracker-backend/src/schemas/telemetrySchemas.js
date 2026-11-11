@@ -28,7 +28,9 @@ const telemetryBulkSchema = z.object({
         subject: z.string().max(120).optional().default('General'),
         subtopic: z.string().max(120).optional().default('General'),
         isCorrect: z.boolean().optional(),
-        confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).optional().default('MED'),
+        // UNRATED: no confidence was chosen. Recorded as MED until 2026-11-11, which
+        // skewed calibration; calibration and the matrix leave it out.
+        confidenceLevel: z.enum(['LOW', 'MED', 'HIGH', 'UNRATED']).optional().default('UNRATED'),
         // CLAMPED, not rejected. QuestionAttempt.timeSpentMs is an int4: an
         // out-of-range value used to throw inside createMany and roll back the
         // WHOLE batch (up to 500 attempts) on one bad field, and >=1e21

@@ -29,8 +29,10 @@ import { FULL_BOARD_SECTIONS, loadFullBoard, recordSection } from './fullBoard';
 // is MED (the neutral middle, as battles already did); an UNANSWERED item is
 // LOW. It used to default to HIGH, which turned every blank into a
 // "confidently wrong" blind spot and inflated the dashboard matrix.
-const confidenceFor = (answer, picked) => (answer != null ? (picked || 'MED') : 'LOW');
+// No confidence chosen (or no answer) is UNRATED; it was MED or LOW, which skewed calibration.
+const confidenceFor = (answer, picked) => (answer != null ? (picked || 'UNRATED') : 'UNRATED');
 import toast from 'react-hot-toast';
+import { confidenceField } from '../../utils/confidence';
 
 export const useSimulatorEngine = (currentUser, isOnline) => {
   // Narrow, stable-reference slice — no whole-store subscription on the
@@ -530,7 +532,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             const pendingAttempts = finalQs.map((q, idx) => ({
                 questionId: q.id,
                 userAnswer: finalAns[idx] ?? null,
-                confidenceLevel: confidenceFor(finalAns[idx], finalConf[idx]),
+                ...confidenceField(confidenceFor(finalAns[idx], finalConf[idx])),
                 timeSpentMs: Math.round(timeSpent[idx]) || 0,
             })).filter((a) => a.questionId);
 
@@ -588,7 +590,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
             return {
                 questionId: q.id, subject: q.subject, subtopic: q.subtopic,
-                isCorrect: isCorrect, confidenceLevel: confidenceFor(finalAns[idx], finalConf[idx]),
+                isCorrect: isCorrect, ...confidenceField(confidenceFor(finalAns[idx], finalConf[idx])),
                 // Send the selected option so the server re-grades against its own
                 // answer key — offline client grading is never trusted for stats.
                 // Omitted (not null) when unanswered — schema userAnswer is optional string.
@@ -847,7 +849,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
         const a = saved[q.id];
         if (a?.userAnswer == null) return;
         answers[idx] = a.userAnswer;
-        confidences[idx] = a.confidenceLevel || 'MED';
+        confidences[idx] = a.confidenceLevel || 'UNRATED';
       });
       const restored = Object.keys(answers).length;
 

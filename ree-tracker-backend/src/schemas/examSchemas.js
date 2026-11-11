@@ -16,7 +16,7 @@ const examSubmitSchema = z.object({
     attempts: z.array(z.object({
         questionId: z.string().min(1),
         userAnswer: z.string(),
-        confidence: z.enum(['LOW', 'MED', 'HIGH']).optional().default('LOW'),
+        confidence: z.enum(['LOW', 'MED', 'HIGH', 'UNRATED']).optional().default('UNRATED'),
         // Clamped for the same int4 reason as telemetrySchemas.timeSpentMs —
         // this value is multiplied by 1000 before it reaches the column.
         timeSpentSecs: z.number().optional().default(0)
@@ -61,7 +61,7 @@ const gradeSchema = z.object({
     answers: z.array(z.object({
         questionId: z.string().min(1),
         userAnswer: z.string(),
-        confidenceLevel: z.enum(['LOW', 'MED', 'HIGH']).optional(),
+        confidenceLevel: z.enum(['LOW', 'MED', 'HIGH', 'UNRATED']).optional(),
         timeSpentMs: z.number().optional().transform((v) => (v === undefined ? undefined : storableTimeMs(v))),
         clientAttemptId: z.string().min(8).max(80).optional(),
         itemIndex: z.number().int().min(0).max(999).optional(),

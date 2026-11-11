@@ -14,6 +14,13 @@ describe('qualityFor — SM-2 quality from correctness × confidence', () => {
         expect(qualityFor({ isCorrect: true, confidenceLevel: 'LOW' })).toBe(3);
     });
 
+    it('schedules an unrated answer as MED did, which blanks were recorded as before', () => {
+        expect(qualityFor({ isCorrect: true, confidenceLevel: 'UNRATED' })).toBe(4);
+        expect(qualityFor({ isCorrect: false, confidenceLevel: 'UNRATED' })).toBe(1);
+        // A right answer with no confidence starts no card, as MED didn't.
+        expect(shouldTrack({ isCorrect: true, confidenceLevel: 'UNRATED' }, false)).toBe(false);
+    });
+
     it('grades a miss as a lapse, and a CONFIDENT miss — a blind spot — as the worst', () => {
         expect(qualityFor({ isCorrect: false, confidenceLevel: 'LOW' })).toBe(1);
         expect(qualityFor({ isCorrect: false, confidenceLevel: 'MED' })).toBe(1);

@@ -161,7 +161,7 @@ async function answer(userId, { sessionId, questionId, userAnswer, confidenceLev
         topicKey: topicKey(master),
         isCorrect: master.answer === userAnswer,
         userAnswer: typeof userAnswer === 'string' ? userAnswer : '',
-        confidenceLevel: confidenceLevel || 'MED',
+        confidenceLevel: confidenceLevel || 'UNRATED',
         timeSpentMs: Number(timeSpentMs) || 0,
         answeredAt: new Date().toISOString(),
         params: itemParams(master),

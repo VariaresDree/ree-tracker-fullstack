@@ -247,3 +247,12 @@ describe('calculateUpdatedStats', () => {
     expect(next.thetaHistory[next.thetaHistory.length - 1].date).toBe(TODAY);
   });
 });
+
+describe('an unrated answer', () => {
+  it('stays out of the confidence matrix, but counts as answered', () => {
+    const out = calculateUpdatedStats(emptyStats(), true, 'unrated', 'Algebra', 'Mathematics', 'q1');
+    expect(out.matrix).toEqual({ hc: 0, hw: 0, lc: 0, lw: 0 });
+    expect(out.totalAnswered).toBe(1);
+    expect(out.totalCorrect).toBe(1);
+  });
+});

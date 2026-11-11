@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { auth } from '../config/firebaseDb';
+import { confidenceField } from '../utils/confidence';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
@@ -193,8 +194,8 @@ export function useBattleSocket(battleId) {
     // Live per-question answer — the server grades it against its own key
     // and broadcasts opponent progress itself. Replaces the old
     // client-computed `battle-progress` event (a score-forgery vector).
-    const sendAnswer = useCallback((questionId, userAnswer, confidenceLevel = 'MED', timeSpentMs = 0) => {
-        socketRef.current?.emit('battle-answer', { battleId, questionId, userAnswer, confidenceLevel, timeSpentMs });
+    const sendAnswer = useCallback((questionId, userAnswer, confidenceLevel = 'UNRATED', timeSpentMs = 0) => {
+        socketRef.current?.emit('battle-answer', { battleId, questionId, userAnswer, ...confidenceField(confidenceLevel), timeSpentMs });
     }, [battleId]);
 
     // Ask again: the server answers a battle whose time is up by finishing it

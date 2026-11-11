@@ -48,7 +48,7 @@ import { useItemTools } from '../features/quiz/useItemTools';
 
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
-const CONFIDENCE_LABEL = { HIGH: 'Sure', MED: 'Fairly sure', LOW: 'Unsure' };
+const CONFIDENCE_LABEL = { HIGH: 'Sure', MED: 'Fairly sure', LOW: 'Unsure', UNRATED: 'Not rated' };
 const BACK = '/exams?tab=history';
 
 const reviewStateOf = (item) => (item.answered === false ? 'skipped' : item.isCorrect ? 'correct' : 'incorrect');

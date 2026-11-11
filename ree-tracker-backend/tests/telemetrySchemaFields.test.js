@@ -82,3 +82,11 @@ describe('gradeSchema — keeps the run\'s choice-order tag', () => {
     expect(r.success).toBe(true);
   });
 });
+
+describe('a confidence nobody chose', () => {
+    it('is UNRATED, not MED, and UNRATED is accepted as sent', () => {
+        expect(telemetryBulkSchema.parse({ attempts: [{ questionId: 'q1' }] }).attempts[0].confidenceLevel).toBe('UNRATED');
+        expect(telemetryBulkSchema.parse({ attempts: [{ questionId: 'q1', confidenceLevel: 'UNRATED' }] }).attempts[0].confidenceLevel).toBe('UNRATED');
+        expect(telemetryBulkSchema.safeParse({ attempts: [{ questionId: 'q1', confidenceLevel: 'MAYBE' }] }).success).toBe(false);
+    });
+});

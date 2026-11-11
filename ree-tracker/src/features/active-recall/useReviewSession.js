@@ -400,12 +400,11 @@ export const useReviewSession = (currentUser, isOnline) => {
     const handleFlashcardRating = (rating) => {
         if (session.isAnswered) return;
 
-        let isCorrect = false;
-        let mappedConfidence = 'LOW';
-        if (rating === 'easy') { isCorrect = true; mappedConfidence = 'HIGH'; }
-        else if (rating === 'good') { isCorrect = true; mappedConfidence = 'HIGH'; }
-        else if (rating === 'hard') { isCorrect = true; mappedConfidence = 'MED'; }
-        else if (rating === 'again') { isCorrect = false; mappedConfidence = 'LOW'; }
+        // A rating says whether you knew it, not how sure you were before
+        // seeing the answer: sending HIGH for "easy" made flashcards look
+        // perfectly calibrated by construction. Confidence is unrated.
+        const isCorrect = rating === 'easy' || rating === 'good' || rating === 'hard';
+        const mappedConfidence = 'UNRATED';
 
         const currentQ = session.questions[session.currentIndex];
 

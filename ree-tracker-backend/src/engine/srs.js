@@ -30,7 +30,8 @@ const OVERDUE_MIN_INTERVAL = 3;
 function qualityFor({ isCorrect, confidenceLevel }) {
     if (isCorrect) {
         if (confidenceLevel === 'HIGH') return 5;
-        if (confidenceLevel === 'MED') return 4;
+        // UNRATED (no confidence chosen) schedules as MED did, which it was recorded as before.
+        if (confidenceLevel === 'MED' || confidenceLevel === 'UNRATED') return 4;
         return 3;
     }
     return confidenceLevel === 'HIGH' ? 0 : 1;

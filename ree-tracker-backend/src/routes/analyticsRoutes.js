@@ -192,6 +192,8 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                     totalAnswered += r.n;
                     break;
                 case 'matrix': {
+                    // No confidence chosen: it says nothing about calibration.
+                    if ((r.k1 || '').toUpperCase() === 'UNRATED') break;
                     const conf = (r.k1 || '').toLowerCase() === 'high' ? 'h' : 'l';
                     matrix[`${conf}${r.k2 ? 'c' : 'w'}`] += r.n;
                     break;
