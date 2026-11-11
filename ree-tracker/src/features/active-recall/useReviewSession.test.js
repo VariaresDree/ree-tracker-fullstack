@@ -113,7 +113,8 @@ describe('end-of-session summary', () => {
 
     const s = result.current.lastSummary;
     expect(s).toMatchObject({ total: 2, correct: 1, accuracy: 50, confidentMisses: 1, missedCount: 1 });
-    expect(s.weakest).toMatchObject({ topic: 'Protection', subject: 'EE' });
+    // One miss isn't a weak topic (two are: buildSessionSummary).
+    expect(s.weakest).toBeNull();
     expect(s.config).toMatchObject({ source: 'smart-drill', drillTopic: 'Protection', drillSubject: 'EE' });
     expect(result.current.session.isActive).toBe(false);
 

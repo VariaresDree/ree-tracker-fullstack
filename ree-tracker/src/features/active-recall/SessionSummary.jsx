@@ -4,11 +4,13 @@
 // questions missed with their answers, and what to do next. A session used to
 // end on a toast and drop straight back to the setup screen.
 import { useEffect } from 'react';
+import { useStore } from '../../store/useStore';
+import { dailyCountsToday } from '../../services/analyticsSync';
 import { Link } from 'react-router-dom';
 import ResultsCard from '../../components/exam/ResultsCard';
 import ItemReview from '../quiz/ItemReview';
 import { Button, Card, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
-import { CheckCircle2, Crosshair, RotateCcw } from '../../components/ui/icons';
+import { ArrowRight, CheckCircle2, Crosshair, NotebookPen, RotateCcw } from '../../components/ui/icons';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
 import NotificationOptIn from '../../components/NotificationOptIn';
@@ -22,13 +24,30 @@ import { formatDuration } from '../../utils/time';
  * @param {() => void} props.onRetry  practise just the ones missed
  * @param {(topic: {topic: string, subject: string}) => void} props.onDrill
  * @param {() => void} props.onDone  back to the setup screen
+ * @param {() => void} [props.onNextLoop]  the next of Today's loops, after one
  */
-export default function SessionSummary({ summary, loading, onAgain, onRetry, onDrill, onDone }) {
+
+// Sessions made of what you missed: their score isn't a measure against the
+// board, so no pass-mark verdict (it was always red on a review of misses).
+const REVIEW_SOURCES = new Set(['srs-due', 'today-loop', 'items', 'smart-drill']);
+// Under this many, a score is too small to compare with the pass mark.
+const VERDICT_MIN = 10;
+
+export default function SessionSummary({ summary, loading, onAgain, onRetry, onDrill, onDone, onNextLoop }) {
+  const stats = useStore((s) => s.stats);
   // The session screen was scrolled to its last question.
   useEffect(() => { window.scrollTo?.(0, 0); }, []);
 
   const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, items = [], missedCount } = summary;
   const tone = accuracy >= 70 ? 'success' : accuracy >= 50 ? 'amber' : 'danger';
+  const source = summary.config?.source;
+  const judged = total >= VERDICT_MIN && !REVIEW_SOURCES.has(source);
+  const isLoop = source === 'today-loop';
+  // Missed answers and right-but-unsure ones each start (or move) a review.
+  const comingBack = missedCount + luckyGuesses;
+  const today = dailyCountsToday(stats);
+  const doneToday = today.dailyMath + today.dailyESAS + today.dailyEE;
+  const target = Number(stats?.dailyTarget) || 50;
   // Formula cards rated inside Today's loop; the rest of the cards due are
   // next, in Library › Formula cards.
   const cardsRated = summary.cardsRated || 0;
@@ -43,7 +62,7 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
       <PageHeader
         title="Session complete"
         subtitle={`${parts.join(' and ') || '0 questions'} in ${formatDuration(durationSecs)}.`}
-        meta={total > 0 ? <StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill> : null}
+        meta={judged ? <StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill> : null}
       />
 
       {/* The screen's hero: the score, what it means, and what to do next. */}
@@ -63,9 +82,16 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
                 {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Retry missed ({missedCount})
               </Button>
             )}
-            <Button variant={missedCount > 0 && onRetry ? 'secondary' : 'primary'} onClick={onAgain} loading={loading} disabled={loading}>
-              {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Practise again
-            </Button>
+            {isLoop && onNextLoop ? (
+              // Practise again repeated these same questions; the next loop is what's waiting.
+              <Button variant={missedCount > 0 && onRetry ? 'secondary' : 'primary'} onClick={onNextLoop} loading={loading} disabled={loading}>
+                {!loading && <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />} Next loop
+              </Button>
+            ) : (
+              <Button variant={missedCount > 0 && onRetry ? 'secondary' : 'primary'} onClick={onAgain} loading={loading} disabled={loading}>
+                {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Practise again
+              </Button>
+            )}
             {weakest && (
               <Button
                 variant="secondary"
@@ -75,7 +101,15 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
                 <Crosshair size={16} strokeWidth={1.75} aria-hidden="true" /> Drill {weakest.topic}
               </Button>
             )}
+            {missedCount > 0 && (
+              <Button variant="secondary" as={Link} to="/library?tab=notebook">
+                <NotebookPen size={16} strokeWidth={1.75} aria-hidden="true" /> Open mistakes
+              </Button>
+            )}
             <Button variant="secondary" as={Link} to="/progress?tab=topics">See your progress</Button>
+            <Button variant="secondary" as={Link} to="/" aria-label={`Back to Today, ${doneToday} of ${target} answered today`}>
+              Back to Today <span className="text-muted2 font-normal tabular-nums">· {doneToday}/{target}</span>
+            </Button>
             <Button variant="ghost" onClick={onDone} disabled={loading}>Done</Button>
           </>
         )}
@@ -86,7 +120,7 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
           </p>
         )}
 
-        {(confidentMisses > 0 || luckyGuesses > 0 || missedCount > 0) && (
+        {(confidentMisses > 0 || luckyGuesses > 0 || comingBack > 0) && (
           <ul className="flex flex-col gap-1.5 text-sm text-muted2">
             {confidentMisses > 0 && (
               <li>
@@ -97,7 +131,11 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
               </li>
             )}
             {luckyGuesses > 0 && <li>{luckyGuesses} right while unsure. Worth another look.</li>}
-            {missedCount > 0 && <li>Missed and unsure answers come back in your review queue.</li>}
+            {comingBack > 0 && (
+              <li>
+                {comingBack} come{comingBack === 1 ? 's' : ''} back in your reviews, from tomorrow, until you know {comingBack === 1 ? 'it' : 'them'}.
+              </li>
+            )}
           </ul>
         )}
 

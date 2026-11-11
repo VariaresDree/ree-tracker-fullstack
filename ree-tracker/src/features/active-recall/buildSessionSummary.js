@@ -70,8 +70,9 @@ export function buildSessionSummary(attempts, questions, durationSecs) {
     durationSecs: Math.max(0, Math.round(durationSecs || 0)),
     avgSecs: timed > 0 ? Math.round(timeMs / timed / 1000) : null,
     byTopic,
-    // The topic to drill next: the one with the most misses.
-    weakest: byTopic.find((t) => t.missed > 0) || null,
+    // The topic to drill next: the one with the most misses, if it had two or
+    // more. One miss in a mixed set says nothing about a topic.
+    weakest: byTopic.find((t) => t.missed >= 2) || null,
     confidentMisses,
     luckyGuesses,
     items,
