@@ -19,7 +19,7 @@ import { COPY, KEYS } from '../features/quiz/examCopy';
 import { ITEM_FOCUS_CLASS, useItemFocus } from '../hooks/useItemFocus';
 import ReviewSetup from '../features/active-recall/ReviewSetup';
 import SessionSummary from '../features/active-recall/SessionSummary';
-import { drillPreset, itemsPreset } from '../features/active-recall/presets';
+import { drillPreset, itemsPreset, todayLoopPreset } from '../features/active-recall/presets';
 import MCQMode from '../features/active-recall/MCQMode';
 import FlashcardMode from '../features/active-recall/FlashcardMode';
 import LoopCardStep from '../features/active-recall/LoopCardStep';
@@ -131,6 +131,7 @@ export default function Practice() {
           onRetry={() => startSession(itemsPreset(lastSummary.items.filter((i) => !i.isCorrect).map((i) => i.question)))}
           onDrill={(t) => startSession(drillPreset({ topic: t.topic, subject: t.subject }))}
           onDone={clearSummary}
+          onNextLoop={() => startSession(todayLoopPreset())}
         />
       );
   }

@@ -12,7 +12,13 @@ const summary = buildSessionSummary([
   { questionId: 'q1', subject: 'EE', subtopic: 'Protection', isCorrect: false, confidenceLevel: 'HIGH', timeSpentMs: 40000 },
   { questionId: 'q2', subject: 'EE', subtopic: 'Protection', isCorrect: true, confidenceLevel: 'LOW', timeSpentMs: 20000 },
   { questionId: 'q3', subject: 'Mathematics', subtopic: 'Calculus', isCorrect: true, confidenceLevel: 'MED', timeSpentMs: 30000 },
+  { questionId: 'q4', subject: 'EE', subtopic: 'Protection', isCorrect: false, confidenceLevel: 'MED', timeSpentMs: 30000 },
 ], [{ id: 'q1', text: 'Relay pickup current?', answer: '5 A' }], 95);
+// Twelve answers of a mixed set: big enough to compare with the pass mark.
+const mixed = (source) => ({
+  ...buildSessionSummary(Array.from({ length: 12 }, (_, i) => ({ questionId: `m${i}`, subject: 'EE', subtopic: 'Machines', isCorrect: i < 5, confidenceLevel: 'MED', timeSpentMs: 9000 })), [], 300),
+  config: { source },
+});
 
 const renderSummary = (props = {}) => {
   const handlers = { onRetry: vi.fn(), onAgain: vi.fn(), onDrill: vi.fn(), onDone: vi.fn() };
@@ -28,13 +34,15 @@ describe('SessionSummary', () => {
   it('shows the score, the time and what went wrong', () => {
     renderSummary();
     expect(screen.getByRole('heading', { level: 1, name: 'Session complete' })).toBeInTheDocument();
-    expect(screen.getByText('3 questions in 1m 35s.')).toBeInTheDocument();
-    expect(screen.getByText('67%')).toBeInTheDocument();
-    expect(screen.getByText('2 of 3 correct')).toBeInTheDocument();
+    expect(screen.getByText('4 questions in 1m 35s.')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText('2 of 4 correct')).toBeInTheDocument();
     expect(screen.getByText('1 wrong while you were sure.')).toBeInTheDocument();
     expect(screen.getByText(/1 right while unsure/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'How you did by topic' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Protection: 1 of 2 correct' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Protection: 1 of 3 correct' })).toBeInTheDocument();
+    // Two misses and one lucky guess come back as reviews.
+    expect(screen.getByText('3 come back in your reviews, from tomorrow, until you know them.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Review every item' })).toBeInTheDocument();
     expect(screen.getByText('Relay pickup current?')).toBeInTheDocument();
     expect(screen.getByText('5 A')).toBeInTheDocument();
@@ -58,6 +66,44 @@ describe('SessionSummary', () => {
   it('the drill can start offline: it draws from the device', () => {
     renderSummary();
     expect(screen.getByRole('button', { name: /Drill Protection/ })).toBeEnabled();
+  });
+
+  it('offers the mistakes and the way back to Today', () => {
+    renderSummary();
+    expect(screen.getByRole('link', { name: 'Open mistakes' })).toHaveAttribute('href', '/library?tab=notebook');
+    expect(screen.getByRole('link', { name: /^Back to Today, \d+ of \d+ answered today$/ })).toHaveAttribute('href', '/');
+  });
+
+  it('judges a mixed set of 10 or more against the pass mark, and nothing smaller', () => {
+    renderSummary({ summary: mixed('library') });
+    expect(screen.getByText('Below the 70% pass mark')).toBeInTheDocument();
+  });
+
+  it('a short session gets no verdict', () => {
+    renderSummary();
+    expect(screen.queryByText(/pass mark/)).not.toBeInTheDocument();
+  });
+
+  it.each(['srs-due', 'today-loop', 'items', 'smart-drill'])('a %s session of your misses gets no verdict', (source) => {
+    renderSummary({ summary: mixed(source) });
+    expect(screen.queryByText(/pass mark/)).not.toBeInTheDocument();
+  });
+
+  it('after Today’s loop, Next loop takes the place of Practise again', () => {
+    const onNextLoop = vi.fn();
+    const h = renderSummary({ summary: mixed('today-loop'), onNextLoop });
+    expect(screen.queryByRole('button', { name: /Practise again/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Next loop/ }));
+    expect(onNextLoop).toHaveBeenCalled();
+    expect(h.onAgain).not.toHaveBeenCalled();
+  });
+
+  it('one miss in a topic offers no drill', () => {
+    renderSummary({ summary: buildSessionSummary([
+      { questionId: 'a', subject: 'EE', subtopic: 'Protection', isCorrect: false, confidenceLevel: 'MED', timeSpentMs: 9000 },
+      { questionId: 'b', subject: 'EE', subtopic: 'Machines', isCorrect: true, confidenceLevel: 'MED', timeSpentMs: 9000 },
+    ], [], 30) });
+    expect(screen.queryByRole('button', { name: /^Drill/ })).not.toBeInTheDocument();
   });
 });
 
