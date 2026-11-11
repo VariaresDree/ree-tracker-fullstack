@@ -30,6 +30,7 @@ import { Compass, ArrowRight } from '../components/ui/icons';
 import { fetchDiagnosticStatus, fetchSittingReview, startDiagnostic, answerDiagnostic, finishDiagnostic } from '../services/dbQueries';
 import { GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
 import { adaptivePreset, drillPreset } from '../features/active-recall/presets';
+import { confidenceField } from '../utils/confidence';
 
 const BAND_LABEL = { 'board-ready': 'Board-ready', developing: 'Developing', foundation: 'Foundation' };
 const BAND_TONE = { 'board-ready': 'success', developing: 'amber', foundation: 'danger' };
@@ -92,7 +93,7 @@ export default function Diagnostic() {
         sessionId,
         questionId: item.id,
         userAnswer: selected,
-        confidenceLevel: confidence || 'UNRATED',
+        ...confidenceField(confidence),
         timeSpentMs: Date.now() - shownAt.current,
       });
       if (res.done) { setResult(res.result); setPhase('result'); return; }
