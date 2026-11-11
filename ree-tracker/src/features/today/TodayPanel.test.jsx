@@ -131,7 +131,7 @@ describe('TodayPanel', () => {
 
   it('shows the readiness index with its breakdown, the pass probability and today’s target', () => {
     renderPanel({
-      readiness: { score: 54, breakdown: { topicCoverage: 61, accuracyRate: 58, thetaNormalized: 52, consistency: 40 } },
+      readiness: { score: 54, breakdown: { topicCoverage: 61, accuracyRate: 58, thetaNormalized: 52, consistency: 40, blindSpotRatio: 25 } },
       stats: { lastActiveDate: todayManila(), dailyMath: 4, dailyESAS: 2, dailyEE: 6, dailyTarget: 40 },
     });
     for (const name of ['Readiness index', 'Pass probability', 'Today’s target']) {
@@ -139,6 +139,8 @@ describe('TodayPanel', () => {
     }
     expect(screen.getByText('54')).toBeInTheDocument();
     expect(screen.getByText('Topics practised').nextSibling).toHaveTextContent('61%');
+    // All five terms: a quarter of the topics under 40%, so 75% above it.
+    expect(screen.getByText('Topics above 40%').nextSibling).toHaveTextContent('75%');
     expect(screen.getByText('31')).toBeInTheDocument();
     expect(screen.getByText(/Projected average 68.2%/)).toBeInTheDocument();
     expect(screen.getByText(/12% risk of a subject under the floor/)).toBeInTheDocument();
@@ -340,5 +342,24 @@ describe('TodayPanel', () => {
     placement = { ...placement, status: null, isNew: true, settled: false };
     renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 0 });
     expect(screen.queryByText('first-run-card')).not.toBeInTheDocument();
+  });
+});
+
+describe('date and plan nudges', () => {
+  it('asks for an exam date past the first 30 answers too', async () => {
+    placement = { ...placement, isNew: false };
+    renderPanel({ readiness: null, stats: { dailyTarget: 50 }, answered: 400 });
+    expect(await screen.findByText('first-run-card')).toBeInTheDocument();
+  });
+
+  it('a plan counts as made with no task today (a rest day, or today’s done)', async () => {
+    localStorage.removeItem('ree_tour_seen:u1');
+    // A plan, but nothing due today: Getting started still sees it as made.
+    plannerItems = [{ id: 'p1', kind: 'drill', topic: 'Protection', subject: 'EE', dueDate: '2026-10-20', text: 'Drill Protection' }];
+    renderPanel({ readiness: null, stats: { dailyTarget: 50, tourDoneAt: null, examDate: '2027-04-10' }, answered: 5 });
+    await screen.findByText('Up next');
+    // Placed, dated, planned and practised: nothing left, so no card.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
   });
 });

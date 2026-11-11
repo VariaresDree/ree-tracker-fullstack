@@ -76,7 +76,8 @@ function buildQuestionCreateData(data, topic, id) {
     const options = Array.isArray(data.options) ? data.options : [];
     return {
         ...(id ? { id } : {}),
-        subject: data.subject || 'Unknown',
+        // Canonical spelling: "Math" from an AI or a paste was stored as given.
+        subject: data.subject ? normalizeSubject(data.subject) : 'Unknown',
         subtopic: topic?.name || data.subtopic || 'General',
         topicId: topic?.id ?? null,
         text: data.text || '',

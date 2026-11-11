@@ -174,7 +174,7 @@ export default function Account() {
       </Section>
 
       <Section id="exam-plan" title="Exam plan" description="Your board exam date and how many questions a day you aim for. Today, the forecast and your study plan all use these.">
-        <ExamPlanForm key={planKey} onDirtyChange={setPlanDirty} />
+        <ExamPlanForm key={planKey} onDirtyChange={setPlanDirty} offerPlan />
       </Section>
 
       <Section id="appearance" title="Appearance">

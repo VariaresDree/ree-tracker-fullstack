@@ -9,6 +9,7 @@ const { questionReplaceSchema, replacePreviewSchema, questionImportSchema, quest
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
+const { normalizeSubject } = require('@ree/shared');
 const logger = require('../utils/logger');
 const { getSubjectFilter, samplePool } = require('../services/questionPool');
 const { openBattleQuestionIds } = require('../services/answerGate');
@@ -182,7 +183,7 @@ router.put('/quarantine/:id/approve', authMiddleware, requireAdmin, async (req, 
         await prisma.$transaction([
             prisma.question.update({
                 where: { id: req.params.id },
-                data: { isFlagged: false, subject: req.body.subject, subtopic: topic?.name || req.body.subtopic, topicId: topic?.id ?? null }
+                data: { isFlagged: false, subject: req.body.subject === undefined ? undefined : normalizeSubject(req.body.subject), subtopic: topic?.name || req.body.subtopic, topicId: topic?.id ?? null }
             }),
             prisma.questionVersion.create({
                 data: { questionId: previous.id, action: 'APPROVED', editor: req.user?.id || null, snapshot: buildVersionSnapshot(previous) },
@@ -389,7 +390,7 @@ router.put('/:id', authMiddleware, requireAdmin, validate(questionUpdateSchema),
             prisma.question.update({
                 where: { id: req.params.id },
                 data: {
-                    subject: data.subject,
+                    subject: data.subject === undefined ? undefined : normalizeSubject(data.subject),
                     subtopic: topic !== undefined ? (topic?.name || data.subtopic) : undefined,
                     topicId: topic !== undefined ? (topic?.id ?? null) : undefined,
                     text: data.text,

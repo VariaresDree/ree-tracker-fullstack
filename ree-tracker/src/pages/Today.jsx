@@ -53,6 +53,16 @@ function ExamCountdown({ examDate, next, reviewMode }) {
     );
   }
   const { tone, text } = examLabel(days);
+  if (days < -1) {
+    // Over: the pill is the way to set the next one.
+    return (
+      <Link to="/account#exam-plan" aria-label="Exam date has passed. Set a new one" className="touch-target inline-flex items-center rounded-full hover:opacity-90">
+        <StatusPill tone={tone} dot={false}>
+          <CalendarDays size={13} strokeWidth={2} aria-hidden="true" /> {text} · Set a new one
+        </StatusPill>
+      </Link>
+    );
+  }
   const pill = (
     <StatusPill tone={tone} dot={false}>
       <CalendarDays size={13} strokeWidth={2} aria-hidden="true" /> {phase ? `${phase.label} · ` : ''}{text}{next ? ` · ${next}` : ''}
