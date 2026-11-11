@@ -36,6 +36,13 @@ const LETTER_IN_TEXT = [
 /** Pure: does this explanation name an option by its letter? */
 const namesOptionByLetter = (text) => typeof text === 'string' && LETTER_IN_TEXT.some((re) => re.test(text));
 
+/** Percent of the rows whose key is among their options, at each place. */
+function sharesOf(positions) {
+    const placed = positions.A + positions.B + positions.C + positions.D + positions.other;
+    const share = (n) => (placed > 0 ? Math.round((n / placed) * 1000) / 10 : 0);
+    return { A: share(positions.A), B: share(positions.B), C: share(positions.C), D: share(positions.D), other: share(positions.other) };
+}
+
 /** Pure: the audit of a set of rows ({ id, options, answer, fixedExplanation }). */
 function auditOptions(rows) {
     const list = Array.isArray(rows) ? rows : [];
@@ -71,13 +78,10 @@ function auditOptions(rows) {
             if (letterInExplanation.length < SAMPLE) letterInExplanation.push(q.id);
         }
     }
-    const placed = positions.A + positions.B + positions.C + positions.D + positions.other;
-    const share = (n) => (placed > 0 ? Math.round((n / placed) * 1000) / 10 : 0);
     return {
         total: list.length,
         positions,
-        // Percent of the rows whose key is among their options.
-        shares: { A: share(positions.A), B: share(positions.B), C: share(positions.C), D: share(positions.D), other: share(positions.other) },
+        shares: sharesOf(positions),
         letterInExplanation: letterInExplanationCount,
         brokenMath: brokenMathCount,
         duplicateOptions: duplicateOptionsCount,
@@ -87,14 +91,52 @@ function auditOptions(rows) {
     };
 }
 
-/** The audit of the live (unflagged) bank. */
-// shortcut: reads the whole live bank per run (~1 KB a row out of the database, the free tier's tightest limit); store a verdict per row once runs pass a few a day or the bank passes 50k
+/**
+ * The audit of the live (unflagged) bank. Every row the backend reads from the
+ * database counts against the free tier's egress, and reading the whole bank
+ * was 16 MB a press (3 GB in four weeks). So Postgres counts the key positions
+ * and sends only the rows that could have a problem, and auditOptions judges
+ * those. Each SQL test below is exact or looser than its JS rule, never
+ * stricter, so no problem row is left behind (tests/integration/
+ * optionAudit.dbtest.js checks the two agree):
+ *   • key not an option: exact (answer = ANY(options));
+ *   • unbalanced math: exact, the same rule (drop each backslash-$, then $,
+ *     and count the $ left);
+ *   • letter references: an option of only the characters LETTERS_ONLY can
+ *     match (A-F, brackets, "& , .", spaces, the letters of both, either,
+ *     neither, only, and, or, nor), with a capital A-F;
+ *   • two identical options: equal once every space is removed;
+ *   • an explanation naming an option: the JS patterns, ignoring case.
+ * The space classes list JS's whitespace: [[:space:]] alone misses the
+ * no-break and other Unicode spaces.
+ */
 async function auditLiveBank() {
-    const rows = await prisma.question.findMany({
-        where: { isFlagged: false },
-        select: { id: true, text: true, options: true, answer: true, fixedExplanation: true },
-    });
-    return { ...auditOptions(rows), checkedAt: new Date().toISOString() };
+    const [counts] = await prisma.$queryRaw`
+        SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE p = 1)::int AS "A",
+               COUNT(*) FILTER (WHERE p = 2)::int AS "B",
+               COUNT(*) FILTER (WHERE p = 3)::int AS "C",
+               COUNT(*) FILTER (WHERE p = 4)::int AS "D",
+               COUNT(*) FILTER (WHERE p > 4)::int AS other,
+               COUNT(*) FILTER (WHERE p IS NULL)::int AS missing
+        FROM (SELECT array_position("options", "answer") AS p FROM "Question" WHERE "isFlagged" = false) s`;
+    const rows = await prisma.$queryRaw`
+        SELECT "id", "text", "options", "answer", "fixedExplanation" FROM "Question" q
+        WHERE q."isFlagged" = false AND (
+            NOT (q."answer" = ANY(q."options"))
+            OR EXISTS (SELECT 1 FROM unnest(q."options") o
+                       WHERE o ~ '[A-F]' AND o ~ '^[A-FHILNORTYabdehilnorty()&,.[:space:]\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]*$')
+            OR EXISTS (SELECT 1 FROM unnest(q."options" || ARRAY[q."text", COALESCE(q."fixedExplanation", '')]) x,
+                       LATERAL (SELECT replace(replace(x, '\\$', ''), '$$', '') AS m) d
+                       WHERE (length(d.m) - length(replace(d.m, '$', ''))) % 2 = 1)
+            OR (SELECT COUNT(*) <> COUNT(DISTINCT regexp_replace(o, '[[:space:]\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]', '', 'g'))
+                FROM unnest(q."options") o)
+            OR COALESCE(q."fixedExplanation", '') ~* '(option|choice|letter)[[:space:]\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]*\\(?[a-f]\\)?([^a-z0-9]|$)'
+            OR COALESCE(q."fixedExplanation", '') ~* 'answer[[:space:]\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]+is[[:space:]\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]+\\(?[a-f]\\)?([^a-z0-9]|$)'
+        )`;
+    const audit = auditOptions(rows);
+    const positions = { A: counts.A, B: counts.B, C: counts.C, D: counts.D, other: counts.other, missing: counts.missing, fixedOrder: audit.positions.fixedOrder };
+    return { ...audit, total: counts.total, positions, shares: sharesOf(positions), checkedAt: new Date().toISOString() };
 }
 
 /**

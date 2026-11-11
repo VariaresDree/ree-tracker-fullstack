@@ -529,11 +529,27 @@ describe('question bank source', () => {
     fetchVaultQuestions.mockResolvedValue(bank(60, 'conceptual'));
     const { result } = setup();
     await act(() => result.current.startSession({ ...library, cognitiveFocus: 'mixed' }));
-    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 60]]);
+    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 60, 'random', { focus: undefined }]]);
     expect(result.current.session.questions).toHaveLength(20);
   });
 
-  it('asks for the old 1,000 when the focus leaves the first pool short', async () => {
+  it('a focus is drawn by the server, so one pool is enough', async () => {
+    fetchVaultQuestions.mockResolvedValue(bank(150, 'calculation'));
+    const { result } = setup();
+    await act(() => result.current.startSession({ ...library, cognitiveFocus: 'calculation' }));
+    expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 150, 'random', { focus: 'calculation' }]]);
+    expect(result.current.session.questions).toHaveLength(20);
+  });
+
+  it('a bank with too few of the focus is not drawn again at 1,000', async () => {
+    fetchVaultQuestions.mockResolvedValue(bank(8, 'calculation'));
+    const { result } = setup();
+    await act(() => result.current.startSession({ ...library, cognitiveFocus: 'calculation' }));
+    expect(fetchVaultQuestions).toHaveBeenCalledTimes(1);
+    expect(result.current.session.questions).toHaveLength(8);
+  });
+
+  it('an older server that ignores the focus: the old 1,000, as before', async () => {
     fetchVaultQuestions.mockImplementation(async (_s, _t, limit) => (limit < 1000
       ? [...bank(5, 'calculation'), ...bank(145, 'conceptual')]
       : [...bank(40, 'calculation'), ...bank(500, 'conceptual')]));

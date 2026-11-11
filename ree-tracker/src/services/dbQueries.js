@@ -346,8 +346,10 @@ export const fetchPaginatedQuestions = async (cursor = null, filterSubject = 'Al
 // on-device pack instead of throwing, so Active Review and the Board Simulator
 // keep working without a connection. Every caller of this function (review setup,
 // simulator pool builder, offline-PDF export) inherits offline support for free.
-export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 'random') => {
+// `focus`: 'calculation' or 'conceptual' draws only those (the server filters).
+export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 'random', { focus } = {}) => {
     const queryParams = new URLSearchParams({ subject, subtopic, limit, sort });
+    if (focus === 'calculation' || focus === 'conceptual') queryParams.set('focus', focus);
     try {
         const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
         return normalizeQuestions(data);

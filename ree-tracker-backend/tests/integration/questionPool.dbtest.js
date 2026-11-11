@@ -51,3 +51,28 @@ describe('samplePool with questions to avoid', () => {
         expect(two.sort()).toEqual([Q(3), Q(4)]);
     });
 });
+
+describe('a focus drawn by the server', () => {
+    const CALC = `${RUN}-calc`;
+    beforeAll(async () => {
+        await prisma.question.createMany({
+            data: [
+                { id: `${CALC}-1`, subject: 'EE', subtopic: CALC, text: 'c1', options: ['A', 'B'], answer: 'A', type: 'calculation' },
+                { id: `${CALC}-2`, subject: 'EE', subtopic: CALC, text: 'k1', options: ['A', 'B'], answer: 'A', type: 'conceptual' },
+                { id: `${CALC}-3`, subject: 'EE', subtopic: CALC, text: 'n1', options: ['A', 'B'], answer: 'A', type: null },
+            ],
+        });
+    });
+    afterAll(async () => {
+        await prisma.question.deleteMany({ where: { subtopic: CALC } });
+    });
+
+    it('calculation only, or everything else (a missing type is conceptual), on every branch', async () => {
+        const mine = (ids) => ids.filter((id) => id.startsWith(CALC)).sort();
+        for (const spec of [{ subtopic: CALC }, { subjectValues: ['EE'], subtopic: CALC }, { subjectValues: ['EE'] }, {}]) {
+            expect(mine(await questionPool.sampleQuestionIds({ ...spec, limit: 2000, focus: 'calculation' }))).toEqual([`${CALC}-1`]);
+            expect(mine(await questionPool.sampleQuestionIds({ ...spec, limit: 2000, focus: 'conceptual' }))).toEqual([`${CALC}-2`, `${CALC}-3`]);
+            expect(mine(await questionPool.sampleQuestionIds({ ...spec, limit: 2000 }))).toHaveLength(3);
+        }
+    });
+});

@@ -81,7 +81,11 @@ describe('GET /api/questions/option-audit', () => {
         verifyIdToken.mockImplementation(async (token) => ({ uid: token, email: `${token}@example.com` }));
         vi.spyOn(prisma.user, 'upsert').mockImplementation(async ({ where }) => ({ id: where.id }));
         vi.spyOn(prisma.user, 'findUnique').mockImplementation(async ({ where }) => ({ role: where.id === ADMIN_UID ? 'ADMIN' : 'USER' }));
-        vi.spyOn(prisma.question, 'findMany').mockResolvedValue(ROWS);
+        // Postgres counts the positions, then sends only the suspect rows.
+        vi.spyOn(prisma, '$queryRaw')
+            .mockResolvedValueOnce([{ total: 900, A: 300, B: 200, C: 200, D: 199, other: 0, missing: 1 }])
+            .mockResolvedValueOnce(ROWS.filter((q) => ['m1', 'f1', 'a2', 'c1'].includes(q.id)));
+        vi.spyOn(prisma.question, 'findMany');
         invalidateRole(ADMIN_UID);
         invalidateRole(USER_UID);
     });
@@ -90,15 +94,24 @@ describe('GET /api/questions/option-audit', () => {
     it('is for admins only', async () => {
         const res = await request(app).get('/api/questions/option-audit').set(as(USER_UID));
         expect(res.status).toBe(403);
-        expect(prisma.question.findMany).not.toHaveBeenCalled();
+        expect(prisma.$queryRaw).not.toHaveBeenCalled();
     });
 
-    it('audits the live bank', async () => {
+    it('counts the bank in Postgres and judges only the rows it sends', async () => {
         const res = await request(app).get('/api/questions/option-audit').set(as(ADMIN_UID));
         expect(res.status).toBe(200);
-        expect(res.body).toMatchObject({ total: 6, positions: { A: 3 }, samples: { missing: ['m1'] } });
+        expect(res.body).toMatchObject({
+            total: 900,
+            positions: { A: 300, B: 200, C: 200, D: 199, other: 0, missing: 1, fixedOrder: 1 },
+            // Of the 899 keys among their options.
+            shares: { A: 33.4, B: 22.2, C: 22.2, D: 22.1, other: 0 },
+            letterInExplanation: 2,
+            samples: { missing: ['m1'], fixedOrder: ['f1'] },
+        });
         expect(res.body.checkedAt).toEqual(expect.any(String));
-        expect(prisma.question.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isFlagged: false } }));
+        // Never the whole bank through Prisma again: that was 16 MB a press.
+        expect(prisma.question.findMany).not.toHaveBeenCalled();
+        expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     });
 });
 
