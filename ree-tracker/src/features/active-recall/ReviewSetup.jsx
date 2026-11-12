@@ -16,7 +16,8 @@ import { Shuffle, Crosshair, Gauge, Layers, Bookmark, RotateCcw, ChevronRight, S
 import { SYLLABUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
 import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { adaptivePreset, bookmarksPreset, drillPreset, dueReviewPreset, quickReviewPreset } from './presets';
-import { BUILDER_COUNTS, builderSummary, chooseScope, customView, liveScope, readRememberedBuilder, rememberBuilder } from './customView';
+import { BUILDER_COUNTS, builderSummary, chooseScope, chooseSubtopic, customView, liveScope, readRememberedBuilder, rememberBuilder } from './customView';
+import { useSubtopicChoices } from '../syllabus/subtopicChoices';
 
 // A due session is capped so a backlog after a break doesn't become a
 // 200-question wall; the rest stays in the queue for the next session.
@@ -120,7 +121,13 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
   // The builder keeps its own state, so a preset run in between doesn't overwrite
   // the session you built. Remembered on this device as you change it.
   const [built, setBuilt] = useState(() => readRememberedBuilder() || customView(config));
-  const view = liveScope(built, safeTOS);
+  const scoped = liveScope(built, safeTOS);
+  // Subtopics draw from the bank's tags, so only for the question bank.
+  const subtopicChoices = useSubtopicChoices(scoped.subject, scoped.studyMode === 'subtopic' && scoped.source === 'library' ? scoped.subtopic : 'All');
+  // A remembered subtopic that no longer has enough questions falls back to its topic.
+  const view = scoped.subtopicId && subtopicChoices.length > 0 && !subtopicChoices.some((c) => c.id === scoped.subtopicId)
+    ? chooseSubtopic(scoped, null)
+    : scoped;
   const build = (next) => {
     setBuilt(next);
     rememberBuilder(next);
@@ -293,6 +300,15 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
               <Select value={view.studyMode === 'subtopic' ? view.subtopic : 'All'} onChange={(e) => build(chooseScope(view, view.subject, e.target.value))}>
                 <option value="All">All topics</option>
                 {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </FormField>
+          )}
+
+          {subtopicChoices.length > 0 && (
+            <FormField label="Subtopic" hint="Only subtopics with enough tagged questions">
+              <Select value={view.subtopicId || ''} onChange={(e) => build(chooseSubtopic(view, subtopicChoices.find((s) => s.id === e.target.value)))}>
+                <option value="">All of {view.subtopic}</option>
+                {subtopicChoices.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.questions})</option>)}
               </Select>
             </FormField>
           )}

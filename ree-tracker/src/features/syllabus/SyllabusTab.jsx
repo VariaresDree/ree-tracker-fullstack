@@ -21,7 +21,7 @@ import { ListChecks, BookOpen, CloudOff, RotateCcw, Check, Info } from '../../co
 import { useSyllabus } from './useSyllabus';
 import { useSubtopics } from './useSubtopics';
 import { daysToExam } from '../today/todayActions';
-import { drillPreset, launchPractice } from '../active-recall/presets';
+import { drillPreset, launchPractice, subtopicDrillPreset } from '../active-recall/presets';
 import { paceLine } from './syllabusPace';
 import { MasteryStrip, SubjectRings } from './SubjectTiles';
 import TopicTile from './TopicTile';
@@ -90,6 +90,9 @@ export default function SyllabusTab({ examDate = null }) {
       throw err;
     }
   }, []);
+  const onDrillSubtopic = useCallback((row, sub) => {
+    launchPractice(navigate, subtopicDrillPreset({ subject: row.subject, topic: row.name, subtopicId: sub.id, subtopicName: sub.name }));
+  }, [navigate]);
   const onDrill = useCallback((row) => {
     launchPractice(navigate, drillPreset({ topicId: row.topicId, topic: row.name, subject: row.subject }));
   }, [navigate]);
@@ -245,6 +248,7 @@ export default function SyllabusTab({ examDate = null }) {
           actions={subtopics.actions}
           onSave={onSave}
           onDrill={onDrill}
+          onDrillSubtopic={onDrillSubtopic}
           onClose={closeSheet}
         />
       )}

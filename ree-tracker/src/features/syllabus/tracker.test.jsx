@@ -3,7 +3,7 @@
 // changes show at once and queue offline. The figures are pure (trackerModel).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 const authState = { currentUser: { uid: 'user-A' } };
 vi.mock('../../config/firebaseDb', () => ({ auth: authState }));
@@ -31,6 +31,7 @@ const { default: SyllabusTab } = await import('./SyllabusTab');
 const { __resetSyllabusMemory } = await import('./useSyllabus');
 const { __resetSubtopicsMemory } = await import('./useSubtopics');
 const model = await import('./trackerModel');
+const { forgetSubtopicChoices } = await import('./subtopicChoices');
 
 const MINE = '/api/user/syllabus-subtopics';
 const row = (topicId, subject, name, over = {}) => ({
@@ -80,6 +81,7 @@ beforeEach(() => {
   idbMem.clear();
   __resetSyllabusMemory();
   __resetSubtopicsMemory();
+  forgetSubtopicChoices();
   resetSyncedMemory('premadeSubtopics');
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   useStore.setState({ ownerUid: 'user-A', pendingWrites: [], deadLetters: [] });
@@ -396,5 +398,39 @@ describe('trackerModel', () => {
     const rows = [{ topicId: 'none' }, { topicId: 'half' }, { topicId: 'zero' }];
     const progress = { none: { done: 0, total: 0 }, half: { done: 1, total: 2 }, zero: { done: 0, total: 5 } };
     expect(model.sortTopics(rows, 'least', (id) => progress[id]).map((r) => r.topicId)).toEqual(['zero', 'half', 'none']);
+  });
+});
+
+describe('drilling one subtopic', () => {
+  function PracticeProbe() {
+    const { state } = useLocation();
+    return <p>practice: {JSON.stringify(state?.preset)}</p>;
+  }
+
+  it('a subtopic with enough tagged questions shows them, your accuracy, and a Drill', async () => {
+    const tagged = PREMADE.map((s) => ({ ...s, questions: s.id === 'a' ? 14 : 3 }));
+    apiRequest.mockImplementation(async (endpoint, method = 'GET', body) => {
+      if (endpoint === '/api/config/subtopics') return { items: tagged };
+      if (endpoint.startsWith(`${MINE}/accuracy`)) return { items: [{ subtopicId: 'a', answered: 8, correct: 6 }] };
+      if (endpoint === MINE && method === 'GET') return { items: mineRows };
+      if (method === 'GET') return { weights: { Mathematics: 0.25, ESAS: 0.3, EE: 0.45 }, topics: TOPICS };
+      return { item: body };
+    });
+    render(
+      <MemoryRouter initialEntries={['/progress?tab=syllabus']}>
+        <Routes>
+          <Route path="/progress" element={<SyllabusTab />} />
+          <Route path="/practice" element={<PracticeProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const contents = await open('Algebra');
+    expect(await contents.findByText('14 questions · 75% of 8')).toBeInTheDocument();
+    expect(apiRequest).toHaveBeenCalledWith(`${MINE}/accuracy?topicId=t-alg`);
+    // Three tagged questions aren't a set: no Drill for Age Problems.
+    expect(contents.queryByRole('button', { name: 'Drill Age Problems' })).not.toBeInTheDocument();
+    fireEvent.click(contents.getByRole('button', { name: 'Drill Functions' }));
+    const preset = JSON.parse((await screen.findByText(/^practice:/)).textContent.slice('practice: '.length));
+    expect(preset).toMatchObject({ studyMode: 'subtopic', subject: 'Mathematics', subtopic: 'Algebra', subtopicId: 'a', subtopicName: 'Functions', source: 'library' });
   });
 });

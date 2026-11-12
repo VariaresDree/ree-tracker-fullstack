@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { SUBTOPIC_LIMITS, subtopicProgress } from '@ree/shared/subtopics';
 import { Button, FormField, Input, Skeleton, StatusPill, cn } from '../../components/ui';
 import { ChevronDown, ChevronUp, Pencil, Trash2 } from '../../components/ui/icons';
+import { accuracyLine, useTopicDrills } from './subtopicChoices';
 
 const failed = (err) => toast.error(err?.message ? `Couldn’t save: ${err.message}` : 'Couldn’t save. Try again.');
 
@@ -72,9 +73,13 @@ function CustomizeRow({ row, index, count, onRename, onOff, onMove, onDelete }) 
   );
 }
 
-/** @param {{ topicId, name, rows, ready, status, actions, onFinished: () => void }} props */
-export default function TopicContents({ topicId, name: topicName, rows, ready, status, actions, onFinished }) {
+/**
+ * @param {{ topicId, name, rows, ready, status, actions, onFinished: () => void, onDrillSubtopic?: (row) => void }} props
+ * onDrillSubtopic: offered on a subtopic with enough tagged questions.
+ */
+export default function TopicContents({ topicId, name: topicName, rows, ready, status, actions, onFinished, onDrillSubtopic }) {
   const [customizing, setCustomizing] = useState(false);
+  const drills = useTopicDrills(onDrillSubtopic ? topicId : null);
   const [newName, setNewName] = useState('');
   const { done, total } = subtopicProgress(rows);
   const on = rows.filter((r) => !r.off);
@@ -147,15 +152,24 @@ export default function TopicContents({ topicId, name: topicName, rows, ready, s
           {on.length > 0 && (
             <div className="@container">
               <ul className="grid grid-cols-1 @xl:grid-cols-2 gap-x-4" aria-label={`${topicName}: subtopics`}>
-                {on.map((row) => (
-                  <li key={row.id}>
-                    <label className="flex items-center gap-3 min-h-11 py-1 cursor-pointer">
-                      <input type="checkbox" className="size-5 shrink-0 accent-[var(--accent)] cursor-pointer" checked={row.done} onChange={() => tick(row)} />
-                      <span className={cn('text-sm [overflow-wrap:anywhere]', row.done ? 'text-muted2' : 'text-textMain')}>{row.name}</span>
-                      {row.own && <StatusPill tone="neutral" dot={false}>Yours</StatusPill>}
-                    </label>
-                  </li>
-                ))}
+                {on.map((row) => {
+                  const questions = drills.counts.get(row.id);
+                  return (
+                    <li key={row.id} className="flex items-center gap-2 min-w-0">
+                      <label className="flex flex-1 min-w-0 items-center gap-3 min-h-11 py-1 cursor-pointer">
+                        <input type="checkbox" className="size-5 shrink-0 accent-[var(--accent)] cursor-pointer" checked={row.done} onChange={() => tick(row)} />
+                        <span className="flex min-w-0 flex-col">
+                          <span className={cn('text-sm [overflow-wrap:anywhere]', row.done ? 'text-muted2' : 'text-textMain')}>{row.name}</span>
+                          {questions && <span className="text-xs tabular-nums text-muted2">{questions} questions · {accuracyLine(drills.accuracy.get(row.id))}</span>}
+                        </span>
+                        {row.own && <StatusPill tone="neutral" dot={false}>Yours</StatusPill>}
+                      </label>
+                      {questions && (
+                        <Button size="sm" variant="ghost" className="shrink-0" aria-label={`Drill ${row.name}`} onClick={() => onDrillSubtopic(row)}>Drill</Button>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

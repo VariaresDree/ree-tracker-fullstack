@@ -347,9 +347,11 @@ export const fetchPaginatedQuestions = async (cursor = null, filterSubject = 'Al
 // keep working without a connection. Every caller of this function (review setup,
 // simulator pool builder, offline-PDF export) inherits offline support for free.
 // `focus`: 'calculation' or 'conceptual' draws only those (the server filters).
-export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 'random', { focus } = {}) => {
+// `subtopicId`: only questions tagged with that subtopic of the topic.
+export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 'random', { focus, subtopicId } = {}) => {
     const queryParams = new URLSearchParams({ subject, subtopic, limit, sort });
     if (focus === 'calculation' || focus === 'conceptual') queryParams.set('focus', focus);
+    if (subtopicId) queryParams.set('subtopicId', subtopicId);
     try {
         const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
         return normalizeQuestions(data);
@@ -358,7 +360,8 @@ export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 
             // The pack keeps its order, so its first `limit` would be the same
             // questions every session. Sampled from the whole slice instead,
             // spread across topics as the server's answer is.
-            const cached = stratifiedSample(await getOfflineQuestions(subject, subtopic, Infinity), Number(limit) || 50);
+            const slice = await getOfflineQuestions(subject, subtopic, Infinity);
+            const cached = stratifiedSample(subtopicId ? slice.filter((q) => q.subtopicId === subtopicId) : slice, Number(limit) || 50);
             if (cached.length > 0) return cached;
         }
         throw err;

@@ -15,6 +15,7 @@ import { Swords } from '../../components/ui/icons';
 import { useStore } from '../../store/useStore';
 import { drawApplies } from '../board-simulator/drawModes';
 import { PRC_TIMES } from '../../config/examStandards';
+import { useSubtopicChoices } from '../syllabus/subtopicChoices';
 import DrawPicker from '../board-simulator/DrawPicker';
 import { useDrawPrefs } from '../board-simulator/useDrawPrefs';
 import { BATTLE_MODES as MODES } from './battleModes';
@@ -27,11 +28,14 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
     count: 20,
     timeLimitMins: 30,
     subtopic: 'All',
+    subtopicId: '',
   });
   const topics = useStore((s) => s.dynamicTOS)?.[hostConfig.subject] || [];
   // Only a custom battle is on one topic: a PRC paper covers its subject.
   const subtopic = hostConfig.mode === 'custom' ? hostConfig.subtopic : 'All';
   const drawShown = drawApplies({ mode: hostConfig.mode, subtopic });
+  const subtopicChoices = useSubtopicChoices(hostConfig.subject, subtopic);
+  const pickedSub = subtopicChoices.find((s) => s.id === hostConfig.subtopicId) || null;
   // A second tap while the first request ran created a second lobby.
   const [creating, setCreating] = useState(false);
   const { prefs: draw, save: saveDraw } = useDrawPrefs();
@@ -59,7 +63,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         isPrcStandard: hostConfig.mode === 'prc' || hostConfig.mode === 'blended',
         ...(drawShown
           ? { drawMode: draw.drawMode, ...(draw.drawMode === 'own' ? { ownCounts: draw.ownCounts } : {}) }
-          : { subtopic }),
+          : { subtopic, ...(pickedSub ? { subtopicId: pickedSub.id, subtopicName: pickedSub.name } : {}) }),
       };
 
       const battleId = await createMultiplayerBattle(finalConfig, finalTime * 60);
@@ -128,7 +132,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
             <Select
               disabled={hostConfig.mode === 'blended'}
               value={hostConfig.mode === 'blended' ? 'Blended' : hostConfig.subject}
-              onChange={(e) => setHostConfig({ ...hostConfig, subject: e.target.value, subtopic: 'All' })}
+              onChange={(e) => setHostConfig({ ...hostConfig, subject: e.target.value, subtopic: 'All', subtopicId: '' })}
             >
               {hostConfig.mode === 'blended' ? (
                 <option value="Blended">Math, ESAS & EE blended</option>
@@ -157,9 +161,18 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
 
         {hostConfig.mode === 'custom' && (
           <FormField label="Topic" hint="Everyone answers questions from this topic only.">
-            <Select value={hostConfig.subtopic} onChange={(e) => setHostConfig({ ...hostConfig, subtopic: e.target.value })}>
+            <Select value={hostConfig.subtopic} onChange={(e) => setHostConfig({ ...hostConfig, subtopic: e.target.value, subtopicId: '' })}>
               <option value="All">All topics</option>
               {topics.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </FormField>
+        )}
+
+        {hostConfig.mode === 'custom' && subtopicChoices.length > 0 && (
+          <FormField label="Subtopic" hint="Only subtopics with enough tagged questions">
+            <Select value={hostConfig.subtopicId} onChange={(e) => setHostConfig({ ...hostConfig, subtopicId: e.target.value })}>
+              <option value="">All of {subtopic}</option>
+              {subtopicChoices.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.questions})</option>)}
             </Select>
           </FormField>
         )}

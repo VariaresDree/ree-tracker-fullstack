@@ -215,11 +215,39 @@ describe('GET /api/config/subtopics', () => {
     });
 
     it('returns the list with retired rows flagged, so a ticked one keeps its name', async () => {
-        const find = vi.spyOn(prisma.syllabusSubtopic, 'findMany').mockResolvedValue([{ id: 'a', topicId: 't', name: 'N', sortOrder: 0, active: false }]);
+        const find = vi.spyOn(prisma.syllabusSubtopic, 'findMany').mockResolvedValue([{ id: 'a', topicId: 't', name: 'N', sortOrder: 0, active: false, topic: { name: 'Circuits', subject: 'EE' } }]);
+        vi.spyOn(prisma.question, 'groupBy').mockResolvedValue([]);
         const res = await request(app).get('/api/config/subtopics').set(as(USER));
         expect(res.status).toBe(200);
-        expect(res.body.items[0]).toEqual({ id: 'a', topicId: 't', name: 'N', sortOrder: 0, active: false });
+        expect(res.body.items[0]).toEqual({ id: 'a', topicId: 't', name: 'N', sortOrder: 0, active: false, topicName: 'Circuits', subject: 'EE', questions: 0 });
         expect(find.mock.calls[0][0].where).toBeUndefined();
+    });
+
+    it('counts the live questions tagged with each, so a picker offers only ones with enough', async () => {
+        vi.spyOn(prisma.syllabusSubtopic, 'findMany').mockResolvedValue([
+            { id: 'a', topicId: 't', name: 'AC', sortOrder: 0, active: true, topic: { name: 'Circuits', subject: 'EE' } },
+            { id: 'b', topicId: 't', name: 'DC', sortOrder: 1, active: true, topic: { name: 'Circuits', subject: 'EE' } },
+        ]);
+        const group = vi.spyOn(prisma.question, 'groupBy').mockResolvedValue([{ subtopicId: 'a', _count: { _all: 14 } }]);
+        const res = await request(app).get('/api/config/subtopics').set(as(USER));
+        expect(res.body.items.map((i) => [i.id, i.questions])).toEqual([['a', 14], ['b', 0]]);
+        expect(group.mock.calls[0][0].where).toEqual({ isFlagged: false, subtopicId: { not: null } });
+    });
+});
+
+describe('GET /api/user/syllabus-subtopics/accuracy', () => {
+    it('needs a sign-in and a topic', async () => {
+        expect((await request(app).get('/api/user/syllabus-subtopics/accuracy?topicId=t')).status).toBe(401);
+        expect((await request(app).get('/api/user/syllabus-subtopics/accuracy').set(as(USER))).status).toBe(400);
+    });
+
+    it('counts this learner’s answers in Postgres, a row per subtopic', async () => {
+        const raw = vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ subtopicId: 'a', answered: 12, correct: 9 }]);
+        const res = await request(app).get('/api/user/syllabus-subtopics/accuracy?topicId=t').set(as(USER));
+        expect(res.status).toBe(200);
+        expect(res.body.items).toEqual([{ subtopicId: 'a', answered: 12, correct: 9 }]);
+        // Bound values: this learner, this topic.
+        expect(raw.mock.calls[0].slice(1)).toEqual([USER, 't']);
     });
 });
 

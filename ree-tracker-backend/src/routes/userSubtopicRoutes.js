@@ -38,6 +38,25 @@ router.get(BASE, authMiddleware, async (req, res) => {
     }
 });
 
+// This learner's answers in one topic, by the subtopic each question is tagged
+// with (Progress › Syllabus). Counted in Postgres, so only a row per subtopic
+// leaves the database. Reads answers, never these display-only rows.
+router.get(`${BASE}/accuracy`, authMiddleware, async (req, res) => {
+    const { topicId } = req.query;
+    if (typeof topicId !== 'string' || !topicId || topicId.length > 100) return res.status(400).json({ error: 'Pick a topic.' });
+    try {
+        const items = await prisma.$queryRaw`
+            SELECT q."subtopicId" AS "subtopicId", COUNT(*)::int AS "answered", (COUNT(*) FILTER (WHERE a."isCorrect"))::int AS "correct"
+            FROM "QuestionAttempt" a JOIN "Question" q ON q."id" = a."questionId"
+            WHERE a."userId" = ${req.user.id} AND q."topicId" = ${topicId} AND q."subtopicId" IS NOT NULL
+            GROUP BY q."subtopicId"`;
+        res.status(200).json({ items });
+    } catch (error) {
+        logger.error('Subtopic accuracy failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to load your accuracy.' });
+    }
+});
+
 // A whole topic at once: Mark all, moving rows, the suggested list back on. One
 // statement, because a transaction of upserts costs a round-trip per row.
 router.post(`${BASE}/bulk`, authMiddleware, validate(userSubtopicBulkSchema), async (req, res) => {

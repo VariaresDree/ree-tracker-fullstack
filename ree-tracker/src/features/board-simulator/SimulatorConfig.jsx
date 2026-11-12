@@ -14,6 +14,7 @@ import { AI_SOURCE_MESSAGE } from '../exam-export/drawExamPaper';
 import { drawApplies } from './drawModes';
 import { useDrawPrefs } from './useDrawPrefs';
 import DrawPicker from './DrawPicker';
+import { useSubtopicChoices } from '../syllabus/subtopicChoices';
 
 const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60]
   .map((n) => String(n).padStart(2, '0')).join(':');
@@ -43,6 +44,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
   // The full board is its own flow, so the config beneath it says nothing about it.
   const isCustom = !fullBoardSelected && config.mode === 'subject' && !config.isPrcStandard;
+  const subtopicChoices = useSubtopicChoices(config.subject, isCustom && config.subject !== 'blended' ? config.subtopic || 'All' : 'All');
   const isPrcSubject = config.mode === 'subject' && config.isPrcStandard;
   const isBlended = config.mode === 'blended';
   const activeProfile = fullBoardSelected ? 'prc_full' : isBlended ? 'prc_blended' : isPrcSubject ? 'prc_subject' : 'custom';
@@ -163,7 +165,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             <SegmentedControl
               label="Subject"
               value={config.subject}
-              onChange={(subject) => setConfig({ ...config, subject, subtopic: 'All' })}
+              onChange={(subject) => setConfig({ ...config, subject, subtopic: 'All', subtopicId: null })}
               options={SUBJECT_OPTIONS}
             />
           </div>
@@ -171,9 +173,18 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
 
         {isCustom && config.subject && config.subject !== 'blended' && (
           <FormField label="Topic">
-            <Select value={config.subtopic || 'All'} onChange={(e) => setConfig({ ...config, subtopic: e.target.value })}>
+            <Select value={config.subtopic || 'All'} onChange={(e) => setConfig({ ...config, subtopic: e.target.value, subtopicId: null })}>
               <option value="All">All topics</option>
               {(safeTOS[config.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </FormField>
+        )}
+
+        {isCustom && subtopicChoices.length > 0 && (
+          <FormField label="Subtopic" hint="Only subtopics with enough tagged questions">
+            <Select value={config.subtopicId || ''} onChange={(e) => setConfig({ ...config, subtopicId: e.target.value || null })}>
+              <option value="">All of {config.subtopic}</option>
+              {subtopicChoices.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.questions})</option>)}
             </Select>
           </FormField>
         )}

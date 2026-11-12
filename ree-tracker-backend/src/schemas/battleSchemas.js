@@ -14,6 +14,9 @@ const battleCreateSchema = z.object({
         mode: z.enum(['custom', 'prc', 'blended', 'subject']).default('custom'),
         subject: z.string().max(64).optional(),
         subtopic: z.string().max(128).optional(),
+        // One subtopic of that topic (Question.subtopicId), and its name to show.
+        subtopicId: z.string().min(1).max(100).optional(),
+        subtopicName: z.string().max(128).optional(),
         count: z.coerce.number().int().min(5).max(100).default(20),
         timeLimitMins: z.coerce.number().int().min(1).max(400).optional(),
         isPrcStandard: z.boolean().default(false),

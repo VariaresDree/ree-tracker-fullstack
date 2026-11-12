@@ -34,31 +34,33 @@ function capOf(limit) {
 // `focus`: 'calculation' for calculation questions only, 'conceptual' for the
 // rest (a missing type counts as conceptual, as Practice's filter has it), or
 // null for both. Practice used to draw 1,000 rows and filter them itself.
-async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50, excludeIds = [], focus = null }) {
+// `subtopicId`: only questions tagged with that subtopic (Question.subtopicId).
+async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50, excludeIds = [], focus = null, subtopicId = null }) {
     const cap = capOf(limit);
     const exclude = (excludeIds || []).filter((id) => typeof id === 'string' && id);
     const kind = focus === 'calculation' || focus === 'conceptual' ? focus : null;
+    const tag = typeof subtopicId === 'string' && subtopicId ? subtopicId : null;
 
     let rows;
     if (subtopic && subjectValues) {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND "subtopic" = $2 AND NOT ("id" = ANY($4::text[])) AND ($5::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($5::text = \'calculation\')) ORDER BY random() LIMIT $3',
-            subjectValues, subtopic, cap, exclude, kind,
+            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND "subtopic" = $2 AND NOT ("id" = ANY($4::text[])) AND ($5::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($5::text = \'calculation\')) AND ($6::text IS NULL OR "subtopicId" = $6) ORDER BY random() LIMIT $3',
+            subjectValues, subtopic, cap, exclude, kind, tag,
         );
     } else if (subtopic) {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subtopic" = $1 AND NOT ("id" = ANY($3::text[])) AND ($4::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($4::text = \'calculation\')) ORDER BY random() LIMIT $2',
-            subtopic, cap, exclude, kind,
+            'SELECT id FROM "Question" WHERE "isFlagged" = false AND "subtopic" = $1 AND NOT ("id" = ANY($3::text[])) AND ($4::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($4::text = \'calculation\')) AND ($5::text IS NULL OR "subtopicId" = $5) ORDER BY random() LIMIT $2',
+            subtopic, cap, exclude, kind, tag,
         );
     } else if (subjectValues) {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND NOT ("id" = ANY($3::text[])) AND ($4::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($4::text = \'calculation\'))) t ORDER BY t.rn, random() LIMIT $2',
-            subjectValues, cap, exclude, kind,
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND NOT ("id" = ANY($3::text[])) AND ($4::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($4::text = \'calculation\')) AND ($5::text IS NULL OR "subtopicId" = $5)) t ORDER BY t.rn, random() LIMIT $2',
+            subjectValues, cap, exclude, kind, tag,
         );
     } else {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND NOT ("id" = ANY($2::text[])) AND ($3::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($3::text = \'calculation\'))) t ORDER BY t.rn, random() LIMIT $1',
-            cap, exclude, kind,
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND NOT ("id" = ANY($2::text[])) AND ($3::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($3::text = \'calculation\')) AND ($4::text IS NULL OR "subtopicId" = $4)) t ORDER BY t.rn, random() LIMIT $1',
+            cap, exclude, kind, tag,
         );
     }
     return rows.map((r) => r.id);
@@ -98,13 +100,14 @@ async function sampleDrawnIds({ subjectValues, subject, limit, groups, excludeId
 // Full question rows in the sampled random order. `avoidIds` are drawn last:
 // only when the rest of the pool can't fill `limit` do any of them return
 // (a small subtopic's rematch repeats as few as it must).
-async function samplePool({ subject = null, subtopic = null, limit = 50, avoidIds = null, groups = null, focus = null } = {}) {
+async function samplePool({ subject = null, subtopic = null, limit = 50, avoidIds = null, groups = null, focus = null, subtopicId = null } = {}) {
     const subjFilter = getSubjectFilter(subject);
     const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
     const specificSubtopic = subtopic && subtopic !== 'All' ? String(subtopic).trim() : null;
 
-    const spec = { subjectValues, subtopic: specificSubtopic, focus };
-    let idList = groups && subjectValues && !specificSubtopic
+    const spec = { subjectValues, subtopic: specificSubtopic, focus, subtopicId };
+    // A subtopic is narrower than any blueprint: drawn evenly from it.
+    let idList = groups && subjectValues && !specificSubtopic && !subtopicId
         ? await sampleDrawnIds({ subjectValues, subject: normalizeSubject(subject), limit, groups, excludeIds: avoidIds || [] })
         : await sampleQuestionIds({ ...spec, limit, excludeIds: avoidIds || [] });
     const short = capOf(limit) - idList.length;

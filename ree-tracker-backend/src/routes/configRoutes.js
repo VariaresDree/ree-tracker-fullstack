@@ -39,13 +39,20 @@ router.get('/tos', async (req, res) => {
 
 // The suggested table of contents (Admin › Subtopics), which the device merges
 // with the learner's own changes. Retired rows come too, flagged: a learner who
-// ticked one keeps it, and it needs its name.
+// ticked one keeps it, and it needs its name. `questions`: live questions
+// tagged with it, and the topic's name and subject, so Practice, a mock and a
+// battle can offer a subtopic once a topic is picked.
 router.get('/subtopics', authMiddleware, async (req, res) => {
     try {
-        const items = await prisma.syllabusSubtopic.findMany({
-            select: { id: true, topicId: true, name: true, sortOrder: true, active: true },
-            orderBy: [{ topicId: 'asc' }, { sortOrder: 'asc' }],
-        });
+        const [rows, counts] = await Promise.all([
+            prisma.syllabusSubtopic.findMany({
+                select: { id: true, topicId: true, name: true, sortOrder: true, active: true, topic: { select: { name: true, subject: true } } },
+                orderBy: [{ topicId: 'asc' }, { sortOrder: 'asc' }],
+            }),
+            prisma.question.groupBy({ by: ['subtopicId'], where: { isFlagged: false, subtopicId: { not: null } }, _count: { _all: true } }),
+        ]);
+        const tagged = new Map(counts.map((c) => [c.subtopicId, c._count._all]));
+        const items = rows.map(({ topic, ...r }) => ({ ...r, topicName: topic?.name ?? null, subject: topic?.subject ?? null, questions: tagged.get(r.id) || 0 }));
         return res.status(200).json({ items });
     } catch (error) {
         logger.error('Subtopics fetch error', { error: error.message });
