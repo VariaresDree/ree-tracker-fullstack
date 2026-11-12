@@ -36,6 +36,24 @@ function partitionSendResults(tokens, responses) {
     return { delivered, dead, failed };
 }
 
+// A reminder speaks about today ("your streak ends tonight"): a device that
+// was off all day drops it after this, rather than show it tomorrow.
+const PUSH_TTL_SECONDS = 6 * 60 * 60;
+
+/**
+ * Pure: the FCM multicast for one notification. Browsers (Web Push, platform
+ * 'web') and Android get the same lifetime. Exported for tests.
+ */
+function multicastMessage(tokens, { title, body, data = {} }) {
+    return {
+        tokens,
+        notification: { title, body },
+        data,
+        android: { ttl: PUSH_TTL_SECONDS * 1000 },
+        webpush: { headers: { TTL: String(PUSH_TTL_SECONDS), Urgency: 'normal' } },
+    };
+}
+
 /**
  * Send a notification to every registered device of one user.
  * Returns a summary ({sent, delivered, pruned, failed}) or null when skipped
@@ -63,11 +81,7 @@ async function sendToUser(userId, { title, body, data = {} } = {}) {
             Object.entries(data).map(([k, v]) => [k, String(v)]),
         );
 
-        const res = await getMessaging().sendEachForMulticast({
-            tokens,
-            notification: { title, body },
-            data: stringData,
-        });
+        const res = await getMessaging().sendEachForMulticast(multicastMessage(tokens, { title, body, data: stringData }));
 
         const { delivered, dead, failed } = partitionSendResults(tokens, res.responses);
         if (dead.length > 0) {
@@ -83,4 +97,4 @@ async function sendToUser(userId, { title, body, data = {} } = {}) {
     }
 }
 
-module.exports = { sendToUser, partitionSendResults, DEAD_TOKEN_CODES };
+module.exports = { sendToUser, partitionSendResults, multicastMessage, PUSH_TTL_SECONDS, DEAD_TOKEN_CODES };

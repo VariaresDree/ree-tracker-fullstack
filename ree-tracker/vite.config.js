@@ -122,7 +122,9 @@ export default defineConfig(async ({ mode, command }) => {
           // Storage is left out of the named chunk: a named chunk is a static
           // import of the entry, and Storage is used only by the handouts
           // uploader (features/materials/useFileManager), which is lazy.
-          if (id.includes('firebase') && !/[\\/]@?firebase[\\/]storage/.test(id)) return 'firebase';
+          // Messaging (and the installations module it uses) likewise: only the
+          // browser reminder loads it, when it is turned on (services/webPush.js).
+          if (id.includes('firebase') && !/[\\/]@?firebase[\\/](storage|messaging|installations)/.test(id)) return 'firebase';
           if (id.includes('socket.io-client')) return 'socket';
           // NO manual chunk for KaTeX + the markdown pipeline. Third time this
           // trap has been found in this file, and by far the most expensive:

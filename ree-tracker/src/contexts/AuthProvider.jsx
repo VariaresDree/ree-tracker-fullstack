@@ -253,6 +253,8 @@ export const AuthProvider = ({ children }) => {
     // Release this device's FCM token BEFORE the auth session dies (the
     // unregister call needs a valid ID token). No-op on the web.
     try { await teardownPushNotifications(); } catch { /* best-effort */ }
+    // And this browser's reminder, so the next person to use it gets none.
+    try { await (await import('../services/webPush')).disableWebPush(); } catch { /* best-effort */ }
     // Clear the display-name mirror guard so the next user to sign in on this
     // tab re-mirrors their own name (the flag is per-session, not per-user).
     try { sessionStorage.removeItem('dn_mirrored'); } catch { /* ignore */ }
