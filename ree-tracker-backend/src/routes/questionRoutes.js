@@ -116,7 +116,7 @@ async function withoutOpenBattles(userId, questions) {
 // battle creation) — see that module for the randomization rationale.
 router.get('/', authMiddleware, async (req, res) => {
     try {
-        const { subject, subtopic, limit = 50, sort = 'random', offset = 0, q } = req.query;
+        const { subject, subtopic, limit = 50, sort = 'random', offset = 0, q, focus } = req.query;
 
         // Deterministic ingestion ordering for the admin/library review grid:
         // newest- or oldest-created first, with real offset pagination so
@@ -151,7 +151,7 @@ router.get('/', authMiddleware, async (req, res) => {
             });
         }
 
-        const questions = await samplePool({ subject, subtopic, limit });
+        const questions = await samplePool({ subject, subtopic, limit, focus: typeof focus === 'string' ? focus : null });
         return res.status(200).json({ success: true, items: await withoutOpenBattles(req.user.id, questions) });
     } catch (error) {
         logger.error('Question fetch error', { error: error.message, stack: error.stack });

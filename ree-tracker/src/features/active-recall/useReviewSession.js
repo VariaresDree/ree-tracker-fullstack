@@ -277,9 +277,15 @@ export const useReviewSession = (currentUser, isOnline) => {
                 // The old 1,000 only when the focus left too few of the first.
                 const subTarget = cfg.subtopic === 'All' ? 'All' : cfg.subtopic;
                 const want = cfg.count || 20;
-                const limit = poolLimit(want, { filtered: cfg.cognitiveFocus === 'conceptual' || cfg.cognitiveFocus === 'calculation', max: 1000 });
-                freshData = await fetchVaultQuestions(cfg.subject, subTarget, limit);
-                if (limit < 1000 && inFocus(freshData || []).length < want) freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000);
+                const focused = cfg.cognitiveFocus === 'conceptual' || cfg.cognitiveFocus === 'calculation';
+                const limit = poolLimit(want, { filtered: focused, max: 1000 });
+                freshData = await fetchVaultQuestions(cfg.subject, subTarget, limit, 'random', { focus: focused ? cfg.cognitiveFocus : undefined });
+                // The server draws the focus now. An older one ignores it, so a
+                // pool with other kinds in it, and too few of this one, is
+                // drawn again larger, as before. (The bank simply having fewer
+                // than asked isn't helped by 1,000 rows, about 1.2 MB.)
+                const mixed = (freshData || []).length > inFocus(freshData || []).length;
+                if (limit < 1000 && mixed && inFocus(freshData || []).length < want) freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000);
             }
 
             if (!freshData || freshData.length === 0) throw new Error("No questions match these settings yet.");
