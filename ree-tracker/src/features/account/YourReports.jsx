@@ -2,8 +2,9 @@
 // what was done about each, with the reviewer's note when there is one. A
 // report used to vanish once sent.
 import { useEffect, useState } from 'react';
-import { Button, Skeleton, StatusPill } from '../../components/ui';
+import { Badge, Button, Skeleton, StatusPill } from '../../components/ui';
 import { apiRequest } from '../../services/dbQueries';
+import { useStore } from '../../store/useStore';
 
 const SHOWN = 10;
 const STATUS = {
@@ -25,7 +26,16 @@ export default function YourReports() {
   useEffect(() => {
     let live = true;
     apiRequest('/api/user/reports')
-      .then((res) => { if (live) setState({ status: 'done', items: res?.items || [] }); })
+      .then((res) => {
+        if (!live) return;
+        const items = res?.items || [];
+        setState({ status: 'done', items });
+        // Seen now: Today stops saying one was answered, on this device at once.
+        if (items.some((r) => r.resolvedAt && !r.seenAt)) {
+          apiRequest('/api/user/reports/seen', 'POST', {}).catch(() => {});
+          useStore.setState((s) => ({ stats: { ...(s.stats || {}), reportsAnswered: 0 } }));
+        }
+      })
       .catch(() => { if (live) setState({ status: 'error', items: [] }); });
     return () => { live = false; };
   }, []);
@@ -49,6 +59,7 @@ export default function YourReports() {
             <li key={r.questionId} className="flex flex-col gap-1.5 py-3 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill tone={s.tone}>{s.label}</StatusPill>
+                {r.resolvedAt && !r.seenAt && <Badge tone="signal">New</Badge>}
                 <span className="text-xs text-muted2 tabular-nums">
                   Reported {day(r.createdAt)}{r.resolvedAt ? ` · answered ${day(r.resolvedAt)}` : ''}
                 </span>

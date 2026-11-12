@@ -43,3 +43,19 @@ describe('GET /api/user/reports', () => {
         expect(res.body.items[0]).not.toHaveProperty('question');
     });
 });
+
+describe('POST /api/user/reports/seen', () => {
+    it('marks only this learner’s answered, unseen reports, and refreshes Today', async () => {
+        const dashboardCache = require('../src/services/dashboardCache');
+        const invalidate = vi.spyOn(dashboardCache, 'invalidate');
+        const update = vi.spyOn(prisma.questionFlag, 'updateMany').mockResolvedValue({ count: 3 });
+        const res = await request(app()).post('/api/user/reports/seen').set(as('me')).send({});
+        expect(res.body).toEqual({ success: true, seen: 3 });
+        expect(update.mock.calls[0][0]).toEqual({ where: { userId: 'me', resolvedAt: { not: null }, seenAt: null }, data: { seenAt: expect.any(Date) } });
+        expect(invalidate).toHaveBeenCalledWith('me');
+    });
+
+    it('needs a sign-in', async () => {
+        expect((await request(app()).post('/api/user/reports/seen')).status).toBe(401);
+    });
+});

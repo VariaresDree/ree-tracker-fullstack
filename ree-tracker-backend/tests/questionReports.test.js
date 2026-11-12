@@ -79,7 +79,8 @@ describe('resolveReports', () => {
         expect(await resolveReports('q1', resolution, ADMIN)).toEqual({ resolved: 2 });
         const flags = prisma.questionFlag.updateMany.mock.calls[0][0];
         expect(flags.where).toEqual({ questionId: 'q1', resolvedAt: null });
-        expect(flags.data).toMatchObject({ resolution, resolvedBy: ADMIN, resolvedAt: expect.any(Date) });
+        // A new answer is new to the learner, even on a report they had seen.
+        expect(flags.data).toMatchObject({ resolution, resolvedBy: ADMIN, resolvedAt: expect.any(Date), seenAt: null });
         expect(prisma.question.update.mock.calls[0][0]).toEqual({ where: { id: 'q1' }, data: { isFlagged: flagged } });
     });
 
@@ -137,7 +138,7 @@ describe('a learner reports again after an admin closed it', () => {
         const update = vi.spyOn(prisma.question, 'update');
         const res = await request(app()).patch('/api/questions/q1/flag').set(as(USER)).send({ reason: 'It doesn’t display properly' });
         expect(res.body).toMatchObject({ success: true, flagCount: 1, quarantined: false });
-        expect(upsert.mock.calls[0][0].update).toEqual({ reason: 'It doesn’t display properly', resolvedAt: null, resolution: null, resolvedBy: null, resolutionNote: null });
+        expect(upsert.mock.calls[0][0].update).toEqual({ reason: 'It doesn’t display properly', resolvedAt: null, resolution: null, resolvedBy: null, resolutionNote: null, seenAt: null });
         expect(count).toHaveBeenCalledWith({ where: { questionId: 'q1', resolvedAt: null } });
         expect(update).not.toHaveBeenCalled();
     });

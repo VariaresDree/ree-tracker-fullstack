@@ -41,7 +41,7 @@ import { usePlanCalendar } from '../study-plan/usePlanCalendar';
 import { todayManila } from '../../utils/manilaDate';
 import { launchPractice } from '../active-recall/presets';
 import { apportionItems, DEFAULT_SYLLABUS_WEIGHTS, isRestDay, keyDayMap } from '@ree/shared';
-import { ArrowRight, CalendarCheck, ClipboardList, Compass, Crosshair, Layers, Pause, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
+import { ArrowRight, Flag, CalendarCheck, ClipboardList, Compass, Crosshair, Layers, Pause, RotateCcw, Shield, Target, Timer } from '../../components/ui/icons';
 
 // The calendar is read at most this often here: Today is the boot screen.
 const CALENDAR_FRESH_MS = 30 * 60 * 1000;
@@ -343,6 +343,14 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
       {!settled ? <LeadSkeleton /> : lead && <LeadCard action={lead} navigate={navigate} />}
 
       <RematchInvites />
+
+      {stats?.reportsAnswered > 0 && (
+        <Link to="/account#reports" className="self-start inline-flex items-center gap-2 pointer-coarse:min-h-11 text-sm text-textMain hover:underline underline-offset-2">
+          <Flag size={15} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} />
+          {stats.reportsAnswered === 1 ? 'A question you reported was answered.' : `${stats.reportsAnswered} questions you reported were answered.`} See what was done
+          <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
+        </Link>
+      )}
 
       <Grid kind="duo" gap="sm">
         <ReadinessTile readiness={readiness} trend={trend} settled={readinessSettled} isOnline={isOnline} early={early} />

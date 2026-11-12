@@ -3,6 +3,8 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 
 const apiRequest = vi.fn();
 vi.mock('../../services/dbQueries', () => ({ apiRequest: (...a) => apiRequest(...a) }));
+const setState = vi.fn();
+vi.mock('../../store/useStore', () => ({ useStore: { setState: (...a) => setState(...a) } }));
 
 const { default: YourReports } = await import('./YourReports');
 
@@ -29,6 +31,25 @@ describe('Your reports', () => {
     expect(within(screen.getByText(/Find I_2/).closest('li')).getByText('Waiting for review')).toBeInTheDocument();
     expect(within(screen.getByText(/Find I_3/).closest('li')).getByText('Checked: no change needed')).toBeInTheDocument();
     expect(apiRequest).toHaveBeenCalledWith('/api/user/reports');
+  });
+
+  it('an answer not seen yet says New, and opening this marks it seen, here and on Today', async () => {
+    apiRequest.mockImplementation(async (url) => (url === '/api/user/reports'
+      ? { items: [report(1, { resolvedAt: '2026-11-12T00:00:00Z', resolution: 'fixed', seenAt: null }), report(2, { resolvedAt: '2026-11-10T00:00:00Z', resolution: 'dismissed', seenAt: '2026-11-11T00:00:00Z' })] }
+      : { success: true }));
+    render(<YourReports />);
+    await screen.findByText(/2 reported/);
+    expect(within(screen.getByText(/Find I_1/).closest('li')).getByText('New')).toBeInTheDocument();
+    expect(within(screen.getByText(/Find I_2/).closest('li')).queryByText('New')).not.toBeInTheDocument();
+    expect(apiRequest).toHaveBeenCalledWith('/api/user/reports/seen', 'POST', {});
+    expect(setState.mock.calls[0][0]({ stats: { reportsAnswered: 1, totalAnswered: 5 } })).toEqual({ stats: { reportsAnswered: 0, totalAnswered: 5 } });
+  });
+
+  it('nothing new, nothing marked', async () => {
+    apiRequest.mockResolvedValue({ items: [report(1)] });
+    render(<YourReports />);
+    await screen.findByText(/1 reported/);
+    expect(apiRequest).not.toHaveBeenCalledWith('/api/user/reports/seen', 'POST', {});
   });
 
   it('shows ten, then more', async () => {

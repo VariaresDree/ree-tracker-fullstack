@@ -28,6 +28,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #254 | Learners' reports reach the admin: Admin › Question bank › Reports (65 reports on 64 questions had never been seen; a report only surfaced at three reporters); `/flagged` and `/quarantine` made admin only (they sent answer keys); lobbies nobody starts in a day are removed (the 13 Oct one went on deploy) |
 | #255 | Room in the boot download: 99.7% → 97.8% (Capacitor core and the sync-issues panel load on demand) |
 | #256 | Learners hear back: Account › Your reports shows each report's outcome; an admin can add a note when closing one |
+| #257 | Today says when one of your reports was answered, linking to Your reports (no extra request: it rides on the dashboard read) |
 
 **Your actions:**
 1. **Read the learners' reports** (#254, #256): Admin › Question bank › Reports (65 open). Edit, No problem, or Remove each; a short note tells the learners what you did.
@@ -52,7 +53,7 @@ The owner asked for the next round after the optimization one: help learners tra
 1. Run the tagging, then check a Practice set on one subtopic draws only from it.
 2. Smart drill by subtopic (not done: Practice covers a subtopic drill), and per-subtopic mastery in the forecast.
 3. The boot download is at 97.8% of 700 kB (about 15 kB of room). Next candidates: Tailwind's colour fallbacks, the theme blocks (only without a colour flash), Login.
-4. A nudge on Today when one of your reports is answered (Account › Your reports shows it now, but only when opened).
+4. Smart drill by subtopic and per-subtopic mastery, once the bank is tagged.
 
 ## 0f. Handover, optimization round of 2026-11-10/11
 

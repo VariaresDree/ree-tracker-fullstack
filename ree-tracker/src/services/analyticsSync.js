@@ -186,6 +186,9 @@ export function mergeServerIntoStats(savedStats, sqlData, today = todayManila())
     // another device's choice reaches this one. Undefined until a sync has
     // said either way, which keeps Today from showing the card too early.
     tourDoneAt: sqlData.profile && 'tourDoneAt' in sqlData.profile ? sqlData.profile.tourDoneAt : (stats?.tourDoneAt ?? null),
+    // Reports an admin answered that the learner hasn't looked at (Today links
+    // to Account › Your reports). The server's count, or none.
+    reportsAnswered: Number(sqlData.profile?.reportsAnswered) || 0,
     ...mergeGauntlet(stats, sqlData.profile),
     cloudTimestamp: Date.now(),
   };

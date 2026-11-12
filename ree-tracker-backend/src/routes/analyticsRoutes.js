@@ -66,6 +66,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
             topicRows,
             masteryRows,
             thetaRows,
+            reportsAnswered,
         ] = await Promise.all([
             prisma.user.findUnique({
                 where: { id: uid },
@@ -158,6 +159,10 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                 take: 120,
                 select: { theta: true, recordedAt: true },
             }),
+
+            // This learner's reports an admin has answered that they haven't
+            // looked at yet: Today links to Account › Your reports.
+            prisma.questionFlag.count({ where: { userId: uid, resolvedAt: { not: null }, seenAt: null } }),
         ]);
 
         if (!user) return res.status(404).json({ error: 'No progress found for this account.' });
@@ -260,6 +265,7 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
                     lastActive: user.lastActive, examDate: user.examDate, dailyTarget: user.dailyTarget,
                     analyticsResetAt: user.analyticsResetAt,
                     tourDoneAt: user.tourDoneAt,
+                    reportsAnswered,
                     dailyMath, dailyESAS, dailyEE,
                     totalAnswered,
                     // The Gauntlet ladder as the server keeps it. Until the

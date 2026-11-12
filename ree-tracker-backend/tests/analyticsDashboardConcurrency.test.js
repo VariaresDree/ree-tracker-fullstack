@@ -82,6 +82,7 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         const groupBy = vi.spyOn(prisma.questionAttempt, 'groupBy').mockImplementation(makeGate(log, 'groupBy', []));
         vi.spyOn(prisma.userTopicPerformance, 'findMany').mockImplementation(makeGate(log, 'mastery', []));
         vi.spyOn(prisma.thetaHistory, 'findMany').mockImplementation(makeGate(log, 'theta', []));
+        vi.spyOn(prisma.questionFlag, 'count').mockImplementation(makeGate(log, 'reports', 0));
 
         const pending = request(app)
             .get(`/api/analytics/dashboard/${UID}`)
@@ -93,8 +94,8 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         for (let i = 0; i < 50; i += 1) await Promise.resolve();
         await new Promise((r) => setTimeout(r, 50));
 
-        // 5 queries: user, attemptRollup, topicRows, mastery, theta.
-        expect(log.length).toBe(5);
+        // 6 queries: user, attemptRollup, topicRows, mastery, theta, answered reports.
+        expect(log.length).toBe(6);
         expect(log.filter((l) => l === 'queryRaw').length).toBe(2); // rollup, topicRows
         // The four attempt aggregates are now ONE statement. Asserting groupBy was
         // never reached is what stops them being quietly split back apart: doing so
@@ -129,6 +130,7 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         vi.spyOn(prisma.userTopicPerformance, 'findMany')
             .mockResolvedValue([{ topic: 'Algebra', pMastery: 0.42, masteryN: 10 }]);
         vi.spyOn(prisma.thetaHistory, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.questionFlag, 'count').mockResolvedValue(2);
 
         const res = await request(app)
             .get(`/api/analytics/dashboard/${UID}`)
@@ -137,6 +139,9 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         expect(res.status).toBe(200);
         const d = res.body.data;
         expect(d.profile.dailyMath).toBe(4);
+        // Answered reports not yet seen: Today links to Account › Your reports.
+        expect(d.profile.reportsAnswered).toBe(2);
+        expect(prisma.questionFlag.count).toHaveBeenCalledWith({ where: { userId: UID, resolvedAt: { not: null }, seenAt: null } });
         expect(d.profile.totalAnswered).toBe(10);          // Σ activityCalendar
         expect(d.activityCalendar['2026-09-02']).toBe(10);
         expect(d.matrix.hc).toBe(3);
@@ -172,6 +177,7 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
             .mockResolvedValueOnce([]);
         vi.spyOn(prisma.userTopicPerformance, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.thetaHistory, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.questionFlag, 'count').mockResolvedValue(2);
 
         const res = await request(app)
             .get(`/api/analytics/dashboard/${UID}`)
@@ -186,6 +192,7 @@ describe('GET /analytics/dashboard/:uid query concurrency', () => {
         vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
         vi.spyOn(prisma.userTopicPerformance, 'findMany').mockResolvedValue([]);
         vi.spyOn(prisma.thetaHistory, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.questionFlag, 'count').mockResolvedValue(2);
 
         const res = await request(app)
             .get(`/api/analytics/dashboard/${UID}`)

@@ -35,6 +35,11 @@ describe('Getting started on the account', () => {
     expect(mergeServerIntoStats({ tourDoneAt: AT }, sql({ tourDoneAt: null }), TODAY).tourDoneAt).toBeNull();
   });
 
+  it('answered reports are the server’s count, or none', () => {
+    expect(mergeServerIntoStats({}, sql({ reportsAnswered: 2 }), TODAY).reportsAnswered).toBe(2);
+    expect(mergeServerIntoStats({ reportsAnswered: 2 }, sql({}), TODAY).reportsAnswered).toBe(0);
+  });
+
   it('an older server that never says keeps the device’s, or null', () => {
     expect(mergeServerIntoStats({ tourDoneAt: AT }, sql({}), TODAY).tourDoneAt).toBe(AT);
     expect(mergeServerIntoStats({}, sql({}), TODAY).tourDoneAt).toBeNull();
