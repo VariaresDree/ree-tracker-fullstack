@@ -1,15 +1,16 @@
 // src/services/masteryRollups.js
-// Rebuilding UserTopicPerformance rows from attempt history: the BKT fold, the
+// Rebuilding UserTopicPerformance rows from attempt history: the mastery fold, the
 // live-telemetry counting rule, and the proof a row's tally moved elsewhere
 // before it may be removed. Shared by scripts/backfillMastery.js (every user,
 // every topic) and services/topicRelabel.js (the rows a TOS rename merges), so
 // a merge leaves exactly what the next backfill run would.
-const { bktSequence } = require('../engine/bkt');
+const { masterySequence } = require('../engine/bkt');
 const { paramsForTopic } = require('../config/bktParams');
 const { plausibleTimeMs } = require('../config/telemetryBounds');
 
 // The QuestionAttempt fields the fold and the proof read (order by createdAt).
 const HISTORY_SELECT = {
+    id: true,
     isCorrect: true,
     subject: true,
     subtopic: true,
@@ -25,13 +26,19 @@ const foldKeyOf = (a) => a.question?.topic?.name || a.subtopic || 'General';
 // Same per-attempt rule as telemetryHelpers.aggregateTopicRollups.
 const secondsOf = (a) => Math.floor(plausibleTimeMs(a.timeSpentMs) / 1000);
 
-// Pure: fold one user's chronological attempts into per-topic BKT mastery and
+// Answer order, as live telemetry folds a batch (telemetryHelpers.byAnsweredAt),
+// ties by id. The data migration 20261119000000_mastery_recent_accuracy orders
+// the same way (id COLLATE "C" is this code-unit compare).
+const answerTime = (a) => new Date(a.answeredAt || a.createdAt || 0).getTime();
+const byAnswerOrder = (a, b) => answerTime(a) - answerTime(b) || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0);
+
+// Pure: fold one user's attempts, in answer order, into per-topic mastery and
 // counts. Each attempt carries its resolved topic name/subject (COALESCE of the
 // question's Topic and the attempt's stored label), so re-tagging history is
 // respected. Returns one row per topic.
 function foldUserMastery(attempts) {
     const byTopic = new Map(); // topic -> { subject, topicId, observations, correct, totalTime, lastPracticedAt }
-    for (const a of attempts) {
+    for (const a of [...(attempts || [])].sort(byAnswerOrder)) {
         const t = a.question?.topic;
         const topic = foldKeyOf(a);
         let entry = byTopic.get(topic);
@@ -48,7 +55,7 @@ function foldUserMastery(attempts) {
     }
     const out = [];
     for (const [topic, { subject, topicId, observations, correct, totalTime, lastPracticedAt }] of byTopic) {
-        const { pMastery, n } = bktSequence(observations, paramsForTopic(topic));
+        const { pMastery, n } = masterySequence(observations, paramsForTopic(topic));
         out.push({ topic, subject, topicId, pMastery, masteryN: n, lastPracticedAt, attempts: observations.length, correct, totalTime });
     }
     return out;

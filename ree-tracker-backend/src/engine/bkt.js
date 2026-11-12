@@ -1,12 +1,20 @@
-// Bayesian Knowledge Tracing (BKT) — per-skill mastery estimate.
-// A complementary signal to the per-item IRT theta (engine/irt.js): where theta
-// is a latent ability on a continuous scale, BKT gives an interpretable
-// per-topic P(mastery) in [0,1] that drives the topic mastery heatmap.
+// Per-topic mastery: P(mastered) in [0,1], beside the per-item IRT theta
+// (engine/irt.js). Where theta is a latent ability on a continuous scale, this
+// is an interpretable per-topic estimate that drives the mastery heatmap, the
+// weak-topic rankings and the study plan.
 //
-// Standard 4-parameter BKT (Corbett & Anderson 1994). All numerics are pure and
-// stateless so the module is unit-testable without a DB, and so the same fold
-// runs both online (telemetryService, one attempt at a time) and in batch
-// (scripts/backfillMastery.js, replaying history).
+// It is read off the learner's recent accuracy in the topic through BKT's
+// answer model (Corbett & Anderson 1994): P(right) = p·(1 − slip) + (1 − p)·guess,
+// solved for p. Until 2026-11-12 it was the classic BKT fold, which treats
+// mastery as a state learners only ever enter; with a 12% chance of learning
+// per answer, any topic answered right more than about 57% of the time drifted
+// to exactly 1.0, where no wrong answer could move it (57 of 184 live topic
+// rows, Calculus 1 at 58% right among them).
+//
+// Pure and stateless, so the same fold runs online (telemetryService, one
+// batch at a time from the stored estimate) and in batch
+// (services/masteryRollups.js, replaying history), and the data migration
+// 20261119000000_mastery_recent_accuracy is the same arithmetic in SQL.
 
 'use strict';
 
@@ -17,79 +25,49 @@ function clamp01(x) {
     return x < 0 ? 0 : x > 1 ? 1 : x;
 }
 
-/**
- * Bayes step: posterior P(mastered | observation) given the prior P(mastered).
- *   correct:  P(L)·(1−slip)               / [ P(L)·(1−slip) + (1−P(L))·guess ]
- *   wrong:    P(L)·slip                    / [ P(L)·slip     + (1−P(L))·(1−guess) ]
- *
- * @param {number} pMastery prior P(mastered) in [0,1]
- * @param {boolean} correct
- * @param {object} [params] {pSlip, pGuess}
- * @returns {number} posterior P(mastered)
- */
-function bktPosterior(pMastery, correct, params = DEFAULT_BKT) {
-    const pL = clamp01(pMastery);
-    const slip = params.pSlip ?? DEFAULT_BKT.pSlip;
-    const guess = params.pGuess ?? DEFAULT_BKT.pGuess;
-    let num, den;
-    if (correct) {
-        num = pL * (1 - slip);
-        den = num + (1 - pL) * guess;
-    } else {
-        num = pL * slip;
-        den = num + (1 - pL) * (1 - guess);
-    }
-    // den is 0 only in degenerate param corners (e.g. guess=0 and a wrong-from-
-    // certain-mastery event) — fall back to the prior rather than divide by zero.
-    if (den <= 0) return pL;
-    return clamp01(num / den);
+const paramOf = (params, key) => params?.[key] ?? DEFAULT_BKT[key];
+
+/** The accuracy a mastery stands for: p·(1 − slip) + (1 − p)·guess. */
+function accuracyOf(pMastery, params = DEFAULT_BKT) {
+    const guess = paramOf(params, 'pGuess');
+    return guess + clamp01(pMastery) * (1 - paramOf(params, 'pSlip') - guess);
+}
+
+/** The mastery an accuracy stands for (accuracyOf solved for p), in [0,1]. */
+function masteryOf(accuracy, params = DEFAULT_BKT) {
+    const guess = paramOf(params, 'pGuess');
+    return clamp01((accuracy - guess) / (1 - paramOf(params, 'pSlip') - guess));
 }
 
 /**
- * One full BKT step: Bayes update on the observation, then the learning
- * transition P(L') = posterior + (1 − posterior)·pLearn.
+ * Fold chronological answers into mastery. The accuracy estimate starts at
+ * pInit's accuracy, worth `priorAnswers` answers, and each answer moves it
+ * 1/(priorAnswers + n) of the way (a plain average with the prior) until that
+ * step falls to `minStep`, after which it weighs recent answers more.
  *
- * @param {number} pMastery prior P(mastered)
- * @param {boolean} correct
- * @param {object} [params] {pSlip, pGuess, pLearn}
- * @returns {number} updated P(mastered)
- */
-function bktUpdate(pMastery, correct, params = DEFAULT_BKT) {
-    const posterior = bktPosterior(pMastery, correct, params);
-    const learn = params.pLearn ?? DEFAULT_BKT.pLearn;
-    return clamp01(posterior + (1 - posterior) * learn);
-}
-
-/**
- * Fold an ordered sequence of observations through BKT from a starting prior
- * (defaults to pInit). Order matters — this equals iterated bktUpdate.
+ * shortcut: continuing from a stored mastery of exactly 0 or 1 resumes from
+ * 25% or 90% accuracy, the ends of the scale; store the accuracy itself if a
+ * learner's 97% ever needs telling from 90%.
  *
  * @param {Array<boolean|{correct:boolean}>} observations chronological
  * @param {object} [params]
- * @param {number} [prior] starting P(mastered); defaults to params.pInit
- * @returns {{pMastery:number, n:number}}
+ * @param {number} [prior] stored mastery to continue from; defaults to pInit
+ * @param {number} [priorN] answers already behind `prior` (masteryN)
+ * @returns {{pMastery:number, n:number}} n = observations folded here
  */
-function bktSequence(observations, params = DEFAULT_BKT, prior = undefined) {
-    let pL = Number.isFinite(prior) ? clamp01(prior) : (params.pInit ?? DEFAULT_BKT.pInit);
+function masterySequence(observations, params = DEFAULT_BKT, prior = undefined, priorN = 0) {
+    let acc = accuracyOf(Number.isFinite(prior) ? prior : paramOf(params, 'pInit'), params);
+    const k = paramOf(params, 'priorAnswers');
+    const minStep = paramOf(params, 'minStep');
+    let seen = Math.max(0, Number(priorN) || 0);
     let n = 0;
     for (const obs of observations || []) {
         const correct = typeof obs === 'boolean' ? obs : !!obs.correct;
-        pL = bktUpdate(pL, correct, params);
+        seen += 1;
         n += 1;
+        acc += ((correct ? 1 : 0) - acc) * Math.max(minStep, 1 / (k + seen));
     }
-    return { pMastery: pL, n };
-}
-
-/**
- * Predicted P(correct on the next attempt) given current mastery — the
- * observable BKT prediction, bounded to [pGuess, 1−pSlip].
- *   P(L)·(1−slip) + (1−P(L))·guess
- */
-function pCorrectNext(pMastery, params = DEFAULT_BKT) {
-    const pL = clamp01(pMastery);
-    const slip = params.pSlip ?? DEFAULT_BKT.pSlip;
-    const guess = params.pGuess ?? DEFAULT_BKT.pGuess;
-    return clamp01(pL * (1 - slip) + (1 - pL) * guess);
+    return { pMastery: masteryOf(acc, params), n };
 }
 
 /**
@@ -119,4 +97,4 @@ function decayedMastery(pMastery, daysSince, masteryN = 0, params = DEFAULT_BKT,
     return floor + (pMastery - floor) * Math.exp(-elapsed / tau);
 }
 
-module.exports = { bktPosterior, bktUpdate, bktSequence, pCorrectNext, clamp01, decayedMastery };
+module.exports = { masterySequence, accuracyOf, masteryOf, clamp01, decayedMastery };

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 const { foldUserMastery, bucketOf } = require('../scripts/backfillMastery');
-const { bktSequence } = require('../src/engine/bkt');
+const { masterySequence } = require('../src/engine/bkt');
 const { paramsForTopic } = require('../src/config/bktParams');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../src/config/telemetryBounds');
 
@@ -13,7 +13,7 @@ const mk = (isCorrect, { name, subject, topicId, subtopic } = {}) => ({
 });
 
 describe('backfillMastery.foldUserMastery', () => {
-  it('folds per canonical topic and matches a direct bktSequence', () => {
+  it('folds per canonical topic and matches a direct masterySequence', () => {
     const attempts = [
       mk(true, { name: 'DC Electric Circuits', subject: 'EE', topicId: 't-dc' }),
       mk(false, { name: 'DC Electric Circuits', subject: 'EE', topicId: 't-dc' }),
@@ -24,8 +24,19 @@ describe('backfillMastery.foldUserMastery', () => {
     const alg = rows.find((r) => r.topic === 'Algebra');
 
     expect(dc).toMatchObject({ subject: 'EE', topicId: 't-dc', masteryN: 2 });
-    expect(dc.pMastery).toBeCloseTo(bktSequence([true, false], paramsForTopic('DC Electric Circuits')).pMastery, 12);
+    expect(dc.pMastery).toBeCloseTo(masterySequence([true, false], paramsForTopic('DC Electric Circuits')).pMastery, 12);
     expect(alg).toMatchObject({ subject: 'Mathematics', topicId: 't-alg', masteryN: 1 });
+  });
+
+  it('folds in answer order, as live telemetry does, whatever order history arrives in', () => {
+    // Past 16 answers the estimate weighs recent ones more, so order matters:
+    // fifteen right, then fifteen wrong.
+    const seq = Array.from({ length: 30 }, (_, i) => i < 15);
+    const answers = seq.map((c, i) => ({ ...mk(c), id: `a${String(i).padStart(2, '0')}`, answeredAt: new Date(Date.UTC(2026, 10, 1, 0, i)), createdAt: new Date(Date.UTC(2026, 10, 2)) }));
+    const inOrder = foldUserMastery(answers)[0].pMastery;
+    expect(foldUserMastery([...answers].reverse())[0].pMastery).toBeCloseTo(inOrder, 12);
+    expect(inOrder).toBeCloseTo(masterySequence(seq).pMastery, 12);
+    expect(inOrder).toBeLessThan(masterySequence([...seq].reverse()).pMastery);
   });
 
   it('is deterministic and idempotent (same history → same pMastery)', () => {

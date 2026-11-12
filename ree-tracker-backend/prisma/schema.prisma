@@ -607,8 +607,9 @@ model UserTopicPerformance {
   attempts    Int      @default(0)
   correct     Int      @default(0)
   totalTime   Int      @default(0) // Stored in seconds
-  // Phase 3.5: Bayesian Knowledge Tracing P(mastery) for this (user, topic).
-  // Updated online per attempt in telemetryService; null until first observation.
+  // P(mastery) for this (user, topic), from recent accuracy through BKT's
+  // answer model (engine/bkt.js masterySequence). Updated online per attempt in
+  // telemetryService; null until first observation.
   pMastery    Float?
   masteryN    Int      @default(0) // observations folded into pMastery (audit/debug)
   // Latest answer in this topic — the clock mastery decay runs from
