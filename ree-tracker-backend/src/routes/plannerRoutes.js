@@ -20,21 +20,19 @@ const { LEARNER_CARD_WHERE } = require('../services/referenceCardView');
 // Tasks the planner owns: v2 tasks carry a kind; v1 wrote a "[WEAK] …" text
 // prefix. Re-planning and "clear plan" touch only these.
 const PLANNED_TASKS = [{ kind: { not: null } }, { text: { startsWith: '[' } }];
+// The Manila day after a YYYY-MM-DD.
+const nextDay = (ymd) => new Date(Date.parse(`${ymd}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 // A board sitting counts toward a planned mock once it has this many items.
 const MOCK_MIN_ITEMS = 20;
 
 // Get all planner tasks for user — planned tasks carry their progress, worked
 // out from what the learner actually answered on the task's day (Planner v2:
 // they complete themselves; free-text tasks are still ticked by hand).
-router.get('/tasks', authMiddleware, async (req, res) => {
-    try {
-        // Capped: a plan is at most PLAN_HORIZON_DAYS rows, plus free tasks.
-        const tasks = await prisma.plannerTask.findMany({
-            take: 1000,
-            where: { userId: req.user.id },
-            orderBy: [{ completed: 'asc' }, { createdAt: 'desc' }]
-        });
-
+/**
+ * The progress of a learner's open planned tasks, from what they answered,
+ * sat and rated on each task's day. [] when there are none.
+ */
+async function plannedProgress(userId, tasks) {
         const planned = tasks.filter((t) => t.kind && t.dueDate && !t.completed);
         let progress = [];
         if (planned.length > 0) {
@@ -51,11 +49,11 @@ router.get('/tasks', authMiddleware, async (req, res) => {
                     FROM "QuestionAttempt" qa
                     JOIN "Question" q ON q."id" = qa."questionId"
                     LEFT JOIN "Topic" t ON t."id" = q."topicId"
-                    WHERE qa."userId" = ${req.user.id}
+                    WHERE qa."userId" = ${userId}
                       AND ${answeredAt} >= ${from} AND ${answeredAt} < ${to}
                     GROUP BY 1, 2`,
                 prisma.examSession.findMany({
-                    where: { userId: req.user.id, mode: 'BOARD_SIM', totalQuestions: { gte: MOCK_MIN_ITEMS }, createdAt: { gte: from, lt: to } },
+                    where: { userId, mode: 'BOARD_SIM', totalQuestions: { gte: MOCK_MIN_ITEMS }, createdAt: { gte: from, lt: to } },
                     select: { createdAt: true },
                 }),
                 // Formula cards rated per day. Only each card's latest rating
@@ -65,7 +63,7 @@ router.get('/tasks', authMiddleware, async (req, res) => {
                 // doesn't take that day's credit back.
                 hasCards
                     ? prisma.cardReview.findMany({
-                        where: { userId: req.user.id, lastReviewed: { gte: from, lt: to } },
+                        where: { userId, lastReviewed: { gte: from, lt: to } },
                         select: { lastReviewed: true },
                     })
                     : Promise.resolve([]),
@@ -77,6 +75,19 @@ router.get('/tasks', authMiddleware, async (req, res) => {
             }
             progress = taskProgress(planned, answered, mocks.map((m) => manilaDateOf(m.createdAt)), [...cardDays].map(([day, count]) => ({ day, count })));
         }
+        return progress;
+}
+
+router.get('/tasks', authMiddleware, async (req, res) => {
+    try {
+        // Capped: a plan is at most PLAN_HORIZON_DAYS rows (two a day when
+        // topics outnumber days), plus free tasks.
+        const tasks = await prisma.plannerTask.findMany({
+            take: 1000,
+            where: { userId: req.user.id },
+            orderBy: [{ completed: 'asc' }, { createdAt: 'desc' }]
+        });
+        const progress = await plannedProgress(req.user.id, tasks);
         const byId = new Map(progress.map((p) => [p.id, p]));
 
         res.status(200).json({ items: tasks.map((t) => (byId.has(t.id) ? { ...t, progress: byId.get(t.id) } : t)) });
@@ -184,7 +195,19 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         const { examDate, topics } = req.body;
         const exam = new Date(examDate).toISOString().slice(0, 10);
 
-        const today = todayManila();
+        // The plan's work already done stays (ticked, or done by answering):
+        // a re-plan used to delete it, so the Done list emptied and today's
+        // finished drill came back as a new one. When today's planned work is
+        // done, the new plan starts tomorrow.
+        const previous = await prisma.plannerTask.findMany({
+            where: { userId: req.user.id, OR: PLANNED_TASKS },
+            select: { id: true, kind: true, topic: true, dueDate: true, targetCount: true, completed: true },
+        });
+        const doneByAnswers = (await plannedProgress(req.user.id, previous)).filter((p) => p.done).map((p) => p.id);
+        const keep = new Set([...previous.filter((t) => t.completed).map((t) => t.id), ...doneByAnswers]);
+        const todayDone = previous.some((t) => keep.has(t.id) && t.dueDate === todayManila());
+        const today = todayDone ? nextDay(todayManila()) : todayManila();
+
         const daysToExam = Math.round((Date.parse(exam) - Date.parse(today)) / 86400000);
         if (!(daysToExam > 0)) return res.status(400).json({ error: 'Set an exam date in the future.' });
         const span = Math.min(PLAN_HORIZON_DAYS, daysToExam);
@@ -216,8 +239,12 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
 
         // Practised topics carry their decayed mastery; syllabus topics never
         // touched join as unmastered, linked to their live Topic row (own
-        // subject only) so Start drills by id.
-        const seen = new Set(practised.map((t) => t.topic.trim().toLowerCase()));
+        // subject only) so Start drills by id. Only the subjects the learner
+        // chose: practised topics of a subject switched off used to be planned
+        // anyway.
+        const chosen = new Set((topics || []).map((t) => normalizeSubject(t.subject)));
+        const practisedChosen = practised.filter((t) => chosen.has(normalizeSubject(t.subject)));
+        const seen = new Set(practisedChosen.map((t) => t.topic.trim().toLowerCase()));
         const untouched = await Promise.all((topics || [])
             .filter((t) => !seen.has(t.subtopic.trim().toLowerCase()))
             .map(async (t) => {
@@ -225,7 +252,7 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
                 const row = await resolveTopic(subject, t.subtopic, { crossSubject: false }).catch(() => null);
                 return { topic: t.subtopic, subject, topicId: row?.id ?? null, masteryEffective: null };
             }));
-        const planTopics = [...practised, ...untouched]
+        const planTopics = [...practisedChosen, ...untouched]
             .map((t) => {
                 const key = String(t.topic || '').trim().toLowerCase();
                 const flag = flaggedByTopic.get(key);
@@ -244,8 +271,10 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
         // preboard days have no task, so the count would cut the window short.
         const plan = [...days, ...cardTasks({ today, days: span, dueDates: cardsDue.map((c) => manilaDateOf(c.nextReviewDate)), restDays: calendar.restDays })];
 
-        const [, created] = await prisma.$transaction([
-            prisma.plannerTask.deleteMany({ where: { userId: req.user.id, OR: PLANNED_TASKS } }),
+        const [, , created] = await prisma.$transaction([
+            prisma.plannerTask.deleteMany({ where: { userId: req.user.id, OR: PLANNED_TASKS, id: { notIn: [...keep] } } }),
+            // Done by answering, so it stays done whatever happens to the answers' day.
+            prisma.plannerTask.updateMany({ where: { userId: req.user.id, id: { in: doneByAnswers } }, data: { completed: true } }),
             prisma.plannerTask.createMany({
                 data: plan.map((t) => ({ userId: req.user.id, completed: false, ...t })),
             }),
@@ -255,6 +284,8 @@ router.post('/tasks/generate-plan', authMiddleware, validate(plannerGenerateSche
             success: true,
             tasksCreated: created.count,
             totalDays: span,
+            startsOn: today,
+            kept: keep.size,
             openMistakes: [...openByTopic.values()].reduce((a, b) => a + b, 0),
             cardsDue: cardsDue.length,
             flaggedTopics: flaggedByTopic.size,

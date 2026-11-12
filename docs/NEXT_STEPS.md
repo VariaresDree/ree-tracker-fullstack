@@ -29,6 +29,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #255 | Room in the boot download: 99.7% → 97.8% (Capacitor core and the sync-issues panel load on demand) |
 | #256 | Learners hear back: Account › Your reports shows each report's outcome; an admin can add a note when closing one |
 | #257 | Today says when one of your reports was answered, linking to Your reports (no extra request: it rides on the dashboard read) |
+| #258 | Study plan: two topics a day when topics outnumber days (all 50 topics in six weeks), subjects switched off really left out, re-plan keeps done work, and the card shows the plan's status and when to re-plan |
 
 **Your actions:**
 1. **Read the learners' reports** (#254, #256): Admin › Question bank › Reports (65 open). Edit, No problem, or Remove each; a short note tells the learners what you did.

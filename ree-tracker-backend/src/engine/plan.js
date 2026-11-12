@@ -35,6 +35,10 @@
 //     and can complete themselves (taskProgress).
 //   • days with CARD_DAY_MIN or more formula cards due get a "formula cards"
 //     task beside the day's main one (cardTasks).
+//   • more topics to work on than drill days (2026-11-12): each drill day
+//     takes two topics at half the questions, so the day's load is the same
+//     and twice the syllabus is reached. With one topic a day, an exam 28 days
+//     off left 30 of 50 topics undrilled before it.
 // Planned PLAN_HORIZON_DAYS ahead (or to the exam); regenerating re-plans from
 // the learner's current mastery.
 
@@ -288,15 +292,19 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         })
         .filter((t) => t.priority > 0)
         .sort((a, b) => b.priority - a.priority);
-    const drillOrder = interleave(ranked, subjectFirstQuotas(ranked, drillDays));
+    // Topics a drill day takes: two when there are more topics than days.
+    const perDay = drillDays > 0 && ranked.length > drillDays ? 2 : 1;
+    const drillOrder = interleave(ranked, subjectFirstQuotas(ranked, drillDays * perDay));
 
     const sessionSized = (share) => Math.min(SMART_DRILL_MAX_ITEMS, Math.max(10, Math.round(dailyTarget * share)));
     const drillTarget = sessionSized(DRILL_SHARE);
     const reviewTarget = sessionSized(REVIEW_SHARE);
     const lightTarget = Math.max(10, Math.round(reviewTarget / 2));
+    const pairTarget = Math.max(10, Math.round(drillTarget / 2));
     const plan = [];
-    // The drill days in order, and each one's topic, lined up with any lectures.
-    const drillSlots = kinds.map((k, i) => (k === 'drill' ? i : -1)).filter((i) => i >= 0);
+    // The drill slots in order (perDay to a drill day), each one's topic,
+    // lined up with any lectures.
+    const drillSlots = kinds.flatMap((k, i) => (k === 'drill' ? Array(perDay).fill(i) : []));
     const { assigned, pinned } = followLectures({
         dates: drillSlots.map((i) => toYmd(toUtc(today) + i * DAY_MS)),
         assigned: drillSlots.map((_, n) => drillOrder[n] || null),
@@ -309,16 +317,24 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
     for (let i = 0; i < days; i++) {
         const dueDate = toYmd(toUtc(today) + i * DAY_MS);
         const kind = kinds[i];
-        const slot = kind === 'drill' ? drillIdx++ : -1;
-        if (kind === 'drill' && assigned[slot]) {
+        // This day's slots, and the distinct topics in them (a day never
+        // drills one topic twice).
+        const slots = kind === 'drill' ? Array.from({ length: perDay }, () => drillIdx++) : [];
+        const day = [];
+        for (const slot of slots) {
             const t = assigned[slot];
-            const lecture = pinned.get(slot);
-            // The open-mistakes note stays last.
-            const flagged = t.flags > 0 && t.flaggedBy ? ` (flagged after ${t.flaggedBy})` : '';
-            const open = t.openMistakes > 0 ? ` (${t.openMistakes} open mistake${t.openMistakes === 1 ? '' : 's'})` : '';
-            plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: drillTarget, text: lecture
-                ? `Drill ${WEEKDAY[new Date(toUtc(lecture)).getUTCDay()]}’s lecture: ${t.topic} — ${drillTarget} questions${flagged}${open}`
-                : `Drill ${t.topic} — ${drillTarget} questions${flagged}${open}` });
+            if (t && !day.some((d) => d.t === t)) day.push({ t, lecture: pinned.get(slot) });
+        }
+        if (kind === 'drill' && day.length > 0) {
+            const target = day.length > 1 ? pairTarget : drillTarget;
+            for (const { t, lecture } of day) {
+                // The open-mistakes note stays last.
+                const flagged = t.flags > 0 && t.flaggedBy ? ` (flagged after ${t.flaggedBy})` : '';
+                const open = t.openMistakes > 0 ? ` (${t.openMistakes} open mistake${t.openMistakes === 1 ? '' : 's'})` : '';
+                plan.push({ dueDate, kind, subject: t.subject, topic: t.topic, topicId: t.topicId ?? null, targetCount: target, text: lecture
+                    ? `Drill ${WEEKDAY[new Date(toUtc(lecture)).getUTCDay()]}’s lecture: ${t.topic} — ${target} questions${flagged}${open}`
+                    : `Drill ${t.topic} — ${target} questions${flagged}${open}` });
+            }
         } else if (kind === 'mock') {
             const subject = MOCK_ROTATION[mockIdx++ % MOCK_ROTATION.length];
             plan.push({ dueDate, kind, subject, topic: null, topicId: null, targetCount: 1, text: `Timed ${SUBJECT_LABEL[subject]} sitting on the PRC clock` });

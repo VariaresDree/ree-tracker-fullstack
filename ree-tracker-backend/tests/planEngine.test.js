@@ -187,3 +187,31 @@ describe('topics flagged on outside scores', () => {
         expect(five.filter((t) => t.topic === 'A').length).toBe(two.filter((t) => t.topic === 'A').length);
     });
 });
+
+describe('more topics than drill days (2026-11-12)', () => {
+    const { buildStudyPlan: build } = require('../src/engine/plan');
+    const syllabus = (n) => ['EE', 'ESAS', 'Mathematics'].flatMap((subject) => Array.from({ length: n }, (_, i) => ({ topic: `${subject} ${i + 1}`, subject, topicId: `${subject}-${i + 1}` })));
+
+    it('a drill day takes two different topics at half the questions, and reaches the whole syllabus', () => {
+        const topics = syllabus(16); // 48 topics, 36 drill days in 42
+        const plan = build({ today: '2026-11-12', examDate: '2027-04-10', dailyTarget: 50, topics });
+        const drills = plan.filter((t) => t.kind === 'drill');
+        const byDay = new Map();
+        for (const t of drills) byDay.set(t.dueDate, [...(byDay.get(t.dueDate) || []), t]);
+        for (const day of byDay.values()) {
+            expect(day.length).toBeLessThanOrEqual(2);
+            expect(new Set(day.map((t) => t.topic)).size).toBe(day.length);
+            if (day.length === 2) expect(day.every((t) => t.targetCount === 15)).toBe(true);
+        }
+        expect(new Set(drills.map((t) => t.topic)).size).toBe(48);
+        // The day's drilling is the same 30 questions either way.
+        expect([...byDay.values()].every((day) => day.reduce((a, t) => a + t.targetCount, 0) === 30)).toBe(true);
+    });
+
+    it('fewer topics than days: one topic a day, the whole drill', () => {
+        const plan = build({ today: '2026-11-12', examDate: '2027-04-10', dailyTarget: 50, topics: syllabus(3) });
+        const drills = plan.filter((t) => t.kind === 'drill');
+        expect(new Set(drills.map((t) => t.dueDate)).size).toBe(drills.length);
+        expect(drills.every((t) => t.targetCount === 30)).toBe(true);
+    });
+});

@@ -53,3 +53,36 @@ export function groupTasks(tasks, today) {
   groups.done.reverse();
   return groups;
 }
+
+const daysBetween = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+
+/**
+ * The current plan at a glance, from its tasks (no request of its own): what
+ * is left from today, when it runs out, when it was made, and whether it
+ * should be re-planned. Null when there is no plan.
+ *
+ * `madeOn` is the Manila day of the newest plan task; `stale` once it is a
+ * week old (mastery has moved since); `runsOut` when it ends within a week and
+ * before the exam (it plans six weeks at most).
+ */
+export function planSummary(tasks, today, examDate = null, manilaDateOf = (d) => String(d).slice(0, 10)) {
+  const planned = (tasks || []).filter((t) => t.kind && t.dueDate);
+  if (planned.length === 0) return null;
+  const ahead = planned.filter((t) => !isTaskDone(t) && t.dueDate >= today);
+  const drills = ahead.filter((t) => t.kind === 'drill');
+  const endsOn = planned.map((t) => t.dueDate).sort().pop();
+  const madeOn = planned.map((t) => t.createdAt).filter(Boolean).map((d) => manilaDateOf(d)).sort().pop() || null;
+  const ageDays = madeOn ? daysBetween(madeOn, today) : null;
+  return {
+    endsOn,
+    madeOn,
+    ageDays,
+    left: ahead.length,
+    drills: drills.length,
+    topics: new Set(drills.map((t) => String(t.topic || '').trim().toLowerCase())).size,
+    sittings: ahead.filter((t) => t.kind === 'mock').length,
+    over: ahead.length === 0,
+    stale: ageDays !== null && ageDays >= 7,
+    runsOut: !!examDate && endsOn < addDays(examDate, -1) && daysBetween(today, endsOn) <= 7,
+  };
+}

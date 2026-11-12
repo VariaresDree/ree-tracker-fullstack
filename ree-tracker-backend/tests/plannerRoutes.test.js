@@ -94,9 +94,13 @@ function mockPlanInputs() {
     ]);
     vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
     vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
+    // No plan before, unless a test says so.
+    vi.spyOn(prisma.plannerTask, 'findMany').mockResolvedValue([]);
     vi.spyOn(prisma.plannerTask, 'deleteMany').mockReturnValue({ op: 'delete' });
+    vi.spyOn(prisma.plannerTask, 'updateMany').mockReturnValue({ op: 'update' });
     vi.spyOn(prisma.plannerTask, 'createMany').mockImplementation(({ data }) => ({ op: 'create', count: data.length }));
-    vi.spyOn(prisma, '$transaction').mockImplementation(async (ops) => [{ count: 0 }, { count: ops[1].count }]);
+    vi.spyOn(prisma, '$transaction').mockImplementation(async (ops) => [{ count: 0 }, { count: 0 }, { count: ops[2].count }]);
+    vi.spyOn(prisma.examSession, 'findMany').mockResolvedValue([]);
     // No open mistakes (services/mistakeList) and no formula cards due unless a test says so.
     vi.spyOn(prisma.questionAttempt, 'findMany').mockResolvedValue([]);
     vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
@@ -195,5 +199,52 @@ describe('Planner v2', () => {
         const res = await request(makeApp()).get('/api/user/tasks').set(as(UID));
         expect(res.body.items[0].progress).toMatchObject({ count: 5, target: 5, done: true });
         expect(rated.mock.calls[0][0].where.userId).toBe(UID);
+    });
+});
+
+describe('re-planning (2026-11-12)', () => {
+    const { todayManila } = require('../src/utils/manilaDate');
+
+    it('a subject switched off isn’t planned, even its practised topics', async () => {
+        mockPlanInputs();
+        prisma.userTopicPerformance.findMany.mockResolvedValue([
+            { topic: 'Protection', subject: 'EE', topicId: 't-p', attempts: 20, correct: 8, pMastery: 0.35, masteryN: 20, lastPracticedAt: new Date() },
+            { topic: 'Chemistry', subject: 'ESAS', topicId: 't-c', attempts: 20, correct: 4, pMastery: 0.2, masteryN: 20, lastPracticedAt: new Date() },
+        ]);
+        const res = await request(makeApp()).post('/api/user/tasks/generate-plan').set(as(UID))
+            .send({ examDate: '2099-01-01', topics: [{ subject: 'EE', subtopic: 'Protection' }] });
+        expect(res.status).toBe(201);
+        const drills = prisma.plannerTask.createMany.mock.calls[0][0].data.filter((t) => t.kind === 'drill');
+        expect(new Set(drills.map((t) => t.subject))).toEqual(new Set(['EE']));
+    });
+
+    it('keeps the plan’s done work, ticked or done by answering, and starts tomorrow when today’s is done', async () => {
+        mockPlanInputs();
+        const today = todayManila();
+        prisma.plannerTask.findMany.mockResolvedValue([
+            { id: 'ticked', kind: 'drill', topic: 'Machines', dueDate: '2026-10-01', targetCount: 30, completed: true },
+            { id: 'answered', kind: 'drill', topic: 'Protection', dueDate: today, targetCount: 30, completed: false },
+            { id: 'missed', kind: 'drill', topic: 'Machines', dueDate: '2026-10-02', targetCount: 30, completed: false },
+        ]);
+        // The day's answers: today's drill is done, the missed one isn't.
+        prisma.$queryRaw.mockResolvedValueOnce([{ day: today, topic: 'Protection', count: 30 }]);
+        const res = await request(makeApp()).post('/api/user/tasks/generate-plan').set(as(UID))
+            .send({ examDate: '2099-01-01', topics: [{ subject: 'EE', subtopic: 'Protection' }] });
+        expect(res.status).toBe(201);
+        expect(res.body.kept).toBe(2);
+        expect(res.body.startsOn > today).toBe(true);
+        const del = prisma.plannerTask.deleteMany.mock.calls[0][0].where;
+        expect(del.id.notIn.sort()).toEqual(['answered', 'ticked']);
+        expect(prisma.plannerTask.updateMany.mock.calls[0][0]).toEqual({ where: { userId: UID, id: { in: ['answered'] } }, data: { completed: true } });
+        const rows = prisma.plannerTask.createMany.mock.calls[0][0].data;
+        expect(rows.every((t) => t.dueDate > today)).toBe(true);
+    });
+
+    it('with nothing done today, the plan starts today', async () => {
+        mockPlanInputs();
+        const res = await request(makeApp()).post('/api/user/tasks/generate-plan').set(as(UID))
+            .send({ examDate: '2099-01-01', topics: [{ subject: 'EE', subtopic: 'Protection' }] });
+        expect(res.body.startsOn).toBe(todayManila());
+        expect(prisma.plannerTask.createMany.mock.calls[0][0].data[0].dueDate).toBe(todayManila());
     });
 });
