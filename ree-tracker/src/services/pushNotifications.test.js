@@ -4,9 +4,10 @@
 // test stays hermetic in jsdom.
 import { describe, it, expect, vi } from 'vitest';
 
+const { isNativePlatform } = vi.hoisted(() => ({ isNativePlatform: vi.fn(() => false) }));
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
-    isNativePlatform: () => false,
+    isNativePlatform: () => isNativePlatform(),
     isPluginAvailable: () => false,
     getPlatform: () => 'web',
   },
@@ -35,5 +36,20 @@ describe('shouldInitPush — the native/flag/auth gate', () => {
 describe('initPushNotifications on the web', () => {
   it('is a no-op (returns false) even with the flag on and a user', async () => {
     await expect(initPushNotifications('u1', { flagEnabled: true })).resolves.toBe(false);
+  });
+});
+
+describe('Capacitor stays out of the first download', () => {
+  it('without the flag or a user, Capacitor is never asked (it loads on demand)', async () => {
+    isNativePlatform.mockClear();
+    await expect(initPushNotifications('u1', { flagEnabled: false })).resolves.toBe(false);
+    await expect(initPushNotifications(null, { flagEnabled: true })).resolves.toBe(false);
+    expect(isNativePlatform).not.toHaveBeenCalled();
+  });
+
+  it('the module imports @capacitor/core only dynamically', async () => {
+    const { default: src } = await import('./pushNotifications.js?raw');
+    expect(src).not.toMatch(/^import [^;]*from '@capacitor\/core'/m);
+    expect(src).toContain("import('@capacitor/core')");
   });
 });

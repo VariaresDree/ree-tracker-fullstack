@@ -10,7 +10,11 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useConnection } from '../hooks/useConnection';
 import { useOfflinePack } from '../hooks/useOfflinePack';
 import { useStore } from '../store/useStore';
-import SyncIssues from './SyncIssues';
+import { Suspense, lazy } from 'react';
+// Loaded only when a write has failed for good: most sessions never need it,
+// and it was 5.8 kB of every first download. The service worker precaches it,
+// so it still opens offline, where failed writes show up.
+const SyncIssues = lazy(() => import('./SyncIssues'));
 
 const relTime = (ts) => {
     if (!ts) return 'never';
@@ -101,7 +105,7 @@ export default function OfflineStatusBadge({ collapsed = false }) {
                 </button>
             </div>
 
-            <SyncIssues />
+            {issues > 0 && <Suspense fallback={null}><SyncIssues /></Suspense>}
         </div>
     );
 }
