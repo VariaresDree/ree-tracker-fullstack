@@ -4,7 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => false } }));
-const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() });
+const toast = Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), loading: vi.fn(() => 'waiting'), dismiss: vi.fn() });
+const reportError = vi.fn();
+vi.mock('../../services/appHealth', () => ({ reportError: (...a) => reportError(...a) }));
 vi.mock('react-hot-toast', () => ({ default: toast }));
 vi.mock('../../services/localReminders', () => ({ scheduleDailyReminder: vi.fn(), cancelDailyReminder: vi.fn() }));
 vi.mock('../../services/pushNotifications', () => ({ hasPushToken: () => false }));
@@ -19,6 +21,7 @@ vi.mock('../../services/webPush', () => ({
   webPushOn: () => registered,
   enableWebPush: (...a) => enableWebPush(...a),
   disableWebPush: (...a) => disableWebPush(...a),
+  webFailureText: (err) => `failed at ${err.step}`,
 }));
 let prefs;
 const setNotificationPrefs = vi.fn((patch) => { prefs = { ...prefs, ...patch }; });
@@ -82,5 +85,30 @@ describe('the daily reminder in a browser', () => {
     render(<NotificationSettings />);
     expect(screen.getByText(note)).toBeInTheDocument();
     expect(reminderOn()).toBeDisabled();
+  });
+
+  // 2026-11-12: a phone said "Check your connection" with a working connection.
+  it('a failed step says which, logs the real error for App health, and leaves the reminder off', async () => {
+    const err = Object.assign(new Error('Web push server: no answer'), { step: 'server' });
+    enableWebPush.mockRejectedValueOnce(err);
+    render(<NotificationSettings />);
+    fireEvent.click(reminderOn());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('failed at server'));
+    expect(toast.loading).toHaveBeenCalledWith('Turning the reminder on…');
+    expect(toast.dismiss).toHaveBeenCalledWith('waiting');
+    expect(reportError).toHaveBeenCalledWith(err);
+    expect(writeOrQueue).not.toHaveBeenCalled();
+    expect(prefs.dailyReminderEnabled).toBe(false);
+  });
+
+  it('a second tap while turning on does nothing (one browser was registered twice)', async () => {
+    let finish;
+    enableWebPush.mockImplementationOnce(() => new Promise((ok) => { finish = ok; }));
+    render(<NotificationSettings />);
+    fireEvent.click(reminderOn());
+    fireEvent.click(reminderOn());
+    finish({ ok: true });
+    await waitFor(() => expect(writeOrQueue).toHaveBeenCalled());
+    expect(enableWebPush).toHaveBeenCalledTimes(1);
   });
 });

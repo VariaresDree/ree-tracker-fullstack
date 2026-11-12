@@ -35,6 +35,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #261 | Reminders in a browser: Web Push through Firebase (no learner had ever had a reminder); Admin › App health › Push reminders switch; a push lives six hours |
 | #262 | Honest topic mastery: from recent accuracy through BKT's answer model (classic BKT drifted to 1.0 above ~57% right: 57 of 184 rows, so plans, drills and weak topics ranked by days since practice); a migration recomputes every row on deploy; a plan's mocks rotate only its subjects |
 | #263 | Subtopic tagging in the background: a switch, the server tags ~150 questions an hour from the hourly workflow, unsure picks kept on the server for review (0 of 17,185 were tagged) |
+| #264 | Turning the browser reminder on: wakes the server, waits 60 s for it, retries each step once, says which step failed and logs the real error to App health; a double tap no longer registers twice |
 
 **Your actions:**
 1. **Turn reminders on** (#261): the key is in Vercel and in the live build (checked 2026-11-12). Left: Admin › App health › Push reminders › On, then try it yourself in Account › Notifications. Re-make your study plan too (#262 changed the mastery it ranks by).

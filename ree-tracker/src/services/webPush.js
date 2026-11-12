@@ -15,6 +15,8 @@
 // Firebase Messaging loads only when someone turns the reminder on (it is kept
 // out of the boot download, vite.config.js).
 
+import { wakeBackend } from './wakeBackend';
+
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
 // This browser's registration, so it can be removed (turning it off, or on
 // sign-out). Its presence also means "on here".
@@ -52,20 +54,68 @@ const loadMessaging = () => Promise.all([
   import('./dbQueries'),
 ]);
 
+// The server on Render's free tier sleeps after 15 idle minutes and takes tens
+// of seconds to boot; the default 12 s request timeout read that as "offline",
+// so turning the reminder on said "Check your connection" on a phone with a
+// working connection (2026-11-12).
+export const REGISTER_TIMEOUT_MS = 60_000;
+const RETRY_MS = 1_500;
+const pause = (ms) => new Promise((ok) => { setTimeout(ok, ms); });
+
+// A failure, tagged with the step: 'browser' (Firebase / push) or 'server'.
+// Reworded so App health's noise filter (services/appHealth NOISE) keeps it:
+// these are exactly the failures to see.
+const plainCause = (cause) => `${cause?.code ? `${cause.code} ` : ''}${cause?.message || cause}`
+  .replace('[OFFLINE]', 'no answer').replace('[TIMEOUT]', `no answer in ${REGISTER_TIMEOUT_MS / 1000} s`).replace(/AbortError/gi, 'Abort error');
+const stepError = (step, cause) => Object.assign(new Error(`Web push ${step}: ${plainCause(cause)}`), { step, cause });
+
+/**
+ * What to tell the learner when a step failed. Every failure used to say
+ * "Check your connection", also when the server was only slow to wake.
+ */
+export function webFailureText(err, online = navigator.onLine) {
+  if (!online) return 'You’re offline. Connect, then turn the reminder on again.';
+  // Brave, Samsung Internet and phones without Google services often can't.
+  if (err?.step === 'browser') return 'This browser couldn’t sign up for notifications. Try again in a minute; on Android, Chrome can, and on iPhone, REE.ai opened from the Home Screen.';
+  const said = String(err?.cause?.message || '');
+  if (/^\[(OFFLINE|TIMEOUT)\]$/.test(said)) return 'The REE.ai server didn’t answer in time. Try again: it’s awake now.';
+  if (/signed out/i.test(said)) return said;
+  return 'The REE.ai server couldn’t save it. Try again in a minute.';
+}
+
+/** Once more after a pause: a first try right after the permission prompt, or into a waking server, can fail. */
+async function twice(fn) {
+  try { return await fn(); } catch { await pause(RETRY_MS); return fn(); }
+}
+
 /**
  * Ask for notifications (from a tap) and register this browser.
+ * Throws an error with `step` ('browser' | 'server') when a step fails.
  * @returns {Promise<{ ok: boolean, reason?: 'blocked' | 'unsupported' }>}
  */
-export async function enableWebPush() {
+export async function enableWebPush({ wake = wakeBackend } = {}) {
   if (webPushSupport() !== 'ready') return { ok: false, reason: webPushSupport() === 'blocked' ? 'blocked' : 'unsupported' };
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return { ok: false, reason: 'blocked' };
-  const registration = await navigator.serviceWorker.ready;
-  const [{ getMessaging, getToken, isSupported }, { app }, { registerDeviceToken }] = await loadMessaging();
-  if (!(await isSupported())) return { ok: false, reason: 'unsupported' };
-  const token = await getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+  // Start the server's boot now, while Firebase does its part.
+  wake();
+  let token;
+  let registerDeviceToken;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const [{ getMessaging, getToken, isSupported }, { app }, db] = await loadMessaging();
+    registerDeviceToken = db.registerDeviceToken;
+    if (!(await isSupported())) return { ok: false, reason: 'unsupported' };
+    token = await twice(() => getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration }));
+  } catch (err) {
+    throw stepError('browser', err);
+  }
   if (!token) return { ok: false, reason: 'unsupported' };
-  await registerDeviceToken(token, 'web');
+  try {
+    await twice(() => registerDeviceToken(token, 'web', { timeoutMs: REGISTER_TIMEOUT_MS }));
+  } catch (err) {
+    throw stepError('server', err);
+  }
   try { localStorage.setItem(TOKEN_KEY, token); } catch { /* the server still has it */ }
   return { ok: true };
 }

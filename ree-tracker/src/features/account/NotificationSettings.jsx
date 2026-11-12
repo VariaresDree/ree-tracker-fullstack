@@ -15,12 +15,14 @@
 // streak about to break, reviews due, today's plan task) and the on-device
 // one is cancelled, so it never comes twice; otherwise the on-device reminder
 // stands in (services/reminderPrefs applyDailyReminder).
+import { useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { serverRemindsAt, SERVER_REMINDER_FIRST_HOUR, SERVER_REMINDER_LAST_HOUR } from '@ree/shared';
 import { useNotificationSlice } from '../../store/slices';
 import { applyDailyReminder, saveReminderHour } from '../../services/reminderPrefs';
-import { disableWebPush, enableWebPush, webPushOn, webPushSupport } from '../../services/webPush';
+import { disableWebPush, enableWebPush, webFailureText, webPushOn, webPushSupport } from '../../services/webPush';
+import { reportError } from '../../services/appHealth';
 import { FormField, Select, SegmentedControl } from '../../components/ui';
 import { BellOff } from '../../components/ui/icons';
 
@@ -53,6 +55,7 @@ export default function NotificationSettings() {
   const webReady = web === 'ready';
   // On in a browser means this browser is registered too.
   const reminderOn = notifications.dailyReminderEnabled && (isNative || webPushOn());
+  const webBusy = useRef(false);
 
   const setSessionAlerts = async (on) => {
     if (on && !isNative && 'Notification' in window && Notification.permission !== 'granted') {
@@ -66,6 +69,13 @@ export default function NotificationSettings() {
   };
 
   const setWebReminder = async (on) => {
+    // A second tap while the first is still going registered the browser twice.
+    if (webBusy.current) return;
+    webBusy.current = true;
+    try { await setWebReminderNow(on); } finally { webBusy.current = false; }
+  };
+
+  const setWebReminderNow = async (on) => {
     if (!on) {
       await disableWebPush();
       saveReminderHour(null);
@@ -73,11 +83,17 @@ export default function NotificationSettings() {
       return;
     }
     const hour = serverRemindsAt(notifications.reminderHour) ? notifications.reminderHour : DEFAULT_HOUR;
+    // A sleeping server can take most of a minute to answer.
+    const waiting = toast.loading('Turning the reminder on…');
     try {
       const { ok, reason } = await enableWebPush();
+      toast.dismiss(waiting);
       if (!ok) { toast(WEB_REFUSED[reason] || WEB_REFUSED.unsupported); return; }
-    } catch {
-      toast.error('Couldn’t turn the reminder on. Check your connection and try again.');
+    } catch (err) {
+      toast.dismiss(waiting);
+      // Admin › App health shows what really failed.
+      reportError(err instanceof Error ? err : new Error(String(err)));
+      toast.error(webFailureText(err));
       return;
     }
     await saveReminderHour(hour);
