@@ -562,7 +562,7 @@ export const fetchFeatureFlags = async () => {
 };
 export const updateDynamicTOS = async (newTOS) => apiRequest('/api/config/tos', 'PUT', newTOS);
 // FCM device tokens (Phase 4.2) — registered by the Capacitor native app only.
-export const registerDeviceToken = async (token, platform) => apiRequest('/api/user/device-token', 'POST', { token, platform });
+export const registerDeviceToken = async (token, platform, opts) => apiRequest('/api/user/device-token', 'POST', { token, platform }, opts);
 export const unregisterDeviceToken = async (token) => apiRequest('/api/user/device-token', 'DELETE', { token });
 // (Bookmarks moved to services/bookmarks.js, which queues them offline.)
 // (updateBookmarkCache removed — it targeted a /api/bookmarks/:id/cache route
