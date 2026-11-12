@@ -96,7 +96,7 @@ describe('TodayPanel', () => {
     renderPanel({ readiness: null, stats: { dailyTarget: 50, tourDoneAt: null }, answered: 12 });
     expect(await screen.findByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
     // Placed (the default here) and practised.
-    expect(screen.getByText(/^2 of 4 done/)).toBeInTheDocument();
+    expect(screen.getByText(/^2 of 3 done/)).toBeInTheDocument();
   });
 
   it.each([
