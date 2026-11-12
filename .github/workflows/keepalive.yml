@@ -21,6 +21,11 @@ name: Keep backend awake
 # GitHub also disables scheduled workflows in repositories with no activity for
 # 60 days; a single push re-enables them.
 
+# NOTE (2026-11-12): GitHub runs scheduled workflows when it has room. This
+# one ran about every 8 hours, not on its schedule. The on-time scheduler is
+# Supabase pg_cron (docs/ops/scheduled-jobs.sql); this workflow stays as a
+# backup, and every call it makes is safe to repeat.
+
 on:
   schedule:
     # Every 10 minutes, 22:00-15:59 UTC == 06:00-23:59 Manila (UTC+8).
