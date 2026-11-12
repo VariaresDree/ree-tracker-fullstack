@@ -22,6 +22,7 @@ vi.mock('../../services/webPush', () => ({
   enableWebPush: (...a) => enableWebPush(...a),
   disableWebPush: (...a) => disableWebPush(...a),
   webFailureText: (err) => `failed at ${err.step}`,
+  isPushServiceError: (err) => /push service/.test(err.message),
 }));
 let prefs;
 const setNotificationPrefs = vi.fn((patch) => { prefs = { ...prefs, ...patch }; });
@@ -110,5 +111,22 @@ describe('the daily reminder in a browser', () => {
     finish({ ok: true });
     await waitFor(() => expect(writeOrQueue).toHaveBeenCalled());
     expect(enableWebPush).toHaveBeenCalledTimes(1);
+  });
+
+  // 2026-11-12: the owner's Chrome on Android: "Registration failed - push service error".
+  it('when the phone can’t reach the push service, the steps stay under the switch', async () => {
+    enableWebPush.mockRejectedValueOnce(Object.assign(new Error('Web push browser: 20 Registration failed - push service error'), { step: 'browser' }));
+    render(<NotificationSettings />);
+    fireEvent.click(reminderOn());
+    expect(await screen.findByText('Your phone couldn’t reach Google’s push service')).toBeInTheDocument();
+    expect(screen.getByRole('note')).toHaveTextContent('Private DNS');
+  });
+
+  it('other failures show no steps', async () => {
+    enableWebPush.mockRejectedValueOnce(Object.assign(new Error('Web push server: no answer'), { step: 'server' }));
+    render(<NotificationSettings />);
+    fireEvent.click(reminderOn());
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.queryByRole('note')).toBeNull();
   });
 });
