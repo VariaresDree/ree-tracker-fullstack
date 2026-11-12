@@ -10,6 +10,7 @@ import { apiRequest } from '../../../services/dbQueries';
 import { APP_VERSION } from '../../../services/appUpdate';
 import { Button, Card, Disclosure, EmptyState, SectionHeader, Skeleton, StatusPill } from '../../../components/ui';
 import { Check, RefreshCw, TriangleAlert } from '../../../components/ui/icons';
+import PushSwitch from './PushSwitch';
 
 const when = (iso) => new Date(iso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' });
 const people = (n) => `${n} ${n === 1 ? 'person' : 'people'}`;
@@ -110,6 +111,7 @@ export default function AppHealthPanel() {
   return (
     <div className="flex flex-col gap-6">
       {header}
+      <PushSwitch />
       <section aria-labelledby="health-versions" className="flex flex-col gap-3">
         <h3 id="health-versions" className="text-h3 text-textMain">Versions, last 7 days</h3>
         <Versions versions={data.versions} />

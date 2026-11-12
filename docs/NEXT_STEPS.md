@@ -32,8 +32,10 @@ The owner asked for the next round after the optimization one: help learners tra
 | #258 | Study plan: two topics a day when topics outnumber days (all 50 topics in six weeks), subjects switched off really left out, re-plan keeps done work, and the card shows the plan's status and when to re-plan |
 | #259 | Host a battle: Question order (shuffled for each player, or the same for everyone), the time limit's pace, and the lobby shows the topic and the order |
 | #260 | Getting started: 10 questions in one tap first, the exam date and the plan in one save on the card, the placement test last and optional (8 of 20 accounts never answered; 2 set a date; none made a plan) |
+| #261 | Reminders in a browser: Web Push through Firebase (no learner had ever had a reminder); Admin › App health › Push reminders switch; a push lives six hours |
 
 **Your actions:**
+1. **Turn reminders on** (#261): Firebase console › Project settings › Cloud Messaging › Web Push certificates › Generate key pair; copy the public key into Vercel as `VITE_FIREBASE_VAPID_KEY`; redeploy; then Admin › App health › Push reminders › On. Then try it yourself in Account › Notifications.
 1. **Read the learners' reports** (#254, #256): Admin › Question bank › Reports (65 open). Edit, No problem, or Remove each; a short note tells the learners what you did.
 1. **Tag the bank** (#251): Admin › Question bank › Subtopics, a subject at a time. Tag with the in-app AI, then work through To review. Nothing appears for learners until a subtopic has 10 tagged questions.
 2. **Copy the history archive to Drive**: `C:\Users\g16\Documents\ree-history\history-2026-11-11.jsonl.gz` and its `.json` manifest (the trim and VACUUM FULL are done: 156 MB to 92 MB).

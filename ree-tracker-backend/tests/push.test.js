@@ -89,3 +89,15 @@ describe('deviceTokenSchema', () => {
     expect(deviceTokenSchema.safeParse({ token: TOKEN, platform: 'blackberry' }).success).toBe(false);
   });
 });
+
+describe('the push message (2026-11-12)', () => {
+    const { multicastMessage, PUSH_TTL_SECONDS } = require('../src/services/pushService');
+
+    it('reaches phones and browsers alike, and is dropped after six hours rather than shown tomorrow', () => {
+        const m = multicastMessage(['a', 'b'], { title: 'T', body: 'B', data: { route: '/' } });
+        expect(m).toMatchObject({ tokens: ['a', 'b'], notification: { title: 'T', body: 'B' }, data: { route: '/' } });
+        expect(PUSH_TTL_SECONDS).toBe(21600);
+        expect(m.android.ttl).toBe(21600 * 1000);
+        expect(m.webpush.headers.TTL).toBe('21600');
+    });
+});

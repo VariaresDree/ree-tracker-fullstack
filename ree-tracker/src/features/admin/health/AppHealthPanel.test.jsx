@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const apiRequest = vi.fn();
 vi.mock('../../../services/dbQueries', () => ({ apiRequest }));
 vi.mock('../../../services/appUpdate', () => ({ APP_VERSION: 'new1234' }));
+vi.mock('./PushSwitch', () => ({ default: () => null }));
 const toast = Object.assign(vi.fn(), { error: vi.fn() });
 vi.mock('react-hot-toast', () => ({ default: toast }));
 
