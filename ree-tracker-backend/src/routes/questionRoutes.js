@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
 const idempotency = require('../middlewares/idempotency');
-const { tagBulkSchema, tagClearSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { reportResolveSchema, tagBulkSchema, tagClearSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
@@ -26,6 +26,7 @@ const { matchOption } = require('../utils/sanitizeOptions');
 const { importQuestions } = require('../services/questionImport');
 const { questionsForChecking, replacePreview, replaceQuestions } = require('../services/questionReplace');
 const { taggingOverview, questionsForTagging, applyTags, clearTags } = require('../services/subtopicTagging');
+const { openReportCount, openReports, resolveReports } = require('../services/questionReports');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
 // flag, explanation change — can move the vault counts or the pack-manifest
@@ -164,7 +165,8 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // 1.5. GET QUARANTINE QUEUE
-router.get('/quarantine', authMiddleware, async (req, res) => {
+// Admin only: the rows carry their answer keys.
+router.get('/quarantine', authMiddleware, requireAdmin, async (req, res) => {
     try {
         // Capped: grows with every flagged item and had no limit at all.
         const flagged = await prisma.question.findMany({
@@ -206,7 +208,8 @@ router.put('/quarantine/:id/approve', authMiddleware, requireAdmin, async (req, 
 });
 
 // 1.7. GET FLAGGED QUESTIONS 
-router.get('/flagged', authMiddleware, async (req, res) => {
+// Admin only (the bank grid's "flagged" filter): the rows carry their answer keys.
+router.get('/flagged', authMiddleware, requireAdmin, async (req, res) => {
     try {
         const { subject, subtopic } = req.query;
         let whereClause = { isFlagged: true };
@@ -337,6 +340,37 @@ router.post('/tag-clear', authMiddleware, requireAdmin, validate(tagClearSchema)
     } catch (error) {
         logger.error('Tag clear error', { error: error.message });
         return res.status(500).json({ error: 'Nothing was cleared. Try again.' });
+    }
+});
+
+// Learners' reports (Admin › Question bank › Reports, services/questionReports).
+router.get('/reports/count', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        return res.status(200).json({ open: await openReportCount() });
+    } catch (error) {
+        logger.error('Report count error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to count the reports.' });
+    }
+});
+
+router.get('/reports', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { subject, offset } = req.query;
+        return res.status(200).json(await openReports({ subject, offset: Math.max(0, parseInt(offset, 10) || 0) }));
+    } catch (error) {
+        logger.error('Reports fetch error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the reports.' });
+    }
+});
+
+router.post('/:id/reports/resolve', authMiddleware, requireAdmin, validate(reportResolveSchema), async (req, res) => {
+    try {
+        const out = await resolveReports(req.params.id, req.body.resolution, req.user.id);
+        if (!out) return res.status(404).json({ error: 'Question not found.' });
+        return res.status(200).json({ success: true, ...out });
+    } catch (error) {
+        logger.error('Report resolve error', { error: error.message });
+        return res.status(500).json({ error: 'Nothing was changed. Try again.' });
     }
 });
 
@@ -553,12 +587,13 @@ router.patch('/:id/flag', authMiddleware, async (req, res) => {
         // after the first row rather than N votes.
         await prisma.questionFlag.upsert({
             where: { questionId_userId: { questionId, userId } },
-            update: { reason },
+            // A report after an admin closed it is a new one: it opens again.
+            update: { reason, resolvedAt: null, resolution: null, resolvedBy: null },
             create: { questionId, userId, reason },
         });
 
         const isAdmin = await isAdminUser(userId);
-        const flagCount = await prisma.questionFlag.count({ where: { questionId } });
+        const flagCount = await prisma.questionFlag.count({ where: { questionId, resolvedAt: null } });
         const shouldQuarantine = isAdmin || flagCount >= FLAG_THRESHOLD;
 
         if (shouldQuarantine) {

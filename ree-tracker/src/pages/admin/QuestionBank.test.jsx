@@ -13,6 +13,8 @@ vi.mock('../../features/admin/ai/QuestionGenerator', () => probe('generator'));
 vi.mock('../../features/admin/exchange/ImportFromAI', () => probe('import'));
 vi.mock('../../features/admin/exchange/FixWithAI', () => probe('fix-with-ai'));
 vi.mock('../../features/admin/exchange/TagSubtopics', () => probe('tag-subtopics'));
+vi.mock('../../features/admin/QuestionReports', () => probe('question-reports'));
+vi.mock('../../services/dbQueries', () => ({ apiRequest: async (url) => (url === '/api/questions/reports/count' ? { open: 3 } : {}) }));
 vi.mock('../../features/admin/AnswerPositions', () => probe('answer-positions'));
 vi.mock('../../features/library/LibraryIngestion', () => probe('from-a-file'));
 vi.mock('../../features/library/LibraryOverview', () => probe('overview'));
@@ -46,12 +48,17 @@ beforeEach(() => {
 });
 
 describe('Question bank views', () => {
+  it('the Reports tab shows how many questions learners reported', async () => {
+    show();
+    expect(await screen.findByRole('radio', { name: 'Reports (3)' })).toBeInTheDocument();
+  });
+
   it('opens on the Bank, with nothing else on the page or loaded', () => {
     show();
     expect(screen.getByRole('radio', { name: 'Bank' })).toBeChecked();
     expect(shown('overview')).toBe(true);
     expect(shown('grid')).toBe(true);
-    for (const name of ['generator', 'import', 'from-a-file', 'manual', 'review-queue', 'fix-with-ai', 'answer-positions', 'tag-subtopics']) {
+    for (const name of ['generator', 'import', 'from-a-file', 'manual', 'review-queue', 'fix-with-ai', 'answer-positions', 'tag-subtopics', 'question-reports']) {
       expect(mounted).not.toHaveBeenCalledWith(name);
     }
   });

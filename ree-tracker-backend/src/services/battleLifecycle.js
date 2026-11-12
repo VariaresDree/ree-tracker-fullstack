@@ -35,7 +35,7 @@ const { buildAnswerKey, buildExplanationKey } = require('../utils/battleSanitize
 const { lockedQuestionIds } = require('./answerGate');
 const {
     mergeSubmitAttempts, computeElapsedSecs, rankParticipants, recount,
-    battleTiming, answersToJson, answersFromJson, publicAnswers, fillBlanks,
+    battleTiming, answersToJson, answersFromJson, publicAnswers, fillBlanks, LOBBY_TTL_MS,
 } = require('../utils/battleLogic');
 const logger = require('../utils/logger');
 const { fallbackDisplayName } = require('@ree/shared');
@@ -837,9 +837,41 @@ async function sweepDueBattles(now = Date.now()) {
     }
 }
 
+/**
+ * Remove lobbies nobody started within LOBBY_TTL_MS. A never-started battle
+ * has no answers, results or ratings; its players and outcomes go with it
+ * (cascade), and a rematch lobby that was never played frees its battle for a
+ * new Rematch (a battle has at most one). A lobby still held in memory is
+ * left alone, and the delete re-checks it hasn't started. Returns how many.
+ */
+async function expireStaleLobbies(now = Date.now()) {
+    const stale = await prisma.battle.findMany({
+        where: { status: 'WAITING', startedAt: null, createdAt: { lt: new Date(now - LOBBY_TTL_MS) } },
+        select: { id: true },
+        take: 100,
+    });
+    const ids = (stale || []).map((b) => b.id).filter((id) => !battleLobbies.has(id));
+    if (!ids.length) return 0;
+    const { count } = await prisma.battle.deleteMany({ where: { id: { in: ids }, status: 'WAITING', startedAt: null } });
+    if (count) logger.info('battle sweep removed lobbies that never started', { count });
+    return count;
+}
+
+// Hourly is plenty for a day-long limit: one small query, not one a minute.
+const LOBBY_SWEEP_EVERY_MS = 60 * 60 * 1000;
+let lastLobbySweep = 0;
+async function sweepStaleLobbiesHourly(now = Date.now()) {
+    if (now - lastLobbySweep < LOBBY_SWEEP_EVERY_MS) return 0;
+    lastLobbySweep = now;
+    return expireStaleLobbies(now);
+}
+
 function startBattleSweeper({ firstDelayMs = 5000, intervalMs = 60 * 1000 } = {}) {
     if (sweepTimer) return;
-    const run = () => sweepDueBattles().catch((err) => logger.error('battle sweep failed', { error: err.message }));
+    const run = () => Promise.all([
+        sweepDueBattles(),
+        sweepStaleLobbiesHourly(),
+    ]).catch((err) => logger.error('battle sweep failed', { error: err.message }));
     firstSweepTimer = setTimeout(() => { firstSweepTimer = null; run(); }, firstDelayMs);
     firstSweepTimer.unref?.();
     sweepTimer = setInterval(run, intervalMs);
@@ -875,6 +907,7 @@ module.exports = {
     completionFor,
     participantSnapshot,
     sweepDueBattles,
+    expireStaleLobbies,
     startBattleSweeper,
     stopBattleSweeper,
 };
