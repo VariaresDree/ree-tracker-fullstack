@@ -1308,3 +1308,18 @@ model SubtopicSuggestion {
 
   @@index([resolvedAt, topicId])
 }
+
+// One row per scheduled-job run (POST /api/cron/*), for Admin › App health ›
+// Scheduled jobs: when each job last ran and what it did. Jobs had failed or
+// gone unrun for days with nothing to show it (services/jobRuns.js). Kept 14 days.
+model JobRun {
+  id         String   @id @default(uuid())
+  job        String   // 'reminders' | 'subtopic-tags'
+  startedAt  DateTime @default(now())
+  durationMs Int      @default(0)
+  ok         Boolean
+  summary    Json?    // what the run returned, e.g. { candidates, sent, quiet }
+  error      String?
+
+  @@index([job, startedAt])
+}

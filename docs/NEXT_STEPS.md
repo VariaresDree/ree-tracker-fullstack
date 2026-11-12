@@ -38,9 +38,10 @@ The owner asked for the next round after the optimization one: help learners tra
 | #264 | Turning the browser reminder on: wakes the server, waits 60 s for it, retries each step once, says which step failed and logs the real error to App health; a double tap no longer registers twice |
 | #265 | Scheduled jobs on time: GitHub ran the hourly reminders workflow about every 8 hours; `docs/ops/scheduled-jobs.sql` moves reminders and tagging to Supabase pg_cron (the owner runs it once with the secret) |
 | #266 | Boot download 98.0% → 96.4%: Firebase sign-in without the unused popup/redirect code (`initializeAuth`, same persistence) |
+| #267 | Admin › App health › Scheduled jobs: each job's last run, what it did, On time / Late / Failed (`JobRun`) |
 
 **Your actions:**
-1. **Put the scheduled jobs on time** (#265): Supabase › SQL editor › paste `docs/ops/scheduled-jobs.sql`, replace `PASTE_CRON_SECRET_HERE` with the `CRON_SECRET` from Render › Environment, Run. Without it, reminders and tagging run only when GitHub gets round to it (about 3 times a day).
+1. **Scheduled jobs on time** (#265): done by the owner 2026-11-12 (`send-reminders`, `subtopic-tags` in `cron.job`, the secret in Vault). Admin › App health › Scheduled jobs shows each run (#267).
 1. **Turn reminders on** (#261): the key is in Vercel and in the live build (checked 2026-11-12). Left: Admin › App health › Push reminders › On, then try it yourself in Account › Notifications. Re-make your study plan too (#262 changed the mastery it ranks by).
 1. **Read the learners' reports** (#254, #256): Admin › Question bank › Reports (65 open). Edit, No problem, or Remove each; a short note tells the learners what you did.
 1. **Tag the bank** (#251, #263): Admin › Question bank › Subtopics › In the background › **On**. The server tags about 150 questions an hour, 6 AM to 11 PM, so the bank takes about a week. Work through To review when you like. Nothing appears for learners until a subtopic has 10 tagged questions.

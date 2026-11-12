@@ -1,12 +1,15 @@
-// Scheduled jobs, called by GitHub Actions (.github/workflows/reminders.yml)
-// rather than a user. Not behind authMiddleware: protected by a shared secret
-// in the `x-cron-secret` header, compared in constant time against
-// CRON_SECRET. Without CRON_SECRET set the route answers 503 and does nothing.
+// Scheduled jobs, called by Supabase pg_cron (docs/ops/scheduled-jobs.sql) and,
+// as a backup, GitHub Actions (.github/workflows/reminders.yml) rather than a
+// user. Not behind authMiddleware: protected by a shared secret in the
+// `x-cron-secret` header, compared in constant time against CRON_SECRET.
+// Without CRON_SECRET set the route answers 503 and does nothing. Each run is
+// recorded for Admin › App health (services/jobRuns.js).
 const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const { sendDueReminders } = require('../services/reminderService');
 const { runAutoTag } = require('../services/subtopicAutoTag');
+const { withJobRun } = require('../services/jobRuns');
 const logger = require('../utils/logger');
 
 const digest = (s) => crypto.createHash('sha256').update(String(s)).digest();
@@ -23,7 +26,7 @@ function cronSecret(req, res, next) {
 // POST /api/cron/reminders — this hour's scheduled reminders (services/reminderService.js).
 router.post('/reminders', cronSecret, async (req, res) => {
     try {
-        res.status(200).json(await sendDueReminders());
+        res.status(200).json(await withJobRun('reminders', () => sendDueReminders()));
     } catch (error) {
         logger.error('Reminders run failed', { error: error.message });
         res.status(500).json({ error: 'Reminders run failed.' });
@@ -32,9 +35,11 @@ router.post('/reminders', cronSecret, async (req, res) => {
 
 // POST /api/cron/subtopic-tags — a few batches of subtopic tagging
 // (services/subtopicAutoTag.js), when the admin switched it on. It answers at
-// once and runs after: the AI calls take longer than the caller waits.
+// once and runs after: the AI calls take longer than the caller waits. A run
+// the AI cut short counts as failed; one skipped (off, or already running) doesn't.
 router.post('/subtopic-tags', cronSecret, (req, res) => {
-    runAutoTag().catch((error) => logger.error('Subtopic auto-tag failed', { error: error.message }));
+    withJobRun('subtopic-tags', () => runAutoTag(), (out) => !out?.stopped)
+        .catch((error) => logger.error('Subtopic auto-tag failed', { error: error.message }));
     res.status(202).json({ started: true });
 });
 
