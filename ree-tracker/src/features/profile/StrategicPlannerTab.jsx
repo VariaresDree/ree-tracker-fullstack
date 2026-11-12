@@ -230,7 +230,7 @@ export default function StrategicPlannerTab({ currentUser }) {
       </div>
     );
   } else if (tasks.length === 0) {
-    list = <EmptyState compact icon={ListChecks} title="No tasks yet" description="Generate a plan above, or add your own." />;
+    list = <EmptyState compact icon={ListChecks} title="No tasks yet" description="Generate a study plan above, or add your own task here." />;
   } else {
     list = (
       <div className="flex flex-col gap-5">
@@ -263,7 +263,7 @@ export default function StrategicPlannerTab({ currentUser }) {
           width below, so a long list no longer leaves a short calendar
           stranded beside it. */}
       <Grid kind="split" data-plan-setup>
-        <StudyPlanGenerator onPlanGenerated={planGenerated} calendarChanged={calendarChanged} className="@4xl:col-span-2" />
+        <StudyPlanGenerator onPlanGenerated={planGenerated} calendarChanged={calendarChanged} tasks={tasks} className="@4xl:col-span-2" />
         <PlanCalendar
           month={month}
           onMonth={setMonth}

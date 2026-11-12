@@ -151,11 +151,16 @@ describe('StrategicPlannerTab', () => {
     expect(api.apiRequest).toHaveBeenLastCalledWith('/api/user/tasks', 'POST', { text: 'Statics set', dueDate: null });
   });
 
-  it('Clear plan asks first', async () => {
-    api.apiRequest.mockResolvedValue({ items: [] });
+  it('Clear plan asks first, and only shows with a plan', async () => {
+    api.apiRequest.mockResolvedValueOnce({ items: [] });
+    const { unmount } = renderTab();
+    await screen.findByText('No tasks yet');
+    expect(screen.queryByRole('button', { name: 'Clear plan' })).not.toBeInTheDocument();
+    unmount();
+    api.apiRequest.mockResolvedValue({ items: [{ id: 'p1', kind: 'drill', topic: 'Machines', subject: 'EE', dueDate: today, text: 'Drill Machines — 30 questions', completed: false, createdAt: `${today}T01:00:00Z` }] });
     api.clearStudyPlan.mockResolvedValue({ deleted: 3 });
     renderTab();
-    await screen.findByText('No tasks yet');
+    await screen.findByText('Drill Machines — 30 questions');
     fireEvent.click(screen.getByRole('button', { name: 'Clear plan' }));
     expect(api.clearStudyPlan).not.toHaveBeenCalled();
     const dialog = screen.getByRole('dialog', { name: 'Clear your study plan?' });
