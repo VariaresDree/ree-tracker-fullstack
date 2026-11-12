@@ -8,7 +8,7 @@
 //
 // A view loads when first opened and then stays mounted, hidden, so switching away
 // can't lose a generation running or a form half filled.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import useTabParam from '../../hooks/useTabParam';
 import { useStore } from '../../store/useStore';
@@ -22,6 +22,8 @@ import QuestionGenerator from '../../features/admin/ai/QuestionGenerator';
 import ImportFromAI from '../../features/admin/exchange/ImportFromAI';
 import FixWithAI from '../../features/admin/exchange/FixWithAI';
 import TagSubtopics from '../../features/admin/exchange/TagSubtopics';
+import QuestionReports from '../../features/admin/QuestionReports';
+import { apiRequest } from '../../services/dbQueries';
 import LibraryOverview from '../../features/library/LibraryOverview';
 import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import ReviewQueue from '../../features/library/ReviewQueue';
@@ -35,6 +37,7 @@ const VIEWS = [
   { value: 'review', label: 'Review' },
   { value: 'fix', label: 'Fix' },
   { value: 'tag', label: 'Subtopics' },
+  { value: 'reports', label: 'Reports' },
 ];
 const ADD_WAYS = [
   { value: 'generate', label: 'Generate' },
@@ -66,6 +69,16 @@ export default function QuestionBank() {
   const openedWays = useOpened(way);
   // A question just added waits in the review queue: open it afresh.
   const [added, setAdded] = useState(0);
+  // Learners' open reports, on the Reports tab, so they're seen without opening it.
+  const [reportCount, setReportCount] = useState(null);
+  useEffect(() => {
+    let live = true;
+    apiRequest('/api/questions/reports/count')
+      .then((r) => { if (live && Number.isFinite(r?.open)) setReportCount(r.open); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const views = VIEWS.map((v) => (v.value === 'reports' && reportCount ? { ...v, label: `Reports (${reportCount})` } : v));
 
   // Global filters mapped at the page level so all sub-hooks can react
   const [filterSubject, setFilterSubject] = useState('All');
@@ -104,7 +117,7 @@ export default function QuestionBank() {
       {/* The tab already says "Question bank"; the heading stays for screen
           readers' heading list. */}
       <h2 className="sr-only">Question bank</h2>
-      <SegmentedControl label="Question bank view" value={view} onChange={setView} options={VIEWS} />
+      <SegmentedControl label="Question bank view" value={view} onChange={setView} options={views} />
 
       <Pane opened={openedViews} id="bank" current={view}>
         <LibraryOverview
@@ -178,6 +191,10 @@ export default function QuestionBank() {
 
       <Pane opened={openedViews} id="tag" current={view}>
         <TagSubtopics />
+      </Pane>
+
+      <Pane opened={openedViews} id="reports" current={view}>
+        <QuestionReports onCount={setReportCount} onClosed={() => setReportCount((n) => Math.max(0, (n || 0) - 1))} />
       </Pane>
     </div>
   );

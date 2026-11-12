@@ -106,6 +106,8 @@ function rankParticipants(participants) {
 // How long after the time limit the server waits before finishing a battle
 // itself: covers a submit already in flight and a slow phone's clock.
 const DEADLINE_GRACE_MS = 30 * 1000;
+// A lobby nobody started in a day is removed by the sweep (battleLifecycle).
+const LOBBY_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Milliseconds from `now` until the server should finish the battle on its
@@ -220,6 +222,6 @@ function fillBlanks(participant, answerKey) {
 
 module.exports = {
     gradeAnswer, applyAnswer, recount, mergeSubmitAttempts, computeElapsedSecs, rankParticipants,
-    DEADLINE_GRACE_MS, deadlineDelayMs, absentAtStart,
+    DEADLINE_GRACE_MS, LOBBY_TTL_MS, deadlineDelayMs, absentAtStart,
     battleTiming, answersToJson, answersFromJson, publicAnswers, fillBlanks,
 };

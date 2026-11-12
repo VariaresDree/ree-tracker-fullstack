@@ -332,3 +332,25 @@ describe('saving answers as they arrive', () => {
         expect(Object.keys(db.participant(id, 'u').answers)).toEqual(['q1']);
     });
 });
+
+describe('lobbies that never start', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('are removed after a day, but not one still held in memory, and the delete re-checks', async () => {
+        const find = vi.spyOn(prisma.battle, 'findMany').mockResolvedValue([{ id: 'OLD1' }, { id: 'LIVE1' }]);
+        const del = vi.spyOn(prisma.battle, 'deleteMany').mockResolvedValue({ count: 1 });
+        lifecycle.getLobby('LIVE1');
+        const now = Date.UTC(2026, 10, 12);
+        expect(await lifecycle.expireStaleLobbies(now)).toBe(1);
+        expect(find.mock.calls[0][0].where).toEqual({ status: 'WAITING', startedAt: null, createdAt: { lt: new Date(now - 24 * 60 * 60 * 1000) } });
+        expect(del.mock.calls[0][0].where).toEqual({ id: { in: ['OLD1'] }, status: 'WAITING', startedAt: null });
+        lifecycle.battleLobbies.delete('LIVE1');
+    });
+
+    it('nothing stale, nothing deleted', async () => {
+        vi.spyOn(prisma.battle, 'findMany').mockResolvedValue([]);
+        const del = vi.spyOn(prisma.battle, 'deleteMany');
+        expect(await lifecycle.expireStaleLobbies()).toBe(0);
+        expect(del).not.toHaveBeenCalled();
+    });
+});

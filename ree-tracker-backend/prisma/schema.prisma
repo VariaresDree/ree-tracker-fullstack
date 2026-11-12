@@ -1134,6 +1134,11 @@ model QuestionFlag {
   userId     String
   reason     String?
   createdAt  DateTime @default(now())
+  // Closed by an admin (Admin › Question bank › Reports): when, how (fixed,
+  // dismissed, removed) and who. Kept, not deleted; a new report reopens it.
+  resolvedAt DateTime?
+  resolution String?
+  resolvedBy String?
 
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
@@ -1141,6 +1146,7 @@ model QuestionFlag {
   @@unique([questionId, userId])
   @@index([questionId])
   @@index([userId, createdAt])
+  @@index([resolvedAt])
 }
 
 // The learner's own calendar (Progress › Study plan › Key dates): preboards,
