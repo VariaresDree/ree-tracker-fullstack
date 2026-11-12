@@ -6,6 +6,7 @@
 // an error, and addresses are removed from its text.
 const crypto = require('crypto');
 const prisma = require('../config/db');
+const { jobHealth } = require('./jobRuns');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VERSION_WINDOW_DAYS = 7;
@@ -59,7 +60,7 @@ async function healthSummary(now = new Date()) {
         prisma.appError.deleteMany({ where: { lastSeenAt: { lt: expired } } }),
         prisma.appVersionSeen.deleteMany({ where: { lastSeenAt: { lt: expired } } }),
     ]);
-    const [versions, errors] = await Promise.all([
+    const [versions, errors, jobs] = await Promise.all([
         prisma.appVersionSeen.groupBy({
             by: ['version'],
             where: { lastSeenAt: { gte: new Date(now.getTime() - VERSION_WINDOW_DAYS * DAY_MS) } },
@@ -68,10 +69,13 @@ async function healthSummary(now = new Date()) {
             orderBy: { _max: { lastSeenAt: 'desc' } },
         }),
         prisma.appError.findMany({ orderBy: { lastSeenAt: 'desc' }, take: 50 }),
+        // The scheduled jobs' record; App health still loads if it can't be read.
+        jobHealth(now).catch(() => []),
     ]);
     return {
         versions: versions.map((v) => ({ version: v.version, people: v._count._all, lastSeenAt: v._max.lastSeenAt })),
         errors,
+        jobs,
     };
 }
 
