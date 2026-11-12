@@ -56,6 +56,8 @@ const exportLimiter = rateLimit({
 });
 
 const withoutOwner = ({ userId: _userId, ...row }) => row;
+// Which admin closed a report is theirs, not the learner's: the note and the outcome stay.
+const TIDY = { flags: ({ resolvedBy: _by, ...row }) => row };
 
 router.get('/export', authMiddleware, exportLimiter, async (req, res) => {
     const userId = req.user.id;
@@ -64,7 +66,7 @@ router.get('/export', authMiddleware, exportLimiter, async (req, res) => {
         if (!user) return res.status(404).json({ error: 'No account found.' });
         const rows = {};
         for (const [name, table] of Object.entries(OWN_ROWS)) {
-            rows[name] = (await table().findMany({ where: { userId }, take: MAX_ROWS_PER_TABLE })).map(withoutOwner);
+            rows[name] = (await table().findMany({ where: { userId }, take: MAX_ROWS_PER_TABLE })).map((row) => (TIDY[name] || ((x) => x))(withoutOwner(row)));
         }
         return res.status(200).json({ exportedAt: new Date().toISOString(), user, rows });
     } catch (error) {

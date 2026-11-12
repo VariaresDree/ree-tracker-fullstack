@@ -34,6 +34,7 @@ import { forgetTourSeen, tourSeen } from '../features/onboarding/tourKey';
 
 // Lazy: it brings the quiz parser, and most visits to Account never use it.
 const BackupSettings = lazy(() => import('../features/backup/BackupSettings'));
+const YourReports = lazy(() => import('../features/account/YourReports'));
 
 // Jump links to each section: Account is nine sections long, and on a phone
 // "Sign-in & security" was a long scroll down with no way to see what was there.
@@ -48,6 +49,7 @@ const SECTIONS = [
   ['offline', 'Offline & sync'],
   ['placement', 'Placement test'],
   ['achievements', 'Achievements'],
+  ['reports', 'Your reports'],
   ['data', 'Your data'],
   ['security', 'Sign-in & security'],
 ];
@@ -196,6 +198,14 @@ export default function Account() {
       <Section id="achievements" title="Achievements">
         <Milestones />
         <CredentialsTab currentUser={currentUser} />
+      </Section>
+
+      <Section id="reports" title="Your reports" description="Questions you reported with Report a problem, and what was done about each.">
+        <ErrorBoundary name="Your reports">
+          <Suspense fallback={<Skeleton className="h-24" />}>
+            <YourReports />
+          </Suspense>
+        </ErrorBoundary>
       </Section>
 
       <Section id="data" title="Your data">

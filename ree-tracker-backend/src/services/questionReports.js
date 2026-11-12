@@ -75,16 +75,16 @@ async function openReports({ subject, limit = PAGE, offset = 0 } = {}) {
 }
 
 /**
- * Closes a question's open reports. 'fixed' and 'dismissed' put it back in the
+ * Closes a question's open reports, with an optional note the learners see. 'fixed' and 'dismissed' put it back in the
  * bank if three reports had taken it out; 'removed' takes it out (isFlagged).
  * @returns {{ resolved: number } | null} null when there's no such question
  */
-async function resolveReports(questionId, resolution, adminId) {
+async function resolveReports(questionId, resolution, adminId, note = '') {
     if (!RESOLUTIONS.includes(resolution)) throw new Error('Unknown resolution.');
     const exists = await prisma.question.findUnique({ where: { id: questionId }, select: { id: true } });
     if (!exists) return null;
     const [closed] = await prisma.$transaction([
-        prisma.questionFlag.updateMany({ where: { questionId, ...OPEN }, data: { resolvedAt: new Date(), resolution, resolvedBy: adminId } }),
+        prisma.questionFlag.updateMany({ where: { questionId, ...OPEN }, data: { resolvedAt: new Date(), resolution, resolvedBy: adminId, resolutionNote: note || null } }),
         prisma.question.update({ where: { id: questionId }, data: { isFlagged: resolution === 'removed' } }),
     ]);
     return { resolved: closed.count };

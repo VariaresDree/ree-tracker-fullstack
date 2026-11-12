@@ -325,6 +325,7 @@ async function bootstrap() {
     app.use('/api/user', require('./src/routes/userLinkRoutes'));
     app.use('/api/user', require('./src/routes/syllabusRoutes'));
     app.use('/api/user', require('./src/routes/userSubtopicRoutes'));
+    app.use('/api/user', require('./src/routes/userReportRoutes'));
     app.use('/api/user', require('./src/routes/mistakeRoutes'));
     app.use('/api/user', require('./src/routes/noteRoutes'));
     app.use('/api/user', require('./src/routes/cardReviewRoutes'));

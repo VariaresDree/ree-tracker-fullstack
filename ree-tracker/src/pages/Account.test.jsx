@@ -23,6 +23,7 @@ vi.mock('../features/account/NotificationSettings', () => ({ default: () => null
 vi.mock('../features/account/OfflineSyncSettings', () => ({ default: () => null }));
 vi.mock('../features/account/Milestones', () => ({ default: () => null }));
 vi.mock('../features/account/DataSettings', () => ({ default: () => null }));
+vi.mock('../features/account/YourReports', () => ({ default: () => null }));
 vi.mock('../features/account/SecuritySettings', () => ({ default: () => null }));
 vi.mock('../features/account/ExamPlanForm', () => ({
   default: function PlanStub({ onDirtyChange }) {

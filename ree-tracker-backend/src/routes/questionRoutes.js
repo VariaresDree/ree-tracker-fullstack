@@ -365,7 +365,7 @@ router.get('/reports', authMiddleware, requireAdmin, async (req, res) => {
 
 router.post('/:id/reports/resolve', authMiddleware, requireAdmin, validate(reportResolveSchema), async (req, res) => {
     try {
-        const out = await resolveReports(req.params.id, req.body.resolution, req.user.id);
+        const out = await resolveReports(req.params.id, req.body.resolution, req.user.id, req.body.note);
         if (!out) return res.status(404).json({ error: 'Question not found.' });
         return res.status(200).json({ success: true, ...out });
     } catch (error) {
@@ -588,7 +588,7 @@ router.patch('/:id/flag', authMiddleware, async (req, res) => {
         await prisma.questionFlag.upsert({
             where: { questionId_userId: { questionId, userId } },
             // A report after an admin closed it is a new one: it opens again.
-            update: { reason, resolvedAt: null, resolution: null, resolvedBy: null },
+            update: { reason, resolvedAt: null, resolution: null, resolvedBy: null, resolutionNote: null },
             create: { questionId, userId, reason },
         });
 
