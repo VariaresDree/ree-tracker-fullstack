@@ -118,6 +118,10 @@ describe('createBattle', () => {
         const ok = battleCreateSchema.parse({ ...base, config: { mode: 'subject', subject: 'EE', drawMode: 'board' } });
         expect(ok.config.drawMode).toBe('board');
         expect(battleCreateSchema.safeParse({ ...base, config: { drawMode: 'random' } }).success).toBe(false);
+        // One order for everyone is kept, so a rematch plays the same way.
+        const same = battleCreateSchema.parse({ ...base, config: { mode: 'subject', subject: 'EE', sameOrder: true } });
+        expect(battleCreateSchema.omit({ battleId: true }).parse({ config: same.config, timeLimitSecs: 600 }).config.sameOrder).toBe(true);
+        expect(battleCreateSchema.safeParse({ ...base, config: { sameOrder: 'yes' } }).success).toBe(false);
         // An older battle's stored settings still pass.
         expect(battleCreateSchema.safeParse({ ...base, config: { mode: 'subject', subject: 'EE' } }).success).toBe(true);
     });

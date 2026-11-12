@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { SYLLABUS_SUBJECTS, normalizeSubject } from '@ree/shared';
-import { Button, FormField, Modal, Select, cn } from '../../components/ui';
+import { Button, FormField, Modal, SegmentedControl, Select, cn } from '../../components/ui';
 import { Swords } from '../../components/ui/icons';
 import { useStore } from '../../store/useStore';
 import { drawApplies } from '../board-simulator/drawModes';
@@ -19,6 +19,15 @@ import { useSubtopicChoices } from '../syllabus/subtopicChoices';
 import DrawPicker from '../board-simulator/DrawPicker';
 import { useDrawPrefs } from '../board-simulator/useDrawPrefs';
 import { BATTLE_MODES as MODES } from './battleModes';
+
+const ORDER_OPTIONS = [
+  { value: 'own', label: 'Shuffled for each player' },
+  { value: 'same', label: 'Same for everyone' },
+];
+const ORDER_HINT = {
+  own: 'Each player gets their own order of questions and choices, so nobody can call out answers.',
+  same: 'Every player gets the same order, so question 5 is the same question for all: good for going over it together.',
+};
 
 export default function HostBattleModal({ open, onClose, isOnline }) {
   const navigate = useNavigate();
@@ -29,12 +38,16 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
     timeLimitMins: 30,
     subtopic: 'All',
     subtopicId: '',
+    // 'own': each player's own shuffle (as battles always were); 'same': one
+    // order for everyone, so question 5 is the same question for all.
+    order: 'own',
   });
   const topics = useStore((s) => s.dynamicTOS)?.[hostConfig.subject] || [];
   // Only a custom battle is on one topic: a PRC paper covers its subject.
   const subtopic = hostConfig.mode === 'custom' ? hostConfig.subtopic : 'All';
   const drawShown = drawApplies({ mode: hostConfig.mode, subtopic });
   const subtopicChoices = useSubtopicChoices(hostConfig.subject, subtopic);
+  const perQuestion = hostConfig.timeLimitMins / (hostConfig.count || 1);
   const pickedSub = subtopicChoices.find((s) => s.id === hostConfig.subtopicId) || null;
   // A second tap while the first request ran created a second lobby.
   const [creating, setCreating] = useState(false);
@@ -64,6 +77,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         ...(drawShown
           ? { drawMode: draw.drawMode, ...(draw.drawMode === 'own' ? { ownCounts: draw.ownCounts } : {}) }
           : { subtopic, ...(pickedSub ? { subtopicId: pickedSub.id, subtopicName: pickedSub.name } : {}) }),
+        ...(hostConfig.order === 'same' ? { sameOrder: true } : {}),
       };
 
       const battleId = await createMultiplayerBattle(finalConfig, finalTime * 60);
@@ -190,6 +204,25 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
             </Select>
           </FormField>
         )}
+        {hostConfig.mode === 'custom' && (
+          // The board allows about 2.4 minutes a question (PRC_TIMES).
+          <p className={cn('-mt-2 text-xs tabular-nums', perQuestion < 1 ? 'text-[var(--color-reeAmber-text)]' : 'text-muted2')} data-pace>
+            About {perQuestion < 1 ? perQuestion.toFixed(1) : Math.round(perQuestion * 10) / 10} min a question{perQuestion < 1 ? ': tighter than the board’s pace' : ''}.
+          </p>
+        )}
+
+        {/* Laid out as "How questions are picked" below it (DrawPicker). */}
+        <div className="flex flex-col gap-2">
+          <span className="text-label block">Question order</span>
+          <SegmentedControl
+            label="Question order"
+            size="lg"
+            value={hostConfig.order}
+            onChange={(order) => setHostConfig({ ...hostConfig, order })}
+            options={ORDER_OPTIONS}
+          />
+          <p className="text-sm text-muted2">{ORDER_HINT[hostConfig.order]}</p>
+        </div>
 
         {drawShown && (
           <DrawPicker

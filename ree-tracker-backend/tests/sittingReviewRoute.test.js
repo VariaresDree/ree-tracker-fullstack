@@ -228,3 +228,22 @@ describe('isSittingClosed / orderReviewRows', () => {
         expect(orderReviewRows(rows).map((r) => r.id)).toEqual(['c', 'a', 'b']);
     });
 });
+
+describe('a battle the host set to one order for everyone (2026-11-12)', () => {
+    it('reviews in the battle’s one order: the same for every player', async () => {
+        const { battleOrderKey } = require('@ree/shared');
+        const ids = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+        const orderFor = async (uid) => {
+            const id = `ABC123:${uid}`;
+            session = { id, mode: 'BATTLE', config: { kind: 'battle', finalizedAt: 'x' }, createdAt: new Date() };
+            attempts = ids.map((qid) => attempt(qid, 'EE', { itemIndex: null }));
+            battle = { id: 'ABC123', status: 'COMPLETED', config: { optionOrder: 'seeded-v1', sameOrder: true }, questions: ids.map((qid) => ({ id: qid })) };
+            return (await get(id)).body;
+        };
+        const mine = await orderFor('uid-review');
+        expect(mine.items.map((i) => i.questionId)).toEqual(shuffleWithKey(ids.map((id) => ({ id })), 'ABC123').map((x) => x.id));
+        expect(mine.items[0].options).toEqual(orderOptions(['A', 'B', 'C', 'D'], optionKey('ABC123', mine.items[0].questionId)));
+        expect(battleOrderKey('ABC123', 'uid-review', { sameOrder: true })).toBe('ABC123');
+        expect(battleOrderKey('ABC123', 'uid-review', {})).toBe('ABC123:uid-review');
+    });
+});

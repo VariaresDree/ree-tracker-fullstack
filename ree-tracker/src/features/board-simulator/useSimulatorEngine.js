@@ -18,7 +18,7 @@ import { reportQuestion } from '../../services/reportQuestion';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
   PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
-  newSittingKey, shuffleWithKey, OPTION_ORDER_VERSION,
+  newSittingKey, shuffleWithKey, OPTION_ORDER_VERSION, battleOrderKey,
 } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
 import { setupConfig } from './profiles';
@@ -829,8 +829,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
 
       // Each player's own order of questions and choices, the same on every
       // open (a rejoin finds them where they were) and in the battle's review:
-      // keyed by the battle and the player, the id of their sitting.
-      const sittingKey = `${battleId}:${currentUser?.uid || ''}`;
+      // keyed by the battle and the player, the id of their sitting. Or one
+      // order for everyone, when the host chose it (battleOrderKey).
+      const sittingKey = battleOrderKey(battleId, currentUser?.uid, battle.config);
       const pool = shuffleWithKey(battle.questions || [], sittingKey).map((q) => presentOptions(q, sittingKey));
 
       if (pool.length === 0) throw new Error('No questions in battle');

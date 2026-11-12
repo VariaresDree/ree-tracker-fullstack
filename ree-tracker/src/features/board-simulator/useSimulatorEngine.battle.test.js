@@ -84,6 +84,18 @@ describe('useSimulatorEngine — coming back to a battle', () => {
     expect(others.some((o) => o !== first)).toBe(true);
   });
 
+  it('a battle set to one order for everyone gives every player the same questions and choices, in the same order', async () => {
+    const four = QUESTIONS.map((q, i) => ({ ...q, options: [`${i}a`, `${i}b`, `${i}c`, `${i}d`] }));
+    const open = async (uid) => {
+      api.fetchMultiplayerBattle.mockResolvedValue(battle({ questions: four, config: { mode: 'custom', subject: 'EE', sameOrder: true }, me: { answers: {}, finished: false } }));
+      const { result } = renderHook(() => useSimulatorEngine({ uid }, true));
+      await act(() => result.current.startMultiplayerBattle('ABC123'));
+      return result.current.session.questions.map((q) => `${q.id}:${q.options.join('')}`).join(' ');
+    };
+    const first = await open('u1');
+    for (const uid of ['u2', 'u3', 'u4', 'u5']) expect(await open(uid)).toBe(first);
+  });
+
   it('corrects for a phone clock that is off from the server', async () => {
     const data = battle();
     // The server is 5 minutes ahead of this device.
