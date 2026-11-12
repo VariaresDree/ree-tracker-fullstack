@@ -110,6 +110,14 @@ export default function TagSubtopics() {
       unsure.push(...read.filter((r) => refused.has(r.id)).map((r) => ({ ...r, sure: false })));
       unsaved = Math.max(0, apply.length - refused.size - saved);
     }
+    // Also kept on the server (In the background › To review), so closing the
+    // page loses none of them. Best effort: the list below still has them.
+    if (unsure.length) {
+      apiRequest('/api/questions/tag-suggestions', 'POST', {
+        topicId: page.topic.id,
+        items: unsure.map((r) => ({ id: r.id, subtopicId: r.subtopicId || null, guess: r.guess || null })),
+      }, { timeoutMs: 30_000 }).catch(() => {});
+    }
     const textOf = new Map(page.items.map((q) => [q.id, q.text]));
     left.current += unsure.length + unsaved;
     setReview((list) => [...list, ...unsure.map((r) => ({ ...r, text: textOf.get(r.id) }))]);

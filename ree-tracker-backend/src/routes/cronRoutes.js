@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const { sendDueReminders } = require('../services/reminderService');
+const { runAutoTag } = require('../services/subtopicAutoTag');
 const logger = require('../utils/logger');
 
 const digest = (s) => crypto.createHash('sha256').update(String(s)).digest();
@@ -27,6 +28,14 @@ router.post('/reminders', cronSecret, async (req, res) => {
         logger.error('Reminders run failed', { error: error.message });
         res.status(500).json({ error: 'Reminders run failed.' });
     }
+});
+
+// POST /api/cron/subtopic-tags — a few batches of subtopic tagging
+// (services/subtopicAutoTag.js), when the admin switched it on. It answers at
+// once and runs after: the AI calls take longer than the caller waits.
+router.post('/subtopic-tags', cronSecret, (req, res) => {
+    runAutoTag().catch((error) => logger.error('Subtopic auto-tag failed', { error: error.message }));
+    res.status(202).json({ started: true });
 });
 
 module.exports = router;

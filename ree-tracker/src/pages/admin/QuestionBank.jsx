@@ -22,6 +22,7 @@ import QuestionGenerator from '../../features/admin/ai/QuestionGenerator';
 import ImportFromAI from '../../features/admin/exchange/ImportFromAI';
 import FixWithAI from '../../features/admin/exchange/FixWithAI';
 import TagSubtopics from '../../features/admin/exchange/TagSubtopics';
+import AutoTagPanel from '../../features/admin/exchange/AutoTagPanel';
 import QuestionReports from '../../features/admin/QuestionReports';
 import { apiRequest } from '../../services/dbQueries';
 import LibraryOverview from '../../features/library/LibraryOverview';
@@ -190,6 +191,7 @@ export default function QuestionBank() {
       </Pane>
 
       <Pane opened={openedViews} id="tag" current={view}>
+        <AutoTagPanel />
         <TagSubtopics />
       </Pane>
 
