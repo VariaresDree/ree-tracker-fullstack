@@ -36,8 +36,10 @@ The owner asked for the next round after the optimization one: help learners tra
 | #262 | Honest topic mastery: from recent accuracy through BKT's answer model (classic BKT drifted to 1.0 above ~57% right: 57 of 184 rows, so plans, drills and weak topics ranked by days since practice); a migration recomputes every row on deploy; a plan's mocks rotate only its subjects |
 | #263 | Subtopic tagging in the background: a switch, the server tags ~150 questions an hour from the hourly workflow, unsure picks kept on the server for review (0 of 17,185 were tagged) |
 | #264 | Turning the browser reminder on: wakes the server, waits 60 s for it, retries each step once, says which step failed and logs the real error to App health; a double tap no longer registers twice |
+| #265 | Scheduled jobs on time: GitHub ran the hourly reminders workflow about every 8 hours; `docs/ops/scheduled-jobs.sql` moves reminders and tagging to Supabase pg_cron (the owner runs it once with the secret) |
 
 **Your actions:**
+1. **Put the scheduled jobs on time** (#265): Supabase › SQL editor › paste `docs/ops/scheduled-jobs.sql`, replace `PASTE_CRON_SECRET_HERE` with the `CRON_SECRET` from Render › Environment, Run. Without it, reminders and tagging run only when GitHub gets round to it (about 3 times a day).
 1. **Turn reminders on** (#261): the key is in Vercel and in the live build (checked 2026-11-12). Left: Admin › App health › Push reminders › On, then try it yourself in Account › Notifications. Re-make your study plan too (#262 changed the mastery it ranks by).
 1. **Read the learners' reports** (#254, #256): Admin › Question bank › Reports (65 open). Edit, No problem, or Remove each; a short note tells the learners what you did.
 1. **Tag the bank** (#251, #263): Admin › Question bank › Subtopics › In the background › **On**. The server tags about 150 questions an hour, 6 AM to 11 PM, so the bank takes about a week. Work through To review when you like. Nothing appears for learners until a subtopic has 10 tagged questions.
