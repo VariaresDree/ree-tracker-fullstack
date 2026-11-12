@@ -1,6 +1,9 @@
 // src/config/firebaseDb.js
 import { initializeApp } from "firebase/app";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
+import {
+    initializeAuth, connectAuthEmulator,
+    indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence,
+} from "firebase/auth";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'missing',
@@ -15,7 +18,12 @@ const firebaseConfig = {
 // with the handouts uploader (features/materials/useFileManager), not on boot.
 export const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+// getAuth() also bundles Google/popup/redirect sign-in, which the app doesn't
+// use (email and password only): 11.5 kB of the boot download. Same
+// persistence list as getAuth's, in the same order, so sessions carry over.
+export const auth = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+});
 
 // The authed Playwright run signs in against the Firebase Auth emulator
 // (playwright.authed.config.ts). Dev server only: a production build never
