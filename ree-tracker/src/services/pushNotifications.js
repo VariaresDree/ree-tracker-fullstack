@@ -5,8 +5,9 @@
 // Capacitor reports a native platform AND the PushNotifications plugin is
 // available AND the `push-notifications` feature flag (Phase 4.1) is enabled.
 // The plugin itself is loaded via dynamic import so the web bundle never pulls
-// native-only code paths eagerly.
-import { Capacitor } from '@capacitor/core';
+// native-only code paths eagerly. So is @capacitor/core (7.8 kB): this module
+// is reached at boot through AuthProvider, and core was the only reason the
+// native bridge sat in every browser's first download.
 import toast from 'react-hot-toast';
 import { registerDeviceToken, unregisterDeviceToken } from './dbQueries';
 
@@ -19,7 +20,10 @@ export function shouldInitPush({ isNative, flagEnabled, uid }) {
 let listenersBound = false;
 let lastToken = null;
 
-function nativePushAvailable() {
+const loadCapacitor = () => import('@capacitor/core').then((m) => m.Capacitor);
+
+async function nativePushAvailable() {
+    const Capacitor = await loadCapacitor();
     return Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('PushNotifications');
 }
 
@@ -29,7 +33,10 @@ function nativePushAvailable() {
  * upserts by token. Returns true when registration was kicked off.
  */
 export async function initPushNotifications(uid, { flagEnabled } = {}) {
-    if (!shouldInitPush({ isNative: nativePushAvailable(), flagEnabled, uid })) return false;
+    // Flag and user first: without them nothing loads Capacitor at all.
+    if (!shouldInitPush({ isNative: true, flagEnabled, uid })) return false;
+    if (!shouldInitPush({ isNative: await nativePushAvailable(), flagEnabled, uid })) return false;
+    const Capacitor = await loadCapacitor();
 
     const { PushNotifications } = await import('@capacitor/push-notifications');
 
@@ -84,7 +91,7 @@ export function hasPushToken() {
 
 /** Logout hook: release this device's token so a signed-out device gets no pushes. */
 export async function teardownPushNotifications() {
-    if (!nativePushAvailable() || !lastToken) return;
+    if (!lastToken || !(await nativePushAvailable())) return;
     const token = lastToken;
     lastToken = null;
     try {
