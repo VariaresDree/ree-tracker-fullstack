@@ -84,7 +84,7 @@ async function resolveReports(questionId, resolution, adminId, note = '') {
     const exists = await prisma.question.findUnique({ where: { id: questionId }, select: { id: true } });
     if (!exists) return null;
     const [closed] = await prisma.$transaction([
-        prisma.questionFlag.updateMany({ where: { questionId, ...OPEN }, data: { resolvedAt: new Date(), resolution, resolvedBy: adminId, resolutionNote: note || null } }),
+        prisma.questionFlag.updateMany({ where: { questionId, ...OPEN }, data: { resolvedAt: new Date(), resolution, resolvedBy: adminId, resolutionNote: note || null, seenAt: null } }),
         prisma.question.update({ where: { id: questionId }, data: { isFlagged: resolution === 'removed' } }),
     ]);
     return { resolved: closed.count };

@@ -363,3 +363,20 @@ describe('date and plan nudges', () => {
     expect(screen.queryByRole('heading', { name: 'Getting started' })).not.toBeInTheDocument();
   });
 });
+
+describe('a report answered', () => {
+  it('says how many and links to Your reports; none, nothing', async () => {
+    const { unmount } = renderPanel({ readiness: null, stats: { dailyTarget: 50, examDate: '2027-04-10', reportsAnswered: 2 } });
+    const link = await screen.findByRole('link', { name: /2 questions you reported were answered/ });
+    expect(link).toHaveAttribute('href', '/account#reports');
+    unmount();
+    renderPanel({ readiness: null, stats: { dailyTarget: 50, examDate: '2027-04-10', reportsAnswered: 1 } });
+    expect(await screen.findByRole('link', { name: /A question you reported was answered/ })).toBeInTheDocument();
+  });
+
+  it('none answered, no line', async () => {
+    renderPanel({ readiness: null, stats: { dailyTarget: 50, examDate: '2027-04-10', reportsAnswered: 0 } });
+    await screen.findByText('Up next');
+    expect(screen.queryByText(/you reported/)).not.toBeInTheDocument();
+  });
+});

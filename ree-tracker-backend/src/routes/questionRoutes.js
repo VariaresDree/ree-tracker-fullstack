@@ -588,7 +588,7 @@ router.patch('/:id/flag', authMiddleware, async (req, res) => {
         await prisma.questionFlag.upsert({
             where: { questionId_userId: { questionId, userId } },
             // A report after an admin closed it is a new one: it opens again.
-            update: { reason, resolvedAt: null, resolution: null, resolvedBy: null, resolutionNote: null },
+            update: { reason, resolvedAt: null, resolution: null, resolvedBy: null, resolutionNote: null, seenAt: null },
             create: { questionId, userId, reason },
         });
 

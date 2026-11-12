@@ -9,6 +9,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
+const dashboardCache = require('../services/dashboardCache');
 
 const LIMIT = 50;
 const STEM = 200;
@@ -20,7 +21,7 @@ router.get('/reports', authMiddleware, async (req, res) => {
             orderBy: { createdAt: 'desc' },
             take: LIMIT,
             select: {
-                questionId: true, reason: true, createdAt: true, resolvedAt: true, resolution: true, resolutionNote: true,
+                questionId: true, reason: true, createdAt: true, resolvedAt: true, resolution: true, resolutionNote: true, seenAt: true,
                 // No key or explanation: the question as it was asked.
                 question: { select: { subject: true, subtopic: true, text: true } },
             },
@@ -35,6 +36,22 @@ router.get('/reports', authMiddleware, async (req, res) => {
     } catch (error) {
         logger.error('User reports fetch failed', { error: error.message });
         res.status(500).json({ error: 'Failed to load your reports.' });
+    }
+});
+
+// The learner has seen their answered reports: Today stops mentioning them.
+// Only answered ones, so a report closed later still counts as new.
+router.post('/reports/seen', authMiddleware, async (req, res) => {
+    try {
+        const { count } = await prisma.questionFlag.updateMany({
+            where: { userId: req.user.id, resolvedAt: { not: null }, seenAt: null },
+            data: { seenAt: new Date() },
+        });
+        if (count) dashboardCache.invalidate(req.user.id);
+        res.status(200).json({ success: true, seen: count });
+    } catch (error) {
+        logger.error('User reports seen failed', { error: error.message });
+        res.status(500).json({ error: 'Failed to save that.' });
     }
 });
 
