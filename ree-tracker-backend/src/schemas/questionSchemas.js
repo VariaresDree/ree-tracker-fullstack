@@ -99,6 +99,10 @@ const tagBulkSchema = z.object({
 const tagClearSchema = z.object({ topicId: z.string().min(1).max(100) });
 
 // Closing a question's reports (services/questionReports).
-const reportResolveSchema = z.object({ resolution: z.enum(['fixed', 'dismissed', 'removed']) });
+const reportResolveSchema = z.object({
+    resolution: z.enum(['fixed', 'dismissed', 'removed']),
+    // Shown to the learners who reported it (Account › Your reports).
+    note: z.string().trim().max(300).optional(),
+});
 
 module.exports = { reportResolveSchema, tagBulkSchema, tagClearSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };

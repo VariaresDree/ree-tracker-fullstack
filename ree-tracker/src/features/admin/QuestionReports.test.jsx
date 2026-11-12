@@ -61,6 +61,17 @@ describe('Learners’ reports', () => {
     expect(screen.getByText('1 question reported')).toBeInTheDocument();
   });
 
+  it('a note goes to the learners with the outcome; an empty one is left out', async () => {
+    render(<QuestionReports />);
+    await screen.findByText('Stem q1');
+    const one = within(card('Stem q1'));
+    fireEvent.change(one.getByLabelText(/Note to the learners/), { target: { value: '  Checked against the handbook.  ' } });
+    fireEvent.click(one.getByRole('button', { name: 'No problem' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/questions/q1/reports/resolve', 'POST', { resolution: 'dismissed', note: 'Checked against the handbook.' }, expect.anything()));
+    fireEvent.click(within(card('Stem q2')).getByRole('button', { name: 'No problem' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/questions/q2/reports/resolve', 'POST', { resolution: 'dismissed' }, expect.anything()));
+  });
+
   it('Remove asks once more before taking it out of the bank', async () => {
     render(<QuestionReports />);
     await screen.findByText('Stem q2');

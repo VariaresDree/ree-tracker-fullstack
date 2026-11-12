@@ -83,6 +83,13 @@ describe('resolveReports', () => {
         expect(prisma.question.update.mock.calls[0][0]).toEqual({ where: { id: 'q1' }, data: { isFlagged: flagged } });
     });
 
+    it('keeps the note for the learners, and no note is null', async () => {
+        await resolveReports('q1', 'fixed', ADMIN, 'The key is B now.');
+        expect(prisma.questionFlag.updateMany.mock.calls[0][0].data.resolutionNote).toBe('The key is B now.');
+        await resolveReports('q1', 'dismissed', ADMIN);
+        expect(prisma.questionFlag.updateMany.mock.calls[1][0].data.resolutionNote).toBeNull();
+    });
+
     it('an unknown question is null', async () => {
         prisma.question.findUnique.mockResolvedValue(null);
         expect(await resolveReports('gone', 'fixed', ADMIN)).toBeNull();
@@ -110,6 +117,11 @@ describe('routes', () => {
         expect(res.body).toEqual({ open: 2 });
     });
 
+    it('a note over 300 characters is refused', async () => {
+        const res = await request(app()).post('/api/questions/q1/reports/resolve').set(as(ADMIN)).send({ resolution: 'fixed', note: 'x'.repeat(301) });
+        expect(res.status).toBe(400);
+    });
+
     it('refuses a resolution it doesn’t know, and 404s a missing question', async () => {
         expect((await request(app()).post('/api/questions/q1/reports/resolve').set(as(ADMIN)).send({ resolution: 'ignore' })).status).toBe(400);
         vi.spyOn(prisma.question, 'findUnique').mockResolvedValue(null);
@@ -125,7 +137,7 @@ describe('a learner reports again after an admin closed it', () => {
         const update = vi.spyOn(prisma.question, 'update');
         const res = await request(app()).patch('/api/questions/q1/flag').set(as(USER)).send({ reason: 'It doesn’t display properly' });
         expect(res.body).toMatchObject({ success: true, flagCount: 1, quarantined: false });
-        expect(upsert.mock.calls[0][0].update).toEqual({ reason: 'It doesn’t display properly', resolvedAt: null, resolution: null, resolvedBy: null });
+        expect(upsert.mock.calls[0][0].update).toEqual({ reason: 'It doesn’t display properly', resolvedAt: null, resolution: null, resolvedBy: null, resolutionNote: null });
         expect(count).toHaveBeenCalledWith({ where: { questionId: 'q1', resolvedAt: null } });
         expect(update).not.toHaveBeenCalled();
     });

@@ -4,7 +4,7 @@
 // 65 reports learners had made by 2026-11-12 had never been seen.
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Badge, Button, Card, EmptyState, SegmentedControl, Skeleton, StatusPill } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, FormField, Input, SegmentedControl, Skeleton, StatusPill } from '../../components/ui';
 import { Check, Flag, Pencil, Trash2 } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
 import ExplanationBody from '../quiz/ExplanationBody';
@@ -20,13 +20,15 @@ const SUBJECTS = [
 const DONE = { fixed: 'Fixed, and the reports closed.', dismissed: 'Reports closed: nothing to fix.', removed: 'Taken out of the bank.' };
 
 const fetchReports = (subject, offset) => apiRequest(`/api/questions/reports?${new URLSearchParams({ subject, offset })}`, 'GET', null, { timeoutMs: 30_000 });
-const resolve = (id, resolution) => apiRequest(`/api/questions/${encodeURIComponent(id)}/reports/resolve`, 'POST', { resolution }, { timeoutMs: 30_000 });
+const resolve = (id, resolution, note = '') => apiRequest(`/api/questions/${encodeURIComponent(id)}/reports/resolve`, 'POST', { resolution, ...(note.trim() ? { note: note.trim() } : {}) }, { timeoutMs: 30_000 });
+export const NOTE_MAX = 300;
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const plural = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 function ReportCard({ item, busy, onEdit, onResolve }) {
   const { question: q, reports, reasons, firstAt, lastAt } = item;
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [note, setNote] = useState('');
   return (
     <li>
       <Card padding="md" className="flex flex-col gap-3 min-w-0">
@@ -62,12 +64,15 @@ function ReportCard({ item, busy, onEdit, onResolve }) {
             <div className="mt-2 leading-relaxed min-w-0"><ExplanationBody text={q.fixedExplanation} /></div>
           </details>
         )}
+        <FormField label="Note to the learners (optional)" hint="They see it in Account › Your reports, with what you did.">
+          <Input value={note} maxLength={NOTE_MAX} onChange={(e) => setNote(e.target.value)} placeholder="The key is now B: the old one used the wrong formula." />
+        </FormField>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => onEdit(item)} disabled={busy}><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /> Edit</Button>
-          <Button size="sm" variant="secondary" onClick={() => onResolve(item, 'dismissed')} disabled={busy}>No problem</Button>
+          <Button size="sm" onClick={() => onEdit(item, note)} disabled={busy}><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /> Edit</Button>
+          <Button size="sm" variant="secondary" onClick={() => onResolve(item, 'dismissed', note)} disabled={busy}>No problem</Button>
           {confirmRemove ? (
             <>
-              <Button size="sm" variant="ghost" tone="danger" onClick={() => onResolve(item, 'removed')} disabled={busy}>Take it out of the bank</Button>
+              <Button size="sm" variant="ghost" tone="danger" onClick={() => onResolve(item, 'removed', note)} disabled={busy}>Take it out of the bank</Button>
               <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(false)} disabled={busy}>Keep it</Button>
             </>
           ) : (
@@ -113,20 +118,20 @@ export default function QuestionReports({ onCount, onClosed }) {
     toast.success(DONE[resolution]);
   };
 
-  const onResolve = async (item, resolution) => {
+  const onResolve = async (item, resolution, note) => {
     setBusyId(item.question.id);
     try {
-      await resolve(item.question.id, resolution);
+      await resolve(item.question.id, resolution, note);
       closed(item, resolution);
     } catch (err) {
       toast.error(err.message || 'Nothing was changed. Try again.');
     } finally { setBusyId(null); }
   };
 
-  const onEdit = async (item) => {
+  const onEdit = async (item, note = '') => {
     setBusyId(item.question.id);
     try {
-      setEditing({ item, question: await fetchQuestionById(item.question.id) });
+      setEditing({ item, note, question: await fetchQuestionById(item.question.id) });
       setEdit({ saving: false, error: '' });
     } catch (err) {
       toast.error(`Couldn’t open that question: ${err.message}`);
@@ -137,7 +142,7 @@ export default function QuestionReports({ onCount, onClosed }) {
     try {
       // Back in the bank once it's fixed, then the reports close.
       await updateQuestionInBank(q.id, { ...q, isFlagged: false });
-      await resolve(q.id, 'fixed');
+      await resolve(q.id, 'fixed', editing.note || '');
       closed(editing.item, 'fixed');
       setEditing(null);
     } catch (err) {
@@ -152,7 +157,7 @@ export default function QuestionReports({ onCount, onClosed }) {
           <Flag size={16} strokeWidth={1.75} aria-hidden="true" style={{ color: 'var(--color-reeAmber-text)' }} /> Learners’ reports
         </h3>
         <p className="text-xs text-muted2">
-          Every question a learner reported, most-reported first. Three reports take a question out of the bank on their own; one or two wait here. Closing them keeps the record.
+          Every question a learner reported, most-reported first. Three reports take a question out of the bank on their own; one or two wait here. Closing them keeps the record, and the learners see what you did in Account › Your reports.
         </p>
       </header>
       <SegmentedControl label="Subject" size="sm" value={subject} onChange={(s) => { setPage({ status: 'loading', items: [], total: 0 }); setSubject(s); }} options={SUBJECTS} />

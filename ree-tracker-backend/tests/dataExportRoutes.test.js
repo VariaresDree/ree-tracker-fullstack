@@ -50,6 +50,12 @@ describe('the data export', () => {
         expect(res.body.exportedAt).toBeTruthy();
     });
 
+    it('a report keeps its outcome and the reviewer’s note, but not which admin closed it', async () => {
+        OWN_ROWS.flags().findMany.mockResolvedValue([{ id: 'f1', userId: 'me', resolution: 'fixed', resolutionNote: 'Key is B now.', resolvedBy: 'admin-uid' }]);
+        const res = await request(app).get('/api/user/export').set(as('me'));
+        expect(res.body.rows.flags).toEqual([{ id: 'f1', resolution: 'fixed', resolutionNote: 'Key is B now.' }]);
+    });
+
     it('never includes tokens or plumbing', () => {
         const names = Object.keys(OWN_ROWS).join(' ').toLowerCase();
         expect(names).not.toMatch(/token|idempot|leaderboard/);

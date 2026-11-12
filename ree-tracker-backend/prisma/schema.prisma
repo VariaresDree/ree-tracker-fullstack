@@ -1139,6 +1139,8 @@ model QuestionFlag {
   resolvedAt DateTime?
   resolution String?
   resolvedBy String?
+  // The admin's note to the learner (Account › Your reports), optional.
+  resolutionNote String?
 
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
