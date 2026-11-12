@@ -28,7 +28,7 @@
 'use strict';
 
 const prisma = require('../config/db');
-const { normalizeSubject, optionKey, optionOrder, shuffleWithKey, OPTION_ORDER_VERSION } = require('@ree/shared');
+const { battleOrderKey, normalizeSubject, optionKey, optionOrder, shuffleWithKey, OPTION_ORDER_VERSION } = require('@ree/shared');
 const { battleTiming } = require('../utils/battleLogic');
 const battleLifecycle = require('./battleLifecycle');
 
@@ -177,6 +177,9 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
     const marked = new Set(Array.isArray(cfg.markedQuestionIds) ? cfg.markedQuestionIds : []);
     // A battle is marked on the battle (every player's sitting); the rest on the session.
     const shownSeeded = (cfg.optionOrder ?? configOf(battle).optionOrder) === OPTION_ORDER_VERSION;
+    // The order this sitting was shown in: its own, or the battle's one order.
+    // A battle sitting's id is battleId:userId, so its own order is the id itself.
+    const orderKey = session.mode === 'BATTLE' ? battleOrderKey(String(session.id).split(':')[0], userId, configOf(battle)) : session.id;
     let rows;
     if (session.mode === 'DIAGNOSTIC' && Array.isArray(cfg.responses)) {
         // The placement test keeps every response in order on the session,
@@ -191,9 +194,10 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
             },
         });
         // A battle shown in the seeded order gave each player their own order
-        // of questions too, keyed the same way.
+        // of questions too, keyed the same way (or one order for everyone,
+        // when the host chose it).
         const battleQuestions = Array.isArray(battle?.questions)
-            ? (shownSeeded ? shuffleWithKey(battle.questions, session.id) : battle.questions)
+            ? (shownSeeded ? shuffleWithKey(battle.questions, orderKey) : battle.questions)
             : null;
         rows = orderReviewRows(attempts, {
             fullBoard: cfg.kind === 'full-board',
@@ -230,7 +234,7 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
             optionOrder: shownSeeded ? OPTION_ORDER_VERSION : null,
         },
         items: rows.map((row, i) => reviewItem(row, byId.get(row.questionId), i + 1, marked,
-            shownSeeded ? session.id : null, snapshotOptions.get(row.questionId) || null)),
+            shownSeeded ? orderKey : null, snapshotOptions.get(row.questionId) || null)),
     };
 }
 

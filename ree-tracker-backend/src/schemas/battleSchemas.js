@@ -17,6 +17,9 @@ const battleCreateSchema = z.object({
         // One subtopic of that topic (Question.subtopicId), and its name to show.
         subtopicId: z.string().min(1).max(100).optional(),
         subtopicName: z.string().max(128).optional(),
+        // One order of questions and choices for every player (the host's
+        // choice); otherwise each player gets their own (the default).
+        sameOrder: z.boolean().optional(),
         count: z.coerce.number().int().min(5).max(100).default(20),
         timeLimitMins: z.coerce.number().int().min(1).max(400).optional(),
         isPrcStandard: z.boolean().default(false),

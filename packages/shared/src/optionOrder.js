@@ -132,7 +132,19 @@ function answerPositions(questions) {
 /** Order tag a sitting carries when its choices were shown by optionOrder. */
 const OPTION_ORDER_VERSION = 'seeded-v1';
 
+/**
+ * The key a battle player's questions and choices are ordered by. Each player
+ * gets their own order (the battle and the player: their sitting) unless the
+ * host chose one order for everyone (config.sameOrder), which is keyed on the
+ * battle alone. The battle room and the sitting review both use it, so a
+ * review shows the order that player saw.
+ */
+function battleOrderKey(battleId, userId, config) {
+    return config && config.sameOrder ? String(battleId) : `${battleId}:${userId || ''}`;
+}
+
 module.exports = {
+    battleOrderKey,
     seededRng,
     optionKey,
     optionOrder,

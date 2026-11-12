@@ -215,7 +215,11 @@ function BattleRoom({ battleId }) {
                             <Badge tone="signal">
                                 Subject: {battleConfig.config?.mode === 'blended' ? 'Full mock' : battleConfig.config?.subject}
                             </Badge>
+                            {(battleConfig.config?.subtopicName || (battleConfig.config?.subtopic && battleConfig.config.subtopic !== 'All')) && (
+                                <Badge tone="neutral">Topic: {battleConfig.config.subtopicName || battleConfig.config.subtopic}</Badge>
+                            )}
                             <Badge tone="neutral">Questions: {battleConfig.questionCount || '?'}</Badge>
+                            {battleConfig.config?.sameOrder && <Badge tone="neutral">Same order for everyone</Badge>}
                             {DRAW_LABEL[battleConfig.config?.drawMode] && <Badge tone="neutral">{DRAW_LABEL[battleConfig.config.drawMode]}</Badge>}
                             <Badge tone="velocity">Time: {Math.round((battleConfig.timeLimitSecs || 0) / 60)} min</Badge>
                         </div>

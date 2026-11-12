@@ -171,3 +171,18 @@ describe('BattleLobby', () => {
     expect(screen.queryByText(/started a rematch/)).not.toBeInTheDocument();
   });
 });
+
+describe('the lobby says how the battle is set up', () => {
+  it('its topic, and one order for everyone when the host chose it', () => {
+    socketState = { ...base(), battleConfig: { config: { subject: 'EE', subtopic: 'Machines', subtopicName: 'DC Machines', sameOrder: true }, questionCount: 20, timeLimitSecs: 1800 } };
+    renderAt();
+    expect(screen.getByText('Topic: DC Machines')).toBeInTheDocument();
+    expect(screen.getByText('Same order for everyone')).toBeInTheDocument();
+  });
+
+  it('a whole subject, each player’s own order: neither badge', () => {
+    renderAt();
+    expect(screen.queryByText(/^Topic:/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Same order for everyone')).not.toBeInTheDocument();
+  });
+});
