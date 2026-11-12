@@ -19,7 +19,7 @@ const prisma = require('../config/db');
 const { isFlagEnabled } = require('./featureFlags');
 const { applyTags } = require('./subtopicTagging');
 const { runTask, AiUnavailableError } = require('./ai/aiRouter');
-const { TAG_BATCH, TAG_SYSTEM, buildTagPrompt, readTagReply, splitTags } = require('@ree/shared/subtopicTagPrompt');
+const { TAG_BATCH, TAG_SYSTEM, buildTagPrompt, readTagReply, splitTags, nearSubtopic } = require('@ree/shared/subtopicTagPrompt');
 const { parseModelJson } = require('@ree/shared/modelJson');
 const logger = require('../utils/logger');
 
@@ -182,8 +182,13 @@ async function openSuggestions({ limit = REVIEW_PAGE } = {}) {
             select: { id: true, subject: true, name: true, subtopics: { where: { active: true }, select: { id: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] } },
         })
         : [];
+    const subsOf = new Map(topics.map((t) => [t.id, t.subtopics]));
     return {
-        items: items.map((r) => ({ id: r.questionId, topicId: r.topicId, subtopicId: r.subtopicId, guess: r.guess, text: r.question.text })),
+        // A pick kept before near names were matched still gets its subtopic preselected.
+        items: items.map((r) => ({
+            id: r.questionId, topicId: r.topicId, guess: r.guess, text: r.question.text,
+            subtopicId: r.subtopicId || (r.guess ? nearSubtopic(r.guess, subsOf.get(r.topicId) || []) : null),
+        })),
         topics,
     };
 }
