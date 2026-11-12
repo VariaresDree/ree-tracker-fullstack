@@ -54,3 +54,18 @@ jobs:
                       --max-time 150 \
                       -X POST -H "x-cron-secret: ${CRON_SECRET}" "$URL")
           echo "Response: $body"
+      # Subtopic tagging in the background (services/subtopicAutoTag.js): a few
+      # AI batches an hour while Admin › Question bank › Subtopics › In the
+      # background is on; the backend does nothing when it's off. It answers at
+      # once (202) and works after, so this step is quick. A failure here never
+      # fails the reminders.
+      - name: Start this hour's subtopic tagging
+        if: always()
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then exit 0; fi
+          curl --fail --silent --show-error --retry 2 --retry-delay 20 --retry-all-errors --max-time 90 \
+               -X POST -H "x-cron-secret: ${CRON_SECRET}" "https://ree-tracker-backend.onrender.com/api/cron/subtopic-tags"

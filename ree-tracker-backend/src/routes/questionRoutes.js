@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
 const idempotency = require('../middlewares/idempotency');
-const { reportResolveSchema, tagBulkSchema, tagClearSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
@@ -26,6 +26,7 @@ const { matchOption } = require('../utils/sanitizeOptions');
 const { importQuestions } = require('../services/questionImport');
 const { questionsForChecking, replacePreview, replaceQuestions } = require('../services/questionReplace');
 const { taggingOverview, questionsForTagging, applyTags, clearTags } = require('../services/subtopicTagging');
+const { autoTagStatus, openSuggestions, recordSuggestions, resolveSuggestions } = require('../services/subtopicAutoTag');
 const { openReportCount, openReports, resolveReports } = require('../services/questionReports');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
@@ -340,6 +341,43 @@ router.post('/tag-clear', authMiddleware, requireAdmin, validate(tagClearSchema)
     } catch (error) {
         logger.error('Tag clear error', { error: error.message });
         return res.status(500).json({ error: 'Nothing was cleared. Try again.' });
+    }
+});
+
+// Tagging in the background, and the AI's unsure picks (services/subtopicAutoTag).
+router.get('/auto-tag-status', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        return res.status(200).json(await autoTagStatus());
+    } catch (error) {
+        logger.error('Auto-tag status error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the tagging status.' });
+    }
+});
+
+router.get('/tag-suggestions', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        return res.status(200).json(await openSuggestions({ limit: parseInt(req.query.limit, 10) || 50 }));
+    } catch (error) {
+        logger.error('Tag suggestions error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the questions to review.' });
+    }
+});
+
+router.post('/tag-suggestions', authMiddleware, requireAdmin, validate(tagSuggestSchema), async (req, res) => {
+    try {
+        return res.status(200).json({ success: true, kept: await recordSuggestions(req.body.topicId, req.body.items) });
+    } catch (error) {
+        logger.error('Tag suggestions save error', { error: error.message });
+        return res.status(500).json({ error: 'Nothing was kept. Try again.' });
+    }
+});
+
+router.post('/tag-suggestions/resolve', authMiddleware, requireAdmin, validate(tagResolveSchema), idempotency(), async (req, res) => {
+    try {
+        return res.status(200).json({ success: true, ...await resolveSuggestions(req.body.items) });
+    } catch (error) {
+        logger.error('Tag suggestions resolve error', { error: error.message });
+        return res.status(500).json({ error: 'Nothing was saved. Try again.' });
     }
 });
 

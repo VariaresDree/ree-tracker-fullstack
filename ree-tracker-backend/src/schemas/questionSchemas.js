@@ -97,6 +97,17 @@ const tagBulkSchema = z.object({
     })).min(1).max(200),
 });
 const tagClearSchema = z.object({ topicId: z.string().min(1).max(100) });
+// The in-page tool's unsure picks, kept for review (services/subtopicAutoTag).
+const tagSuggestSchema = z.object({
+    topicId: z.string().min(1).max(100),
+    items: z.array(z.object({
+        id: z.string().min(1).max(100),
+        subtopicId: z.string().min(1).max(100).nullable().optional(),
+        guess: z.string().max(400).nullable().optional(),
+    })).min(1).max(200),
+});
+// The admin's answers to them: a subtopic tags it, null skips it.
+const tagResolveSchema = tagBulkSchema;
 
 // Closing a question's reports (services/questionReports).
 const reportResolveSchema = z.object({
@@ -105,4 +116,4 @@ const reportResolveSchema = z.object({
     note: z.string().trim().max(300).optional(),
 });
 
-module.exports = { reportResolveSchema, tagBulkSchema, tagClearSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
+module.exports = { reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };

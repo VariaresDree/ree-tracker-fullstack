@@ -34,11 +34,12 @@ The owner asked for the next round after the optimization one: help learners tra
 | #260 | Getting started: 10 questions in one tap first, the exam date and the plan in one save on the card, the placement test last and optional (8 of 20 accounts never answered; 2 set a date; none made a plan) |
 | #261 | Reminders in a browser: Web Push through Firebase (no learner had ever had a reminder); Admin › App health › Push reminders switch; a push lives six hours |
 | #262 | Honest topic mastery: from recent accuracy through BKT's answer model (classic BKT drifted to 1.0 above ~57% right: 57 of 184 rows, so plans, drills and weak topics ranked by days since practice); a migration recomputes every row on deploy; a plan's mocks rotate only its subjects |
+| #263 | Subtopic tagging in the background: a switch, the server tags ~150 questions an hour from the hourly workflow, unsure picks kept on the server for review (0 of 17,185 were tagged) |
 
 **Your actions:**
-1. **Turn reminders on** (#261): Firebase console › Project settings › Cloud Messaging › Web Push certificates › Generate key pair; copy the public key into Vercel as `VITE_FIREBASE_VAPID_KEY`; redeploy; then Admin › App health › Push reminders › On. Then try it yourself in Account › Notifications.
+1. **Turn reminders on** (#261): the key is in Vercel and in the live build (checked 2026-11-12). Left: Admin › App health › Push reminders › On, then try it yourself in Account › Notifications. Re-make your study plan too (#262 changed the mastery it ranks by).
 1. **Read the learners' reports** (#254, #256): Admin › Question bank › Reports (65 open). Edit, No problem, or Remove each; a short note tells the learners what you did.
-1. **Tag the bank** (#251): Admin › Question bank › Subtopics, a subject at a time. Tag with the in-app AI, then work through To review. Nothing appears for learners until a subtopic has 10 tagged questions.
+1. **Tag the bank** (#251, #263): Admin › Question bank › Subtopics › In the background › **On**. The server tags about 150 questions an hour, 6 AM to 11 PM, so the bank takes about a week. Work through To review when you like. Nothing appears for learners until a subtopic has 10 tagged questions.
 2. **Copy the history archive to Drive**: `C:\Users\g16\Documents\ree-history\history-2026-11-11.jsonl.gz` and its `.json` manifest (the trim and VACUUM FULL are done: 156 MB to 92 MB).
 3. **Watch Supabase › Usage › Egress** for a few days. This cycle's total won't go down, only the daily bars. Measured on 2026-11-11 evening: about 3 MB of rows in 30 minutes of use.
 4. Still owed: a real phone check, filing the 13 quiz files.

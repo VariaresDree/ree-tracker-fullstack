@@ -38,6 +38,7 @@ const PUBLIC_ALLOWLIST = new Set([
   // Called by the scheduler, not a user: guarded by the x-cron-secret header
   // (constant-time compare against CRON_SECRET; 503 when unset), cronRoutes.js.
   'cronRoutes.js POST /reminders',
+  'cronRoutes.js POST /subtopic-tags',
 ]);
 
 // Parameterized writes that are deliberately NOT owner-scoped. Every entry needs

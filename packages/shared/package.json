@@ -16,6 +16,7 @@
     "./questionReplace": "./src/questionReplace.js",
     "./outsideScores": "./src/outsideScores.js",
     "./subtopics": "./src/subtopics.js",
+    "./subtopicTagPrompt": "./src/subtopicTagPrompt.js",
     "./boardItems": "./src/boardItems.js",
     "./units": "./src/units.js",
     "./srs": "./src/srs.js"

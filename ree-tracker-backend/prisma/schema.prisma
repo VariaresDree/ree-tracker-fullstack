@@ -225,6 +225,7 @@ model Question {
   bookmarks        Bookmark[]
   srsCards         SRSCard[]
   flags            QuestionFlag[]
+  subtopicSuggestion SubtopicSuggestion?
   mistakeTags      MistakeTag[]
 
   @@index([subject, irtB])
@@ -1289,4 +1290,21 @@ model UserSubtopic {
   @@id([userId, id])
   @@index([topicId])
   @@index([subtopicId])
+}
+
+// The AI's subtopic pick for a question it wasn't sure of (Admin › Question
+// bank › Subtopics › To review), from the background run
+// (services/subtopicAutoTag.js) or the in-page tool. One row per question: a
+// row for the question's current topic means it was asked, so neither asks
+// again. A question moved to another topic is asked afresh (topicId differs).
+model SubtopicSuggestion {
+  questionId String    @id
+  question   Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  topicId    String    // the question's topic when it was asked
+  subtopicId String?   // the AI's pick, when it named one of that topic's subtopics
+  guess      String?   // the AI's words; null when none fits or it gave no answer
+  resolvedAt DateTime? // the admin tagged it or skipped it
+  createdAt  DateTime  @default(now())
+
+  @@index([resolvedAt, topicId])
 }
