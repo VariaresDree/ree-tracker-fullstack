@@ -38,13 +38,18 @@ describe('buildStudyPlan', () => {
         for (let i = 1; i < drills.length; i++) expect(drills[i]).not.toBe(drills[i - 1]);
     });
 
-    it('puts a timed PRC sitting in every seventh day, closer together in the refresher, rotating the subject', () => {
+    it('puts a timed PRC sitting in every seventh day, closer together in the refresher, rotating the subjects planned', () => {
         // Rewritten on purpose with the review phases (step 5a): 2026-11-01 is
         // 60 days out, the refresher, where a sitting comes every fifth study day.
         const plan = buildStudyPlan({ ...base, examDate: '2026-12-31', topics: [topic('A', 'EE', 0.3)] });
         const mocks = plan.filter((t) => t.kind === 'mock');
         expect(mocks.map((m) => m.dueDate)).toEqual(['2026-10-07', '2026-10-14', '2026-10-21', '2026-10-28', '2026-11-02', '2026-11-07']);
-        expect(new Set(mocks.map((m) => m.subject)).size).toBe(3);
+        // Only EE is planned, so every sitting is EE (a Mathematics-only plan got EE and ESAS sittings).
+        expect(new Set(mocks.map((m) => m.subject))).toEqual(new Set(['EE']));
+        const two = buildStudyPlan({ ...base, examDate: '2026-12-31', topics: [topic('A', 'EE', 0.3), topic('B', 'Mathematics', 0.3)] });
+        expect(two.filter((t) => t.kind === 'mock').map((m) => m.subject).slice(0, 4)).toEqual(['EE', 'Mathematics', 'EE', 'Mathematics']);
+        // With no topics at all, the sittings rotate every subject as before.
+        expect(new Set(buildStudyPlan({ ...base, examDate: '2026-12-31', topics: [] }).filter((t) => t.kind === 'mock').map((m) => m.subject)).size).toBe(3);
     });
 
     it('ends on light review in the last three days before the exam', () => {

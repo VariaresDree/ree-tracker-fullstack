@@ -18,7 +18,8 @@
 //     too (×1.25 a flag, two at most), within the same 1.5× cap;
 //   • so does one they rated low themselves (not sure, or dreaded; the CELE
 //     "Meta topics"), ×1.25, while it is still below Proficient;
-//   • a timed PRC sitting every seventh study day, rotating the subject, and
+//   • a timed PRC sitting every seventh study day, rotating the subjects
+//     planned, and
 //     closer together as the exam nears: every fifth in the refresher (60
 //     days out), every fourth in the final stretch (two weeks out), by the
 //     shared review phases (PHASE_MOCK_EVERY in @ree/shared);
@@ -312,6 +313,10 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
         topics: ranked,
         today,
     });
+    // Mocks rotate through the subjects being planned: a Mathematics-only plan
+    // got EE and ESAS sittings.
+    const planned = MOCK_ROTATION.filter((s) => (topics || []).some((t) => t?.topic && t.subject === s));
+    const mockSubjects = planned.length > 0 ? planned : MOCK_ROTATION;
     let drillIdx = 0;
     let mockIdx = 0;
     for (let i = 0; i < days; i++) {
@@ -336,7 +341,7 @@ function buildStudyPlan({ today, examDate, dailyTarget = 50, topics = [], weight
                     : `Drill ${t.topic} — ${target} questions${flagged}${open}` });
             }
         } else if (kind === 'mock') {
-            const subject = MOCK_ROTATION[mockIdx++ % MOCK_ROTATION.length];
+            const subject = mockSubjects[mockIdx++ % mockSubjects.length];
             plan.push({ dueDate, kind, subject, topic: null, topicId: null, targetCount: 1, text: `Timed ${SUBJECT_LABEL[subject]} sitting on the PRC clock` });
         } else if (kind === 'coaching') {
             plan.push({ dueDate, kind: 'review', subject: null, topic: null, topicId: null, targetCount: lightTarget, text: `Light review on a coaching day — ${lightTarget} questions from your due queue` });

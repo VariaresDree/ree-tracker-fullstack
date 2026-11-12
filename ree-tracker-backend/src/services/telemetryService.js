@@ -11,7 +11,7 @@ const prisma = require('../config/db');
 // puts User.thetaRating + standardError on the same scale the CAT prior and the
 // forecast already assume, and populates the (previously never-written) standardError.
 const { updateTheta, PRIOR_SE } = require('../engine/irt');
-const { bktSequence } = require('../engine/bkt');
+const { masterySequence } = require('../engine/bkt');
 const { foldCardUpdates } = require('../engine/srs');
 const { paramsForTopic } = require('../config/bktParams');
 const { byAnsweredAt, mapAttemptRows, partitionNewAttempts, aggregateTopicRollups, toEstimatorPair, groupPairsBySubject, orderedObservationsByTopic } = require('./telemetryHelpers');
@@ -332,7 +332,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                     "lastPracticedAt" = GREATEST("UserTopicPerformance"."lastPracticedAt", EXCLUDED."lastPracticedAt")
             `;
 
-            // BKT mastery fold (Phase 3.5). Sequential — can't be an additive
+            // Mastery fold (engine/bkt.js). Sequential — can't be an additive
             // SQL upsert like the counts, so it's a small read->fold->write per
             // topic. Now under the same user lock, so two concurrent batches
             // touching one topic can no longer both seed from the same stored
@@ -349,7 +349,7 @@ async function recordAttempts({ userId, attempts, sessionId = null, mode = 'LEGA
                 const prev = masteryByTopic.get(topic);
                 const params = paramsForTopic(topic);
                 const seed = prev && prev.pMastery != null ? prev.pMastery : params.pInit;
-                const { pMastery } = bktSequence(observations, params, seed);
+                const { pMastery } = masterySequence(observations, params, seed, prev?.pMastery != null ? prev.masteryN : 0);
                 // subject/topicId already persisted by the rollup upsert above.
                 await db.userTopicPerformance.update({
                     where: { userId_topic: { userId, topic } },

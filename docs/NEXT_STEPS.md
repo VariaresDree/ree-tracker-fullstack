@@ -33,6 +33,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #259 | Host a battle: Question order (shuffled for each player, or the same for everyone), the time limit's pace, and the lobby shows the topic and the order |
 | #260 | Getting started: 10 questions in one tap first, the exam date and the plan in one save on the card, the placement test last and optional (8 of 20 accounts never answered; 2 set a date; none made a plan) |
 | #261 | Reminders in a browser: Web Push through Firebase (no learner had ever had a reminder); Admin › App health › Push reminders switch; a push lives six hours |
+| #262 | Honest topic mastery: from recent accuracy through BKT's answer model (classic BKT drifted to 1.0 above ~57% right: 57 of 184 rows, so plans, drills and weak topics ranked by days since practice); a migration recomputes every row on deploy; a plan's mocks rotate only its subjects |
 
 **Your actions:**
 1. **Turn reminders on** (#261): Firebase console › Project settings › Cloud Messaging › Web Push certificates › Generate key pair; copy the public key into Vercel as `VITE_FIREBASE_VAPID_KEY`; redeploy; then Admin › App health › Push reminders › On. Then try it yourself in Account › Notifications.
@@ -50,6 +51,7 @@ The owner asked for the next round after the optimization one: help learners tra
 - A preset clears a subtopic pick, because presets merge into Practice's saved form.
 
 **Not verified:**
+- #262 on production: after Render's build, `select count(*) filter (where "pMastery" >= 0.999), count(*) from "UserTopicPerformance"` should show a handful (topics really answered 90%+ lately), not 57; then re-make a study plan (Progress › Study plan) to use the new numbers.
 - A live AI tagging run (needs the deploy and the providers).
 - The new screens signed in on production; each has unit tests and CI's signed-in E2E opens Admin › Question bank › Subtopics.
 - The egress drop over days: compare `pg_stat_statements` rows for the audit query (`calls` was 186 on 2026-11-11 14:10 UTC; each press now returns about 150 rows, not 16,910).
