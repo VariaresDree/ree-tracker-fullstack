@@ -19,14 +19,13 @@ const prisma = require('../config/db');
 const { isFlagEnabled } = require('./featureFlags');
 const { applyTags } = require('./subtopicTagging');
 const { runTask, AiUnavailableError } = require('./ai/aiRouter');
-const { TAG_BATCH, TAG_SYSTEM, buildTagPrompt, readTagReply, splitTags } = require('@ree/shared/subtopicTagPrompt');
+const { TAG_BATCH, TAG_SYSTEM, buildTagPrompt, readTagReply, splitTags, nearSubtopic } = require('@ree/shared/subtopicTagPrompt');
 const { parseModelJson } = require('@ree/shared/modelJson');
 const logger = require('../utils/logger');
 
 const FLAG = 'subtopic-autotag';
 // AI calls per run: 3 an hour, 18 runs a day, about 2,700 questions a day.
 const CALLS_PER_RUN = 3;
-const REVIEW_PAGE = 50;
 
 /**
  * The next batch nobody has asked about: one topic's untagged live questions
@@ -160,32 +159,71 @@ async function autoTagStatus() {
     return { enabled, running, callsPerRun: CALLS_PER_RUN, batch: TAG_BATCH, ...counts };
 }
 
+const GROUP_MAX = 200;
+const SUBTOPICS_SELECT = { where: { active: true }, select: { id: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] };
+
 /**
- * The open suggestions, oldest first: each question with the AI's pick and its
- * topic's subtopics to choose from. Questions tagged or moved since drop out.
+ * The open suggestions still worth answering (the question is in the topic it
+ * was asked under, untagged and not flagged), each with the subtopic it points
+ * to: the AI's pick, or the one subtopic a near name clearly means.
  */
-async function openSuggestions({ limit = REVIEW_PAGE } = {}) {
+async function liveSuggestions(where = {}, withText = false) {
     const rows = await prisma.subtopicSuggestion.findMany({
-        where: { resolvedAt: null, question: { subtopicId: null, isFlagged: false } },
+        where: { resolvedAt: null, ...where, question: { subtopicId: null, isFlagged: false } },
         orderBy: [{ createdAt: 'asc' }, { questionId: 'asc' }],
-        take: Math.min(Math.max(1, limit), REVIEW_PAGE) * 2,
         select: {
             questionId: true, topicId: true, subtopicId: true, guess: true,
-            question: { select: { text: true, topicId: true } },
+            question: { select: { topicId: true, ...(withText ? { text: true, options: true } : {}) } },
         },
     });
-    const items = rows.filter((r) => r.question.topicId === r.topicId).slice(0, limit);
-    const topicIds = [...new Set(items.map((r) => r.topicId))];
-    const topics = topicIds.length
+    const live = rows.filter((r) => r.question.topicId === r.topicId);
+    const topics = live.length
         ? await prisma.topic.findMany({
-            where: { id: { in: topicIds } },
-            select: { id: true, subject: true, name: true, subtopics: { where: { active: true }, select: { id: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] } },
+            where: { id: { in: [...new Set(live.map((r) => r.topicId))] } },
+            select: { id: true, subject: true, name: true, subtopics: SUBTOPICS_SELECT },
         })
         : [];
-    return {
-        items: items.map((r) => ({ id: r.questionId, topicId: r.topicId, subtopicId: r.subtopicId, guess: r.guess, text: r.question.text })),
-        topics,
-    };
+    const subsOf = new Map(topics.map((t) => [t.id, t.subtopics]));
+    const pickOf = (r) => r.subtopicId || (r.guess ? nearSubtopic(r.guess, subsOf.get(r.topicId) || []) : null);
+    return { rows: live.map((r) => ({ ...r, pick: pickOf(r) })), topics };
+}
+
+/**
+ * The review pile in groups (Admin › Question bank › Subtopics › To review):
+ * per topic, how many questions point to each subtopic, and how many to none.
+ * Reviewing 561 questions one at a time was a chore; a group can be checked
+ * and accepted in one go.
+ */
+async function suggestionGroups() {
+    const { rows, topics } = await liveSuggestions();
+    const counts = new Map(); // topicId -> Map(pick|'' -> n)
+    for (const r of rows) {
+        const byPick = counts.get(r.topicId) || new Map();
+        byPick.set(r.pick || '', (byPick.get(r.pick || '') || 0) + 1);
+        counts.set(r.topicId, byPick);
+    }
+    const out = topics
+        .filter((t) => counts.has(t.id))
+        .map((t) => {
+            const nameOf = new Map(t.subtopics.map((s) => [s.id, s.name]));
+            const groups = [...counts.get(t.id)]
+                .map(([pick, count]) => ({ subtopicId: pick || null, name: pick ? nameOf.get(pick) || null : null, count }))
+                // Most first; "no suggestion" last.
+                .sort((a, b) => (a.subtopicId ? 0 : 1) - (b.subtopicId ? 0 : 1) || b.count - a.count);
+            return { id: t.id, subject: t.subject, name: t.name, subtopics: t.subtopics, count: groups.reduce((n, g) => n + g.count, 0), groups };
+        })
+        .sort((a, b) => a.subject.localeCompare(b.subject) || a.name.localeCompare(b.name));
+    return { total: rows.length, topics: out };
+}
+
+/** One group's questions (subtopicId null: those with no suggestion), oldest first, up to GROUP_MAX. */
+async function groupItems({ topicId, subtopicId = null }) {
+    const { rows, topics } = await liveSuggestions({ topicId }, true);
+    const items = rows
+        .filter((r) => (r.pick || null) === (subtopicId || null))
+        .slice(0, GROUP_MAX)
+        .map((r) => ({ id: r.questionId, topicId: r.topicId, subtopicId: r.pick, guess: r.guess, text: r.question.text, options: r.question.options || [] }));
+    return { items, topic: topics[0] || null };
 }
 
 /**
@@ -205,5 +243,5 @@ async function resolveSuggestions(items) {
 }
 
 module.exports = {
-    FLAG, CALLS_PER_RUN, nextBatch, recordSuggestions, tagBatch, runAutoTag, autoTagStatus, openSuggestions, resolveSuggestions,
+    FLAG, CALLS_PER_RUN, GROUP_MAX, nextBatch, recordSuggestions, tagBatch, runAutoTag, autoTagStatus, suggestionGroups, groupItems, resolveSuggestions,
 };

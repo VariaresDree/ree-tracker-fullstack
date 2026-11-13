@@ -55,4 +55,17 @@ describe('readTagReply', () => {
     const [row] = readTagReply({ tags: [{ n: 1, subtopic: 'AC Circuits', sure: 'yes' }] }, items.slice(0, 1), subtopics);
     expect(row.sure).toBe(false);
   });
+
+  // The first live run named "Substation Bus Schemes" for "Substation Types and Bus Schemes".
+  it('a near name preselects the one subtopic it clearly means, but never saves on its own', () => {
+    const subs = [{ id: 's-bus', name: 'Substation Types and Bus Schemes' }, { id: 's-eq', name: 'Substation Equipment' }];
+    const read = readTagReply({ tags: [
+      { n: 1, subtopic: 'Substation Bus Schemes', sure: true },
+      { n: 2, subtopic: 'Substation', sure: true },
+    ] }, items.slice(0, 2), subs);
+    expect(read[0]).toEqual({ id: 'q1', guess: 'Substation Bus Schemes', subtopicId: 's-bus', sure: false });
+    // Fits both: nothing preselected.
+    expect(read[1]).toMatchObject({ subtopicId: null, sure: false });
+    expect(splitTags(read).apply).toEqual([]);
+  });
 });

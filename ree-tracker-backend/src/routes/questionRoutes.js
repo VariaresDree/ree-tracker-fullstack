@@ -26,7 +26,7 @@ const { matchOption } = require('../utils/sanitizeOptions');
 const { importQuestions } = require('../services/questionImport');
 const { questionsForChecking, replacePreview, replaceQuestions } = require('../services/questionReplace');
 const { taggingOverview, questionsForTagging, applyTags, clearTags } = require('../services/subtopicTagging');
-const { autoTagStatus, openSuggestions, recordSuggestions, resolveSuggestions } = require('../services/subtopicAutoTag');
+const { autoTagStatus, suggestionGroups, groupItems, recordSuggestions, resolveSuggestions } = require('../services/subtopicAutoTag');
 const { openReportCount, openReports, resolveReports } = require('../services/questionReports');
 
 // Any successful mutation in this router — publish, edit, delete, approve,
@@ -354,9 +354,23 @@ router.get('/auto-tag-status', authMiddleware, requireAdmin, async (req, res) =>
     }
 });
 
+// The review pile in groups: per topic, how many questions point to each subtopic.
+router.get('/tag-suggestions/groups', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        return res.status(200).json(await suggestionGroups());
+    } catch (error) {
+        logger.error('Tag suggestion groups error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the questions to review.' });
+    }
+});
+
+// One group's questions: ?topicId=…&subtopicId=… (or subtopicId=none).
 router.get('/tag-suggestions', authMiddleware, requireAdmin, async (req, res) => {
     try {
-        return res.status(200).json(await openSuggestions({ limit: parseInt(req.query.limit, 10) || 50 }));
+        const { topicId, subtopicId } = req.query;
+        if (typeof topicId !== 'string' || !topicId) return res.status(400).json({ error: 'Pick a topic.' });
+        const sub = typeof subtopicId === 'string' && subtopicId && subtopicId !== 'none' ? subtopicId : null;
+        return res.status(200).json(await groupItems({ topicId, subtopicId: sub }));
     } catch (error) {
         logger.error('Tag suggestions error', { error: error.message });
         return res.status(500).json({ error: 'Failed to load the questions to review.' });

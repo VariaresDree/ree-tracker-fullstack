@@ -50,6 +50,26 @@ ${questions}`;
  * one of the topic's subtopics by name; sure only when it is set and the AI
  * said so. Questions the reply skipped come back with no guess.
  */
+const STOP = new Set(['and', 'the', 'of', 'in', 'for', 'to', 'a', 'an']);
+// Words of a name, singular ("Circuits" and "Circuit" match), short ones like
+// "AC" and "DC" kept: they are what tells two subtopics apart.
+const words = (s) => new Set(normSubtopicKey(s).split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 1 && !STOP.has(w))
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)));
+
+/**
+ * The one subtopic a name not quite on the list clearly means: every word of
+ * the guess is in it ("Substation Bus Schemes" → "Substation Types and Bus
+ * Schemes"). null when none or more than one fit. The first live run named
+ * subtopics this way.
+ */
+function nearSubtopic(guess, subtopics) {
+    const g = words(guess);
+    if (g.size === 0) return null;
+    const fits = subtopics.filter((s) => { const w = words(s.name); return [...g].every((x) => w.has(x)); });
+    return fits.length === 1 ? fits[0].id : null;
+}
+
 function readTagReply(parsed, items, subtopics) {
     const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.tags) ? parsed.tags : [];
     const byKey = new Map(subtopics.map((s) => [normSubtopicKey(s.name), s.id]));
@@ -62,8 +82,10 @@ function readTagReply(parsed, items, subtopics) {
         const row = byN.get(i + 1);
         const guess = typeof row?.subtopic === 'string' ? row.subtopic.trim() : '';
         const none = !guess || normSubtopicKey(guess) === 'none';
-        const subtopicId = none ? null : byKey.get(normSubtopicKey(guess)) || null;
-        return { id: q.id, guess: none ? null : guess, subtopicId, sure: !!subtopicId && row?.sure === true };
+        const exact = none ? null : byKey.get(normSubtopicKey(guess)) || null;
+        // A near name is preselected for review, never saved on its own.
+        const subtopicId = exact || (none ? null : nearSubtopic(guess, subtopics));
+        return { id: q.id, guess: none ? null : guess, subtopicId, sure: !!exact && row?.sure === true };
     });
 }
 
@@ -75,4 +97,4 @@ function splitTags(read) {
     };
 }
 
-module.exports = { TAG_BATCH, TAG_SYSTEM, buildTagPrompt, readTagReply, splitTags };
+module.exports = { TAG_BATCH, TAG_SYSTEM, buildTagPrompt, readTagReply, splitTags, nearSubtopic };
