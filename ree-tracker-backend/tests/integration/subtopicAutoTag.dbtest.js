@@ -5,7 +5,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 // topic), and the status counts and the review list agree with it.
 
 const prisma = require('../../src/config/db');
-const { nextBatch, recordSuggestions, autoTagStatus, openSuggestions, resolveSuggestions } = require('../../src/services/subtopicAutoTag');
+const { nextBatch, recordSuggestions, autoTagStatus, suggestionGroups, groupItems, resolveSuggestions } = require('../../src/services/subtopicAutoTag');
+const openIds = async () => (await groupItems({ topicId: topic.id, subtopicId: sub.id })).items.map((r) => r.id);
 
 const RUN = `at${Date.now().toString(36)}`;
 // Sorts first among subjects, so nextBatch reaches this topic before any other.
@@ -51,17 +52,19 @@ describe('background subtopic tagging', () => {
         expect(status.tagged).toBeGreaterThanOrEqual(1);
         expect(status.toReview).toBeGreaterThanOrEqual(1);
 
-        const open = await openSuggestions({ limit: 50 });
-        const mine = open.items.find((r) => r.id === Q(1));
-        expect(mine).toMatchObject({ topicId: topic.id, subtopicId: sub.id, guess: 'Sub' });
-        expect(open.topics.find((t) => t.id === topic.id).subtopics.map((s) => s.id)).toEqual([sub.id]);
+        const groups = await suggestionGroups();
+        const mine = groups.topics.find((t) => t.id === topic.id);
+        expect(mine.groups).toEqual([{ subtopicId: sub.id, name: sub.name, count: 1 }]);
+        expect(mine.subtopics.map((x) => x.id)).toEqual([sub.id]);
+        const group = await groupItems({ topicId: topic.id, subtopicId: sub.id });
+        expect(group.items[0]).toMatchObject({ id: Q(1), subtopicId: sub.id, guess: 'Sub' });
     });
 
     it('a question moved to another topic is asked afresh', async () => {
         const other = await prisma.topic.create({ data: { subject: SUBJECT, name: `${RUN} Other`, normKey: `${RUN} other` } });
         try {
             await prisma.question.update({ where: { id: Q(1) }, data: { topicId: other.id } });
-            expect((await openSuggestions({ limit: 50 })).items.some((r) => r.id === Q(1))).toBe(false);
+            expect(await openIds()).not.toContain(Q(1));
         } finally {
             await prisma.question.update({ where: { id: Q(1) }, data: { topicId: topic.id } });
             await prisma.topic.delete({ where: { id: other.id } });
@@ -73,6 +76,6 @@ describe('background subtopic tagging', () => {
         expect(out.saved).toBe(1);
         expect((await prisma.question.findUnique({ where: { id: Q(1) } })).subtopicId).toBe(sub.id);
         expect((await prisma.subtopicSuggestion.findUnique({ where: { questionId: Q(1) } })).resolvedAt).not.toBeNull();
-        expect((await openSuggestions({ limit: 50 })).items.some((r) => r.id === Q(1))).toBe(false);
+        expect(await openIds()).not.toContain(Q(1));
     });
 });

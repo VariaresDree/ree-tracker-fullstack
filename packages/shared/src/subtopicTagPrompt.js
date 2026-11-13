@@ -50,7 +50,12 @@ ${questions}`;
  * one of the topic's subtopics by name; sure only when it is set and the AI
  * said so. Questions the reply skipped come back with no guess.
  */
-const words = (s) => new Set(normSubtopicKey(s).split(/[^a-z0-9]+/).filter((w) => w.length > 2 && w !== 'and' && w !== 'the'));
+const STOP = new Set(['and', 'the', 'of', 'in', 'for', 'to', 'a', 'an']);
+// Words of a name, singular ("Circuits" and "Circuit" match), short ones like
+// "AC" and "DC" kept: they are what tells two subtopics apart.
+const words = (s) => new Set(normSubtopicKey(s).split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 1 && !STOP.has(w))
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)));
 
 /**
  * The one subtopic a name not quite on the list clearly means: every word of

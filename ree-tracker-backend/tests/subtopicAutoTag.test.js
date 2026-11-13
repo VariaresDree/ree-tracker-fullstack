@@ -128,20 +128,45 @@ describe('routes', () => {
     });
 
     it('the review list and the status are admin only', async () => {
-        expect((await request(app()).get('/api/questions/tag-suggestions').set(as('uid-user'))).status).toBe(403);
+        expect((await request(app()).get('/api/questions/tag-suggestions/groups').set(as('uid-user'))).status).toBe(403);
+        expect((await request(app()).get('/api/questions/tag-suggestions?topicId=t').set(as('uid-user'))).status).toBe(403);
         expect((await request(app()).get('/api/questions/auto-tag-status').set(as('uid-user'))).status).toBe(403);
     });
 
-    it('lists open suggestions with their topic’s subtopics, dropping questions moved since', async () => {
-        vi.spyOn(prisma.subtopicSuggestion, 'findMany').mockResolvedValue([
-            { questionId: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', guess: 'DC Circuits', question: { text: 'A 12 V battery', topicId: TOPIC.id } },
-            { questionId: 'q9', topicId: TOPIC.id, subtopicId: null, guess: null, question: { text: 'Moved', topicId: 't-other' } },
-        ]);
-        vi.spyOn(prisma.topic, 'findMany').mockResolvedValue([TOPIC]);
-        const res = await request(app()).get('/api/questions/tag-suggestions').set(as(ADMIN));
+    // The pile in groups (2026-11-13): 561 one at a time was a chore.
+    const ROWS = [
+        { questionId: 'q1', topicId: TOPIC.id, subtopicId: 's-dc', guess: 'DC Circuits', question: { text: 'A 12 V battery', options: ['3 A'], topicId: TOPIC.id } },
+        { questionId: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', guess: 'DC Circuits', question: { text: 'A 6 V cell', options: [], topicId: TOPIC.id } },
+        // A near name: groups under AC Circuits.
+        { questionId: 'q3', topicId: TOPIC.id, subtopicId: null, guess: 'AC Circuit', question: { text: 'RMS of a sine', options: [], topicId: TOPIC.id } },
+        { questionId: 'q4', topicId: TOPIC.id, subtopicId: null, guess: null, question: { text: 'Who wrote this?', options: [], topicId: TOPIC.id } },
+        // Moved to another topic since: left out.
+        { questionId: 'q9', topicId: TOPIC.id, subtopicId: 's-dc', guess: null, question: { text: 'Moved', options: [], topicId: 't-other' } },
+    ];
+
+    it('counts the pile per topic and suggestion, most first, no suggestion last', async () => {
+        vi.spyOn(prisma.subtopicSuggestion, 'findMany').mockResolvedValue(ROWS);
+        vi.spyOn(prisma.topic, 'findMany').mockResolvedValue([{ ...TOPIC, subtopics: [{ id: 's-ac', name: 'AC Circuits' }, { id: 's-dc', name: 'DC Circuits' }] }]);
+        const res = await request(app()).get('/api/questions/tag-suggestions/groups').set(as(ADMIN));
         expect(res.status).toBe(200);
-        expect(res.body.items).toEqual([{ id: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', guess: 'DC Circuits', text: 'A 12 V battery' }]);
-        expect(res.body.topics[0].subtopics).toHaveLength(2);
+        expect(res.body.total).toBe(4);
+        expect(res.body.topics[0]).toMatchObject({ id: TOPIC.id, name: 'Circuits', count: 4 });
+        expect(res.body.topics[0].groups).toEqual([
+            { subtopicId: 's-dc', name: 'DC Circuits', count: 2 },
+            { subtopicId: 's-ac', name: 'AC Circuits', count: 1 },
+            { subtopicId: null, name: null, count: 1 },
+        ]);
+    });
+
+    it('gives one group’s questions with their text and options', async () => {
+        vi.spyOn(prisma.subtopicSuggestion, 'findMany').mockResolvedValue(ROWS);
+        vi.spyOn(prisma.topic, 'findMany').mockResolvedValue([{ ...TOPIC, subtopics: [{ id: 's-ac', name: 'AC Circuits' }, { id: 's-dc', name: 'DC Circuits' }] }]);
+        const dc = await request(app()).get(`/api/questions/tag-suggestions?topicId=${TOPIC.id}&subtopicId=s-dc`).set(as(ADMIN));
+        expect(dc.body.items.map((i) => i.id)).toEqual(['q1', 'q2']);
+        expect(dc.body.items[0]).toMatchObject({ text: 'A 12 V battery', options: ['3 A'], subtopicId: 's-dc' });
+        const none = await request(app()).get(`/api/questions/tag-suggestions?topicId=${TOPIC.id}&subtopicId=none`).set(as(ADMIN));
+        expect(none.body.items.map((i) => i.id)).toEqual(['q4']);
+        expect((await request(app()).get('/api/questions/tag-suggestions').set(as(ADMIN))).status).toBe(400);
     });
 
     it('keeps the in-page tool’s unsure picks for questions still in that topic', async () => {

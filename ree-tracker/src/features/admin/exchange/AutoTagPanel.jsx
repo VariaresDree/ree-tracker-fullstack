@@ -2,61 +2,37 @@
 // server's hourly tagging run (services/subtopicAutoTag.js), how far the bank
 // has got, and the questions the AI wasn't sure of, kept on the server so
 // nothing is lost when the page closes.
+//
+// To review is in groups (2026-11-13): per topic, the questions the AI pointed
+// to each subtopic, checked and tagged a group at a time (SuggestionGroup).
+// It was one question at a time, 50 shown of a pile of 561 that grew by up to
+// 100 an hour.
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Badge, Button, Card, FormField, ProgressIndicator, SegmentedControl, Select } from '../../../components/ui';
-import LatexRenderer from '../../../components/LatexRenderer';
+import { Card, Disclosure, ProgressIndicator, SegmentedControl } from '../../../components/ui';
 import { apiRequest } from '../../../services/dbQueries';
+import SuggestionGroup from './SuggestionGroup';
 
 const FLAG = 'subtopic-autotag';
-const newKey = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 const n = (x) => Number(x || 0).toLocaleString();
 
 const fetchStatus = () => apiRequest('/api/questions/auto-tag-status', 'GET', null, { timeoutMs: 30_000 });
-const fetchOpen = () => apiRequest('/api/questions/tag-suggestions?limit=50', 'GET', null, { timeoutMs: 30_000 });
-const resolve = (items) => apiRequest('/api/questions/tag-suggestions/resolve', 'POST', { items }, { timeoutMs: 30_000, idempotencyKey: newKey() });
-
-function guessLine(row) {
-  if (!row.guess) return 'AI: none of these';
-  if (!row.subtopicId) return `AI named one not on the list: ${row.guess}`;
-  return `AI: ${row.guess} · not sure`;
-}
-
-function SuggestionRow({ row, topic, onAnswer, busy }) {
-  const [pick, setPick] = useState(row.subtopicId || '');
-  return (
-    <li className="bg-bg border border-border rounded-[var(--radius-lg)] p-4 flex flex-col gap-3 min-w-0">
-      <p className="text-eyebrow">{topic ? `${topic.subject} › ${topic.name}` : 'Topic'}</p>
-      <div className="text-sm text-textMain math-scroll-mobile min-w-0 line-clamp-4 [&_p]:!m-0"><LatexRenderer content={row.text} /></div>
-      <div className="flex flex-wrap items-end gap-2">
-        <Badge tone="neutral">{guessLine(row)}</Badge>
-        <FormField label="Subtopic" className="min-w-0 flex-1 basis-56">
-          <Select value={pick} onChange={(e) => setPick(e.target.value)} disabled={busy}>
-            <option value="">Choose…</option>
-            {(topic?.subtopics || []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </Select>
-        </FormField>
-        <Button size="sm" onClick={() => onAnswer(row, pick)} disabled={busy || !pick}>Save</Button>
-        <Button size="sm" variant="ghost" onClick={() => onAnswer(row, null)} disabled={busy}>None fits</Button>
-      </div>
-    </li>
-  );
-}
+const fetchGroups = () => apiRequest('/api/questions/tag-suggestions/groups', 'GET', null, { timeoutMs: 30_000 });
+const groupKey = (topicId, subtopicId) => `${topicId}:${subtopicId || 'none'}`;
 
 export default function AutoTagPanel() {
   const [status, setStatus] = useState(null);
-  const [open, setOpen] = useState(null); // { items, topics }
+  const [groups, setGroups] = useState(null); // { total, topics: [{ id, name, subject, subtopics, count, groups }] }
+  const [opened, setOpened] = useState(null); // groupKey of the group being checked
   const [saving, setSaving] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let live = true;
-    Promise.all([fetchStatus(), fetchOpen()])
-      .then(([s, o]) => { if (live) { setStatus(s); setOpen(o); } })
+    Promise.all([fetchStatus(), fetchGroups()])
+      .then(([s, g]) => { if (live) { setStatus(s); setGroups(g); } })
       .catch((err) => toast.error(err.message || "Couldn't load the tagging status."));
     return () => { live = false; };
-  }, [reload]);
+  }, []);
 
   const change = async (value) => {
     const enabled = value === 'on';
@@ -72,21 +48,22 @@ export default function AutoTagPanel() {
     }
   };
 
-  const answer = async (row, subtopicId) => {
-    setBusy(true);
-    try {
-      const res = await resolve([{ id: row.id, subtopicId: subtopicId || null }]);
-      if (res.refused?.length) { toast.error("That subtopic isn't in this question's topic any more."); return; }
-      setOpen((o) => ({ ...o, items: o.items.filter((r) => r.id !== row.id) }));
-      setStatus((s) => s && { ...s, toReview: Math.max(0, s.toReview - 1), tagged: s.tagged + (res.saved || 0) });
-    } catch (err) {
-      toast.error(err.message || 'Nothing was saved. Try again.');
-    } finally {
-      setBusy(false);
-    }
+  // A group answered some of its questions: take them off the counts here.
+  const resolved = (topicId, subtopicId) => ({ resolved: count, saved }) => {
+    setStatus((s) => s && { ...s, toReview: Math.max(0, s.toReview - count), tagged: s.tagged + saved });
+    setGroups((g) => ({
+      total: Math.max(0, g.total - count),
+      topics: g.topics
+        .map((t) => (t.id !== topicId ? t : {
+          ...t,
+          count: Math.max(0, t.count - count),
+          groups: t.groups
+            .map((gr) => ((gr.subtopicId || null) === (subtopicId || null) ? { ...gr, count: Math.max(0, gr.count - count) } : gr)),
+        }))
+        .filter((t) => t.count > 0),
+    }));
   };
 
-  const topicOf = new Map((open?.topics || []).map((t) => [t.id, t]));
   const perHour = status ? status.callsPerRun * status.batch : 0;
 
   return (
@@ -113,23 +90,41 @@ export default function AutoTagPanel() {
         <>
           <ProgressIndicator value={status.tagged} max={status.total || 1} label={`${n(status.tagged)} of ${n(status.total)} questions tagged`} />
           <p className="text-sm text-muted2" role="status">
-            {status.notAsked > 0 ? `${n(status.notAsked)} not looked at yet` : 'Every question has been looked at'} · {n(status.toReview)} to review
+            {status.notAsked > 0 ? `${n(status.notAsked)} not looked at yet` : 'Every question has been looked at'} · {n(groups?.total ?? status.toReview)} to review
           </p>
         </>
       )}
 
-      {open?.items?.length > 0 && (
+      {groups?.topics?.length > 0 && (
         <section aria-label="To review" className="flex flex-col gap-3 min-w-0 border-t border-border pt-4">
-          <p className="text-eyebrow">To review · {n(status?.toReview ?? open.items.length)}</p>
-          <p className="text-xs text-muted2">The AI wasn&rsquo;t sure of these. Pick a subtopic, or None fits to leave one untagged for good.</p>
-          <ol className="flex flex-col gap-3">
-            {open.items.map((row) => (
-              <SuggestionRow key={row.id} row={row} topic={topicOf.get(row.topicId)} onAnswer={answer} busy={busy} />
-            ))}
-          </ol>
-          {status?.toReview > open.items.length && (
-            <Button variant="ghost" onClick={() => setReload((k) => k + 1)} disabled={busy} className="self-start">Load more</Button>
-          )}
+          <p className="text-eyebrow">To review · {n(groups.total)}</p>
+          <p className="text-xs text-muted2">
+            The AI wasn&rsquo;t sure of these. Open a group, untick any that don&rsquo;t belong, and tag the rest in one go. Unticked ones stay here for later.
+          </p>
+          {groups.topics.map((t) => (
+            <Disclosure key={t.id} title={`${t.name} · ${n(t.count)}`} description={t.subject}>
+              <ul className="flex flex-col gap-2">
+                {t.groups.filter((gr) => gr.count > 0).map((gr) => {
+                  const key = groupKey(t.id, gr.subtopicId);
+                  const isOpen = opened === key;
+                  return (
+                    <li key={key} className="flex flex-col gap-3 min-w-0">
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        onClick={() => setOpened(isOpen ? null : key)}
+                        className="flex items-center justify-between gap-3 w-full text-left px-3 py-2 min-h-11 rounded-[var(--radius-default)] border border-border bg-surface2 hover:bg-surface3 cursor-pointer"
+                      >
+                        <span className="text-sm text-textMain min-w-0">{gr.subtopicId ? (gr.name || 'A subtopic') : 'No suggestion'}</span>
+                        <span className="text-sm text-muted2 tabular-nums shrink-0">{n(gr.count)} {gr.subtopicId ? 'suggested' : 'to sort'}</span>
+                      </button>
+                      {isOpen && <SuggestionGroup topic={t} group={gr} onResolved={resolved(t.id, gr.subtopicId)} />}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Disclosure>
+          ))}
         </section>
       )}
     </Card>
