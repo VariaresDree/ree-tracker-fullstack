@@ -36,7 +36,7 @@ export default function Milestones() {
     { id: 'ten-mocks', icon: Zap, name: 'Ten mock boards', detail: 'Finish ten mock boards', done: mockCount >= 10 },
     { id: 'week-streak', icon: Flame, name: 'Week streak', detail: 'Practise 7 days in a row', done: streak >= 7 },
     { id: 'month-streak', icon: Shield, name: 'Month streak', detail: 'Practise 30 days in a row', done: streak >= 30 },
-    { id: 'high-ability', icon: Brain, name: 'High ability', detail: 'Reach an ability (θ) of 2.0', done: Number.isFinite(theta) && theta >= 2.0 },
+    { id: 'high-ability', icon: Brain, name: 'High ability', detail: 'Reach 75% ability', done: Number.isFinite(theta) && theta >= 2.0 },
   ];
   const reached = milestones.filter((m) => m.done).length;
 

@@ -33,12 +33,12 @@ export function SubjectRings({ tiles, active, onPick }) {
   );
 }
 
-// Mastery's own colours, as on Progress › Topics, from Novice up.
+// Mastery's own colours, as on Progress › Topics, from Building up.
 const BANDS = [
   { key: 'mastered', label: 'Mastered', fill: 'var(--color-reeGreen)' },
   { key: 'proficient', label: 'Proficient', fill: 'var(--color-reeCyan)' },
   { key: 'developing', label: 'Developing', fill: 'var(--color-reeAmber)' },
-  { key: 'novice', label: 'Novice', fill: 'var(--color-reeRed)' },
+  { key: 'novice', label: 'Building', fill: 'var(--color-reeRed)' },
   { key: 'none', label: 'No answers', fill: 'var(--border-light)' },
 ];
 

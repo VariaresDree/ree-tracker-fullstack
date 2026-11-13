@@ -11,6 +11,7 @@
 //
 // With no answers yet, all of that would read 0%, 0, 0.0s and empty charts, so one
 // card says what will be here and where to begin.
+import { abilityPercent } from '../../utils/ability';
 import { Suspense, useState } from 'react';
 import { lazy } from '../../utils/lazyWithRetry';
 import { Link } from 'react-router-dom';
@@ -81,12 +82,13 @@ export default function OverviewTab({ stats, kpi, today }) {
         <Panel
           icon={AudioWaveform}
           eyebrow="Ability"
-          title="Ability trend (θ)"
+          title="Ability trend"
           className="@4xl:col-span-2"
           bodyClassName="flex flex-col min-h-[260px] @xl:min-h-[300px] [&>*]:flex-1"
           action={
             <div className="flex items-center gap-2">
-              <Badge tone="velocity" className="hidden sm:inline-flex tabular-nums">θ {theta.toFixed(2)}</Badge>
+              {/* The same percent Today shows; on phones too (it was hidden below sm). */}
+              <Badge tone="velocity" className="tabular-nums">Ability {abilityPercent(theta)}%</Badge>
               <SegmentedControl size="sm" label="Time range" value={range} onChange={setRange} options={RANGES} />
             </div>
           }

@@ -1,4 +1,5 @@
 // src/components/ThetaVelocityChart.jsx
+import { abilityPercent } from '../utils/ability';
 import { useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -6,6 +7,10 @@ import {
 } from 'recharts';
 import { computeThetaDomain } from '../utils/thetaDomain';
 import { bucketThetaHistory } from './thetaHistory';
+
+// The readiness marker on the 3PL scale (θ≈1.0, ~84th percentile, above the
+// θ=0 pass cutoff); the forecast card is the authoritative pass probability.
+const READY_THETA = 1.0;
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
@@ -17,14 +22,14 @@ const CustomTooltip = ({ active, payload }) => {
         </p>
         <div className="flex flex-col gap-1">
             <p className="text-sm font-black text-reeCyan-text drop-shadow-sm">
-              θ: {data.theta > 0 ? '+' : ''}{data.theta}
+              Ability {abilityPercent(data.theta)}%
             </p>
-            {/* θ only. This used to print a linear (θ + 4) / 8 as "Pass
+            {/* Ability, never a pass chance. This used to print the same (θ + 4) / 8 as "Pass
                 Probability", a third θ→% mapping on the same page that
                 disagreed with the forecast card next to it. The pass
                 probability now lives in one place: the PRC-rule forecast. */}
             <p className="text-micro font-medium text-muted2">
-              {data.theta >= 0 ? 'Above' : 'Below'} the average candidate (θ = 0)
+              {data.theta >= 0 ? 'Above' : 'Below'} the average candidate (50%)
             </p>
         </div>
       </div>
@@ -68,8 +73,7 @@ export default function ThetaVelocityChart({ history = NO_HISTORY, range = 'day'
   const first = chartData[0]?.theta ?? 0;
   const last = chartData.at(-1)?.theta ?? 0;
   const trend = last > first ? 'rising' : last < first ? 'falling' : 'flat';
-  const fmt = (n) => `${n > 0 ? '+' : ''}${n}`;
-  const chartSummary = `Ability (theta) over the last ${chartData.length} ${rangeWord}: ${trend}, from ${fmt(first)} to ${fmt(last)}, on an axis from ${fmt(yDomain[0])} to ${fmt(yDomain[1])}.`;
+  const chartSummary = `Ability over the last ${chartData.length} ${rangeWord}: ${trend}, from ${abilityPercent(first)}% to ${abilityPercent(last)}%, on an axis from ${abilityPercent(yDomain[0])}% to ${abilityPercent(yDomain[1])}%; the ready line is at ${abilityPercent(READY_THETA)}%.`;
 
   // One point is a dot: an area needs two, so a first day of history drew an
   // empty chart with an axis.
@@ -89,7 +93,7 @@ export default function ThetaVelocityChart({ history = NO_HISTORY, range = 'day'
              (minTickGap), so it fits the card at 360px. */
           <div className="absolute inset-0" role="img" aria-label={chartSummary}>
             <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 8, left: -25, bottom: 0 }}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
                     <defs>
                         <linearGradient id="colorTheta" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="var(--accent-signal)" stopOpacity={0.4} />
@@ -108,8 +112,12 @@ export default function ThetaVelocityChart({ history = NO_HISTORY, range = 'day'
                         interval="preserveStartEnd"
                         tick={{ fill: 'var(--text-muted)', fontWeight: 600 }}
                     />
+                    {/* The percent Today shows (utils/ability), not raw θ. -25
+                        clipped labels like "-1.5"; percents are shorter. */}
                     <YAxis
                         domain={yDomain}
+                        tickFormatter={(v) => `${abilityPercent(v)}%`}
+                        width={44}
                         stroke="var(--text-muted)"
                         fontSize={12}
                         tickLine={false}
@@ -122,11 +130,13 @@ export default function ThetaVelocityChart({ history = NO_HISTORY, range = 'day'
                         comfortably above the θ=0 pass cutoff). The forecast card is
                         the authoritative pass-probability source. */}
                     <ReferenceLine
-                        y={1.0}
+                        y={READY_THETA}
                         stroke="var(--accent-success)"
                         strokeDasharray="4 4"
                         strokeWidth={1.5}
                         strokeOpacity={0.5}
+                        // Named, not colour alone (2026-11-13).
+                        label={{ value: 'Ready', position: 'insideTopRight', fill: 'var(--accent-success)', fontSize: 12, fontWeight: 600 }}
                     />
                     <Area
                         type="monotone"

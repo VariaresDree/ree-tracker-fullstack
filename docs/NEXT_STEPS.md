@@ -43,6 +43,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #269 | UI/UX round 2026-11-13, PR 1: the Scratchpad keeps your work per question, docks beside the question on wide or sideways screens, Undo/Clear/Eraser; the installed app turns with the device (plan: help-me-improve-my-bubbly-toucan.md, 5 PRs) |
 | #270 | UI/UX round PR 2: the subtopic review pile in groups (Tag N / None fits for N), near names plural-tolerant; the near-name commit left off #267 included |
 | #271 | UI/UX round PR 3: Session complete has Done in the header and pinned on phones, one primary next step; the confidence row asks instead of a red toast; More sheet for the question's tools; empty results stay on setup with Quick 20; Question N of M |
+| #273 | UI/UX round PR 5: Progress reads as a path: each topic's mastery in answers and its distance to 70%; Building not Novice; plain confidence labels; ability as one percent (no θ); Practise the leverage subject |
 
 **Your actions:**
 1. **Scheduled jobs on time** (#265): done by the owner 2026-11-12 (`send-reminders`, `subtopic-tags` in `cron.job`, the secret in Vault). Admin › App health › Scheduled jobs shows each run (#267).

@@ -70,9 +70,11 @@ function HeatmapChart({ stats, onDrillTopic }) {
   const answeredTopics = displayedTopics.filter((t) => t.data.attempts > 0);
   const unanswered = displayedTopics.filter((t) => t.data.attempts === 0);
   const title =
-    viewMode === 'accuracy' ? 'Accuracy by subtopic'
+    // "by topic": these are the board's topics; subtopics are the tagged ones
+    // inside them (Practice, Progress › Syllabus).
+    viewMode === 'accuracy' ? 'Accuracy by topic'
     : viewMode === 'speed' ? `Speed vs ${targetLimit}s limit`
-    : 'Mastery by subtopic';
+    : 'Mastery by topic';
 
   return (
     <Panel
@@ -114,6 +116,12 @@ function HeatmapChart({ stats, onDrillTopic }) {
         className="shrink-0"
       />
 
+      {viewMode === 'mastery' && answeredTopics.length > 0 && (
+        <p className="text-xs text-muted2">
+          Mastery reads your recent answers in each topic, allowing for lucky guesses. The board&rsquo;s pass mark is {PASS_MARK}% right.
+        </p>
+      )}
+
       {answeredTopics.length > 0 && (
       <ul className="flex flex-col gap-1.5" aria-label={`${toDisplaySubject(activeTab)} topics`}>
         {answeredTopics.map((item) => {
@@ -135,6 +143,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
           let textClass = 'text-muted';
           let metricDisplay = '—';
           let subLabel = 'No data yet';
+          let detail = null; // the mastery view: what it means in answers
 
           if (viewMode === 'mastery') {
             if (masteryHasData) {
@@ -142,7 +151,12 @@ function HeatmapChart({ stats, onDrillTopic }) {
               // The shared BKT bands (@ree/shared MASTERY_BANDS).
               const band = masteryBand(masteryVal);
               const styled = MASTERY_STYLE[band.key];
-              bgClass = styled.bg; textClass = styled.text; subLabel = band.label;
+              bgClass = styled.bg; textClass = styled.text;
+              // What the number means in answers, and how far the pass mark is
+              // (2026-11-13: honest mastery read as a verdict with no target).
+              const lately = recentAccuracy(masteryVal);
+              subLabel = band.label;
+              detail = `About ${lately}% right lately${lately < PASS_MARK ? ` · ${PASS_MARK - lately} to ${PASS_MARK}%` : ''}`;
               const storedBand = masteryBand(storedMastery);
               if (storedBand && storedBand.key !== band.key) {
                 const days = item.data.daysSincePractice;
@@ -181,6 +195,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
                   {item.name}
                 </span>
                 <span className={`text-micro uppercase tracking-wider font-medium ${textClass}`}>{subLabel}</span>
+                {detail && <span className="text-xs text-muted2">{detail}</span>}
               </span>
               <span className={`text-base font-semibold tabular-nums ${textClass}`}>{metricDisplay}</span>
             </>
@@ -194,7 +209,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
                 <button
                   type="button"
                   onClick={() => onDrillTopic(item.name, activeTab)}
-                  aria-label={`Drill ${item.name}: ${subLabel}, ${metricDisplay}`}
+                  aria-label={`Drill ${item.name}: ${subLabel}, ${metricDisplay}${detail ? `, ${detail}` : ''}`}
                   className={`${tileClass} w-full text-left cursor-pointer hover:brightness-110`}
                 >
                   {tileBody}
@@ -238,6 +253,11 @@ function HeatmapChart({ stats, onDrillTopic }) {
 }
 
 const NO_TOPICS = {};
+// The board's pass mark, in answers right.
+const PASS_MARK = 70;
+// Mastery back to the accuracy it stands for (engine/bkt.js accuracyOf:
+// guess 25%, slip 10%), so a row can say what it means in answers.
+const recentAccuracy = (m) => Math.round((0.25 + 0.65 * Math.min(1, Math.max(0, m))) * 100);
 // A topic with no answers. 44px on touch, like the rows above it.
 const CHIP = 'inline-flex items-center min-h-8 pointer-coarse:min-h-11 px-3 py-1 rounded-full border border-border bg-surface2 text-xs text-muted2 text-left [overflow-wrap:anywhere]';
 

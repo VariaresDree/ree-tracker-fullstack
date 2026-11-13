@@ -3,6 +3,7 @@
 // subject with the most leverage.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 let forecast;
 vi.mock('../../hooks/useForecast', () => ({ useForecast: () => forecast }));
@@ -30,7 +31,7 @@ const snapshot = (over = {}) => ({
 describe('TrajectoryCard', () => {
   it('leads with the strict pass probability and the projected weighted average', () => {
     forecast = { snapshot: snapshot(), loading: false, error: null, recompute: vi.fn() };
-    render(<TrajectoryCard />);
+    render(<MemoryRouter><TrajectoryCard /></MemoryRouter>);
     expect(screen.getByText('Pass probability')).toBeInTheDocument();
     expect(screen.getByText('71.4%')).toBeInTheDocument();
     expect(screen.getByText('likely 66–77%')).toBeInTheDocument();
@@ -38,20 +39,22 @@ describe('TrajectoryCard', () => {
 
   it('explains a conditional result — the average met, a subject under the floor', () => {
     forecast = { snapshot: snapshot(), loading: false, error: null, recompute: vi.fn() };
-    render(<TrajectoryCard />);
+    render(<MemoryRouter><TrajectoryCard /></MemoryRouter>);
     expect(screen.getByText(/41% chance of a conditional result/)).toBeInTheDocument();
     expect(screen.getByText(/below the 50% floor/)).toBeInTheDocument();
   });
 
   it('marks the subject with the most leverage', () => {
     forecast = { snapshot: snapshot(), loading: false, error: null, recompute: vi.fn() };
-    render(<TrajectoryCard />);
+    render(<MemoryRouter><TrajectoryCard /></MemoryRouter>);
     expect(screen.getByText('Most leverage').parentElement.textContent).toContain('Math');
+    // And a way there (2026-11-13).
+    expect(screen.getByRole('link', { name: /^Practise Math/ })).toHaveAttribute('href', '/practice');
   });
 
   it('still renders an old v1 snapshot without a projection', () => {
     forecast = { snapshot: { passProbability: 0.5, topnotcherProbability: 0.1, weakTopics: [] }, loading: false, error: null, recompute: vi.fn() };
-    render(<TrajectoryCard />);
+    render(<MemoryRouter><TrajectoryCard /></MemoryRouter>);
     expect(screen.getByText('Early estimate')).toBeInTheDocument();
     expect(screen.getByText('Topnotcher chance')).toBeInTheDocument();
   });
@@ -60,16 +63,16 @@ describe('TrajectoryCard', () => {
 describe('TrajectoryCard and Today agree', () => {
   it('under 100 answers it is an early estimate, as on Today', () => {
     forecast = { snapshot: snapshot(), loading: false, error: null, recompute: vi.fn() };
-    const { unmount } = render(<TrajectoryCard answered={40} />);
+    const { unmount } = render(<MemoryRouter><TrajectoryCard answered={40} /></MemoryRouter>);
     expect(screen.getByText('Early estimate')).toBeInTheDocument();
     unmount();
-    render(<TrajectoryCard answered={400} />);
+    render(<MemoryRouter><TrajectoryCard answered={400} /></MemoryRouter>);
     expect(screen.queryByText('Early estimate')).not.toBeInTheDocument();
   });
 
   it('names the board’s subject weights beside the rule', () => {
     forecast = { snapshot: snapshot(), loading: false, error: null, recompute: vi.fn() };
-    render(<TrajectoryCard answered={400} />);
+    render(<MemoryRouter><TrajectoryCard answered={400} /></MemoryRouter>);
     expect(screen.getByText(/Mathematics 25%, ESAS 30%, EE 45%/)).toBeInTheDocument();
   });
 });

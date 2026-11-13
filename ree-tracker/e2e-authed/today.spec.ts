@@ -62,7 +62,7 @@ test('Library › Notebook has no serious accessibility violations', async ({ pa
 
 test('Progress › Overview has no serious accessibility violations', async ({ page }) => {
   await page.goto('/progress');
-  await expect(page.getByRole('heading', { level: 2, name: 'Ability trend (θ)' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('heading', { level: 2, name: 'Ability trend' })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('Questions answered').first()).toBeVisible();
   await expectNoSeriousViolations(page);
 });

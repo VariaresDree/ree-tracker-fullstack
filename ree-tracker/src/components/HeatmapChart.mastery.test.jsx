@@ -20,6 +20,7 @@ describe('HeatmapChart — mastery', () => {
     } }} />);
     expect(screen.getByText('60%')).toBeInTheDocument();
     expect(screen.getByText('Developing · fading (40d)')).toBeInTheDocument();
+    expect(screen.getByText('About 64% right lately · 6 to 70%')).toBeInTheDocument();
   });
 
   it('a recently practised topic shows its stored band with no marker', () => {
@@ -27,6 +28,7 @@ describe('HeatmapChart — mastery', () => {
       Algebra: topic({ mastery: 0.88, masteryEffective: 0.88, daysSincePractice: 0 }),
     } }} />);
     expect(screen.getByText('Mastered')).toBeInTheDocument();
+    expect(screen.getByText('About 82% right lately')).toBeInTheDocument();
     expect(screen.queryByText(/fading/)).not.toBeInTheDocument();
   });
 });
@@ -68,5 +70,15 @@ describe('HeatmapChart — speed against the board pace', () => {
     expect(screen.getByText(/Speed vs 180s limit/)).toBeInTheDocument();
     expect(screen.queryByText('Borderline')).not.toBeInTheDocument();
     expect(screen.queryByText('Critical risk')).not.toBeInTheDocument();
+  });
+
+  // 2026-11-13: honest mastery read as a verdict, with no target beside it.
+  it('says what a mastery means in answers, and how far the 70% pass mark is', () => {
+    render(<HeatmapChart stats={{ microTopics: {
+      Calculus: topic({ mastery: 0.54, masteryEffective: 0.54, daysSincePractice: 0 }),
+    } }} />);
+    expect(screen.getByText('About 60% right lately · 10 to 70%')).toBeInTheDocument();
+    expect(screen.getByText(/The board’s pass mark is 70% right/)).toBeInTheDocument();
+    expect(screen.getByText('Mastery by topic')).toBeInTheDocument();
   });
 });

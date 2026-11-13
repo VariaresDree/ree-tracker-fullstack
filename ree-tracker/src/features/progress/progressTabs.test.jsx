@@ -58,7 +58,7 @@ describe('Progress tabs', () => {
     expect(screen.getByRole('link', { name: 'Start practising' })).toHaveAttribute('href', '/practice');
     expect(screen.getByRole('link', { name: 'Take the placement test' })).toHaveAttribute('href', '/diagnostic');
     expect(screen.queryByText('Accuracy')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Ability trend (θ)' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ability trend' })).not.toBeInTheDocument();
   });
 
   it('Overview: KPIs, ability trend, forecast and the AI report', async () => {
@@ -68,7 +68,7 @@ describe('Progress tabs', () => {
     expect(hero).toHaveTextContent('Questions answered');
     expect(hero).toHaveTextContent('30 this week · 0 last week');
     expect(hero).toContainElement(screen.getByRole('button', { name: /AI board report/ }));
-    const trend = screen.getByRole('heading', { level: 2, name: 'Ability trend (θ)' });
+    const trend = screen.getByRole('heading', { level: 2, name: 'Ability trend' });
     // Beside the forecast, the trend card stretches to the row's height (it
     // stopped ~250px short); stacked, its chart keeps a set height.
     const row = trend.closest('.grid');

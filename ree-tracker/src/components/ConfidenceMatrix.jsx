@@ -4,11 +4,12 @@ import { Card, Panel } from './ui';
 import { Crosshair, CircleAlert } from './ui/icons';
 
 const CELLS = [
-  { key: 'hc', label: 'Mastery', sub: 'High confidence · correct', color: 'var(--accent-success)' },
+  // Plain words (2026-11-13): "Imposter" and "Deficient" judged the learner.
+  { key: 'hc', label: 'Sure and right', sub: 'High confidence · correct', color: 'var(--accent-success)' },
   { key: 'hw', label: 'Blind spot', sub: 'High confidence · wrong', color: 'var(--accent-danger)' },
   // The bottom row holds low AND medium: "Not sure", not "Low confidence".
-  { key: 'lc', label: 'Imposter', sub: 'Not sure · correct', color: 'var(--color-reeAmber-text)' },
-  { key: 'lw', label: 'Deficient', sub: 'Not sure · wrong', color: 'var(--text-muted2)' },
+  { key: 'lc', label: 'Unsure but right', sub: 'Not sure · correct', color: 'var(--color-reeAmber-text)' },
+  { key: 'lw', label: 'Unsure and wrong', sub: 'Not sure · wrong', color: 'var(--text-muted2)' },
 ];
 
 function ConfidenceMatrix({ stats }) {

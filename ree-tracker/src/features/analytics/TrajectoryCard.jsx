@@ -1,4 +1,7 @@
 import { MotionConfig, motion } from 'motion/react';
+import { Link } from 'react-router-dom';
+import { ArrowRight } from '../../components/ui/icons';
+import { adaptivePreset } from '../active-recall/presets';
 import { Card, CardHeader, CardEyebrow, CardTitle, CardBody, Badge, Stat, Skeleton } from '../../components/ui';
 import { useForecast } from '../../hooks/useForecast';
 import { DEFAULT_SYLLABUS_WEIGHTS, GENERAL_AVERAGE, SUBJECT_FLOOR, toDisplaySubject } from '@ree/shared';
@@ -127,12 +130,22 @@ export function TrajectoryCard({ answered = Infinity } = {}) {
                 {SUBJECTS.map((s) => (
                   <SubjectRow key={s} subject={s} data={projection.subjects[s]} isBinding={s === binding} />
                 ))}
+                {/* "Most leverage" said where, but offered no way there (2026-11-13). */}
+                {binding && (
+                  <Link
+                    to="/practice"
+                    state={{ preset: adaptivePreset({ subject: binding, count: 20 }) }}
+                    className="self-start inline-flex items-center gap-1 pointer-coarse:min-h-11 text-sm font-medium text-[var(--accent-text)] hover:underline underline-offset-2"
+                  >
+                    Practise {toDisplaySubject(binding)} <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
+                  </Link>
+                )}
               </div>
             )}
 
             <div className="flex items-center justify-between text-micro text-muted2 font-mono">
               <span>
-                Topnotcher {pctFmt(snapshot.topnotcherProbability)}% (estimate) · model {snapshot.modelVersion ?? 'v1'}
+                Topnotcher {pctFmt(snapshot.topnotcherProbability)}% (estimate)
               </span>
               {/* Inline text-link visually; the tap AREA grows to 44px on touch
                   via padding + matching negative margin. */}
