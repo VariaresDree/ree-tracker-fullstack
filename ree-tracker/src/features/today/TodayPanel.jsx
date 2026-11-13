@@ -103,15 +103,19 @@ function ReadinessTile({ readiness, trend, settled, isOnline, early }) {
               )}
             </div>
           )}
+          {/* Folded (2026-11-13): five rows filled a half-width tile on a phone. */}
           {readiness.breakdown && (
-            <dl className="mt-auto pt-1 flex flex-col gap-1 text-xs">
-              {BREAKDOWN.map(([key, label, invert]) => (
-                <div key={key} className="flex justify-between gap-2">
-                  <dt className="text-muted2">{label}</dt>
-                  <dd className="text-textMain tabular-nums">{invert ? 100 - (readiness.breakdown[key] ?? 0) : (readiness.breakdown[key] ?? 0)}%</dd>
-                </div>
-              ))}
-            </dl>
+            <details className="mt-auto pt-1 text-xs group">
+              <summary className="cursor-pointer text-muted2 hover:text-textMain inline-flex items-center pointer-coarse:min-h-11 select-none">What&rsquo;s in this score</summary>
+              <dl className="mt-1 flex flex-col gap-1">
+                {BREAKDOWN.map(([key, label, invert]) => (
+                  <div key={key} className="flex justify-between gap-2">
+                    <dt className="text-muted2">{label}</dt>
+                    <dd className="text-textMain tabular-nums">{invert ? 100 - (readiness.breakdown[key] ?? 0) : (readiness.breakdown[key] ?? 0)}%</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
           )}
         </>
       ) : settled ? (
@@ -209,7 +213,9 @@ const LEAD_ICON = { preboard: ClipboardList, rest: Pause, loop: RotateCcw, srs: 
 
 // How long the lead waits for a slow source before showing what it has. The
 // backend wakes slowly on its free tier; a late reorder beats a blank hero.
-const LEAD_WAIT_MS = 3500;
+// 3.5 s left the Start button the last thing on the page (2026-11-13); the
+// usual lead, today's loop, now shows as soon as it is known (below).
+const LEAD_WAIT_MS = 1500;
 
 function ActionButton({ action, navigate, primary = false, size = 'sm', className }) {
   const variant = primary ? 'primary' : 'secondary';
@@ -218,6 +224,16 @@ function ActionButton({ action, navigate, primary = false, size = 'sm', classNam
   ) : (
     <Button size={size} variant={variant} className={className} onClick={() => launchPractice(navigate, action.preset)}>{action.cta}</Button>
   );
+}
+
+// The "Also today" rows: a light action each, so the hero's Start is the one
+// button on the page (2026-11-13; each row had a full button).
+const ROW_ACTION = 'shrink-0 inline-flex items-center gap-1 pointer-coarse:min-h-11 text-sm font-medium text-[var(--accent-text)] hover:underline underline-offset-2 cursor-pointer';
+function RowAction({ action, navigate }) {
+  const label = <>{action.cta} <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></>;
+  return action.to
+    ? <Link to={action.to} className={ROW_ACTION}>{label}</Link>
+    : <button type="button" className={ROW_ACTION} onClick={() => launchPractice(navigate, action.preset)}>{label}</button>;
 }
 
 function LeadCard({ action, navigate }) {
@@ -311,7 +327,10 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
   // formula cards, the plan task, the forecast (a fix, a floor), the
   // placement plan and the learner's calendar (a rest day, a preboard).
   // Undefined (null for the calendar) means still loading.
-  const settled = waitedOut || (
+  // Nothing outranks the loop but the calendar, so once both are in and the
+  // loop has questions (or, offline, the device's own set), the lead is known.
+  const loopLeads = todayOnCalendar !== null && (loop?.items?.length > 0 || !isOnline);
+  const settled = waitedOut || loopLeads || (
     loop !== undefined && cards !== undefined && planTask !== undefined && todayOnCalendar !== null
     && !srsLoading && !loading && placement.settled !== false
   );
@@ -368,7 +387,7 @@ export default function TodayPanel({ stats, readiness, readinessSettled = false,
                   <p className="text-sm font-medium text-textMain [overflow-wrap:anywhere]">{a.title}</p>
                   <p className="text-xs text-muted2 line-clamp-2">{a.detail}</p>
                 </div>
-                <ActionButton action={a} navigate={navigate} />
+                <RowAction action={a} navigate={navigate} />
               </li>
             ))}
           </ol>

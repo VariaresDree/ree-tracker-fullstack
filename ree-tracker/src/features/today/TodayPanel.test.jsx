@@ -324,13 +324,49 @@ describe('TodayPanel', () => {
     }
   });
 
+  // 2026-11-13: the Start button was the last thing to appear, up to 3.5 s late.
+  it('shows the loop as the lead as soon as it is known, without waiting on the other sources', async () => {
+    loopData = { items: [{ id: 'a' }, { id: 'b' }], counts: { due: 2, mistakes: 0 }, more: 0 };
+    const slow = srs;
+    srs = undefined;
+    forecast = { ...forecast, loading: true };
+    try {
+      renderPanel({ readiness: null, stats: { dailyTarget: 50 } });
+      expect(await screen.findByText('Up next')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: "Start today's loop" })).toBeInTheDocument();
+      expect(screen.queryByLabelText('Finding your next step')).not.toBeInTheDocument();
+    } finally {
+      loopData = null;
+      srs = slow;
+    }
+  });
+
+  it('the readiness breakdown folds under "What’s in this score"', () => {
+    renderPanel({
+      readiness: { score: 54, breakdown: { topicCoverage: 61, accuracyRate: 58, thetaNormalized: 52, consistency: 40, blindSpotRatio: 25 } },
+      stats: { dailyTarget: 40 },
+    });
+    const details = screen.getByText('What’s in this score').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(within(details).getByText('Topics practised')).toBeInTheDocument();
+  });
+
+  it('the Also today rows have a light action each, so the hero’s Start is the one button', async () => {
+    renderPanel({ readiness: null, stats: { dailyTarget: 50 } });
+    await actionRows();
+    const also = screen.getByRole('region', { name: 'Also today' });
+    const drill = within(also).getAllByRole('button', { name: 'Drill' })[0];
+    expect(drill.className).toMatch(/underline-offset-2/);
+    expect(drill.className).not.toMatch(/--btn-ink/);
+  });
+
   it('does not wait on a slow source for good', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     loopData = undefined;
     try {
       renderPanel({ readiness: null, stats: { dailyTarget: 50 } });
       expect(screen.getByLabelText('Finding your next step')).toBeInTheDocument();
-      await vi.advanceTimersByTimeAsync(4000);
+      await vi.advanceTimersByTimeAsync(2000);
       expect((await actionRows())[0]).toMatch(/Review 6 due questions/);
     } finally {
       vi.useRealTimers();
