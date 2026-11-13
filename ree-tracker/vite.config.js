@@ -207,7 +207,9 @@ export default defineConfig(async ({ mode, command }) => {
         theme_color: '#121826',
         background_color: '#0b0f1a',
         display: 'standalone',
-        orientation: 'portrait',
+        // Follows the device (2026-11-13): 'portrait' locked the installed app
+        // upright, so it never turned for a tablet or a phone held sideways.
+        orientation: 'any',
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

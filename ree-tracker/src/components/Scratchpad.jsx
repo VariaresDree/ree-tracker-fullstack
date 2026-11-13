@@ -1,25 +1,54 @@
 // src/components/Scratchpad.jsx
 //
-// A sketch layer over the question, for working a problem by hand.
+// A sketch pad for working a problem by hand.
 //
 // It is a named dialog: it takes focus when it opens, Escape closes it, and
-// focus goes back to whatever opened it. It is not modal — the question under
-// it stays readable.
+// focus goes back to whatever opened it. It is not modal: the question stays
+// readable.
 //
-// The canvas backing store is sized in DEVICE pixels from the canvas's own box.
-// It used to take the PARENT's CSS size (which includes the header bar), so the
-// stroke was stretched and drawn blurry on every high-density phone, and the
-// touch path scaled coordinates a second time, so lines landed away from the
-// finger. Pointer events cover mouse, touch and stylus in one path.
-import { useEffect, useRef } from 'react';
+// 2026-11-13:
+//   - What you draw is kept per question (`persistKey`, scratchpadStore.js):
+//     closing the pad unmounted the canvas and threw the work away.
+//   - On a wide screen, or a phone or tablet turned sideways, it docks beside
+//     the question (the page makes room, `.scratchpad-docked` in index.css).
+//     It used to cover the whole question area from md up, under a blur, so
+//     the question being solved was hard to read. On a phone held upright it
+//     stays a sheet at the bottom, with the question above it. No blur either way.
+//   - Undo, Clear (undone by Undo straight after), and an eraser.
+//
+// The canvas backing store is sized in DEVICE pixels from the canvas's own box,
+// and strokes are redrawn from their points, so lines stay sharp and land under
+// the finger on any screen. Pointer events cover mouse, touch and stylus.
+import { useEffect, useRef, useState } from 'react';
 import { useOverlays } from '../store/overlays';
+import useMediaQuery from '../hooks/useMediaQuery';
+import { Button, SegmentedControl } from './ui';
+import { Undo2, Trash2, X } from './ui/icons';
+import { getStrokes, setStrokes } from './scratchpadStore';
 
 const PEN_WIDTH = 3;
+const ERASER_WIDTH = 22;
+// Beside the question: wide screens, and any phone or tablet held sideways.
+export const DOCK_QUERY = '(min-width: 1024px), (orientation: landscape) and (min-width: 640px)';
+const DOCK_WIDTH = 'min(45vw, 520px)';
+const round = (n) => Math.round(n * 10) / 10;
 
-export default function Scratchpad({ isOpen, onClose }) {
+/** One pad per question: a new `persistKey` remounts it with that question's strokes. */
+export default function Scratchpad(props) {
+  return <ScratchpadPanel key={props.persistKey ?? ''} {...props} />;
+}
+
+function ScratchpadPanel({ isOpen, onClose, persistKey = null }) {
   const panelRef = useRef(null);
   const canvasRef = useRef(null);
-  const drawingRef = useRef(false);
+  const currentRef = useRef(null);
+  const [strokes, setStrokeList] = useState(() => getStrokes(persistKey));
+  const [cleared, setCleared] = useState(null); // what Clear removed, until the next stroke
+  const [tool, setTool] = useState('pen');
+  const docked = useMediaQuery(DOCK_QUERY);
+  // The latest strokes for the resize observer and the pointer handlers.
+  const strokesRef = useRef(strokes);
+  useEffect(() => { strokesRef.current = strokes; }, [strokes]);
 
   // The floating Pomodoro pill hides while this is open (same z-[70] on a
   // phone, and it covered the corner of the sheet).
@@ -30,6 +59,18 @@ export default function Scratchpad({ isOpen, onClose }) {
     return () => setScratchpadOpen(false);
   }, [isOpen, setScratchpadOpen]);
 
+  // Docked: the page makes room on the right (index.css .scratchpad-docked).
+  useEffect(() => {
+    if (!isOpen || !docked) return undefined;
+    const root = document.documentElement;
+    root.style.setProperty('--scratchpad-w', DOCK_WIDTH);
+    root.classList.add('scratchpad-docked');
+    return () => {
+      root.classList.remove('scratchpad-docked');
+      root.style.removeProperty('--scratchpad-w');
+    };
+  }, [isOpen, docked]);
+
   // The latest onClose for the Escape listener, without re-running the dialog
   // effect (and re-grabbing focus) every time the parent re-renders.
   const onCloseRef = useRef(onClose);
@@ -39,47 +80,67 @@ export default function Scratchpad({ isOpen, onClose }) {
 
   // Canvas 2D can't resolve CSS variables, so read the design-system accent and
   // pass the computed colour (keeps the stroke themable instead of a hex).
-  const pen = (c) => {
+  const styleFor = (c, stroke) => {
     c.lineCap = 'round';
     c.lineJoin = 'round';
-    c.lineWidth = PEN_WIDTH;
+    c.globalCompositeOperation = stroke.erase ? 'destination-out' : 'source-over';
+    c.lineWidth = stroke.erase ? ERASER_WIDTH : PEN_WIDTH;
     c.strokeStyle = getComputedStyle(canvasRef.current || document.documentElement)
       .getPropertyValue('--accent-signal').trim() || '#06b6d4';
   };
 
-  // Fit the backing store to the canvas box at the device pixel ratio, keeping
-  // what has been drawn across a resize or rotation.
+  const cssWidth = () => canvasRef.current?.getBoundingClientRect().width || 1;
+
+  const drawStroke = (c, stroke, from = 0) => {
+    const s = cssWidth() / (stroke.w || 1);
+    const p = stroke.pts;
+    if (p.length < 2) return;
+    styleFor(c, stroke);
+    c.beginPath();
+    const start = Math.max(0, from - 2);
+    c.moveTo(p[start] * s, p[start + 1] * s);
+    if (p.length === 2) c.lineTo(p[0] * s + 0.01, p[1] * s); // a dot
+    for (let i = start + 2; i < p.length; i += 2) c.lineTo(p[i] * s, p[i + 1] * s);
+    c.stroke();
+  };
+
+  const redraw = () => {
+    const c = ctx();
+    const canvas = canvasRef.current;
+    if (!c || !canvas) return;
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, canvas.width, canvas.height);
+    c.restore();
+    for (const stroke of strokesRef.current) drawStroke(c, stroke);
+  };
+
+  // Fit the backing store to the canvas box at the device pixel ratio, and
+  // redraw the strokes at the new size (a resize, a rotation, docking).
   useEffect(() => {
     if (!isOpen) return undefined;
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
-    let cssSize = null;
     const fit = () => {
       const { width, height } = canvas.getBoundingClientRect();
       if (!width || !height) return;
       const dpr = window.devicePixelRatio || 1;
-      const c = ctx();
-      let snapshot = null;
-      if (c && cssSize) {
-        snapshot = document.createElement('canvas');
-        snapshot.width = canvas.width;
-        snapshot.height = canvas.height;
-        snapshot.getContext('2d')?.drawImage(canvas, 0, 0);
-      }
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      if (c) {
-        c.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS px
-        pen(c);
-        if (snapshot) c.drawImage(snapshot, 0, 0, cssSize.width, cssSize.height);
-      }
-      cssSize = { width, height };
+      ctx()?.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS px
+      redraw();
     };
     fit();
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
     observer?.observe(canvas);
     return () => observer?.disconnect();
-  }, [isOpen]);
+    // redraw reads refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, docked]);
+
+  // Undo, Clear: draw what's kept now.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (isOpen) redraw(); }, [strokes]);
 
   // Dialog behaviour: focus in, Escape out, focus back to the opener.
   useEffect(() => {
@@ -94,40 +155,55 @@ export default function Scratchpad({ isOpen, onClose }) {
     };
   }, [isOpen]);
 
+  const keep = (next) => {
+    strokesRef.current = next;
+    setStrokes(persistKey, next);
+    setStrokeList(next);
+  };
+
   const point = (e) => {
     const r = canvasRef.current.getBoundingClientRect();
-    return [e.clientX - r.left, e.clientY - r.top];
+    return [round(e.clientX - r.left), round(e.clientY - r.top)];
   };
   const startStroke = (e) => {
-    const c = ctx();
-    if (!c) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    const [x, y] = point(e);
-    c.beginPath();
-    c.moveTo(x, y);
-    drawingRef.current = true;
+    currentRef.current = { w: round(cssWidth()), erase: tool === 'eraser', pts: point(e) };
+    const c = ctx();
+    if (c) drawStroke(c, currentRef.current);
   };
   const continueStroke = (e) => {
-    if (!drawingRef.current) return;
+    const stroke = currentRef.current;
+    if (!stroke) return;
+    stroke.pts.push(...point(e));
     const c = ctx();
-    if (!c) return;
-    const [x, y] = point(e);
-    c.lineTo(x, y);
-    c.stroke();
+    if (c) drawStroke(c, stroke, stroke.pts.length - 2);
   };
-  const endStroke = () => { drawingRef.current = false; };
+  const endStroke = () => {
+    const stroke = currentRef.current;
+    if (!stroke) return;
+    currentRef.current = null;
+    setCleared(null);
+    keep([...strokesRef.current, stroke]);
+  };
+
+  const undo = () => {
+    if (cleared) {
+      keep(cleared);
+      setCleared(null);
+    } else if (strokes.length) {
+      keep(strokes.slice(0, -1));
+    }
+  };
 
   const clearCanvas = () => {
-    const c = ctx();
-    const canvas = canvasRef.current;
-    if (!c || !canvas) return;
-    c.save();
-    c.setTransform(1, 0, 0, 1, 0, 0);
-    c.clearRect(0, 0, canvas.width, canvas.height);
-    c.restore();
+    if (!strokes.length) return;
+    setCleared(strokes);
+    keep([]);
   };
 
   if (!isOpen) return null;
+
+  const canUndo = strokes.length > 0 || !!cleared;
 
   return (
     <div
@@ -135,29 +211,41 @@ export default function Scratchpad({ isOpen, onClose }) {
       role="dialog"
       aria-label="Scratchpad"
       tabIndex={-1}
-      // A bottom sheet on phones (the page under it can be far taller than
-      // the screen, and the canvas sized itself to all of it), short enough to
-      // read the question above it; over the question area from md up.
-      // See-through either way: the learner writes over the question they're
-      // solving.
-      className="fixed inset-x-0 bottom-0 h-[60dvh] z-[70] md:absolute md:inset-0 md:h-auto md:z-[40] bg-surface/40 backdrop-blur-sm border-2 border-reeCyan rounded-t-[var(--radius-lg)] md:rounded-[var(--radius-lg)] overflow-hidden flex flex-col page-fade-in"
+      data-docked={docked ? 'true' : 'false'}
+      className={docked
+        // Beside the question, between the phone header and the bottom bar
+        // (both 0 where there are none).
+        ? 'fixed right-0 top-[var(--phone-header-h,0px)] bottom-[var(--bottom-bar-h,0px)] z-[70] w-[var(--scratchpad-w)] bg-surface border-l-2 border-reeCyan flex flex-col page-fade-in'
+        // A sheet on a phone held upright, short enough to read the question
+        // above it. See-through, so you can write over the question, without a blur.
+        : 'fixed inset-x-0 bottom-0 h-[60dvh] z-[70] bg-surface/80 border-2 border-reeCyan rounded-t-[var(--radius-lg)] overflow-hidden flex flex-col page-fade-in'}
     >
-      <div className="flex justify-between items-center p-2 bg-bg/90 border-b border-border2 pointer-events-auto">
-        <span className="text-eyebrow flex items-center gap-2" style={{ color: 'var(--accent-signal)' }}>
-          Scratchpad
-        </span>
-        <div className="flex gap-2">
-          <button onClick={clearCanvas} className="px-3 py-1 bg-surface2 hover:bg-surface3 text-textMain rounded-[var(--radius-sm)] text-micro font-bold uppercase transition-colors shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
-            Clear
-          </button>
-          <button onClick={onClose} className="px-3 py-1 bg-[color-mix(in_srgb,var(--accent-danger)_88%,black)] hover:brightness-110 text-[var(--on-danger)] rounded-[var(--radius-sm)] text-micro font-bold uppercase transition-[filter] shadow-sm cursor-pointer touch-target inline-flex items-center justify-center">
-            Close
-          </button>
+      <div className="flex flex-col gap-2 p-2 bg-bg/90 border-b border-border2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-eyebrow" style={{ color: 'var(--accent-signal)' }}>Scratchpad</span>
+          <Button size="sm" variant="secondary" onClick={onClose} className="touch-target">
+            <X size={14} strokeWidth={1.75} aria-hidden="true" /> Close
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            size="sm"
+            label="Tool"
+            value={tool}
+            onChange={setTool}
+            options={[{ value: 'pen', label: 'Pen' }, { value: 'eraser', label: 'Eraser' }]}
+          />
+          <Button size="sm" variant="secondary" onClick={undo} disabled={!canUndo} className="touch-target">
+            <Undo2 size={14} strokeWidth={1.75} aria-hidden="true" /> Undo
+          </Button>
+          <Button size="sm" variant="secondary" onClick={clearCanvas} disabled={strokes.length === 0} className="touch-target">
+            <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /> Clear
+          </Button>
         </div>
       </div>
       <canvas
         ref={canvasRef}
-        aria-label="Drawing area"
+        aria-label={tool === 'eraser' ? 'Drawing area, eraser' : 'Drawing area'}
         onPointerDown={startStroke}
         onPointerMove={continueStroke}
         onPointerUp={endStroke}

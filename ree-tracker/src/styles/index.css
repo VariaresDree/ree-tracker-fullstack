@@ -1438,3 +1438,11 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--border-light) transparent;
 }
+
+/* The Scratchpad docked beside the question (components/Scratchpad.jsx, wide
+   screens and anything held sideways): the page makes room on the right, so
+   the question stays fully readable next to the pad. Unlayered, so it wins
+   over the layout's padding utilities. */
+:root.scratchpad-docked #main-content {
+  padding-right: calc(var(--scratchpad-w) + 1rem);
+}

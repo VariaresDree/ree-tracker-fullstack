@@ -173,17 +173,15 @@ export default function Practice() {
   );
 
   return (
-    // `relative`: the Scratchpad covers the session from md up (absolute,
-    // inset-0), inside this page's own stacking context (md:isolate), over
-    // the sticky toolbar. On a phone the Scratchpad is a sheet on the layer
-    // scale (index.css), so nothing may contain it: with `z-0` here the
-    // bottom bar covered the bottom of the sheet, and a stroke there left
-    // the session.
+    // The Scratchpad is fixed on the layer scale (index.css): a sheet on a
+    // phone held upright, docked beside the question otherwise. Nothing here
+    // may contain it: with `z-0` the bottom bar covered the bottom of the
+    // sheet, and a stroke there left the session.
     <Page width="reading" className="relative md:isolate">
       {/* The setup and summary screens have their own h1; the running session
           had none, and its solution panel's heading sat under nothing. */}
       <h1 className="sr-only">Practice</h1>
-      <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
+      <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} persistKey={currentQ?.id ? `q:${currentQ.id}` : null} />
       {showTools && <Suspense fallback={null}><ToolsSheet onClose={() => setShowTools(false)} /></Suspense>}
       <Modal
         open={confirmEnd}
