@@ -192,3 +192,24 @@ describe('the words', () => {
     for (const keys of Object.values(KEYS)) expect(keys.length).toBeGreaterThan(2);
   });
 });
+
+// Practice (2026-11-13): five icons crowded the question header on a phone.
+describe('ItemActions with more', () => {
+  it('keeps the bookmark in the row and moves the scratchpad, calculator and report into a sheet', async () => {
+    const onScratchpad = vi.fn();
+    render(<ItemActions more onScratchpad={onScratchpad} onTools={() => {}} onReport={() => {}} onBookmark={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Save to bookmarks' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open scratchpad' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More for this question' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open scratchpad' }));
+    expect(onScratchpad).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'More for this question' })).toBeNull();
+  });
+});
+
+describe('SessionBar noun', () => {
+  it('Practice counts questions; a mock keeps Item, as its answer sheet does', () => {
+    render(<SessionBar index={2} total={20} noun="Question" />);
+    expect(screen.getByText('Question 3 of 20')).toBeInTheDocument();
+  });
+});

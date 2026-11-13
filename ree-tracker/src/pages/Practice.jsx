@@ -167,6 +167,7 @@ export default function Practice() {
       onReport={handleFlagQuestion}
       bookmarked={isBookmarked}
       onBookmark={toggleBookmark}
+      more
     >
       <NoteButton type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
     </ItemActions>
@@ -203,6 +204,7 @@ export default function Practice() {
       <SessionBar
         index={session.currentIndex}
         total={total}
+        noun="Question"
         action={(
           <Button variant="ghost" tone="danger" size="sm" className="shrink-0" onClick={() => (session.totalAnswered > 0 ? setConfirmEnd(true) : endSession())} disabled={isSubmitting}>
             End session

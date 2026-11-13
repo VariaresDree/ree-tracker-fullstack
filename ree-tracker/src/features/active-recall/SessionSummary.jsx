@@ -10,7 +10,8 @@ import { Link } from 'react-router-dom';
 import ResultsCard from '../../components/exam/ResultsCard';
 import ItemReview from '../quiz/ItemReview';
 import { Button, Card, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
-import { ArrowRight, CheckCircle2, Crosshair, NotebookPen, RotateCcw } from '../../components/ui/icons';
+import { ArrowRight, CheckCircle2, RotateCcw, X } from '../../components/ui/icons';
+import SessionActions from '../../components/exam/SessionActions';
 import { toDisplaySubject } from '@ree/shared';
 import { SectionCard } from '../analytics/sections/shared';
 import NotificationOptIn from '../../components/NotificationOptIn';
@@ -32,6 +33,7 @@ import { formatDuration } from '../../utils/time';
 const REVIEW_SOURCES = new Set(['srs-due', 'today-loop', 'items', 'smart-drill']);
 // Under this many, a score is too small to compare with the pass mark.
 const VERDICT_MIN = 10;
+const LINK = 'text-[var(--accent-text)] underline underline-offset-2 inline-flex items-center pointer-coarse:min-h-11 cursor-pointer disabled:opacity-50';
 
 export default function SessionSummary({ summary, loading, onAgain, onRetry, onDrill, onDone, onNextLoop }) {
   const stats = useStore((s) => s.stats);
@@ -57,12 +59,45 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
     cardsRated > 0 && `${cardsRated} formula card${cardsRated === 1 ? '' : 's'}`,
   ].filter(Boolean);
 
+  // One next step, the primary button; one way out, Done.
+  const retryFirst = missedCount > 0 && onRetry;
+  const loopNext = isLoop && onNextLoop;
+  const retryButton = retryFirst && (
+    <Button onClick={onRetry} loading={loading} disabled={loading}>
+      {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Retry missed ({missedCount})
+    </Button>
+  );
+  const continueButton = loopNext ? (
+    <Button onClick={onNextLoop} loading={loading} disabled={loading}>
+      {!loading && <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />} Next loop
+    </Button>
+  ) : (
+    <Button onClick={onAgain} loading={loading} disabled={loading}>
+      {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Practise again
+    </Button>
+  );
+  const nextButton = retryButton || continueButton;
+  // When Retry missed leads, Next loop / Practise again joins the links.
+  const secondNext = retryFirst && (
+    <button type="button" className={LINK} onClick={loopNext ? onNextLoop : onAgain} disabled={loading}>
+      {loopNext ? 'Next loop' : 'Practise again'}
+    </button>
+  );
+  const doneButton = (
+    <Button variant="secondary" onClick={onDone} disabled={loading}>
+      <X size={16} strokeWidth={1.75} aria-hidden="true" /> Done
+    </Button>
+  );
+
   return (
     <Page width="reading">
       <PageHeader
         title="Session complete"
         subtitle={`${parts.join(' and ') || '0 questions'} in ${formatDuration(durationSecs)}.`}
         meta={judged ? <StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill> : null}
+        // The way out, visible the moment the summary opens (2026-11-13: Done
+        // was the last of up to 7 buttons, in faint ghost text).
+        actions={doneButton}
       />
 
       {/* The screen's hero: the score, what it means, and what to do next. */}
@@ -77,40 +112,20 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
         ] : []}
         actions={(
           <>
-            {missedCount > 0 && onRetry && (
-              <Button onClick={onRetry} loading={loading} disabled={loading}>
-                {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Retry missed ({missedCount})
-              </Button>
-            )}
-            {isLoop && onNextLoop ? (
-              // Practise again repeated these same questions; the next loop is what's waiting.
-              <Button variant={missedCount > 0 && onRetry ? 'secondary' : 'primary'} onClick={onNextLoop} loading={loading} disabled={loading}>
-                {!loading && <ArrowRight size={16} strokeWidth={1.75} aria-hidden="true" />} Next loop
-              </Button>
-            ) : (
-              <Button variant={missedCount > 0 && onRetry ? 'secondary' : 'primary'} onClick={onAgain} loading={loading} disabled={loading}>
-                {!loading && <RotateCcw size={16} strokeWidth={1.75} aria-hidden="true" />} Practise again
-              </Button>
-            )}
-            {weakest && (
-              <Button
-                variant="secondary"
-                onClick={() => onDrill(weakest)}
-                disabled={loading}
-              >
-                <Crosshair size={16} strokeWidth={1.75} aria-hidden="true" /> Drill {weakest.topic}
-              </Button>
-            )}
-            {missedCount > 0 && (
-              <Button variant="secondary" as={Link} to="/library?tab=notebook">
-                <NotebookPen size={16} strokeWidth={1.75} aria-hidden="true" /> Open mistakes
-              </Button>
-            )}
-            <Button variant="secondary" as={Link} to="/progress?tab=topics">See your progress</Button>
-            <Button variant="secondary" as={Link} to="/" aria-label={`Back to Today, ${doneToday} of ${target} answered today`}>
-              Back to Today <span className="text-muted2 font-normal tabular-nums">· {doneToday}/{target}</span>
-            </Button>
-            <Button variant="ghost" onClick={onDone} disabled={loading}>Done</Button>
+            {/* On a phone these two are pinned at the foot instead (below). */}
+            <div className="hidden md:contents">{nextButton}{doneButton}</div>
+            {/* The other ways on, as plain links. */}
+            <div className="basis-full flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              {secondNext}
+              {weakest && (
+                <button type="button" className={LINK} onClick={() => onDrill(weakest)} disabled={loading}>Drill {weakest.topic}</button>
+              )}
+              {missedCount > 0 && <Link className={LINK} to="/library?tab=notebook">Open mistakes</Link>}
+              <Link className={LINK} to="/progress?tab=topics">See your progress</Link>
+              <Link className={LINK} to="/" aria-label={`Back to Today, ${doneToday} of ${target} answered today`}>
+                Back to Today <span className="text-muted2 tabular-nums">· {doneToday}/{target}</span>
+              </Link>
+            </div>
           </>
         )}
         details={(<>
@@ -183,6 +198,12 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
           <ItemReview items={items} />
         </SectionCard>
       )}
+
+      {/* Phones: the next step and Done stay in reach while you read the review. */}
+      <SessionActions className="md:hidden">
+        {doneButton}
+        <span className="ml-auto">{nextButton}</span>
+      </SessionActions>
     </Page>
   );
 }

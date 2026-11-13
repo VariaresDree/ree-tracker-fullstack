@@ -80,11 +80,13 @@ describe('bookmarks source', () => {
     const { result } = setup();
     await act(() => result.current.startSession(bookmarksPreset()));
     expect(result.current.session.isActive).toBe(false);
-    expect(toast.error).toHaveBeenLastCalledWith(expect.stringMatching(/No bookmarks yet/));
+    // Said on the setup screen, not as a fading error (2026-11-13).
+    expect(result.current.session.emptyMessage).toMatch(/No bookmarks yet/);
+    expect(toast.error).not.toHaveBeenCalled();
 
     const offline = setup(false);
     await act(() => offline.result.current.startSession(bookmarksPreset()));
-    expect(toast.error).toHaveBeenLastCalledWith(expect.stringMatching(/aren’t on this device yet/));
+    expect(offline.result.current.session.emptyMessage).toMatch(/aren’t on this device yet/);
   });
 
   it('offline with a copy on the device, the session runs', async () => {
@@ -326,7 +328,7 @@ describe('items source (a past sitting’s misses)', () => {
     const { result } = setup();
     await act(() => result.current.startSession(itemsPreset([])));
     expect(result.current.session.isActive).toBe(false);
-    expect(toast.error).toHaveBeenLastCalledWith("There's nothing to practise from that sitting.");
+    expect(result.current.session.emptyMessage).toBe("There's nothing to practise from that sitting.");
   });
 });
 
@@ -378,7 +380,7 @@ describe("today's loop source", () => {
     const { result } = setup();
     await act(() => result.current.startSession(todayLoopPreset()));
     expect(result.current.session.isActive).toBe(false);
-    expect(toast.error).toHaveBeenLastCalledWith(expect.stringMatching(/caught up/));
+    expect(result.current.session.emptyMessage).toMatch(/caught up/);
   });
 
   it('offline, it draws from the device and says so, without asking the server', async () => {

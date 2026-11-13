@@ -48,6 +48,7 @@ export {
   BellOff,
   Menu,
   X,
+  Ellipsis,
   ArrowRight,
   ArrowUpRight,
   Plus,

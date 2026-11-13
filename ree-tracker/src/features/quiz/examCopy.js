@@ -27,7 +27,8 @@ export const REPORT_REASONS = [
   'Something else',
 ];
 
-export const itemOf = (index, total, { about = false } = {}) => `Item ${index + 1} of ${about ? 'about ' : ''}${total}`;
+// `noun`: Practice says Question; a mock says Item, as its answer sheet does.
+export const itemOf = (index, total, { about = false, noun = 'Item' } = {}) => `${noun} ${index + 1} of ${about ? 'about ' : ''}${total}`;
 
 export const LETTERS = ['A', 'B', 'C', 'D'];
 
