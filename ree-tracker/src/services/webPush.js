@@ -67,7 +67,27 @@ const pause = (ms) => new Promise((ok) => { setTimeout(ok, ms); });
 // these are exactly the failures to see.
 const plainCause = (cause) => `${cause?.code ? `${cause.code} ` : ''}${cause?.message || cause}`
   .replace('[OFFLINE]', 'no answer').replace('[TIMEOUT]', `no answer in ${REGISTER_TIMEOUT_MS / 1000} s`).replace(/AbortError/gi, 'Abort error');
-const stepError = (step, cause) => Object.assign(new Error(`Web push ${step}: ${plainCause(cause)}`), { step, cause });
+const stepError = (step, cause, context = '') => Object.assign(new Error(`Web push ${step}: ${plainCause(cause)}${context ? ` (${context})` : ''}`), { step, cause });
+
+/**
+ * Chrome couldn't get a push subscription from its push service (Google's, on
+ * Android): "AbortError: Registration failed - push service error". Nothing in
+ * the app or Firebase is involved yet; the phone can't reach the service.
+ */
+export const isPushServiceError = (err) => /push service/i.test(String(err?.cause?.message || err?.message || ''));
+
+// What App health needs to tell "this phone" from "this app": no personal data.
+const pushContext = (hadSubscription) => {
+  const ua = navigator.userAgent || '';
+  const chrome = ua.match(/Chrome\/(\d+)/)?.[1];
+  const android = ua.match(/Android (\d+)/)?.[1];
+  return [
+    `subscription ${hadSubscription ? 'yes' : 'no'}`,
+    isStandalone() ? 'installed' : 'tab',
+    chrome && `Chrome ${chrome}`,
+    android && `Android ${android}`,
+  ].filter(Boolean).join(', ');
+};
 
 /**
  * What to tell the learner when a step failed. Every failure used to say
@@ -76,6 +96,7 @@ const stepError = (step, cause) => Object.assign(new Error(`Web push ${step}: ${
 export function webFailureText(err, online = navigator.onLine) {
   if (!online) return 'You’re offline. Connect, then turn the reminder on again.';
   // Brave, Samsung Internet and phones without Google services often can't.
+  if (isPushServiceError(err)) return 'Your phone couldn’t reach Google’s push service. See the steps under Daily practice reminder.';
   if (err?.step === 'browser') return 'This browser couldn’t sign up for notifications. Try again in a minute; on Android, Chrome can, and on iPhone, REE.ai opened from the Home Screen.';
   const said = String(err?.cause?.message || '');
   if (/^\[(OFFLINE|TIMEOUT)\]$/.test(said)) return 'The REE.ai server didn’t answer in time. Try again: it’s awake now.';
@@ -101,14 +122,26 @@ export async function enableWebPush({ wake = wakeBackend } = {}) {
   wake();
   let token;
   let registerDeviceToken;
+  let hadSubscription = false;
   try {
     const registration = await navigator.serviceWorker.ready;
     const [{ getMessaging, getToken, isSupported }, { app }, db] = await loadMessaging();
     registerDeviceToken = db.registerDeviceToken;
     if (!(await isSupported())) return { ok: false, reason: 'unsupported' };
-    token = await twice(() => getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration }));
+    const ask = () => getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
+    try {
+      token = await ask();
+    } catch {
+      // A subscription Chrome kept from an earlier try can be what fails: drop
+      // it, then ask once more.
+      const kept = await registration.pushManager?.getSubscription?.().catch(() => null);
+      hadSubscription = !!kept;
+      if (kept) await kept.unsubscribe().catch(() => {});
+      await pause(RETRY_MS);
+      token = await ask();
+    }
   } catch (err) {
-    throw stepError('browser', err);
+    throw stepError('browser', err, pushContext(hadSubscription));
   }
   if (!token) return { ok: false, reason: 'unsupported' };
   try {

@@ -83,7 +83,7 @@ describe('web push', () => {
     getToken.mockRejectedValue(Object.assign(new Error('AbortError: Registration failed - push service error'), { code: 'messaging/token-subscribe-failed' }));
     const err = await m.enableWebPush({ wake: () => {} }).catch((e) => e);
     expect(err.step).toBe('browser');
-    expect(err.message).toBe('Web push browser: messaging/token-subscribe-failed Abort error: Registration failed - push service error');
+    expect(err.message).toMatch(/^Web push browser: messaging\/token-subscribe-failed Abort error: Registration failed - push service error \(subscription no, tab/);
     expect(getToken).toHaveBeenCalledTimes(2);
     expect(registerDeviceToken).not.toHaveBeenCalled();
     getToken.mockReset().mockResolvedValue('web-token-123');
@@ -96,4 +96,17 @@ describe('web push', () => {
     expect(m.webFailureText({ step: 'server', cause: new Error('Request failed (500).') }, true)).toMatch(/couldn’t save it/);
     expect(m.webFailureText({ step: 'server' }, false)).toMatch(/You’re offline/);
   });
+
+  it('drops a subscription Chrome kept before asking again, and says what the phone was', async () => {
+    const unsubscribe = vi.fn(async () => true);
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: Promise.resolve({ scope: '/', pushManager: { getSubscription: async () => ({ unsubscribe }) } }) } });
+    const m = await load();
+    getToken.mockRejectedValue(new Error('Registration failed - push service error'));
+    const err = await m.enableWebPush({ wake: () => {} }).catch((e) => e);
+    expect(unsubscribe).toHaveBeenCalled();
+    expect(err.message).toMatch(/push service error \(subscription yes, tab/);
+    expect(m.isPushServiceError(err)).toBe(true);
+    expect(m.webFailureText(err, true)).toMatch(/Google’s push service/);
+    getToken.mockReset().mockResolvedValue('web-token-123');
+  }, 10_000);
 });

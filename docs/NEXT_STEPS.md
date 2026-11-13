@@ -39,6 +39,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #265 | Scheduled jobs on time: GitHub ran the hourly reminders workflow about every 8 hours; `docs/ops/scheduled-jobs.sql` moves reminders and tagging to Supabase pg_cron (the owner runs it once with the secret) |
 | #266 | Boot download 98.0% → 96.4%: Firebase sign-in without the unused popup/redirect code (`initializeAuth`, same persistence) |
 | #267 | Admin › App health › Scheduled jobs: each job's last run, what it did, On time / Late / Failed (`JobRun`) |
+| #268 | Reminder sign-up on a phone that can't reach Google's push service: steps on screen (Private DNS, VPN, Play services, battery), a kept subscription dropped before the retry, the phone's details in App health |
 
 **Your actions:**
 1. **Scheduled jobs on time** (#265): done by the owner 2026-11-12 (`send-reminders`, `subtopic-tags` in `cron.job`, the secret in Vault). Admin › App health › Scheduled jobs shows each run (#267).

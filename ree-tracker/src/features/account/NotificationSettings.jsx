@@ -15,13 +15,13 @@
 // streak about to break, reviews due, today's plan task) and the on-device
 // one is cancelled, so it never comes twice; otherwise the on-device reminder
 // stands in (services/reminderPrefs applyDailyReminder).
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { serverRemindsAt, SERVER_REMINDER_FIRST_HOUR, SERVER_REMINDER_LAST_HOUR } from '@ree/shared';
 import { useNotificationSlice } from '../../store/slices';
 import { applyDailyReminder, saveReminderHour } from '../../services/reminderPrefs';
-import { disableWebPush, enableWebPush, webFailureText, webPushOn, webPushSupport } from '../../services/webPush';
+import { disableWebPush, enableWebPush, isPushServiceError, webFailureText, webPushOn, webPushSupport } from '../../services/webPush';
 import { reportError } from '../../services/appHealth';
 import { FormField, Select, SegmentedControl } from '../../components/ui';
 import { BellOff } from '../../components/ui/icons';
@@ -56,6 +56,8 @@ export default function NotificationSettings() {
   // On in a browser means this browser is registered too.
   const reminderOn = notifications.dailyReminderEnabled && (isNative || webPushOn());
   const webBusy = useRef(false);
+  // Chrome couldn't reach its push service: the steps stay on screen until it works.
+  const [pushHelp, setPushHelp] = useState(false);
 
   const setSessionAlerts = async (on) => {
     if (on && !isNative && 'Notification' in window && Notification.permission !== 'granted') {
@@ -88,11 +90,13 @@ export default function NotificationSettings() {
     try {
       const { ok, reason } = await enableWebPush();
       toast.dismiss(waiting);
+      setPushHelp(false);
       if (!ok) { toast(WEB_REFUSED[reason] || WEB_REFUSED.unsupported); return; }
     } catch (err) {
       toast.dismiss(waiting);
       // Admin › App health shows what really failed.
       reportError(err instanceof Error ? err : new Error(String(err)));
+      setPushHelp(isPushServiceError(err));
       toast.error(webFailureText(err));
       return;
     }
@@ -163,6 +167,19 @@ export default function NotificationSettings() {
           options={[{ value: 'on', label: 'On', disabled: !isNative && !webReady }, { value: 'off', label: 'Off' }]}
         />
       </div>
+
+      {pushHelp && !reminderOn && (
+        <div role="note" aria-labelledby="push-help-title" className="bg-bg border border-border rounded-[var(--radius-lg)] p-4 flex flex-col gap-2 min-w-0">
+          <p id="push-help-title" className="text-sm font-medium text-textMain">Your phone couldn’t reach Google’s push service</p>
+          <p className="text-xs text-muted2">Chrome gets the reminder through it. This is a phone setting, not REE.ai. Try these, then turn the reminder on again:</p>
+          <ol className="list-decimal pl-5 text-xs text-muted2 flex flex-col gap-1">
+            <li>Settings › Network › <b className="text-textMain font-medium">Private DNS</b>: set it to Automatic or Off. Ad-blocking DNS often blocks it.</li>
+            <li>Turn off any VPN or ad-blocker app.</li>
+            <li>Play Store: update <b className="text-textMain font-medium">Google Play services</b> and Chrome.</li>
+            <li>Settings › Apps › Google Play services and Chrome › Battery: <b className="text-textMain font-medium">Unrestricted</b>.</li>
+          </ol>
+        </div>
+      )}
 
       {reminderOn && (
         <div className="max-w-[220px]">
