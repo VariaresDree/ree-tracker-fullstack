@@ -11,7 +11,9 @@ const MASTERY_BANDS = Object.freeze([
     Object.freeze({ key: 'mastered', label: 'Mastered', min: 0.85 }),
     Object.freeze({ key: 'proficient', label: 'Proficient', min: 0.65 }),
     Object.freeze({ key: 'developing', label: 'Developing', min: 0.45 }),
-    Object.freeze({ key: 'novice', label: 'Novice', min: 0 }),
+    // "Building", not "Novice" (2026-11-13): since mastery became honest
+    // (#262) most topics sit here for a while, and the word read as a verdict.
+    Object.freeze({ key: 'novice', label: 'Building', min: 0 }),
 ]);
 
 /** The band for a P(mastery) in [0, 1], or null when there is no estimate yet. */

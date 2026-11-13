@@ -2,6 +2,7 @@
 //
 // Exams › Rankings: your rank, then every active reviewer by ability score,
 // loaded 20 at a time as you scroll. Moved out of the Arena page.
+import { abilityPercent } from '../../utils/ability';
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { fetchPaginatedLeaderboard } from '../../services/dbQueries';
@@ -78,8 +79,8 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
           <span className="text-micro text-muted uppercase tracking-wide">Streak</span>
         </div>
         <div className="shrink-0 w-14 flex flex-col items-end">
-          <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{(agent.thetaRating || 0).toFixed(2)}</span>
-          <span className="text-micro text-muted uppercase tracking-wide">θ</span>
+          <span className="text-sm font-bold font-mono tabular-nums" style={{ color: 'var(--accent-signal)' }}>{abilityPercent(agent.thetaRating || 0)}%</span>
+          <span className="text-micro text-muted uppercase tracking-wide">Ability</span>
         </div>
         <div className="shrink-0 flex justify-end text-muted">
           {open ? <ChevronUp size={18} strokeWidth={2} aria-hidden="true" /> : <ChevronDown size={18} strokeWidth={2} aria-hidden="true" />}

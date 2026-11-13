@@ -23,7 +23,7 @@ export const PRIMARY_NAV = [
   { id: 'today', to: '/', label: 'Today', icon: CalendarCheck, desc: 'Your next step and today’s target', segments: ['', 'diagnostic'] },
   { id: 'practice', to: '/practice', label: 'Practice', icon: BrainCircuit, desc: 'Questions, flashcards, due reviews', segments: ['practice', 'review'] },
   { id: 'exams', to: '/exams', label: 'Exams', icon: Zap, desc: 'Mock boards, Gauntlet, battles', segments: ['exams', 'simulator', 'gauntlet', 'battle', 'arena'] },
-  { id: 'progress', to: '/progress', label: 'Progress', icon: TrendingUp, desc: 'Readiness, topics, study plan', segments: ['progress'] },
+  { id: 'progress', to: '/progress', label: 'Progress', icon: TrendingUp, desc: 'Forecast, topics, study plan', segments: ['progress'] },
   { id: 'library', to: '/library', label: 'Library', icon: Library, desc: 'Handouts, formula cards, notebook', segments: ['library', 'materials'] },
 ];
 

@@ -131,7 +131,7 @@ describe('the tracker’s tiles', () => {
 
   it('the mastery strip gives every count in words', async () => {
     show();
-    expect(await screen.findByRole('img', { name: 'Mathematics topics by mastery: Proficient 1, Novice 1, No answers 1' })).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: 'Mathematics topics by mastery: Proficient 1, Building 1, No answers 1' })).toBeInTheDocument();
   });
 
   it('filter chips carry their counts, and narrow the list', async () => {
