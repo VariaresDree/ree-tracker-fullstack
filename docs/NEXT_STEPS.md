@@ -45,6 +45,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #271 | UI/UX round PR 3: Session complete has Done in the header and pinned on phones, one primary next step; the confidence row asks instead of a red toast; More sheet for the question's tools; empty results stay on setup with Quick 20; Question N of M |
 | #272 | UI/UX round PR 4: Today's Start shows as soon as the loop leads (wait 3.5 s → 1.5 s otherwise); readiness breakdown folded; Also today rows with light actions |
 | #273 | UI/UX round PR 5: Progress reads as a path: each topic's mastery in answers and its distance to 70%; Building not Novice; plain confidence labels; ability as one percent (no θ); Practise the leverage subject |
+| #274 | Practice header: scratchpad and report always visible; calculator and note in the More sheet (owner's request) |
 
 **Your actions:**
 1. **Scheduled jobs on time** (#265): done by the owner 2026-11-12 (`send-reminders`, `subtopic-tags` in `cron.job`, the secret in Vault). Admin › App health › Scheduled jobs shows each run (#267).

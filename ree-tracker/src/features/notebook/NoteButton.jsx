@@ -9,7 +9,7 @@ import { StickyNote } from '../../components/ui/icons';
 import NoteEditor from './NoteEditor';
 import { useNotes } from './notesStore';
 
-export default function NoteButton({ type, targetId, target, className, withLabel = false }) {
+export default function NoteButton({ type, targetId, target, className, withLabel = false, variant = 'ghost' }) {
   const { noteFor } = useNotes();
   const [open, setOpen] = useState(false);
   if (!targetId) return null;
@@ -19,7 +19,7 @@ export default function NoteButton({ type, targetId, target, className, withLabe
     <>
       <Button
         size={withLabel ? 'sm' : 'icon'}
-        variant="ghost"
+        variant={variant}
         tone="amber"
         onClick={() => setOpen(true)}
         aria-label={withLabel ? undefined : label}

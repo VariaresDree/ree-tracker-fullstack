@@ -194,15 +194,21 @@ describe('the words', () => {
 });
 
 // Practice (2026-11-13): five icons crowded the question header on a phone.
+// The scratchpad and the report stay in reach (owner's call); the calculator
+// and the note go into the More sheet.
 describe('ItemActions with more', () => {
-  it('keeps the bookmark in the row and moves the scratchpad, calculator and report into a sheet', async () => {
-    const onScratchpad = vi.fn();
-    render(<ItemActions more onScratchpad={onScratchpad} onTools={() => {}} onReport={() => {}} onBookmark={() => {}} />);
-    expect(screen.getByRole('button', { name: 'Save to bookmarks' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Open scratchpad' })).toBeNull();
+  it('keeps the scratchpad, the report and the bookmark in the row; the calculator and the note are under More', async () => {
+    const onTools = vi.fn();
+    render(<ItemActions more onScratchpad={() => {}} onTools={onTools} onReport={() => {}} onBookmark={() => {}} moreItems={<button type="button">Add a note</button>} />);
+    for (const name of ['Open scratchpad', 'Report a problem with this question', 'Save to bookmarks']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: 'Open calculator and units' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add a note' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'More for this question' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open scratchpad' }));
-    expect(onScratchpad).toHaveBeenCalled();
+    expect(await screen.findByRole('button', { name: 'Add a note' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open calculator and units' }));
+    expect(onTools).toHaveBeenCalled();
     expect(screen.queryByRole('dialog', { name: 'More for this question' })).toBeNull();
   });
 });

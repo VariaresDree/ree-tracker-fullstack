@@ -168,9 +168,8 @@ export default function Practice() {
       bookmarked={isBookmarked}
       onBookmark={toggleBookmark}
       more
-    >
-      <NoteButton type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />
-    </ItemActions>
+      moreItems={<NoteButton withLabel variant="secondary" className="w-full justify-start" type="question" targetId={currentQ.id} target={questionTarget(currentQ)} />}
+    />
   );
 
   return (
