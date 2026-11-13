@@ -1,7 +1,8 @@
 // src/features/active-recall/MCQMode.jsx
 //
 // Thin wrapper around the shared QuestionCard. Active Review's per-question
-// flow requires confidence before answering (so the calibration analytics
+// flow requires confidence before answering (an answer tapped first makes the
+// confidence row light up, QuestionCard) (so the calibration analytics
 // always has a value), reveals the correct answer immediately after the user
 // locks in a choice, and lets the parent attach the reference panel + AI
 // explanation below.
@@ -10,7 +11,6 @@
 // reveal) used to live here AND in SimulatorActive AND in Gauntlet. It all
 // moved into QuestionCard so the four answering surfaces share semantics.
 
-import toast from 'react-hot-toast';
 import QuestionCard from '../quiz/QuestionCard';
 
 // ReferencePanel intentionally NOT rendered here — Reference Constants
@@ -35,7 +35,6 @@ export default function MCQMode({ session, setSession, handleAnswerSelection, he
         headerSlot={headerSlot}
         onSelect={handleAnswerSelection}
         onConfidenceChange={(level) => setSession((prev) => ({ ...prev, confidence: level }))}
-        onConfidenceRequiredBlocked={() => toast.error('Pick a confidence level first.')}
       />
     </div>
   );

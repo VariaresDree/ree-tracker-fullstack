@@ -54,13 +54,27 @@ describe('SessionSummary', () => {
     const h = renderSummary();
     fireEvent.click(screen.getByRole('button', { name: /Practise again/ }));
     expect(h.onAgain).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: /Retry missed \(\d+\)/ }));
+    // In the card from md up, pinned at the foot on a phone (CSS shows one).
+    fireEvent.click(screen.getAllByRole('button', { name: /Retry missed \(\d+\)/ })[0]);
     expect(h.onRetry).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /Drill Protection/ }));
     expect(h.onDrill).toHaveBeenCalledWith(expect.objectContaining({ topic: 'Protection', subject: 'EE' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Done' })[0]);
     expect(h.onDone).toHaveBeenCalled();
     expect(screen.getByRole('link', { name: 'See your progress' })).toHaveAttribute('href', '/progress?tab=topics');
+  });
+
+  // 2026-11-13: Done was the last of up to 7 buttons, in faint ghost text.
+  it('the way out is Done, in the header and pinned at the foot on a phone, and only one primary next step', () => {
+    renderSummary();
+    const header = screen.getByRole('heading', { name: 'Session complete' }).closest('header') || document.body;
+    expect(header.querySelector('button')?.textContent).toMatch(/Done/);
+    const pinned = document.querySelector('[data-session-actions]');
+    expect(pinned).toHaveClass('md:hidden');
+    expect(pinned.textContent).toMatch(/Done/);
+    expect(pinned.textContent).toMatch(/Retry missed/);
+    // Practise again is a link-styled button once Retry missed leads.
+    expect(screen.getByRole('button', { name: 'Practise again' }).className).toMatch(/underline/);
   });
 
   it('the drill can start offline: it draws from the device', () => {

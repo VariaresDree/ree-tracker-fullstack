@@ -274,3 +274,17 @@ describe('ReviewSetup — Build your own', () => {
     });
   });
 });
+
+// 2026-11-13: "No bookmarks yet" and the like were a toast that faded,
+// leaving the learner on setup with no reason and nothing to tap.
+describe('ReviewSetup — nothing to practise', () => {
+  it('says so in place, with Quick 20 to start instead', async () => {
+    fetchSrsSummary.mockResolvedValue({ due: 0, overdue: 0, total: 0, bySubject: {}, nextDueAt: null });
+    const props = { ...baseProps(), session: { loading: false, emptyMessage: 'No bookmarks yet. Tap the bookmark icon on a question to save it for later.' } };
+    render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
+    const box = screen.getAllByRole('status').find((el) => el.textContent.includes('No bookmarks yet'));
+    expect(box).toBeTruthy();
+    fireEvent.click(within(box).getByRole('button', { name: 'Start Quick 20' }));
+    expect(props.startSession).toHaveBeenCalledWith(expect.objectContaining({ source: 'library', count: 20 }));
+  });
+});

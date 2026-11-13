@@ -1446,3 +1446,13 @@ body {
 :root.scratchpad-docked #main-content {
   padding-right: calc(var(--scratchpad-w) + 1rem);
 }
+
+/* The confidence row asking first (features/quiz/QuestionCard.jsx): a short
+   pulse. Two names, so a second tap replays it. Still under reduced motion. */
+@keyframes confidence-nudge-a { 0%, 100% { transform: none; } 30% { transform: scale(1.02); } }
+@keyframes confidence-nudge-b { 0%, 100% { transform: none; } 30% { transform: scale(1.02); } }
+.confidence-nudge-0 { animation: confidence-nudge-a 320ms ease-out; }
+.confidence-nudge-1 { animation: confidence-nudge-b 320ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .confidence-nudge-0, .confidence-nudge-1 { animation: none; }
+}

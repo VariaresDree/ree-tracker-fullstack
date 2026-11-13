@@ -83,10 +83,20 @@ export default function QuestionCard({
   const options = question?.options || [];
   const correctAnswer = question?.answer;
 
+  // An answer tapped before a required confidence: the row lights up and says
+  // what to do, and focus goes to it (2026-11-13; a red "Pick a confidence
+  // level first" toast used to scold the most natural move). Counts taps, so
+  // a second tap replays the pulse.
+  const [nudges, setNudges] = useState(0);
+  const confidenceRef = useRef(null);
+  const nudging = requireConfidence && !confidence && nudges > 0;
+
   const handleSelect = useCallback(
     (opt) => {
       if (isReviewing) return;
       if (requireConfidence && !confidence) {
+        setNudges((n) => n + 1);
+        confidenceRef.current?.querySelector('[role="radio"]')?.focus({ preventScroll: false });
         onConfidenceRequiredBlocked?.();
         return;
       }
@@ -173,14 +183,26 @@ export default function QuestionCard({
   // left out of calibration, so the row asks once something is picked.
   const needsRating = !requireConfidence && selectedOption != null && !confidence;
   const confidenceRow = showConfidence && !isReviewing && (
-    <fieldset className="border-0 p-0 m-0">
+    <fieldset
+      ref={confidenceRef}
+      data-nudged={nudging ? 'true' : undefined}
+      className="border-0 p-0 m-0"
+    >
       <legend className="text-eyebrow mb-2 flex items-center gap-2">
         Confidence
         {/* The amber text form, opaque: a 70%-alpha amber read under 4.5:1. */}
-        {requireConfidence && <span className="normal-case font-bold ml-1" style={{ color: 'var(--color-reeAmber-text)' }}>(required)</span>}
+        {requireConfidence && !nudging && <span className="normal-case font-bold ml-1" style={{ color: 'var(--color-reeAmber-text)' }}>(required)</span>}
+        {/* Always mounted, so a screen reader hears it when it fills. */}
+        <span aria-live="polite" className="normal-case font-bold ml-1" style={{ color: 'var(--accent-text)' }}>
+          {nudging ? 'Pick how sure you are first' : ''}
+        </span>
         {needsRating && <span className="normal-case font-bold ml-1" style={{ color: 'var(--color-reeAmber-text)' }}>How sure are you?</span>}
       </legend>
-      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Confidence level">
+      <div
+        className={`grid grid-cols-3 gap-2 rounded-[var(--radius-default)] ${nudging ? `outline-2 outline-solid outline-offset-4 outline-[var(--accent-text)] confidence-nudge-${nudges % 2}` : ''}`}
+        role="radiogroup"
+        aria-label="Confidence level"
+      >
         {CONFIDENCE_LEVELS.map((level, i) => {
           const isSelected = confidence === level;
           return (

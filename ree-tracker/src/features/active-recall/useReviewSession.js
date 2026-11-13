@@ -23,6 +23,10 @@ import toast from 'react-hot-toast';
 // during render), so the wall-clock read lives out here.
 const restartClock = (ref) => { ref.current = Date.now(); };
 
+
+// A session with nothing to practise: said on the setup screen, not as an error.
+const nothing = (message) => Object.assign(new Error(message), { empty: true });
+
 export const useReviewSession = (currentUser, isOnline) => {
     // Narrow, stable-reference slice on the per-answer hot path (avoids the
     // whole-store re-render storm); useStore.getState() below stays imperative.
@@ -156,7 +160,7 @@ export const useReviewSession = (currentUser, isOnline) => {
         // persistent form config.
         const target = overrides || {};
         if (overrides) setConfig(cfg);
-        setSession(prev => ({ ...prev, loading: true }));
+        setSession(prev => ({ ...prev, loading: true, emptyMessage: null }));
         adaptiveRef.current = null;
         try {
             let freshData = [];
@@ -173,7 +177,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 // A fixed set handed over by the preset (a past sitting's
                 // misses). It needs no request, so it runs offline too.
                 freshData = Array.isArray(target.items) ? target.items.filter((q) => q?.id && q.text) : [];
-                if (freshData.length === 0) throw new Error("There's nothing to practise from that sitting.");
+                if (freshData.length === 0) throw nothing("There's nothing to practise from that sitting.");
             } else if (cfg.source === 'today-loop') {
                 // Due reviews and open mistakes, already in the server's
                 // board-weight order (kept as is below, not resampled).
@@ -194,19 +198,19 @@ export const useReviewSession = (currentUser, isOnline) => {
                         offlineNote = mix.note;
                     }
                 }
-                if (freshData.length === 0) throw new Error("Nothing is due and no mistakes are open. You're caught up.");
+                if (freshData.length === 0) throw nothing("Nothing is due and no mistakes are open. You're caught up.");
             } else if (cfg.source === 'adaptive') {
                 // One question at a time, matched to the learner's level; the
                 // rest arrive as they answer (prefetchAdaptive/loadNextQuestion).
                 adaptive = { target: Math.max(1, cfg.count || 20), subject: cfg.subject, local: null, start: 0, prefetch: null };
                 const first = await pickAdaptive(adaptive, [], []);
-                if (!first) throw new Error("No questions match these settings yet.");
+                if (!first) throw nothing("No questions match these settings yet.");
                 freshData = [first];
             } else if (cfg.source === 'srs-due') {
                 const due = isOnline ? await unlessOffline(fetchSrsDue(cfg.count || 20, cfg.subject)) : null;
                 if (due) {
                     freshData = due;
-                    if (freshData.length === 0) throw new Error("Nothing is due for review right now.");
+                    if (freshData.length === 0) throw nothing("Nothing is due for review right now.");
                 } else {
                     const mix = await offlineMix('your review queue');
                     freshData = mix.items;
@@ -218,7 +222,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 })) : null;
                 if (drillResult) {
                     freshData = drillResult.items || [];
-                    if (freshData.length === 0) throw new Error("Answer a few questions first — the drill targets your weakest topics.");
+                    if (freshData.length === 0) throw nothing("Answer a few questions first — the drill targets your weakest topics.");
                 } else {
                     const drill = await offlineDrill({ topic: target.drillTopic, subject: target.drillSubject, microTopics: useStore.getState().stats?.microTopics });
                     freshData = drill.items;
@@ -227,7 +231,7 @@ export const useReviewSession = (currentUser, isOnline) => {
             } else if (cfg.source === 'bookmarks') {
                 const saved = await fetchBookmarks({ limit: 100 });
                 if (!saved || saved.length === 0) {
-                    throw new Error(isOnline
+                    throw nothing(isOnline
                         ? "No bookmarks yet. Tap the bookmark icon on a question to save it for later."
                         : "Your bookmarks aren’t on this device yet. Connect once to save a copy.");
                 }
@@ -238,7 +242,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 freshData = saved.filter((q) =>
                     (!subject || normalizeSubject(q.subject) === subject)
                     && (cfg.subtopic === 'All' || !cfg.subtopic || q.subtopic === cfg.subtopic));
-                if (freshData.length === 0) throw new Error("None of your bookmarks match this subject or topic.");
+                if (freshData.length === 0) throw nothing("None of your bookmarks match this subject or topic.");
             } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("The AI generator needs a connection.");
                 // "All subjects" picks one subject for this batch; it used to
@@ -289,13 +293,13 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (limit < 1000 && mixed && inFocus(freshData || []).length < want) freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000, 'random', { subtopicId });
             }
 
-            if (!freshData || freshData.length === 0) throw new Error("No questions match these settings yet.");
+            if (!freshData || freshData.length === 0) throw nothing("No questions match these settings yet.");
 
             // 2. 🚀 STRICT COGNITIVE FOCUS FILTERING
             const filteredData = inFocus(freshData);
 
             if (filteredData.length === 0) {
-                throw new Error(`No ${cfg.cognitiveFocus} questions found for this topic. Try the mixed focus or another topic.`);
+                throw nothing(`No ${cfg.cognitiveFocus} questions found for this topic. Try the mixed focus or another topic.`);
             }
 
             // 3. 🚀 TRUE RANDOMIZATION: stratified sample across subtopics so a
@@ -348,14 +352,21 @@ export const useReviewSession = (currentUser, isOnline) => {
                 offlineNote,
             });
         } catch (error) {
-            toast.error(error.message);
-            setSession(prev => ({ ...prev, loading: false }));
+            // Nothing to practise stays on the setup screen until the next start
+            // (2026-11-13: a toast that faded left the learner on setup with no reason).
+            if (error.empty) {
+                setSession(prev => ({ ...prev, loading: false, emptyMessage: error.message }));
+            } else {
+                toast.error(error.message);
+                setSession(prev => ({ ...prev, loading: false }));
+            }
         }
     };
 
     const handleAnswerSelection = (option) => {
         if (session.isAnswered) return;
-        if (!session.confidence) return toast.error("Pick a confidence level first.");
+        // QuestionCard asks for it first (the confidence row lights up).
+        if (!session.confidence) return;
 
         const currentQ = session.questions[session.currentIndex];
         const isCorrect = option === currentQ.answer;

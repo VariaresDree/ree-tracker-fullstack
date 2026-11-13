@@ -120,6 +120,22 @@ describe('QuestionCard — confidence-required gate', () => {
     expect(onConfidenceRequiredBlocked).toHaveBeenCalledTimes(1);
   });
 
+  // 2026-11-13: a red toast scolded the most natural move; now the row asks.
+  it('a tap before confidence lights the row up, says what to do, and moves focus to it', () => {
+    Harness({ requireConfidence: true });
+    const group = screen.getByRole('radiogroup', { name: 'Confidence level' });
+    const row = group.closest('fieldset');
+    expect(row).not.toHaveAttribute('data-nudged');
+    fireEvent.click(getOption('A'));
+    expect(row).toHaveAttribute('data-nudged', 'true');
+    expect(group.className).toMatch(/confidence-nudge-1/);
+    expect(screen.getByText('Pick how sure you are first')).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: /^LOW/ }));
+    // A second tap replays the pulse.
+    fireEvent.click(getOption('B'));
+    expect(group.className).toMatch(/confidence-nudge-0/);
+  });
+
   it('passes through onSelect once confidence is set, even when required', () => {
     const { onSelect } = Harness({ requireConfidence: true, confidence: 'HIGH' });
     fireEvent.click(getOption('A'));

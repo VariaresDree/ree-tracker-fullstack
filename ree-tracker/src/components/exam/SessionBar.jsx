@@ -33,7 +33,7 @@ export function LeaveButton({ tone, onClick }) {
   );
 }
 
-export default function SessionBar({ index, total, about = false, answered, action, detail, submit, children }) {
+export default function SessionBar({ index, total, about = false, noun, answered, action, detail, submit, children }) {
   return (
     <div
       data-session-bar=""
@@ -41,7 +41,7 @@ export default function SessionBar({ index, total, about = false, answered, acti
     >
       {action}
       <span className="shrink-0 text-xs sm:text-sm font-semibold text-textMain tabular-nums">
-        <span className={about ? '' : 'max-sm:sr-only'}>{itemOf(index, total, { about })}</span>
+        <span className={about ? '' : 'max-sm:sr-only'}>{itemOf(index, total, { about, noun })}</span>
         {!about && <span aria-hidden="true" className="sm:hidden">{index + 1}/{total}</span>}
       </span>
       {answered != null && (

@@ -10,7 +10,7 @@
 // nothing has to float over the choices.
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, CardWatermark, Button, FormField, Grid, IconChip, Modal, Select, SegmentedControl, Skeleton, Page, PageHeader, cn } from '../../components/ui';
+import { Card, CardWatermark, Button, EmptyState, FormField, Grid, IconChip, Modal, Select, SegmentedControl, Skeleton, Page, PageHeader, cn } from '../../components/ui';
 import ModeGuide from '../exams/ModeGuide';
 import { Shuffle, Crosshair, Gauge, Layers, Bookmark, RotateCcw, ChevronRight, Settings2 } from '../../components/ui/icons';
 import { SYLLABUS_SUBJECTS, toDisplaySubject } from '@ree/shared';
@@ -153,6 +153,17 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
   return (
     <Page>
       <PageHeader title="Practice" />
+
+      {/* A start with nothing to practise says so here, with a way on. */}
+      {session.emptyMessage && (
+        <Card variant="inset" padding="sm" role="status">
+          <EmptyState
+            compact
+            title={session.emptyMessage}
+            action={<Button onClick={() => launchPreset(PRESETS[0])} disabled={session.loading}>Start Quick 20</Button>}
+          />
+        </Card>
+      )}
 
       {saved && (
         <Card padding="sm" className="flex flex-wrap items-center gap-3" role="region" aria-label="Unfinished session" style={{ borderColor: 'color-mix(in srgb, var(--color-reeAmber) 45%, transparent)' }}>

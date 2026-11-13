@@ -170,7 +170,9 @@ describe('Practice launched from another page', () => {
 describe('Practice tools', () => {
   it('opens the calculator and units in a sheet, and a key typed there doesn’t answer', async () => {
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: 'Open calculator and units' }));
+    // In Practice it lives in the question's More sheet (2026-11-13).
+    fireEvent.click(screen.getByRole('button', { name: 'More for this question' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Open calculator and units' }));
     const dialog = await screen.findByRole('dialog', { name: 'Calculator and units' });
     expect(dialog).toBeInTheDocument();
     fireEvent.keyDown(window, { key: '1' });
