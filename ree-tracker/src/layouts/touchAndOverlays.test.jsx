@@ -48,7 +48,7 @@ describe('Scratchpad', () => {
 
     it('its buttons are touch-sized', () => {
         render(<Scratchpad isOpen onClose={() => {}} />);
-        for (const name of ['Clear', 'Close']) {
+        for (const name of ['Undo', 'Clear', 'Close']) {
             expect(screen.getByRole('button', { name }).className).toMatch(/\btouch-target\b/);
         }
     });

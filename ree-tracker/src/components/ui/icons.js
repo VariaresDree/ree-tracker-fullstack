@@ -52,6 +52,7 @@ export {
   ArrowUpRight,
   Plus,
   Trash2,
+  Undo2,
   RefreshCw,
   Clock,
   History,

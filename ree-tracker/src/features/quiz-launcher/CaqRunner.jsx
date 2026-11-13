@@ -166,7 +166,7 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
 
         <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
           <QuestionSurface className="overflow-hidden md:isolate gap-6">
-            <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
+            <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} persistKey={q?.id ? `q:${q.id}` : null} />
             <QuestionCard
               question={q}
               selectedOption={picked}

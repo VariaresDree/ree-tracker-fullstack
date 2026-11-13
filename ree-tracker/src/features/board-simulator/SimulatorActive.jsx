@@ -206,7 +206,7 @@ export default function SimulatorActive({ engine, onExitReview, isOnline }) {
               : 'var(--border-light)',
           }}
         >
-          <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} />
+          <Scratchpad isOpen={showScratchpad} onClose={() => setShowScratchpad(false)} persistKey={q?.id ? `q:${q.id}` : null} />
 
           <QuestionCard
             question={q}
