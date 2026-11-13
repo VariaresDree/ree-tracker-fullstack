@@ -43,6 +43,7 @@ The owner asked for the next round after the optimization one: help learners tra
 | #269 | UI/UX round 2026-11-13, PR 1: the Scratchpad keeps your work per question, docks beside the question on wide or sideways screens, Undo/Clear/Eraser; the installed app turns with the device (plan: help-me-improve-my-bubbly-toucan.md, 5 PRs) |
 | #270 | UI/UX round PR 2: the subtopic review pile in groups (Tag N / None fits for N), near names plural-tolerant; the near-name commit left off #267 included |
 | #271 | UI/UX round PR 3: Session complete has Done in the header and pinned on phones, one primary next step; the confidence row asks instead of a red toast; More sheet for the question's tools; empty results stay on setup with Quick 20; Question N of M |
+| #272 | UI/UX round PR 4: Today's Start shows as soon as the loop leads (wait 3.5 s → 1.5 s otherwise); readiness breakdown folded; Also today rows with light actions |
 | #273 | UI/UX round PR 5: Progress reads as a path: each topic's mastery in answers and its distance to 70%; Building not Novice; plain confidence labels; ability as one percent (no θ); Practise the leverage subject |
 
 **Your actions:**

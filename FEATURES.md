@@ -892,8 +892,9 @@ every feature add, change, or removal, not on a schedule.
   - **Top to bottom now:**
     - **Up next:** a hero card (`Card variant="hero"`) holding the first action, with its detail and one large Start. Its corner icon says what kind of action it is.
     - **Three tiles:** readiness index, pass probability and today's target, each its own card with an h2 eyebrow.
-    - **Also today:** the rest of the shortlist, as inset rows with secondary buttons.
+    - **Also today:** the rest of the shortlist, as inset rows, each with a light text action ("Drill →"), so the hero's Start is the page's one button (2026-11-13; each row had a full button).
   - **The lead waits for its sources.** It shows a hero-shaped skeleton until every source that can put an action first has answered: today's loop, due reviews, formula cards, the plan task, the forecast and the placement plan. The list used to reorder as each arrived.
+  - **Start sooner** (2026-11-13): the Start button was the last thing on the page, a skeleton for up to 3.5 s after the tiles. Nothing outranks today's loop but the learner's calendar, so once both are in and the loop has questions (or, offline, the device's own set) the lead shows at once; otherwise it waits for the other sources at most 1.5 s. The readiness tile's five-term breakdown folds under **What's in this score** (a native `<details>`), since five rows filled a half-width tile on a phone.
     - The wait stops after 3.5 s, so a slow backend still gets a hero.
     - `useTodayLoop`, `useCardReviewSummary` and `usePlanToday` return `undefined` while loading.
     - `usePlanToday` no longer stays loading after a failed request.
