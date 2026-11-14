@@ -12,6 +12,8 @@ vi.mock('react-hot-toast', () => {
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'me' } }) }));
 let online = true;
 vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online }));
+let manilaDay = '2026-11-14';
+vi.mock('../../hooks/useManilaDay', () => ({ useManilaDay: () => manilaDay }));
 let storeStats;
 const TOS = { EE: ['Electromagnetism', 'Electric Circuits 2'], Mathematics: ['Calculus 1'] };
 vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats, dynamicTOS: TOS }) }));
@@ -255,6 +257,21 @@ describe('RankingsTab', () => {
     const rows = screen.getAllByRole('button', { expanded: false }).map((b) => b.textContent);
     expect(rows[0]).toMatch(/^1A/);
     expect(rows[1]).toMatch(/^2ME/);
+  });
+
+  it('a new Manila day loads the list and your rank again (a screen left open kept yesterday’s streaks)', async () => {
+    fetchPaginatedLeaderboard
+      .mockResolvedValueOnce({ agents: [agent('a', 0.9, { streak: 3 })], lastDoc: null })
+      .mockResolvedValueOnce({ agents: [agent('a', 0.9, { streak: 0 })], lastDoc: null });
+    fetchLeaderboardMe.mockResolvedValue({ rank: 1, total: 1 });
+    const view = renderTab(<RankingsTab />);
+    expect(await screen.findByText('A')).toBeInTheDocument();
+    expect(fetchPaginatedLeaderboard).toHaveBeenCalledTimes(1);
+
+    manilaDay = '2026-11-15';
+    view.rerender(tabTree(<RankingsTab />));
+    await vi.waitFor(() => expect(fetchPaginatedLeaderboard).toHaveBeenCalledTimes(2));
+    expect(fetchLeaderboardMe).toHaveBeenCalledTimes(2);
   });
 
   it('a failed load says so with Try again, not "No rankings yet"', async () => {

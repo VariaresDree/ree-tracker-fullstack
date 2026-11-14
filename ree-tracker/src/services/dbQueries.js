@@ -3,7 +3,7 @@ import { auth } from '../config/firebaseDb';
 import { invalidateDashboardSeed } from './dashboardSeed';
 import { fnv1a } from '../utils/contentHash';
 import { stratifiedSample } from '../utils/shuffle';
-import { DEFAULT_SYLLABUS_WEIGHTS, OPTION_ORDER_VERSION, fallbackDisplayName } from '@ree/shared';
+import { DEFAULT_SYLLABUS_WEIGHTS, OPTION_ORDER_VERSION, fallbackDisplayName, todayManila } from '@ree/shared';
 import { shouldShortCircuit, noteNetworkFailure, noteBackendAnswered } from './connection';
 import { getOfflineQuestions, writeOfflinePack, getOfflinePackMeta, getOfflinePack, OFFLINE_SUBJECTS, getPackSize, packSizeOf, getReferenceCardsCache, writeReferenceCardsCache } from './offlinePack';
 
@@ -497,9 +497,15 @@ const normalizeAgent = (a) => ({
     offBoard: !!a.offBoard,
 });
 
+// Rankings requests name today's Manila day. The server ignores it; the
+// service worker keys its saved copy of each reply by URL and serves that copy
+// when the server takes over 2.5 s (a sleeping instance, which the first request
+// after midnight often meets). Without the day in the address, yesterday's list
+// answered today's request, yesterday's streaks included.
 export const fetchPaginatedLeaderboard = async (limitCount = 20, cursor = null) => {
     const qs = new URLSearchParams({ limit: String(limitCount) });
     if (cursor) qs.set('cursor', cursor);
+    qs.set('day', todayManila());
     const data = await safeApiRequest(`/api/leaderboard/paginated?${qs}`, 'GET', null, null);
     if (!data) return { agents: [], lastDoc: null };
     const items = (data?.items || []).map(normalizeAgent);
@@ -507,7 +513,7 @@ export const fetchPaginatedLeaderboard = async (limitCount = 20, cursor = null) 
 };
 
 export const fetchLeaderboardMe = async () =>
-    safeApiRequest('/api/leaderboard/me', 'GET', null, { rank: null, total: 0 });
+    safeApiRequest(`/api/leaderboard/me?day=${todayManila()}`, 'GET', null, { rank: null, total: 0 });
 
 export const updateUserProfile = async (payload) => apiRequest('/api/user/profile', 'PUT', payload);
 

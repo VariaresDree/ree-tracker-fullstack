@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { fetchPaginatedLeaderboard } from '../../services/dbQueries';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { useManilaDay } from '../../hooks/useManilaDay';
 import { Badge, Button, Card, CardEyebrow, CardHeader, CardTitle, EmptyState, Grid, Skeleton, StatusPill } from '../../components/ui';
 import { ChevronDown, ChevronUp, Flame, Trophy } from '../../components/ui/icons';
 import YourRankCard from './YourRankCard';
@@ -98,7 +99,15 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
   );
 });
 
+// A new Manila day starts the tab over, so the list and Your rank load again.
+// Streaks are judged by the day: a tab left open past midnight kept yesterday's
+// until the learner left and came back (it loads once per mount).
 export default function RankingsTab() {
+  const day = useManilaDay();
+  return <Rankings key={day} />;
+}
+
+function Rankings() {
   const { currentUser } = useAuth();
   const isOnline = useNetworkStatus();
   const [leaderboard, setLeaderboard] = useState([]);
