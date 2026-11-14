@@ -202,6 +202,31 @@ describe('today’s study-plan task', () => {
     expect(pickPlanTask([], today)).toBeNull();
     expect(pickPlanTask(null, today)).toBeNull();
   });
+
+  it('pickPlanTask: with none today, the newest drill or mock missed in the last two days, marked carried', () => {
+    const today = '2026-10-08';
+    const tasks = [
+      { ...drillTask, id: 'too-old', dueDate: '2026-10-05' },
+      { ...drillTask, id: 'two-days', dueDate: '2026-10-06' },
+      { ...drillTask, id: 'yesterday', dueDate: '2026-10-07' },
+      { id: 'review', kind: 'review', targetCount: 20, text: 'Review 20', dueDate: '2026-10-07' },
+      { ...drillTask, id: 'tomorrow', dueDate: '2026-10-09' },
+    ];
+    expect(pickPlanTask(tasks, today)).toMatchObject({ id: 'yesterday', carried: true });
+    expect(pickPlanTask(tasks.filter((t) => t.id !== 'yesterday'), today)).toMatchObject({ id: 'two-days', carried: true });
+    expect(pickPlanTask(tasks.filter((t) => !['yesterday', 'two-days'].includes(t.id)), today)).toBeNull();
+    // Today's own task comes first, without the mark.
+    const own = pickPlanTask([...tasks, { ...drillTask, id: 'open', dueDate: today }], today);
+    expect(own).toMatchObject({ id: 'open' });
+    expect(own.carried).toBeUndefined();
+  });
+
+  it('a carried task says which day it is from, and how far along it is', () => {
+    const carried = { ...drillTask, dueDate: '2026-10-07', carried: true };
+    const detailOf = (planTask) => buildTodayActions({ planTask }).find((x) => x.key === 'plan').detail;
+    expect(detailOf(carried)).toBe('Carried over from Wednesday.');
+    expect(detailOf({ ...carried, progress: { count: 4, target: 15, done: false } })).toBe('Carried over from Wednesday · 4 of 15 done.');
+  });
 });
 
 describe('dailyProgress', () => {

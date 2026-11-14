@@ -4,7 +4,7 @@
 // than JSX order. Each action carries either a review `preset` or a route `to`.
 
 import { PRC_FORMAT_SUMMARY } from '../../config/examStandards';
-import { toDisplaySubject, SUBJECT_FLOOR } from '@ree/shared';
+import { toDisplaySubject, SUBJECT_FLOOR, PLAN_CARRY_DAYS } from '@ree/shared';
 import { adaptivePreset, drillPreset, dueReviewPreset, quickReviewPreset, todayLoopPreset } from '../active-recall/presets';
 import { isTaskDone, taskLaunch } from '../profile/plannerTasks';
 import { dailyCountsToday } from '../../services/analyticsSync';
@@ -55,14 +55,28 @@ export function daysToExam(examDate, now = new Date()) {
   return Math.ceil((exam.getTime() - now.getTime()) / 86400000);
 }
 
+// A Manila day (YYYY-MM-DD) some days from another, and its weekday.
+const shiftDay = (ymd, days) => new Date(Date.parse(`${ymd}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+const weekdayOf = (ymd) => new Date(`${ymd}T00:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+
 /**
- * Today's open study-plan task: due today (a Manila day, YYYY-MM-DD), not yet
- * done by hand or by the day's answers, and one the app can start. Free-text
- * tasks have no session to launch, so they stay in the planner.
+ * The study-plan task Today offers: today's open one (a Manila day,
+ * YYYY-MM-DD), not yet done by hand or by answers, and one the app can start.
+ * Free-text tasks have no session to launch, so they stay in the planner.
+ * With none today, the newest drill or mock missed in the last PLAN_CARRY_DAYS
+ * days, marked `carried` (2026-11-14: a missed task vanished from Today and
+ * its answers stopped counting). The server counts it over the same days.
  */
 export function pickPlanTask(tasks, today) {
   // A cards day is already Today's formula-cards action (and in the loop).
-  return (tasks || []).find((t) => t?.dueDate === today && t.kind !== 'cards' && !isTaskDone(t) && taskLaunch(t)) || null;
+  const open = (tasks || []).filter((t) => t?.dueDate && t.kind !== 'cards' && !isTaskDone(t) && taskLaunch(t));
+  const todays = open.find((t) => t.dueDate === today);
+  if (todays) return todays;
+  const oldest = shiftDay(today, -PLAN_CARRY_DAYS);
+  const missed = open
+    .filter((t) => (t.kind === 'drill' || t.kind === 'mock') && t.dueDate < today && t.dueDate >= oldest)
+    .sort((x, y) => y.dueDate.localeCompare(x.dueDate))[0];
+  return missed ? { ...missed, carried: true } : null;
 }
 
 const sameTopic = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
@@ -168,9 +182,11 @@ export function buildTodayActions({ loop, srs, cards, planTask, forecast, daily,
     actions.push({
       key: 'plan',
       title: planTask.text,
-      detail: p && p.count > 0
-        ? `From your study plan · ${Math.min(p.count, p.target)} of ${p.target} done today.`
-        : 'From your study plan for today.',
+      detail: planTask.carried
+        ? `Carried over from ${weekdayOf(planTask.dueDate)}${p && p.count > 0 ? ` · ${Math.min(p.count, p.target)} of ${p.target} done` : ''}.`
+        : p && p.count > 0
+          ? `From your study plan · ${Math.min(p.count, p.target)} of ${p.target} done today.`
+          : 'From your study plan for today.',
       cta: planTask.kind === 'mock' ? 'Set up' : 'Start',
       ...plan,
     });

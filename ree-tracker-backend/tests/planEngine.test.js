@@ -167,6 +167,30 @@ describe('taskProgress — tasks complete themselves', () => {
     it('a free-text task is left to the learner', () => {
         expect(taskProgress([{ id: 'x', kind: null, dueDate: day }], answered, [])).toEqual([]);
     });
+
+    it('a missed drill counts its topic’s answers on the two days after, and no later', () => {
+        const drill = { id: 't', kind: 'drill', topic: 'Machines', dueDate: '2026-10-01', targetCount: 15 };
+        const on = (d, count) => ({ day: d, topic: 'Machines', count });
+        expect(taskProgress([drill], [on('2026-10-01', 4), on('2026-10-02', 5), on('2026-10-03', 6)], [])[0]).toMatchObject({ count: 15, done: true });
+        expect(taskProgress([drill], [on('2026-10-04', 30)], [])[0]).toMatchObject({ count: 0, done: false });
+        expect(taskProgress([drill], [on('2026-09-30', 30)], [])[0]).toMatchObject({ count: 0, done: false });
+    });
+
+    it('a carried drill takes nothing from a day with its own drill on that topic, done or not', () => {
+        const first = { id: 'a', kind: 'drill', topic: 'Machines', dueDate: '2026-10-01', targetCount: 15 };
+        const next = { id: 'b', kind: 'drill', topic: 'machines', dueDate: '2026-10-02', targetCount: 15, completed: true };
+        const answers = [{ day: '2026-10-02', topic: 'Machines', count: 15 }, { day: '2026-10-03', topic: 'Machines', count: 6 }];
+        // Only the open task is asked about; the whole plan says which days are taken.
+        expect(taskProgress([first], answers, [], [], [first, next])).toEqual([{ id: 'a', count: 6, target: 15, done: false }]);
+    });
+
+    it('a missed mock is done by a sitting within two days; a review stays same-day', () => {
+        const mock = { id: 'm', kind: 'mock', dueDate: '2026-10-01', targetCount: 1 };
+        expect(taskProgress([mock], [], ['2026-10-03'])[0].done).toBe(true);
+        expect(taskProgress([mock], [], ['2026-10-04'])[0].done).toBe(false);
+        const review = { id: 'r', kind: 'review', dueDate: '2026-10-01', targetCount: 10 };
+        expect(taskProgress([review], [{ day: '2026-10-02', topic: 'Algebra', count: 40 }], [])[0]).toMatchObject({ count: 0, done: false });
+    });
 });
 
 describe('topics flagged on outside scores', () => {
