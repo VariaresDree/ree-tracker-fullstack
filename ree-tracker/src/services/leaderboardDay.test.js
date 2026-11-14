@@ -11,11 +11,13 @@ const { fetchPaginatedLeaderboard, fetchLeaderboardMe } = await import('./dbQuer
 
 const reply = (body) => ({ ok: true, status: 200, headers: new Headers(), json: () => Promise.resolve(body) });
 let fetched;
+let items;
 
 beforeEach(() => {
   fetched = [];
+  items = [];
   vi.useFakeTimers({ toFake: ['Date'] });
-  vi.stubGlobal('fetch', vi.fn((url) => { fetched.push(String(url)); return Promise.resolve(reply({ items: [], rank: 1, total: 1 })); }));
+  vi.stubGlobal('fetch', vi.fn((url) => { fetched.push(String(url)); return Promise.resolve(reply({ items, rank: 1, total: 1 })); }));
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -31,5 +33,13 @@ describe('rankings requests name the day', () => {
     expect(fetched[0]).toMatch(/\/api\/leaderboard\/paginated\?limit=20&day=2026-11-14$/);
     expect(fetched[1]).toMatch(/\/api\/leaderboard\/me\?day=2026-11-14$/);
     expect(fetched[2]).toMatch(/\/api\/leaderboard\/paginated\?limit=20&cursor=20&day=2026-11-15$/);
+  });
+});
+
+describe('a row says whether its streak was extended today', () => {
+  it('keeps yes and no apart from "the server didn’t say"', async () => {
+    items = [{ uid: 'a', streak: 3, studiedToday: true }, { uid: 'b', streak: 3, studiedToday: false }, { uid: 'c', streak: 3 }];
+    const { agents } = await fetchPaginatedLeaderboard(20, null);
+    expect(agents.map((a) => a.studiedToday)).toEqual([true, false, undefined]);
   });
 });

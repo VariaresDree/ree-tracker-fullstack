@@ -122,3 +122,52 @@ describe('GET /leaderboard — live fallback while the snapshot is stale', () =>
         expect(res.body.leaderboard.map((a) => [a.uid, a.streak])).toEqual([['alive', 3], ['broken', 0]]);
     });
 });
+
+// A streak alive on yesterday's answers looked the same as one extended today
+// (2026-11-14: read as "the streak doesn't reset"). Each row now says whether
+// its owner has answered today, so Rankings can show the difference.
+describe('studiedToday: has this streak been extended today?', () => {
+    const entry = (userId, rank) => ({ userId, rank, displayName: userId, role: 'USER', thetaRating: 1, globalStreak: 3, activeDays: 2, questionsAnswered: 9, accuracy: 0.5, lastActive: new Date() });
+
+    it('snapshot rows: one read of today\'s study days for the ids on the page', async () => {
+        vi.spyOn(prisma.leaderboardEntry, 'findFirst').mockResolvedValue({ snapshotAt: new Date() });
+        vi.spyOn(prisma.leaderboardEntry, 'findMany').mockResolvedValue([entry(UID, 1), entry('rested', 2)]);
+        const today = vi.spyOn(prisma.activityLog, 'findMany').mockResolvedValue([{ userId: UID }]);
+
+        const paged = await request(app).get('/api/leaderboard/paginated').set('Authorization', `Bearer ${UID}`);
+        expect(paged.body.items.map((a) => [a.uid, a.streak, a.studiedToday])).toEqual([[UID, 3, true], ['rested', 3, false]]);
+        expect(today.mock.calls[0][0]).toEqual({ where: { date: todayManila(), userId: { in: [UID, 'rested'] } }, select: { userId: true } });
+
+        const list = await request(app).get('/api/leaderboard').set('Authorization', `Bearer ${UID}`);
+        expect(list.body.leaderboard.map((a) => a.studiedToday)).toEqual([true, false]);
+    });
+
+    it('when that read fails the list still answers, and says nothing about today', async () => {
+        vi.spyOn(prisma.leaderboardEntry, 'findFirst').mockResolvedValue({ snapshotAt: new Date() });
+        vi.spyOn(prisma.leaderboardEntry, 'findMany').mockResolvedValue([entry(UID, 1)]);
+        vi.spyOn(prisma.activityLog, 'findMany').mockRejectedValue(new Error('db down'));
+
+        const res = await request(app).get('/api/leaderboard/paginated').set('Authorization', `Bearer ${UID}`);
+        expect(res.status).toBe(200);
+        expect(res.body.items[0]).toMatchObject({ uid: UID, streak: 3 });
+        expect(res.body.items[0]).not.toHaveProperty('studiedToday');
+    });
+
+    it('live rows (your own, and the stale-snapshot fallback) read it from the days they already carry', async () => {
+        vi.spyOn(prisma.leaderboardEntry, 'findFirst').mockResolvedValue({ snapshotAt: new Date() });
+        vi.spyOn(prisma.leaderboardEntry, 'findUnique').mockResolvedValue({ userId: UID, rank: 1, thetaRating: 1.2, activeDays: 4, questionsAnswered: 30, accuracy: 0.5 });
+        vi.spyOn(prisma.leaderboardEntry, 'count').mockResolvedValue(10);
+        const findUnique = vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(liveUser(UID, [daysBack(1)]));
+        const me = () => request(app).get('/api/leaderboard/me').set('Authorization', `Bearer ${UID}`);
+        expect((await me()).body.self).toMatchObject({ streak: 3, studiedToday: false });
+        findUnique.mockResolvedValue(liveUser(UID, [daysBack(1), daysBack(0)]));
+        expect((await me()).body.self).toMatchObject({ streak: 3, studiedToday: true });
+
+        vi.spyOn(prisma.leaderboardEntry, 'findFirst').mockResolvedValue(null);
+        vi.spyOn(prisma.user, 'findMany').mockResolvedValue([liveUser('today', [daysBack(0)]), liveUser('yesterday', [daysBack(1)])]);
+        vi.spyOn(prisma.activityLog, 'groupBy').mockResolvedValue([]);
+        vi.spyOn(prisma, '$transaction').mockResolvedValue([]);
+        const res = await request(app).get('/api/leaderboard').set('Authorization', `Bearer ${UID}`);
+        expect(res.body.leaderboard.map((a) => [a.uid, a.studiedToday])).toEqual([['today', true], ['yesterday', false]]);
+    });
+});
