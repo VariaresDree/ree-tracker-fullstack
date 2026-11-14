@@ -77,5 +77,7 @@ export function buildSessionSummary(attempts, questions, durationSecs) {
     luckyGuesses,
     items,
     missedCount,
+    // Due reviews a bank-drawn set led with (mixDue).
+    dueReviews: items.filter((i) => i.question.dueReview).length,
   };
 }

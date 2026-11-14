@@ -40,7 +40,7 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
   // The session screen was scrolled to its last question.
   useEffect(() => { window.scrollTo?.(0, 0); }, []);
 
-  const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, items = [], missedCount } = summary;
+  const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, items = [], missedCount, dueReviews = 0 } = summary;
   const tone = accuracy >= 70 ? 'success' : accuracy >= 50 ? 'amber' : 'danger';
   const source = summary.config?.source;
   const judged = total >= VERDICT_MIN && !REVIEW_SOURCES.has(source);
@@ -135,8 +135,9 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
           </p>
         )}
 
-        {(confidentMisses > 0 || luckyGuesses > 0 || comingBack > 0) && (
+        {(confidentMisses > 0 || luckyGuesses > 0 || comingBack > 0 || dueReviews > 0) && (
           <ul className="flex flex-col gap-1.5 text-sm text-muted2">
+            {dueReviews > 0 && <li>{dueReviews} of these {dueReviews === 1 ? 'was a due review' : 'were due reviews'}, now off today’s pile.</li>}
             {confidentMisses > 0 && (
               <li>
                 <span className="font-medium" style={{ color: 'var(--accent-danger)' }}>

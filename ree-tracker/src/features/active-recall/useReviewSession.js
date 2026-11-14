@@ -17,7 +17,13 @@ import { reportQuestion } from '../../services/reportQuestion';
 import { buildSessionSummary } from './buildSessionSummary';
 import { clearSavedSession, loadSavedSession, saveSession } from './savedSession';
 import { pickNextLocal } from './adaptiveFallback';
+import { dueShare, mixDue } from './mixDue';
 import toast from 'react-hot-toast';
+
+// The due reviews for a bank-drawn set. None on any failure: the set still runs.
+const dueFor = async (...args) => {
+    try { return (await fetchSrsDue(...args)) || []; } catch { return []; }
+};
 
 // Restart the per-question clock. Called from Next (an event handler, never
 // during render), so the wall-clock read lives out here.
@@ -171,6 +177,9 @@ export const useReviewSession = (currentUser, isOnline) => {
             let adaptive = null;
             let loopCardsDue = target.cardsDue ?? cfg.cardsDue ?? 0;
             let offlineNote = null;
+            // The learner's due reviews that lead a bank-drawn set (mixDue).
+            let dueReviews = [];
+            let dueScope = {};
 
             // 1. Data Ingestion (DEEP POOL FETCH STRATEGY)
             if (cfg.source === 'items') {
@@ -284,7 +293,12 @@ export const useReviewSession = (currentUser, isOnline) => {
                 const focused = cfg.cognitiveFocus === 'conceptual' || cfg.cognitiveFocus === 'calculation';
                 const limit = poolLimit(want, { filtered: focused, max: 1000 });
                 const subtopicId = cfg.studyMode === 'subtopic' && cfg.subtopicId ? cfg.subtopicId : undefined;
-                freshData = await fetchVaultQuestions(cfg.subject, subTarget, limit, 'random', { focus: focused ? cfg.cognitiveFocus : undefined, subtopicId });
+                dueScope = { subtopic: subTarget, subtopicId };
+                // Flashcards are self-graded, so they don't stand in for a review.
+                [freshData, dueReviews] = await Promise.all([
+                    fetchVaultQuestions(cfg.subject, subTarget, limit, 'random', { focus: focused ? cfg.cognitiveFocus : undefined, subtopicId }),
+                    isOnline && cfg.sessionMode !== 'flashcard' ? dueFor(dueShare(want), cfg.subject, dueScope) : [],
+                ]);
                 // The server draws the focus now. An older one ignores it, so a
                 // pool with other kinds in it, and too few of this one, is
                 // drawn again larger, as before. (The bank simply having fewer
@@ -310,7 +324,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 ? filteredData.slice(0, cfg.count || filteredData.length)
                 : cfg.source === 'adaptive'
                     ? filteredData
-                    : stratifiedSample(filteredData, cfg.count || 20);
+                    : mixDue(stratifiedSample(filteredData, cfg.count || 20), inFocus(dueReviews), cfg.count || 20, dueScope);
             adaptiveRef.current = adaptive;
             sittingKeyRef.current = newSittingKey();
             const shownQuestions = finalSessionQuestions.map((q) => presentOptions(q, sittingKeyRef.current));
