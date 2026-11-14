@@ -158,11 +158,36 @@ describe('Planner v2', () => {
         vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ day: '2026-10-03', topic: 'Protection', count: 22 }]);
         vi.spyOn(prisma.examSession, 'findMany').mockResolvedValue([]);
 
+        const saved = vi.spyOn(prisma.plannerTask, 'updateMany').mockResolvedValue({ count: 1 });
+
         const res = await request(makeApp()).get('/api/user/tasks').set(as(UID));
         expect(res.status).toBe(200);
         const drill = res.body.items.find((t) => t.id === 'd1');
         expect(drill.progress).toMatchObject({ count: 22, target: 20, done: true });
         expect(res.body.items.find((t) => t.id === 'free').progress).toBeUndefined();
+        // Done by answering is saved, for this learner's task only.
+        expect(drill.completed).toBe(true);
+        expect(saved.mock.calls).toEqual([[{ where: { id: { in: ['d1'] }, userId: UID }, data: { completed: true } }]]);
+    });
+
+    it('GET /tasks still answers when saving a done task fails, and saves nothing when none is done', async () => {
+        vi.spyOn(prisma.plannerTask, 'findMany').mockResolvedValue([
+            { id: 'd1', kind: 'drill', topic: 'Protection', dueDate: '2026-10-03', targetCount: 20, completed: false, text: 'Drill Protection' },
+        ]);
+        const answers = vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ day: '2026-10-04', topic: 'Protection', count: 20 }]);
+        vi.spyOn(prisma.examSession, 'findMany').mockResolvedValue([]);
+        const saved = vi.spyOn(prisma.plannerTask, 'updateMany').mockRejectedValue(new Error('db down'));
+
+        // Answered the day after: carried over, so done.
+        const res = await request(makeApp()).get('/api/user/tasks').set(as(UID));
+        expect(res.status).toBe(200);
+        expect(res.body.items[0]).toMatchObject({ completed: true, progress: { count: 20, done: true } });
+
+        saved.mockClear();
+        answers.mockResolvedValue([]);
+        const none = await request(makeApp()).get('/api/user/tasks').set(as(UID));
+        expect(none.body.items[0]).toMatchObject({ completed: false, progress: { count: 0, done: false } });
+        expect(saved).not.toHaveBeenCalled();
     });
 
     it('weights a topic with open mistakes up and says how many are open; plans formula-card days', async () => {
@@ -195,6 +220,7 @@ describe('Planner v2', () => {
         vi.spyOn(prisma.examSession, 'findMany').mockResolvedValue([]);
         const at = (h) => new Date(Date.UTC(2026, 9, 3, h)); // 2026-10-03, Manila daytime
         const rated = vi.spyOn(prisma.cardReview, 'findMany').mockResolvedValue([at(1), at(2), at(3), at(4), at(5)].map((d) => ({ lastReviewed: d })));
+        vi.spyOn(prisma.plannerTask, 'updateMany').mockResolvedValue({ count: 1 });
 
         const res = await request(makeApp()).get('/api/user/tasks').set(as(UID));
         expect(res.body.items[0].progress).toMatchObject({ count: 5, target: 5, done: true });

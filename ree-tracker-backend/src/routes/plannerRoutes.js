@@ -7,7 +7,7 @@ const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { Prisma } = require('@prisma/client');
 const { todayManila, manilaDateOf, manilaDaySql, manilaMidnight } = require('../utils/manilaDate');
-const { normalizeSubject } = require('@ree/shared');
+const { normalizeSubject, PLAN_CARRY_DAYS } = require('@ree/shared');
 const { buildStudyPlan, cardTasks, taskProgress, PLAN_HORIZON_DAYS } = require('../engine/plan');
 const { loadMistakes } = require('../services/mistakeList');
 const { loadTopicSignals } = require('../services/topicSignals');
@@ -38,7 +38,8 @@ async function plannedProgress(userId, tasks) {
         if (planned.length > 0) {
             const days = planned.map((t) => t.dueDate).sort();
             const from = manilaMidnight(days[0], 0);
-            const to = manilaMidnight(days[days.length - 1], 1);
+            // A missed drill or mock counts the carry days after its own (taskProgress).
+            const to = manilaMidnight(days[days.length - 1], 1 + PLAN_CARRY_DAYS);
             const answeredAt = Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`;
             const hasCards = planned.some((t) => t.kind === 'cards');
             const [answered, mocks, rated] = await Promise.all([
@@ -73,7 +74,7 @@ async function plannedProgress(userId, tasks) {
                 const day = manilaDateOf(r.lastReviewed);
                 cardDays.set(day, (cardDays.get(day) || 0) + 1);
             }
-            progress = taskProgress(planned, answered, mocks.map((m) => manilaDateOf(m.createdAt)), [...cardDays].map(([day, count]) => ({ day, count })));
+            progress = taskProgress(planned, answered, mocks.map((m) => manilaDateOf(m.createdAt)), [...cardDays].map(([day, count]) => ({ day, count })), tasks);
         }
         return progress;
 }
@@ -89,8 +90,16 @@ router.get('/tasks', authMiddleware, async (req, res) => {
         });
         const progress = await plannedProgress(req.user.id, tasks);
         const byId = new Map(progress.map((p) => [p.id, p]));
+        // Done by answering is saved, so it stays done once its days pass and
+        // the stored column is true (it was written only by a manual tick: 0 of
+        // 120 plan tasks read as completed on 2026-11-14). A failed write only
+        // means the next read saves it.
+        const justDone = progress.filter((p) => p.done).map((p) => p.id);
+        if (justDone.length > 0) {
+            await prisma.plannerTask.updateMany({ where: { id: { in: justDone }, userId: req.user.id }, data: { completed: true } }).catch(() => {});
+        }
 
-        res.status(200).json({ items: tasks.map((t) => (byId.has(t.id) ? { ...t, progress: byId.get(t.id) } : t)) });
+        res.status(200).json({ items: tasks.map((t) => (byId.has(t.id) ? { ...t, completed: byId.get(t.id).done, progress: byId.get(t.id) } : t)) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch planner tasks.' });
     }

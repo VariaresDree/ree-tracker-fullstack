@@ -45,7 +45,7 @@
 
 'use strict';
 
-const { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, SMART_DRILL_MAX_ITEMS, reviewPhase, PHASE_MOCK_EVERY } = require('@ree/shared');
+const { DEFAULT_SYLLABUS_WEIGHTS, normalizeWeights, SMART_DRILL_MAX_ITEMS, reviewPhase, PHASE_MOCK_EVERY, PLAN_CARRY_DAYS } = require('@ree/shared');
 const { DEFAULT_BKT } = require('../config/bktParams');
 
 const PLAN_HORIZON_DAYS = 42;
@@ -391,9 +391,21 @@ const norm = (s) => String(s || '').trim().toLowerCase();
  * @param {Array<{day, topic, count}>} answered  answers per Manila day per topic
  * @param {string[]} mockDays  Manila days with a timed sitting
  * @param {Array<{day, count}>} [cardDays]  formula cards rated per Manila day
+ * @param {Array<{kind, topic?, dueDate}>} [everyTask]  the whole plan, done
+ *   tasks included, so a carried task takes no credit from a day that has its
+ *   own task of the same kind and topic
  * @returns {Array<{id, count, target, done}>} only for planned (kinded) tasks
+ *
+ * A drill or mock missed on its day counts the PLAN_CARRY_DAYS after it too
+ * (2026-11-14: a missed task vanished from Today and could never be finished).
+ * Review and cards tasks stay same-day: they count every answer or rating of
+ * the day, which the next day's own task already takes.
  */
-function taskProgress(tasks, answered, mockDays, cardDays = []) {
+function taskProgress(tasks, answered, mockDays, cardDays = [], everyTask = tasks) {
+    const slot = (t, day) => `${t.kind}|${norm(t.topic)}|${day}`;
+    const taken = new Set((everyTask || []).filter((t) => t?.kind && t.dueDate).map((t) => slot(t, t.dueDate)));
+    // The task's own day, then the carry days no like task already owns.
+    const daysOf = (t) => [t.dueDate, ...Array.from({ length: PLAN_CARRY_DAYS }, (_, i) => toYmd(toUtc(t.dueDate) + (i + 1) * DAY_MS)).filter((d) => !taken.has(slot(t, d)))];
     const byDay = new Map();
     for (const a of answered || []) {
         const entry = byDay.get(a.day) || { total: 0, byTopic: new Map() };
@@ -409,9 +421,9 @@ function taskProgress(tasks, answered, mockDays, cardDays = []) {
             const day = byDay.get(t.dueDate);
             const target = t.targetCount || 1;
             let count = 0;
-            if (t.kind === 'drill') count = day?.byTopic.get(norm(t.topic)) || 0;
+            if (t.kind === 'drill') count = daysOf(t).reduce((n, d) => n + (byDay.get(d)?.byTopic.get(norm(t.topic)) || 0), 0);
             else if (t.kind === 'review') count = day?.total || 0;
-            else if (t.kind === 'mock') count = mocks.has(t.dueDate) ? 1 : 0;
+            else if (t.kind === 'mock') count = daysOf(t).some((d) => mocks.has(d)) ? 1 : 0;
             else if (t.kind === 'cards') count = cardsOn.get(t.dueDate) || 0;
             return { id: t.id, count, target, done: count >= target };
         });

@@ -92,7 +92,14 @@ function storableTimeMs(ms) {
     return Math.min(n, TIME_STORE_MAX_MS);
 }
 
+/**
+ * A missed study-plan drill or mock stays open this many days after its own:
+ * Today keeps offering it and the server counts its answers over the same days.
+ */
+const PLAN_CARRY_DAYS = 2;
+
 module.exports = {
+    PLAN_CARRY_DAYS,
     WEAK_TOPIC_ACCURACY,
     BLIND_SPOT_ACCURACY,
     BLIND_SPOT_MIN_ATTEMPTS,
