@@ -23,12 +23,21 @@ router.get('/due', authMiddleware, async (req, res) => {
     try {
         const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
         const subjFilter = getSubjectFilter(req.query.subject);
+        // A Practice set pinned to a topic or subtopic mixes in only its own
+        // due reviews (the app's mixDue).
+        const { subtopic, subtopicId } = req.query;
+        const topic = typeof subtopic === 'string' && subtopic.trim() && subtopic !== 'All' ? subtopic.trim() : null;
 
         const cards = await prisma.sRSCard.findMany({
             where: {
                 userId: req.user.id,
                 nextReviewDate: { lte: new Date() },
-                question: { isFlagged: false, ...(subjFilter ? { subject: subjFilter } : {}) },
+                question: {
+                    isFlagged: false,
+                    ...(subjFilter ? { subject: subjFilter } : {}),
+                    ...(topic ? { subtopic: topic } : {}),
+                    ...(typeof subtopicId === 'string' && subtopicId ? { subtopicId: subtopicId.slice(0, 100) } : {}),
+                },
             },
             include: { question: true },
             orderBy: { nextReviewDate: 'asc' },

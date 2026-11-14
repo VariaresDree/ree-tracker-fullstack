@@ -234,6 +234,8 @@ export default function Practice() {
       </SessionBar>
 
       {session.offlineNote && <p role="status" className="text-xs text-muted2 min-w-0">{session.offlineNote}</p>}
+      {/* Says why a question seen before is back in an ordinary set (mixDue). */}
+      {currentQ.dueReview && <p className="text-xs text-muted2 min-w-0"><Badge tone="signal">Due review</Badge> From your review pile.</p>}
       <div ref={itemRef} tabIndex={-1} className={ITEM_FOCUS_CLASS}>
       <QuestionSurface className="overflow-hidden transition-colors duration-700">
 

@@ -57,6 +57,14 @@ describe('GET /api/srs/due', () => {
         expect(args.take).toBe(10);
     });
 
+    it('keeps to a topic and a subtopic when asked (a Practice set pinned to one)', async () => {
+        const findMany = vi.spyOn(prisma.sRSCard, 'findMany').mockResolvedValue([]);
+        await request(makeApp()).get('/api/srs/due?subtopic=Machines&subtopicId=s1').set(as(UID));
+        expect(findMany.mock.calls[0][0].where.question).toEqual({ isFlagged: false, subtopic: 'Machines', subtopicId: 's1' });
+        await request(makeApp()).get('/api/srs/due?subtopic=All').set(as(UID));
+        expect(findMany.mock.calls[1][0].where.question).toEqual({ isFlagged: false });
+    });
+
     it('caps the page size', async () => {
         const findMany = vi.spyOn(prisma.sRSCard, 'findMany').mockResolvedValue([]);
         await request(makeApp()).get('/api/srs/due?limit=5000').set(as(UID));

@@ -224,9 +224,11 @@ export const updateCommandParameters = async (uid, params) => apiRequest('/api/u
 // Spaced review. Cards are scheduled server-side from every recorded answer
 // (engine/srs via the telemetry transaction) — the client only reads the queue.
 // The old logSRSRecord POSTed client-computed intervals and had no callers.
-export const fetchSrsDue = async (limit = 20, subject) => {
+export const fetchSrsDue = async (limit = 20, subject, { subtopic, subtopicId } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (subject && subject !== 'All') params.set('subject', subject);
+    if (subtopic && subtopic !== 'All') params.set('subtopic', subtopic);
+    if (subtopicId) params.set('subtopicId', subtopicId);
     const data = await apiRequest(`/api/srs/due?${params.toString()}`);
     return normalizeQuestions(data);
 };

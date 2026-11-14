@@ -44,7 +44,7 @@ vi.mock('../../store/useStore', () => ({ useStore: { getState: () => ({ stats: {
 const toast = (await import('react-hot-toast')).default;
 const { fetchBookmarks } = await import('../../services/bookmarks');
 const { getOfflineQuestions } = await import('../../services/offlinePack');
-const { apiRequest, fetchSmartDrillQuestions, fetchTodayLoop, fetchNextItem, fetchVaultQuestions } = await import('../../services/dbQueries');
+const { apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, fetchNextItem, fetchVaultQuestions } = await import('../../services/dbQueries');
 const { generateMasterExplanation } = await import('../../services/geminiApi');
 const { useReviewSession } = await import('./useReviewSession');
 const { adaptivePreset, bookmarksPreset, drillPreset, itemsPreset, todayLoopPreset } = await import('./presets');
@@ -533,6 +533,38 @@ describe('question bank source', () => {
     await act(() => result.current.startSession({ ...library, cognitiveFocus: 'mixed' }));
     expect(fetchVaultQuestions.mock.calls).toEqual([['EE', 'All', 60, 'random', { focus: undefined, subtopicId: undefined }]]);
     expect(result.current.session.questions).toHaveLength(20);
+  });
+
+  it('leads with the learner’s due reviews, a quarter at most, and the summary counts them', async () => {
+    fetchVaultQuestions.mockResolvedValue(bank(60, 'conceptual'));
+    fetchSrsDue.mockResolvedValue([q('due-1', 'EE', 'Topic 1'), q('due-2', 'EE', 'Topic 2')]);
+    const { result } = setup();
+    await act(() => result.current.startSession({ ...library, cognitiveFocus: 'mixed' }));
+    expect(fetchSrsDue.mock.calls).toEqual([[5, 'EE', { subtopic: 'All', subtopicId: undefined }]]);
+    const { questions } = result.current.session;
+    expect(questions).toHaveLength(20);
+    expect(questions.filter((x) => x.dueReview).map((x) => x.id)).toEqual(['due-1', 'due-2']);
+    expect(questions[0].id).toBe('due-1');
+
+    act(() => result.current.setSession((s) => ({ ...s, confidence: 'HIGH' })));
+    act(() => result.current.handleAnswerSelection(result.current.session.questions[0].answer));
+    await act(() => result.current.endSession());
+    expect(result.current.lastSummary.dueReviews).toBe(1);
+  });
+
+  it('offline, in flashcards, or when the review request fails, the set is the bank’s', async () => {
+    fetchVaultQuestions.mockResolvedValue(bank(60, 'conceptual'));
+    fetchSrsDue.mockRejectedValue(new Error('down'));
+    const failed = setup();
+    await act(() => failed.result.current.startSession({ ...library, cognitiveFocus: 'mixed' }));
+    expect(failed.result.current.session.questions).toHaveLength(20);
+
+    fetchSrsDue.mockClear();
+    const offline = setup(false);
+    await act(() => offline.result.current.startSession({ ...library, cognitiveFocus: 'mixed' }));
+    const cards = setup();
+    await act(() => cards.result.current.startSession({ ...library, sessionMode: 'flashcard', cognitiveFocus: 'mixed' }));
+    expect(fetchSrsDue).not.toHaveBeenCalled();
   });
 
   it('a subtopic is drawn by the server too', async () => {
