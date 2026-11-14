@@ -9,7 +9,7 @@ const { telemetryBulkSchema } = require('../schemas/telemetrySchemas');
 const prisma = require('../config/db');
 const { TIME_MIN_MS, TIME_MAX_MS } = require('../config/telemetryBounds');
 const { recordAttempts, todayManila } = require('../services/telemetryService');
-const { normalizeSubject, effectiveStreak, lastStudyDay } = require('@ree/shared');
+const { normalizeSubject, effectiveStreak, lastStudyDay, manilaDateOf } = require('@ree/shared');
 const { Prisma } = require('@prisma/client');
 const { manilaDaySql } = require('../utils/manilaDate');
 const { PRIOR_SE } = require('../engine/irt');
@@ -248,9 +248,8 @@ router.get('/dashboard/:uid', authMiddleware, requireSelf('uid'), async (req, re
         // re-stamps that on every app open.
         const globalStreak = effectiveStreak(user.globalStreak, lastStudyDay({ activityCalendar }, today), today);
 
-        const manilaFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
         const thetaHistory = thetaRows.map((r) => ({
-            date: manilaFmt.format(r.recordedAt),
+            date: manilaDateOf(r.recordedAt),
             theta: r.theta,
         }));
 

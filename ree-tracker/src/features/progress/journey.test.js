@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { mondayOf, passPoints, readinessPoints, subjectTrends, trendOf, weekLine, weekRows } from './journey';
+import { mondayOf } from '@ree/shared';
+import { passPoints, readinessPoints, subjectTrends, trendOf, weekLine, weekRows } from './journey';
 
 const wk = (week, subject, answered, correct) => ({ week, subject, answered, correct });
 

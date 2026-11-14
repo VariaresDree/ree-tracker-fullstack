@@ -13,11 +13,11 @@ import { useEngineActionsSlice } from '../../store/slices';
 import { shuffleArray } from '../../utils/shuffle';
 import { applyFocusFilter, boardWeightedSample, deepestGroup, poolLimit, stratifiedSample } from './poolFilters';
 import { groupsForDraw } from './drawModes';
-import { computeBattleDiagnostics } from './battleGrades';
+import { computeBattleDiagnostics, weakTopicsOf } from './battleGrades';
 import { reportQuestion } from '../../services/reportQuestion';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
-  PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, WEAK_TOPIC_ACCURACY, TIME_SINK_MS,
+  PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, TIME_SINK_MS,
   newSittingKey, shuffleWithKey, OPTION_ORDER_VERSION, battleOrderKey,
 } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
@@ -736,7 +736,7 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
             });
         }
 
-        const weakTopics = Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t);
+        const weakTopics = weakTopicsOf(topicBreakdown);
         const diagnosticsPayload = {
             score, generalAverage, verdict, timeTakenSecs: timeTakenActual, subjectScores, timedOut,
             weakTopics,

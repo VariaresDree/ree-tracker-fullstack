@@ -7,7 +7,7 @@ const { mockHistory } = require('../services/examHistory');
 const { buildSittingReview, SittingReviewError } = require('../services/sittingReview');
 const { loadFocusTime } = require('../services/focusTime');
 const { loadWeakSignals } = require('../services/topicSignals');
-const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession, foldWeeklyAccuracy } = require('../services/deepAnalyticsHelpers');
+const { aggregateDailyStudy, foldWeeklyAccuracy } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
 // Manila calendar date of an instant — same helper telemetryService keys
 // ActivityLog on, so "a study day" means the same thing everywhere.
@@ -219,42 +219,6 @@ router.get('/focus-time', authMiddleware, async (req, res) => {
         res.status(200).json(await loadFocusTime(req.user.id));
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch focus time.' });
-    }
-});
-
-// GET /api/analytics/deep/score-progression — REAL exams only (Board Sim /
-// Gauntlet), with the percentage computed server-side. ExamSession.score is a
-// raw correct count; the old payload let the UI render "7%" for 7/10.
-router.get('/score-progression', authMiddleware, async (req, res) => {
-    try {
-        // `desc` + reverse, NOT `asc`. With `orderBy: asc, take: 100` the chart
-        // froze on a user's FIRST hundred sessions and never showed recent
-        // progress again — the opposite of what a progression chart is for.
-        const exams = await prisma.examSession.findMany({
-            where: { userId: req.user.id },
-            orderBy: { createdAt: 'desc' },
-            take: 100,
-            select: { id: true, score: true, totalQuestions: true, targetSubject: true, createdAt: true, verdict: true, mode: true }
-        });
-
-        // Never-finalised sessions get their verdict re-derived from their OWN
-        // attempts' per-subject split — one grouped query for all of them, so
-        // the PRC subject floor and the weighted average both apply.
-        const pendingIds = exams.filter(needsDerivedVerdict).map((e) => e.id);
-        const subjectRows = pendingIds.length > 0
-            ? await prisma.$queryRaw`
-                SELECT "sessionId", "subject",
-                       COUNT(*)::int AS "total",
-                       COUNT(*) FILTER (WHERE "isCorrect")::int AS "correct"
-                FROM "QuestionAttempt"
-                WHERE "userId" = ${req.user.id} AND "sessionId" = ANY(${pendingIds})
-                GROUP BY "sessionId", "subject"`
-            : [];
-
-        // Restore chronological order for the chart.
-        res.status(200).json({ items: buildScoreProgression(exams.reverse(), subjectScoresBySession(subjectRows)) });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch score progression.' });
     }
 });
 

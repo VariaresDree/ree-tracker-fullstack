@@ -12,7 +12,47 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0g. Handover, learner-loop round of 2026-11-11 (read this first)
+## 0h. Handover, round of 2026-11-14 (read this first)
+
+The owner asked again for the ideal review app: track, test, assess, analyze; plan, refactor, revise. Live use was measured first (read-only), and the round follows it. Plan file: `help-me-improve-my-toasty-marble.md` on the owner's machine.
+
+**What the numbers said (2026-11-14):** 21 accounts, 11 active in 7 days, 8 new that week. 96% of answers are Practice; the median session is 10 questions. Active learners answered 80 to 100 questions a week and reviewed almost none of their due cards. Mathematics was 55% of answers and is 25% of the board. Notes, mistake causes and formula-card ratings: 0. Exam date set: 2 accounts. 5 mock sittings in 30 days.
+
+| PR | What |
+|---|---|
+| #275 | Due reviews inside ordinary Practice: a bank-drawn set leads with up to a quarter of the learner's own due reviews (`mixDue.js`), labelled **Due review**; `/api/srs/due` takes `subtopic` and `subtopicId` |
+| #276 | A missed plan drill or mock carries over two days (`PLAN_CARRY_DAYS`): Today offers it, the server counts its answers over the same days, and done-by-answering is saved to `completed` |
+| #277 | Progress › Overview › **Your journey**: readiness, pass chance and each subject's accuracy over time; the forecast is saved once a Manila day; `GET /api/forecast/history`, `GET /api/analytics/deep/weekly-accuracy` |
+| #278 | Every analysis leads somewhere: one link each on Accuracy by subject, Time per question and Confidence levels (`sections/nextSteps.js`) |
+| #279 | Mock debrief: against your last sitting of the same format, the two halves of the paper, and a Change column in Past sittings (`features/exams/sittingDelta.js`) |
+| this PR | One rule per idea (no behaviour change): `scoreTone`, `weakTopicsOf`, `mondayOf`, the timer on `TIME_SINK_MS`; three endpoints nothing called are removed |
+
+**Your actions:**
+1. **Review the unsure subtopic tags:** Admin › Question bank › Subtopics › To review (1,126 on 2026-11-14). 2,645 of 17,585 questions were tagged and 54 subtopics had 10 or more.
+2. **Look at Progress › Overview** a day or two after #277 deploys: Pass chance gets its first point on the first visit and its trend the day after.
+3. **Ask two or three of the new learners** what they open first and where they stop. The usage numbers say what happens, not why.
+4. Still owed from earlier rounds: a real phone check, filing the 13 quiz files, copying the history archive to Drive.
+
+**Decisions:**
+- A quarter of each bank-drawn Practice set is due reviews (5 of 20, 3 of 10). Not mixed into flashcards (self-graded), adaptive sets, drills, AI or bookmark sets.
+- A missed drill or mock carries two days, then drops. Review and cards tasks stay same-day, because they count every answer of the day.
+- No new study tools this round: the unused ones get no more surface until Practice carries reviews.
+- A stored `PlannerTask.completed` was written only by a manual tick before #276, so plan-completion figures from before 2026-11-14 undercount.
+
+**Not verified:**
+- Any of this round's PRs signed in on production. Each has unit tests; CI's signed-in E2E passed on #275 to #278.
+- The Your journey card in a browser (it needs a signed-in session against a server with the new routes).
+- Whether reviews now get done: a week after #275 deploys, re-run the usage query. The overdue share for active accounts was about 90%.
+
+**Next, in order of value:**
+1. Check the review numbers after a week, then decide whether a quarter is the right share.
+2. Smart drill by subtopic and per-subtopic mastery in the forecast, once the unsure tags are reviewed.
+3. One-tap board dates for the exam date (2 of 21 accounts set one): needs the official PRC dates.
+4. Ability with a recency weight, and mocks as forecast evidence: its own round, with before-and-after figures, since it moves every learner's numbers.
+5. Split the three largest files, one per PR: `useSimulatorEngine.js` (992 lines), `store/useStore.js` (916), `services/battleLifecycle.js` (913).
+6. The high-yield badge and filter in `SyllabusTab.jsx` are dormant (the admin control that set the flag is gone): remove them or bring the control back.
+
+## 0g. Handover, learner-loop round of 2026-11-11
 
 The owner asked for the next round after the optimization one: help learners track, test, assess and analyze, and fix what was found on the way. Usage measured first (read-only): 95% of answers are Practice, the tools around it go unused, reviews piled up (303 of 646 cards overdue), sessions ended at a dead end, and no question was tagged with a subtopic. Plan file: `help-me-improve-my-bubbly-toucan.md` on the owner's machine. Then, near the 5 GB egress limit, a second egress pass.
 
@@ -73,7 +113,6 @@ The owner asked for the next round after the optimization one: help learners tra
 1. Run the tagging, then check a Practice set on one subtopic draws only from it.
 2. Smart drill by subtopic (not done: Practice covers a subtopic drill), and per-subtopic mastery in the forecast.
 3. The boot download is at 97.8% of 700 kB (about 15 kB of room). Next candidates: Tailwind's colour fallbacks, the theme blocks (only without a colour flash), Login.
-4. Smart drill by subtopic and per-subtopic mastery, once the bank is tagged.
 
 ## 0f. Handover, optimization round of 2026-11-10/11
 
@@ -578,13 +617,13 @@ Main is at `74647df` (#190), live on Vercel and Render. Fifteen PRs merged since
 - It's display only, by design: it never feeds θ or readiness.
 
 **Reminders**
-- Push is phone-app only. Web Push (VAPID) isn't built, so browser users get no scheduled reminder.
+- Push reaches the phone app and, since #261, a browser (Web Push through Firebase; Admin › App health › Push reminders switches it).
 - Times are Manila hours. The server sends 04:00–23:00; other hours use the on-device reminder.
 - GitHub cron can run 10+ minutes late, and it pauses after 60 days of repo inactivity.
 
 **Code health**
 - **Lint ratchet:** **0**. Keep it there; FEATURES.md (Quality gates) lists the patterns that replaced each rule's errors.
-- **Boot bundle:** 625 kB of the 700 kB budget (89%). Before adding anything to the shell, look at what `@ree/shared` and the shell pull in eagerly.
+- **Boot bundle:** 675 kB of the 700 kB budget (96.5%, 2026-11-14). Before adding anything to the shell, look at what `@ree/shared` and the shell pull in eagerly.
 - **Not done:** memoising `ExamNavigator`'s 100 buttons and `AnswerSheet`'s 400 bubbles. The exam clock no longer re-renders them every second, so they only re-render on an answer; worth it only if a profile on a low-end phone says so.
 - **Rate limits:** 300 requests per signed-in learner per 15 minutes (`RATE_LIMIT_USER_MAX`), and a per-address flood guard of 3000 before sign-in (`RATE_LIMIT_GLOBAL_MAX`). Both are in memory, so with two backend instances each counts on its own (as with live battle rooms). One address signed in as several accounts can now send up to 3000 a window where it was 300; the only routes open without sign-in are `/api/config/tos` and the secret-guarded cron route, so that's accepted.
 

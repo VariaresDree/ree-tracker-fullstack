@@ -64,4 +64,13 @@ function isIsoDay(value) {
     return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
 }
 
-module.exports = { todayManila, yesterdayManila, manilaDateOf, nextManilaMidnight, isIsoDay };
+/**
+ * The Monday of a Manila day (YYYY-MM-DD): how a week is keyed, here and in
+ * the API's weekly SQL (date_trunc('week', ...) is Monday first too).
+ */
+function mondayOf(ymd) {
+    const at = Date.parse(`${ymd}T00:00:00Z`);
+    return new Date(at - ((new Date(at).getUTCDay() + 6) % 7) * DAY_MS).toISOString().slice(0, 10);
+}
+
+module.exports = { todayManila, yesterdayManila, manilaDateOf, nextManilaMidnight, isIsoDay, mondayOf };

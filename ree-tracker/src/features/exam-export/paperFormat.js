@@ -6,7 +6,7 @@
 // board-simulator/examPaper.js, the old jsPDF export, now deleted.
 //
 // Every non-ASCII character is a \u escape, so this source stays ASCII.
-import { stripChoicePrefix } from '@ree/shared';
+import { stripChoicePrefix, manilaDateOf } from '@ree/shared';
 import { formatPrintId } from '@ree/shared/paperSets';
 import { fnv1a } from '../../utils/contentHash';
 import { answerSheetGeometry } from './sheetLayout';
@@ -207,11 +207,10 @@ export const partLabel = (index) => `Part ${PART[index] || index + 1}`;
 const MANILA_DATE = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
 });
-const MANILA_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
 /** "Tuesday, October 20, 2026": the paper's date, in Manila. */
 export const formatPaperDate = (iso) => MANILA_DATE.format(iso ? new Date(iso) : new Date());
 /** "2026-10-20": the paper's date for file names, in Manila. */
-export const paperDay = (iso) => MANILA_DAY.format(iso ? new Date(iso) : new Date());
+export const paperDay = (iso) => manilaDateOf(iso ? new Date(iso) : new Date());
 
 /**
  * How many columns a question's options take, from their printed length:

@@ -7,10 +7,11 @@
 // tab shows the right value on its next tick. It stops (and holds its value)
 // once the question is answered.
 import { useEffect, useState } from 'react';
+import { TIME_SINK_MS } from '@ree/shared';
 import { formatClock } from '../../utils/time';
 
-// Past three minutes: the board's slowest pace for one item.
-const SLOW_SECS = 180;
+// Past three minutes: the board's slowest pace for one item (the time-sink mark).
+const SLOW_SECS = TIME_SINK_MS / 1000;
 
 export default function QuestionTimer({ startedAt, running }) {
   const [now, setNow] = useState(startedAt);

@@ -5,6 +5,7 @@
 // further: it must never touch real assessment history. Text renders plainly, since
 // third-party quiz text was never written for the markdown and KaTeX pipeline.
 import { useState } from 'react';
+import { scoreTone } from '../../utils/scoreTone';
 import { Button, QuestionSurface, SegmentedControl, StatusPill } from '../../components/ui';
 import { LayoutGrid, RotateCcw } from '../../components/ui/icons';
 import ExamNavigator from '../../components/exam/ExamNavigator';
@@ -63,7 +64,7 @@ export default function CaqResults({ quiz, run, shown, score, onRetake, onRetryM
     <>
       <ResultsCard
         score={`${score.pct}%`}
-        tone={score.pct >= 70 ? 'success' : score.pct >= 50 ? 'amber' : 'danger'}
+        tone={scoreTone(score.pct)}
         caption={`${score.correct} / ${score.total} correct · ${quiz.fileName}`}
         notes={[
           run.timedOut && 'Time ran out, so your answers were submitted.',
