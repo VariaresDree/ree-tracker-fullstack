@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { fetchMockHistory, hideExamSession } from '../services/dbQueries';
 import { cachedMockHistory, rememberMockHistory } from '../services/mockHistoryCache';
+import { changeWords, sittingChange } from '../features/exams/sittingDelta';
 import { purgeSimulationLedger, dropLegacyLedger } from '../services/simulationLedger';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -190,6 +191,16 @@ export default function MockBoardAnalytics() {
           {fmtHeadline(r)}
         </span>
       ),
+    },
+    {
+      // Against the sitting before it of the same format (sittingDelta.js).
+      key: 'change',
+      label: 'Change',
+      align: 'right',
+      render: (r) => {
+        const change = sittingChange(history, r.id);
+        return <span className="text-muted2 tabular-nums whitespace-nowrap">{change ? changeWords(change.overall) : '—'}</span>;
+      },
     },
     { key: 'verdict', label: 'Verdict', render: (r) => <StatusPill status={r.verdict}>{verdictLabel(r.verdict)}</StatusPill> },
     {

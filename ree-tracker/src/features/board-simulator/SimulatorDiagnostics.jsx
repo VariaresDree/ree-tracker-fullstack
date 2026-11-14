@@ -30,6 +30,8 @@ import { useAiExplanation } from '../quiz/useAiExplanation';
 import { useItemTools } from '../quiz/useItemTools';
 import { formatDuration, formatTimeOfDay } from '../../utils/time';
 import { drillPreset, launchPractice } from '../active-recall/presets';
+import { fetchMockHistory } from '../../services/dbQueries';
+import { changeWords, halvesLine, sittingChange } from '../exams/sittingDelta';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 const SUBJECTS = [
@@ -38,6 +40,21 @@ const SUBJECTS = [
   { key: 'EE', label: 'EE' },
 ];
 const subjectTone = (pct) => (pct < SUBJECT_FLOOR ? 'danger' : pct >= GENERAL_AVERAGE ? 'success' : 'amber');
+const shortDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
+
+// This sitting against the last one like it (sittingDelta.js), from the mock
+// history. Null until it loads, for a first sitting of its format, a battle
+// (formats differ from room to room), or when the history can't be reached.
+function useSittingChange(sessionId, enabled) {
+  const [loaded, setLoaded] = useState(null);
+  useEffect(() => {
+    if (!sessionId || !enabled) return undefined;
+    let live = true;
+    fetchMockHistory(20).then((history) => { if (live) setLoaded({ sessionId, history }); }).catch(() => {});
+    return () => { live = false; };
+  }, [sessionId, enabled]);
+  return loaded && loaded.sessionId === sessionId && enabled ? sittingChange(loaded.history, sessionId) : null;
+}
 
 // A battle's results are due by `resultsBy` at the latest: the server
 // finishes it then, scoring anyone who left on the answers it received. Past
@@ -72,6 +89,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
   const tools = useItemTools(uid);
   const resultsBy = diagnostics?.pending ? diagnostics.resultsBy : null;
   const resultsDue = useIsPast(resultsBy);
+  const change = useSittingChange(diagnostics?.sessionId, isOnline && !isBattle && !!diagnostics && !diagnostics.pending);
   if (!diagnostics) return null;
 
   const pending = !!diagnostics.pending;
@@ -98,7 +116,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
         tone={tone}
         caption={`${hasGwa ? 'General weighted average' : 'Score'} · pass needs ${GENERAL_AVERAGE}% with no subject under ${SUBJECT_FLOOR}%`}
         verdict={!pending ? diagnostics.verdict : null}
-        notes={[diagnostics.timedOut && 'Time ran out, so your answers were submitted.']}
+        notes={[diagnostics.timedOut && 'Time ran out, so your answers were submitted.', !pending && halvesLine(session.questions)]}
         tiles={[
           { label: 'Correct', value: pending ? '—' : `${diagnostics.correctItems} / ${diagnostics.totalItems}` },
           { label: 'Raw score', value: pending || diagnostics.score == null ? '—' : `${diagnostics.score}%` },
@@ -152,6 +170,11 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
         <>
           <Card padding="md" className="flex flex-col gap-4">
             <Section className="text-base font-semibold text-textMain">By subject</Section>
+            {change && (
+              <p className="text-sm text-muted2">
+                Against your last sitting like this, on {shortDate(change.date)}: <span className="text-textMain tabular-nums">{changeWords(change.overall).toLowerCase()}{change.overall !== 0 && ' points'} overall</span>.
+              </p>
+            )}
             <Grid kind="tiles">
               {SUBJECTS.map(({ key, label }) => {
                 const pct = diagnostics.subjectScores?.[key];
@@ -164,6 +187,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
                     </div>
                     <ProgressIndicator value={rated ? pct : 0} tone={rated ? subjectTone(pct) : 'velocity'} size="sm" ariaLabel={`${label} score`} />
                     {rated && pct < SUBJECT_FLOOR && <span className="text-xs" style={{ color: 'var(--accent-danger)' }}>Under the {SUBJECT_FLOOR}% floor</span>}
+                    {change?.subjects[label] != null && <span className="text-xs text-muted2 tabular-nums">{changeWords(change.subjects[label])} from last time</span>}
                   </div>
                 );
               })}
