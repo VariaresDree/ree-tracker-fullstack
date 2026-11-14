@@ -631,6 +631,8 @@ export const fetchReadinessHistory = async () => safeApiRequest('/api/readiness/
 
 // Adaptive engine — pass/topnotcher forecast + prescription panel data.
 export const fetchForecast = async () => safeApiRequest('/api/forecast', 'GET', null, null);
+// Pass chance per Manila day, oldest first: { items: [{ day, passProbability }] }.
+export const fetchForecastHistory = async () => safeApiRequest('/api/forecast/history', 'GET', null, null);
 export const recomputeForecast = async () => apiRequest('/api/forecast/recompute', 'POST', {});
 
 // CAT — server-side next-item selection (Practice's adaptive set). `body`

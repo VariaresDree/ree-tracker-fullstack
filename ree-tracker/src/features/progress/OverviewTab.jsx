@@ -20,6 +20,7 @@ import { ArrowRight, AudioWaveform, Flame, Gauge, ListChecks, Timer } from '../.
 import { SkeletonChart } from '../../components/SkeletonLoaders';
 import { TrajectoryCard } from '../analytics/TrajectoryCard';
 import AiBoardReport from './AiBoardReport';
+import JourneyCard from './JourneyCard';
 import NothingYet from './NothingYet';
 import { weeklyAnswers } from './weeklyAnswers';
 
@@ -99,6 +100,8 @@ export default function OverviewTab({ stats, kpi, today }) {
         </Panel>
         <TrajectoryCard answered={stats?.totalAnswered} />
       </Grid>
+
+      <JourneyCard today={today} />
 
       <Link
         to="/exams?tab=history"
