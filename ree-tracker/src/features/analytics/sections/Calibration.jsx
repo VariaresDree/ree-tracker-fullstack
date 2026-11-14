@@ -4,7 +4,9 @@
 import { Grid } from '../../../components/ui';
 import { CalibrationCurve } from '../CalibrationCurve';
 import { useDeepAnalytics } from '../useDeepAnalytics';
-import { DeepStatus, SectionCard } from './shared';
+import { DeepStatus, PractiseLink, SectionCard } from './shared';
+import { drillPreset } from '../../active-recall/presets';
+import { overConfident } from './nextSteps';
 import { CONFIDENCE_MAP, levelCalibration } from '../calibration';
 
 const LEVEL = { LOW: 'Low confidence', MED: 'Medium confidence', HIGH: 'High confidence' };
@@ -43,6 +45,13 @@ export default function Calibration() {
                 );
               })}
             </Grid>
+          )}
+          {/* Sure and wrong more often than "sure" allows: the blind-spot drill
+              leads with those questions. */}
+          {overConfident(items) && (
+            <div className="mt-4 flex">
+              <PractiseLink preset={drillPreset({ mode: 'blind-spot' })}>Drill what you were sure of and missed</PractiseLink>
+            </div>
           )}
         </DeepStatus>
       </SectionCard>

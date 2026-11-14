@@ -3,7 +3,26 @@
 // Building blocks for the Progress analytics sections: a titled card (h2 under
 // the page's h1), the loading and retry states every deep-analytics fetch
 // needs and a plain bar list. (Figure tiles are KpiTile compact.)
+import { Link } from 'react-router-dom';
 import { Button, Panel, Skeleton } from '../../../components/ui';
+import { ArrowRight } from '../../../components/ui/icons';
+
+/**
+ * The way on from an analysis: starts a Practice preset (2026-11-14: accuracy
+ * by subject, time per topic and calibration each showed a finding with
+ * nothing to press). The same text link as the forecast's "Practise EE".
+ */
+export function PractiseLink({ preset, children }) {
+  return (
+    <Link
+      to="/practice"
+      state={{ preset }}
+      className="self-start inline-flex items-center gap-1 pointer-coarse:min-h-11 text-sm font-medium text-[var(--accent-text)] hover:underline underline-offset-2"
+    >
+      {children} <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
+    </Link>
+  );
+}
 
 // The dashboard panel (Panel: an elevated Card, its header and body), kept
 // under this name so the sections don't change.
