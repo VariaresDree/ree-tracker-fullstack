@@ -211,11 +211,11 @@ router.post('/submit', authMiddleware, validate(examSubmitSchema), idempotency()
         const session = await prisma.examSession.create({
             data: {
                 userId: req.user.id,
-                // 'BOARD_SIM', not config.mode. buildScoreProgression filters on
-                // EXAM_MODES = {BOARD_SIM, GAUNTLET}, but this route stamped the
+                // 'BOARD_SIM', not config.mode. Mock history reads sessions by
+                // mode (examHistory HISTORY_MODES); this route once stamped the
                 // CONFIG mode ('custom' | 'prc' | 'blended' | 'subject'), so no
-                // session created here ever matched and Score History rendered
-                // empty for every board-sim user. The config mode is preserved in
+                // session created here ever matched and the history was empty
+                // for every board-sim user. The config mode is preserved in
                 // the `config` JSON below, which is where it belongs.
                 mode: 'BOARD_SIM',
                 targetSubject: config?.subject || 'Blended',

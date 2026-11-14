@@ -11,7 +11,7 @@ import { changeWords, sittingChange } from '../features/exams/sittingDelta';
 import { purgeSimulationLedger, dropLegacyLedger } from '../services/simulationLedger';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import { isPassingVerdict, VERDICT } from '@ree/shared';
+import { isPassingVerdict, VERDICT, GENERAL_AVERAGE } from '@ree/shared';
 import { sittingKindLabel } from '../features/board-simulator/profiles';
 import { SkeletonChart } from './SkeletonLoaders';
 import { Panel, DataTable, StatusPill, Button, Modal, EmptyState, Grid, KpiTile, Skeleton } from './ui';
@@ -255,7 +255,7 @@ export default function MockBoardAnalytics() {
             ) : (
               <>
                 <MiniStat label="Sittings (last 20)" value={totalRuns} />
-                <MiniStat label="Average" value={`${avgScore}%`} tone={avgScore >= 70 ? 'success' : 'amber'} />
+                <MiniStat label="Average" value={`${avgScore}%`} tone={avgScore >= GENERAL_AVERAGE ? 'success' : 'amber'} />
                 <MiniStat label="Passed" value={`${passCount} of ${totalRuns}`} tone={passRate >= 70 ? 'success' : 'danger'} />
               </>
             )}

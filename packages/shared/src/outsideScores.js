@@ -18,6 +18,7 @@ const { isIsoDay } = require('./manilaDate');
 const { CANONICAL_SUBJECTS } = require('./subject');
 const { PRC_EXAM_FORMAT, boardPaceSeconds } = require('./exam');
 const { rateBoard } = require('./boardRating');
+const { GENERAL_AVERAGE, SUBJECT_FLOOR } = require('./verdict');
 
 /** 'ALL' is a whole-board mock (all three subjects in one score). */
 const OUTSIDE_SCORE_SUBJECTS = ['Mathematics', 'ESAS', 'EE', 'ALL'];
@@ -157,7 +158,7 @@ function outsideScoreRemark(entry) {
     }
     const pct = outsideScorePercent(entry);
     if (pct == null) return null;
-    return { kind: pct >= 70 ? 'mark' : pct >= 50 ? 'under' : 'floor' };
+    return { kind: pct >= GENERAL_AVERAGE ? 'mark' : pct >= SUBJECT_FLOOR ? 'under' : 'floor' };
 }
 
 /**

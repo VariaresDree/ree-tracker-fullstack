@@ -12,7 +12,8 @@ import ItemReview from '../quiz/ItemReview';
 import { Button, Card, Page, PageHeader, ProgressIndicator, StatusPill } from '../../components/ui';
 import { ArrowRight, CheckCircle2, RotateCcw, X } from '../../components/ui/icons';
 import SessionActions from '../../components/exam/SessionActions';
-import { toDisplaySubject } from '@ree/shared';
+import { toDisplaySubject, GENERAL_AVERAGE } from '@ree/shared';
+import { scoreTone } from '../../utils/scoreTone';
 import { SectionCard } from '../analytics/sections/shared';
 import NotificationOptIn from '../../components/NotificationOptIn';
 import { formatDuration } from '../../utils/time';
@@ -41,7 +42,7 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
   useEffect(() => { window.scrollTo?.(0, 0); }, []);
 
   const { total, correct, accuracy, durationSecs, avgSecs, byTopic, weakest, confidentMisses, luckyGuesses, items = [], missedCount, dueReviews = 0 } = summary;
-  const tone = accuracy >= 70 ? 'success' : accuracy >= 50 ? 'amber' : 'danger';
+  const tone = scoreTone(accuracy);
   const source = summary.config?.source;
   const judged = total >= VERDICT_MIN && !REVIEW_SOURCES.has(source);
   const isLoop = source === 'today-loop';
@@ -94,7 +95,7 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
       <PageHeader
         title="Session complete"
         subtitle={`${parts.join(' and ') || '0 questions'} in ${formatDuration(durationSecs)}.`}
-        meta={judged ? <StatusPill tone={tone} dot={false}>{accuracy >= 70 ? 'At the pass mark' : 'Below the 70% pass mark'}</StatusPill> : null}
+        meta={judged ? <StatusPill tone={tone} dot={false}>{accuracy >= GENERAL_AVERAGE ? 'At the pass mark' : `Below the ${GENERAL_AVERAGE}% pass mark`}</StatusPill> : null}
         // The way out, visible the moment the summary opens (2026-11-13: Done
         // was the last of up to 7 buttons, in faint ghost text).
         actions={doneButton}
@@ -185,7 +186,7 @@ export default function SessionSummary({ summary, loading, onAgain, onRetry, onD
                   value={t.correct}
                   max={t.total}
                   size="sm"
-                  tone={t.accuracy >= 70 ? 'success' : t.accuracy >= 50 ? 'amber' : 'danger'}
+                  tone={scoreTone(t.accuracy)}
                   ariaLabel={`${t.topic}: ${t.correct} of ${t.total} correct`}
                 />
               </li>

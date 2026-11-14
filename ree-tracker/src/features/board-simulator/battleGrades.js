@@ -1,6 +1,14 @@
 // src/features/board-simulator/battleGrades.js
 import { gradeBoardExam, toDisplaySubject, WEAK_TOPIC_ACCURACY, TIME_SINK_MS } from '@ree/shared';
 
+/**
+ * The topics of one sitting under the weak mark, from its per-topic tallies
+ * (`{ [topic]: { t: asked, c: right } }`). A mock and a battle both list them.
+ */
+export const weakTopicsOf = (topicBreakdown) => Object.entries(topicBreakdown || {})
+  .filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY)
+  .map(([topic]) => topic);
+
 // Post-battle grading: battles run with sanitized questions (no answer keys),
 // so the full diagnostics can only be computed once the server reveals the
 // key at battle-complete. Pure function — unit-tested without React.
@@ -51,7 +59,7 @@ export function computeBattleDiagnostics({ questions, answerKey, explanationKey 
   // ONE definition, shared with the API (@ree/shared): the WEIGHTED general
   // average plus the subject floor. `score` stays the raw share correct.
   const { generalAverage, verdict } = gradeBoardExam(subjectScores);
-  const weakTopics = Object.entries(topicBreakdown).filter(([, d]) => d.t > 0 && (d.c / d.t) < WEAK_TOPIC_ACCURACY).map(([t]) => t);
+  const weakTopics = weakTopicsOf(topicBreakdown);
 
   return {
     mappedQuestions,

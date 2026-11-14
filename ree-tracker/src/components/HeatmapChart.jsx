@@ -1,6 +1,6 @@
 // src/components/HeatmapChart.jsx
 import React, { useState, useMemo } from 'react';
-import { toDisplaySubject, masteryBand, boardPaceSeconds } from '@ree/shared';
+import { toDisplaySubject, masteryBand, boardPaceSeconds, GENERAL_AVERAGE } from '@ree/shared';
 import { useStore } from '../store/useStore';
 import { EmptyState, Panel, SegmentedControl } from './ui';
 import { Flame, LayoutGrid, Timer, Target } from './ui/icons';
@@ -254,7 +254,7 @@ function HeatmapChart({ stats, onDrillTopic }) {
 
 const NO_TOPICS = {};
 // The board's pass mark, in answers right.
-const PASS_MARK = 70;
+const PASS_MARK = GENERAL_AVERAGE;
 // Mastery back to the accuracy it stands for (engine/bkt.js accuracyOf:
 // guess 25%, slip 10%), so a row can say what it means in answers.
 const recentAccuracy = (m) => Math.round((0.25 + 0.65 * Math.min(1, Math.max(0, m))) * 100);

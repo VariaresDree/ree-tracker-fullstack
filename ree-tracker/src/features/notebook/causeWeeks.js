@@ -10,20 +10,15 @@
 // That's a fair read of the trend, not a per-miss history. Untagged misses
 // aren't counted: the suggested cause is only ever "time" or "concept", and
 // counting it would invent a trend.
-import { MISTAKE_CAUSES } from '@ree/shared';
+import { MISTAKE_CAUSES, manilaDateOf, mondayOf } from '@ree/shared';
 
 const DAY = 86400000;
-const MANILA = 8 * 3600000;
 const SPLIT = 4;      // weeks per half
 const MIN_EACH = 5;   // tagged misses each half needs before a headline
 const MIN_SHIFT = 10; // percentage points that count as a change
 
 /** The Monday (Manila) a moment falls in, as YYYY-MM-DD. */
-export function manilaWeekStart(ms) {
-  const local = new Date(ms + MANILA);
-  const back = (local.getUTCDay() + 6) % 7;
-  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - back)).toISOString().slice(0, 10);
-}
+export const manilaWeekStart = (ms) => mondayOf(manilaDateOf(ms));
 
 const SUBJECT = {
   concept: ['Gaps in the concept', 'are'],

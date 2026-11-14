@@ -4,7 +4,7 @@
 // rules (what counts as a point, what the week line says) are tested without
 // rendering. Readiness and pass chance are one point a Manila day; accuracy is
 // one point a Manila week (Monday first) per board subject.
-import { DEFAULT_SYLLABUS_WEIGHTS, manilaDateOf, normalizeSubject, toDisplaySubject } from '@ree/shared';
+import { DEFAULT_SYLLABUS_WEIGHTS, manilaDateOf, mondayOf, normalizeSubject, toDisplaySubject } from '@ree/shared';
 
 // Fewer answers than this in a subject in a week is noise, not a point.
 export const MIN_WEEK_ANSWERS = 10;
@@ -48,12 +48,6 @@ export function subjectTrends(items) {
       .filter((i) => normalizeSubject(i.subject) === subject && i.answered >= MIN_WEEK_ANSWERS)
       .map((i) => ({ day: i.week, value: (i.correct / i.answered) * 100 }))),
   }));
-}
-
-/** The Monday of a Manila day (YYYY-MM-DD), as the server keys a week. */
-export function mondayOf(ymd) {
-  const at = Date.parse(`${ymd}T00:00:00Z`);
-  return new Date(at - ((new Date(at).getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
 }
 
 /**

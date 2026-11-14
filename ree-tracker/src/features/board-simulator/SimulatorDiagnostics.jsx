@@ -32,6 +32,7 @@ import { formatDuration, formatTimeOfDay } from '../../utils/time';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 import { fetchMockHistory } from '../../services/dbQueries';
 import { changeWords, halvesLine, sittingChange } from '../exams/sittingDelta';
+import { scoreTone } from '../../utils/scoreTone';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
 const SUBJECTS = [
@@ -39,7 +40,6 @@ const SUBJECTS = [
   { key: 'ESAS', label: 'ESAS' },
   { key: 'EE', label: 'EE' },
 ];
-const subjectTone = (pct) => (pct < SUBJECT_FLOOR ? 'danger' : pct >= GENERAL_AVERAGE ? 'success' : 'amber');
 const shortDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
 
 // This sitting against the last one like it (sittingDelta.js), from the mock
@@ -185,7 +185,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
                       <span className="text-textMain font-medium">{label}</span>
                       <span className="tabular-nums text-textMain">{rated ? `${pct}%` : 'Not asked'}</span>
                     </div>
-                    <ProgressIndicator value={rated ? pct : 0} tone={rated ? subjectTone(pct) : 'velocity'} size="sm" ariaLabel={`${label} score`} />
+                    <ProgressIndicator value={rated ? pct : 0} tone={rated ? scoreTone(pct) : 'velocity'} size="sm" ariaLabel={`${label} score`} />
                     {rated && pct < SUBJECT_FLOOR && <span className="text-xs" style={{ color: 'var(--accent-danger)' }}>Under the {SUBJECT_FLOOR}% floor</span>}
                     {change?.subjects[label] != null && <span className="text-xs text-muted2 tabular-nums">{changeWords(change.subjects[label])} from last time</span>}
                   </div>

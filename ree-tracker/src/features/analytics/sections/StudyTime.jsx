@@ -5,6 +5,7 @@ import { Grid, KpiTile, SegmentedControl } from '../../../components/ui';
 import { useDeepAnalytics } from '../useDeepAnalytics';
 import { DeepStatus, SectionCard } from './shared';
 import { formatDuration as fmtDuration } from '../../../utils/time';
+import { manilaDateOf } from '@ree/shared';
 
 // 'YYYY-MM-DD' (Manila-keyed by the server) → 'Jul 3' without a timezone
 // round-trip: new Date('YYYY-MM-DD') is UTC midnight and re-localizing can
@@ -16,10 +17,9 @@ const shortDay = (isoDate) => {
 };
 // Zero-fill a trailing window of Manila days so "last 14 days" is a real
 // calendar window, not "the last 14 active days".
-const MANILA_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' });
 const lastManilaDays = (n) => {
   const days = [];
-  for (let i = n - 1; i >= 0; i--) days.push(MANILA_FMT.format(new Date(Date.now() - i * 86400000)));
+  for (let i = n - 1; i >= 0; i--) days.push(manilaDateOf(Date.now() - i * 86400000));
   return days;
 };
 // A day before today: the accent, softer at the bottom.
