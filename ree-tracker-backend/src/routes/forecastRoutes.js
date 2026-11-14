@@ -10,6 +10,7 @@ const { getTccBySubject } = require('../services/referenceFormCache');
 const { getSyllabusWeights } = require('../services/questionPool');
 const { normalizeSubject } = require('@ree/shared');
 const forecastCache = require('../services/forecastCache');
+const { recordDailyForecast, dailyPassChance } = require('../services/forecastSnapshots');
 
 // GET /api/forecast — latest snapshot for the caller, or recompute on the fly.
 // Recomputes (in-memory) when the cached snapshot predates the user's most
@@ -46,10 +47,31 @@ router.get('/', authMiddleware, async (req, res) => {
         const computed = await computeForUser(req.user.id);
         const body = { snapshot: computed, fresh: true };
         forecastCache.set(req.user.id, body);
-        return res.status(200).json(body);
+        res.status(200).json(body);
+        // The day's point for the trend, after responding (never throws).
+        return recordDailyForecast(req.user.id, computed, latest);
     } catch (error) {
         logger.error('forecast GET failed', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: 'Forecast unavailable.' });
+    }
+});
+
+// GET /api/forecast/history — pass chance per Manila day over the last
+// HISTORY_DAYS, oldest first, from this model only (an older model's figure
+// isn't the same measure). Two narrow columns: the snapshots' JSON isn't read.
+const HISTORY_DAYS = 90;
+router.get('/history', authMiddleware, async (req, res) => {
+    try {
+        const rows = await prisma.forecastSnapshot.findMany({
+            where: { userId: req.user.id, modelVersion: MODEL_VERSION, createdAt: { gte: new Date(Date.now() - HISTORY_DAYS * 86400000) } },
+            orderBy: { createdAt: 'asc' },
+            select: { createdAt: true, passProbability: true },
+            take: 500,
+        });
+        return res.status(200).json({ items: dailyPassChance(rows) });
+    } catch (error) {
+        logger.error('forecast history failed', { error: error.message, stack: error.stack });
+        return res.status(500).json({ error: 'Forecast history unavailable.' });
     }
 });
 

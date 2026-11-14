@@ -32,6 +32,8 @@ function makeApp() {
 let app;
 let findUnique;
 let snapshotFindFirst;
+let snapshotCreate;
+let snapshotUpdate;
 
 beforeEach(() => {
     app = makeApp();
@@ -59,6 +61,8 @@ beforeEach(() => {
     vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
     vi.spyOn(prisma.sRSCard, 'count').mockResolvedValue(0);
     vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
+    snapshotCreate = vi.spyOn(prisma.forecastSnapshot, 'create').mockResolvedValue({});
+    snapshotUpdate = vi.spyOn(prisma.forecastSnapshot, 'update').mockResolvedValue({});
 });
 
 afterEach(() => {
@@ -67,6 +71,48 @@ afterEach(() => {
 });
 
 const get = () => request(app).get('/api/forecast').set('Authorization', `Bearer ${UID}`);
+
+describe('the day’s forecast is kept, so pass chance has a trend', () => {
+    it('a computed forecast is saved as the day’s snapshot, once: the cached reply saves nothing', async () => {
+        const first = await get();
+        expect(snapshotCreate).toHaveBeenCalledTimes(1);
+        const { data } = snapshotCreate.mock.calls[0][0];
+        expect(data).toMatchObject({ userId: UID, modelVersion: 'v2-prc', passProbability: first.body.snapshot.passProbability });
+        expect(data).not.toHaveProperty('id');
+        expect(data).not.toHaveProperty('createdAt');
+        await get();
+        expect(snapshotCreate).toHaveBeenCalledTimes(1);
+        expect(snapshotUpdate).not.toHaveBeenCalled();
+    });
+
+    it('a second value on the same Manila day replaces the first', async () => {
+        snapshotFindFirst.mockResolvedValue({ id: 'today', userId: UID, createdAt: new Date(Date.now() - 1000), passProbability: 0.6, modelVersion: 'v2-prc' });
+        findUnique.mockResolvedValue({ lastActive: new Date(), thetaRating: 0.4, standardError: 0.5 });
+        await get();
+        expect(snapshotCreate).not.toHaveBeenCalled();
+        expect(snapshotUpdate.mock.calls[0][0]).toMatchObject({ where: { id: 'today' }, data: { modelVersion: 'v2-prc', createdAt: expect.any(Date) } });
+    });
+
+    it('a failed save never fails the forecast', async () => {
+        snapshotCreate.mockRejectedValue(new Error('db down'));
+        expect((await get()).status).toBe(200);
+    });
+
+    it('GET /history gives one point per Manila day, the day’s last, from this model and learner only', async () => {
+        const findMany = vi.spyOn(prisma.forecastSnapshot, 'findMany').mockResolvedValue([
+            { createdAt: new Date('2026-11-01T02:00:00Z'), passProbability: 0.31 },
+            { createdAt: new Date('2026-11-01T09:00:00Z'), passProbability: 0.35 },
+            // 17:00 UTC is already the next day in Manila.
+            { createdAt: new Date('2026-11-01T17:00:00Z'), passProbability: 0.4 },
+        ]);
+        const res = await request(app).get('/api/forecast/history').set('Authorization', `Bearer ${UID}`);
+        expect(res.status).toBe(200);
+        expect(res.body.items).toEqual([{ day: '2026-11-01', passProbability: 0.35 }, { day: '2026-11-02', passProbability: 0.4 }]);
+        const args = findMany.mock.calls[0][0];
+        expect(args.where).toMatchObject({ userId: UID, modelVersion: 'v2-prc' });
+        expect(args.select).toEqual({ createdAt: true, passProbability: true });
+    });
+});
 
 describe('GET /api/forecast is served from cache after the first call', () => {
     it('hits the database once across two identical requests', async () => {

@@ -144,3 +144,21 @@ describe('subjectScoresBySession', () => {
     expect(needsDerivedVerdict({ mode: 'ACTIVE_REVIEW', totalQuestions: 10, verdict: 'IN_PROGRESS' })).toBe(false);
   });
 });
+
+describe('foldWeeklyAccuracy', () => {
+  const { foldWeeklyAccuracy } = require('../src/services/deepAnalyticsHelpers');
+  const { normalizeSubject } = require('@ree/shared');
+
+  it('merges subject spellings within a week, oldest week first', () => {
+    expect(foldWeeklyAccuracy([
+      { week: '2026-11-09', subject: 'EE', answered: 10, correct: 7 },
+      { week: '2026-11-02', subject: 'Math', answered: 4, correct: 1 },
+      { week: '2026-11-02', subject: 'Mathematics', answered: 6, correct: 5 },
+      { week: null, subject: 'EE', answered: 3, correct: 3 },
+    ], normalizeSubject)).toEqual([
+      { week: '2026-11-02', subject: 'Mathematics', answered: 10, correct: 6 },
+      { week: '2026-11-09', subject: 'EE', answered: 10, correct: 7 },
+    ]);
+    expect(foldWeeklyAccuracy(null, normalizeSubject)).toEqual([]);
+  });
+});

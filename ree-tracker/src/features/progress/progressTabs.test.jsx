@@ -31,6 +31,9 @@ const DEEP = {
 vi.mock('../../services/dbQueries', () => ({
   fetchAnalyticsDeep: (type) => Promise.resolve(DEEP[type]),
   fetchReadinessScore: () => Promise.resolve(null),
+  // Overview › Your journey (its own tests are JourneyCard.test.jsx).
+  fetchReadinessHistory: () => Promise.resolve(null),
+  fetchForecastHistory: () => Promise.resolve(null),
 }));
 
 const { default: OverviewTab } = await import('./OverviewTab');

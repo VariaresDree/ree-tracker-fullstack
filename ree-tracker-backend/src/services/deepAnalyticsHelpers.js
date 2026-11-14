@@ -115,7 +115,29 @@ function aggregateDailyStudy(studySessions, examSessions, dateOf) {
         .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/**
+ * Answers per Manila week and subject, with the subject spellings folded
+ * ("Math" and "Mathematics" are one row), oldest week first.
+ *
+ * @param {Array<{week: string, subject: string, answered: number, correct: number}>} rows
+ * @param {(s: string) => string} normalize  the canonical subject name
+ */
+function foldWeeklyAccuracy(rows, normalize) {
+    const out = new Map();
+    for (const r of rows || []) {
+        if (!r?.week) continue;
+        const subject = normalize(r.subject);
+        const key = `${r.week}|${subject}`;
+        const row = out.get(key) || { week: r.week, subject, answered: 0, correct: 0 };
+        row.answered += Number(r.answered) || 0;
+        row.correct += Number(r.correct) || 0;
+        out.set(key, row);
+    }
+    return [...out.values()].sort((a, b) => a.week.localeCompare(b.week) || a.subject.localeCompare(b.subject));
+}
+
 module.exports = {
+    foldWeeklyAccuracy,
     needsDerivedVerdict,
     subjectScoresBySession,
     buildScoreProgression,

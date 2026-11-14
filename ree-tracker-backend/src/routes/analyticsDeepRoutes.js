@@ -7,7 +7,7 @@ const { mockHistory } = require('../services/examHistory');
 const { buildSittingReview, SittingReviewError } = require('../services/sittingReview');
 const { loadFocusTime } = require('../services/focusTime');
 const { loadWeakSignals } = require('../services/topicSignals');
-const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession } = require('../services/deepAnalyticsHelpers');
+const { buildScoreProgression, aggregateDailyStudy, needsDerivedVerdict, subjectScoresBySession, foldWeeklyAccuracy } = require('../services/deepAnalyticsHelpers');
 const { normalizeSubject } = require('../utils/subject');
 // Manila calendar date of an instant — same helper telemetryService keys
 // ActivityLog on, so "a study day" means the same thing everywhere.
@@ -73,6 +73,33 @@ router.get('/time-of-day', authMiddleware, async (req, res) => {
         res.status(200).json(summarizeTimeOfDay(rows.map((r) => ({ ...r, timedMs: Number(r.timedMs) }))));
     } catch (error) {
         res.status(500).json({ error: 'Failed to load accuracy by time of day.' });
+    }
+});
+
+// GET /api/analytics/deep/weekly-accuracy — answers and right answers per
+// Manila week (Monday first) and subject over the last WEEKLY_WEEKS, for
+// Progress › Overview › Your journey. Grouped in Postgres: at most
+// WEEKLY_WEEKS x 3 subjects (and their old spellings) come back, never attempts.
+const WEEKLY_WEEKS = 12;
+router.get('/weekly-accuracy', authMiddleware, async (req, res) => {
+    try {
+        const at = Prisma.sql`COALESCE(qa."answeredAt", qa."createdAt")`;
+        const since = new Date(Date.now() - WEEKLY_WEEKS * 7 * 86400000);
+        // The same two steps as manilaDaySql: these columns are naive UTC.
+        const rows = await prisma.$queryRaw`
+            SELECT
+                to_char(date_trunc('week', ${at} AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila'), 'YYYY-MM-DD') AS "week",
+                qa."subject" AS "subject",
+                COUNT(*)::int AS "answered",
+                COUNT(*) FILTER (WHERE qa."isCorrect")::int AS "correct"
+            FROM "QuestionAttempt" qa
+            WHERE qa."userId" = ${req.user.id}
+              AND ${at} >= ${since}
+            GROUP BY 1, 2
+        `;
+        res.status(200).json({ items: foldWeeklyAccuracy(rows, normalizeSubject) });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to load accuracy by week.' });
     }
 });
 
