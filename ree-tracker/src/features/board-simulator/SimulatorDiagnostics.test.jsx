@@ -11,6 +11,8 @@ import { expectNoSkippedLevels } from '../../test/headings';
 
 vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
 vi.mock('../../components/NotificationOptIn', () => ({ default: () => null }));
+const fetchMockHistory = vi.fn(() => Promise.resolve([]));
+vi.mock('../../services/dbQueries', async (importOriginal) => ({ ...(await importOriginal()), fetchMockHistory: (...a) => fetchMockHistory(...a) }));
 
 const { default: SimulatorDiagnostics } = await import('./SimulatorDiagnostics');
 
@@ -161,5 +163,45 @@ describe('SimulatorDiagnostics', () => {
   it('links to the full review of the sitting', () => {
     renderIt({ score: 80, generalAverage: 80, verdict: 'PASSED', sessionId: 'sess-42' });
     expect(screen.getByRole('link', { name: /Review every item/ })).toHaveAttribute('href', '/exams/sittings/sess-42');
+  });
+});
+
+describe('the debrief: against the last sitting, and the two halves', () => {
+  const blended = (id, date, generalAverage, subjectScores) => ({ id, date, kind: 'blended', isPrcStandard: false, targetSubject: 'BLENDED', score: 60, generalAverage, subjectScores });
+  const history = [
+    blended('now', '2026-11-14T02:00:00Z', 66.4, { Mathematics: 40, ESAS: 90, EE: 85 }),
+    blended('before', '2026-11-03T02:00:00Z', 62.2, { Mathematics: 40, ESAS: 95, EE: 77 }),
+  ];
+
+  it('says how each subject and the average moved since the last sitting like it', async () => {
+    fetchMockHistory.mockResolvedValueOnce(history);
+    renderIt({ score: 66, generalAverage: 66.4, verdict: 'FAILED', sessionId: 'now' });
+    expect(await screen.findByText('up 4.2 points overall')).toBeInTheDocument();
+    expect(screen.getByText(/Against your last sitting like this, on Nov 3/)).toBeInTheDocument();
+    expect(screen.getByText('Up 8 from last time')).toBeInTheDocument();
+    expect(screen.getByText('Down 5 from last time')).toBeInTheDocument();
+    expect(screen.getByText('Level from last time')).toBeInTheDocument();
+  });
+
+  it('a first sitting of its format, and a battle, compare with nothing', async () => {
+    fetchMockHistory.mockResolvedValueOnce([history[0]]);
+    const first = renderIt({ score: 66, generalAverage: 66.4, verdict: 'FAILED', sessionId: 'now' });
+    await vi.waitFor(() => expect(fetchMockHistory).toHaveBeenCalled());
+    expect(screen.queryByText(/Against your last sitting/)).toBeNull();
+    first.unmount();
+
+    fetchMockHistory.mockClear();
+    renderIt({ score: 66, generalAverage: 66.4, verdict: 'FAILED', sessionId: 'now' }, { isBattle: true });
+    expect(fetchMockHistory).not.toHaveBeenCalled();
+  });
+
+  it('says when the second half of the paper fell away', () => {
+    const questions = Array.from({ length: 20 }, (_, i) => ({ id: `q${i}`, subject: 'EE', text: `Q${i}`, options: ['A', 'B'], answer: 'A', userAnswer: i < 8 || (i >= 10 && i < 15) ? 'A' : 'B' }));
+    render(
+      <MemoryRouter>
+        <SimulatorDiagnostics session={{ ...session({ verdict: 'FAILED', score: 65, generalAverage: 65 }), questions }} engine={{ resetToSetup: vi.fn() }} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Your second half was 30 points lower than your first (50% against 80%).')).toBeInTheDocument();
   });
 });

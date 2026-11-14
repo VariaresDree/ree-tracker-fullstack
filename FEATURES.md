@@ -90,6 +90,10 @@ every feature add, change, or removal, not on a schedule.
       - The ledger has its own History icon (it shared the trend's chart icon).
       - A failed load is an empty state.
       - The outside-score subject tiles are inset wells.
+      - **Change** column (2026-11-14): each sitting against the one before it of the same format ("Up 4.2", "Down 3", or a dash for the first).
+    - **Mock debrief** (2026-11-14, `features/exams/sittingDelta.js`, shown by `SimulatorDiagnostics.jsx`). A result stood alone: 62% in EE didn't say whether that was up or down.
+      - **Against your last sitting:** the results' By subject card says "Against your last sitting like this, on Nov 3: up 4.2 points overall", and each subject "Up 8 from last time". Like is compared with like (the same kind, clock and subject), from the mock history the app already has (`GET /api/analytics/deep/mock-history`); a first sitting of its format shows nothing, and a battle is never compared.
+      - **The two halves:** on a paper of 20 items or more, when the share right in the second half differs from the first by 10 points or more, the results say so ("Your second half was 14 points lower than your first (58% against 72%)."). A blank counts as wrong, as it is scored.
     - **Mode guide:** it marks the current tab "You're here" on Mock board, Gauntlet and Battles.
   - **The last hand-made heroes moved** (the full board's break and result, the placement result). `layoutGuards.test.js` › hero cards now allows no `<Card elevated glow>` anywhere.
 - [x] **Progress** (`pages/Progress.jsx`) — one question per tab, in `?tab=`, each tab its own chunk (recharts loads only where a chart is drawn):
