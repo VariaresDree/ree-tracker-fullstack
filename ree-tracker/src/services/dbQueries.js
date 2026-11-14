@@ -486,6 +486,9 @@ const normalizeAgent = (a) => ({
     thetaRating: typeof a.thetaRating === 'number' ? a.thetaRating : 0,
     streak: typeof a.streak === 'number' ? a.streak : (a.globalStreak || 0),
     globalStreak: a.globalStreak || a.streak || 0,
+    // Whether the streak was extended today: true, false, or undefined when
+    // the server doesn't say (an older one), which the row treats as no news.
+    studiedToday: typeof a.studiedToday === 'boolean' ? a.studiedToday : undefined,
     gauntletLevel: a.gauntletLevel || 1,
     // Ranking stats (Arena). Whitelisted here or they're dropped before the UI.
     activeDays: typeof a.activeDays === 'number' ? a.activeDays : 0,

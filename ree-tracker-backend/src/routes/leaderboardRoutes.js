@@ -47,6 +47,35 @@ function rowStreak(u) {
     return effectiveStreak(u.globalStreak, lastStudyDay, todayManila());
 }
 
+// Has this row's owner answered today? A streak alive on yesterday's answers
+// looked the same as one already extended today, which read as "the streak
+// doesn't reset" (2026-11-14); Rankings greys the flame until today's first
+// answer. A live row reads it from the ActivityLog rows it already carries; a
+// snapshot row is told (studiedTodayIds). Undefined when it isn't known, and
+// then the row says nothing: JSON drops the field.
+function rowStudiedToday(u) {
+    if (!Array.isArray(u.activityLogs)) return u.studiedToday;
+    const today = todayManila();
+    return u.activityLogs.some(({ date }) => date === today);
+}
+
+/**
+ * Which of these users have a study day today: one indexed read for a page of
+ * snapshot rows. Null if it fails; the list still answers, without the flag.
+ */
+async function studiedTodayIds(userIds) {
+    if (userIds.length === 0) return new Set();
+    try {
+        const rows = await prisma.activityLog.findMany({
+            where: { date: todayManila(), userId: { in: userIds } },
+            select: { userId: true },
+        });
+        return new Set(rows.map((r) => r.userId));
+    } catch {
+        return null;
+    }
+}
+
 function toAgent(u) {
     const streak = rowStreak(u);
     return {
@@ -56,6 +85,7 @@ function toAgent(u) {
         thetaRating: u.thetaRating,
         streak,
         globalStreak: streak,
+        studiedToday: rowStudiedToday(u),
         // Ranking stats (default 0 for live-fallback User rows that don't carry
         // them; the snapshot path threads the real values via entryToAgent, and the
         // self-row paths merge computeUserStats before calling toAgent).
@@ -67,9 +97,15 @@ function toAgent(u) {
     };
 }
 
-// Snapshot row → the same public agent shape the live path produced.
-const entryToAgent = (e) => toAgent({
+// Snapshot rows → the same public agent shape the live path produced.
+async function entriesToAgents(entries) {
+    const studied = await studiedTodayIds(entries.map((e) => e.userId));
+    return entries.map((e) => entryToAgent(e, studied));
+}
+
+const entryToAgent = (e, studied) => toAgent({
     id: e.userId,
+    studiedToday: studied ? studied.has(e.userId) : undefined,
     displayName: e.displayName,
     role: e.role,
     thetaRating: e.thetaRating,
@@ -171,7 +207,7 @@ router.get('/', authMiddleware, async (req, res) => {
             orderBy: { rank: 'asc' },
             take: limit,
         });
-        res.status(200).json({ success: true, leaderboard: entries.map(entryToAgent) });
+        res.status(200).json({ success: true, leaderboard: await entriesToAgents(entries) });
     } catch (error) {
         logger.error('leaderboard error', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch leaderboard.' });
@@ -203,7 +239,7 @@ router.get('/paginated', authMiddleware, async (req, res) => {
         // First page: prepend the current user if they're not visible in the
         // top slice (Discord-style "you are here"). Lets users always find
         // themselves without scrolling through thousands of rows.
-        let items = entries.map(entryToAgent);
+        let items = await entriesToAgents(entries);
         if (!afterRank) {
             const meVisible = items.some((u) => u.uid === req.user.id);
             if (!meVisible) {

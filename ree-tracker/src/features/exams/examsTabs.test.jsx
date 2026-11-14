@@ -274,6 +274,34 @@ describe('RankingsTab', () => {
     expect(fetchLeaderboardMe).toHaveBeenCalledTimes(2);
   });
 
+  it('greys the flame of a streak not yet extended today, and says what that means', async () => {
+    fetchPaginatedLeaderboard.mockResolvedValue({
+      agents: [
+        agent('a', 0.9, { streak: 5, studiedToday: true }),
+        agent('b', 0.5, { streak: 3, studiedToday: false }),
+        agent('c', 0.1, { streak: 0, studiedToday: false }), // no streak to lose
+      ],
+      lastDoc: null,
+    });
+    fetchLeaderboardMe.mockResolvedValue({ rank: null, total: 3 });
+    renderTab(<RankingsTab />);
+    await screen.findByText('B');
+    // In words for a screen reader, on the one row it applies to.
+    const notes = screen.getAllByText(', no answers yet today');
+    expect(notes).toHaveLength(1);
+    expect(notes[0].closest('button').textContent).toMatch(/^2B/);
+    expect(screen.getByText('A grey flame means no answers yet today. That streak ends at midnight unless they answer.')).toBeInTheDocument();
+  });
+
+  it('when every streak is extended, or the server doesn’t say, nothing is greyed or explained', async () => {
+    fetchPaginatedLeaderboard.mockResolvedValue({ agents: [agent('a', 0.9, { streak: 5, studiedToday: true }), agent('b', 0.5, { streak: 3 })], lastDoc: null });
+    fetchLeaderboardMe.mockResolvedValue({ rank: null, total: 2 });
+    renderTab(<RankingsTab />);
+    await screen.findByText('B');
+    expect(screen.queryByText(', no answers yet today')).toBeNull();
+    expect(screen.queryByText(/A grey flame/)).toBeNull();
+  });
+
   it('a failed load says so with Try again, not "No rankings yet"', async () => {
     fetchPaginatedLeaderboard.mockRejectedValueOnce(new Error('500')).mockResolvedValueOnce({ agents: [agent('a', 0.9)], lastDoc: null });
     fetchLeaderboardMe.mockResolvedValue({ rank: 1, total: 1 });

@@ -28,6 +28,13 @@ const rankStyle = (index) => {
   };
 };
 
+// A streak that is alive on yesterday's answers and not yet extended today. It
+// drew the same amber flame as one already extended, which read as "the streak
+// doesn't reset at midnight" (2026-11-14). The flame is grey until the day's
+// first answer. Only when the server says so: no word (an older server) is not
+// a "no".
+const isResting = (agent) => agent.streak > 0 && agent.studiedToday === false;
+
 // One expanded-detail stat cell.
 function RankDetailStat({ label, value, accent }) {
   return (
@@ -74,8 +81,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ agent, rank, isMe, rowRef 
           <span className="text-micro text-muted2 tabular-nums truncate">{agent.questionsAnswered || 0} answered</span>
         </div>
         <div className="shrink-0 w-12 flex flex-col items-end">
-          <span className="text-sm font-bold tabular-nums inline-flex items-center gap-1" style={{ color: 'var(--color-reeAmber-text)' }}>
+          <span className={`text-sm font-bold tabular-nums inline-flex items-center gap-1 ${isResting(agent) ? 'text-muted' : ''}`} style={isResting(agent) ? undefined : { color: 'var(--color-reeAmber-text)' }}>
             <Flame size={13} strokeWidth={2} aria-hidden="true" />{agent.streak || 0}
+            {isResting(agent) && <span className="sr-only">, no answers yet today</span>}
           </span>
           <span className="text-micro text-muted uppercase tracking-wide">Streak</span>
         </div>
@@ -276,6 +284,12 @@ function Rankings() {
             )
           ) : (
             <>
+              {/* The grey flame's meaning, said once, and only when one shows. */}
+              {(leaderboard || []).some(isResting) && (
+                <p className="px-3 pt-1 pb-2 text-xs text-muted2">
+                  A grey flame means no answers yet today. That streak ends at midnight unless they answer.
+                </p>
+              )}
               {(leaderboard || []).map((agent, idx) => (
                 <LeaderboardRow
                   key={agent.uid}
