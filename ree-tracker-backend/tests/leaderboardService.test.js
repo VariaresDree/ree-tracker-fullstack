@@ -87,6 +87,13 @@ describe('leaderboardService.isStale', () => {
         expect(isStale(new Date(now - 45_000), now)).toBe(false);
         expect(isStale(new Date(now - STALE_AFTER_MS - 1), now)).toBe(true);
     });
+
+    it('a snapshot built before Manila midnight is stale after it, however new', () => {
+        // Its streaks were judged on the day it was built. 16:00 UTC is midnight in Manila.
+        const before = new Date('2026-07-10T15:59:30Z');
+        expect(isStale(before, new Date('2026-07-10T15:59:50Z').getTime())).toBe(false);
+        expect(isStale(before, new Date('2026-07-10T16:00:10Z').getTime())).toBe(true);
+    });
 });
 
 describe('featureFlagSchema (PUT /api/config/flags/:key contract)', () => {

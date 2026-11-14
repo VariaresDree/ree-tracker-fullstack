@@ -187,6 +187,10 @@ function startLeaderboardRefresh(intervalMs = Number(process.env.LEADERBOARD_REF
 /** True when the snapshot is missing or too old to trust. */
 function isStale(snapshotAt, now = Date.now()) {
     if (!snapshotAt) return true;
+    // Streaks are judged on the Manila day the snapshot was built (buildEntries),
+    // so one built before midnight is out of date after it, however new: it
+    // kept yesterday's streaks on screen for up to five minutes into the day.
+    if (manilaDateOf(snapshotAt) !== manilaDateOf(now)) return true;
     return now - new Date(snapshotAt).getTime() > STALE_AFTER_MS;
 }
 
