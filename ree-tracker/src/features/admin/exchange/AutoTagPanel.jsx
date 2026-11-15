@@ -7,6 +7,11 @@
 // to each subtopic, checked and tagged a group at a time (SuggestionGroup).
 // It was one question at a time, 50 shown of a pile of 561 that grew by up to
 // 100 an hour.
+//
+// Since 2026-11-14 a pick that names a subtopic is saved by the server without
+// waiting (the owner's call: the pile reached 1,668 with none reviewed, and
+// about 9 in 10 unsure picks were right). Those groups read "saved, to check";
+// only questions the AI couldn't place wait untagged, "to sort".
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Card, Disclosure, ProgressIndicator, SegmentedControl } from '../../../components/ui';
@@ -22,7 +27,7 @@ const groupKey = (topicId, subtopicId) => `${topicId}:${subtopicId || 'none'}`;
 
 export default function AutoTagPanel() {
   const [status, setStatus] = useState(null);
-  const [groups, setGroups] = useState(null); // { total, topics: [{ id, name, subject, subtopics, count, groups }] }
+  const [groups, setGroups] = useState(null); // { total, saved, topics: [{ id, name, subject, subtopics, count, groups: [{ subtopicId, name, count, saved }] }] }
   const [opened, setOpened] = useState(null); // groupKey of the group being checked
   const [saving, setSaving] = useState(false);
 
@@ -49,16 +54,21 @@ export default function AutoTagPanel() {
   };
 
   // A group answered some of its questions: take them off the counts here.
-  const resolved = (topicId, subtopicId) => ({ resolved: count, saved }) => {
-    setStatus((s) => s && { ...s, toReview: Math.max(0, s.toReview - count), tagged: s.tagged + saved });
+  // The tagged total can go up (a tag), stay (a confirm) or down (None fits on
+  // a saved pick), so it is read again.
+  const resolved = (topicId, subtopicId) => ({ resolved: count, wasSaved = 0 }) => {
+    fetchStatus().then(setStatus).catch(() => {});
     setGroups((g) => ({
       total: Math.max(0, g.total - count),
+      saved: Math.max(0, (g.saved || 0) - wasSaved),
       topics: g.topics
         .map((t) => (t.id !== topicId ? t : {
           ...t,
           count: Math.max(0, t.count - count),
           groups: t.groups
-            .map((gr) => ((gr.subtopicId || null) === (subtopicId || null) ? { ...gr, count: Math.max(0, gr.count - count) } : gr)),
+            .map((gr) => ((gr.subtopicId || null) === (subtopicId || null)
+              ? { ...gr, count: Math.max(0, gr.count - count), saved: Math.max(0, (gr.saved || 0) - wasSaved) }
+              : gr)),
         }))
         .filter((t) => t.count > 0),
     }));
@@ -72,7 +82,7 @@ export default function AutoTagPanel() {
         <div className="min-w-0">
           <h3 id="autotag-title" className="text-h3 text-textMain">In the background</h3>
           <p className="text-xs text-muted2 mt-1">
-            The in-app AI tags {perHour ? `about ${n(perHour)}` : 'a few batches of'} questions an hour, 6 AM to 11 PM, with nobody on this page. Sure picks save at once; the rest wait below. It goes slowly on purpose: it shares the free AI with learners.
+            The in-app AI tags {perHour ? `about ${n(perHour)}` : 'a few batches of'} questions an hour, 6 AM to 11 PM, with nobody on this page. A pick that names a subtopic is saved at once; the ones it wasn&rsquo;t sure of are listed below for you to check when you like. Questions it couldn&rsquo;t place wait untagged. It goes slowly on purpose: it shares the free AI with learners.
           </p>
         </div>
         {status && (
@@ -90,7 +100,8 @@ export default function AutoTagPanel() {
         <>
           <ProgressIndicator value={status.tagged} max={status.total || 1} label={`${n(status.tagged)} of ${n(status.total)} questions tagged`} />
           <p className="text-sm text-muted2" role="status">
-            {status.notAsked > 0 ? `${n(status.notAsked)} not looked at yet` : 'Every question has been looked at'} · {n(groups?.total ?? status.toReview)} to review
+            {status.notAsked > 0 ? `${n(status.notAsked)} not looked at yet` : 'Every question has been looked at'}
+            {groups ? ` · ${n(groups.saved)} saved to check · ${n(groups.total - (groups.saved || 0))} to sort` : ` · ${n(status.toReview)} to review`}
           </p>
         </>
       )}
@@ -99,7 +110,7 @@ export default function AutoTagPanel() {
         <section aria-label="To review" className="flex flex-col gap-3 min-w-0 border-t border-border pt-4">
           <p className="text-eyebrow">To review · {n(groups.total)}</p>
           <p className="text-xs text-muted2">
-            The AI wasn&rsquo;t sure of these. Open a group, untick any that don&rsquo;t belong, and tag the rest in one go. Unticked ones stay here for later.
+            The AI wasn&rsquo;t sure of these. Saved ones already carry its pick, so learners can study them now: open a group, untick any that don&rsquo;t belong, and confirm the rest. Ones to sort have no tag yet. Unticked ones stay here for later.
           </p>
           {groups.topics.map((t) => (
             <Disclosure key={t.id} title={`${t.name} · ${n(t.count)}`} description={t.subject}>
@@ -116,7 +127,7 @@ export default function AutoTagPanel() {
                         className="flex items-center justify-between gap-3 w-full text-left px-3 py-2 min-h-11 rounded-[var(--radius-default)] border border-border bg-surface2 hover:bg-surface3 cursor-pointer"
                       >
                         <span className="text-sm text-textMain min-w-0">{gr.subtopicId ? (gr.name || 'A subtopic') : 'No suggestion'}</span>
-                        <span className="text-sm text-muted2 tabular-nums shrink-0">{n(gr.count)} {gr.subtopicId ? 'suggested' : 'to sort'}</span>
+                        <span className="text-sm text-muted2 tabular-nums shrink-0">{n(gr.count)} {!gr.subtopicId ? 'to sort' : gr.saved >= gr.count ? 'saved, to check' : 'suggested'}</span>
                       </button>
                       {isOpen && <SuggestionGroup topic={t} group={gr} onResolved={resolved(t.id, gr.subtopicId)} />}
                     </li>

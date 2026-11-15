@@ -33,11 +33,32 @@ describe('SuggestionGroup', () => {
     expect(screen.getByRole('combobox')).toHaveValue('s-dc');
     fireEvent.click(screen.getByRole('checkbox', { name: /Include: Question 2/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Tag 2' }));
-    await waitFor(() => expect(onResolved).toHaveBeenCalledWith({ resolved: 2, saved: 2 }));
+    await waitFor(() => expect(onResolved).toHaveBeenCalledWith({ resolved: 2, wasSaved: 0 }));
     expect(resolveCall()[2]).toEqual({ items: [{ id: 'q1', subtopicId: 's-dc' }, { id: 'q3', subtopicId: 's-dc' }] });
     // The unticked one stays for later.
     expect(screen.getByText('Question 2')).toBeInTheDocument();
     expect(screen.queryByText('Question 1')).toBeNull();
+  });
+
+  // 2026-11-14: the server saves a named pick unchecked; this is where it is checked.
+  it('saved picks are confirmed, not tagged again; another subtopic moves them', async () => {
+    apiRequest.mockImplementation(async (url, method, body) => {
+      if (url.startsWith('/api/questions/tag-suggestions?')) return { items: ITEMS.map((i) => ({ ...i, saved: true })) };
+      return { success: true, saved: body.items.length, refused: [] };
+    });
+    const onResolved = vi.fn();
+    render(<SuggestionGroup topic={TOPIC} group={{ subtopicId: 's-dc', count: 3, saved: 3 }} onResolved={onResolved} />);
+    await screen.findByText('Question 3');
+    expect(screen.getByText(/these already carry it/)).toBeInTheDocument();
+    // Changing the subtopic is a move, so the button says Tag again.
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 's-ac' } });
+    expect(screen.getByRole('button', { name: 'Tag 3' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 's-dc' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /Include: Question 2/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm 2' }));
+    await waitFor(() => expect(onResolved).toHaveBeenCalledWith({ resolved: 2, wasSaved: 2 }));
+    expect(resolveCall()[2]).toEqual({ items: [{ id: 'q1', subtopicId: 's-dc' }, { id: 'q3', subtopicId: 's-dc' }] });
+    expect(toast.success).toHaveBeenCalledWith('2 confirmed.');
   });
 
   it('None fits leaves the ticked ones untagged for good', async () => {

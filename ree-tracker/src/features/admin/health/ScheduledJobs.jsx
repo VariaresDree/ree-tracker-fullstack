@@ -17,6 +17,7 @@ function runLine(job, s) {
   if (s.skipped === 'off') return 'Off: switch it on in Question bank › Subtopics.';
   if (s.skipped === 'running') return 'Skipped: the run before was still going.';
   const parts = [`${n(s.batches)} ${s.batches === 1 ? 'batch' : 'batches'}: ${n(s.saved)} tagged, ${n(s.queued)} to review.`];
+  if (s.picks > 0) parts.push(`${n(s.picks)} unsure ${s.picks === 1 ? 'pick' : 'picks'} saved to check.`);
   if (s.done) parts.push('Every question has been looked at.');
   if (s.stopped) parts.push('Stopped early: the AI was busy. It tries again next hour.');
   return parts.join(' ');

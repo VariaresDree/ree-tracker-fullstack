@@ -25,10 +25,11 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 | #277 | Progress › Overview › **Your journey**: readiness, pass chance and each subject's accuracy over time; the forecast is saved once a Manila day; `GET /api/forecast/history`, `GET /api/analytics/deep/weekly-accuracy` |
 | #278 | Every analysis leads somewhere: one link each on Accuracy by subject, Time per question and Confidence levels (`sections/nextSteps.js`) |
 | #279 | Mock debrief: against your last sitting of the same format, the two halves of the paper, and a Change column in Past sittings (`features/exams/sittingDelta.js`) |
-| this PR | One rule per idea (no behaviour change): `scoreTone`, `weakTopicsOf`, `mondayOf`, the timer on `TIME_SINK_MS`; three endpoints nothing called are removed |
+| #280 | One rule per idea (no behaviour change): `scoreTone`, `weakTopicsOf`, `mondayOf`, the timer on `TIME_SINK_MS`; three endpoints nothing called are removed |
+| this PR | Owner's choice: the hourly tagging run saves the AI's unsure picks that name a subtopic (up to 500 a run), and keeps them in To review as **saved, to check**: Confirm keeps one, another subtopic moves it, None fits takes the tag off. Migration `20261122000000_subtopic_suggestion_saved` |
 
 **Your actions:**
-1. **Review the unsure subtopic tags:** Admin › Question bank › Subtopics › To review (1,126 on 2026-11-14). 2,645 of 17,585 questions were tagged and 54 subtopics had 10 or more.
+1. **Check the saved subtopic picks when you like:** Admin › Question bank › Subtopics › To review. After the tagging PR deploys, the next few hourly runs save the pile (1,016 named picks on 2026-11-14; a hand check of 20 found about 17 right). Learners can study them at once; groups read "saved, to check" until you confirm or fix them. Only questions the AI couldn't place wait untagged.
 2. **Look at Progress › Overview** a day or two after #277 deploys: Pass chance gets its first point on the first visit and its trend the day after.
 3. **Ask two or three of the new learners** what they open first and where they stop. The usage numbers say what happens, not why.
 4. Still owed from earlier rounds: a real phone check, filing the 13 quiz files, copying the history archive to Drive.

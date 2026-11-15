@@ -1304,6 +1304,7 @@ model SubtopicSuggestion {
   subtopicId String?   // the AI's pick, when it named one of that topic's subtopics
   guess      String?   // the AI's words; null when none fits or it gave no answer
   resolvedAt DateTime? // the admin tagged it or skipped it
+  savedAt    DateTime? // the pick was saved as the question's tag, unchecked (saveOpenPicks)
   createdAt  DateTime  @default(now())
 
   @@index([resolvedAt, topicId])

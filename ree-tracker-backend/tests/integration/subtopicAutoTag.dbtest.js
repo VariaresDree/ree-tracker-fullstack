@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 // topic), and the status counts and the review list agree with it.
 
 const prisma = require('../../src/config/db');
-const { nextBatch, recordSuggestions, autoTagStatus, suggestionGroups, groupItems, resolveSuggestions } = require('../../src/services/subtopicAutoTag');
+const { nextBatch, recordSuggestions, autoTagStatus, suggestionGroups, groupItems, resolveSuggestions, saveOpenPicks } = require('../../src/services/subtopicAutoTag');
 const openIds = async () => (await groupItems({ topicId: topic.id, subtopicId: sub.id })).items.map((r) => r.id);
 
 const RUN = `at${Date.now().toString(36)}`;
@@ -54,7 +54,7 @@ describe('background subtopic tagging', () => {
 
         const groups = await suggestionGroups();
         const mine = groups.topics.find((t) => t.id === topic.id);
-        expect(mine.groups).toEqual([{ subtopicId: sub.id, name: sub.name, count: 1 }]);
+        expect(mine.groups).toEqual([{ subtopicId: sub.id, name: sub.name, count: 1, saved: 0 }]);
         expect(mine.subtopics.map((x) => x.id)).toEqual([sub.id]);
         const group = await groupItems({ topicId: topic.id, subtopicId: sub.id });
         expect(group.items[0]).toMatchObject({ id: Q(1), subtopicId: sub.id, guess: 'Sub' });
@@ -69,6 +69,27 @@ describe('background subtopic tagging', () => {
             await prisma.question.update({ where: { id: Q(1) }, data: { topicId: topic.id } });
             await prisma.topic.delete({ where: { id: other.id } });
         }
+    });
+
+    it('an unsure pick is saved unchecked and stays listed; None fits takes it back', async () => {
+        await recordSuggestions(topic.id, [{ id: Q(3), subtopicId: sub.id, guess: 'Sub' }]);
+        expect(await saveOpenPicks()).toBeGreaterThanOrEqual(2); // q1 and q3
+        expect((await prisma.question.findUnique({ where: { id: Q(3) } })).subtopicId).toBe(sub.id);
+        const kept = await prisma.subtopicSuggestion.findUnique({ where: { questionId: Q(3) } });
+        expect(kept.savedAt).not.toBeNull();
+        expect(kept.resolvedAt).toBeNull();
+        // Saved once: a second run finds nothing more.
+        expect(await saveOpenPicks()).toBe(0);
+        const group = await groupItems({ topicId: topic.id, subtopicId: sub.id });
+        expect(group.items.find((i) => i.id === Q(3))).toMatchObject({ saved: true });
+        const mine = (await suggestionGroups()).topics.find((t) => t.id === topic.id);
+        expect(mine.groups).toEqual([{ subtopicId: sub.id, name: sub.name, count: 2, saved: 2 }]);
+
+        await resolveSuggestions([{ id: Q(3), subtopicId: null }]);
+        expect((await prisma.question.findUnique({ where: { id: Q(3) } })).subtopicId).toBeNull();
+        expect(await openIds()).not.toContain(Q(3));
+        // Closed, so the background run doesn't ask about it again.
+        expect((await nextBatch(10)).items.map((q) => q.id)).toEqual([Q(4)]);
     });
 
     it('resolving tags it and closes the suggestion', async () => {
