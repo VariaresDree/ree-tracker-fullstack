@@ -4,6 +4,10 @@ import { auth } from '../config/firebaseDb';
 import { confidenceField } from '../utils/confidence';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const REJOIN_EVERY_MS = 5000;
+const JOIN_RETRIES = 3;
+// The server's message for a join that failed on its side, not a refusal.
+const JOIN_FAILED = 'Failed to join battle';
 
 export function useBattleSocket(battleId) {
     const socketRef = useRef(null);
@@ -79,10 +83,26 @@ export function useBattleSocket(battleId) {
 
             socketRef.current = socket;
 
+            // Self-heal (2026-11-15): players were shown "Disconnected" while in
+            // the lobby, and left out at the start. When the server's list says
+            // this player isn't here while this socket is up, or a join failed on
+            // the server's side, join again: at most every 5 s, and a failed join
+            // three times before saying so.
+            let lastRejoinAt = 0;
+            let joinRetries = 0;
+            const rejoinIfLost = (list) => {
+                const me = (list || []).find((p) => p.id === (auth.currentUser || user).uid);
+                if (!me || me.connected !== false || me.finished || !socket.connected) return;
+                if (Date.now() - lastRejoinAt < REJOIN_EVERY_MS) return;
+                lastRejoinAt = Date.now();
+                socket.emit('join-battle', { battleId });
+            };
+
             socket.on('connect', () => {
                 clearTimeout(failTimer);
                 setFailedFor(null);
                 setConnected(true);
+                joinRetries = 0;
                 socket.emit('join-battle', { battleId });
             });
 
@@ -112,6 +132,7 @@ export function useBattleSocket(battleId) {
 
             socket.on('lobby-update', (data) => {
                 if (data.participants) setParticipants(data.participants);
+                rejoinIfLost(data.participants);
                 if (data.status) setBattleStatus(data.status);
                 if (data.config) setBattleConfig(data);
                 if (data.timing) takeTiming(data.timing);
@@ -164,6 +185,14 @@ export function useBattleSocket(battleId) {
             });
 
             socket.on('error', (data) => {
+                // A join that failed on the server's side (a database blip) is
+                // tried again; a refusal (full, already started) is final.
+                if (data?.message === JOIN_FAILED && joinRetries < JOIN_RETRIES && socket.connected) {
+                    joinRetries += 1;
+                    clearTimeout(retryTimer);
+                    retryTimer = setTimeout(() => { if (!cancelled && socket.connected) socket.emit('join-battle', { battleId }); }, 3000);
+                    return;
+                }
                 setError(data?.message || 'The battle server refused that.');
             });
         };

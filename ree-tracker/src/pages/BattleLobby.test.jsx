@@ -80,6 +80,38 @@ describe('BattleLobby', () => {
     expect(screen.getByText('Waiting for another player to join')).toBeInTheDocument();
   });
 
+  // 2026-11-15: players shown Disconnected while in the lobby were left out at the start.
+  it('your own row follows your connection; the host sees who a start would leave out', () => {
+    socketState.participants = [
+      { id: 'me', displayName: 'Rey', isHost: true, connected: false },
+      { id: 'ana', displayName: 'Ana', connected: true },
+      { id: 'ben', displayName: 'Ben', connected: false },
+    ];
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Start battle (2 players)' })).toBeInTheDocument();
+    expect(screen.getAllByText('Ready')).toHaveLength(2);
+    expect(screen.getByText('Not connected')).toBeInTheDocument();
+    expect(screen.getByText(/Ben isn’t connected and will be left out if you start now/)).toBeInTheDocument();
+  });
+
+  it('a start the server did not take stops spinning and says so', () => {
+    vi.useFakeTimers();
+    try {
+      socketState.participants = [
+        { id: 'me', displayName: 'Rey', isHost: true, connected: true },
+        { id: 'ana', displayName: 'Ana', connected: true },
+      ];
+      renderAt();
+      fireEvent.click(screen.getByRole('button', { name: 'Start battle (2 players)' }));
+      expect(screen.getByRole('button', { name: /Start battle/ })).toBeDisabled();
+      act(() => { vi.advanceTimersByTime(10000); });
+      expect(screen.getByRole('button', { name: 'Start battle (2 players)' })).not.toBeDisabled();
+      expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/didn't start/));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('goes straight into the exam when the battle starts while you wait', () => {
     socketState.participants = [{ id: 'me', displayName: 'Rey', connected: true, finished: false }];
     renderAt();

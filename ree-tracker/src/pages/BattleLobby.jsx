@@ -49,8 +49,11 @@ function BattleRoom({ battleId }) {
     }, [battleStatus]);
 
     // Only players connected now can take part: the server drops anyone
-    // disconnected when the battle starts.
-    const present = participants.filter(p => p.connected !== false);
+    // disconnected when the battle starts. This player's own row follows this
+    // device's socket, which knows sooner than the server's list.
+    const isLive = (p) => (p.id === currentUser?.uid ? connected : p.connected !== false);
+    const present = participants.filter(isLive);
+    const away = participants.filter((p) => !isLive(p) && !p.finished);
     const isHost = participants.some(p => p.id === currentUser?.uid && p.isHost);
     const canStart = isHost && present.length >= 2 && battleStatus === 'WAITING';
     const waitingForHost = !isHost && battleStatus === 'WAITING' && present.length >= 2;
@@ -72,6 +75,16 @@ function BattleRoom({ battleId }) {
         setStarting(true);
         startBattle();
     };
+    // A start the server didn't take (it lost the connection, or someone left)
+    // used to spin for good.
+    useEffect(() => {
+        if (!starting || battleStatus !== 'WAITING') return undefined;
+        const t = setTimeout(() => {
+            setStarting(false);
+            toast.error("The battle didn't start. Check everyone is connected, then try again.");
+        }, 10000);
+        return () => clearTimeout(t);
+    }, [starting, battleStatus]);
 
     const handleEnterChamber = () => {
         navigate(`/simulator?battleId=${battleId}`);
@@ -248,10 +261,10 @@ function BattleRoom({ battleId }) {
                             <div key={p.id} className={`flex items-center justify-between gap-3 p-4 rounded-[var(--radius-default)] border transition-[background-color,border-color,opacity] ${
                                 p.id === currentUser?.uid
                                     ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
-                                    : p.connected ? 'bg-surface2 border-border2' : 'bg-surface2/50 border-border2 opacity-50'
+                                    : isLive(p) ? 'bg-surface2 border-border2' : 'bg-surface2/50 border-border2'
                             }`}>
                                 <div className="flex items-center gap-3 min-w-0">
-                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.connected ? 'animate-pulse' : ''}`} style={{ background: p.connected ? 'var(--accent-success)' : 'var(--text-muted)' }}></span>
+                                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isLive(p) ? 'animate-pulse' : ''}`} style={{ background: isLive(p) ? 'var(--accent-success)' : 'var(--text-muted)' }} aria-hidden="true"></span>
                                     <span className="text-sm font-bold text-textMain truncate">{p.displayName}</span>
                                     {p.isHost && <Badge tone="neutral" className="uppercase shrink-0">Host</Badge>}
                                     {p.id === currentUser?.uid && <Badge tone="velocity" className="uppercase shrink-0">You</Badge>}
@@ -262,7 +275,7 @@ function BattleRoom({ battleId }) {
                                     ) : battleStatus === 'IN_PROGRESS' ? (
                                         <span className="text-xs font-mono text-muted tabular-nums">{p.itemsAnswered} answered</span>
                                     ) : (
-                                        <span className="text-xs text-muted font-mono">{p.connected ? 'Ready' : 'Disconnected'}</span>
+                                        <span className="text-xs text-muted font-mono">{isLive(p) ? 'Ready' : p.id === currentUser?.uid ? 'Reconnecting…' : 'Not connected'}</span>
                                     )}
                                 </div>
                             </div>
@@ -368,6 +381,13 @@ function BattleRoom({ battleId }) {
                     <Button tone="success" className="flex-1" onClick={handleStartBattle} loading={starting} disabled={starting}>
                         Start battle ({present.length} players)
                     </Button>
+                )}
+
+                {/* Who a start would leave out, before it does. */}
+                {isHost && battleStatus === 'WAITING' && away.length > 0 && (
+                    <p aria-live="polite" className="w-full text-xs text-muted2 text-center sm:order-last">
+                        {away.length === 1 ? `${away[0].displayName} isn’t connected` : `${away.length} players aren’t connected`} and will be left out if you start now. Give them a moment to come back.
+                    </p>
                 )}
 
                 {battleStatus === 'WAITING' && isHost && present.length < 2 && (

@@ -12,7 +12,7 @@ const fakeSocket = {
 };
 let ioOptions = null;
 vi.mock('socket.io-client', () => ({ io: (url, opts) => { ioOptions = opts; return fakeSocket; } }));
-vi.mock('../config/firebaseDb', () => ({ auth: { currentUser: { getIdToken: async () => 'tok' } } }));
+vi.mock('../config/firebaseDb', () => ({ auth: { currentUser: { uid: 'me', getIdToken: async () => 'tok' } } }));
 
 const { useBattleSocket } = await import('./useBattleSocket');
 
@@ -62,6 +62,42 @@ describe('useBattleSocket', () => {
     fakeSocket.emit.mockClear();
     act(() => result.current.rejoin());
     expect(fakeSocket.emit).toHaveBeenCalledWith('join-battle', { battleId: 'ABC126' });
+  });
+
+  // 2026-11-15: players shown Disconnected while in the lobby were left out at the start.
+  it('joins again when the server lists this player as not connected, at most every 5 s', async () => {
+    renderHook(() => useBattleSocket('ABC128'));
+    await waitFor(() => expect(handlers['lobby-update']).toBeDefined());
+    fakeSocket.connected = true;
+    fakeSocket.emit.mockClear();
+    const lost = { participants: [{ id: 'me', connected: false }, { id: 'ana', connected: true }] };
+    act(() => handlers['lobby-update'](lost));
+    act(() => handlers['lobby-update'](lost));
+    expect(fakeSocket.emit.mock.calls.filter(([e]) => e === 'join-battle')).toEqual([['join-battle', { battleId: 'ABC128' }]]);
+    // Someone else away, or this player listed as here: nothing to do.
+    fakeSocket.emit.mockClear();
+    act(() => handlers['lobby-update']({ participants: [{ id: 'me', connected: true }, { id: 'ana', connected: false }] }));
+    expect(fakeSocket.emit).not.toHaveBeenCalledWith('join-battle', expect.anything());
+  });
+
+  it('tries a join that failed on the server again, and says so only after three', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result } = renderHook(() => useBattleSocket('ABC129'));
+      await waitFor(() => expect(handlers.error).toBeDefined());
+      fakeSocket.connected = true;
+      fakeSocket.emit.mockClear();
+      for (let i = 0; i < 3; i++) {
+        act(() => handlers.error({ message: 'Failed to join battle' }));
+        expect(result.current.error).toBeNull();
+        act(() => { vi.advanceTimersByTime(3000); });
+      }
+      expect(fakeSocket.emit.mock.calls.filter(([e]) => e === 'join-battle')).toHaveLength(3);
+      act(() => handlers.error({ message: 'Failed to join battle' }));
+      expect(result.current.error).toBe('Failed to join battle');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('surfaces the server’s refusal', async () => {
