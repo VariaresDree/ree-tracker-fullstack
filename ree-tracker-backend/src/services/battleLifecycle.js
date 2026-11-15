@@ -103,6 +103,15 @@ function markGone(battleId, userId, socketId) {
 
 const isPresent = (battleId, userId) => (presence.get(battleId)?.get(userId)?.size ?? 0) > 0;
 
+/** A player's open sockets in a battle's room, forgotten (the host removed them). */
+function forgetPlayer(battleId, userId) {
+    const users = presence.get(battleId);
+    const sockets = Array.from(users?.get(userId) || []);
+    users?.delete(userId);
+    if (users && users.size === 0) presence.delete(battleId);
+    return sockets;
+}
+
 // ---------------------------------------------------------------------------
 // Lobbies
 // ---------------------------------------------------------------------------
@@ -924,6 +933,7 @@ module.exports = {
     markPresent,
     markGone,
     isPresent,
+    forgetPlayer,
     setBattleNamespace,
     notifyRoom,
     getLobby,

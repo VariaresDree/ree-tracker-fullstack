@@ -100,6 +100,25 @@ describe('useBattleSocket', () => {
     }
   });
 
+  it('the host removes a player; a removed player hears it, live or on a rejoin', async () => {
+    const { result } = renderHook(() => useBattleSocket('ABC130'));
+    await waitFor(() => expect(handlers.removed).toBeDefined());
+    fakeSocket.emit.mockClear();
+    act(() => result.current.removePlayer('ana'));
+    expect(fakeSocket.emit).toHaveBeenCalledWith('remove-player', { battleId: 'ABC130', userId: 'ana' });
+
+    act(() => handlers['lobby-update']({ participants: [{ id: 'me', connected: true }] }));
+    act(() => handlers.removed({ battleId: 'ABC130', message: 'The host removed you from this battle.' }));
+    expect(result.current).toMatchObject({ removed: true, participants: [], error: 'The host removed you from this battle.' });
+  });
+
+  it('a refused rejoin after a removal reads as removed', async () => {
+    const { result } = renderHook(() => useBattleSocket('ABC131'));
+    await waitFor(() => expect(handlers.error).toBeDefined());
+    act(() => handlers.error({ message: 'The host removed you from this battle.' }));
+    expect(result.current.removed).toBe(true);
+  });
+
   it('surfaces the server’s refusal', async () => {
     const { result } = renderHook(() => useBattleSocket('ABC124'));
     await waitFor(() => expect(handlers.error).toBeDefined());

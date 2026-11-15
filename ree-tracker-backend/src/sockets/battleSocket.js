@@ -16,6 +16,7 @@ const MAX_PARTICIPANTS = 32;         // per-lobby cap — a join flood can't bal
 const LOBBY_GC_GRACE_MS = 60 * 1000; // drop an abandoned lobby this long after the last player leaves
 // How long a join waits for a due battle to settle before answering anyway.
 const JOIN_SETTLE_WAIT_MS = 8000;
+const REMOVED_MESSAGE = 'The host removed you from this battle.';
 
 // Per-socket event rate limiter (fixed window). The /battle namespace sits
 // behind no HTTP rate-limit, so without this an authed client can flood
@@ -135,6 +136,11 @@ function setupBattleSocket(io) {
                 if (battle.status === 'IN_PROGRESS' && battleTiming(battle)?.closed) {
                     await lifecycle.settleWithin(battleId, JOIN_SETTLE_WAIT_MS, { ns: battleNs });
                     battle = (await prisma.battle.findUnique({ where: { id: battleId } })) || battle;
+                }
+
+                // Removed by the host: kept out, even with the code.
+                if (Array.isArray(battle.removedIds) && battle.removedIds.includes(socket.userId)) {
+                    return socket.emit('error', { message: REMOVED_MESSAGE });
                 }
 
                 // Authorization, before any lobby exists: a new player may only
@@ -291,6 +297,53 @@ function setupBattleSocket(io) {
                 logger.info('Battle started', { battleId, host: socket.userId });
             } catch (err) {
                 logger.error('Start battle error', { error: err.message, battleId });
+            }
+        });
+
+        // The host removes a player while the battle is gathering (2026-11-15,
+        // owner's request). They leave the lobby and the room, their row goes,
+        // and the battle keeps them out if they come back with the code.
+        socket.on('remove-player', async ({ battleId, userId } = {}) => {
+            if (!battleId || typeof battleId !== 'string' || !userId || typeof userId !== 'string') return;
+            if (rateLimited(socket)) return;
+            try {
+                const battle = await prisma.battle.findUnique({ where: { id: battleId } });
+                if (!battle) return;
+                if (battle.hostId !== socket.userId) {
+                    return socket.emit('error', { message: 'Only the host can remove players.' });
+                }
+                if (userId === socket.userId) return;
+                if (battle.status !== 'WAITING') {
+                    return socket.emit('error', { message: 'Players can only be removed before the battle starts.' });
+                }
+                const removed = await prisma.$transaction(async (tx) => {
+                    const { count } = await tx.battle.updateMany({
+                        where: { id: battleId, hostId: socket.userId, status: 'WAITING' },
+                        data: { removedIds: { push: userId } },
+                    });
+                    if (count !== 1) return false;
+                    await tx.battleParticipant.deleteMany({ where: { battleId, userId } });
+                    return true;
+                });
+                if (!removed) return;
+
+                const lobby = battleLobbies.get(battleId);
+                const name = lobby?.participants.get(userId)?.displayName || null;
+                lobby?.participants.delete(userId);
+                for (const id of lifecycle.forgetPlayer(battleId, userId)) {
+                    const theirs = battleNs.sockets?.get?.(id);
+                    if (!theirs) continue;
+                    theirs.emit('removed', { battleId, message: REMOVED_MESSAGE });
+                    theirs.leave(battleId);
+                    if (theirs.battleId === battleId) theirs.battleId = null;
+                }
+                if (lobby) {
+                    battleNs.to(battleId).emit('lobby-update', { participants: serializeParticipants(lobby) });
+                }
+                logger.info('Battle player removed', { battleId, host: socket.userId, removed: userId, name });
+            } catch (err) {
+                logger.error('Remove player error', { error: err.message, battleId });
+                socket.emit('error', { message: "Couldn't remove that player. Try again." });
             }
         });
 

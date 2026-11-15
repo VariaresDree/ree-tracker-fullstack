@@ -111,6 +111,13 @@ describe('GET /api/battles/:id', () => {
         expect(res.body.battle.me).toBeNull();
     });
 
+    it('never says who the host removed', async () => {
+        db.addBattle({ id: 'GET003', questions: QUESTIONS, removedIds: ['pest'] });
+        const res = await get('/GET003');
+        expect(res.status).toBe(200);
+        expect(res.body.battle).not.toHaveProperty('removedIds');
+    });
+
     it('finishes a battle whose time is up before answering', async () => {
         running('GET003', (LIMIT + 60) * 1000, { me: { answers: { q1: { userAnswer: 'A' } } }, other: {} });
         const res = await get('/GET003');

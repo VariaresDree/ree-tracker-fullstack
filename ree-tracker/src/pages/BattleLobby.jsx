@@ -4,8 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { requestRematch } from '../services/dbQueries';
-import { Button, Badge, StatusPill, Card, CardHeader, CardTitle, CardBody, EmptyState, IconChip, Page, PageHeader } from '../components/ui';
-import { ChevronLeft, Swords, Users, Copy, Trophy, ClipboardList, Clock, RotateCcw } from '../components/ui/icons';
+import { Button, Badge, StatusPill, Card, CardHeader, CardTitle, CardBody, EmptyState, IconChip, Modal, Page, PageHeader } from '../components/ui';
+import { ChevronLeft, Swords, Users, Copy, Trophy, ClipboardList, Clock, RotateCcw, UserMinus, Share2 } from '../components/ui/icons';
 import { formatTimeOfDay } from '../utils/time';
 import toast from 'react-hot-toast';
 
@@ -35,9 +35,11 @@ function BattleRoom({ battleId }) {
         battleConfig,
         results,
         error,
+        removed,
         timing,
         rematch,
-        startBattle
+        startBattle,
+        removePlayer,
     } = useBattleSocket(battleId);
 
     // While it runs: minutes left, ticking on.
@@ -54,6 +56,32 @@ function BattleRoom({ battleId }) {
     const isLive = (p) => (p.id === currentUser?.uid ? connected : p.connected !== false);
     const present = participants.filter(isLive);
     const away = participants.filter((p) => !isLive(p) && !p.finished);
+    // Who's here first, then who isn't; each group in the order they joined.
+    const listed = [...present, ...participants.filter((p) => !isLive(p))];
+    // The player the host is about to remove (the confirm dialog).
+    const [removing, setRemoving] = useState(null);
+    // Said once the server has taken them off the list, not on the tap: a
+    // refusal (the battle just started) or an older server would make it untrue.
+    const removalSent = useRef(null);
+    const confirmRemove = () => {
+        removePlayer?.(removing.id);
+        removalSent.current = removing;
+        setRemoving(null);
+    };
+    useEffect(() => {
+        const sent = removalSent.current;
+        if (!sent || participants.some((p) => p.id === sent.id)) return;
+        toast.success(`${sent.displayName} was removed.`);
+        removalSent.current = null;
+    }, [participants]);
+    // A refusal to someone already in the room (a removal or start the server
+    // turned down) was never shown; the full-page one is for those not let in.
+    const inRoom = participants.some((p) => p.id === currentUser?.uid);
+    useEffect(() => {
+        if (error && inRoom) toast.error(error);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- once per new message
+    }, [error]);
+    const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
     const isHost = participants.some(p => p.id === currentUser?.uid && p.isHost);
     const canStart = isHost && present.length >= 2 && battleStatus === 'WAITING';
     const waitingForHost = !isHost && battleStatus === 'WAITING' && present.length >= 2;
@@ -61,6 +89,15 @@ function BattleRoom({ battleId }) {
 
     const copyInviteLink = async () => {
         const text = `Join my live REE.ai Board Battle!\n\nBattle code: ${battleId}`;
+        // A phone's share sheet (Messenger, SMS…), else the clipboard.
+        if (canShare) {
+            try {
+                await navigator.share({ title: 'REE.ai battle', text });
+                return;
+            } catch (err) {
+                if (err?.name === 'AbortError') return;
+            }
+        }
         try {
             await navigator.clipboard.writeText(text);
             toast.success("Battle code copied — send it to your opponents.");
@@ -162,8 +199,8 @@ function BattleRoom({ battleId }) {
                 <EmptyState
                     titleAs="h1"
                     icon={Swords}
-                    title="You can’t join this battle"
-                    description={error}
+                    title={removed ? 'You were removed from this battle' : 'You can’t join this battle'}
+                    description={removed ? 'The host removed you from the lobby. You can host your own battle or join another.' : error}
                     action={<Button onClick={() => navigate('/exams?tab=battles')}>Host or join another</Button>}
                 />
             </Page>
@@ -246,7 +283,9 @@ function BattleRoom({ battleId }) {
                     <CardTitle className="flex items-center gap-2">
                         <Users size={16} strokeWidth={1.75} aria-hidden="true" className="text-[var(--accent-signal)]" /> Players
                     </CardTitle>
-                    <StatusPill tone="success">{present.length} online</StatusPill>
+                    <StatusPill tone={away.length ? 'amber' : 'success'}>
+                        {away.length ? `${present.length} of ${present.length + away.length} online` : `${present.length} online`}
+                    </StatusPill>
                 </CardHeader>
                 <CardBody className="flex flex-col gap-2">
                     {participants.length === 0 ? (
@@ -257,7 +296,7 @@ function BattleRoom({ battleId }) {
                             description="Share your battle code so other reviewers can join."
                         />
                     ) : (
-                        participants.map((p) => (
+                        listed.map((p) => (
                             <div key={p.id} className={`flex items-center justify-between gap-3 p-4 rounded-[var(--radius-default)] border transition-[background-color,border-color,opacity] ${
                                 p.id === currentUser?.uid
                                     ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-[color-mix(in_srgb,var(--accent)_30%,transparent)]'
@@ -276,6 +315,11 @@ function BattleRoom({ battleId }) {
                                         <span className="text-xs font-mono text-muted tabular-nums">{p.itemsAnswered} answered</span>
                                     ) : (
                                         <span className="text-xs text-muted font-mono">{isLive(p) ? 'Ready' : p.id === currentUser?.uid ? 'Reconnecting…' : 'Not connected'}</span>
+                                    )}
+                                    {isHost && battleStatus === 'WAITING' && p.id !== currentUser?.uid && (
+                                        <Button size="sm" variant="ghost" tone="danger" aria-label={`Remove ${p.displayName}`} onClick={() => setRemoving(p)}>
+                                            <UserMinus size={16} strokeWidth={1.75} aria-hidden="true" />
+                                        </Button>
                                     )}
                                 </div>
                             </div>
@@ -373,9 +417,13 @@ function BattleRoom({ battleId }) {
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
-                <Button variant="secondary" className="flex-1" onClick={copyInviteLink}>
-                    <Copy size={16} strokeWidth={1.75} aria-hidden="true" /> Copy battle code
-                </Button>
+                {battleStatus === 'WAITING' && (
+                    <Button variant="secondary" className="flex-1" onClick={copyInviteLink}>
+                        {canShare
+                            ? <><Share2 size={16} strokeWidth={1.75} aria-hidden="true" /> Invite players</>
+                            : <><Copy size={16} strokeWidth={1.75} aria-hidden="true" /> Copy battle code</>}
+                    </Button>
+                )}
 
                 {canStart && (
                     <Button tone="success" className="flex-1" onClick={handleStartBattle} loading={starting} disabled={starting}>
@@ -390,7 +438,7 @@ function BattleRoom({ battleId }) {
                     </p>
                 )}
 
-                {battleStatus === 'WAITING' && isHost && present.length < 2 && (
+                {battleStatus === 'WAITING' && present.length < 2 && (
                     <span aria-live="polite" className="flex-1 flex items-center justify-center">
                         <StatusPill tone="amber" dot>Waiting for another player to join</StatusPill>
                     </span>
@@ -441,6 +489,24 @@ function BattleRoom({ battleId }) {
                     </span>
                 )}
             </div>
+            <Modal
+                open={!!removing}
+                onClose={() => setRemoving(null)}
+                title={removing ? `Remove ${removing.displayName}?` : 'Remove player?'}
+                icon={UserMinus}
+                tone="danger"
+                size="sm"
+                footer={
+                    <>
+                        <Button variant="secondary" size="sm" onClick={() => setRemoving(null)}>Cancel</Button>
+                        <Button variant="danger" size="sm" onClick={confirmRemove}>Remove</Button>
+                    </>
+                }
+            >
+                <p className="text-sm text-muted2 leading-relaxed">
+                    They leave the lobby and can’t rejoin this battle with the code. You can invite them to a new one later.
+                </p>
+            </Modal>
         </Page>
     );
 }

@@ -28,7 +28,7 @@ const { default: BattleLobby } = await import('./BattleLobby');
 const base = () => ({
   connected: true, connectionFailed: false, participants: [], battleStatus: 'WAITING',
   battleConfig: { config: { subject: 'EE' }, questionCount: 20, timeLimitSecs: 1800 },
-  results: null, error: null, startBattle: vi.fn(),
+  results: null, error: null, startBattle: vi.fn(), removePlayer: vi.fn(),
 });
 const renderAt = () => render(
   <MemoryRouter initialEntries={['/battle/ABC123']}>
@@ -45,6 +45,7 @@ beforeEach(() => {
   socketCalls.length = 0;
   requestRematch.mockReset();
   toast.error.mockClear();
+  toast.success.mockClear();
 });
 const finished = () => {
   socketState.battleStatus = 'COMPLETED';
@@ -92,6 +93,63 @@ describe('BattleLobby', () => {
     expect(screen.getAllByText('Ready')).toHaveLength(2);
     expect(screen.getByText('Not connected')).toBeInTheDocument();
     expect(screen.getByText(/Ben isn’t connected and will be left out if you start now/)).toBeInTheDocument();
+  });
+
+  // 2026-11-15, owner's request: the host can remove a player before the start.
+  it('the host removes a player after confirming; no one else sees Remove', () => {
+    socketState.participants = [
+      { id: 'me', displayName: 'Rey', isHost: true, connected: true },
+      { id: 'ana', displayName: 'Ana', connected: true },
+    ];
+    renderAt();
+    expect(screen.queryByRole('button', { name: 'Remove Rey' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Ana' }));
+    expect(screen.getByRole('heading', { name: 'Remove Ana?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(socketState.removePlayer).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Ana' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(socketState.removePlayer).toHaveBeenCalledWith('ana');
+    // Said only once the server has taken her off the list.
+    expect(toast.success).not.toHaveBeenCalledWith('Ana was removed.');
+    act(() => setSocket((s) => ({ ...s, participants: s.participants.filter((p) => p.id !== 'ana') })));
+    expect(toast.success).toHaveBeenCalledWith('Ana was removed.');
+  });
+
+  it('a refusal while in the room is shown, not swallowed', () => {
+    socketState.participants = [{ id: 'me', displayName: 'Rey', isHost: true, connected: true }];
+    renderAt();
+    act(() => setSocket((s) => ({ ...s, error: 'Players can only be removed before the battle starts.' })));
+    expect(toast.error).toHaveBeenCalledWith('Players can only be removed before the battle starts.');
+  });
+
+  it('a player who is not the host has no Remove, and once it starts no one does', () => {
+    socketState.participants = [
+      { id: 'host', displayName: 'Ana', isHost: true, connected: true },
+      { id: 'me', displayName: 'Rey', connected: true },
+    ];
+    renderAt();
+    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull();
+    expect(screen.getByText('Waiting for the host to start')).toBeInTheDocument();
+  });
+
+  it('a removed player is told so, not shown the lobby', () => {
+    socketState.removed = true;
+    socketState.error = 'The host removed you from this battle.';
+    renderAt();
+    expect(screen.getByRole('heading', { name: 'You were removed from this battle' })).toBeInTheDocument();
+  });
+
+  it('says how many of the players are online, those here listed first', () => {
+    socketState.participants = [
+      { id: 'me', displayName: 'Rey', isHost: true, connected: true },
+      { id: 'ben', displayName: 'Ben', connected: false },
+      { id: 'ana', displayName: 'Ana', connected: true },
+    ];
+    renderAt();
+    expect(screen.getByText('2 of 3 online')).toBeInTheDocument();
+    const names = screen.getAllByText(/^(Rey|Ana|Ben)$/).map((n) => n.textContent);
+    expect(names).toEqual(['Rey', 'Ana', 'Ben']);
   });
 
   it('a start the server did not take stops spinning and says so', () => {

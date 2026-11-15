@@ -228,7 +228,9 @@ router.get('/:battleId', authMiddleware, async (req, res) => {
             battle = (await prisma.battle.findUnique({ where })) || battle;
         }
 
-        const out = { ...battle, questions: sanitizeBattleQuestions(battle.questions) };
+        // Who the host removed stays on the server.
+        const { removedIds: _removedIds, ...shown } = battle;
+        const out = { ...shown, questions: sanitizeBattleQuestions(battle.questions) };
         if (battle.status === 'IN_PROGRESS') {
             const now = Date.now();
             const timing = battleTiming(battle, now);

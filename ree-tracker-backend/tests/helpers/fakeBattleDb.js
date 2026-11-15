@@ -100,7 +100,10 @@ function installFakeBattleDb(vi, prisma) {
     vi.spyOn(prisma.battle, 'updateMany').mockImplementation(async ({ where, data }) => {
         const b = state.battles.get(where.id);
         if (!b || !matchesIn(b.status, where.status) || !matchesIn(b.hostId, where.hostId)) return { count: 0 };
-        Object.assign(b, clone(data));
+        // Prisma's { push } on a list column appends.
+        for (const [k, v] of Object.entries(clone(data))) {
+            b[k] = v && typeof v === 'object' && 'push' in v ? [...(b[k] || []), v.push] : v;
+        }
         return { count: 1 };
     });
 

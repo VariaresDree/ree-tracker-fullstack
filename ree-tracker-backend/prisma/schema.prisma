@@ -529,6 +529,8 @@ model Battle {
   // placement drove Elo.
   startedAt     DateTime?
   createdAt     DateTime @default(now())
+  // Players the host removed from the lobby: refused when they rejoin with the code.
+  removedIds    String[] @default([])
   outcomes      BattleOutcome[]
   participants  BattleParticipant[]
   // A rematch is a new battle with the same settings, started from the
