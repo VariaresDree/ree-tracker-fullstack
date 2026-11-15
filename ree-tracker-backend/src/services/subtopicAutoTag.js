@@ -122,22 +122,38 @@ const PICKS_PER_RUN = 500;
  * question with no pick stays untagged. applyTags refuses a pick whose subtopic
  * was retired or isn't in the question's topic, and those stay as they are.
  */
-async function saveOpenPicks(limit = PICKS_PER_RUN) {
+async function saveOpenPicks(limit = PICKS_PER_RUN, errors = []) {
     const rows = await prisma.subtopicSuggestion.findMany({
         where: { resolvedAt: null, savedAt: null, subtopicId: { not: null }, question: { subtopicId: null, isFlagged: false } },
         orderBy: [{ createdAt: 'asc' }, { questionId: 'asc' }],
         take: limit,
         select: { questionId: true, topicId: true, subtopicId: true, question: { select: { topicId: true } } },
     });
-    const picks = rows.filter((r) => r.question.topicId === r.topicId);
-    if (!picks.length) return 0;
-    const { refused } = await applyTags(picks.map((r) => ({ id: r.questionId, subtopicId: r.subtopicId })));
-    const bad = new Set(refused.map((r) => r.id));
-    const saved = picks.filter((r) => !bad.has(r.questionId)).map((r) => r.questionId);
-    if (saved.length) {
-        await prisma.subtopicSuggestion.updateMany({ where: { questionId: { in: saved }, resolvedAt: null }, data: { savedAt: new Date() } });
+    const bySubtopic = new Map();
+    for (const r of rows) {
+        if (r.question.topicId !== r.topicId) continue;
+        if (!bySubtopic.has(r.subtopicId)) bySubtopic.set(r.subtopicId, []);
+        bySubtopic.get(r.subtopicId).push(r.questionId);
     }
-    return saved.length;
+    // One subtopic at a time, each kept as it's saved (2026-11-15): the first
+    // live run sent 500 picks over 48 subtopics in one transaction, 48 updates at
+    // ~200 ms each to the database, past Prisma's 5 s transaction limit, and saved
+    // none of 1,754.
+    // A group that fails is left for the next run and named in `errors`.
+    let total = 0;
+    for (const [subtopicId, ids] of bySubtopic) {
+        try {
+            const { refused } = await applyTags(ids.map((id) => ({ id, subtopicId })));
+            const bad = new Set(refused.map((r) => r.id));
+            const saved = ids.filter((id) => !bad.has(id));
+            if (!saved.length) continue;
+            await prisma.subtopicSuggestion.updateMany({ where: { questionId: { in: saved }, resolvedAt: null }, data: { savedAt: new Date() } });
+            total += saved.length;
+        } catch (error) {
+            errors.push(String(error.message || error).slice(0, 200));
+        }
+    }
+    return total;
 }
 
 let running = false;
@@ -166,12 +182,18 @@ async function runAutoTag({ calls = CALLS_PER_RUN, run = runTask } = {}) {
         logger.warn('Subtopic auto-tag run stopped', { error: error.message, ...out });
     }
     // Also after a run the AI cut short: the pile needs no AI.
+    // A failure goes in the run's summary too, so App health shows it: the logs aren't on a screen.
+    const errors = [];
     try {
-        out.picks = await saveOpenPicks();
+        out.picks = await saveOpenPicks(PICKS_PER_RUN, errors);
     } catch (error) {
-        logger.warn('Saving unsure subtopic picks failed', { error: error.message });
+        errors.push(String(error.message || error).slice(0, 200));
     } finally {
         running = false;
+    }
+    if (errors.length) {
+        out.picksError = errors[0];
+        logger.warn('Saving unsure subtopic picks failed', { errors: errors.length, error: errors[0] });
     }
     logger.info('Subtopic auto-tag run', out);
     return out;
