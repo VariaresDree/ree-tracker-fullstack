@@ -35,6 +35,13 @@ describe('Scheduled jobs', () => {
     expect(tags.getByText(/once the Supabase jobs are set up/)).toBeInTheDocument();
   });
 
+  it('says how many unsure picks a tagging run saved to check', () => {
+    render(<ScheduledJobs jobs={[
+      { job: 'subtopic-tags', last: run({ summary: { batches: 3, saved: 47, queued: 62, picks: 40, done: false } }), runs24h: 1, failed24h: 0, late: false },
+    ]} />);
+    expect(screen.getByText('3 batches: 47 tagged, 62 to review. 40 unsure picks saved to check.')).toBeInTheDocument();
+  });
+
   it('a tagging run that was off, or cut short by the AI, says so', () => {
     render(<ScheduledJobs jobs={[
       { job: 'subtopic-tags', last: run({ summary: { skipped: 'off' } }), runs24h: 1, failed24h: 0, late: false },

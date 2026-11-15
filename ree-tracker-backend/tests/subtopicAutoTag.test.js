@@ -53,6 +53,9 @@ beforeEach(() => {
     vi.spyOn(prisma.question, 'updateMany').mockImplementation((args) => args);
     vi.spyOn(prisma.subtopicSuggestion, 'deleteMany').mockImplementation((args) => args);
     vi.spyOn(prisma.subtopicSuggestion, 'createMany').mockImplementation((args) => args);
+    // saveOpenPicks: no pile unless a test gives one.
+    vi.spyOn(prisma.subtopicSuggestion, 'findMany').mockResolvedValue([]);
+    vi.spyOn(prisma.subtopicSuggestion, 'updateMany').mockResolvedValue({ count: 0 });
     vi.spyOn(prisma, '$transaction').mockImplementation(async (ops) => ops.map((o) => ({ count: o.where?.id?.in?.length ?? 0 })));
 });
 afterEach(() => { vi.restoreAllMocks(); invalidateFlagCache(); });
@@ -84,6 +87,31 @@ describe('runAutoTag', () => {
         ]);
     });
 
+    // 2026-11-14: 1,668 waited untagged and none had been reviewed.
+    it('saves the open picks that name a subtopic, unchecked, and leaves them listed', async () => {
+        flagOn(true);
+        prisma.$queryRaw.mockReset().mockResolvedValue([]); // nothing new to ask
+        prisma.subtopicSuggestion.findMany.mockResolvedValue([
+            { questionId: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', question: { topicId: TOPIC.id } },
+            // Moved to another topic since: its pick is stale.
+            { questionId: 'q8', topicId: TOPIC.id, subtopicId: 's-dc', question: { topicId: 't-other' } },
+        ]);
+        const out = await autoTag.runAutoTag({ run: vi.fn() });
+        expect(out).toMatchObject({ batches: 0, picks: 1, done: true });
+        expect(prisma.subtopicSuggestion.findMany.mock.calls[0][0].where).toMatchObject({ resolvedAt: null, savedAt: null, subtopicId: { not: null } });
+        expect(prisma.question.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['q2'] }, topicId: TOPIC.id }, data: { subtopicId: 's-dc' } });
+        const marked = prisma.subtopicSuggestion.updateMany.mock.calls[0][0];
+        expect(marked.where).toEqual({ questionId: { in: ['q2'] }, resolvedAt: null });
+        expect(marked.data.savedAt).toBeInstanceOf(Date);
+    });
+
+    it('saves the pile even when the AI is busy', async () => {
+        flagOn(true);
+        prisma.subtopicSuggestion.findMany.mockResolvedValue([{ questionId: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', question: { topicId: TOPIC.id } }]);
+        const run = vi.fn(async () => { throw new AiUnavailableError('busy', [], 'exhausted'); });
+        expect(await autoTag.runAutoTag({ calls: 1, run })).toMatchObject({ stopped: 'exhausted', picks: 1 });
+    });
+
     it('stops at an AI failure and records nothing, so the batch is asked again', async () => {
         flagOn(true);
         const run = vi.fn(async () => { throw new AiUnavailableError('busy', [], 'exhausted'); });
@@ -111,10 +139,17 @@ describe('runAutoTag', () => {
 
 describe('resolveSuggestions', () => {
     it('tags the picked ones, skips the null ones, and closes both', async () => {
-        const close = vi.spyOn(prisma.subtopicSuggestion, 'updateMany').mockResolvedValue({ count: 2 });
+        const close = prisma.subtopicSuggestion.updateMany.mockResolvedValue({ count: 2 });
         const out = await autoTag.resolveSuggestions([{ id: 'q1', subtopicId: 's-ac' }, { id: 'q2', subtopicId: null }]);
         expect(out).toMatchObject({ saved: 1, skipped: 1, refused: [] });
         expect(close.mock.calls[0][0].where).toEqual({ questionId: { in: ['q1', 'q2'] }, resolvedAt: null });
+    });
+
+    it('None fits takes back a pick that was saved unchecked, only where the question still carries it', async () => {
+        prisma.subtopicSuggestion.findMany.mockResolvedValue([{ questionId: 'q2', subtopicId: 's-dc' }]);
+        await autoTag.resolveSuggestions([{ id: 'q2', subtopicId: null }, { id: 'q3', subtopicId: null }]);
+        expect(prisma.subtopicSuggestion.findMany.mock.calls[0][0].where).toMatchObject({ questionId: { in: ['q2', 'q3'] }, savedAt: { not: null } });
+        expect(prisma.question.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['q2'] }, subtopicId: 's-dc' }, data: { subtopicId: null } });
     });
 });
 
@@ -142,6 +177,10 @@ describe('routes', () => {
         { questionId: 'q4', topicId: TOPIC.id, subtopicId: null, guess: null, question: { text: 'Who wrote this?', options: [], topicId: TOPIC.id } },
         // Moved to another topic since: left out.
         { questionId: 'q9', topicId: TOPIC.id, subtopicId: 's-dc', guess: null, question: { text: 'Moved', options: [], topicId: 't-other' } },
+        // Saved unchecked and still carrying the pick: listed to check.
+        { questionId: 'q5', topicId: TOPIC.id, subtopicId: 's-dc', guess: 'DC Circuits', savedAt: new Date(), question: { text: 'Saved', options: [], topicId: TOPIC.id, subtopicId: 's-dc' } },
+        // Saved, then the admin tagged it otherwise: no longer open.
+        { questionId: 'q6', topicId: TOPIC.id, subtopicId: 's-dc', guess: 'DC Circuits', savedAt: new Date(), question: { text: 'Changed', options: [], topicId: TOPIC.id, subtopicId: 's-ac' } },
     ];
 
     it('counts the pile per topic and suggestion, most first, no suggestion last', async () => {
@@ -149,12 +188,12 @@ describe('routes', () => {
         vi.spyOn(prisma.topic, 'findMany').mockResolvedValue([{ ...TOPIC, subtopics: [{ id: 's-ac', name: 'AC Circuits' }, { id: 's-dc', name: 'DC Circuits' }] }]);
         const res = await request(app()).get('/api/questions/tag-suggestions/groups').set(as(ADMIN));
         expect(res.status).toBe(200);
-        expect(res.body.total).toBe(4);
-        expect(res.body.topics[0]).toMatchObject({ id: TOPIC.id, name: 'Circuits', count: 4 });
+        expect(res.body).toMatchObject({ total: 5, saved: 1 });
+        expect(res.body.topics[0]).toMatchObject({ id: TOPIC.id, name: 'Circuits', count: 5 });
         expect(res.body.topics[0].groups).toEqual([
-            { subtopicId: 's-dc', name: 'DC Circuits', count: 2 },
-            { subtopicId: 's-ac', name: 'AC Circuits', count: 1 },
-            { subtopicId: null, name: null, count: 1 },
+            { subtopicId: 's-dc', name: 'DC Circuits', count: 3, saved: 1 },
+            { subtopicId: 's-ac', name: 'AC Circuits', count: 1, saved: 0 },
+            { subtopicId: null, name: null, count: 1, saved: 0 },
         ]);
     });
 
@@ -162,7 +201,7 @@ describe('routes', () => {
         vi.spyOn(prisma.subtopicSuggestion, 'findMany').mockResolvedValue(ROWS);
         vi.spyOn(prisma.topic, 'findMany').mockResolvedValue([{ ...TOPIC, subtopics: [{ id: 's-ac', name: 'AC Circuits' }, { id: 's-dc', name: 'DC Circuits' }] }]);
         const dc = await request(app()).get(`/api/questions/tag-suggestions?topicId=${TOPIC.id}&subtopicId=s-dc`).set(as(ADMIN));
-        expect(dc.body.items.map((i) => i.id)).toEqual(['q1', 'q2']);
+        expect(dc.body.items.map((i) => [i.id, i.saved])).toEqual([['q1', false], ['q2', false], ['q5', true]]);
         expect(dc.body.items[0]).toMatchObject({ text: 'A 12 V battery', options: ['3 A'], subtopicId: 's-dc' });
         const none = await request(app()).get(`/api/questions/tag-suggestions?topicId=${TOPIC.id}&subtopicId=none`).set(as(ADMIN));
         expect(none.body.items.map((i) => i.id)).toEqual(['q4']);

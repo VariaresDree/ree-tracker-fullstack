@@ -83,7 +83,8 @@ function readTagReply(parsed, items, subtopics) {
         const guess = typeof row?.subtopic === 'string' ? row.subtopic.trim() : '';
         const none = !guess || normSubtopicKey(guess) === 'none';
         const exact = none ? null : byKey.get(normSubtopicKey(guess)) || null;
-        // A near name is preselected for review, never saved on its own.
+        // A near name is never a sure pick: it is kept as a suggestion (the
+        // server's hourly run saves named suggestions unchecked, to review later).
         const subtopicId = exact || (none ? null : nearSubtopic(guess, subtopics));
         return { id: q.id, guess: none ? null : guess, subtopicId, sure: !!exact && row?.sure === true };
     });

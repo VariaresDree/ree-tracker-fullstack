@@ -4,6 +4,10 @@
 // one go. The subtopic starts at the group's suggestion and can be changed, so
 // the "no suggestion" group is sorted the same way: tick those that belong
 // together, pick their subtopic, tag them.
+//
+// Since 2026-11-14 the server saves a named pick unchecked (`saved` on an
+// item): the question already carries the tag, and this is where it is
+// checked. Confirm keeps it, another subtopic moves it, None fits takes it off.
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button, FormField, Select, Skeleton } from '../../../components/ui';
@@ -39,6 +43,10 @@ export default function SuggestionGroup({ topic, group, onResolved }) {
     return next;
   });
   const allTicked = items && items.length > 0 && ticked.size === items.length;
+  const anySaved = !!items?.some((i) => i.saved);
+  // Every ticked one already carries this subtopic: there is nothing to tag, only to confirm.
+  const confirming = !!items && ticked.size > 0 && subtopicId === (group.subtopicId || '')
+    && items.every((i) => !ticked.has(i.id) || i.saved);
 
   const resolve = async (asSubtopic) => {
     const ids = items.filter((i) => ticked.has(i.id)).map((i) => i.id);
@@ -50,11 +58,12 @@ export default function SuggestionGroup({ topic, group, onResolved }) {
       }, { timeoutMs: 30_000, idempotencyKey: newKey() });
       const refused = new Set((res.refused || []).map((r) => r.id));
       const done = ids.filter((id) => !refused.has(id));
+      const wasSaved = items.filter((i) => i.saved && done.includes(i.id)).length;
       setItems((list) => list.filter((i) => !done.includes(i.id)));
       setTicked(new Set());
-      onResolved?.({ resolved: done.length, saved: res.saved || 0 });
+      onResolved?.({ resolved: done.length, wasSaved });
       if (refused.size) toast.error(`${n(refused.size)} couldn't be tagged: that subtopic isn't in their topic any more.`);
-      else toast.success(asSubtopic ? `${n(res.saved)} tagged.` : `${n(done.length)} left untagged.`);
+      else toast.success(!asSubtopic ? `${n(done.length)} left untagged.` : confirming ? `${n(done.length)} confirmed.` : `${n(res.saved)} tagged.`);
     } catch (err) {
       toast.error(err.message || 'Nothing was saved. Try again.');
     } finally {
@@ -68,6 +77,11 @@ export default function SuggestionGroup({ topic, group, onResolved }) {
   const count = ticked.size;
   return (
     <div className="flex flex-col gap-3 min-w-0">
+      {anySaved && (
+        <p className="text-xs text-muted2">
+          The AI named this subtopic without being sure, so these already carry it. Untick any that are wrong and confirm the rest; then move the wrong ones with the picker, or None fits to take the tag off.
+        </p>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <FormField label="Subtopic" className="min-w-0 flex-1 basis-56">
           <Select value={subtopicId} onChange={(e) => setSubtopicId(e.target.value)} disabled={busy}>
@@ -76,7 +90,7 @@ export default function SuggestionGroup({ topic, group, onResolved }) {
           </Select>
         </FormField>
         <Button onClick={() => resolve(subtopicId)} disabled={busy || !count || !subtopicId} loading={busy}>
-          Tag {n(count)}
+          {confirming ? 'Confirm' : 'Tag'} {n(count)}
         </Button>
         <Button variant="ghost" onClick={() => resolve(null)} disabled={busy || !count}>None fits for {n(count)}</Button>
       </div>
