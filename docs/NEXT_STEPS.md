@@ -30,7 +30,7 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 | this PR | Smart drill by subtopic: about half of each drilled topic's items from the learner's weakest tagged subtopic there (below 60% after 3+ answers); Practice says which ("More from Relays, where you have 2 of 9 right.") |
 
 **Your actions:**
-1. **Check the saved subtopic picks when you like:** Admin › Question bank › Subtopics › To review. After the tagging PR deploys, the next few hourly runs save the pile (1,016 named picks on 2026-11-14; a hand check of 20 found about 17 right). Learners can study them at once; groups read "saved, to check" until you confirm or fix them. Only questions the AI couldn't place wait untagged.
+1. **Check the saved subtopic picks when you like:** Admin › Question bank › Subtopics › To review. The first run after #283 saved none (one transaction for 48 subtopics ran past Prisma's 5 s limit); after the per-subtopic fix deploys, the next few hourly runs save the pile (1,016 named picks on 2026-11-14; a hand check of 20 found about 17 right). Learners can study them at once; groups read "saved, to check" until you confirm or fix them. Only questions the AI couldn't place wait untagged.
 2. **Look at Progress › Overview** a day or two after #277 deploys: Pass chance gets its first point on the first visit and its trend the day after.
 3. **Ask two or three of the new learners** what they open first and where they stop. The usage numbers say what happens, not why.
 4. Still owed from earlier rounds: a real phone check, filing the 13 quiz files, copying the history archive to Drive.

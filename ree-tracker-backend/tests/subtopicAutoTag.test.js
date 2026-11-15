@@ -105,6 +105,43 @@ describe('runAutoTag', () => {
         expect(marked.data.savedAt).toBeInstanceOf(Date);
     });
 
+    it('saves one subtopic at a time, so one transaction never carries the whole pile', async () => {
+        flagOn(true);
+        prisma.$queryRaw.mockReset().mockResolvedValue([]);
+        prisma.syllabusSubtopic.findMany.mockResolvedValue([
+            { id: 's-dc', topicId: TOPIC.id, active: true }, { id: 's-ac', topicId: TOPIC.id, active: true },
+        ]);
+        prisma.question.findMany.mockResolvedValue(['q2', 'q3', 'q4'].map((id) => ({ id, topicId: TOPIC.id })));
+        prisma.subtopicSuggestion.findMany.mockResolvedValue([
+            { questionId: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', question: { topicId: TOPIC.id } },
+            { questionId: 'q3', topicId: TOPIC.id, subtopicId: 's-ac', question: { topicId: TOPIC.id } },
+            { questionId: 'q4', topicId: TOPIC.id, subtopicId: 's-dc', question: { topicId: TOPIC.id } },
+        ]);
+        const out = await autoTag.runAutoTag({ run: vi.fn() });
+        expect(out.picks).toBe(3);
+        expect(prisma.$transaction.mock.calls.map(([ops]) => ops.length)).toEqual([1, 1]);
+        expect(prisma.subtopicSuggestion.updateMany.mock.calls.map(([a]) => a.where.questionId.in)).toEqual([['q2', 'q4'], ['q3']]);
+    });
+
+    it('a group that fails is named in the run summary; the others are still saved', async () => {
+        flagOn(true);
+        prisma.$queryRaw.mockReset().mockResolvedValue([]);
+        prisma.syllabusSubtopic.findMany.mockResolvedValue([
+            { id: 's-dc', topicId: TOPIC.id, active: true }, { id: 's-ac', topicId: TOPIC.id, active: true },
+        ]);
+        prisma.question.findMany.mockResolvedValue(['q2', 'q3'].map((id) => ({ id, topicId: TOPIC.id })));
+        prisma.subtopicSuggestion.findMany.mockResolvedValue([
+            { questionId: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', question: { topicId: TOPIC.id } },
+            { questionId: 'q3', topicId: TOPIC.id, subtopicId: 's-ac', question: { topicId: TOPIC.id } },
+        ]);
+        prisma.$transaction
+            .mockRejectedValueOnce(new Error('Transaction already closed'))
+            .mockImplementationOnce(async (ops) => ops.map(() => ({ count: 1 })));
+        const out = await autoTag.runAutoTag({ run: vi.fn() });
+        expect(out).toMatchObject({ picks: 1, picksError: 'Transaction already closed' });
+        expect(prisma.subtopicSuggestion.updateMany.mock.calls.map(([a]) => a.where.questionId.in)).toEqual([['q3']]);
+    });
+
     it('saves the pile even when the AI is busy', async () => {
         flagOn(true);
         prisma.subtopicSuggestion.findMany.mockResolvedValue([{ questionId: 'q2', topicId: TOPIC.id, subtopicId: 's-dc', question: { topicId: TOPIC.id } }]);

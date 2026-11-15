@@ -101,7 +101,9 @@ async function applyTags(items) {
         where: { id: { in: g.ids }, ...(g.topicId ? { topicId: g.topicId } : {}) },
         data: { subtopicId },
     }));
-    const results = ops.length ? await prisma.$transaction(ops) : [];
+    // One update per subtopic, each a round trip to the database (~200 ms from
+    // Render): Prisma's default 5 s would end a transaction of 25 or more.
+    const results = ops.length ? await prisma.$transaction(ops, { timeout: 20_000 }) : [];
     return { saved: results.reduce((n, r) => n + r.count, 0), refused };
 }
 
