@@ -30,7 +30,8 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 | #284 | Smart drill by subtopic: about half of each drilled topic's items from the learner's weakest tagged subtopic there (below 60% after 3+ answers); Practice says which ("More from Relays, where you have 2 of 9 right.") |
 | #285 | The high-yield badge and filter nothing could set are removed from Progress › Syllabus |
 | #286 | Fix: unsure picks are saved one subtopic at a time (the first run put 48 subtopics in one transaction, ran past Prisma's 5 s limit and saved none); a failed group shows on App health |
-| this PR | Battle lobby presence: a player is connected while any of their sockets is open (a refresh's old socket closing late marked them gone, and a rebuilt lobby marked everyone gone); the app rejoins when listed as away; the host sees who a start would leave out |
+| #287 | Battle lobby presence: a player is connected while any of their sockets is open (a refresh's old socket closing late marked them gone, and a rebuilt lobby marked everyone gone); the app rejoins when listed as away; the host sees who a start would leave out |
+| this PR | Owner's request: the host removes a player before the start (asks first; kept out with the code, `Battle.removedIds`, migration `20261123000000_battle_removed_ids`); "3 of 4 online" with those here listed first; Invite opens the share sheet; refusals in the room are shown |
 
 **Your actions:**
 1. **Check the saved subtopic picks when you like:** Admin › Question bank › Subtopics › To review. The first run after #283 saved none (one transaction for 48 subtopics ran past Prisma's 5 s limit); after the per-subtopic fix deploys, the next few hourly runs save the pile (1,016 named picks on 2026-11-14; a hand check of 20 found about 17 right). Learners can study them at once; groups read "saved, to check" until you confirm or fix them. Only questions the AI couldn't place wait untagged.

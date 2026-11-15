@@ -166,6 +166,42 @@ describe('a battle between two real clients', () => {
         expect(Object.fromEntries(rebuilt.participants.map((p) => [p.id, p.connected]))).toEqual({ host: true, guest: true, third: true });
     });
 
+    // 2026-11-15, owner's request: the host can remove a player before the start.
+    it('the host removes a player: they are told, leave the room, and are kept out with the code', async () => {
+        db.addBattle({ id: 'E2E005', hostId: 'host', questions: QUESTIONS, timeLimitSecs: 600 });
+        db.addUser('host'); db.addUser('guest'); db.addUser('pest');
+        const host = player('host');
+        const guest = player('guest');
+        const pest = player('pest');
+        await Promise.all([host, guest, pest].map((p) => new Promise((resolve) => p.socket.on('connect', resolve))));
+        for (const p of [host, guest, pest]) p.socket.emit('join-battle', { battleId: 'E2E005' });
+        await host.waitFor('lobby-update', (u) => u.participants?.length === 3);
+
+        // Only the host.
+        guest.socket.emit('remove-player', { battleId: 'E2E005', userId: 'pest' });
+        expect((await guest.waitFor('error')).message).toMatch(/Only the host/);
+
+        host.socket.emit('remove-player', { battleId: 'E2E005', userId: 'pest' });
+        expect(await pest.waitFor('removed')).toMatchObject({ battleId: 'E2E005', message: 'The host removed you from this battle.' });
+        const after = await guest.waitFor('lobby-update', (u) => u.participants?.length === 2);
+        expect(after.participants.map((p) => p.id).sort()).toEqual(['guest', 'host']);
+        expect(db.participant('E2E005', 'pest')).toBeNull();
+        expect(db.state.battles.get('E2E005').removedIds).toEqual(['pest']);
+
+        // Back with the code: refused, and the lobby is unchanged.
+        pest.seen.length = 0;
+        pest.socket.emit('join-battle', { battleId: 'E2E005' });
+        expect((await pest.waitFor('error')).message).toBe('The host removed you from this battle.');
+        expect(lifecycle.battleLobbies.get('E2E005').participants.has('pest')).toBe(false);
+
+        // Not once it has started.
+        host.socket.emit('start-battle', { battleId: 'E2E005' });
+        await guest.waitFor('battle-started');
+        host.socket.emit('remove-player', { battleId: 'E2E005', userId: 'guest' });
+        expect((await host.waitFor('error')).message).toMatch(/before the battle starts/);
+        expect(db.participant('E2E005', 'guest')).not.toBeNull();
+    });
+
     it('refuses a socket with no token', async () => {
         const socket = connectClient(url, { auth: {}, transports: ['websocket'], reconnection: false });
         clients.push(socket);

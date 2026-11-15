@@ -171,4 +171,7 @@ export {
   SquareCheck,
   Video,
   Link,
+  // Battle room: removing a player, inviting
+  UserMinus,
+  Share2,
 } from 'lucide-react';

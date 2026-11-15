@@ -8,6 +8,7 @@ const REJOIN_EVERY_MS = 5000;
 const JOIN_RETRIES = 3;
 // The server's message for a join that failed on its side, not a refusal.
 const JOIN_FAILED = 'Failed to join battle';
+const REMOVED = 'The host removed you from this battle.';
 
 export function useBattleSocket(battleId) {
     const socketRef = useRef(null);
@@ -35,6 +36,8 @@ export function useBattleSocket(battleId) {
     // so joining a battle that had already started showed "Waiting for
     // players" for good.
     const [error, setError] = useState(null);
+    // The host removed this player from the lobby (live, or refused on a rejoin).
+    const [removed, setRemoved] = useState(false);
     // A final submit the server hasn't acknowledged. One made while the socket
     // was down used to be dropped; it is resent once the server has us back in
     // the lobby, and the UI can say it is waiting to send.
@@ -184,6 +187,12 @@ export function useBattleSocket(battleId) {
                 if (data?.battleId) setRematch({ battleId: data.battleId, status: 'WAITING', by: data.by || null });
             });
 
+            socket.on('removed', (data) => {
+                setRemoved(true);
+                setParticipants([]);
+                setError(data?.message || REMOVED);
+            });
+
             socket.on('error', (data) => {
                 // A join that failed on the server's side (a database blip) is
                 // tried again; a refusal (full, already started) is final.
@@ -193,6 +202,7 @@ export function useBattleSocket(battleId) {
                     retryTimer = setTimeout(() => { if (!cancelled && socket.connected) socket.emit('join-battle', { battleId }); }, 3000);
                     return;
                 }
+                if (data?.message === REMOVED) setRemoved(true);
                 setError(data?.message || 'The battle server refused that.');
             });
         };
@@ -218,6 +228,11 @@ export function useBattleSocket(battleId) {
 
     const startBattle = useCallback(() => {
         socketRef.current?.emit('start-battle', { battleId });
+    }, [battleId]);
+
+    // The host removes a player from the lobby, before the start.
+    const removePlayer = useCallback((userId) => {
+        socketRef.current?.emit('remove-player', { battleId, userId });
     }, [battleId]);
 
     // Live per-question answer — the server grades it against its own key
@@ -260,6 +275,8 @@ export function useBattleSocket(battleId) {
         explanationKey,
         opponentProgress: Array.from(opponentProgress.values()),
         error,
+        removed,
+        removePlayer,
         submitPending,
         timing,
         rematch,
