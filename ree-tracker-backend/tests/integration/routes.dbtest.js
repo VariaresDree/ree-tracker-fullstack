@@ -12,6 +12,7 @@ firebaseAuth.getAuth = () => ({ verifyIdToken });
 
 const prisma = require('../../src/config/db');
 const { lockedQuestionIds } = require('../../src/services/answerGate');
+const { manilaDateOf } = require('@ree/shared');
 
 const RUN = `it${Date.now().toString(36)}`;
 const A = `${RUN}-a`;
@@ -54,6 +55,10 @@ afterAll(async () => {
     await prisma.$disconnect();
 });
 
+// The Manila day the grade below ran on: a missed question's review card is
+// due from the next Manila midnight, so a run that crosses it reads q2 as due.
+let gradedOn = null;
+
 describe('answer gate', () => {
     it("locks the open battle's question for its player only", async () => {
         expect([...await lockedQuestionIds(A, [Q(1), Q(2)])]).toEqual([Q(1)]);
@@ -64,6 +69,7 @@ describe('answer gate', () => {
         const answers = [Q(1), Q(2)].map((id, i) => ({
             questionId: id, userAnswer: 'B', confidenceLevel: 'HIGH', timeSpentMs: 30_000, clientAttemptId: `${RUN}-run:${id}`, itemIndex: i,
         }));
+        gradedOn = manilaDateOf(new Date());
         const res = await request(makeApp()).post('/api/exams/grade').set(as(A)).send({ mode: 'DRILL', answers });
         expect(res.status).toBe(200);
         const byQ = Object.fromEntries(res.body.results.map((r) => [r.questionId, r]));
@@ -94,7 +100,10 @@ describe("today's loop", () => {
         const res = await request(makeApp()).get('/api/user/today-loop').set(as(A));
         expect(res.status).toBe(200);
         // q3 is due; q2 is an open mistake (missed in the grade above); q1 is in the live battle.
-        expect(res.body.items.map((i) => [i.id, i.loop.reason])).toEqual([[Q(3), 'due'], [Q(2), 'mistake']]);
+        // Past Manila midnight since that grade, q2's own review card is due too
+        // (a run at 00:00:00 Manila, 2026-11-15, read it as due).
+        const q2 = manilaDateOf(new Date()) === gradedOn ? 'mistake' : 'due';
+        expect(res.body.items.map((i) => [i.id, i.loop.reason])).toEqual([[Q(3), 'due'], [Q(2), q2]]);
         expect(res.body.cardsDue).toBe(0);
     });
 });
