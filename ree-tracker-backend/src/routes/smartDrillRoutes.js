@@ -3,9 +3,9 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { normalizeSubject, SMART_DRILL_MAX_ITEMS } = require('@ree/shared');
+const { normalizeSubject, SMART_DRILL_MAX_ITEMS, WEAK_TOPIC_ACCURACY } = require('@ree/shared');
 const { rankWeakTopics } = require('../engine/forecast');
-const { selectDrillItems, splitAcrossTopics } = require('../engine/drill');
+const { selectDrillItems, splitAcrossTopics, weakestSubtopic, SUBTOPIC_SHARE } = require('../engine/drill');
 const { effectiveMastery } = require('../services/masteryView');
 const { getSyllabusWeights } = require('../services/questionPool');
 
@@ -17,6 +17,11 @@ const { getSyllabusWeights } = require('../services/questionPool');
 //                     weight, the same ranking as the forecast's prescription
 //   ?mode=blind-spot  lead with the questions answered CONFIDENTLY WRONG
 //   ?limit=           items (default 10, max 50)
+//
+// Within each topic, about half the items come from the learner's weakest
+// tagged subtopic there (below WEAK_TOPIC_ACCURACY after 3+ answers), the rest
+// adaptively from the whole topic (2026-11-15; tags had covered too little of
+// the bank to lean on before the hourly run saved its unsure picks).
 //
 // The old version ranked subtopics by raw accuracy on the legacy `subtopic`
 // string, did not exclude flagged questions from its first query, and stripped
@@ -39,6 +44,26 @@ function shuffle(arr) {
         [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
+}
+
+// The learner's answers in these topics, by tagged subtopic, with its name.
+// Counted in Postgres, so only a row per subtopic leaves the database. A failure
+// here only loses the lean, never the drill.
+async function subtopicRecord(userId, topicIds) {
+    if (topicIds.length === 0) return [];
+    try {
+        return await prisma.$queryRaw`
+            SELECT q."topicId" AS "topicId", q."subtopicId" AS "subtopicId", s."name" AS "name",
+                   COUNT(*)::int AS "answered", (COUNT(*) FILTER (WHERE a."isCorrect"))::int AS "correct"
+            FROM "QuestionAttempt" a
+            JOIN "Question" q ON q."id" = a."questionId"
+            JOIN "SyllabusSubtopic" s ON s."id" = q."subtopicId" AND s."active"
+            WHERE a."userId" = ${userId} AND q."topicId" = ANY(${topicIds}::text[])
+            GROUP BY q."topicId", q."subtopicId", s."name"`;
+    } catch (error) {
+        logger.warn('Smart drill subtopic record failed', { error: error.message });
+        return [];
+    }
 }
 
 async function resolveTargets(req, userId, utpRows) {
@@ -97,6 +122,10 @@ router.get('/', authMiddleware, async (req, res) => {
         const globalTheta = user?.thetaRating ?? 0;
         const exclude = new Set(recent.map((r) => r.questionId));
         const counts = splitAcrossTopics(limit, targets.length);
+        const record = await subtopicRecord(userId, targets.map((t) => t.topicId).filter(Boolean));
+        targets.forEach((t) => {
+            t.weakSubtopic = t.topicId ? weakestSubtopic(record.filter((r) => r.topicId === t.topicId), WEAK_TOPIC_ACCURACY) : null;
+        });
 
         const perTopic = await Promise.all(targets.map(async (t, i) => {
             const want = counts[i];
@@ -115,20 +144,21 @@ router.get('/', authMiddleware, async (req, res) => {
                     if (!exclude.has(questionId)) { chosen.push(questionId); exclude.add(questionId); }
                 }
             }
-            if (chosen.length < want) {
+            // About half of what's left from the weakest subtopic; the topic fills the rest.
+            const pick = async (where, n) => {
                 const candidates = await prisma.question.findMany({
-                    where: { isFlagged: false, OR: match },
+                    where: { isFlagged: false, ...where },
                     select: { id: true, irtA: true, irtB: true, irtC: true, difficulty: true },
                     take: CANDIDATES_PER_TOPIC,
                 });
-                const picked = selectDrillItems({
-                    candidates,
-                    theta: thetaBySubject[t.subject] ?? globalTheta,
-                    limit: want - chosen.length,
-                    exclude,
-                });
-                for (const id of picked) { chosen.push(id); exclude.add(id); }
+                for (const id of selectDrillItems({ candidates, theta: thetaBySubject[t.subject] ?? globalTheta, limit: n, exclude })) {
+                    chosen.push(id); exclude.add(id);
+                }
+            };
+            if (t.weakSubtopic && chosen.length < want) {
+                await pick({ topicId: t.topicId, subtopicId: t.weakSubtopic.subtopicId }, Math.round((want - chosen.length) * SUBTOPIC_SHARE));
             }
+            if (chosen.length < want) await pick({ OR: match }, want - chosen.length);
             return chosen;
         }));
 
@@ -144,6 +174,9 @@ router.get('/', authMiddleware, async (req, res) => {
                 subject: t.subject,
                 topicId: t.topicId ?? null,
                 masteryEffective: t.masteryEffective ?? null,
+                subtopic: t.weakSubtopic
+                    ? { id: t.weakSubtopic.subtopicId, name: t.weakSubtopic.name, answered: t.weakSubtopic.answered, correct: t.weakSubtopic.correct }
+                    : null,
             })),
             mode: blindSpotMode ? 'blind-spot' : 'adaptive',
         });

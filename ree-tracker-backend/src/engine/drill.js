@@ -72,4 +72,23 @@ function splitAcrossTopics(limit, n) {
     return out;
 }
 
-module.exports = { selectDrillItems, splitAcrossTopics, WINDOWS };
+// A subtopic is called weak only after this many answers in it.
+const SUBTOPIC_MIN_ANSWERED = 3;
+// Share of a topic's drill items given to its weakest subtopic; the rest stay
+// adaptive across the whole topic, so a drill never shrinks to one subtopic.
+const SUBTOPIC_SHARE = 0.5;
+
+/**
+ * The learner's weakest tagged subtopic in a topic, or null: at least
+ * SUBTOPIC_MIN_ANSWERED answers, below `weakBelow` right, lowest first by
+ * (correct + 1) / (answered + 2) so 0 of 3 doesn't outrank 2 of 12 on luck.
+ * @param {Array<{subtopicId, answered, correct}>} rows
+ */
+function weakestSubtopic(rows, weakBelow) {
+    const smoothed = (r) => (r.correct + 1) / (r.answered + 2);
+    return (rows || [])
+        .filter((r) => r?.subtopicId && r.answered >= SUBTOPIC_MIN_ANSWERED && r.correct / r.answered < weakBelow)
+        .sort((a, b) => smoothed(a) - smoothed(b) || b.answered - a.answered)[0] || null;
+}
+
+module.exports = { selectDrillItems, splitAcrossTopics, weakestSubtopic, WINDOWS, SUBTOPIC_MIN_ANSWERED, SUBTOPIC_SHARE };

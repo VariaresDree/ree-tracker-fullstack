@@ -26,7 +26,8 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 | #278 | Every analysis leads somewhere: one link each on Accuracy by subject, Time per question and Confidence levels (`sections/nextSteps.js`) |
 | #279 | Mock debrief: against your last sitting of the same format, the two halves of the paper, and a Change column in Past sittings (`features/exams/sittingDelta.js`) |
 | #280 | One rule per idea (no behaviour change): `scoreTone`, `weakTopicsOf`, `mondayOf`, the timer on `TIME_SINK_MS`; three endpoints nothing called are removed |
-| this PR | Owner's choice: the hourly tagging run saves the AI's unsure picks that name a subtopic (up to 500 a run), and keeps them in To review as **saved, to check**: Confirm keeps one, another subtopic moves it, None fits takes the tag off. Migration `20261122000000_subtopic_suggestion_saved` |
+| #283 | Owner's choice: the hourly tagging run saves the AI's unsure picks that name a subtopic (up to 500 a run), and keeps them in To review as **saved, to check**: Confirm keeps one, another subtopic moves it, None fits takes the tag off. Migration `20261122000000_subtopic_suggestion_saved` |
+| this PR | Smart drill by subtopic: about half of each drilled topic's items from the learner's weakest tagged subtopic there (below 60% after 3+ answers); Practice says which ("More from Relays, where you have 2 of 9 right.") |
 
 **Your actions:**
 1. **Check the saved subtopic picks when you like:** Admin › Question bank › Subtopics › To review. After the tagging PR deploys, the next few hourly runs save the pile (1,016 named picks on 2026-11-14; a hand check of 20 found about 17 right). Learners can study them at once; groups read "saved, to check" until you confirm or fix them. Only questions the AI couldn't place wait untagged.
@@ -47,7 +48,7 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 
 **Next, in order of value:**
 1. Check the review numbers after a week, then decide whether a quarter is the right share.
-2. Smart drill by subtopic and per-subtopic mastery in the forecast, once the unsure tags are reviewed.
+2. Per-subtopic mastery in the forecast (Smart drill by subtopic shipped 2026-11-15). Wait until the saved picks are mostly checked: the forecast moves every learner's numbers.
 3. One-tap board dates for the exam date (2 of 21 accounts set one): needs the official PRC dates.
 4. Ability with a recency weight, and mocks as forecast evidence: its own round, with before-and-after figures, since it moves every learner's numbers.
 5. Split the three largest files, one per PR: `useSimulatorEngine.js` (992 lines), `store/useStore.js` (916), `services/battleLifecycle.js` (913).

@@ -41,6 +41,8 @@ beforeEach(() => {
     ]);
     vi.spyOn(prisma.syllabusWeight, 'findMany').mockResolvedValue([]);
     vi.spyOn(prisma.topic, 'findUnique').mockResolvedValue({ id: 't-prot', name: 'Protection', subject: 'EE' });
+    // The learner's record by tagged subtopic: none by default.
+    vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]);
     // Attempts: the recently-seen read (select questionId, createdAt window)
     // and the blind-spot read (confidently wrong).
     attemptFindMany = vi.spyOn(prisma.questionAttempt, 'findMany').mockImplementation(async (args) => {
@@ -97,6 +99,39 @@ describe('GET /api/smart-drill', () => {
         expect(res.body.items.map((q) => q.id)).toContain('q-blind');
         const blindRead = attemptFindMany.mock.calls.find(([a]) => a.where?.confidenceLevel === 'HIGH')[0];
         expect(blindRead.where).toMatchObject({ userId: UID, isCorrect: false });
+    });
+
+    // 2026-11-15: about half of a topic's items from its weakest tagged subtopic.
+    it('leans on the weakest subtopic in the topic, and says which', async () => {
+        prisma.$queryRaw.mockResolvedValue([
+            { topicId: 't-prot', subtopicId: 's-relay', name: 'Relays', answered: 9, correct: 2 },
+            { topicId: 't-prot', subtopicId: 's-fuse', name: 'Fuses', answered: 6, correct: 5 },
+        ]);
+        questionFindMany.mockImplementation(async (args) => {
+            if (args.select) {
+                const ids = args.where.subtopicId === 's-relay' ? ['r1', 'r2', 'r3'] : ['q1', 'q2', 'q3', 'q4'];
+                return ids.map((id) => ({ id, irtA: 1, irtB: 0, irtC: 0.2, difficulty: null }));
+            }
+            return args.where.id.in.map((id) => full(id));
+        });
+        const res = await request(makeApp()).get('/api/smart-drill?limit=4&topicId=t-prot').set(as(UID));
+        expect(res.body.weakAreas[0].subtopic).toEqual({ id: 's-relay', name: 'Relays', answered: 9, correct: 2 });
+        const ids = res.body.items.map((q) => q.id);
+        expect(ids).toHaveLength(4);
+        expect(ids.filter((id) => id.startsWith('r'))).toHaveLength(2);
+        const lean = questionFindMany.mock.calls.find(([q]) => q.select && q.where.subtopicId)[0];
+        expect(lean.where).toMatchObject({ isFlagged: false, topicId: 't-prot', subtopicId: 's-relay' });
+    });
+
+    it('no subtopic below the weak line, or a failed count, drills the whole topic as before', async () => {
+        prisma.$queryRaw.mockResolvedValue([{ topicId: 't-prot', subtopicId: 's-fuse', name: 'Fuses', answered: 6, correct: 5 }]);
+        let res = await request(makeApp()).get('/api/smart-drill?limit=3&topicId=t-prot').set(as(UID));
+        expect(res.body.weakAreas[0].subtopic).toBeNull();
+        prisma.$queryRaw.mockRejectedValue(new Error('db down'));
+        res = await request(makeApp()).get('/api/smart-drill?limit=3&topicId=t-prot').set(as(UID));
+        expect(res.status).toBe(200);
+        expect(res.body.items.length).toBeGreaterThan(0);
+        expect(questionFindMany.mock.calls.some(([q]) => q.where?.subtopicId)).toBe(false);
     });
 
     it('a learner with no history gets an empty drill, not an error', async () => {

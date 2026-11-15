@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-const { selectDrillItems, splitAcrossTopics } = require('../src/engine/drill');
+const { selectDrillItems, splitAcrossTopics, weakestSubtopic } = require('../src/engine/drill');
 const { _internals } = require('../src/engine/forecast');
 
 // Smart Drill used to rank subtopics by raw accuracy and serve whatever
@@ -58,5 +58,18 @@ describe('splitAcrossTopics', () => {
         for (const n of [1, 7, 11, 20]) {
             expect(splitAcrossTopics(n, 3).reduce((a, b) => a + b, 0)).toBe(n);
         }
+    });
+});
+
+describe('weakestSubtopic', () => {
+    const row = (subtopicId, answered, correct) => ({ subtopicId, answered, correct });
+    it('picks the lowest below the weak line, smoothed so a short streak of misses does not outrank a long record', () => {
+        expect(weakestSubtopic([row('a', 3, 0), row('b', 20, 3), row('c', 10, 9)], 0.6).subtopicId).toBe('b');
+        expect(weakestSubtopic([row('a', 4, 1), row('b', 8, 4)], 0.6).subtopicId).toBe('a');
+    });
+    it('needs three answers, and nothing at or above the weak line counts', () => {
+        expect(weakestSubtopic([row('a', 2, 0), row('b', 5, 3)], 0.6)).toBeNull();
+        expect(weakestSubtopic([], 0.6)).toBeNull();
+        expect(weakestSubtopic(undefined, 0.6)).toBeNull();
     });
 });
