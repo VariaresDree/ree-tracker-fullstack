@@ -82,6 +82,40 @@ function setupBattleSocket(io) {
         next();
     });
 
+    // This socket leaves a battle's room: the player is gone only when it was
+    // their last open socket there (lifecycle presence).
+    function leaveBattle(socket, battleId) {
+        const stillHere = lifecycle.markGone(battleId, socket.userId, socket.id);
+        const lobby = battleLobbies.get(battleId); // don't re-create on disconnect
+        if (!lobby) return;
+        const participant = lobby.participants.get(socket.userId);
+        if (participant) participant.connected = stillHere;
+
+        battleNs.to(battleId).emit('lobby-update', {
+            participants: serializeParticipants(lobby)
+        });
+
+        // GC an abandoned lobby: if every participant is now
+        // disconnected or finished, schedule deletion after a grace
+        // period. A reconnect within the window bumps lastActivity
+        // and cancels the delete. Dropping it loses nothing: answers
+        // are saved, the deadline timer stays armed, and the lobby
+        // is rebuilt from the database when anyone needs it.
+        const anyLive = Array.from(lobby.participants.values()).some((p) => p.connected && !p.finished);
+        if (!anyLive) {
+            const scheduledAt = Date.now();
+            setTimeout(() => {
+                const cur = battleLobbies.get(battleId);
+                if (!cur) return;
+                const stillIdle = Array.from(cur.participants.values()).every((p) => !p.connected || p.finished);
+                if (stillIdle && (cur.lastActivity ?? 0) <= scheduledAt) {
+                    battleLobbies.delete(battleId);
+                    logger.info('lobby GC (abandoned)', { battleId });
+                }
+            }, LOBBY_GC_GRACE_MS).unref?.();
+        }
+    }
+
     battleNs.on('connection', (socket) => {
         logger.info('Battle socket connected', { userId: socket.userId });
 
@@ -132,8 +166,14 @@ function setupBattleSocket(io) {
                     return socket.emit('error', { message: 'This battle is full.' });
                 }
 
+                // The same socket moving to another battle (a rematch) leaves the old room.
+                if (socket.battleId && socket.battleId !== battleId) {
+                    socket.leave?.(socket.battleId);
+                    leaveBattle(socket, socket.battleId);
+                }
                 socket.join(battleId);
                 socket.battleId = battleId;
+                lifecycle.markPresent(battleId, socket.userId, socket.id);
 
                 if (existing) {
                     // A reconnect or a rejoin keeps the answers and score.
@@ -380,41 +420,7 @@ function setupBattleSocket(io) {
         });
 
         socket.on('disconnect', () => {
-            const battleId = socket.battleId;
-            if (battleId) {
-                const lobby = battleLobbies.get(battleId); // don't re-create on disconnect
-                if (lobby) {
-                    const participant = lobby.participants.get(socket.userId);
-                    if (participant) {
-                        participant.connected = false;
-                    }
-
-                    battleNs.to(battleId).emit('lobby-update', {
-                        participants: serializeParticipants(lobby)
-                    });
-
-                    // GC an abandoned lobby: if every participant is now
-                    // disconnected or finished, schedule deletion after a grace
-                    // period. A reconnect within the window bumps lastActivity
-                    // and cancels the delete. Dropping it loses nothing: answers
-                    // are saved, the deadline timer stays armed, and the lobby
-                    // is rebuilt from the database when anyone needs it.
-                    const anyLive = Array.from(lobby.participants.values()).some((p) => p.connected && !p.finished);
-                    if (!anyLive) {
-                        const scheduledAt = Date.now();
-                        setTimeout(() => {
-                            const cur = battleLobbies.get(battleId);
-                            if (!cur) return;
-                            const stillIdle = Array.from(cur.participants.values()).every((p) => !p.connected || p.finished);
-                            if (stillIdle && (cur.lastActivity ?? 0) <= scheduledAt) {
-                                battleLobbies.delete(battleId);
-                                logger.info('lobby GC (abandoned)', { battleId });
-                            }
-                        }, LOBBY_GC_GRACE_MS).unref?.();
-                    }
-                }
-            }
-
+            if (socket.battleId) leaveBattle(socket, socket.battleId);
             logger.info('Battle socket disconnected', { userId: socket.userId });
         });
     });

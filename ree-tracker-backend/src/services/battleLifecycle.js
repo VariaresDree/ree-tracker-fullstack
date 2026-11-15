@@ -70,6 +70,40 @@ const BATTLE_SELECT = {
 };
 
 // ---------------------------------------------------------------------------
+// Presence
+// ---------------------------------------------------------------------------
+
+// Who is in each battle's room now: battleId -> userId -> their open sockets.
+// A player is connected while any of their sockets is (2026-11-15). It was one
+// flag per player, set by a join and cleared by a disconnect: a refresh opens
+// the new socket before the server notices the old one has gone (on a phone or
+// behind a proxy, only at the ping timeout), so the old one's disconnect marked
+// a player who was there as gone, and the start left them out. A lobby rebuilt
+// from the database also marked everyone gone whose socket was still open.
+const presence = new Map();
+
+function markPresent(battleId, userId, socketId) {
+    if (!presence.has(battleId)) presence.set(battleId, new Map());
+    const users = presence.get(battleId);
+    if (!users.has(userId)) users.set(userId, new Set());
+    users.get(userId).add(socketId);
+}
+
+/** Forget one socket; true while the player still has another open. */
+function markGone(battleId, userId, socketId) {
+    const users = presence.get(battleId);
+    const sockets = users?.get(userId);
+    if (!sockets) return false;
+    sockets.delete(socketId);
+    if (sockets.size > 0) return true;
+    users.delete(userId);
+    if (users.size === 0) presence.delete(battleId);
+    return false;
+}
+
+const isPresent = (battleId, userId) => (presence.get(battleId)?.get(userId)?.size ?? 0) > 0;
+
+// ---------------------------------------------------------------------------
 // Lobbies
 // ---------------------------------------------------------------------------
 
@@ -213,7 +247,9 @@ async function hydrateLobby(battleId, { battle: given } = {}) {
             const rows = await prisma.battleParticipant.findMany({ where: { battleId } });
             for (const row of rows || []) {
                 if (lobby.participants.has(row.userId)) continue;
-                lobby.participants.set(row.userId, participantFromRow(row, lobby.answerKey));
+                const p = participantFromRow(row, lobby.answerKey);
+                p.connected = isPresent(battleId, row.userId);
+                lobby.participants.set(row.userId, p);
             }
             lobby.hydrated = true;
             if (battle.status === 'IN_PROGRESS') armDeadline(null, battleId, lobby);
@@ -885,6 +921,9 @@ function stopBattleSweeper() {
 
 module.exports = {
     battleLobbies,
+    markPresent,
+    markGone,
+    isPresent,
     setBattleNamespace,
     notifyRoom,
     getLobby,

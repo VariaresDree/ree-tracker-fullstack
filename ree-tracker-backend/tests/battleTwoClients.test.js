@@ -118,6 +118,54 @@ describe('a battle between two real clients', () => {
         expect(db.outcomesFor('E2E001').map((o) => [o.userId, o.placement])).toEqual([['host', 1], ['guest', 2]]);
     });
 
+    // 2026-11-15, reported live: players shown Disconnected while in the lobby,
+    // even after a refresh, then left out at the start. A refresh opens a new
+    // socket before the server has noticed the old one is gone (on a phone or
+    // behind a proxy, only at the ping timeout); the old one's disconnect then
+    // marked the player gone for good.
+    it("a refresh: the old socket closing after the new one joined doesn't mark the player gone", async () => {
+        db.addBattle({ id: 'E2E003', hostId: 'host', questions: QUESTIONS, timeLimitSecs: 600 });
+        db.addUser('host'); db.addUser('guest');
+        const host = player('host');
+        const oldTab = player('guest');
+        await Promise.all([host, oldTab].map((p) => new Promise((resolve) => p.socket.on('connect', resolve))));
+        host.socket.emit('join-battle', { battleId: 'E2E003' });
+        oldTab.socket.emit('join-battle', { battleId: 'E2E003' });
+        await host.waitFor('lobby-update', (u) => u.participants?.length === 2);
+
+        const newTab = player('guest');
+        await new Promise((resolve) => newTab.socket.on('connect', resolve));
+        newTab.socket.emit('join-battle', { battleId: 'E2E003' });
+        await newTab.waitFor('lobby-update', (u) => u.participants?.some((p) => p.id === 'guest'));
+        oldTab.socket.close();
+        // The update the old socket's disconnect sends: the guest is still here.
+        const after = await host.waitFor('lobby-update', (u) => !u.status && u.participants?.length === 2);
+        expect(after.participants.find((p) => p.id === 'guest').connected).toBe(true);
+
+        host.socket.emit('start-battle', { battleId: 'E2E003' });
+        await newTab.waitFor('battle-started');
+        expect(db.participant('E2E003', 'guest')).not.toBeNull();
+    });
+
+    it('a lobby rebuilt from the database marks the players whose sockets are still in the room', async () => {
+        db.addBattle({ id: 'E2E004', hostId: 'host', questions: QUESTIONS, timeLimitSecs: 600 });
+        db.addUser('host'); db.addUser('guest'); db.addUser('third');
+        const host = player('host');
+        const guest = player('guest');
+        await Promise.all([host, guest].map((p) => new Promise((resolve) => p.socket.on('connect', resolve))));
+        host.socket.emit('join-battle', { battleId: 'E2E004' });
+        guest.socket.emit('join-battle', { battleId: 'E2E004' });
+        await host.waitFor('lobby-update', (u) => u.participants?.length === 2);
+
+        // The idle clean-up or an eviction dropped the lobby from memory.
+        lifecycle.battleLobbies.delete('E2E004');
+        const third = player('third');
+        await new Promise((resolve) => third.socket.on('connect', resolve));
+        third.socket.emit('join-battle', { battleId: 'E2E004' });
+        const rebuilt = await third.waitFor('lobby-update', (u) => u.participants?.length === 3);
+        expect(Object.fromEntries(rebuilt.participants.map((p) => [p.id, p.connected]))).toEqual({ host: true, guest: true, third: true });
+    });
+
     it('refuses a socket with no token', async () => {
         const socket = connectClient(url, { auth: {}, transports: ['websocket'], reconnection: false });
         clients.push(socket);
