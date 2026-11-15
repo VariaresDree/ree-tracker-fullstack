@@ -232,6 +232,9 @@ export const useReviewSession = (currentUser, isOnline) => {
                 if (drillResult) {
                     freshData = drillResult.items || [];
                     if (freshData.length === 0) throw nothing("Answer a few questions first — the drill targets your weakest topics.");
+                    // The server leans on the weakest tagged subtopic (2026-11-15); say which.
+                    const lean = drillResult.weakAreas?.find((w) => w.subtopic)?.subtopic;
+                    if (lean) offlineNote = `More from ${lean.name}, where you have ${lean.correct} of ${lean.answered} right.`;
                 } else {
                     const drill = await offlineDrill({ topic: target.drillTopic, subject: target.drillSubject, microTopics: useStore.getState().stats?.microTopics });
                     freshData = drill.items;

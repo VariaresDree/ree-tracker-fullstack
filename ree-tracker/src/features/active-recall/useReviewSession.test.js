@@ -124,6 +124,16 @@ describe('end-of-session summary', () => {
     expect(result.current.lastSummary).toBeNull();
   });
 
+  it('a drill that leans on a weak subtopic says which, with the record behind it', async () => {
+    fetchSmartDrillQuestions.mockResolvedValue({
+      items: [q('d1', 'EE', 'Protection')],
+      weakAreas: [{ topic: 'Protection', subject: 'EE', subtopic: { id: 's-relay', name: 'Relays', answered: 9, correct: 2 } }],
+    });
+    const { result } = setup();
+    await act(() => result.current.startSession(drillPreset({ topic: 'Protection', subject: 'EE', count: 1 })));
+    expect(result.current.session.offlineNote).toBe('More from Relays, where you have 2 of 9 right.');
+  });
+
   it('an untargeted drill after a targeted one replays untargeted', async () => {
     fetchSmartDrillQuestions.mockResolvedValue({ items: [q('d1', 'EE', 'Protection')] });
     const { result } = setup();
