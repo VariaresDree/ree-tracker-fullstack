@@ -281,14 +281,13 @@ describe('useSyllabus changes', () => {
   });
 });
 
-describe('your own rating of a topic, and high-yield (CELE round)', () => {
+describe('your own rating of a topic (CELE round)', () => {
   const rated = [
-    row('m1', 'Mathematics', 'Calculus', { confidence: 75, dread: null, highYield: true }),
+    row('m1', 'Mathematics', 'Calculus', { confidence: 75, dread: null }),
     row('m2', 'Mathematics', 'Differential Equations', { confidence: null, dread: 4 }),
     row('m3', 'Mathematics', 'Probability', {}),
   ];
   const serve = (topics) => apiRequest.mockImplementation(async (endpoint, method = 'GET', body) => (method === 'GET' ? { weights: WEIGHTS, topics } : { item: body }));
-  const item = (name) => screen.getByRole('heading', { level: 3, name }).closest('li');
 
   const howSure = (sheet) => sheet.getByRole('slider', { name: 'How sure are you?' });
   const dread = (sheet) => sheet.getByRole('slider', { name: 'How much do you dread it?' });
@@ -334,14 +333,11 @@ describe('your own rating of a topic, and high-yield (CELE round)', () => {
     expect(body).not.toHaveProperty('dread');
   });
 
-  it('marks high-yield topics, filters to them, and sorts by dread', async () => {
+  it('sorts by dread', async () => {
     serve(rated);
     renderTab();
     await screen.findByRole('heading', { level: 3, name: 'Calculus' });
-    expect(within(item('Calculus')).getByText('High-yield')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Sort'), { target: { value: 'dread' } });
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)[0]).toBe('Differential Equations');
-    fireEvent.click(screen.getByRole('button', { name: /High-yield only/ }));
-    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Calculus']);
   });
 });

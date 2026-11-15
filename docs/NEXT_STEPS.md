@@ -52,7 +52,7 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 3. One-tap board dates for the exam date (2 of 21 accounts set one): needs the official PRC dates.
 4. Ability with a recency weight, and mocks as forecast evidence: its own round, with before-and-after figures, since it moves every learner's numbers.
 5. Split the three largest files, one per PR: `useSimulatorEngine.js` (992 lines), `store/useStore.js` (916), `services/battleLifecycle.js` (913).
-6. The high-yield badge and filter in `SyllabusTab.jsx` are dormant (the admin control that set the flag is gone): remove them or bring the control back.
+6. ~~The dormant high-yield badge and filter in `SyllabusTab.jsx`~~: removed 2026-11-15 (client only; `Topic.highYield` stays in the database, unused).
 
 ## 0g. Handover, learner-loop round of 2026-11-11
 

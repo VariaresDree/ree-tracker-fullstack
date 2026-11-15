@@ -63,7 +63,6 @@ const TopicTile = memo(function TopicTile({ row, rows, ready, onOpen }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusIcons row={row} />
           {weak && <StatusPill tone="danger" dot={false}>Weak</StatusPill>}
-          {row.highYield && <StatusPill tone="velocity" dot={false}>High-yield</StatusPill>}
           {isTopicCovered(row) && <StatusPill tone="success" dot={false}>Covered</StatusPill>}
         </div>
       </div>

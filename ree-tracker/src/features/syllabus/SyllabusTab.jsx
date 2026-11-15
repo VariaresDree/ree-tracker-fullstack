@@ -17,7 +17,7 @@ import { subtopicProgress } from '@ree/shared/subtopics';
 import {
   Panel, Button, EmptyState, Grid, Skeleton, FormField, SegmentedControl, Select,
 } from '../../components/ui';
-import { ListChecks, BookOpen, CloudOff, RotateCcw, Check, Info } from '../../components/ui/icons';
+import { ListChecks, BookOpen, CloudOff, RotateCcw, Info } from '../../components/ui/icons';
 import { useSyllabus } from './useSyllabus';
 import { useSubtopics } from './useSubtopics';
 import { daysToExam } from '../today/todayActions';
@@ -70,9 +70,8 @@ export default function SyllabusTab({ examDate = null }) {
     return next;
   };
   const setSubject = (next) => setParams(withParam('subject', next), { replace: true });
-  // Narrow the list: a filter, high-yield topics only, and the order to read it in.
+  // Narrow the list: a filter, and the order to read it in.
   const [filter, setFilter] = useState('all');
-  const [highYieldOnly, setHighYieldOnly] = useState(false);
   const [sortBy, setSortBy] = useState('board');
   const [showInfo, setShowInfo] = useState(false);
 
@@ -114,11 +113,10 @@ export default function SyllabusTab({ examDate = null }) {
   const coverage = useMemo(() => syllabusCoverage(topics || [], weights || undefined), [topics, weights]);
   const subjectRows = useMemo(() => (topics || []).filter((t) => t.subject === subject), [topics, subject]);
   const visible = useMemo(() => sortTopics(
-    filterTopics(subjectRows, filter).filter((t) => !highYieldOnly || t.highYield),
+    filterTopics(subjectRows, filter),
     sortBy,
     (topicId) => subtopicProgress(byTopic.get(topicId)),
-  ), [subjectRows, filter, highYieldOnly, sortBy, byTopic]);
-  const anyHighYield = (topics || []).some((t) => t.highYield);
+  ), [subjectRows, filter, sortBy, byTopic]);
 
   if (!topics && status === 'error') {
     return (
@@ -205,12 +203,7 @@ export default function SyllabusTab({ examDate = null }) {
           onChange={setFilter}
           options={FILTERS.map(([value, label]) => ({ value, label: `${label} ${filterTopics(subjectRows, value).length}` }))}
         />
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          {anyHighYield ? (
-            <Button type="button" size="sm" variant={highYieldOnly ? 'outline' : 'secondary'} aria-pressed={highYieldOnly} onClick={() => setHighYieldOnly((v) => !v)}>
-              {highYieldOnly && <Check size={14} strokeWidth={2} aria-hidden="true" />} High-yield only
-            </Button>
-          ) : <span />}
+        <div className="flex flex-wrap items-end justify-end gap-3">
           <FormField label="Sort" className="min-w-40">
             <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
               <option value="board">Board order</option>
@@ -223,7 +216,7 @@ export default function SyllabusTab({ examDate = null }) {
         </div>
         {visible.length === 0 ? (
           <p className="text-sm text-muted2">
-            {highYieldOnly ? 'No high-yield topics here.' : NO_MATCH[filter] || 'No topics in this subject yet.'}
+            {NO_MATCH[filter] || 'No topics in this subject yet.'}
           </p>
         ) : (
           <Grid as="ul" kind="cards" gap="sm" aria-label={`${subject} topics`}>
