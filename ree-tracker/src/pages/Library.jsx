@@ -1,9 +1,9 @@
 // src/pages/Library.jsx
 //
-// The learner's study material in one place, in this order (2026-10-31; Lessons
-// first since 2026-11-16, a summary of every topic and subtopic):
-// Lessons, Handouts (with the learner's own links under them), My files, Formula cards,
-// Notebook, Bookmarks, Imported quizzes, and Units and tools. (This
+// The learner's study material in one place, in the owner's order (2026-11-16):
+// Handouts (with the learner's own links under them), My files, Quizzes, Lessons
+// (a summary of every topic and subtopic), Formula cards, Units and tools,
+// Notebook and Bookmarks. (This
 // was "Materials Hub"; the old "Module Library" was the question-bank
 // authoring tool and moved to Admin.) Handouts are read-only here; uploading
 // and organising them is an Admin tab.
@@ -37,14 +37,14 @@ const MyFilesTab = lazy(() => import('../features/my-files/MyFilesTab'));
 const LessonsTab = lazy(() => import('../features/lessons/LessonsTab'));
 
 const TABS = [
-  { id: 'lessons', label: 'Lessons', icon: GraduationCap },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
   { id: 'files', label: 'My files', icon: FolderOpen },
+  { id: 'quizzes', label: 'Quizzes', icon: FileUp },
+  { id: 'lessons', label: 'Lessons', icon: GraduationCap },
   { id: 'formulas', label: 'Formula cards', icon: BookOpen },
+  { id: 'conversion', label: 'Units and tools', icon: Calculator },
   { id: 'notebook', label: 'Notebook', icon: NotebookPen },
   { id: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
-  { id: 'quizzes', label: 'Imported quizzes', icon: FileUp },
-  { id: 'conversion', label: 'Units and tools', icon: Calculator },
 ];
 
 export default function Library() {
@@ -52,7 +52,7 @@ export default function Library() {
   const isOnline = useNetworkStatus();
   const location = useLocation();
   const deepLink = location.state || {};
-  // Library opens on Lessons. A deep link into the formula cards (a search,
+  // Library opens on Handouts, the first tab. A deep link into the formula cards (a search,
   // or a topic) that names no tab still opens them, and the old Links tab
   // (?tab=links) is now the "Your links" part of Handouts.
   const toCards = !!(deepLink.search || deepLink.topic);
@@ -62,7 +62,7 @@ export default function Library() {
   const [params, setParams] = useSearchParams();
   const materialId = params.get('material');
   const wantsLinks = params.get('tab') === 'links' || params.get('view') === 'links';
-  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), toCards ? 'formulas' : wantsLinks || materialId ? 'handouts' : 'lessons');
+  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), toCards ? 'formulas' : 'handouts');
   const linksRef = useRef(null);
   useEffect(() => {
     if (!wantsLinks || tab !== 'handouts') return undefined;
@@ -166,7 +166,7 @@ export default function Library() {
       )}
 
       {tab === 'quizzes' && (
-        <ErrorBoundary name="Imported quizzes">
+        <ErrorBoundary name="Quizzes">
           <Suspense fallback={<div className="flex flex-col gap-3"><Skeleton className="h-40" /><Skeleton className="h-16" /></div>}>
             <QuizLauncherTab shared={<ErrorBoundary name="Shared quizzes"><Suspense fallback={null}><SharedQuizzes /></Suspense></ErrorBoundary>} />
           </Suspense>

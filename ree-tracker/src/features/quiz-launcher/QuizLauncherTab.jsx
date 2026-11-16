@@ -126,9 +126,9 @@ export default function QuizLauncherTab({ shared = null }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        {/* The tab already says "Imported quizzes"; the heading stays for
+        {/* The tab already says "Quizzes"; the heading stays for
             screen readers' heading list. */}
-        <h2 className="sr-only">Imported quizzes</h2>
+        <h2 className="sr-only">Quizzes</h2>
         <p className="text-sm text-muted2">
           Your own quiz files, saved on this device. Take each one as practice or as an exam.
         </p>

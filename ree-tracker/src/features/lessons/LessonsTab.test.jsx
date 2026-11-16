@@ -68,13 +68,17 @@ beforeEach(() => { navigated.length = 0; setDone.mockClear(); });
 describe('Lessons', () => {
   it('subjects, then topics with whether each lesson is ready, kept in the URL', () => {
     at('/library?tab=lessons');
-    expect(screen.getByText('2 topics · 1 lesson ready')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Mathematics/ }));
+    const maths = screen.getByRole('button', { name: /^Mathematics/ });
+    expect(within(maths).getByText('2 topics')).toBeInTheDocument();
+    expect(within(maths).getByText('1 of 2 lessons written')).toBeInTheDocument();
+    fireEvent.click(maths);
     expect(screen.getByTestId('where').textContent).toContain('subject=Mathematics');
-    const algebra = screen.getByRole('button', { name: /^Algebra/ });
+    const algebra = screen.getByRole('button', { name: /Algebra/ });
     expect(within(algebra).getByText('Lesson ready')).toBeInTheDocument();
-    expect(within(algebra).getByText('2 subtopics')).toBeInTheDocument();
-    expect(within(screen.getByRole('button', { name: /^Trigonometry/ })).getByText('Lesson coming')).toBeInTheDocument();
+    // Read progress counts the subtopics that are switched on (Venn Diagram is off).
+    expect(within(algebra).getByText('1 of 2 read')).toBeInTheDocument();
+    expect(within(algebra).getByRole('progressbar')).toBeInTheDocument();
+    expect(within(screen.getByRole('button', { name: /Trigonometry/ })).getByText('Lesson coming')).toBeInTheDocument();
   });
 
   it('a topic: contents, a section per subtopic with its lesson and cards, switched-off ones left out', async () => {
@@ -82,9 +86,14 @@ describe('Lessons', () => {
     expect(await screen.findByText('Algebra is the language of every other topic.')).toBeInTheDocument();
     const contents = screen.getByRole('navigation', { name: 'Contents' });
     expect(within(contents).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['#lesson-s1', '#lesson-s2']);
+    expect(within(contents).getByText('1 of 2 read')).toBeInTheDocument();
     const expr = screen.getByRole('region', { name: /Algebraic Expressions/ });
     expect(within(expr).getByText('Rules for exponents and radicals.')).toBeInTheDocument();
+    // Formula cards fold: the lesson reads first, the cards open on demand.
+    expect(within(expr).queryByText('card Product of Powers')).toBeNull();
+    fireEvent.click(within(expr).getByRole('button', { name: /Formula cards · 1/ }));
     expect(within(expr).getByText('card Product of Powers')).toBeInTheDocument();
+    expect(within(expr).getByRole('link', { name: /Contents/ })).toHaveAttribute('href', '#lesson-contents');
     expect(within(expr).getByText('Worked example')).toBeInTheDocument();
     expect(screen.queryByText('card Sine Law')).toBeNull();
     expect(screen.queryByRole('region', { name: /Venn Diagram/ })).toBeNull();
@@ -103,6 +112,15 @@ describe('Lessons', () => {
     await waitFor(() => expect(setDone).toHaveBeenCalledWith(rows[1], ALGEBRA, true));
     // Algebraic Expressions has no questions to drill: no Practise there.
     expect(within(screen.getByRole('region', { name: /Algebraic Expressions/ })).queryByRole('button', { name: /Practise/ })).toBeNull();
+  });
+
+  it('a topic ends with the previous and next topic', async () => {
+    at('/library?tab=lessons&subject=Mathematics&topic=Algebra');
+    const more = await screen.findByRole('navigation', { name: 'More topics' });
+    expect(within(more).queryByText('Previous topic')).toBeNull();
+    fireEvent.click(within(more).getByRole('button', { name: /Next topic.*Trigonometry/ }));
+    expect(screen.getByTestId('where').textContent).toContain('topic=Trigonometry');
+    expect(await screen.findByRole('button', { name: /Previous topic.*Algebra/ })).toBeInTheDocument();
   });
 
   it('a topic whose lesson is coming still lists its subtopics', async () => {

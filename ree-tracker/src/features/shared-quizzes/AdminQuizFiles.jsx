@@ -202,7 +202,7 @@ export default function AdminQuizFiles({ files, total, folderId = 'root', onSave
     <section aria-labelledby="admin-quiz-files" className="flex flex-col gap-4 min-w-0">
       <div>
         <h2 id="admin-quiz-files" className="text-h3 text-textMain">Quiz files</h2>
-        <p className="text-sm text-muted2">Every learner can download these here and in Library › Imported quizzes. Uploads go into the open folder. Scores on them never count toward progress.</p>
+        <p className="text-sm text-muted2">Every learner can download these here and in Library › Quizzes. Uploads go into the open folder. Scores on them never count toward progress.</p>
       </div>
 
       <QuizFilePicker compact onFilesSelected={stage} />
