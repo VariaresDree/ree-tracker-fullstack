@@ -30,6 +30,7 @@ import ManualIngestionForm from '../../features/library/ManualIngestionForm';
 import ReviewQueue from '../../features/library/ReviewQueue';
 import VaultDataGrid from '../../features/library/VaultDataGrid';
 import AnswerPositions from '../../features/admin/AnswerPositions';
+import KeyCheck from '../../features/admin/KeyCheck';
 import { SegmentedControl } from '../../components/ui';
 
 const VIEWS = [
@@ -186,6 +187,7 @@ export default function QuestionBank() {
       </Pane>
 
       <Pane opened={openedViews} id="fix" current={view}>
+        <KeyCheck />
         <FixWithAI onSaved={onSaved} />
         <AnswerPositions />
       </Pane>

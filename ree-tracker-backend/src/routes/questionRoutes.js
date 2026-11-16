@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
 const idempotency = require('../middlewares/idempotency');
-const { reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { keyCheckResolveSchema, reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
@@ -25,6 +25,7 @@ const optionAudit = require('../services/optionAudit');
 const { matchOption } = require('../utils/sanitizeOptions');
 const { importQuestions } = require('../services/questionImport');
 const { questionsForChecking, replacePreview, replaceQuestions } = require('../services/questionReplace');
+const keyCheck = require('../services/keyCheck');
 const { taggingOverview, questionsForTagging, applyTags, clearTags } = require('../services/subtopicTagging');
 const { autoTagStatus, suggestionGroups, groupItems, recordSuggestions, resolveSuggestions } = require('../services/subtopicAutoTag');
 const { openReportCount, openReports, resolveReports } = require('../services/questionReports');
@@ -396,6 +397,40 @@ router.post('/tag-suggestions/resolve', authMiddleware, requireAdmin, validate(t
 });
 
 // Learners' reports (Admin › Question bank › Reports, services/questionReports).
+// Questions to check (2026-11-16): signs a live key is wrong, and one tap to
+// settle each (services/keyCheck.js). The scan reads the whole bank, so it runs
+// when an admin asks, not on every visit.
+router.get('/key-checks', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        return res.status(200).json(await keyCheck.openChecks());
+    } catch (error) {
+        logger.error('Key checks list error', { error: error.message });
+        return res.status(500).json({ error: 'Failed to load the questions to check.' });
+    }
+});
+
+router.post('/key-checks/scan', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const out = await keyCheck.scanBank();
+        if (out.skipped) return res.status(409).json({ error: 'A check is already running. Try again in a minute.' });
+        return res.status(200).json({ success: true, ...out });
+    } catch (error) {
+        logger.error('Key check scan error', { error: error.message });
+        return res.status(500).json({ error: 'The check stopped. Nothing was lost; try again.' });
+    }
+});
+
+router.post('/key-checks/:id/resolve', authMiddleware, requireAdmin, validate(keyCheckResolveSchema), idempotency(), async (req, res) => {
+    try {
+        const { status, error, ...out } = await keyCheck.resolveCheck(req.params.id, req.body, req.user.id);
+        if (error) return res.status(status).json({ error });
+        return res.status(200).json({ success: true, ...out });
+    } catch (error) {
+        logger.error('Key check resolve error', { error: error.message });
+        return res.status(500).json({ error: 'Nothing was changed. Try again.' });
+    }
+});
+
 router.get('/reports/count', authMiddleware, requireAdmin, async (req, res) => {
     try {
         return res.status(200).json({ open: await openReportCount() });

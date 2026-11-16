@@ -110,10 +110,16 @@ const tagSuggestSchema = z.object({
 const tagResolveSchema = tagBulkSchema;
 
 // Closing a question's reports (services/questionReports).
+// Questions to check (services/keyCheck.resolveCheck).
+const keyCheckResolveSchema = z.object({
+    action: z.enum(['keep', 'use-option', 'remove', 'edited']),
+    answer: z.string().min(1).max(2000).optional(),
+});
+
 const reportResolveSchema = z.object({
     resolution: z.enum(['fixed', 'dismissed', 'removed']),
     // Shown to the learners who reported it (Account › Your reports).
     note: z.string().trim().max(300).optional(),
 });
 
-module.exports = { reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
+module.exports = { keyCheckResolveSchema, reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
