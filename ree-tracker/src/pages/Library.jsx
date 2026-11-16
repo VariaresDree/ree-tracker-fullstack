@@ -1,7 +1,8 @@
 // src/pages/Library.jsx
 //
-// The learner's study material in one place, in this order (2026-10-31):
-// Handouts (with the learner's own links under them), My files, Formula cards,
+// The learner's study material in one place, in this order (2026-10-31; Lessons
+// first since 2026-11-16, a summary of every topic and subtopic):
+// Lessons, Handouts (with the learner's own links under them), My files, Formula cards,
 // Notebook, Bookmarks, Imported quizzes, and Units and tools. (This
 // was "Materials Hub"; the old "Module Library" was the question-bank
 // authoring tool and moved to Admin.) Handouts are read-only here; uploading
@@ -16,7 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import useTabParam from '../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
-import { Cloud, BookOpen, Bookmark, Calculator, FileUp, FolderOpen, NotebookPen } from '../components/ui/icons';
+import { Cloud, BookOpen, Bookmark, Calculator, FileUp, FolderOpen, GraduationCap, NotebookPen } from '../components/ui/icons';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 import BookmarkVaultTab from '../features/vault/BookmarkVaultTab';
@@ -33,8 +34,10 @@ const SharedQuizzes = lazy(() => import('../features/shared-quizzes/SharedQuizze
 const LinksTab = lazy(() => import('../features/links/LinksTab'));
 const ConversionTab = lazy(() => import('../features/conversion/ConversionTab'));
 const MyFilesTab = lazy(() => import('../features/my-files/MyFilesTab'));
+const LessonsTab = lazy(() => import('../features/lessons/LessonsTab'));
 
 const TABS = [
+  { id: 'lessons', label: 'Lessons', icon: GraduationCap },
   { id: 'handouts', label: 'Handouts', icon: Cloud },
   { id: 'files', label: 'My files', icon: FolderOpen },
   { id: 'formulas', label: 'Formula cards', icon: BookOpen },
@@ -49,17 +52,17 @@ export default function Library() {
   const isOnline = useNetworkStatus();
   const location = useLocation();
   const deepLink = location.state || {};
-  // Library opens on Handouts. A deep link into the formula cards (a search,
+  // Library opens on Lessons. A deep link into the formula cards (a search,
   // or a topic) that names no tab still opens them, and the old Links tab
   // (?tab=links) is now the "Your links" part of Handouts.
   const toCards = !!(deepLink.search || deepLink.topic);
-  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), toCards ? 'formulas' : 'handouts');
   // An open handout is in the URL (?material=<id>), pushed: Back closes it
   // (it used to leave Library), and a reload or a shared link reopens it once
   // the handouts have loaded.
   const [params, setParams] = useSearchParams();
   const materialId = params.get('material');
   const wantsLinks = params.get('tab') === 'links' || params.get('view') === 'links';
+  const [tab, setTab] = useTabParam(TABS.map((t) => t.id), toCards ? 'formulas' : wantsLinks || materialId ? 'handouts' : 'lessons');
   const linksRef = useRef(null);
   useEffect(() => {
     if (!wantsLinks || tab !== 'handouts') return undefined;
@@ -113,6 +116,14 @@ export default function Library() {
             initialTopic={deepLink.topic || null}
           />
         </div>
+      )}
+
+      {tab === 'lessons' && (
+        <ErrorBoundary name="Lessons">
+          <Suspense fallback={<div className="flex flex-col gap-3"><Skeleton className="h-10 w-48" /><Skeleton className="h-40" /></div>}>
+            <LessonsTab />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {tab === 'handouts' && (

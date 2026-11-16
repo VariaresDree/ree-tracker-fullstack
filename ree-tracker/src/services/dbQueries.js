@@ -735,6 +735,11 @@ export const intakeReferenceCards = (cards, options) => apiRequest('/api/referen
 export const renameReferenceTag = (body) => thenForgetCards(apiRequest('/api/reference-cards/tags/rename', 'POST', body));
 // { approved, failed:[{id, reason}] } — same Accept-All contract as questions.
 export const bulkApproveReferenceCards = (ids) => thenForgetCards(apiRequest('/api/reference-cards/approve-bulk', 'POST', { ids }));
+// Rewrites of live cards waiting for an admin (2026-11-16): approving one changes the card in place.
+export const fetchCardRevisions = async () => (await apiRequest('/api/reference-cards/revisions'))?.items || [];
+export const approveCardRevision = (id) => thenForgetCards(apiRequest(`/api/reference-cards/revisions/${encodeURIComponent(id)}/approve`, 'POST', {}));
+export const rejectCardRevision = (id) => apiRequest(`/api/reference-cards/revisions/${encodeURIComponent(id)}/reject`, 'POST', {});
+export const bulkApproveCardRevisions = (ids) => thenForgetCards(apiRequest('/api/reference-cards/revisions/approve-bulk', 'POST', { ids }));
 export const fetchReferenceSources = async () => {
     const data = await apiRequest('/api/reference-cards/sources');
     return data?.items || [];

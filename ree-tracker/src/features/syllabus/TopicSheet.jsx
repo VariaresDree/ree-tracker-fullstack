@@ -5,6 +5,7 @@
 // keeps which topic is open in ?topic=, so Back closes it and the list keeps its
 // place. Ticks and ratings save as they're tapped; dates and the note have a Save.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { SYLLABUS_NOTE_MAX, todayManila } from '@ree/shared';
 import { subtopicProgress } from '@ree/shared/subtopics';
@@ -13,6 +14,7 @@ import { ScaleSlider } from '../../components/ui/ScaleSlider';
 import { BookOpen, Crosshair, Play } from '../../components/ui/icons';
 import { CONFIDENCE_SCALE, DREAD_SCALE } from './selfRating';
 import TopicContents from './TopicContents';
+import { topicLessonLink } from '../lessons/lessonContent';
 import { accuracyOf, bandOf } from './trackerModel';
 
 // Mastery's own colours, as on Progress › Topics.
@@ -140,6 +142,11 @@ export default function TopicSheet({ row, rows, ready, status, actions, onSave, 
             </Toggle>
           )}
         </div>
+
+        {/* Library › Lessons at this topic: its summary, subtopic by subtopic. */}
+        <Button as={Link} to={topicLessonLink(row.subject, row.name)} size="sm" variant="secondary" className="self-start">
+          <BookOpen size={14} strokeWidth={1.75} aria-hidden="true" /> Read the lesson
+        </Button>
 
         <TopicContents topicId={row.topicId} name={row.name} rows={rows} ready={ready} status={status} actions={actions} onFinished={finished}
           onDrillSubtopic={onDrillSubtopic ? (sub) => onDrillSubtopic(row, sub) : undefined} />

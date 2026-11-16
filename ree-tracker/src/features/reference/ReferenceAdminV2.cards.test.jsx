@@ -11,6 +11,7 @@ const db = {
   fetchReferenceCards: vi.fn(), fetchPendingReferenceCards: vi.fn(), fetchReferenceCardDebt: vi.fn(),
   createReferenceCard: vi.fn(), updateReferenceCard: vi.fn(), deleteReferenceCard: vi.fn(),
   approveReferenceCard: vi.fn(), rejectReferenceCard: vi.fn(), bulkApproveReferenceCards: vi.fn(),
+  fetchCardRevisions: vi.fn(async () => []), approveCardRevision: vi.fn(), rejectCardRevision: vi.fn(), bulkApproveCardRevisions: vi.fn(),
   fetchRetiredReferenceCards: vi.fn(), intakeReferenceCards: vi.fn(), fetchReferenceSources: vi.fn(),
   createReferenceSource: vi.fn(), deleteReferenceSource: vi.fn(), renameReferenceTag: vi.fn(),
 };

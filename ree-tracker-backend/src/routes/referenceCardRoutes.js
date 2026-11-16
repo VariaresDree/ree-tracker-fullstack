@@ -15,6 +15,7 @@ const idempotency = require('../middlewares/idempotency');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const { resolveTopic } = require('../services/topicResolver');
+const { normSubtopicKey } = require('@ree/shared/subtopics');
 const { normalizeSubject } = require('../utils/subject');
 const { withMathDelimiters } = require('../utils/mathDelimiters');
 const { checkVariableCoverage } = require('../utils/formulaSymbols');
@@ -35,8 +36,8 @@ const { CARD_SELECT, LEARNER_CARD_WHERE } = require('../services/referenceCardVi
 
 // Content snapshot for the audit trail (excludes ids/timestamps/status).
 function cardSnapshot(card) {
-    const { id, createdAt, updatedAt, status, topic, source, ...content } = card;
-    return content;
+    const { id, createdAt, updatedAt, status, topic, source, subtopic, ...content } = card;
+    return subtopic !== undefined ? { ...content, subtopicId: subtopic?.id ?? null } : content;
 }
 
 // Everyone's math reaches the renderer in $ delimiters: another AI's \( \) would
@@ -68,6 +69,19 @@ async function toCardData(payload) {
         topicRow = await resolveTopic(payload.subject, payload.topic, { crossSubject: false });
         if (!topicRow) reasons.push('unknown-topic');
     }
+    // The syllabus subtopic, by name, within the card's own topic (null takes it off).
+    let subtopicId;
+    if (payload.subtopic !== undefined) {
+        if (payload.subtopic === null) subtopicId = null;
+        else {
+            const row = topicRow && await prisma.syllabusSubtopic.findFirst({
+                where: { topicId: topicRow.id, normKey: normSubtopicKey(payload.subtopic), active: true },
+                select: { id: true },
+            });
+            if (row) subtopicId = row.id;
+            else reasons.push('unknown-subtopic');
+        }
+    }
     if (reasons.length > 0) return { reasons };
     // Normalize math delimiters ONCE, at the single write choke point shared
     // by manual create / AI intake / edit — see utils/mathDelimiters.js for
@@ -94,6 +108,7 @@ async function toCardData(payload) {
             subject: normalizeSubject(payload.subject),
             topicId: topicRow?.id ?? null,
             subtopicTag: payload.subtopicTag ?? null,
+            ...(subtopicId !== undefined ? { subtopicId } : {}),
             dimensionless: !!payload.dimensionless,
             sourceId: payload.sourceId ?? null,
         },
@@ -338,6 +353,105 @@ router.post('/approve-bulk', requireAdmin, validate(bulkIdsSchema), idempotency(
     }
 });
 
+// ── Admin: proposed rewrites of live cards (2026-11-16) ───────────────────────
+//
+// A rewrite of a live card waits here instead of changing what learners see.
+// Approving copies its content onto the card in place, so reviews stay
+// attached, after the same full gate as any edit; `retire` takes the card out.
+
+const REVISION_FIELDS = ['kind', 'symbol', 'name', 'formulaLatex', 'valueUnit', 'description', 'variables', 'purposeExamTip', 'subtopic', 'subtopicTag', 'dimensionless'];
+
+/** One revision applied: { ok: true } or { ok: false, reason }. */
+async function applyRevision(id, userId) {
+    const rev = await prisma.referenceCardRevision.findUnique({ where: { id }, select: { id: true, status: true, retire: true, note: true, content: true, cardId: true } });
+    if (!rev) return { ok: false, reason: 'not-found' };
+    if (rev.status !== 'PENDING') return { ok: false, reason: 'already-reviewed' };
+    const card = await prisma.referenceCard.findUnique({ where: { id: rev.cardId }, select: CARD_SELECT });
+    if (!card || card.status === 'REJECTED') return { ok: false, reason: 'card-gone' };
+    const done = { status: 'APPLIED', reviewedBy: userId, reviewedAt: new Date() };
+    if (rev.retire) {
+        await prisma.$transaction([
+            prisma.referenceCard.update({ where: { id: card.id }, data: { status: 'REJECTED', reviewNote: rev.note || 'Retired in a review.', reviewedBy: userId, reviewedAt: new Date() } }),
+            prisma.referenceCardVersion.create({ data: { cardId: card.id, action: 'REJECTED', editor: userId, snapshot: cardSnapshot(card) } }),
+            prisma.referenceCardRevision.update({ where: { id: rev.id }, data: done }),
+        ]);
+        return { ok: true };
+    }
+    const content = Object.fromEntries(Object.entries(rev.content || {}).filter(([k]) => REVISION_FIELDS.includes(k)));
+    const merged = { ...card, topic: card.topic?.name, subtopic: card.subtopic?.name ?? null, ...content };
+    const { data, reasons } = await toCardData(merged);
+    if (reasons) return { ok: false, reason: reasons.join('|') };
+    try {
+        await prisma.$transaction(async (tx) => {
+            const updated = await tx.referenceCard.update({ where: { id: card.id }, data, select: CARD_SELECT });
+            await tx.referenceCardVersion.create({ data: { cardId: card.id, action: 'EDITED', editor: userId, snapshot: cardSnapshot(updated) } });
+            await tx.referenceCardRevision.update({ where: { id: rev.id }, data: done });
+        });
+    } catch (err) {
+        if (err.code === 'P2002') return { ok: false, reason: 'name-taken' };
+        throw err;
+    }
+    return { ok: true };
+}
+
+// GET /api/reference-cards/revisions — rewrites waiting, each with the card as it is.
+router.get('/revisions', requireAdmin, async (req, res) => {
+    try {
+        const items = await prisma.referenceCardRevision.findMany({
+            where: { status: 'PENDING' },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, content: true, retire: true, note: true, createdAt: true, card: { select: CARD_SELECT } },
+        });
+        return res.status(200).json({ items });
+    } catch (error) {
+        logger.error('card revisions fetch failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to fetch the rewrites.' });
+    }
+});
+
+// POST /api/reference-cards/revisions/approve-bulk — Approve all, for rewrites.
+router.post('/revisions/approve-bulk', requireAdmin, validate(bulkIdsSchema), idempotency(), async (req, res) => {
+    try {
+        const approved = [];
+        const failed = [];
+        for (const id of [...new Set(req.body.ids)]) {
+            const out = await applyRevision(id, req.user.id).catch(() => ({ ok: false, reason: 'update-failed' }));
+            if (out.ok) approved.push(id);
+            else failed.push({ id, reason: out.reason });
+        }
+        return res.status(200).json({ success: true, approved, failed });
+    } catch (error) {
+        logger.error('card revisions bulk approve failed', { error: error.message });
+        return res.status(500).json({ error: 'Bulk approval failed.' });
+    }
+});
+
+router.post('/revisions/:id/approve', requireAdmin, async (req, res) => {
+    try {
+        const out = await applyRevision(req.params.id, req.user.id);
+        if (out.ok) return res.status(200).json({ success: true });
+        const status = out.reason === 'not-found' ? 404 : out.reason === 'already-reviewed' || out.reason === 'card-gone' || out.reason === 'name-taken' ? 409 : 400;
+        return res.status(status).json({ error: 'The rewrite was not applied.', reasons: [out.reason] });
+    } catch (error) {
+        logger.error('card revision approve failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to apply the rewrite.' });
+    }
+});
+
+router.post('/revisions/:id/reject', requireAdmin, async (req, res) => {
+    try {
+        const { count } = await prisma.referenceCardRevision.updateMany({
+            where: { id: req.params.id, status: 'PENDING' },
+            data: { status: 'REJECTED', reviewedBy: req.user.id, reviewedAt: new Date() },
+        });
+        if (count === 0) return res.status(409).json({ error: 'This rewrite was already reviewed, or is gone.' });
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        logger.error('card revision reject failed', { error: error.message });
+        return res.status(500).json({ error: 'Failed to reject the rewrite.' });
+    }
+});
+
 // PUT /api/reference-cards/:id — edit a PENDING or LIVE card (true partial).
 router.put('/:id', requireAdmin, validate(referenceCardUpdateSchema), async (req, res) => {
     try {
@@ -346,7 +460,9 @@ router.put('/:id', requireAdmin, validate(referenceCardUpdateSchema), async (req
         if (row.status === 'REJECTED') return res.status(409).json({ error: 'Card is rejected — resubmit instead.' });
 
         // Merge edits over the stored row, then re-run the FULL gate on the result.
-        const merged = { ...row, topic: row.topic?.name, ...req.body };
+        // A card moved to another topic leaves its subtopic behind unless one is given.
+        const movedTopic = req.body.topic !== undefined && req.body.topic !== row.topic?.name;
+        const merged = { ...row, topic: row.topic?.name, subtopic: movedTopic ? null : row.subtopic?.name ?? null, ...req.body };
         const { data, reasons } = await toCardData(merged);
         if (reasons) return res.status(400).json({ error: 'Edit would leave the card incomplete.', reasons });
 

@@ -60,6 +60,15 @@ export function useSubtopics() {
   const saved = mine.items || NOTHING;
   const { update, addMany, remove, reload } = mine;
 
+  // Each topic's id by subject and name, from the same list (Library › Lessons
+  // finds a topic by the names the syllabus shows).
+  const topicIds = useMemo(() => {
+    const out = new Map();
+    for (const r of premade.value || NOTHING) if (r.topicId && r.topicName) out.set(`${r.subject}|${r.topicName}`, r.topicId);
+    return out;
+  }, [premade.value]);
+  const topicIdOf = useCallback((subject, name) => topicIds.get(`${subject}|${name}`) ?? null, [topicIds]);
+
   const byTopic = useMemo(() => {
     const suggested = groupBy(premade.value || NOTHING);
     const own = groupBy(saved);
@@ -126,6 +135,7 @@ export function useSubtopics() {
 
   return {
     byTopic,
+    topicIdOf,
     ready: premade.value != null,
     premadeStatus: premade.status,
     queuedCount: mine.queuedCount,

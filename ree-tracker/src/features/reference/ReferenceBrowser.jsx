@@ -81,10 +81,16 @@ const VIEW_OPTIONS = (browseLabel) => [
 
 const sheetPrintPath = (subject, topic) => `/print/formulas?${new URLSearchParams({ subject, ...(topic ? { topic } : {}) })}`;
 
-// A topic's cards, under its tag headings when it has any, with a chip per tag
-// to narrow down to one.
+// The smaller groups inside a section: headed only when there's more than the one.
+const subgroupHeads = (g) => g.subgroups.length > 1 || (g.subgroups.length === 1 && g.subgroups[0].label !== GENERAL);
+const anchorOf = (g) => `cards-${g.id || 'other'}`;
+
+// A topic's cards. Under its syllabus subtopics once its cards carry them
+// (2026-11-16): "On this page" jumps to a heading per subtopic, in syllabus
+// order. Before that, under its tag headings with a chip per tag to narrow to one.
 function TopicCards({ cards }) {
   const groups = groupCards(cards, { by: 'subtopic' });
+  const bySyllabus = groups.some((g) => g.id);
   const [only, setOnly] = useState(null);
   const shown = groups.filter((g) => !only || g.label === only);
   const grid = (list) => (
@@ -97,6 +103,39 @@ function TopicCards({ cards }) {
       ))}
     </div>
   );
+  if (bySyllabus) {
+    return (
+      <div className="flex flex-col gap-6">
+        <nav aria-label="On this page" className="flex flex-col gap-2">
+          <p className="text-eyebrow">On this page</p>
+          <ul className="flex gap-2 flex-wrap">
+            {groups.map((g) => (
+              <li key={anchorOf(g)}>
+                <Button as="a" href={`#${anchorOf(g)}`} size="sm" variant="ghost" className="whitespace-nowrap">
+                  {g.label} <span className="tabular-nums text-muted2">{g.cards.length}</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        {groups.map((g) => (
+          <section key={anchorOf(g)} id={anchorOf(g)} aria-labelledby={`${anchorOf(g)}-h`} className="flex flex-col gap-3 scroll-mt-20 border-t border-border pt-4">
+            <h3 id={`${anchorOf(g)}-h`} className="text-fluid-lg font-bold text-textMain flex items-baseline gap-2 [overflow-wrap:anywhere]">
+              {g.label} <span className="text-xs font-normal text-muted2 tabular-nums">{g.cards.length}</span>
+            </h3>
+            {subgroupHeads(g)
+              ? g.subgroups.map((sg) => (
+                <div key={sg.label} className="flex flex-col gap-2">
+                  <p className="text-eyebrow">{sg.label} · {sg.cards.length}</p>
+                  {grid(sg.cards)}
+                </div>
+              ))
+              : grid(g.cards)}
+          </section>
+        ))}
+      </div>
+    );
+  }
   if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards);
   return (
     <div className="flex flex-col gap-5">
