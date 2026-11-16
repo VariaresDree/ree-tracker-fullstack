@@ -125,10 +125,41 @@ describe('resolveCheck', () => {
     });
 });
 
+describe('resolveMany', () => {
+    const question = { id: 'q1', text: 'Two coils…', options: ['0.853 H', '0.700 H', '0.953 H', '0.600 H'], answer: '0.853 H', fixedExplanation: '**Answer:** 0.953 H', isFlagged: false };
+    const rows = {
+        c1: { id: 'c1', reason: 'explanation-names-other', detail: { option: '0.953 H' }, resolvedAt: null, question },
+        c2: { id: 'c2', reason: 'duplicate-options', detail: { options: [1, 2] }, resolvedAt: null, question: { ...question, id: 'q2' } },
+        c3: { id: 'c3', reason: 'learners-chose-other', detail: { option: '0.700 H' }, resolvedAt: new Date(), question },
+    };
+    beforeEach(() => {
+        vi.spyOn(prisma.questionCheck, 'findUnique').mockImplementation(async ({ where }) => rows[where.id] || null);
+    });
+
+    it("settles each one the same way; one already closed by its question's other finding counts as done", async () => {
+        const out = await keyCheck.resolveMany(['c1', 'c2', 'c3', 'c1'], 'keep', ADMIN);
+        expect(out).toMatchObject({ status: 200, settled: 3, failed: [] });
+        expect(prisma.questionCheck.updateMany).toHaveBeenCalledTimes(2);
+    });
+
+    it("'use the explanation's answer' takes the option each explanation works out, and says which it couldn't do", async () => {
+        const replace = vi.spyOn(questionReplace, 'replaceQuestions').mockResolvedValue({ applied: [{ id: 'q1', regraded: 2 }], skipped: [] });
+        const out = await keyCheck.resolveMany(['c1', 'c2', 'missing'], 'use-option', ADMIN);
+        expect(replace.mock.calls[0][0][0]).toMatchObject({ id: 'q1', answer: '0.953 H', confirmKeyChange: true });
+        expect(out).toMatchObject({ settled: 1, regraded: 2 });
+        expect(out.failed.map((f) => f.id)).toEqual(['c2', 'missing']);
+    });
+
+    it('refuses an action it does not take in bulk', async () => {
+        expect(await keyCheck.resolveMany(['c1'], 'edited', ADMIN)).toMatchObject({ status: 400 });
+    });
+});
+
 describe('routes', () => {
     it('are for admins only', async () => {
-        for (const [method, path] of [['get', '/api/questions/key-checks'], ['post', '/api/questions/key-checks/scan'], ['post', '/api/questions/key-checks/c1/resolve']]) {
-            const res = await request(app())[method](path).set(as(USER)).send({ action: 'keep' });
+        for (const [method, path] of [['get', '/api/questions/key-checks'], ['post', '/api/questions/key-checks/scan'], ['post', '/api/questions/key-checks/c1/resolve'], ['post', '/api/questions/key-checks/resolve-bulk']]) {
+            const body = path.endsWith('bulk') ? { ids: ['c1'], action: 'keep' } : { action: 'keep' };
+            const res = await request(app())[method](path).set(as(USER)).send(body);
             expect(res.status, path).toBe(403);
         }
     });
@@ -139,5 +170,14 @@ describe('routes', () => {
         const res = await request(app()).post('/api/questions/key-checks/c1/resolve').set(as(ADMIN)).send({ action: 'use-option', answer: 'B' });
         expect(res.status).toBe(200);
         expect(res.body).toMatchObject({ success: true, regraded: 2 });
+    });
+
+    it('resolve-bulk checks the ids and action, and answers with how many', async () => {
+        expect((await request(app()).post('/api/questions/key-checks/resolve-bulk').set(as(ADMIN)).send({ ids: [], action: 'keep' })).status).toBe(400);
+        expect((await request(app()).post('/api/questions/key-checks/resolve-bulk').set(as(ADMIN)).send({ ids: ['c1'], action: 'edited' })).status).toBe(400);
+        vi.spyOn(keyCheck, 'resolveMany').mockResolvedValue({ status: 200, settled: 2, regraded: 0, failed: [] });
+        const res = await request(app()).post('/api/questions/key-checks/resolve-bulk').set(as(ADMIN)).send({ ids: ['c1', 'c2'], action: 'keep' });
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({ success: true, settled: 2 });
     });
 });

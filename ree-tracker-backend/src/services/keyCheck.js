@@ -22,6 +22,7 @@ const questionReplace = require('./questionReplace');
 const JOB = 'key-check';
 const PAGE = 1000;
 const LIST_MAX = 50;
+const ALREADY = 'Someone has already settled this one.';
 // Strongest sign first: the explanation itself disagrees with the key.
 const ORDER = ['explanation-names-other', 'learners-chose-other', 'duplicate-options'];
 const KEY_REASONS = ['explanation-names-other', 'learners-chose-other'];
@@ -119,8 +120,9 @@ async function scanBank() {
                 if (!ex) { fresh.push(f); continue; }
                 // Settled, and the question is as it was then: leave it settled.
                 if (ex.resolvedAt && ex.contentHash === f.hash) continue;
-                // Open and unchanged: nothing to write (learners' counts move, so those are).
-                if (!ex.resolvedAt && ex.contentHash === f.hash && f.reason !== 'learners-chose-other') continue;
+                // Open and unchanged: nothing to write. Learners' counts move, so those are; and a
+                // duplicate found before 2026-11-16 gets which two options it is.
+                if (!ex.resolvedAt && ex.contentHash === f.hash && f.reason === 'explanation-names-other') continue;
                 if (ex.resolvedAt) reopened += 1;
                 await prisma.questionCheck.update({
                     where: { id: ex.id },
@@ -191,10 +193,10 @@ const REFUSED = {
 async function resolveCheck(checkId, { action, answer }, adminId) {
     const check = await prisma.questionCheck.findUnique({
         where: { id: checkId },
-        select: { id: true, reason: true, resolvedAt: true, question: { select: { id: true, text: true, options: true, answer: true, fixedExplanation: true, isFlagged: true } } },
+        select: { id: true, reason: true, detail: true, resolvedAt: true, question: { select: { id: true, text: true, options: true, answer: true, fixedExplanation: true, isFlagged: true } } },
     });
     if (!check) return { status: 404, error: 'Not found.' };
-    if (check.resolvedAt) return { status: 409, error: 'Someone has already settled this one.' };
+    if (check.resolvedAt) return { status: 409, error: ALREADY };
     const q = check.question;
     const close = (resolution, reasons) => prisma.questionCheck.updateMany({
         where: { questionId: q.id, resolvedAt: null, ...(reasons ? { reason: { in: reasons } } : {}) },
@@ -216,7 +218,8 @@ async function resolveCheck(checkId, { action, answer }, adminId) {
         const { count } = await close('removed');
         return { status: 200, closed: count };
     }
-    // use-option
+    // use-option; with no answer given, the option its explanation works out.
+    if (answer === undefined && check.reason === 'explanation-names-other') answer = check.detail?.option;
     if (typeof answer !== 'string' || !q.options.includes(answer)) return { status: 400, error: 'Pick one of its options.' };
     if (answer === q.answer) return { status: 400, error: "That's already the key." };
     const out = await questionReplace.replaceQuestions([{
@@ -231,4 +234,26 @@ async function resolveCheck(checkId, { action, answer }, adminId) {
     return { status: 200, closed: count, regraded: applied.regraded ?? 0, unrecorded: applied.unrecorded ?? 0 };
 }
 
-module.exports = { JOB, LIST_MAX, scanBank, openChecks, resolveCheck, __test: { scanPage, learnerPicks } };
+const BULK_ACTIONS = ['keep', 'remove', 'use-option'];
+
+/**
+ * Settles many findings with one action, one after another (2026-11-16): the
+ * admin ticks the ones that look the same way and settles them together. A
+ * finding already closed by an earlier one of the same question counts as done;
+ * the rest that can't be settled come back with why, and stay open.
+ * `use-option` makes each one's explanation's answer the key, so it only takes
+ * "explanation works out another option" findings.
+ */
+async function resolveMany(ids, action, adminId) {
+    if (!BULK_ACTIONS.includes(action)) return { status: 400, error: 'Pick what to do with them.' };
+    const out = { settled: 0, regraded: 0, failed: [] };
+    for (const id of [...new Set(ids)]) {
+        const res = await resolveCheck(id, { action }, adminId);
+        if (!res.error) { out.settled += 1; out.regraded += res.regraded || 0; continue; }
+        if (res.status === 409 && res.error === ALREADY) { out.settled += 1; continue; }
+        out.failed.push({ id, error: res.error });
+    }
+    return { status: 200, ...out };
+}
+
+module.exports = { JOB, LIST_MAX, scanBank, openChecks, resolveCheck, resolveMany, __test: { scanPage, learnerPicks } };

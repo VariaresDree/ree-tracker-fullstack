@@ -96,6 +96,86 @@ describe('Questions to check', () => {
     expect(apiRequest.mock.calls.filter(([url]) => url === '/api/questions/key-checks')).toHaveLength(2);
   });
 
+  // 2026-11-16: settling one at a time was the slow part.
+  describe('settling many at once', () => {
+    const twin = { id: 'q4', subject: 'Mathematics', subtopic: 'Algebra', text: 'Simplify…', options: ['$2\\pi$', '2 \\pi', '3', '4'], answer: '3', fixedExplanation: 'x' };
+    const MANY = {
+      ...LIST,
+      total: 3,
+      byReason: { ...LIST.byReason, 'duplicate-options': 1 },
+      items: [...LIST.items, { id: 'c4', reason: 'duplicate-options', detail: { options: [0, 1] }, question: twin, picks: [] }],
+    };
+    beforeEach(() => {
+      apiRequest.mockImplementation(async (url, method, body) => {
+        if (url === '/api/questions/key-checks') return MANY;
+        if (url.endsWith('/resolve-bulk')) return { success: true, settled: body.ids.length, regraded: body.action === 'use-option' ? 3 : 0, failed: [] };
+        if (url.endsWith('/resolve')) return { success: true, closed: 1 };
+        throw new Error(url);
+      });
+    });
+
+    it('a duplicate says which two options, and can be marked "They differ"', async () => {
+      render(<KeyCheck />);
+      expect(await screen.findByText('Options A and B read the same')).toBeInTheDocument();
+      const card = screen.getByText('Simplify…').closest('li');
+      expect(within(card).getByText('Same as B')).toBeInTheDocument();
+      expect(within(card).getByText('Same as A')).toBeInTheDocument();
+      fireEvent.click(within(card).getByRole('button', { name: 'They differ' }));
+      await waitFor(() => expect(apiRequest.mock.calls.find(([url]) => url.endsWith('/c4/resolve'))[2]).toEqual({ action: 'keep' }));
+    });
+
+    it('tick all, then keep them as they are in one go; the list reloads', async () => {
+      render(<KeyCheck />);
+      await screen.findByText('Simplify…');
+      fireEvent.click(screen.getByRole('checkbox', { name: /Tick all 3/ }));
+      expect(screen.getByText('3 of 3 ticked')).toBeInTheDocument();
+      // Only the one whose explanation works out another option takes its answer.
+      expect(screen.getByRole('button', { name: /Use the explanation’s answer · 1/ })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /Keep as is · 3/ }));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('3 questions kept as they are.'));
+      const call = apiRequest.mock.calls.find(([url]) => url.endsWith('/resolve-bulk'));
+      expect(call[2]).toEqual({ ids: ['c1', 'c3', 'c4'], action: 'keep' });
+      expect(apiRequest.mock.calls.filter(([url]) => url === '/api/questions/key-checks')).toHaveLength(2);
+    });
+
+    it("the explanation's answer goes only to those that have one; Remove asks first", async () => {
+      render(<KeyCheck />);
+      await screen.findByText('Simplify…');
+      fireEvent.click(screen.getByRole('checkbox', { name: /Tick: Two coils/ }));
+      fireEvent.click(screen.getByRole('checkbox', { name: /Tick: Simplify/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Use the explanation’s answer · 1/ }));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('1 question given their explanation’s answer. 3 past answers regraded.'));
+      expect(apiRequest.mock.calls.find(([url]) => url.endsWith('/resolve-bulk'))[2]).toEqual({ ids: ['c1'], action: 'use-option' });
+
+      fireEvent.click(screen.getByRole('checkbox', { name: /Tick: Simplify/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Remove · 1/ }));
+      expect(apiRequest.mock.calls.filter(([url]) => url.endsWith('/resolve-bulk'))).toHaveLength(1);
+      fireEvent.click(screen.getByRole('button', { name: 'Take 1 out of the bank' }));
+      await waitFor(() => expect(apiRequest.mock.calls.filter(([url]) => url.endsWith('/resolve-bulk'))[1][2]).toEqual({ ids: ['c4'], action: 'remove' }));
+    });
+
+    it('shows one kind at a time; ticking acts only on what is shown', async () => {
+      render(<KeyCheck />);
+      await screen.findByText('Simplify…');
+      fireEvent.click(screen.getByRole('radio', { name: /Same options · 1/ }));
+      expect(screen.queryByText('Two coils in series aiding…')).toBeNull();
+      expect(screen.getByText('Simplify…')).toBeInTheDocument();
+    });
+
+    it('says which ones could not be settled, and why', async () => {
+      apiRequest.mockImplementation(async (url) => {
+        if (url === '/api/questions/key-checks') return MANY;
+        if (url.endsWith('/resolve-bulk')) return { success: true, settled: 2, regraded: 0, failed: [{ id: 'c1', error: "It's in a running battle. Try again when the battle ends." }] };
+        throw new Error(url);
+      });
+      render(<KeyCheck />);
+      await screen.findByText('Simplify…');
+      fireEvent.click(screen.getByRole('checkbox', { name: /Tick all/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Keep as is/ }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("1 question couldn’t be settled: It's in a running battle. Try again when the battle ends."));
+    });
+  });
+
   it('before the first check it says so, with the button to run it', async () => {
     apiRequest.mockImplementation(async (url) => (url === '/api/questions/key-checks' ? { total: 0, byReason: {}, lastScan: null, items: [] } : {}));
     render(<KeyCheck />);

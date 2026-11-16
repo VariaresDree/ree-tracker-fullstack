@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const { validate } = require('../middlewares/validate');
 const idempotency = require('../middlewares/idempotency');
-const { keyCheckResolveSchema, reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
+const { keyCheckResolveSchema, keyCheckBulkSchema, reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview } = require('../schemas/questionSchemas');
 const { bulkIdsSchema } = require('../schemas/reviewSchemas');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const prisma = require('../config/db');
@@ -417,6 +417,18 @@ router.post('/key-checks/scan', authMiddleware, requireAdmin, async (req, res) =
     } catch (error) {
         logger.error('Key check scan error', { error: error.message });
         return res.status(500).json({ error: 'The check stopped. Nothing was lost; try again.' });
+    }
+});
+
+// Many at once: the ones ticked in the list, settled the same way (2026-11-16).
+router.post('/key-checks/resolve-bulk', authMiddleware, requireAdmin, validate(keyCheckBulkSchema), idempotency(), async (req, res) => {
+    try {
+        const { status, error, ...out } = await keyCheck.resolveMany(req.body.ids, req.body.action, req.user.id);
+        if (error) return res.status(status).json({ error });
+        return res.status(200).json({ success: true, ...out });
+    } catch (error) {
+        logger.error('Key check bulk resolve error', { error: error.message });
+        return res.status(500).json({ error: 'It stopped partway. Reload the list to see what was settled.' });
     }
 });
 
