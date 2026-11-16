@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { pickedTopics, topicsLabel } from '../features/syllabus/topicPick';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBattleSocket } from '../hooks/useBattleSocket';
@@ -265,8 +266,8 @@ function BattleRoom({ battleId }) {
                             <Badge tone="signal">
                                 Subject: {battleConfig.config?.mode === 'blended' ? 'Full mock' : battleConfig.config?.subject}
                             </Badge>
-                            {(battleConfig.config?.subtopicName || (battleConfig.config?.subtopic && battleConfig.config.subtopic !== 'All')) && (
-                                <Badge tone="neutral">Topic: {battleConfig.config.subtopicName || battleConfig.config.subtopic}</Badge>
+                            {(battleConfig.config?.subtopicName || pickedTopics(battleConfig.config).length > 0) && (
+                                <Badge tone="neutral">{pickedTopics(battleConfig.config).length > 1 ? 'Topics' : 'Topic'}: {battleConfig.config.subtopicName || topicsLabel(pickedTopics(battleConfig.config), 3)}</Badge>
                             )}
                             <Badge tone="neutral">Questions: {battleConfig.questionCount || '?'}</Badge>
                             {battleConfig.config?.sameOrder && <Badge tone="neutral">Same order for everyone</Badge>}

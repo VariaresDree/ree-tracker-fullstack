@@ -35,11 +35,15 @@ function capOf(limit) {
 // rest (a missing type counts as conceptual, as Practice's filter has it), or
 // null for both. Practice used to draw 1,000 rows and filter them itself.
 // `subtopicId`: only questions tagged with that subtopic (Question.subtopicId).
-async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50, excludeIds = [], focus = null, subtopicId = null }) {
+// `topics`: two or more topics (Question.subtopic) to draw from, spread evenly
+// across them like a whole subject (2026-11-16: "Algebra, Complex Numbers and
+// Trigonometry"); one topic goes in `subtopic`.
+async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit = 50, excludeIds = [], focus = null, subtopicId = null, topics = null }) {
     const cap = capOf(limit);
     const exclude = (excludeIds || []).filter((id) => typeof id === 'string' && id);
     const kind = focus === 'calculation' || focus === 'conceptual' ? focus : null;
     const tag = typeof subtopicId === 'string' && subtopicId ? subtopicId : null;
+    const among = Array.isArray(topics) && topics.length > 0 ? topics : null;
 
     let rows;
     if (subtopic && subjectValues) {
@@ -54,16 +58,31 @@ async function sampleQuestionIds({ subjectValues = null, subtopic = null, limit 
         );
     } else if (subjectValues) {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND NOT ("id" = ANY($3::text[])) AND ($4::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($4::text = \'calculation\')) AND ($5::text IS NULL OR "subtopicId" = $5)) t ORDER BY t.rn, random() LIMIT $2',
-            subjectValues, cap, exclude, kind, tag,
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND "subject" = ANY($1::text[]) AND NOT ("id" = ANY($3::text[])) AND ($4::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($4::text = \'calculation\')) AND ($5::text IS NULL OR "subtopicId" = $5) AND ($6::text[] IS NULL OR "subtopic" = ANY($6::text[]))) t ORDER BY t.rn, random() LIMIT $2',
+            subjectValues, cap, exclude, kind, tag, among,
         );
     } else {
         rows = await prisma.$queryRawUnsafe(
-            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND NOT ("id" = ANY($2::text[])) AND ($3::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($3::text = \'calculation\')) AND ($4::text IS NULL OR "subtopicId" = $4)) t ORDER BY t.rn, random() LIMIT $1',
-            cap, exclude, kind, tag,
+            'SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY "subtopic" ORDER BY random()) AS rn FROM "Question" WHERE "isFlagged" = false AND NOT ("id" = ANY($2::text[])) AND ($3::text IS NULL OR (COALESCE("type", \'\') = \'calculation\') = ($3::text = \'calculation\')) AND ($4::text IS NULL OR "subtopicId" = $4) AND ($5::text[] IS NULL OR "subtopic" = ANY($5::text[]))) t ORDER BY t.rn, random() LIMIT $1',
+            cap, exclude, kind, tag, among,
         );
     }
     return rows.map((r) => r.id);
+}
+
+const TOPICS_MAX = 40;
+/**
+ * The topics a request names, cleaned: a name or a list of names, 'All' and
+ * blanks dropped, each once, at most TOPICS_MAX. [] means every topic.
+ */
+function topicList(value) {
+    const out = [];
+    for (const t of [].concat(value ?? [])) {
+        if (typeof t !== 'string') continue;
+        const name = t.trim().slice(0, 128);
+        if (name && name !== 'All' && !out.includes(name)) out.push(name);
+    }
+    return out.slice(0, TOPICS_MAX);
 }
 
 const randomPick = (list, n) => {
@@ -100,14 +119,16 @@ async function sampleDrawnIds({ subjectValues, subject, limit, groups, excludeId
 // Full question rows in the sampled random order. `avoidIds` are drawn last:
 // only when the rest of the pool can't fill `limit` do any of them return
 // (a small subtopic's rematch repeats as few as it must).
-async function samplePool({ subject = null, subtopic = null, limit = 50, avoidIds = null, groups = null, focus = null, subtopicId = null } = {}) {
+async function samplePool({ subject = null, subtopic = null, topics = null, limit = 50, avoidIds = null, groups = null, focus = null, subtopicId = null } = {}) {
     const subjFilter = getSubjectFilter(subject);
     const subjectValues = subjFilter ? (subjFilter.in || [subjFilter]) : null;
-    const specificSubtopic = subtopic && subtopic !== 'All' ? String(subtopic).trim() : null;
+    const picked = topicList(topics && [].concat(topics).length ? topics : subtopic);
+    const specificSubtopic = picked.length === 1 ? picked[0] : null;
+    const among = picked.length > 1 ? picked : null;
 
-    const spec = { subjectValues, subtopic: specificSubtopic, focus, subtopicId };
-    // A subtopic is narrower than any blueprint: drawn evenly from it.
-    let idList = groups && subjectValues && !specificSubtopic && !subtopicId
+    const spec = { subjectValues, subtopic: specificSubtopic, focus, subtopicId: specificSubtopic ? subtopicId : null, topics: among };
+    // Picked topics are narrower than any blueprint: drawn evenly from them.
+    let idList = groups && subjectValues && !specificSubtopic && !among && !subtopicId
         ? await sampleDrawnIds({ subjectValues, subject: normalizeSubject(subject), limit, groups, excludeIds: avoidIds || [] })
         : await sampleQuestionIds({ ...spec, limit, excludeIds: avoidIds || [] });
     const short = capOf(limit) - idList.length;
@@ -164,6 +185,6 @@ async function sampleBlendedPool(totalCount = 100, { avoidIds = null, groups = n
 }
 
 module.exports = {
-    getSubjectFilter, sampleQuestionIds, samplePool, sampleBlendedPool, groupsForDraw,
+    getSubjectFilter, sampleQuestionIds, samplePool, topicList, TOPICS_MAX, sampleBlendedPool, groupsForDraw,
     getSyllabusWeights, normalizeSyllabusWeights, DEFAULT_SYLLABUS_WEIGHTS,
 };

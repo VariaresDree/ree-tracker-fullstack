@@ -15,7 +15,7 @@ vi.mock('../../hooks/useNetworkStatus', () => ({ useNetworkStatus: () => online 
 let manilaDay = '2026-11-14';
 vi.mock('../../hooks/useManilaDay', () => ({ useManilaDay: () => manilaDay }));
 let storeStats;
-const TOS = { EE: ['Electromagnetism', 'Electric Circuits 2'], Mathematics: ['Calculus 1'] };
+const TOS = { EE: ['Electromagnetism', 'Electric Circuits 2', 'Machines'], Mathematics: ['Calculus 1'] };
 vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats, dynamicTOS: TOS }) }));
 const createMultiplayerBattle = vi.hoisted(() => vi.fn(async () => 'ABC123'));
 vi.mock('../../services/dbQueries', () => ({
@@ -109,9 +109,9 @@ describe('hosting a battle', () => {
     drawPrefs.value = { drawMode: 'own', ownCounts: { EE: { Machines: 5 } } };
     renderTab(<BattlesTab />);
     fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
-    const topic = screen.getByLabelText('Topic');
-    expect(within(topic).getAllByRole('option').map((o) => o.textContent)).toEqual(['All topics', 'Electromagnetism', 'Electric Circuits 2']);
-    fireEvent.change(topic, { target: { value: 'Electric Circuits 2' } });
+    const picker = screen.getByRole('group', { name: 'Topics' });
+    expect(within(picker).getAllByRole('button').map((o) => o.textContent)).toEqual(['All topics', 'Electromagnetism', 'Electric Circuits 2', 'Machines']);
+    fireEvent.click(within(picker).getByRole('button', { name: 'Electric Circuits 2' }));
     // One topic leaves nothing to pick by.
     expect(screen.queryByText('How questions are picked')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create lobby' }));
@@ -120,18 +120,36 @@ describe('hosting a battle', () => {
     expect(config).toMatchObject({ mode: 'subject', subject: 'EE', subtopic: 'Electric Circuits 2', count: 20 });
     expect(config.drawMode).toBeUndefined();
     expect(config.ownCounts).toBeUndefined();
+    expect(config.topics).toBeUndefined();
+  });
+
+  // 2026-11-16: a battle on any set of a subject's topics.
+  it('a custom battle on several topics sends them all, in the syllabus order', async () => {
+    drawPrefs.value = { drawMode: 'board', ownCounts: {} };
+    renderTab(<BattlesTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
+    const picker = screen.getByRole('group', { name: 'Topics' });
+    fireEvent.click(within(picker).getByRole('button', { name: 'Machines' }));
+    fireEvent.click(within(picker).getByRole('button', { name: 'Electromagnetism' }));
+    expect(within(picker).getByText('2 of 3 picked')).toBeInTheDocument();
+    expect(screen.queryByText('How questions are picked')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create lobby' }));
+    await vi.waitFor(() => expect(createMultiplayerBattle).toHaveBeenCalled());
+    const config = createMultiplayerBattle.mock.calls.at(-1)[0];
+    expect(config).toMatchObject({ mode: 'subject', subject: 'EE', subtopic: 'All', topics: ['Electromagnetism', 'Machines'] });
+    expect(config.drawMode).toBeUndefined();
   });
 
   it('a new subject starts on all of its topics, and a PRC paper has no topic', () => {
     renderTab(<BattlesTab />);
     fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
-    fireEvent.change(screen.getByLabelText('Topic'), { target: { value: 'Electromagnetism' } });
+    fireEvent.click(within(screen.getByRole('group', { name: 'Topics' })).getByRole('button', { name: 'Electromagnetism' }));
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Mathematics' } });
-    const topic = screen.getByLabelText('Topic');
-    expect(topic).toHaveValue('All');
-    expect(within(topic).getAllByRole('option').map((o) => o.textContent)).toEqual(['All topics', 'Calculus 1']);
+    const picker = screen.getByRole('group', { name: 'Topics' });
+    expect(within(picker).getByRole('button', { name: 'All topics' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(picker).getAllByRole('button').map((o) => o.textContent)).toEqual(['All topics', 'Calculus 1']);
     fireEvent.click(screen.getByRole('radio', { name: /One subject/ }));
-    expect(screen.queryByLabelText('Topic')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Topics' })).not.toBeInTheDocument();
     expect(screen.getByText('How questions are picked')).toBeInTheDocument();
   });
 });
@@ -143,6 +161,7 @@ describe('battleLabel', () => {
     expect(battleLabel({ mode: 'subject', subject: 'EE' })).toBe('EE');
     expect(battleLabel({ mode: 'blended', subject: 'Blended' })).toBe('Full mock');
     expect(battleLabel(null)).toBe('Battle');
+    expect(battleLabel({ mode: 'subject', subject: 'Mathematics', subtopic: 'All', topics: ['Algebra', 'Complex Numbers', 'Trigonometry'] })).toBe('Mathematics · Algebra and 2 more');
   });
 });
 

@@ -17,6 +17,7 @@
 //     5 hours for the mixed paper, the board's pace per item for a custom one.
 // Each set shows every question's choices in its own order (presentOptions,
 // keyed by a fresh sitting key), and the key's letters follow that order.
+import { isMultiTopic, topicsLabel } from '../syllabus/topicPick';
 import {
   PRC_EXAM_FORMAT, DEFAULT_SYLLABUS_WEIGHTS, apportionItems, boardPaceSeconds, matchOption,
   newSittingKey, normalizeSubject, shuffleWithKey,
@@ -92,7 +93,9 @@ export function resolveExportPlan(config = {}, weights = DEFAULT_SYLLABUS_WEIGHT
     if (!BOARD_ORDER.includes(subject)) throw new ExportError('Choose a subject to print a paper.', 'subject');
     totalCount = prc ? (PRC_EXAM_FORMAT[subject]?.items || 100) : Math.max(1, Math.floor(config.count || 20));
     const subtopic = profile === 'custom' && config.subtopic && config.subtopic !== 'All' ? config.subtopic : 'All';
-    sections = [{ subject, title: SECTION_TITLE[subject], count: totalCount, subtopic }];
+    // Two or more picked topics (2026-11-16), drawn evenly across them.
+    const topics = profile === 'custom' && isMultiTopic(config) ? config.topics : undefined;
+    sections = [{ subject, title: SECTION_TITLE[subject], count: totalCount, subtopic, ...(topics ? { topics } : {}) }];
   }
 
   const single = sections.length === 1 && !blended;
@@ -101,7 +104,7 @@ export function resolveExportPlan(config = {}, weights = DEFAULT_SYLLABUS_WEIGHT
     profile,
     code: blended ? 'BLENDED' : SUBJECT_CODE[sections[0].subject],
     title: single ? sections[0].title : 'Mixed Paper: Mathematics, ESAS and EE',
-    topic: single && sections[0].subtopic !== 'All' ? sections[0].subtopic : null,
+    topic: !single ? null : sections[0].topics ? topicsLabel(sections[0].topics, 3) : sections[0].subtopic !== 'All' ? sections[0].subtopic : null,
     sections,
     cognitiveFocus: config.cognitiveFocus || 'mixed',
     totalCount,
@@ -114,7 +117,7 @@ export function resolveExportPlan(config = {}, weights = DEFAULT_SYLLABUS_WEIGHT
 export function planSummary(plan) {
   const parts = [`${plan.totalCount} items`];
   if (plan.kind === 'blended') plan.sections.forEach((s) => parts.push(`${SHORT_LABEL[s.subject]} ${s.count}`));
-  else parts.push(plan.sections[0].subtopic !== 'All' ? `${SHORT_LABEL[plan.sections[0].subject]}, ${plan.sections[0].subtopic}` : SHORT_LABEL[plan.sections[0].subject]);
+  else parts.push(plan.topic ? `${SHORT_LABEL[plan.sections[0].subject]}, ${plan.topic}` : SHORT_LABEL[plan.sections[0].subject]);
   parts.push(formatDuration(plan.timeAllotmentMins));
   return parts.join(' \u00B7 ');
 }
@@ -139,8 +142,8 @@ const keyOf = (q) => (q?.id != null ? `id:${q.id}` : `t:${q?.text ?? q?.question
 const printable = (q) => q && Array.isArray(q.options) && q.options.length >= 2;
 const IMAGE_RE = /!\[[^\]]*\]\([^)]*\)/;
 
-const defaultFetchQuestions = (subject, subtopic, limit) => import('../../services/dbQueries')
-  .then((m) => m.fetchVaultQuestions(subject, subtopic, limit));
+const defaultFetchQuestions = (subject, subtopic, limit, topics) => import('../../services/dbQueries')
+  .then((m) => (topics ? m.fetchVaultQuestions(subject, subtopic, limit, 'random', { topics }) : m.fetchVaultQuestions(subject, subtopic, limit)));
 const defaultFetchWeights = () => import('../../services/dbQueries').then((m) => m.fetchSyllabusWeights());
 const defaultFetchBoardGroups = () => import('../../services/dbQueries').then((m) => m.fetchBoardGroups());
 
@@ -195,7 +198,7 @@ export async function drawExamPaper(config, {
     // item skipped below left the paper short with nothing to replace it.
     // A paper by topic counts, or a PRC paper's spread, needs the thin topics whole.
     const limit = plan.profile === 'custom' && !drawGroups ? Math.min(2000, section.count * 4) : 2000;
-    const raw = (await fetchQuestions(section.subject, section.subtopic, limit)) || [];
+    const raw = (await (section.topics ? fetchQuestions(section.subject, section.subtopic, limit, section.topics) : fetchQuestions(section.subject, section.subtopic, limit))) || [];
     const { pool, fallback } = applyFocusFilter(raw.filter(printable), plan.cognitiveFocus);
     if (fallback) warnings.focusFallback = true;
     const unique = [];

@@ -14,6 +14,8 @@ const battleCreateSchema = z.object({
         mode: z.enum(['custom', 'prc', 'blended', 'subject']).default('custom'),
         subject: z.string().max(64).optional(),
         subtopic: z.string().max(128).optional(),
+        // Two or more topics to draw from instead of one (2026-11-16).
+        topics: z.array(z.string().trim().min(1).max(128)).min(2).max(40).optional(),
         // One subtopic of that topic (Question.subtopicId), and its name to show.
         subtopicId: z.string().min(1).max(100).optional(),
         subtopicName: z.string().max(128).optional(),

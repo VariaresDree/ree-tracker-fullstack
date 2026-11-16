@@ -14,11 +14,11 @@ export const DRAW_MODES = [
   { value: 'own', label: 'My own', description: 'The number you set for each topic.' },
 ];
 
-/** A custom mock on one topic, or written by AI, has nothing to choose. */
+/** A custom mock on picked topics (one or several), or written by AI, has nothing to choose. */
 export const drawApplies = (config = {}) => {
   if (config.source === 'ai') return false;
   if (config.mode === 'blended' || config.isPrcStandard) return true;
-  return !config.subtopic || config.subtopic === 'All';
+  return (!config.subtopic || config.subtopic === 'All') && !(config.topics?.length > 1);
 };
 
 /**

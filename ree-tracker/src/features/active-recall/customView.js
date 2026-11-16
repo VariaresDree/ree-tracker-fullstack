@@ -6,7 +6,9 @@
 // reads a leftover as a question-bank session over every subject.
 //
 // The session code still takes `studyMode`, which the builder works out from the
-// two questions it asks: which subject, and which topic.
+// two questions it asks: which subject, and which topics. Two or more topics
+// (2026-11-16) are a subject session with `topics` (features/syllabus/topicPick).
+import { pickedTopics, topicFields, topicsLabel } from '../syllabus/topicPick';
 
 const STORAGE_KEY = 'ree:practice-builder';
 const STUDY_MODES = ['interleaved', 'subject', 'subtopic'];
@@ -27,15 +29,22 @@ export function customView(config) {
     subtopic: scoped ? config.subtopic : 'All',
     subtopicId: inTopic ? config.subtopicId : null,
     subtopicName: inTopic ? config.subtopicName || null : null,
+    topics: scoped && config.studyMode === 'subject' && config.topics?.length > 1 ? config.topics : undefined,
     source: CUSTOM_SOURCES.includes(config.source) ? config.source : 'library',
   };
 }
 
-/** Which subject and topic, in the session's terms. 'All' means every one. */
-export function chooseScope(view, subject, topic = 'All') {
-  const none = { subtopicId: null, subtopicName: null };
+/**
+ * Which subject and topics, in the session's terms. `topics` is a topic name, a
+ * list of them, or 'All' / [] for every one; two or more stay a subject session
+ * with the list in `topics`.
+ */
+export function chooseScope(view, subject, topics = 'All', subjectTopics = null) {
+  const none = { subtopicId: null, subtopicName: null, topics: undefined };
   if (subject === 'All') return { ...view, ...none, studyMode: 'interleaved', subject: 'All', subtopic: 'All' };
-  return { ...view, ...none, studyMode: topic === 'All' ? 'subject' : 'subtopic', subject, subtopic: topic };
+  const fields = topicFields([].concat(topics), subjectTopics);
+  const one = fields.subtopic !== 'All';
+  return { ...view, ...none, ...fields, studyMode: one ? 'subtopic' : 'subject', subject };
 }
 
 /** One subtopic of the picked topic (Question.subtopicId), or null for all of it. */
@@ -44,17 +53,21 @@ export function chooseSubtopic(view, sub) {
   return { ...view, subtopicId: sub?.id ?? null, subtopicName: sub?.name ?? null };
 }
 
-/** A topic retired since it was remembered falls back to its whole subject. */
+/** Topics retired since they were remembered drop out; none left is the whole subject. */
 export function liveScope(view, topicsBySubject) {
-  if (view.studyMode !== 'subtopic' || (topicsBySubject?.[view.subject] || []).includes(view.subtopic)) return view;
-  return chooseScope(view, view.subject);
+  const picked = pickedTopics(view);
+  if (view.studyMode === 'interleaved' || picked.length === 0) return view;
+  const live = topicsBySubject?.[view.subject] || [];
+  if (picked.every((t) => live.includes(t))) return view;
+  return chooseScope(view, view.subject, picked.filter((t) => live.includes(t)), live);
 }
 
 /** "20 choice · EE · mixed", with the source when it isn't the bank. */
 export function builderSummary(view) {
   const where = view.studyMode === 'interleaved' ? 'all subjects'
     : view.studyMode === 'subtopic' ? view.subtopicName || view.subtopic
-      : SUBJECT_LABEL[view.subject] || view.subject;
+      : view.topics?.length > 1 ? topicsLabel(view.topics, 1)
+        : SUBJECT_LABEL[view.subject] || view.subject;
   return [
     `${view.count} ${view.sessionMode === 'flashcard' ? 'cards' : 'choice'}`,
     where,
@@ -75,8 +88,8 @@ export function readRememberedBuilder() {
 }
 
 export function rememberBuilder(view) {
-  const { studyMode, subject, subtopic, subtopicId, subtopicName, sessionMode, cognitiveFocus, count, source } = view;
+  const { studyMode, subject, subtopic, subtopicId, subtopicName, topics, sessionMode, cognitiveFocus, count, source } = view;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ studyMode, subject, subtopic, subtopicId, subtopicName, sessionMode, cognitiveFocus, count, source }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ studyMode, subject, subtopic, subtopicId, subtopicName, topics, sessionMode, cognitiveFocus, count, source }));
   } catch { /* it holds for this visit */ }
 }

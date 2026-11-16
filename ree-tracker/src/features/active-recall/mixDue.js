@@ -12,13 +12,15 @@ export const dueShare = (want) => Math.ceil((Number(want) || 0) / 4);
  * @param {Array<object>} bankSample  the set as drawn from the bank
  * @param {Array<object>} due  the learner's due questions, oldest due first
  * @param {number} want  the session's length
- * @param {{subtopic?: string, subtopicId?: string}} [scope]  a topic or subtopic
- *   the session is pinned to (an older server ignores them, so checked here too)
+ * @param {{subtopic?: string, subtopicId?: string, topics?: string[]}} [scope]  a topic,
+ *   subtopic or set of topics the session is pinned to (checked here, since the
+ *   due queue is fetched by subject)
  * @returns {Array<object>} the due reviews (marked `dueReview`), then the bank's
  */
-export function mixDue(bankSample, due, want, { subtopic, subtopicId } = {}) {
+export function mixDue(bankSample, due, want, { subtopic, subtopicId, topics } = {}) {
   const fits = (q) => q?.id
     && (!subtopic || subtopic === 'All' || q.subtopic === subtopic)
+    && (!topics?.length || topics.includes(q.subtopic))
     && (!subtopicId || q.subtopicId === subtopicId);
   const share = dueShare(want);
   const reviews = new Map();

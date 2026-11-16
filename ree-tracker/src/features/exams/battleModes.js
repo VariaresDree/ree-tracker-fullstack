@@ -3,6 +3,7 @@
 // Battle formats, named after the mock-board profiles they match
 // (features/board-simulator/profiles.js): a "One subject (PRC clock)" battle
 // and mock board are the same sitting.
+import { pickedTopics, topicsLabel } from '../syllabus/topicPick';
 import { SIM_PROFILES } from '../board-simulator/profiles';
 
 const profile = (id) => SIM_PROFILES.find((p) => p.id === id);
@@ -18,12 +19,13 @@ export const BATTLE_MODES = [
   description: m.description || profile(m.profile).description,
 }));
 
-/** A battle's format in a few words, from its saved config: "EE", "EE · Electric Circuits 2", "Full mock". */
+/** A battle's format in a few words, from its saved config: "EE", "EE · Electric Circuits 2", "Mathematics · Algebra and 2 more", "Full mock". */
 export function battleLabel(config) {
   if (!config) return 'Battle';
   if (config.mode === 'blended') return 'Full mock';
   const subject = config.subject || 'Battle';
-  return config.subtopic && config.subtopic !== 'All' ? `${subject} · ${config.subtopic}` : subject;
+  const topics = pickedTopics(config);
+  return topics.length ? `${subject} · ${topicsLabel(topics, 1)}` : subject;
 }
 
 /** 1 → "1st", 2 → "2nd", 3 → "3rd", 11 → "11th", 22 → "22nd". */
