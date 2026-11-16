@@ -39,6 +39,7 @@ const referenceCardCreateSchema = z.object({
     subject: z.string().min(1),
     topic: z.string().min(1).max(200),   // topic NAME — resolved to topicId by the route
     subtopicTag: z.string().max(120).nullable().optional(),
+    subtopic: z.string().trim().min(1).max(160).nullable().optional(),
     dimensionless: z.boolean().nullish().transform(Boolean),
     sourceId: z.string().nullable().optional(),
 });
@@ -58,6 +59,7 @@ const referenceCardUpdateSchema = z.object({
     subject: z.string().min(1).optional(),
     topic: z.string().min(1).max(200).optional(),
     subtopicTag: z.string().max(120).nullable().optional(),
+    subtopic: z.string().trim().min(1).max(160).nullable().optional(),
     dimensionless: z.boolean().optional(),
     sourceId: z.string().nullable().optional(),
 });

@@ -57,7 +57,7 @@ function CheckCard({ item, busy, onSettle, onEdit }) {
               <li key={i} className={`flex flex-wrap items-center gap-2 min-w-0 rounded-[var(--radius-sm)] px-1.5 py-1 ${isKey ? 'font-semibold text-textMain' : 'text-muted2'}`}
                 style={flagged ? { background: 'color-mix(in srgb, var(--color-reeAmber) 14%, transparent)' } : undefined}>
                 <span className="font-mono opacity-60 shrink-0">{letter(i)}.</span>
-                <span className="min-w-0 flex-1 math-scroll-mobile [&_p]:!m-0"><LatexRenderer content={o} /></span>
+                <span className="min-w-0 flex-1 math-scroll-mobile"><LatexRenderer inline content={o} /></span>
                 {isKey && <Badge tone="success" className="shrink-0"><Check size={12} strokeWidth={2.5} aria-hidden="true" /> Key</Badge>}
                 {o === named && <Badge tone="signal" className="shrink-0">Explanation’s answer</Badge>}
                 {learnersOn(o) > 0 && <span className="shrink-0 tabular-nums">{plural(learnersOn(o), 'learner')}</span>}
@@ -68,7 +68,7 @@ function CheckCard({ item, busy, onSettle, onEdit }) {
         {named && detail?.line && (
           <p className="text-xs text-muted2 min-w-0">
             <span className="text-eyebrow block mb-0.5">Its explanation ends</span>
-            <span className="text-sm text-textMain math-scroll-mobile [&_p]:!m-0 [&_p]:inline"><LatexRenderer content={detail.line} /></span>
+            <span className="text-sm text-textMain math-scroll-mobile"><LatexRenderer inline content={detail.line} /></span>
           </p>
         )}
         {q.fixedExplanation && (

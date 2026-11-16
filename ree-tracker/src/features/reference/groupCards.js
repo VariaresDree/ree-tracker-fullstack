@@ -3,6 +3,10 @@
 // Formula cards → headed groups for the quick sheet (QuickSheet):
 // a subject's cards by topic (in syllabus order) then subtopic, or a topic's
 // cards by subtopic. Within a group: formulas, then constants, each A–Z.
+//
+// A topic's cards "by subtopic" follow the syllabus once its cards carry one
+// (2026-11-16): a section per syllabus subtopic in its order, the free-text tags
+// as smaller groups inside, and cards not yet filed under one last.
 const KIND_ORDER = { formula: 0, constant: 1 };
 const NO_TOPIC = 'Other cards';
 export const GENERAL = 'General';
@@ -35,6 +39,17 @@ export function groupCards(cards, { by = 'topic', topicOrder = [] } = {}) {
   };
 
   if (by === 'subtopic') {
+    if (cards.some((c) => c.subtopic?.id)) {
+      const sections = new Map();
+      for (const c of cards) {
+        const key = c.subtopic?.id || NO_TOPIC;
+        if (!sections.has(key)) sections.set(key, { id: c.subtopic?.id || null, label: c.subtopic?.name || NO_TOPIC, order: c.subtopic?.sortOrder ?? Infinity, cards: [] });
+        sections.get(key).cards.push(c);
+      }
+      return [...sections.values()]
+        .sort((a, b) => (a.id === null) - (b.id === null) || a.order - b.order || a.label.localeCompare(b.label))
+        .map(({ id, label, cards: items }) => ({ id, label, cards: [...items].sort(byKindThenName), subgroups: subgroupsOf(items) }));
+    }
     return subgroupsOf(cards).map((g) => ({ label: g.label, cards: g.cards, subgroups: [] }));
   }
 

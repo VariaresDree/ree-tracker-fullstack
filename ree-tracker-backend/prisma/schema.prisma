@@ -1033,6 +1033,10 @@ model ReferenceCard {
   subject        String            // canonical: 'Mathematics' | 'ESAS' | 'EE'
   topicId        String?
   topic          Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  // The syllabus subtopic the card sits under (Library headers, 2026-11-16).
+  // `subtopicTag` is the smaller group inside it ("Laws of exponents").
+  subtopicId     String?
+  subtopic       SyllabusSubtopic? @relation(fields: [subtopicId], references: [id], onDelete: SetNull)
   subtopicTag    String?
   dimensionless  Boolean  @default(false)
   status         String   @default("PENDING") // PENDING | LIVE | REJECTED
@@ -1046,10 +1050,33 @@ model ReferenceCard {
   updatedAt      DateTime @updatedAt
 
   reviews        CardReview[]
+  revisions      ReferenceCardRevision[]
 
   @@unique([kind, subject, name])
   @@index([status, subject])
   @@index([topicId])
+  @@index([subtopicId])
+}
+
+// A proposed rewrite of a live card, waiting for an admin (2026-11-16). The
+// card keeps teaching its current content until the rewrite is approved; then
+// the content is copied onto it in place, so learners' reviews stay attached.
+// `content` holds the card fields being changed; `retire` proposes taking the
+// card out instead.
+model ReferenceCardRevision {
+  id         String    @id @default(uuid())
+  cardId     String
+  card       ReferenceCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  content    Json
+  retire     Boolean   @default(false)
+  note       String?
+  status     String    @default("PENDING") // PENDING | APPLIED | REJECTED
+  createdAt  DateTime  @default(now())
+  reviewedBy String?
+  reviewedAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([cardId])
 }
 
 // Audit trail for card lifecycle (mirrors QuestionVersion): who did what, when,
@@ -1264,6 +1291,7 @@ model SyllabusSubtopic {
   topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
   userRows  UserSubtopic[]
   questions Question[]
+  cards     ReferenceCard[]
 
   @@unique([topicId, normKey])
   @@index([topicId, active, sortOrder])

@@ -30,6 +30,7 @@ vi.mock('../features/notebook/NotebookTab', () => ({ default: () => <section><h2
 vi.mock('../features/quiz-launcher/QuizLauncherTab', () => ({ default: () => <p>quizzes</p> }));
 vi.mock('../features/conversion/ConversionTab', () => ({ default: () => <p>conversion</p> }));
 vi.mock('../features/my-files/MyFilesTab', () => ({ default: () => <p>files</p> }));
+vi.mock('../features/lessons/LessonsTab', () => ({ default: () => <section><h2>Lessons</h2><p>lessons</p></section> }));
 vi.mock('../features/links/LinksTab', () => ({ default: ({ embedded }) => <><h2>{embedded ? 'Your links' : 'Links'}</h2><p>links</p></> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
 vi.mock('../features/analytics/ExplanationReview', () => ({ default: () => <p>explanation-review</p> }));
@@ -81,9 +82,15 @@ describe('Exams', () => {
 });
 
 describe('Library (learner)', () => {
-    it('opens on Handouts, with your own links under them', async () => {
+    // Lessons first since 2026-11-16: a summary of every topic and subtopic.
+    it('opens on Lessons', async () => {
         at('/library', Library);
-        expect(screen.getByRole('tab', { name: /^Handouts/ })).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByRole('tab', { name: /^Lessons/ })).toHaveAttribute('aria-selected', 'true');
+        expect(await screen.findByText('lessons')).toBeInTheDocument();
+    });
+
+    it('Handouts, with your own links under them', async () => {
+        at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         expect(await screen.findByRole('heading', { name: 'Your links' })).toBeInTheDocument();
     });
@@ -115,16 +122,16 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Handouts', 'My files', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes', 'Units and tools']);
+        expect(tabs).toEqual(['Lessons', 'Handouts', 'My files', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes', 'Units and tools']);
     });
 });
 
 describe('Library headings', () => {
     // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
     // formula-card panels check their outlines in their own tests.
-    it.each(['handouts', 'files', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['lessons', 'handouts', 'files', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/library?tab=${tab}`, Library);
-        if (tab === 'quizzes' || tab === 'conversion' || tab === 'files') await screen.findByText(tab);
+        if (tab === 'quizzes' || tab === 'conversion' || tab === 'files' || tab === 'lessons') await screen.findByText(tab);
         if (tab === 'handouts') await screen.findByText('links');
         expectNoSkippedLevels(container);
     });
