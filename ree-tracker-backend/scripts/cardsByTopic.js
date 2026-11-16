@@ -54,6 +54,13 @@ function problemsIn(data) {
         ids.add(id);
         if (!subtopic) out.push(`no subtopic for ${id}`);
     }
+    // LaTeX outside $…$ shows as source on the card.
+    const bareLatex = (s) => typeof s === 'string' && /\\[a-zA-Z]/.test(s.replace(/\$[^$]*\$/g, ''));
+    for (const d of [...data.drafts, ...data.revisions]) {
+        for (const [field, value] of [['symbol', d.symbol], ['formula', d.f], ['unit', d.unit], ...(d.vars || []).map((x) => ['variable', x.symbol])]) {
+            if (bareLatex(value)) out.push(`"${d.name || d.id}": LaTeX outside $…$ in its ${field}`);
+        }
+    }
     for (const d of data.drafts) {
         shape({ ...toContent(d), subject: data.subject, topic: data.topic }, `draft "${d.name}"`);
         if (!d.subtopic) out.push(`draft "${d.name}" has no subtopic`);
