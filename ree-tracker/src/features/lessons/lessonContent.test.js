@@ -6,6 +6,9 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import katex from 'katex';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import ShapeFigure from '../conversion/shapes/ShapeFigure';
 import { lessonFiles, lessonSlug, sectionFor } from './lessonContent';
 
 const LOADERS = import.meta.glob('./content/*/*.js', { import: 'default', eager: true });
@@ -61,6 +64,13 @@ describe('lesson content', () => {
         for (const s of lesson.subtopics || []) {
           expect(String(s.inShort || '').trim().length, s.name).toBeGreaterThan(20);
           expect((s.keyIdeas || []).length, s.name).toBeGreaterThan(0);
+        }
+      });
+
+      // A figure is a Units and tools › Shapes drawing; a wrong id would draw nothing.
+      it('every figure draws', () => {
+        for (const sec of lesson.subtopics || []) {
+          for (const f of sec.figures || []) expect(renderToStaticMarkup(createElement(ShapeFigure, f)), `${sec.name}: ${f.figure}`).toMatch(/^<svg/);
         }
       });
 

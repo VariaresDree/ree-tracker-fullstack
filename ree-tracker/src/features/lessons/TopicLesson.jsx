@@ -8,8 +8,9 @@
 // leads each section; key ideas and traps carry an icon as well as a colour;
 // formula cards fold (a lesson reads first, flashcards on demand); each section
 // ends with a way back to Contents, and the page with the previous and next topic.
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { lazy } from '../../utils/lazyWithRetry';
 import toast from 'react-hot-toast';
 import { Badge, Button, Card, Disclosure, ProgressIndicator, Skeleton } from '../../components/ui';
 import { ArrowRight, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronUp, TriangleAlert } from '../../components/ui/icons';
@@ -20,6 +21,23 @@ import { topicCardsLink } from '../reference/topicCards';
 import { useTopicDrills } from '../syllabus/subtopicChoices';
 import { launchPractice, subtopicDrillPreset } from '../active-recall/presets';
 import { loadLesson, sectionFor } from './lessonContent';
+
+// The drawings of Units and tools › Shapes, for a section's `figures` (2026-11-16):
+// lazy, so only lessons that show a figure fetch them.
+const ShapeFigure = lazy(() => import('../conversion/shapes/ShapeFigure'));
+
+function Figures({ list }) {
+  return (
+    <Suspense fallback={<Skeleton className="h-32 w-full max-w-[15rem]" />}>
+      {/* Two to a row on a phone, so three drawings don't fill the screen. */}
+      <div className={`${list.length > 1 ? 'grid grid-cols-2' : 'flex'} sm:flex sm:flex-wrap items-end gap-x-4 sm:gap-x-6 gap-y-3 text-textMain`}>
+        {list.map((f) => (
+          <div key={`${f.figure}${f.n ?? ''}`} className="min-w-0 w-full max-w-[15rem]"><ShapeFigure {...f} /></div>
+        ))}
+      </div>
+    </Suspense>
+  );
+}
 
 const anchorOf = (row) => `lesson-${row.id}`;
 const CONTENTS = 'lesson-contents';
@@ -68,6 +86,7 @@ function SubtopicSection({ index, row, section, cards, questions, onPractise, on
       {section ? (
         <>
           {section.inShort && <Markdown text={section.inShort} lead />}
+          {section.figures?.length > 0 && <Figures list={section.figures} />}
           {section.keyIdeas?.length > 0 && (
             <div className="flex flex-col gap-2">
               <p className="text-eyebrow">Key ideas</p>
