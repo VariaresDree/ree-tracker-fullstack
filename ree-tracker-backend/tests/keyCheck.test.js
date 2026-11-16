@@ -61,9 +61,29 @@ describe('explanationNamesOther', () => {
 });
 
 describe('the other checks', () => {
-    it('two options that read the same', () => {
-        expect(duplicateOptions(['$2\\pi$', '2 \\pi', '3', '4'])).toBe(true);
-        expect(duplicateOptions(['1', '2', '3', '4'])).toBe(false);
+    it('two options that read the same, and which two', () => {
+        expect(duplicateOptions(['$2\\pi$', '2 \\pi', '3', '4'])).toEqual([0, 1]);
+        expect(duplicateOptions(['$\\frac{8}{3}$', '8/3', '3', '4'])).toEqual([0, 1]);
+        expect(duplicateOptions(['$120^\\circ$', '$120^{\\circ}$', '1', '2'])).toEqual([0, 1]);
+        expect(duplicateOptions(['$\\sqrt{3}$', '$\\sqrt3$', '1', '2'])).toEqual([0, 1]);
+        expect(duplicateOptions(['$\\left(x\\right)$', 'x.', '1', '2'])).toEqual([0, 1]);
+        expect(duplicateOptions(['1', '2', '2', '3'])).toEqual([1, 2]);
+        expect(duplicateOptions(['1', '2', '3', '4'])).toBeNull();
+    });
+
+    // 2026-11-16: all 46 open findings in the live bank were of this kind, and
+    // these, taken from them, are different options. Case, brackets and
+    // operators matter in an option, unlike in an explanation's sentence.
+    it('options that differ in case, brackets or an operator are not the same', () => {
+        expect(duplicateOptions(['$h = \\frac{H}{R}(R - r)$', '$h = \\frac{R}{H}(H - r)$', '$h = \\frac{H}{R}(R + r)$', '$h = \\frac{H}{r}(R - r)$'])).toBeNull();
+        expect(duplicateOptions(['$s^2 R$', '$s^2 r$', '$s K$', '$K^2 / s$'])).toBeNull();
+        expect(duplicateOptions(['$1 - k^3$', '$1 - k^2$', '$k^3$', '$(1-k)^3$'])).toBeNull();
+        expect(duplicateOptions(['$\\frac{180(n-2)}{n}$', '$\\frac{360}{n}$', '$180 - \\frac{360}{n^2}$', '$\\frac{180n - 2}{n}$'])).toBeNull();
+        expect(duplicateOptions(['$\\vec{S} = \\vec{E} \\times \\vec{H}$', '$\\vec{S} = \\vec{E} \\cdot \\vec{H}$', 'a', 'b'])).toBeNull();
+        expect(duplicateOptions(['$Var(X) = E[X^2] + (E[X])^2$', '$Var(X) = E[X^2] - (E[X])^2$', '$Var(X) = E[X] - E[X^2]$', '$Var(X) = (E[X])^2 - E[X^2]$'])).toBeNull();
+        expect(duplicateOptions(['$(88 + (-45)) + (12 + 45)$', '$(88 + (-45) + 12) + 45$', 'a', 'b'])).toBeNull();
+        expect(duplicateOptions(['(Smith, 2023)', 'Smith [1]', '1', '[1]'])).toBeNull();
+        expect(duplicateOptions(['It is so (Smith, 2020).', 'It is so [Smith, 2020].', 'a', 'b'])).toBeNull();
     });
 
     it('learners: enough of them, and a wrong option clearly ahead of the key', () => {
@@ -75,7 +95,7 @@ describe('the other checks', () => {
 
     it('findIssues lists every finding with what it found', () => {
         const issues = findIssues(q('0.853 H', ['0.853 H', '0.700 H', '0.953 H', '0.953 H'], 'The total inductance is $0.953\\ \\text{H}$.'));
-        expect(issues.map((i) => i.reason)).toEqual(['duplicate-options']);
+        expect(issues).toEqual([{ reason: 'duplicate-options', detail: { options: [2, 3] } }]);
         const one = findIssues(q('0.853 H', ['0.853 H', '0.700 H', '0.953 H', '0.600 H'], 'It is 0.953 H.'));
         expect(one).toEqual([{ reason: 'explanation-names-other', detail: { option: '0.953 H', line: 'It is 0.953 H.' } }]);
     });

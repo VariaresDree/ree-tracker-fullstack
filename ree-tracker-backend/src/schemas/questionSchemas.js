@@ -116,10 +116,16 @@ const keyCheckResolveSchema = z.object({
     answer: z.string().min(1).max(2000).optional(),
 });
 
+// Many at once (Questions to check, 2026-11-16); as many as the list shows.
+const keyCheckBulkSchema = z.object({
+    ids: z.array(z.string().min(1).max(64)).min(1).max(50),
+    action: z.enum(['keep', 'use-option', 'remove']),
+});
+
 const reportResolveSchema = z.object({
     resolution: z.enum(['fixed', 'dismissed', 'removed']),
     // Shown to the learners who reported it (Account › Your reports).
     note: z.string().trim().max(300).optional(),
 });
 
-module.exports = { keyCheckResolveSchema, reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
+module.exports = { keyCheckResolveSchema, keyCheckBulkSchema, reportResolveSchema, tagBulkSchema, tagClearSchema, tagSuggestSchema, tagResolveSchema, questionReplaceSchema, replacePreviewSchema, questionImportSchema, questionCreateSchema, questionUpdateSchema, questionCacheSchema, isPendingReview };
