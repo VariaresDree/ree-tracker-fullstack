@@ -569,6 +569,79 @@ function Ellipsoid() {
   );
 }
 
+// ---- Conics (2026-11-16, for Lessons › Analytic Geometry) -------------------
+const curve = (n, f) => Array.from({ length: n + 1 }, (_, i) => f(i / n)).map((p) => p.map((v) => Math.round(v * 10) / 10));
+const pathOf = (points) => `M${points.map((p) => p.join(',')).join(' L')}`;
+
+function Parabola() {
+  // y² = 4ax opening right: vertex V, focus F a to its right, directrix a to its left.
+  const V = [70, 80];
+  const s = 24; // pixels per unit, a = 1
+  const points = curve(48, (u) => { const y = -3 + 6 * u; return [V[0] + s * (y * y) / 4, V[1] - s * y]; });
+  const F = [V[0] + s, V[1]];
+  return (
+    <Svg label="Parabola: vertex V, focus F a distance a away, directrix the same distance behind the vertex, and the latus rectum through the focus">
+      <line x1="28" y1={V[1]} x2="226" y2={V[1]} {...dashed} />
+      <line x1={V[0] - s} y1="10" x2={V[0] - s} y2="150" {...dashed} />
+      <line x1={F[0]} y1={V[1] - 2 * s} x2={F[0]} y2={V[1] + 2 * s} {...measure} />
+      <path d={pathOf(points)} {...line} />
+      <Dot at={V} /><Dot at={F} />
+      <T x={V[0] - 5} y={V[1] + 15} anchor="end">V</T>
+      <T x={F[0] + 6} y={V[1] + 15} anchor="start">F</T>
+      <T x={F[0] + 6} y={V[1] - 30} anchor="start" size={11}>LR</T>
+      <T x={V[0] - s - 4} y="22" anchor="end" size={11}>directrix</T>
+      <T x={(V[0] + F[0]) / 2} y={V[1] - 6} size={12}>a</T>
+    </Svg>
+  );
+}
+
+function EllipseFigure() {
+  const C = [120, 84];
+  const [a, b] = [96, 56];
+  const c = Math.sqrt(a * a - b * b);
+  const F1 = [C[0] - c, C[1]];
+  const F2 = [C[0] + c, C[1]];
+  const t = 1.1;
+  const P = [C[0] + a * Math.cos(t), C[1] - b * Math.sin(t)];
+  return (
+    <Svg label="Ellipse with semi-major axis a, semi-minor axis b and foci F1 and F2; from any point P the distances to the foci add to 2a" viewBox="0 0 240 168">
+      <ellipse cx={C[0]} cy={C[1]} rx={a} ry={b} {...fill} />
+      <line x1={C[0] - a} y1={C[1]} x2={C[0] + a} y2={C[1]} {...dashed} />
+      <line x1={C[0]} y1={C[1] - b} x2={C[0]} y2={C[1] + b} {...dashed} />
+      <polyline points={pts([F1, P, F2])} {...dashed} />
+      <line x1={C[0]} y1={C[1] + 1} x2={C[0] + a} y2={C[1] + 1} {...measure} />
+      <line x1={C[0] - 1} y1={C[1]} x2={C[0] - 1} y2={C[1] - b} {...measure} />
+      <ellipse cx={C[0]} cy={C[1]} rx={a} ry={b} {...line} />
+      <Dot at={F1} /><Dot at={F2} /><Dot at={P} />
+      <T x={F1[0]} y={C[1] + 16}>F₁</T><T x={F2[0]} y={C[1] + 16}>F₂</T>
+      <T x={P[0] + 6} y={P[1] - 4} anchor="start">P</T>
+      <T x={C[0] + a / 2 + 10} y={C[1] - 5} size={12}>a</T>
+      <T x={C[0] - 7} y={C[1] - b / 2} anchor="end" size={12}>b</T>
+    </Svg>
+  );
+}
+
+function HyperbolaFigure() {
+  const C = [120, 84];
+  const [a, b] = [36, 28];
+  const c = Math.sqrt(a * a + b * b);
+  const branch = (side) => curve(40, (u) => { const t = -1.7 + 3.4 * u; return [C[0] + side * a * Math.cosh(t), C[1] - b * Math.sinh(t)]; });
+  const k = b / a;
+  return (
+    <Svg label="Hyperbola: two branches between the asymptotes y = ±(b/a)x, vertices a from the centre, foci F1 and F2 c from the centre" viewBox="0 0 240 168">
+      <line x1="20" y1={C[1] + 100 * k} x2="220" y2={C[1] - 100 * k} {...dashed} />
+      <line x1="20" y1={C[1] - 100 * k} x2="220" y2={C[1] + 100 * k} {...dashed} />
+      <line x1="16" y1={C[1]} x2="224" y2={C[1]} {...dashed} />
+      <line x1={C[0]} y1={C[1] - 1} x2={C[0] + a} y2={C[1] - 1} {...measure} />
+      <path d={pathOf(branch(1))} {...line} />
+      <path d={pathOf(branch(-1))} {...line} />
+      <Dot at={[C[0] - c, C[1]]} /><Dot at={[C[0] + c, C[1]]} />
+      <T x={C[0] - c} y={C[1] + 16}>F₁</T><T x={C[0] + c} y={C[1] + 16}>F₂</T>
+      <T x={C[0] + a / 2} y={C[1] - 6} size={12}>a</T>
+    </Svg>
+  );
+}
+
 const FIGURES = {
   triangle: Triangle,
   'triangle-centres': TriangleCentres,
@@ -594,6 +667,9 @@ const FIGURES = {
   lune: Lune,
   torus: Torus,
   ellipsoid: Ellipsoid,
+  parabola: Parabola,
+  ellipse: EllipseFigure,
+  hyperbola: HyperbolaFigure,
 };
 
 export default function ShapeFigure({ figure, n, kind, name }) {
