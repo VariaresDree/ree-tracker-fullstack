@@ -82,10 +82,16 @@ describe('Exams', () => {
 });
 
 describe('Library (learner)', () => {
-    // Lessons first since 2026-11-16: a summary of every topic and subtopic.
-    it('opens on Lessons', async () => {
+    // Handouts first again since 2026-11-16 (the owner's order); Lessons is fourth.
+    it('opens on Handouts', async () => {
         at('/library', Library);
-        expect(screen.getByRole('tab', { name: /^Lessons/ })).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByRole('tab', { name: /^Handouts/ })).toHaveAttribute('aria-selected', 'true');
+        expect(await screen.findByRole('heading', { name: 'Your links' })).toBeInTheDocument();
+    });
+
+    it('Lessons has its own tab, and opens from a link', async () => {
+        at('/library?tab=lessons', Library);
+        expect(screen.getByRole('tab', { name: /^Lessons/, selected: true })).toBeInTheDocument();
         expect(await screen.findByText('lessons')).toBeInTheDocument();
     });
 
@@ -122,14 +128,14 @@ describe('Library (learner)', () => {
         at('/library?tab=handouts', Library);
         expect(screen.getByText(/handouts admin=false/)).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Lessons', 'Handouts', 'My files', 'Formula cards', 'Notebook', 'Bookmarks', 'Imported quizzes', 'Units and tools']);
+        expect(tabs).toEqual(['Handouts', 'My files', 'Quizzes', 'Lessons', 'Formula cards', 'Units and tools', 'Notebook', 'Bookmarks']);
     });
 });
 
 describe('Library headings', () => {
     // Each tab's own panel is mocked here; the real Notebook, Bookmarks and
     // formula-card panels check their outlines in their own tests.
-    it.each(['lessons', 'handouts', 'files', 'formulas', 'notebook', 'bookmarks', 'quizzes', 'conversion'])('?tab=%s: headings step down from the h1', async (tab) => {
+    it.each(['handouts', 'files', 'quizzes', 'lessons', 'formulas', 'conversion', 'notebook', 'bookmarks'])('?tab=%s: headings step down from the h1', async (tab) => {
         const { container } = at(`/library?tab=${tab}`, Library);
         if (tab === 'quizzes' || tab === 'conversion' || tab === 'files' || tab === 'lessons') await screen.findByText(tab);
         if (tab === 'handouts') await screen.findByText('links');
