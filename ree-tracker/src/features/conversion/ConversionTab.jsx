@@ -5,17 +5,19 @@
 import { Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SegmentedControl, Skeleton } from '../../components/ui';
-import { Calculator as CalculatorIcon, Ruler, Superscript, Wrench } from '../../components/ui/icons';
+import { Calculator as CalculatorIcon, Ruler, Shapes, Superscript, Wrench } from '../../components/ui/icons';
 import { lazy } from '../../utils/lazyWithRetry';
 import UnitsPanel from './UnitsPanel';
 
 const BoardTools = lazy(() => import('./BoardTools'));
 const Calculator = lazy(() => import('./Calculator'));
 const PrefixesPanel = lazy(() => import('./PrefixesPanel'));
+const ShapesPanel = lazy(() => import('./shapes/ShapesPanel'));
 
 const VIEWS = [
   { value: 'units', label: 'Units', icon: Ruler },
   { value: 'tools', label: 'Tools', icon: Wrench },
+  { value: 'shapes', label: 'Shapes', icon: Shapes },
   { value: 'prefixes', label: 'Prefixes', icon: Superscript },
   { value: 'calculator', label: 'Calculator', icon: CalculatorIcon },
 ];
@@ -44,6 +46,7 @@ export default function ConversionTab() {
       )}
       <Suspense fallback={<Skeleton className="h-64" />}>
         {view === 'tools' && <BoardTools tool={params.get('tool')} onTool={(tool) => update({ tool }, { push: true })} />}
+        {view === 'shapes' && <ShapesPanel />}
         {view === 'prefixes' && <PrefixesPanel />}
         {view === 'calculator' && <Calculator />}
       </Suspense>

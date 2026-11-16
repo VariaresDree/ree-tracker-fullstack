@@ -22,6 +22,8 @@ The owner's direction (2026-11-04):
 | A constant | Add it to `CONSTANTS`, as reviewers quote it | `equivalents.js` |
 | A tool | Put the arithmetic in `boardMath.js` with worked examples, then add a component, a `TOOLS` row and its icon in `TOOL_ICONS`. Show its formula with `Formula` | `BoardTools.jsx` |
 | A formula card's link | Add its symbol to `BY_SYMBOL` | `unitLink.js` |
+| A shape | Add an entry to its section in `SHAPE_SECTIONS`: `name`, `figure`, `formulas` (label and LaTeX), and `calcs` whose `solve` returns `out(...)` rows (formula, numbers put in, value) or `fail(message)`. Draw it in `FIGURES`, or give a flat solid's corners in `POLYHEDRA` and the faces are found for you. Test it against known values | `shapes/shapes.js`, `shapes/ShapeFigure.jsx`, `shapes/shapes.test.js` |
+| A section to jump to | Give its heading an `id`, `tabIndex={-1}` and `JUMP_TARGET`, and list it in the view's `OnThisPage` | `OnThisPage.jsx` |
 
 **Every number needs a test against a published value,** not the code's own factor (`conversion.test.js`). Tests already check that each unit has a system, each category's first conversion crosses systems, every pair round-trips, and every pair can explain itself.
 
@@ -75,6 +77,13 @@ Roughly in order of how much it would help on the board. None of this is built.
 - **Compound interest factors:** F/P, P/F, A/P, P/A, gradient and effective rate.
 - **Depreciation:** straight line, sum of years' digits, declining balance, sinking fund.
 - **Break-even analysis.**
+
+### Shapes
+
+- **Centroids and second moments of plane areas:** the composite-area method, with a table of standard shapes. Mechanics and strength of materials use it constantly.
+- **Solids of revolution:** Pappus's theorems as a calculator, for any area and its centroid.
+- **Spherical triangles:** spherical excess and the laws of sines and cosines, for the surveying and navigation items.
+- **Ellipse and parabola:** areas, perimeters (Ramanujan) and the parabolic segment.
 
 ### The screens
 

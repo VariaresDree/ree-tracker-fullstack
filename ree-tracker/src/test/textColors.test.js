@@ -45,6 +45,7 @@ const GRAPHIC_ONLY = [
   ['features/today/TodayPanel.jsx', "today's target bar fills"],
   ['features/notebook/CauseTrend.jsx', 'cause-per-week bar fills and legend swatches'],
   ['features/board-simulator/SimulatorDiagnostics.jsx', 'subject score bar fills', /subjectScores/],
+  ['features/conversion/shapes/ShapeFigure.jsx', 'shape strokes and fills; the labels use --text-main', /const INK/],
 ];
 
 const graphicOnly = (file, line) => GRAPHIC_ONLY.some(([f, , only]) => file === f && (!only || only.test(line)));
