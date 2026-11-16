@@ -12,6 +12,7 @@ import { ArrowLeftRight, Check, ChevronLeft, Copy, Search, Star, Trash2 } from '
 import { evaluate, formatNumber } from './calc';
 import { explain } from './explain';
 import IconTile from './IconTile';
+import OnThisPage, { JUMP_TARGET } from './OnThisPage';
 import PrefixSlider from './PrefixSlider';
 import { useUnitsMemory } from './unitsMemory';
 import { GROUP_TONE, UNIT_TILES } from './unitTiles';
@@ -247,6 +248,11 @@ function Landing({ onChange, memory }) {
     const [from, to] = pairFor(hit.category, hit.unit.id, null);
     open(hit.category.id, from, to);
   };
+  const contents = [
+    memory.favourites.length > 0 && { id: 'units-favourites', label: 'Favourites' },
+    ...(memory.order === 'az' ? [{ id: 'units-quantities', label: 'Quantities' }] : UNIT_GROUPS.map((g) => ({ id: `units-group-${g.id}`, label: g.label }))),
+    memory.history.length > 0 && { id: 'units-recent', label: 'Recent' },
+  ].filter(Boolean);
 
   return (
     <div className="flex flex-col gap-5 min-w-0">
@@ -276,9 +282,11 @@ function Landing({ onChange, memory }) {
         ) : <p role="status" className="text-sm text-muted2">No unit by that name.</p>
       ) : (
         <>
+          <OnThisPage items={contents} />
+
           {memory.favourites.length > 0 && (
             <section aria-labelledby="units-favourites" className="flex flex-col gap-2 min-w-0">
-              <h3 id="units-favourites" className="text-eyebrow">Favourites</h3>
+              <h3 id="units-favourites" tabIndex={-1} className={`text-eyebrow ${JUMP_TARGET}`}>Favourites</h3>
               <Grid kind="icons" gap="sm">
                 {memory.favourites.map((f) => {
                   const category = categoryById(f.cat);
@@ -301,7 +309,7 @@ function Landing({ onChange, memory }) {
 
           <section aria-labelledby="units-quantities" className="flex flex-col gap-3 min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 id="units-quantities" className="text-eyebrow">Quantities</h3>
+              <h3 id="units-quantities" tabIndex={-1} className={`text-eyebrow ${JUMP_TARGET}`}>Quantities</h3>
               <SegmentedControl label="Sort quantities" size="sm" value={memory.order} onChange={memory.setOrder} options={ORDERS} />
             </div>
             {memory.order === 'az' ? (
@@ -310,7 +318,7 @@ function Landing({ onChange, memory }) {
               </Grid>
             ) : UNIT_GROUPS.map((g) => (
               <div key={g.id} role="group" aria-labelledby={`units-group-${g.id}`} className="flex flex-col gap-2 min-w-0">
-                <p id={`units-group-${g.id}`} className="text-sm font-semibold text-muted2">{g.label}</p>
+                <p id={`units-group-${g.id}`} tabIndex={-1} className={`text-sm font-semibold text-muted2 ${JUMP_TARGET}`}>{g.label}</p>
                 <Grid kind="icons" gap="sm">
                   {SHOWN.filter((c) => c.group === g.id).map((c) => <CategoryTile key={c.id} category={c} onOpen={open} />)}
                 </Grid>
@@ -319,9 +327,9 @@ function Landing({ onChange, memory }) {
           </section>
 
           {memory.history.length > 0 && (
-            <div className="flex flex-col gap-2 min-w-0">
+            <section aria-labelledby="units-recent" className="flex flex-col gap-2 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-eyebrow">Recent</h3>
+                <h3 id="units-recent" tabIndex={-1} className={`text-eyebrow ${JUMP_TARGET}`}>Recent</h3>
                 <Button size="sm" variant="ghost" onClick={memory.clearHistory}>
                   <Trash2 size={13} strokeWidth={1.75} aria-hidden="true" /> Clear
                 </Button>
@@ -340,7 +348,7 @@ function Landing({ onChange, memory }) {
                   );
                 })}
               </ul>
-            </div>
+            </section>
           )}
         </>
       )}
