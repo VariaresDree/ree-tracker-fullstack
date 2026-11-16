@@ -36,7 +36,7 @@ beforeAll(async () => {
             subtopicTag: 'Law of Exponents', dimensionless: true, status: 'LIVE',
         },
     });
-    await prisma.cardReview.create({ data: { userId: LEARNER, cardId: card.id, nextReviewDate: new Date() } });
+    await prisma.cardReview.create({ data: { userId: LEARNER, cardId: card.id, nextReviewDate: new Date(), lastReviewed: new Date() } });
     revision = await prisma.referenceCardRevision.create({
         data: { cardId: card.id, content: { name: `${RUN} Power of One`, subtopic: 'algebraic expressions', subtopicTag: 'Laws of exponents' }, note: 'Clearer name.' },
     });
