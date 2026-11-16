@@ -12,6 +12,8 @@ const CARD_SELECT = {
     subject: true, subtopicTag: true, dimensionless: true, status: true,
     sourceId: true, createdAt: true, updatedAt: true,
     topic: { select: { id: true, name: true } },
+    // The syllabus subtopic it sits under: the Library's headers (2026-11-16).
+    subtopic: { select: { id: true, name: true, sortOrder: true } },
     source: { select: { id: true, title: true, edition: true, section: true } },
 };
 

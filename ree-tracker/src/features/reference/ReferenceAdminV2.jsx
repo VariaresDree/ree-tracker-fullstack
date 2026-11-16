@@ -24,6 +24,7 @@ import { withMathDelimiters } from '../../utils/mathDelimiters';
 import { isKnownTopic, labelForGenerated } from '../../utils/topicLabels';
 import { refreshLiveTOS } from '../../services/liveTaxonomy';
 import Flashcard from './Flashcard';
+import RevisionQueue from './RevisionQueue';
 import CardsPanel from './admin/CardsPanel';
 import { SYLLABUS_SUBJECTS as SUBJECTS } from '@ree/shared';
 import { cardReasonWords } from './cardReasons';
@@ -539,10 +540,11 @@ export default function ReferenceAdminV2() {
                 <div className="flex flex-col gap-3">{Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-24" />)}</div>
             )}
 
-            {/* 1 ── REVIEW QUEUE */}
+            {/* 1 ── REVIEW QUEUE: rewrites of live cards first, then new cards */}
+            {!loadingPanel && panel === 'queue' && <RevisionQueue />}
             {!loadingPanel && panel === 'queue' && (
                 pending.length === 0 ? (
-                    <EmptyState icon={Shield} title="No cards awaiting review"
+                    <EmptyState icon={Shield} title="No new cards awaiting review"
                         description="AI-generated flashcards land here before going live. Generate some from the AI panel."
                         action={<Button size="sm" variant="secondary" onClick={refreshPanel}><RefreshCw size={14} strokeWidth={1.75} aria-hidden="true" /> Refresh</Button>} />
                 ) : (
