@@ -227,6 +227,7 @@ model Question {
   flags            QuestionFlag[]
   subtopicSuggestion SubtopicSuggestion?
   mistakeTags      MistakeTag[]
+  checks           QuestionCheck[]
 
   @@index([subject, irtB])
   // Readiness groupBy(['subtopic'], where:{isFlagged:false}) and pool sampling
@@ -1310,6 +1311,26 @@ model SubtopicSuggestion {
   createdAt  DateTime  @default(now())
 
   @@index([resolvedAt, topicId])
+}
+
+// A sign that a live question's key may be wrong (Admin › Question bank › Fix ›
+// Questions to check; engine/keyCheck.js, services/keyCheck.js). One row per
+// question and reason. `contentHash` is the question as it was found: "Key is
+// right" holds until the question changes, then it is checked again.
+model QuestionCheck {
+  id          String    @id @default(uuid())
+  questionId  String
+  question    Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reason      String    // explanation-names-other | learners-chose-other | duplicate-options
+  detail      Json?
+  contentHash String
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+  resolution  String?   // kept | key-changed | edited | removed | gone (fixed some other way)
+  resolvedBy  String?
+
+  @@unique([questionId, reason])
+  @@index([resolvedAt])
 }
 
 // One row per scheduled-job run (POST /api/cron/*), for Admin › App health ›
