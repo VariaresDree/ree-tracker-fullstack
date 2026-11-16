@@ -166,6 +166,7 @@ export {
   Network,
   Percent,
   Superscript,
+  Shapes,
   // Handouts: moving, selecting, kinds
   FolderInput,
   SquareCheck,

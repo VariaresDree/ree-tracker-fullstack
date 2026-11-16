@@ -8,7 +8,8 @@ import { Link } from 'react-router-dom';
 import { Button, Card, FormField, Grid, Input, Select, SegmentedControl } from '../../components/ui';
 import { ChevronLeft } from '../../components/ui/icons';
 import IconTile from './IconTile';
-import { TOOL_ICONS } from './unitTiles';
+import OnThisPage, { JUMP_TARGET } from './OnThisPage';
+import { GROUP_TONE, TOOL_ICONS } from './unitTiles';
 import {
   AWG_TABLE, BAND_COLOURS, changeBase, deltaToWye, formatPolar, formatRect, polarToRect, powerTriangle,
   rectToPolar, resistorValue, threePhase, withPrefix, wyeToDelta,
@@ -415,15 +416,22 @@ function ResistorTool() {
 
 // ---- The list ---------------------------------------------------------------
 
+// Under headers, so the electrical tools read apart from the ones every subject uses.
+const TOOL_GROUPS = [
+  { id: 'general', label: 'Every subject', tone: GROUP_TONE.general },
+  { id: 'ac', label: 'AC and power systems', tone: GROUP_TONE.electrical },
+  { id: 'parts', label: 'Wires and parts', tone: GROUP_TONE.electrical },
+];
+
 const TOOLS = [
-  { id: 'equivalents', label: 'Equivalents and constants', about: 'atm, hp, BTU, kcal, g, R', Tool: EquivalentsTool },
-  { id: 'triangle', label: 'Power triangle', about: 'P, Q, S and power factor', Tool: PowerTriangleTool },
-  { id: 'phasor', label: 'Phasor', about: 'Polar and rectangular, drawn', Tool: PhasorTool },
-  { id: 'deltawye', label: 'Δ and Y', about: 'Impedance, either way', Tool: DeltaWyeTool },
-  { id: 'perunit', label: 'Per unit', about: 'Change of base', Tool: PerUnitTool },
-  { id: 'threephase', label: 'Three-phase', about: 'Line and phase values', Tool: ThreePhaseTool },
-  { id: 'awg', label: 'Wire gauge', about: 'AWG to mm² and cmil', Tool: AwgTool },
-  { id: 'resistor', label: 'Resistor colours', about: '4 and 5 bands', Tool: ResistorTool },
+  { id: 'equivalents', group: 'general', label: 'Equivalents and constants', about: 'atm, hp, BTU, kcal, g, R', Tool: EquivalentsTool },
+  { id: 'triangle', group: 'ac', label: 'Power triangle', about: 'P, Q, S and power factor', Tool: PowerTriangleTool },
+  { id: 'phasor', group: 'ac', label: 'Phasor', about: 'Polar and rectangular, drawn', Tool: PhasorTool },
+  { id: 'threephase', group: 'ac', label: 'Three-phase', about: 'Line and phase values', Tool: ThreePhaseTool },
+  { id: 'deltawye', group: 'ac', label: 'Δ and Y', about: 'Impedance, either way', Tool: DeltaWyeTool },
+  { id: 'perunit', group: 'ac', label: 'Per unit', about: 'Change of base', Tool: PerUnitTool },
+  { id: 'awg', group: 'parts', label: 'Wire gauge', about: 'AWG to mm² and cmil', Tool: AwgTool },
+  { id: 'resistor', group: 'parts', label: 'Resistor colours', about: '4 and 5 bands', Tool: ResistorTool },
 ];
 
 export default function BoardTools({ tool, onTool }) {
@@ -442,10 +450,18 @@ export default function BoardTools({ tool, onTool }) {
     );
   }
   return (
-    <Grid kind="icons" gap="sm">
-      {TOOLS.map((t) => (
-        <IconTile key={t.id} icon={TOOL_ICONS[t.id]} tone="amber" title={t.label} detail={t.about} label={`${t.label}: ${t.about}`} onClick={() => onTool(t.id)} />
+    <div className="flex flex-col gap-5 min-w-0">
+      <OnThisPage items={TOOL_GROUPS.map((g) => ({ id: `tools-group-${g.id}`, label: g.label }))} />
+      {TOOL_GROUPS.map((g) => (
+        <section key={g.id} aria-labelledby={`tools-group-${g.id}`} className="flex flex-col gap-2 min-w-0">
+          <h3 id={`tools-group-${g.id}`} tabIndex={-1} className={`text-sm font-semibold text-muted2 ${JUMP_TARGET}`}>{g.label}</h3>
+          <Grid kind="icons" gap="sm">
+            {TOOLS.filter((t) => t.group === g.id).map((t) => (
+              <IconTile key={t.id} icon={TOOL_ICONS[t.id]} tone={g.tone} title={t.label} detail={t.about} label={`${t.label}: ${t.about}`} onClick={() => onTool(t.id)} />
+            ))}
+          </Grid>
+        </section>
       ))}
-    </Grid>
+    </div>
   );
 }
