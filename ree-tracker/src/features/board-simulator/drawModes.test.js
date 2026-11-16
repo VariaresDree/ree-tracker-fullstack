@@ -151,3 +151,11 @@ describe('the sitting draws as chosen', () => {
     expect(questions.every((q) => q.type === 'calculation')).toBe(true);
   });
 });
+
+describe('drawApplies with several topics (2026-11-16)', () => {
+  it('picked topics, one or several, leave nothing to choose', () => {
+    expect(drawApplies({ mode: 'subject', subtopic: 'All', topics: ['Algebra', 'Trigonometry'] })).toBe(false);
+    expect(drawApplies({ mode: 'subject', subtopic: 'All' })).toBe(true);
+    expect(drawApplies({ mode: 'subject', isPrcStandard: true, topics: ['Algebra', 'Trigonometry'] })).toBe(true);
+  });
+});

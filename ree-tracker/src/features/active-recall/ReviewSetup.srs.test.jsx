@@ -18,7 +18,7 @@ function BackButton() {
 const baseProps = () => ({
   config: { sessionMode: 'mcq', studyMode: 'interleaved', subject: 'All', subtopic: 'All', cognitiveFocus: 'mixed', count: 20, source: 'library' },
   session: { loading: false },
-  safeTOS: { Mathematics: ['Algebra', 'Calculus'], ESAS: ['Chemistry'], EE: ['Circuits', 'Machines'] },
+  safeTOS: { Mathematics: ['Algebra', 'Calculus'], ESAS: ['Chemistry'], EE: ['Circuits', 'Machines', 'Protection'] },
   isOnline: true,
   startSession: vi.fn(),
 });
@@ -117,6 +117,7 @@ describe('ReviewSetup — presets', () => {
 describe('ReviewSetup — Build your own', () => {
   const card = () => screen.getByRole('button', { name: 'Build your own' });
   const builder = () => within(screen.getByRole('dialog', { name: 'Build your own' }));
+const topic = (name) => builder().getByRole('button', { name });
   const show = (props = baseProps()) => {
     render(<MemoryRouter><ReviewSetup {...props} /><BackButton /></MemoryRouter>);
     fireEvent.click(card());
@@ -185,29 +186,51 @@ describe('ReviewSetup — Build your own', () => {
 
   it('All subjects has no topic to pick, and starts across every subject', () => {
     const props = show();
-    expect(screen.queryByLabelText('Topic')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Topics' })).not.toBeInTheDocument();
     expect(started(props)).toMatchObject({ studyMode: 'interleaved', subject: 'All', subtopic: 'All' });
   });
 
   it('a subject covers all its topics until one is picked, and back', () => {
     const props = show();
     fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
-    expect(builder().getByLabelText('Topic')).toHaveValue('All');
+    expect(topic('All topics')).toHaveAttribute('aria-pressed', 'true');
     expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'EE', subtopic: 'All' });
 
-    fireEvent.change(builder().getByLabelText('Topic'), { target: { value: 'Machines' } });
+    fireEvent.click(topic('Machines'));
     expect(started(props)).toMatchObject({ studyMode: 'subtopic', subject: 'EE', subtopic: 'Machines' });
 
-    fireEvent.change(builder().getByLabelText('Topic'), { target: { value: 'All' } });
+    fireEvent.click(topic('All topics'));
     expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'EE', subtopic: 'All' });
+  });
+
+  // 2026-11-16: any set of a subject's topics, drawn evenly across them.
+  it('two or more topics: a subject session on just those, in the syllabus order', () => {
+    const props = show();
+    fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
+    fireEvent.click(topic('Protection'));
+    fireEvent.click(topic('Circuits'));
+    expect(topic('Circuits')).toHaveAttribute('aria-pressed', 'true');
+    expect(builder().getByText('2 of 3 picked')).toBeInTheDocument();
+    expect(builder().getByText('20 choice · Circuits and 1 more · mixed')).toBeInTheDocument();
+    expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'EE', subtopic: 'All', topics: ['Circuits', 'Protection'] });
+    // Unpicking one leaves a single topic; picking every one is all of them.
+    fireEvent.click(topic('Protection'));
+    expect(started(props)).toMatchObject({ studyMode: 'subtopic', subtopic: 'Circuits' });
+    expect(started(props).topics).toBeUndefined();
+    fireEvent.click(topic('Machines'));
+    fireEvent.click(topic('Protection'));
+    expect(topic('All topics')).toHaveAttribute('aria-pressed', 'true');
+    expect(started(props)).toMatchObject({ studyMode: 'subject', subtopic: 'All' });
   });
 
   it('changing subject clears the topic', () => {
     const props = show();
     fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
-    fireEvent.change(builder().getByLabelText('Topic'), { target: { value: 'Machines' } });
+    fireEvent.click(topic('Machines'));
+    fireEvent.click(topic('Circuits'));
     fireEvent.click(builder().getByRole('radio', { name: 'ESAS' }));
     expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'ESAS', subtopic: 'All' });
+    expect(started(props).topics).toBeUndefined();
   });
 
   it('the summary line says what will start, and the choices keep each other', () => {
@@ -249,22 +272,30 @@ describe('ReviewSetup — Build your own', () => {
       const { unmount } = render(<MemoryRouter><ReviewSetup {...baseProps()} /></MemoryRouter>);
       fireEvent.click(card());
       fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
-      fireEvent.change(builder().getByLabelText('Topic'), { target: { value: 'Machines' } });
+      fireEvent.click(topic('Machines'));
+      fireEvent.click(topic('Protection'));
       fireEvent.click(builder().getByRole('radio', { name: '100' }));
       unmount();
       const props = baseProps();
       props.config = { ...props.config, studyMode: 'bleeding', source: 'smart-drill' }; // a preset's leftovers
       render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
-      expect(screen.getByText('100 choice · Machines · mixed')).toBeInTheDocument();
+      expect(screen.getByText('100 choice · Machines and 1 more · mixed')).toBeInTheDocument();
       fireEvent.click(card());
-      expect(builder().getByLabelText('Topic')).toHaveValue('Machines');
+      expect(topic('Machines')).toHaveAttribute('aria-pressed', 'true');
+      expect(topic('Protection')).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('a topic retired since falls back to its whole subject', () => {
       localStorage.setItem('ree:practice-builder', JSON.stringify({ studyMode: 'subtopic', subject: 'EE', subtopic: 'Gone', sessionMode: 'mcq', cognitiveFocus: 'mixed', count: 20, source: 'library' }));
       const props = show();
-      expect(builder().getByLabelText('Topic')).toHaveValue('All');
+      expect(topic('All topics')).toHaveAttribute('aria-pressed', 'true');
       expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'EE', subtopic: 'All' });
+    });
+
+    it('of several topics, a retired one drops out and the rest stay', () => {
+      localStorage.setItem('ree:practice-builder', JSON.stringify({ studyMode: 'subject', subject: 'EE', subtopic: 'All', topics: ['Circuits', 'Gone', 'Protection'], sessionMode: 'mcq', cognitiveFocus: 'mixed', count: 20, source: 'library' }));
+      const props = show();
+      expect(started(props)).toMatchObject({ studyMode: 'subject', topics: ['Circuits', 'Protection'] });
     });
 
     it('a broken saved copy is ignored', () => {

@@ -38,3 +38,21 @@ describe('fetchVaultQuestions offline', () => {
         expect(await fetchVaultQuestions('EE', 'All', 1000)).toHaveLength(300);
     });
 });
+
+describe('fetchVaultQuestions with several topics (2026-11-16)', () => {
+    it('online, sends each topic as ?topics=', async () => {
+        vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        await fetchVaultQuestions('Mathematics', 'All', 20, 'random', { topics: ['Algebra', 'Complex Numbers'] });
+        const url = new URL(String(fetchSpy.mock.calls[0][0]), 'http://x');
+        expect(url.searchParams.getAll('topics')).toEqual(['Algebra', 'Complex Numbers']);
+        expect(url.searchParams.get('subtopic')).toBe('All');
+    });
+
+    it('offline, draws from just those topics of the pack', async () => {
+        vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+        const out = await fetchVaultQuestions('EE', 'All', 1000, 'random', { topics: ['Topic 1', 'Topic 4'] });
+        expect(out).toHaveLength(60);
+        expect(new Set(out.map((q) => q.subtopic))).toEqual(new Set(['Topic 1', 'Topic 4']));
+    });
+});

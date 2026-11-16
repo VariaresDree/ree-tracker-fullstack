@@ -44,3 +44,13 @@ describe('mixDue', () => {
     expect(mixDue(bank(3), [q('d1')], 20).map((x) => x.id)).toEqual(['d1', 'b0', 'b1', 'b2']);
   });
 });
+
+describe('mixDue with several topics (2026-11-16)', () => {
+  it('leads with due reviews only from the picked topics', () => {
+    const due = [{ id: 'd1', subtopic: 'Calculus 1' }, { id: 'd2', subtopic: 'Algebra' }, { id: 'd3', subtopic: 'Trigonometry' }];
+    const bank = Array.from({ length: 10 }, (_, i) => ({ id: `b${i}`, subtopic: 'Algebra' }));
+    const out = mixDue(bank, due, 8, { subtopic: 'All', topics: ['Algebra', 'Trigonometry'] });
+    expect(out.filter((q) => q.dueReview).map((q) => q.id)).toEqual(['d2', 'd3']);
+    expect(out).toHaveLength(8);
+  });
+});

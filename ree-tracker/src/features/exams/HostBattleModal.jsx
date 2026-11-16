@@ -6,6 +6,8 @@
 // battle and mock board are the same thing. A custom battle can be on one
 // topic, as a custom mock can; the server draws only from it, and the draw
 // choice then has nothing to pick (drawModes.drawApplies, the mock's rule).
+import TopicPicker from '../syllabus/TopicPicker';
+import { isMultiTopic, pickedTopics, topicFields } from '../syllabus/topicPick';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -43,9 +45,10 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
     order: 'own',
   });
   const topics = useStore((s) => s.dynamicTOS)?.[hostConfig.subject] || [];
-  // Only a custom battle is on one topic: a PRC paper covers its subject.
+  // Only a custom battle is on picked topics: a PRC paper covers its subject.
   const subtopic = hostConfig.mode === 'custom' ? hostConfig.subtopic : 'All';
-  const drawShown = drawApplies({ mode: hostConfig.mode, subtopic });
+  const topicSet = hostConfig.mode === 'custom' && isMultiTopic(hostConfig) ? hostConfig.topics : undefined;
+  const drawShown = drawApplies({ mode: hostConfig.mode, subtopic, topics: topicSet });
   const subtopicChoices = useSubtopicChoices(hostConfig.subject, subtopic);
   const perQuestion = hostConfig.timeLimitMins / (hostConfig.count || 1);
   const pickedSub = subtopicChoices.find((s) => s.id === hostConfig.subtopicId) || null;
@@ -76,7 +79,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         isPrcStandard: hostConfig.mode === 'prc' || hostConfig.mode === 'blended',
         ...(drawShown
           ? { drawMode: draw.drawMode, ...(draw.drawMode === 'own' ? { ownCounts: draw.ownCounts } : {}) }
-          : { subtopic, ...(pickedSub ? { subtopicId: pickedSub.id, subtopicName: pickedSub.name } : {}) }),
+          : { subtopic, ...(topicSet ? { topics: topicSet } : {}), ...(pickedSub ? { subtopicId: pickedSub.id, subtopicName: pickedSub.name } : {}) }),
         ...(hostConfig.order === 'same' ? { sameOrder: true } : {}),
       };
 
@@ -146,7 +149,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
             <Select
               disabled={hostConfig.mode === 'blended'}
               value={hostConfig.mode === 'blended' ? 'Blended' : hostConfig.subject}
-              onChange={(e) => setHostConfig({ ...hostConfig, subject: e.target.value, subtopic: 'All', subtopicId: '' })}
+              onChange={(e) => setHostConfig({ ...hostConfig, subject: e.target.value, subtopic: 'All', topics: undefined, subtopicId: '' })}
             >
               {hostConfig.mode === 'blended' ? (
                 <option value="Blended">Math, ESAS & EE blended</option>
@@ -174,12 +177,11 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
         </div>
 
         {hostConfig.mode === 'custom' && (
-          <FormField label="Topic" hint="Everyone answers questions from this topic only.">
-            <Select value={hostConfig.subtopic} onChange={(e) => setHostConfig({ ...hostConfig, subtopic: e.target.value, subtopicId: '' })}>
-              <option value="All">All topics</option>
-              {topics.map((t) => <option key={t} value={t}>{t}</option>)}
-            </Select>
-          </FormField>
+          <TopicPicker
+            topics={topics}
+            value={pickedTopics(hostConfig)}
+            onChange={(list) => setHostConfig({ ...hostConfig, ...topicFields(list, topics), subtopicId: '' })}
+          />
         )}
 
         {hostConfig.mode === 'custom' && subtopicChoices.length > 0 && (

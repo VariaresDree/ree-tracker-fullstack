@@ -15,6 +15,8 @@ import { drawApplies } from './drawModes';
 import { useDrawPrefs } from './useDrawPrefs';
 import DrawPicker from './DrawPicker';
 import { useSubtopicChoices } from '../syllabus/subtopicChoices';
+import TopicPicker from '../syllabus/TopicPicker';
+import { pickedTopics, topicFields } from '../syllabus/topicPick';
 
 const hms = (secs) => [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60]
   .map((n) => String(n).padStart(2, '0')).join(':');
@@ -165,19 +167,18 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
             <SegmentedControl
               label="Subject"
               value={config.subject}
-              onChange={(subject) => setConfig({ ...config, subject, subtopic: 'All', subtopicId: null })}
+              onChange={(subject) => setConfig({ ...config, subject, subtopic: 'All', topics: undefined, subtopicId: null })}
               options={SUBJECT_OPTIONS}
             />
           </div>
         )}
 
         {isCustom && config.subject && config.subject !== 'blended' && (
-          <FormField label="Topic">
-            <Select value={config.subtopic || 'All'} onChange={(e) => setConfig({ ...config, subtopic: e.target.value, subtopicId: null })}>
-              <option value="All">All topics</option>
-              {(safeTOS[config.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
-            </Select>
-          </FormField>
+          <TopicPicker
+            topics={safeTOS[config.subject] || []}
+            value={pickedTopics(config)}
+            onChange={(list) => setConfig({ ...config, ...topicFields(list, safeTOS[config.subject] || []), subtopicId: null })}
+          />
         )}
 
         {isCustom && subtopicChoices.length > 0 && (

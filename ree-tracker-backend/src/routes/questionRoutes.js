@@ -16,7 +16,7 @@ const { normalizeSubject } = require('@ree/shared');
 // outside. Same topic, tag kept.
 const untagIfMoved = (previous, topic) => ((topic?.id ?? null) === previous.topicId ? {} : { subtopicId: null });
 const logger = require('../utils/logger');
-const { getSubjectFilter, samplePool } = require('../services/questionPool');
+const { getSubjectFilter, samplePool, topicList } = require('../services/questionPool');
 const { openBattleQuestionIds } = require('../services/answerGate');
 const { resolveTopic } = require('../services/topicResolver');
 const { buildVersionSnapshot, createLiveQuestion, storageOrder, withStorageOrder } = require('../services/reviewService');
@@ -120,6 +120,8 @@ async function withoutOpenBattles(userId, questions) {
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { subject, subtopic, limit = 50, sort = 'random', offset = 0, q, focus, subtopicId } = req.query;
+        // Several topics at once (?topics=Algebra&topics=Trigonometry, 2026-11-16).
+        const topics = topicList(req.query.topics);
 
         // Deterministic ingestion ordering for the admin/library review grid:
         // newest- or oldest-created first, with real offset pagination so
@@ -130,7 +132,9 @@ router.get('/', authMiddleware, async (req, res) => {
             const whereClause = { isFlagged: false };
             const subjFilter = getSubjectFilter(subject);
             if (subjFilter) whereClause.subject = subjFilter;
-            if (subtopic && subtopic !== 'All') whereClause.subtopic = subtopic.trim();
+            if (topics.length > 1) whereClause.subtopic = { in: topics };
+            else if (topics.length === 1) whereClause.subtopic = topics[0];
+            else if (typeof subtopic === 'string' && subtopic !== 'All') whereClause.subtopic = subtopic.trim();
             // Admin search: a question's id, or words in its text. Admins only,
             // since the grid is the only caller.
             const search = typeof q === 'string' ? q.trim().slice(0, 200) : '';
@@ -155,7 +159,7 @@ router.get('/', authMiddleware, async (req, res) => {
         }
 
         const questions = await samplePool({
-            subject, subtopic, limit,
+            subject, subtopic: typeof subtopic === 'string' ? subtopic : null, topics, limit,
             focus: typeof focus === 'string' ? focus : null,
             subtopicId: typeof subtopicId === 'string' ? subtopicId.slice(0, 100) : null,
         });

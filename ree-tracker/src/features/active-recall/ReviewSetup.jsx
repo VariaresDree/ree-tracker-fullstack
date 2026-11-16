@@ -18,6 +18,8 @@ import { useSrsSummary } from '../../hooks/useSrsSummary';
 import { adaptivePreset, bookmarksPreset, drillPreset, dueReviewPreset, quickReviewPreset } from './presets';
 import { BUILDER_COUNTS, builderSummary, chooseScope, chooseSubtopic, customView, liveScope, readRememberedBuilder, rememberBuilder } from './customView';
 import { useSubtopicChoices } from '../syllabus/subtopicChoices';
+import TopicPicker from '../syllabus/TopicPicker';
+import { pickedTopics } from '../syllabus/topicPick';
 
 // A due session is capped so a backlog after a break doesn't become a
 // 200-question wall; the rest stays in the queue for the next session.
@@ -307,12 +309,11 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
           </Field>
 
           {view.studyMode !== 'interleaved' && (
-            <FormField label="Topic">
-              <Select value={view.studyMode === 'subtopic' ? view.subtopic : 'All'} onChange={(e) => build(chooseScope(view, view.subject, e.target.value))}>
-                <option value="All">All topics</option>
-                {(safeTOS[view.subject] || []).map((t) => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FormField>
+            <TopicPicker
+              topics={safeTOS[view.subject] || []}
+              value={pickedTopics(view)}
+              onChange={(list) => build(chooseScope(view, view.subject, list, safeTOS[view.subject] || []))}
+            />
           )}
 
           {subtopicChoices.length > 0 && (

@@ -277,3 +277,17 @@ describe('drawExamPaper: how questions are picked', () => {
     expect(one.items.map((it) => it.id)).toEqual(two.items.map((it) => it.id));
   });
 });
+
+describe('a custom paper on several topics (2026-11-16)', () => {
+  it('names them, draws from them, and a PRC paper ignores them', async () => {
+    const config = custom({ subject: 'Mathematics', subtopic: 'All', topics: ['Algebra', 'Trigonometry', 'Complex Numbers'], count: 10 });
+    const plan = resolveExportPlan(config);
+    expect(plan.sections[0].topics).toEqual(['Algebra', 'Trigonometry', 'Complex Numbers']);
+    expect(plan.topic).toBe('Algebra, Trigonometry, Complex Numbers');
+    expect(planSummary(plan)).toContain('Algebra, Trigonometry, Complex Numbers');
+    const fetchQuestions = vi.fn(async () => many('Mathematics', 40));
+    await drawExamPaper(config, { fetchQuestions, fetchWeights: async () => null, fetchBoardGroups: async () => null });
+    expect(fetchQuestions.mock.calls[0][3]).toEqual(['Algebra', 'Trigonometry', 'Complex Numbers']);
+    expect(resolveExportPlan({ ...PRC_EE, topics: ['Machines', 'Protection'] }).sections[0].topics).toBeUndefined();
+  });
+});

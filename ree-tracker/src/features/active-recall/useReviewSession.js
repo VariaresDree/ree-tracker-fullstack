@@ -1,4 +1,5 @@
 // src/features/active-recall/useReviewSession.js
+import { inPickedTopics, isMultiTopic, pickedTopics } from '../syllabus/topicPick';
 import { useState, useRef, useEffect } from 'react';
 import { fetchVaultQuestions, getAnalyticsProfile, apiRequest, fetchSmartDrillQuestions, fetchSrsDue, fetchTodayLoop, fetchNextItem, saveQuestionToBank } from '../../services/dbQueries';
 import { fetchBookmarks, removeBookmark, saveBookmark } from '../../services/bookmarks';
@@ -253,7 +254,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 const subject = cfg.subject && cfg.subject !== 'All' ? normalizeSubject(cfg.subject) : null;
                 freshData = saved.filter((q) =>
                     (!subject || normalizeSubject(q.subject) === subject)
-                    && (cfg.subtopic === 'All' || !cfg.subtopic || q.subtopic === cfg.subtopic));
+                    && inPickedTopics(cfg)(q));
                 if (freshData.length === 0) throw nothing("None of your bookmarks match this subject or topic.");
             } else if (cfg.source === 'ai') {
                 if (!isOnline) throw new Error("The AI generator needs a connection.");
@@ -266,8 +267,10 @@ export const useReviewSession = (currentUser, isOnline) => {
                     ? cfg.subject
                     : (subjects[Math.floor(Math.random() * subjects.length)] || 'EE');
                 const topics = safeTOS[aiSubject] || [];
-                const targetTopic = cfg.studyMode === 'subtopic' && cfg.subtopic && cfg.subtopic !== 'All'
-                    ? cfg.subtopic
+                // Several picked topics: one of them for this batch.
+                const picked = cfg.subject === aiSubject ? pickedTopics(cfg) : [];
+                const targetTopic = picked.length > 0
+                    ? picked[Math.floor(Math.random() * picked.length)]
                     : (topics[Math.floor(Math.random() * topics.length)] || 'General');
                 freshData = await generateQuestionsAI(aiSubject, targetTopic, false);
 
@@ -296,10 +299,12 @@ export const useReviewSession = (currentUser, isOnline) => {
                 const focused = cfg.cognitiveFocus === 'conceptual' || cfg.cognitiveFocus === 'calculation';
                 const limit = poolLimit(want, { filtered: focused, max: 1000 });
                 const subtopicId = cfg.studyMode === 'subtopic' && cfg.subtopicId ? cfg.subtopicId : undefined;
-                dueScope = { subtopic: subTarget, subtopicId };
+                // Two or more topics (2026-11-16), drawn evenly across them.
+                const topicSet = isMultiTopic(cfg) ? cfg.topics : undefined;
+                dueScope = { subtopic: subTarget, subtopicId, topics: topicSet };
                 // Flashcards are self-graded, so they don't stand in for a review.
                 [freshData, dueReviews] = await Promise.all([
-                    fetchVaultQuestions(cfg.subject, subTarget, limit, 'random', { focus: focused ? cfg.cognitiveFocus : undefined, subtopicId }),
+                    fetchVaultQuestions(cfg.subject, subTarget, limit, 'random', { focus: focused ? cfg.cognitiveFocus : undefined, subtopicId, topics: topicSet }),
                     isOnline && cfg.sessionMode !== 'flashcard' ? dueFor(dueShare(want), cfg.subject, dueScope) : [],
                 ]);
                 // The server draws the focus now. An older one ignores it, so a
@@ -307,7 +312,7 @@ export const useReviewSession = (currentUser, isOnline) => {
                 // drawn again larger, as before. (The bank simply having fewer
                 // than asked isn't helped by 1,000 rows, about 1.2 MB.)
                 const mixed = (freshData || []).length > inFocus(freshData || []).length;
-                if (limit < 1000 && mixed && inFocus(freshData || []).length < want) freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000, 'random', { subtopicId });
+                if (limit < 1000 && mixed && inFocus(freshData || []).length < want) freshData = await fetchVaultQuestions(cfg.subject, subTarget, 1000, 'random', { subtopicId, topics: topicSet });
             }
 
             if (!freshData || freshData.length === 0) throw nothing("No questions match these settings yet.");

@@ -1,4 +1,5 @@
 // src/features/board-simulator/useSimulatorEngine.js
+import { isMultiTopic } from '../syllabus/topicPick';
 import { useState, useEffect, useRef } from 'react';
 import { generateQuestionsAI } from '../../services/geminiApi';
 import {
@@ -226,17 +227,17 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           // matching (poolFilters, shared with the printed paper), so when
           // the focus matches nothing at all the mixed set is used instead.
           const focused = !!config.cognitiveFocus && config.cognitiveFocus !== 'mixed';
-          const drawSubject = async (subject, subtopic, count, subtopicId) => {
+          const drawSubject = async (subject, subtopic, count, subtopicId, topics) => {
               if (!(count > 0)) return []; // a subject the blend gives no items
               const draw = async (limit) => {
-                  const raw = await (subtopicId ? fetchVaultQuestions(subject, subtopic, limit, 'random', { subtopicId }) : fetchVaultQuestions(subject, subtopic, limit));
+                  const raw = await (subtopicId || topics ? fetchVaultQuestions(subject, subtopic, limit, 'random', { subtopicId, topics }) : fetchVaultQuestions(subject, subtopic, limit));
                   const { pool: filtered, fallback } = applyFocusFilter(raw || [], config.cognitiveFocus);
                   return { fallback, picked: sample(filtered, subject, count) };
               };
               const limit = poolLimit(count, {
                   filtered: focused,
                   perTopic: deepestGroup(subject, count, drawGroups),
-                  topics: (dynamicTOS?.[subject] || []).length,
+                  topics: topics?.length || (dynamicTOS?.[subject] || []).length,
               });
               let got = await draw(limit);
               if (limit < 2000 && (got.fallback || got.picked.length < count)) got = await draw(2000);
@@ -263,7 +264,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
               // collapsing onto the dominant one. (No-op for a pinned subtopic.)
               // One subtopic of that topic, when one was picked (Question.subtopicId).
               const subtopicId = targetSubtopic !== 'All' && config.subtopicId ? config.subtopicId : undefined;
-              pool = await drawSubject(config.subject, targetSubtopic, totalCount, subtopicId);
+              // Two or more picked topics (2026-11-16), drawn evenly across them.
+              const topicSet = !config.isPrcStandard && isMultiTopic(config) ? config.topics : undefined;
+              pool = await drawSubject(config.subject, targetSubtopic, totalCount, subtopicId, topicSet);
               // PRC schedule from @ree/shared: Math 5h, ESAS 4h, EE 6h.
               timeLimitSecs = config.isPrcStandard ? (prcSectionSeconds(config.subject) || PRC_TIMES.BLENDED) : totalCount * 120;
           }

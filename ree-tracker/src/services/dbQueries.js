@@ -350,10 +350,13 @@ export const fetchPaginatedQuestions = async (cursor = null, filterSubject = 'Al
 // simulator pool builder, offline-PDF export) inherits offline support for free.
 // `focus`: 'calculation' or 'conceptual' draws only those (the server filters).
 // `subtopicId`: only questions tagged with that subtopic of the topic.
-export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 'random', { focus, subtopicId } = {}) => {
-    const queryParams = new URLSearchParams({ subject, subtopic, limit, sort });
+// `topics`: two or more topics to draw from, evenly (2026-11-16); one topic goes in `subtopic`.
+export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 'random', { focus, subtopicId, topics } = {}) => {
+    const many = Array.isArray(topics) && topics.length > 1 ? topics : null;
+    const queryParams = new URLSearchParams({ subject, subtopic: many ? 'All' : subtopic, limit, sort });
+    for (const t of many || []) queryParams.append('topics', t);
     if (focus === 'calculation' || focus === 'conceptual') queryParams.set('focus', focus);
-    if (subtopicId) queryParams.set('subtopicId', subtopicId);
+    if (subtopicId && !many) queryParams.set('subtopicId', subtopicId);
     try {
         const data = await apiRequest(`/api/questions?${queryParams.toString()}`);
         return normalizeQuestions(data);
@@ -362,8 +365,9 @@ export const fetchVaultQuestions = async (subject, subtopic, limit = 50, sort = 
             // The pack keeps its order, so its first `limit` would be the same
             // questions every session. Sampled from the whole slice instead,
             // spread across topics as the server's answer is.
-            const slice = await getOfflineQuestions(subject, subtopic, Infinity);
-            const cached = stratifiedSample(subtopicId ? slice.filter((q) => q.subtopicId === subtopicId) : slice, Number(limit) || 50);
+            const slice = await getOfflineQuestions(subject, many ? 'All' : subtopic, Infinity);
+            const inScope = many ? slice.filter((q) => many.includes(q.subtopic)) : subtopicId ? slice.filter((q) => q.subtopicId === subtopicId) : slice;
+            const cached = stratifiedSample(inScope, Number(limit) || 50);
             if (cached.length > 0) return cached;
         }
         throw err;
