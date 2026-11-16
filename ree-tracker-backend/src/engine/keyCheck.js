@@ -127,16 +127,37 @@ function explanationNamesOther({ options, answer, fixedExplanation }) {
     return named.length === 1 ? named[0].o : null;
 }
 
-/** Two options that read the same once spacing and LaTeX are set aside. */
+/**
+ * A strict form of an option, to tell duplicates apart (2026-11-16). Unlike
+ * normMath (built to find an answer inside an explanation's sentence), case,
+ * brackets and operators stay: "$s^2 R$" and "$s^2 r$", "$1-k^3$" and
+ * "$(1-k)^3$", "E \times H" and "E \cdot H" are different options. Only how
+ * it's typed is set aside: spacing, $, \left and \right, \frac{a}{b} vs a/b,
+ * braces, a bracket around a single token, degree signs and a closing full stop.
+ */
+function sameOptionForm(s) {
+    let t = String(s ?? '').replace(/\\(left|right|displaystyle)\b/g, '').replace(/\\(,|;|!|:| |quad|qquad)/g, ' ').replace(/~/g, ' ');
+    t = unwrapCommands(t)
+        .replace(/\^\s*\{?\s*\\circ\s*\}?|°|\\degree/g, 'deg')
+        .replace(/[−–]/g, '-')
+        .replace(/[\s$]/g, '')
+        .replace(/[{}]/g, '')
+        .replace(/\\(?=[a-z])/gi, ''); // \sqrt3 → sqrt3, \pi → pi; \times and \cdot stay apart
+    // (8)/(3) → 8/3 and bold (E) → E: a bracket around one token says nothing.
+    for (let prev = ''; prev !== t;) { prev = t; t = t.replace(/\(([\w.\\]+)\)/g, '$1'); }
+    return t.replace(/\.+$/, '');
+}
+
+/** The first two options that read the same, as [i, j], or null. */
 function duplicateOptions(options) {
-    if (!Array.isArray(options)) return false;
-    const seen = new Set();
-    for (const o of options) {
-        const n = normMath(o);
-        if (seen.has(n)) return true;
-        seen.add(n);
+    if (!Array.isArray(options)) return null;
+    const seen = new Map();
+    for (let i = 0; i < options.length; i += 1) {
+        const k = sameOptionForm(options[i]);
+        if (seen.has(k)) return [seen.get(k), i];
+        seen.set(k, i);
     }
-    return false;
+    return null;
 }
 
 /**
@@ -159,7 +180,8 @@ function findIssues(q, picks = null) {
     const out = [];
     const named = explanationNamesOther(q);
     if (named) out.push({ reason: 'explanation-names-other', detail: { option: named, line: answerLine(q.fixedExplanation)?.slice(0, 300) ?? null } });
-    if (duplicateOptions(q.options)) out.push({ reason: 'duplicate-options', detail: null });
+    const twins = duplicateOptions(q.options);
+    if (twins) out.push({ reason: 'duplicate-options', detail: { options: twins } });
     const crowd = learnersChoseOther(picks);
     if (crowd) out.push({ reason: 'learners-chose-other', detail: crowd });
     return out;
@@ -169,5 +191,5 @@ const REASONS = Object.freeze(['explanation-names-other', 'learners-chose-other'
 
 module.exports = {
     MIN_LEARNERS, LEARNER_MARGIN, REASONS,
-    normMath, answerLine, containsMath, explanationNamesOther, duplicateOptions, learnersChoseOther, findIssues,
+    normMath, sameOptionForm, answerLine, containsMath, explanationNamesOther, duplicateOptions, learnersChoseOther, findIssues,
 };
