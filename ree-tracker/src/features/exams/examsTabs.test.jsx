@@ -16,6 +16,12 @@ let manilaDay = '2026-11-14';
 vi.mock('../../hooks/useManilaDay', () => ({ useManilaDay: () => manilaDay }));
 let storeStats;
 const TOS = { EE: ['Electromagnetism', 'Electric Circuits 2', 'Machines'], Mathematics: ['Calculus 1'] };
+// The Topics field opens a checklist (2026-11-17); returns the open panel.
+const openTopics = () => {
+  const f = screen.getByRole('button', { name: /^Topics/ });
+  if (f.getAttribute('aria-expanded') !== 'true') fireEvent.click(f);
+  return screen.getByRole('group', { name: 'Topics' });
+};
 vi.mock('../../store/useStore', () => ({ useStore: (sel) => sel({ stats: storeStats, dynamicTOS: TOS }) }));
 const createMultiplayerBattle = vi.hoisted(() => vi.fn(async () => 'ABC123'));
 vi.mock('../../services/dbQueries', () => ({
@@ -109,9 +115,9 @@ describe('hosting a battle', () => {
     drawPrefs.value = { drawMode: 'own', ownCounts: { EE: { Machines: 5 } } };
     renderTab(<BattlesTab />);
     fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
-    const picker = screen.getByRole('group', { name: 'Topics' });
-    expect(within(picker).getAllByRole('button').map((o) => o.textContent)).toEqual(['All topics', 'Electromagnetism', 'Electric Circuits 2', 'Machines']);
-    fireEvent.click(within(picker).getByRole('button', { name: 'Electric Circuits 2' }));
+    const picker = openTopics();
+    expect(within(picker).getAllByRole('checkbox').map((o) => o.closest('label').textContent)).toEqual(['All topics', 'Electromagnetism', 'Electric Circuits 2', 'Machines']);
+    fireEvent.click(within(picker).getByRole('checkbox', { name: 'Electric Circuits 2' }));
     // One topic leaves nothing to pick by.
     expect(screen.queryByText('How questions are picked')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create lobby' }));
@@ -128,10 +134,10 @@ describe('hosting a battle', () => {
     drawPrefs.value = { drawMode: 'board', ownCounts: {} };
     renderTab(<BattlesTab />);
     fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
-    const picker = screen.getByRole('group', { name: 'Topics' });
-    fireEvent.click(within(picker).getByRole('button', { name: 'Machines' }));
-    fireEvent.click(within(picker).getByRole('button', { name: 'Electromagnetism' }));
-    expect(within(picker).getByText('2 of 3 picked')).toBeInTheDocument();
+    const picker = openTopics();
+    fireEvent.click(within(picker).getByRole('checkbox', { name: 'Machines' }));
+    fireEvent.click(within(picker).getByRole('checkbox', { name: 'Electromagnetism' }));
+    expect(screen.getByRole('button', { name: /^Topics Electromagnetism and Machines/ })).toHaveTextContent('2 of 3');
     expect(screen.queryByText('How questions are picked')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Create lobby' }));
     await vi.waitFor(() => expect(createMultiplayerBattle).toHaveBeenCalled());
@@ -143,13 +149,15 @@ describe('hosting a battle', () => {
   it('a new subject starts on all of its topics, and a PRC paper has no topic', () => {
     renderTab(<BattlesTab />);
     fireEvent.click(screen.getByRole('button', { name: /Host a battle/ }));
-    fireEvent.click(within(screen.getByRole('group', { name: 'Topics' })).getByRole('button', { name: 'Electromagnetism' }));
+    fireEvent.click(within(openTopics()).getByRole('checkbox', { name: 'Electromagnetism' }));
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Mathematics' } });
-    const picker = screen.getByRole('group', { name: 'Topics' });
-    expect(within(picker).getByRole('button', { name: 'All topics' })).toHaveAttribute('aria-pressed', 'true');
-    expect(within(picker).getAllByRole('button').map((o) => o.textContent)).toEqual(['All topics', 'Calculus 1']);
+    // A new subject: all of its topics, and the checklist closed.
+    expect(screen.getByRole('button', { name: /^Topics All topics/ })).toHaveAttribute('aria-expanded', 'false');
+    const picker = openTopics();
+    expect(within(picker).getByRole('checkbox', { name: 'All topics' })).toBeChecked();
+    expect(within(picker).getAllByRole('checkbox').map((o) => o.closest('label').textContent)).toEqual(['All topics', 'Calculus 1']);
     fireEvent.click(screen.getByRole('radio', { name: /One subject/ }));
-    expect(screen.queryByRole('group', { name: 'Topics' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Topics/ })).not.toBeInTheDocument();
     expect(screen.getByText('How questions are picked')).toBeInTheDocument();
   });
 });
