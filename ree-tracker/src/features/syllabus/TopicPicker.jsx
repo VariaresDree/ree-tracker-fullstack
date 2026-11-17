@@ -14,13 +14,13 @@
 import { useId, useRef, useState } from 'react';
 import { Button } from '../../components/ui';
 import { ChevronDown } from '../../components/ui/icons';
-import { topicsLabel } from './topicPick';
+import { splitLabel, topicsLabel } from './topicPick';
 
 /**
  * @param {{ topics: string[], value: string[], onChange: (next: string[]) => void, label?: string, disabled?: boolean }} props
  * `value` is the picked topics; [] means all of them.
  */
-export default function TopicPicker({ topics, value, onChange, label = 'Topics', disabled = false }) {
+export default function TopicPicker({ topics, value, onChange, label = 'Topics', disabled = false, count: sessionCount = null }) {
   const id = useId();
   // Open for one list: a new subject (a new list) starts closed.
   const listKey = topics.join('|');
@@ -33,6 +33,8 @@ export default function TopicPicker({ topics, value, onChange, label = 'Topics',
   const pickedInOrder = topics.filter((t) => picked.has(t));
   const summary = all ? 'All topics' : topicsLabel(pickedInOrder, 2);
   const count = all ? `All ${topics.length}` : `${picked.size} of ${topics.length}`;
+  // Each picked topic's equal share of the session (2026-11-17).
+  const share = !all && picked.size > 1 && sessionCount > 0 ? splitLabel(sessionCount, picked.size) : '';
 
   const toggle = (t) => {
     const next = new Set(picked);
@@ -65,6 +67,10 @@ export default function TopicPicker({ topics, value, onChange, label = 'Topics',
         <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" className={`shrink-0 text-muted transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} />
       </button>
 
+      {share && !open && (
+        <p className="text-xs text-muted2" aria-live="polite">Equal share: {share}.</p>
+      )}
+
       {open && (
         <div
           id={`${id}-panel`}
@@ -87,7 +93,7 @@ export default function TopicPicker({ topics, value, onChange, label = 'Topics',
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 border-t border-border pt-1.5 px-1">
-            <span className="text-xs text-muted2">{all ? 'None ticked: every topic.' : 'Drawn evenly across them.'}</span>
+            <span className="text-xs text-muted2">{all ? 'None ticked: every topic.' : share ? `Equal share: ${share}.` : 'Drawn evenly across them.'}</span>
             <div className="flex gap-1.5">
               {!all && <Button size="sm" variant="ghost" onClick={() => onChange([])}>Clear</Button>}
               <Button size="sm" variant="secondary" onClick={close}>Done</Button>

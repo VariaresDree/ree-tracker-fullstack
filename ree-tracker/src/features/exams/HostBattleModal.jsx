@@ -180,6 +180,7 @@ export default function HostBattleModal({ open, onClose, isOnline }) {
           <TopicPicker
             topics={topics}
             value={pickedTopics(hostConfig)}
+            count={hostConfig.count}
             onChange={(list) => setHostConfig({ ...hostConfig, ...topicFields(list, topics), subtopicId: '' })}
           />
         )}

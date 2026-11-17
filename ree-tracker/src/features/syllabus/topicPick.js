@@ -38,3 +38,25 @@ export function inPickedTopics(config) {
   const set = new Set(pickedTopics(config));
   return (q) => set.size === 0 || set.has(q?.subtopic);
 }
+
+/**
+ * An equal share of `total` questions for each of `n` topics (2026-11-17):
+ * whole numbers that add to `total`, differing by at most one, the larger
+ * shares first. 20 over 3 is [7, 7, 6].
+ */
+export function evenSplit(total, n) {
+  const t = Math.max(0, Math.floor(Number(total) || 0));
+  if (!(n > 0)) return [];
+  const base = Math.floor(t / n);
+  return Array.from({ length: n }, (_, i) => base + (i < t % n ? 1 : 0));
+}
+
+/** "7 questions from each", or "6 or 7 questions from each": a session's share per picked topic. */
+export function splitLabel(total, n) {
+  const parts = evenSplit(total, n);
+  if (parts.length < 2) return '';
+  const lo = Math.min(...parts);
+  const hi = Math.max(...parts);
+  if (lo === hi) return `${lo} question${lo === 1 ? '' : 's'} from each`;
+  return `${lo} or ${hi} questions from each`;
+}

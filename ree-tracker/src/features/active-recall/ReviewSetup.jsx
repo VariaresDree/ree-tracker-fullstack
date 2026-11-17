@@ -312,6 +312,7 @@ export default function ReviewSetup({ config, session, safeTOS, isOnline, startS
             <TopicPicker
               topics={safeTOS[view.subject] || []}
               value={pickedTopics(view)}
+              count={view.count}
               onChange={(list) => build(chooseScope(view, view.subject, list, safeTOS[view.subject] || []))}
             />
           )}

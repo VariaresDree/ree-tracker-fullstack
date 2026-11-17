@@ -54,3 +54,50 @@ describe('mixDue with several topics (2026-11-16)', () => {
     expect(out).toHaveLength(8);
   });
 });
+
+describe('an equal share for every picked topic, due reviews included (2026-11-17)', () => {
+  const T = ['Algebra', 'Complex Numbers', 'Trigonometry'];
+  const bankOf = (perTopic) => T.flatMap((t) => Array.from({ length: perTopic[t] ?? 20 }, (_, i) => ({ id: `${t}-${i}`, subtopic: t })));
+  const count = (set) => Object.fromEntries(T.map((t) => [t, set.filter((x) => x.subtopic === t).length]));
+
+  it('reviews that are all Algebra no longer tilt the set: 20 over 3 topics is 7, 7, 6', () => {
+    const due = Array.from({ length: 10 }, (_, i) => ({ id: `due-${i}`, subtopic: 'Algebra' }));
+    for (let run = 0; run < 50; run += 1) {
+      const set = mixDue(bankOf({}), due, 20, { subtopic: 'All', topics: T });
+      expect(set).toHaveLength(20);
+      expect(Object.values(count(set)).sort()).toEqual([6, 7, 7]);
+      expect(new Set(set.map((x) => x.id)).size).toBe(20);
+      // the reviews still lead, and count inside Algebra's share
+      const reviews = set.filter((x) => x.dueReview);
+      expect(reviews.length).toBeGreaterThan(0);
+      expect(set.slice(0, reviews.length).every((x) => x.dueReview)).toBe(true);
+      expect(reviews.length).toBeLessThanOrEqual(count(set).Algebra);
+    }
+  });
+
+  it('the old way gave Algebra about half; the larger shares rotate between topics', () => {
+    const due = Array.from({ length: 5 }, (_, i) => ({ id: `due-${i}`, subtopic: 'Algebra' }));
+    const seven = new Set();
+    for (let run = 0; run < 60; run += 1) {
+      const c = count(mixDue(bankOf({}), due, 20, { subtopic: 'All', topics: T }));
+      expect(c.Algebra).toBeLessThanOrEqual(7);
+      T.filter((t) => c[t] === 7).forEach((t) => seven.add(t));
+    }
+    expect(seven.size).toBe(3);
+  });
+
+  it('a topic with too few questions passes its places to the others, still evenly', () => {
+    for (let run = 0; run < 50; run += 1) {
+      const set = mixDue(bankOf({ 'Complex Numbers': 2 }), [], 20, { subtopic: 'All', topics: T });
+      const c = count(set);
+      expect(set).toHaveLength(20);
+      expect(c['Complex Numbers']).toBe(2);
+      expect(Math.abs(c.Algebra - c.Trigonometry)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('the bank part comes one topic at a time in turn, not in blocks', () => {
+    const set = mixDue(bankOf({}), [], 9, { subtopic: 'All', topics: T });
+    for (let i = 0; i < 9; i += 3) expect(new Set(set.slice(i, i + 3).map((x) => x.subtopic)).size).toBe(3);
+  });
+});
