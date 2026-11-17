@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
-const { requireAdmin } = require('../middlewares/roleMiddleware');
+const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
 const storage = require('../services/storage');
 const { wouldCreateCycle, subtreeIds } = require('../services/folderTree');
 const { LIST_SELECT: QUIZ_LIST_SELECT } = require('../services/quizFiles');
+const { forLearner } = require('../services/handoutVisibility');
 
 // --- LIST ---
 // A file the client uploaded to Firebase (useFileManager.js). The client deletes
@@ -23,7 +24,9 @@ router.get('/', authMiddleware, async (req, res) => {
         const folders = await prisma.folder.findMany({ take: 2000, orderBy: { name: 'asc' } });
         const materials = await prisma.material.findMany({ take: 2000, orderBy: { createdAt: 'desc' } });
         const quizFiles = await prisma.quizFile.findMany({ select: QUIZ_LIST_SELECT, take: 500, orderBy: { name: 'asc' } });
-        return res.status(200).json({ success: true, folders, materials, quizFiles, driver: storage.driverName });
+        // Learners never receive what the admin hid (2026-11-17); admins get it all, flagged.
+        const tree = (await isAdminUser(req.user?.id)) ? { folders, materials, quizFiles } : forLearner({ folders, materials, quizFiles });
+        return res.status(200).json({ success: true, ...tree, driver: storage.driverName });
     } catch (error) {
         logger.error('Material fetch error', { error: error.message, stack: error.stack });
         return res.status(500).json({ error: "Couldn't load the shared files." });
@@ -51,7 +54,8 @@ router.post('/folders', authMiddleware, requireAdmin, idempotency(), async (req,
 
 router.patch('/folders/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
-        const { name, parentId } = req.body || {};
+        const { name, parentId, hidden } = req.body || {};
+        if (hidden !== undefined && typeof hidden !== 'boolean') return res.status(400).json({ error: 'hidden must be true or false.' });
         const nextParentId = parentId || null;
 
         // Cycle guard: a folder can never become its own ancestor. Nothing
@@ -73,6 +77,7 @@ router.patch('/folders/:id', authMiddleware, requireAdmin, async (req, res) => {
             data: {
                 ...(name != null ? { name: String(name).slice(0, 120) } : {}),
                 ...(parentId !== undefined ? { parentId: nextParentId } : {}),
+                ...(hidden !== undefined ? { hidden } : {}),
             },
         });
         return res.status(200).json({ folder });
@@ -158,15 +163,18 @@ router.post(
     },
 );
 
-// Rename (name) and/or move (folderId) a material. folderId null = move to root.
+// Rename (name), move (folderId; null = the top level) and/or hide from
+// learners (hidden) a material.
 router.patch('/:id', authMiddleware, requireAdmin, async (req, res) => {
     try {
-        const { name, folderId } = req.body || {};
+        const { name, folderId, hidden } = req.body || {};
+        if (hidden !== undefined && typeof hidden !== 'boolean') return res.status(400).json({ error: 'hidden must be true or false.' });
         const material = await prisma.material.update({
             where: { id: req.params.id },
             data: {
                 ...(name != null ? { name: String(name).slice(0, 200) } : {}),
                 ...(folderId !== undefined ? { folderId: folderId || null } : {}),
+                ...(hidden !== undefined ? { hidden } : {}),
             },
         });
         return res.status(200).json({ material });

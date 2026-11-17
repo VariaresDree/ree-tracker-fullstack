@@ -109,7 +109,7 @@ function EditDialog({ file, onClose, onSaved }) {
  * selecting, isSelected(file), onToggle(file) and onMove(file) are the handouts
  * list's own move tools.
  */
-export default function AdminQuizFiles({ files, total, folderId = 'root', onSaved, onDeleted, selecting = false, isSelected = () => false, onToggle, onMove }) {
+export default function AdminQuizFiles({ files, total, folderId = 'root', hidden = false, onSaved, onDeleted, selecting = false, isSelected = () => false, onToggle, onMove }) {
   const [staged, setStaged] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -202,7 +202,10 @@ export default function AdminQuizFiles({ files, total, folderId = 'root', onSave
     <section aria-labelledby="admin-quiz-files" className="flex flex-col gap-4 min-w-0">
       <div>
         <h2 id="admin-quiz-files" className="text-h3 text-textMain">Quiz files</h2>
-        <p className="text-sm text-muted2">Every learner can download these here and in Library › Quizzes. Uploads go into the open folder. Scores on them never count toward progress.</p>
+        <p className="text-sm text-muted2">
+          {/* A hidden folder hides its quiz files too (2026-11-17). */}
+          {hidden ? 'Learners can’t see these while this folder is hidden.' : 'Every learner can download these here and in Library › Quizzes.'} Uploads go into the open folder. Scores on them never count toward progress.
+        </p>
       </div>
 
       <QuizFilePicker compact onFilesSelected={stage} />

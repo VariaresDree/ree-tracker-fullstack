@@ -5,10 +5,16 @@
 // organise, moving one item or a selection through the Move sheet. A failed load
 // shows an error with Try again and offline says so — both used to read "This
 // folder is empty" — and the first load has a skeleton.
+//
+// Hidden handouts (2026-11-17): the admin can hide a folder or a file from
+// learners instead of deleting it. Hidden items stay in the admin's view,
+// marked, with Show to learners; inside a hidden folder a note says so; and
+// "View as a learner" previews what learners get.
 import React, { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useFileManager } from './useFileManager';
-import { Button, Card, EmptyState, FormField, Grid, IconChip, Input, Modal, Select, Skeleton, StickyToolbar } from '../../components/ui';
-import { FolderOpen, FolderInput, FileAudio, FileImage, FileText, FileType, FileUp, Link, Pencil, Plus, SquareCheck, Video, X, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
+import { Badge, Button, Card, EmptyState, FormField, Grid, IconChip, Input, Modal, Select, Skeleton, StickyToolbar } from '../../components/ui';
+import { FolderOpen, FolderInput, FileAudio, FileImage, FileText, FileType, FileUp, Link, Pencil, Plus, SquareCheck, Video, Trash2, Eye, EyeOff, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
+import { hiddenBy, forLearner } from './handoutVisibility';
 import { lazy } from '../../utils/lazyWithRetry';
 import { byName, readSort, sortItems, writeSort } from './sortNames';
 import { readRecentHandouts, rememberHandout } from './recentHandouts';
@@ -34,6 +40,16 @@ const KINDS = {
 };
 const kindOf = (type) => KINDS[type] || { icon: FileType, label: type === 'file' || !type ? 'File' : type, tone: 'muted' };
 const keyOf = (type, id) => `${type}:${id}`;
+
+// "Hidden" on a tile, and why: hidden itself, or inside a hidden folder.
+function HiddenBadge({ by }) {
+  return (
+    <Badge tone="amber" className="inline-flex items-center gap-1 max-w-full">
+      <EyeOff size={12} strokeWidth={1.75} aria-hidden="true" />
+      <span className="truncate">{by ? `Hidden with ${by}` : 'Hidden from learners'}</span>
+    </Badge>
+  );
+}
 const CHECKBOX = 'size-5 shrink-0 accent-[var(--accent)] cursor-pointer';
 
 export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, openMaterialId = null }) {
@@ -53,13 +69,38 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
   const [selected, setSelected] = useState(() => new Map());
   const [moving, setMoving] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, type: null, name: '' });
+  // Admin: preview the handouts as a learner sees them, hidden ones left out.
+  const [asLearner, setAsLearner] = useState(false);
 
   const {
-    folders, materials, quizFiles = [], currentFolderId, breadcrumbs, isLoading, loadError, reload, isUploading, dragOverFolderId,
+    folders: allFolders, materials: allMaterials, quizFiles: allQuizzes = [], currentFolderId, breadcrumbs, isLoading, loadError, reload, isUploading, dragOverFolderId,
     navigateToFolder, navigateToBreadcrumb, revealFolder, createFolder, uploadAndCommitMaterial, addMaterialRecord,
-    deleteItem, renameItem, moveItems, putQuizFile, dropQuizFile,
+    deleteItem, renameItem, moveItems, setHidden, putQuizFile, dropQuizFile,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   } = useFileManager(currentUser, isAdmin);
+  // Learners only ever see what's shown; the server already leaves the rest
+  // out for them, and this keeps an admin's Library view the same.
+  const managing = isAdmin && !asLearner;
+  const { folders, materials, quizFiles } = useMemo(
+    () => (managing
+      ? { folders: allFolders, materials: allMaterials, quizFiles: allQuizzes }
+      : forLearner({ folders: allFolders, materials: allMaterials, quizFiles: allQuizzes })),
+    [managing, allFolders, allMaterials, allQuizzes],
+  );
+  const hiddenMap = useMemo(() => hiddenBy(allFolders), [allFolders]);
+  // Why a tile is hidden: null (shown), '' (hidden itself) or the hiding folder's name.
+  const hiddenReason = (type, item) => {
+    if (type === 'material') {
+      if (item.hidden) return '';
+      const by = item.folderId && hiddenMap.get(item.folderId);
+      return by ? by.name : null;
+    }
+    const by = hiddenMap.get(item.id);
+    if (!by) return null;
+    return by.id === item.id ? '' : by.name;
+  };
+  const hiddenHere = managing && currentFolderId !== 'root' ? hiddenMap.get(currentFolderId) : null;
+  const hiddenCount = allFolders.filter((f) => f.hidden).length + allMaterials.filter((m) => m.hidden).length;
   const { files: deviceFiles } = useMyFiles(uid);
   const savedHandouts = deviceFiles.filter((f) => f.source?.kind === 'handout');
   const savedIds = new Set(savedHandouts.map((f) => f.source.materialId));
@@ -172,9 +213,15 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
     return { nestedFolders, containedMaterials, containedQuizzes };
   };
 
-  const confirmDelete = (id, type, name) => {
+  const confirmDelete = (id, type, name, alreadyHidden = false) => {
     if (!isAdmin) return;
-    setDeleteModal({ isOpen: true, id, type, name, ...(type === 'folder' ? countSubtree(id) : {}) });
+    setDeleteModal({ isOpen: true, id, type, name, alreadyHidden, ...(type === 'folder' ? countSubtree(id) : {}) });
+  };
+  const closeDelete = () => setDeleteModal({ isOpen: false, id: null, type: null, name: '' });
+  // Keep it, out of learners' sight: the owner's usual reason for deleting.
+  const hideInstead = async () => {
+    await setHidden([{ id: deleteModal.id, type: deleteModal.type === 'folder' ? 'folder' : 'material' }], true);
+    closeDelete();
   };
 
   const executeDeleteClick = async () => {
@@ -214,6 +261,13 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
   const nothingHere = visibleFolders.length === 0 && visibleMaterials.length === 0 && visibleQuizzes.length === 0;
   const loaded = !(isLoading && folders.length === 0 && materials.length === 0) && !(loadError && folders.length === 0 && materials.length === 0);
   const movingFolders = new Set((moving || []).filter((x) => x.type === 'folder').map((x) => x.id));
+  // Folders and files can be hidden; a quiz file follows its folder.
+  const hideableItems = [...selected.values()].filter((x) => x.type !== 'quiz');
+  const hideable = hideableItems.length > 0;
+  const toggleHidden = (type, item, e) => {
+    e?.stopPropagation();
+    setHidden([{ id: item.id, type }], !item.hidden);
+  };
 
   return (
     <div className="animate-in fade-in flex flex-col gap-6">
@@ -222,6 +276,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           <p className="text-sm text-textMain font-medium tabular-nums" aria-live="polite">{plural(selected.size, 'item')} selected</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={stopSelecting}>Done</Button>
+            <Button size="sm" variant="secondary" disabled={!hideable} onClick={() => setHidden(hideableItems, true).then(stopSelecting)}>
+              <EyeOff size={14} strokeWidth={1.75} aria-hidden="true" /> Hide
+            </Button>
+            <Button size="sm" variant="secondary" disabled={!hideable} onClick={() => setHidden(hideableItems, false).then(stopSelecting)}>
+              <Eye size={14} strokeWidth={1.75} aria-hidden="true" /> Show
+            </Button>
             <Button size="sm" disabled={selected.size === 0} onClick={() => startMove([...selected.values()])}>
               <FolderInput size={14} strokeWidth={1.75} aria-hidden="true" /> Move…
             </Button>
@@ -235,10 +295,17 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               readers' heading list. */}
           <h2 className="sr-only">Handouts</h2>
           <p className="text-sm text-muted2">
-            {isAdmin
-              ? 'Upload and organize handouts. Reviewers can open them but not change them.'
-              : 'Open a folder, then tap a file to read it.'}
+            {managing
+              ? 'Upload and organize handouts. Hide a folder or file to keep it here without learners seeing it.'
+              : isAdmin
+                ? 'You’re viewing the handouts as a learner sees them: hidden folders and files are left out.'
+                : 'Open a folder, then tap a file to read it.'}
           </p>
+          {managing && hiddenCount > 0 && (
+            <p className="text-xs text-muted2 mt-1 inline-flex items-center gap-1.5">
+              <EyeOff size={12} strokeWidth={1.75} aria-hidden="true" /> {plural(hiddenCount, 'item')} hidden from learners
+            </p>
+          )}
           <div className="flex items-center gap-2 mt-3 font-mono text-xs text-muted2 flex-wrap">
             {breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={crumb.id}>
@@ -264,6 +331,11 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
             </Select>
           </FormField>
           {isAdmin && (
+            <Button variant={asLearner ? 'outline' : 'secondary'} aria-pressed={asLearner} onClick={() => { setAsLearner((v) => !v); stopSelecting(); }}>
+              <Eye size={16} strokeWidth={1.75} aria-hidden="true" /> View as a learner
+            </Button>
+          )}
+          {managing && (
             <>
               <Button variant="secondary" aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}><SquareCheck size={16} strokeWidth={1.75} aria-hidden="true" /> Select</Button>
               <Button variant="secondary" onClick={() => setIsCreatingFolder(true)}><Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Folder</Button>
@@ -273,7 +345,23 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         </div>
       </div>
 
-      {isCreatingFolder && isAdmin && (
+      {hiddenHere && (
+        <Card variant="inset" padding="md" role="note" className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-textMain inline-flex items-start gap-2 min-w-0">
+            <EyeOff size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5 text-[var(--color-reeAmber-text)]" />
+            <span className="min-w-0 [overflow-wrap:anywhere]">
+              {hiddenHere.id === currentFolderId
+                ? 'Learners can’t see this folder or anything in it.'
+                : `Learners can’t see this: “${hiddenHere.name}” is hidden, and everything in it.`}
+            </span>
+          </p>
+          <Button size="sm" variant="secondary" onClick={() => setHidden([{ id: hiddenHere.id, type: 'folder' }], false)}>
+            <Eye size={14} strokeWidth={1.75} aria-hidden="true" /> {hiddenHere.id === currentFolderId ? 'Show to learners' : `Show “${hiddenHere.name}”`}
+          </Button>
+        </Card>
+      )}
+
+      {isCreatingFolder && managing && (
         <Card
           padding="md"
           className="flex flex-col sm:flex-row gap-3 items-center shadow-lg animate-in fade-in slide-in-from-top-2"
@@ -288,7 +376,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         </Card>
       )}
 
-      {isAddingMaterial && isAdmin && (
+      {isAddingMaterial && managing && (
         <Card padding="md" className="flex flex-col gap-4 shadow-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Add from">
             <Button size="sm" variant={uploadMode === 'local' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'local'} onClick={() => setUploadMode('local')}>Upload a file</Button>
@@ -399,6 +487,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           {visibleFolders.map(f => {
             const isDropTarget = dragOverFolderId === f.id;
             const inside = countSubtree(f.id);
+            const hidden = managing ? hiddenReason('folder', f) : null;
             return (
               // A choice card like the rest of the app's. A folder a file is
               // dragged over takes an accent ring (it was a fixed blue border
@@ -407,13 +496,13 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                 key={f.id}
                 variant="interactive"
                 padding="sm"
-                draggable={isAdmin ? "true" : "false"}
+                draggable={managing ? "true" : "false"}
                 onDragStart={(e) => handleDragStart(e, f, 'folder')}
                 onDragOver={(e) => handleDragOver(e, f.id)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, f.id)}
                 onClick={() => (selecting ? toggle('folder', f) : navigateToFolder(f.id, f.name))}
-                className={`cursor-pointer flex justify-between items-start group min-h-[72px] ${
+                className={`cursor-pointer flex flex-col gap-2 md:flex-row md:justify-between md:items-start group min-h-[72px] ${
                   isDropTarget ? 'ring-2 ring-[color-mix(in_srgb,var(--accent)_70%,transparent)]' : ''
                 }`}
               >
@@ -421,7 +510,8 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                   {selecting && (
                     <input type="checkbox" aria-label={`Select ${f.name}`} checked={isSelected('folder', f)} onChange={() => toggle('folder', f)} onClick={(e) => e.stopPropagation()} className={`${CHECKBOX} pointer-events-auto mt-0.5`} />
                   )}
-                  <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className="opacity-90 group-hover:scale-110 transition-transform text-[var(--accent-text)] shrink-0" />
+                  <FolderOpen size={24} strokeWidth={1.5} aria-hidden="true" className={`group-hover:scale-110 transition-transform shrink-0 ${hidden !== null ? 'text-muted opacity-70' : 'text-[var(--accent-text)] opacity-90'}`} />
+                  <div className="min-w-0 flex-1 flex flex-col gap-1.5">
                   {editingItem.id === f.id && editingItem.type === 'folder' ? (
                     <input autoFocus value={editingItem.newName} onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })} onBlur={executeRenameClick} onKeyDown={handleRenameKeyDown} onClick={(e) => e.stopPropagation()} className="bg-bg border border-reeBlue text-sm text-textMain px-2 py-1 rounded-[var(--radius-sm)] w-full font-bold pointer-events-auto" />
                   ) : selecting ? (
@@ -444,14 +534,17 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                       <span className="block font-normal text-xs text-muted2">{contentsLine(inside.containedMaterials, inside.containedQuizzes)}</span>
                     </span>
                   )}
+                  {hidden !== null && <span><HiddenBadge by={hidden} /></span>}
+                  </div>
                 </div>
-                {isAdmin && !selecting && (
-                  <div className={`${TILE_ACTIONS} ml-2 shrink-0`}>
+                {managing && !selecting && (
+                  <div className={`${TILE_ACTIONS} self-end md:self-auto md:ml-2 shrink-0`}>
                     {!(editingItem.id === f.id && editingItem.type === 'folder') && (
                       <button onClick={(e) => initiateRename(f, 'folder', e)} aria-label="Rename folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-text)] hover:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
+                    <button onClick={(e) => toggleHidden('folder', f, e)} aria-label={f.hidden ? `Show ${f.name} to learners` : `Hide ${f.name} from learners`} title={f.hidden ? 'Show to learners' : 'Hide from learners'} className="touch-target p-1.5 text-muted hover:text-[var(--color-reeAmber-text)] hover:bg-[color-mix(in_srgb,var(--color-reeAmber)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer">{f.hidden ? <Eye size={14} strokeWidth={1.75} aria-hidden="true" /> : <EyeOff size={14} strokeWidth={1.75} aria-hidden="true" />}</button>
                     <button onClick={(e) => startMove([{ id: f.id, type: 'folder' }], e)} aria-label={`Move ${f.name}`} className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><FolderInput size={14} strokeWidth={1.75} aria-hidden="true" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name); }} aria-label="Delete folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(f.id, 'folder', f.name, f.hidden); }} aria-label="Delete folder" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
               </Card>
@@ -464,12 +557,14 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         <section aria-label="Files" className="flex flex-col gap-2">
         <p className="text-eyebrow">Files · {visibleMaterials.length}</p>
         <Grid kind="cards" className="@5xl:grid-cols-4">
-          {visibleMaterials.map(m => (
+          {visibleMaterials.map(m => {
+            const hidden = managing ? hiddenReason('material', m) : null;
+            return (
             <Card
               key={m.id}
               variant="interactive"
               padding="md"
-              draggable={isAdmin ? "true" : "false"}
+              draggable={managing ? "true" : "false"}
               onDragStart={(e) => handleDragStart(e, m, 'material')}
               onClick={() => { if (selecting) toggle('material', m); else if (editingItem.id !== m.id) openFile(m); }}
               className="flex flex-col justify-between group cursor-pointer"
@@ -482,13 +577,14 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                   <IconChip icon={kindOf(m.type).icon} tone={kindOf(m.type).tone} size="sm" />
                   {kindOf(m.type).label}
                 </span>
-                {isAdmin && !selecting && (
+                {managing && !selecting && (
                   <div className={`${TILE_ACTIONS} -mt-1 -mr-1`}>
                     {!(editingItem.id === m.id && editingItem.type === 'material') && (
                       <button onClick={(e) => initiateRename(m, 'material', e)} aria-label="Rename file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Pencil size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                     )}
+                    <button onClick={(e) => toggleHidden('material', m, e)} aria-label={m.hidden ? `Show ${m.name} to learners` : `Hide ${m.name} from learners`} title={m.hidden ? 'Show to learners' : 'Hide from learners'} className="touch-target p-1.5 text-muted hover:text-[var(--color-reeAmber-text)] hover:bg-[color-mix(in_srgb,var(--color-reeAmber)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer">{m.hidden ? <Eye size={14} strokeWidth={1.75} aria-hidden="true" /> : <EyeOff size={14} strokeWidth={1.75} aria-hidden="true" />}</button>
                     <button onClick={(e) => startMove([{ id: m.id, type: 'material' }], e)} aria-label={`Move ${m.name}`} className="touch-target p-1.5 text-muted hover:text-[var(--accent-signal)] hover:bg-[color-mix(in_srgb,var(--accent-signal)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><FolderInput size={14} strokeWidth={1.75} aria-hidden="true" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(m.id, 'material', m.name); }} aria-label="Delete file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><X size={14} strokeWidth={1.75} aria-hidden="true" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); confirmDelete(m.id, 'material', m.name, m.hidden); }} aria-label="Delete file" className="touch-target p-1.5 text-muted hover:text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"><Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /></button>
                   </div>
                 )}
               </div>
@@ -497,6 +593,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               ) : (
                 <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
               )}
+              {hidden !== null && <div className="mt-2"><HiddenBadge by={hidden} /></div>}
               {query && m.folderId && <p className="text-xs text-muted2 mt-1 [overflow-wrap:anywhere]">{folderPath(m.folderId)}</p>}
               <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border2/50">
                 <Button size="sm" variant="secondary" className="flex-1" onClick={(e) => { e.stopPropagation(); openFile(m); }} aria-label={`View ${m.name}`}>
@@ -510,11 +607,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
                 )}
               </div>
             </Card>
-          ))}
+            );
+          })}
         </Grid>
         </section>
         )}
-        {!isAdmin && visibleQuizzes.length > 0 && (
+        {!managing && visibleQuizzes.length > 0 && (
           <Suspense fallback={<Skeleton className="h-24" />}>
             <FolderQuizzes files={visibleQuizzes} whereOf={query ? (q) => (q.folderId ? folderPath(q.folderId) : null) : undefined} />
           </Suspense>
@@ -522,12 +620,13 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         </div>
       )}
 
-      {isAdmin && loaded && (
+      {managing && loaded && (
         <Suspense fallback={<Skeleton className="h-24" />}>
           <AdminQuizFiles
             files={visibleQuizzes}
             total={{ count: quizFiles.length, bytes: quizFiles.reduce((sum, q) => sum + (q.sizeBytes || 0), 0) }}
             folderId={currentFolderId}
+            hidden={!!hiddenHere}
             onSaved={putQuizFile}
             onDeleted={dropQuizFile}
             selecting={selecting}
@@ -560,7 +659,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         title={`Delete "${deleteModal.name}"?`}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setDeleteModal({ isOpen: false, id: null, type: null, name: '' })}>Cancel</Button>
+            <Button variant="secondary" onClick={closeDelete}>Cancel</Button>
+            {!deleteModal.alreadyHidden && (
+              <Button variant="secondary" onClick={hideInstead}>
+                <EyeOff size={14} strokeWidth={1.75} aria-hidden="true" /> Hide instead
+              </Button>
+            )}
             <Button tone="danger" onClick={executeDeleteClick}>Delete</Button>
           </>
         }
@@ -571,6 +675,11 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
             : "This can't be undone."}
           {deleteModal.type === 'folder' && deleteModal.containedQuizzes > 0 && ` ${plural(deleteModal.containedQuizzes, 'quiz file')} inside ${deleteModal.containedQuizzes === 1 ? 'moves' : 'move'} to the top level instead.`}
         </p>
+        {!deleteModal.alreadyHidden && (
+          <p className="text-sm text-muted2 leading-relaxed mt-3">
+            To keep it but stop learners seeing it, hide it instead. You can show it again any time.
+          </p>
+        )}
       </Modal>
     </div>
   );
