@@ -187,3 +187,41 @@ describe('POST /tags/rename', () => {
         expect(learner.status).toBe(403);
     });
 });
+
+describe('POST /approve-bulk', () => {
+    const bulk = (ids) => request(app()).post('/api/reference-cards/approve-bulk').set(as('admin')).send({ ids });
+    const row = (id, over = {}) => ({ id, status: 'PENDING', ...formula(), topic: { name: 'Electric Circuits 2' }, ...over });
+
+    it('approves every eligible card in ONE transaction, a version row each', async () => {
+        vi.spyOn(prisma.referenceCard, 'findMany').mockResolvedValue([
+            row('a'), row('b'), row('live', { status: 'LIVE' }), row('bad', { description: '' }),
+        ]);
+        const updateMany = vi.spyOn(prisma.referenceCard, 'updateMany').mockResolvedValue({ count: 2 });
+        const createMany = vi.spyOn(prisma.referenceCardVersion, 'createMany').mockResolvedValue({ count: 2 });
+        const tx = vi.spyOn(prisma, '$transaction').mockImplementation(async (ops) => Promise.all(ops));
+        const res = await bulk(['a', 'b', 'live', 'bad', 'gone', 'a']);
+        expect(res.status).toBe(200);
+        expect(res.body.approved).toEqual(['a', 'b']);
+        expect(res.body.failed.map((f) => f.id)).toEqual(['live', 'bad', 'gone']);
+        expect(res.body.failed).toEqual(expect.arrayContaining([{ id: 'live', reason: 'already-reviewed' }, { id: 'gone', reason: 'not-found' }]));
+        expect(tx).toHaveBeenCalledTimes(1);
+        expect(updateMany.mock.calls[0][0]).toMatchObject({ where: { id: { in: ['a', 'b'] }, status: 'PENDING' }, data: { status: 'LIVE', reviewedBy: 'admin' } });
+        expect(createMany.mock.calls[0][0].data.map((v) => [v.cardId, v.action])).toEqual([['a', 'APPROVED'], ['b', 'APPROVED']]);
+    });
+
+    it('reports every eligible card as failed when the transaction fails, and nothing as approved', async () => {
+        vi.spyOn(prisma.referenceCard, 'findMany').mockResolvedValue([row('a'), row('b')]);
+        vi.spyOn(prisma.referenceCard, 'updateMany').mockResolvedValue({ count: 0 });
+        vi.spyOn(prisma.referenceCardVersion, 'createMany').mockResolvedValue({ count: 0 });
+        vi.spyOn(prisma, '$transaction').mockRejectedValue(new Error('deadlock'));
+        const res = await bulk(['a', 'b']);
+        expect(res.body.approved).toEqual([]);
+        expect(res.body.failed).toEqual([{ id: 'a', reason: 'update-failed' }, { id: 'b', reason: 'update-failed' }]);
+    });
+
+    it('caps a request at 200 ids and is admin only', async () => {
+        expect((await bulk(Array.from({ length: 201 }, (_, i) => `c${i}`))).status).toBe(400);
+        prisma.user.findUnique.mockResolvedValue({ role: 'USER' });
+        expect((await request(app()).post('/api/reference-cards/approve-bulk').set(as('learner')).send({ ids: ['a'] })).status).toBe(403);
+    });
+});

@@ -316,12 +316,14 @@ router.post('/tags/rename', requireAdmin, validate(tagRenameSchema), async (req,
 // ── Admin: review actions ───────────────────────────────────────────────────
 
 // POST /api/reference-cards/approve-bulk — "Accept All" over the card queue:
-// one batched request, per-item outcomes, eligibility = the FULL required-field
-// gate re-checked on the stored row.
+// per-item outcomes, eligibility = the FULL required-field gate re-checked on
+// the stored row. The eligible rows go LIVE in ONE transaction (2026-11-17): a
+// round trip per card ran past the request timeout on a queue of hundreds, and
+// the client now sends the queue in chunks of 100.
 router.post('/approve-bulk', requireAdmin, validate(bulkIdsSchema), idempotency(), async (req, res) => {
     try {
-        const approved = [];
         const failed = [];
+        const eligible = [];
         const uniqueIds = [...new Set(req.body.ids)];
         const rows = await prisma.referenceCard.findMany({ where: { id: { in: uniqueIds } }, select: CARD_SELECT });
         const byId = new Map(rows.map((r) => [r.id, r]));
@@ -331,22 +333,25 @@ router.post('/approve-bulk', requireAdmin, validate(bulkIdsSchema), idempotency(
             if (row.status !== 'PENDING') { failed.push({ id, reason: 'already-reviewed' }); continue; }
             const reasons = validateCardRules({ ...row, topic: row.topic?.name });
             if (reasons.length > 0) { failed.push({ id, reason: reasons.join('|') }); continue; }
-            try {
-                await prisma.$transaction([
-                    prisma.referenceCard.update({
-                        where: { id },
-                        data: { status: 'LIVE', reviewedBy: req.user.id, reviewedAt: new Date() },
-                    }),
-                    prisma.referenceCardVersion.create({
-                        data: { cardId: id, action: 'APPROVED', editor: req.user.id, snapshot: cardSnapshot(row) },
-                    }),
-                ]);
-                approved.push(id);
-            } catch (err) {
-                failed.push({ id, reason: 'update-failed' });
-            }
+            eligible.push(row);
         }
-        return res.status(200).json({ success: true, approved, failed });
+        if (eligible.length === 0) return res.status(200).json({ success: true, approved: [], failed });
+        const ids = eligible.map((r) => r.id);
+        try {
+            await prisma.$transaction([
+                prisma.referenceCard.updateMany({
+                    where: { id: { in: ids }, status: 'PENDING' },
+                    data: { status: 'LIVE', reviewedBy: req.user.id, reviewedAt: new Date() },
+                }),
+                prisma.referenceCardVersion.createMany({
+                    data: eligible.map((row) => ({ cardId: row.id, action: 'APPROVED', editor: req.user.id, snapshot: cardSnapshot(row) })),
+                }),
+            ]);
+        } catch (err) {
+            logger.error('card bulk approve transaction failed', { error: err.message });
+            return res.status(200).json({ success: true, approved: [], failed: [...failed, ...ids.map((id) => ({ id, reason: 'update-failed' }))] });
+        }
+        return res.status(200).json({ success: true, approved: ids, failed });
     } catch (error) {
         logger.error('card bulk approve failed', { error: error.message });
         return res.status(500).json({ error: 'Bulk approval failed.' });
