@@ -36,6 +36,7 @@ describe('shared quiz file routes', () => {
         const role = (id) => ({ id, role: id === 'admin' ? 'ADMIN' : 'USER' });
         vi.spyOn(prisma.user, 'upsert').mockImplementation(async ({ where }) => role(where.id));
         vi.spyOn(prisma.user, 'findUnique').mockImplementation(async ({ where }) => role(where.id));
+        vi.spyOn(prisma.folder, 'findMany').mockResolvedValue([]); // no hidden folders (handoutVisibility.test.js covers them)
         for (const fn of ['findMany', 'findUnique', 'create', 'update', 'delete']) {
             quizFile[fn] = vi.spyOn(prisma.quizFile, fn);
         }

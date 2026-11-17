@@ -400,6 +400,9 @@ model Folder {
   parent    Folder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
   children  Folder[]   @relation("FolderTree")
   createdAt DateTime   @default(now())
+  // Hidden from learners (2026-11-17): the admin keeps it, learners don't see
+  // it or anything inside it. services/handoutVisibility.js.
+  hidden    Boolean    @default(false)
   materials Material[]
   quizFiles QuizFile[]
 
@@ -443,6 +446,8 @@ model Material {
   // root previously threw a Prisma P2003 FK violation against the virtual 'root'.
   folderId    String?
   createdAt   DateTime @default(now())
+  // Hidden from learners (2026-11-17); a hidden folder hides it too.
+  hidden      Boolean  @default(false)
   folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
 
   // FK filtered on every folder delete + cascade; Postgres doesn't auto-index FKs.

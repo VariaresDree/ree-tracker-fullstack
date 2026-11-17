@@ -261,6 +261,33 @@ export const useFileManager = (currentUser, isAdmin) => {
   };
   const moveItem = (itemId, itemType, targetFolderId) => moveItems([{ id: itemId, type: itemType }], targetFolderId);
 
+  // Hides [{ id, type }] ('folder' | 'material') from learners, or shows them
+  // again (2026-11-17). Nothing is deleted; the admin still sees them, marked.
+  const setHidden = async (items, hidden) => {
+    const targets = items.filter((x) => x.type === 'folder' || x.type === 'material');
+    let done = 0; let queued = 0; let failed = 0;
+    for (const { id, type } of targets) {
+      const isFolder = type === 'folder';
+      try {
+        if (isFolder) await updateFolder(id, { hidden }); else await updateMaterial(id, { hidden });
+        done += 1;
+      } catch (error) {
+        if (!isOfflineErr(error)) { failed += 1; continue; }
+        useStore.getState().queuePendingWrite(isFolder ? `/api/materials/folders/${id}` : `/api/materials/${id}`, 'PATCH', { hidden });
+        queued += 1;
+      }
+      // Shown as it will be, whether saved now or once the queued write lands.
+      if (isFolder) setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, hidden } : f)));
+      else setMaterials((prev) => prev.map((m) => (m.id === id ? { ...m, hidden } : m)));
+    }
+    if (failed > 0) {
+      await fetchContents();
+      toast.error(failed === targets.length ? 'That didn’t save.' : `${done + queued} saved; ${failed} didn’t.`);
+    } else if (queued > 0) toast('Offline — saved locally, will sync when you reconnect.');
+    else if (done > 0) toast.success(hidden ? `Hidden from learners${done > 1 ? ` (${done})` : ''}.` : `Shown to learners${done > 1 ? ` (${done})` : ''}.`);
+    return { done, queued, failed };
+  };
+
   // The quiz files section saves its own changes; these keep the list in step.
   const putQuizFile = useCallback((item) => setQuizFiles((prev) => [...prev.filter((q) => q.id !== item.id), item]), []);
   const dropQuizFile = useCallback((id) => setQuizFiles((prev) => prev.filter((q) => q.id !== id)), []);
@@ -379,7 +406,7 @@ export const useFileManager = (currentUser, isAdmin) => {
   return {
     folders, materials, quizFiles, currentFolderId, breadcrumbs, isLoading, loadError, reload: fetchContents, isUploading, dragOverFolderId,
     navigateToFolder, navigateToBreadcrumb, revealFolder, createFolder, uploadAndCommitMaterial, addMaterialRecord,
-    deleteItem, renameItem, moveItem, moveItems, putQuizFile, dropQuizFile,
+    deleteItem, renameItem, moveItem, moveItems, setHidden, putQuizFile, dropQuizFile,
     handleDragStart, handleDragOver, handleDragLeave, handleDrop
   };
 };
