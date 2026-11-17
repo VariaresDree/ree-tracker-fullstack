@@ -13,10 +13,9 @@ const require = createRequire(import.meta.url);
 const DIR = path.resolve(__dirname, '../../../../ree-tracker-backend/scripts/data/cards');
 const files = fs.readdirSync(DIR).flatMap((subject) => fs.readdirSync(path.join(DIR, subject)).map((f) => path.join(DIR, subject, f)));
 
-const textsOf = (data) => [
-  ...data.drafts.flatMap((d) => [d.symbol, d.f, d.d, d.tip, ...(d.vars || []).flatMap((x) => [x.symbol, x.meaning])]),
-  ...data.revisions.flatMap((r) => [r.symbol, r.f, r.d, r.tip, ...(r.vars || []).flatMap((x) => [x.symbol, x.meaning])]),
-];
+// Units and a constant's value too (ESAS cards carry SI units, 2026-11-17).
+const fieldsOf = (c) => [c.symbol, c.f, c.d, c.tip, c.unit, c.value, ...(c.vars || []).flatMap((x) => [x.symbol, x.meaning, x.unit])];
+const textsOf = (data) => [...data.drafts.flatMap(fieldsOf), ...data.revisions.flatMap(fieldsOf)];
 
 describe('formula card data', () => {
   it('has data files to check', () => {
