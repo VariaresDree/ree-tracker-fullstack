@@ -6,6 +6,8 @@
 // no shell, and merging is when the owner has seen the data:
 //
 //   file       live cards under their syllabus subtopic: applied directly
+//   move       (optional, 2026-11-17) cards of the same subject sitting under
+//              another topic: moved to this one and filed, applied directly
 //   revisions  rewrites of live cards: queued in Admin › Formula cards › Review
 //   retire     queued in Review too
 //   drafts     new cards: queued in Review (PENDING)
@@ -49,7 +51,7 @@ function problemsIn(data) {
         if (issues.length || rules.length) out.push(`${label}: ${[...issues, ...rules].join(', ')}`);
     };
     const ids = new Set();
-    for (const [id, subtopic] of data.file) {
+    for (const [id, subtopic] of [...data.file, ...(data.move || [])]) {
         if (ids.has(id)) out.push(`filed twice: ${id}`);
         ids.add(id);
         if (!subtopic) out.push(`no subtopic for ${id}`);
@@ -82,6 +84,9 @@ const jsonb = (value) => `${q(JSON.stringify(value))}::jsonb`;
 function buildSql(data) {
     const topic = `t."name" = ${q(data.topic)} AND t."subject" = ${q(data.subject)}`;
     const subOf = (name) => `(SELECT s."id" FROM "SyllabusSubtopic" s JOIN "Topic" t ON t."id" = s."topicId" WHERE ${topic} AND s."normKey" = ${q(normSubtopicKey(name))} AND s."active")`;
+    // A card under another topic of the same subject comes to this one, filed.
+    const moving = (data.move || []).map(([id, subtopic, group]) => `UPDATE "ReferenceCard" SET "topicId" = (SELECT t."id" FROM "Topic" t WHERE ${topic}), "subtopicId" = ${subOf(subtopic)}, "subtopicTag" = ${q(group)}, "updatedAt" = now()
+WHERE "id" = ${q(id)} AND "subject" = ${q(data.subject)} AND "status" IN ('LIVE', 'PENDING') AND EXISTS (SELECT 1 FROM "Topic" t WHERE ${topic});`);
     const filing = data.file.map(([id, subtopic, group]) => `UPDATE "ReferenceCard" SET "subtopicId" = ${subOf(subtopic)}, "subtopicTag" = ${q(group)}, "updatedAt" = now()
 WHERE "id" = ${q(id)} AND "status" IN ('LIVE', 'PENDING');`);
     const revisions = data.revisions.map((rev) => `INSERT INTO "ReferenceCardRevision" ("id", "cardId", "content", "retire", "note", "status", "createdAt")
@@ -104,6 +109,8 @@ ON CONFLICT ("kind", "subject", "name") DO NOTHING;`;
         '-- Under their syllabus subtopics.',
         ...filing,
         '',
+        // Only when there are any, so earlier migrations stay as they were generated.
+        ...(moving.length ? ['-- Moved here from another topic, and filed.', ...moving, ''] : []),
         '-- Rewrites of live cards, waiting for review.',
         ...revisions,
         '',
@@ -129,7 +136,7 @@ if (require.main === module) {
     for (const key of keys) {
         const data = load(key);
         const problems = problemsIn(data);
-        console.log(`${key}: ${data.file.length} filed, ${data.revisions.length} rewrites, ${data.retire.length} retired, ${data.drafts.length} new, ${problems.length} with problems.`);
+        console.log(`${key}: ${data.file.length} filed, ${(data.move || []).length} moved in, ${data.revisions.length} rewrites, ${data.retire.length} retired, ${data.drafts.length} new, ${problems.length} with problems.`);
         for (const p of problems) console.log(`  ${p}`);
         bad += problems.length;
         if (args.includes('--write') && problems.length === 0) {
