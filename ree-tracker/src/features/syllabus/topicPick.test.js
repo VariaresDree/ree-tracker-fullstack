@@ -39,3 +39,21 @@ describe('reading a config', () => {
     expect(topicsLabel(MATH, 1)).toBe('Algebra and 3 more');
   });
 });
+
+describe('evenSplit and splitLabel (2026-11-17)', () => {
+  it('splits a session into whole shares that add up and differ by at most one', async () => {
+    const { evenSplit, splitLabel } = await import('./topicPick');
+    expect(evenSplit(20, 3)).toEqual([7, 7, 6]);
+    expect(evenSplit(30, 3)).toEqual([10, 10, 10]);
+    expect(evenSplit(5, 4)).toEqual([2, 1, 1, 1]);
+    expect(evenSplit(10, 0)).toEqual([]);
+    for (let total = 0; total <= 50; total += 1) for (let n = 1; n <= 8; n += 1) {
+      const s = evenSplit(total, n);
+      expect(s.reduce((a, b) => a + b, 0)).toBe(total);
+      expect(Math.max(...s) - Math.min(...s)).toBeLessThanOrEqual(1);
+    }
+    expect(splitLabel(20, 3)).toBe('6 or 7 questions from each');
+    expect(splitLabel(30, 3)).toBe('10 questions from each');
+    expect(splitLabel(20, 1)).toBe('');
+  });
+});

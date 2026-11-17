@@ -177,6 +177,7 @@ export default function SimulatorConfig({ config, setConfig, session, startSimul
           <TopicPicker
             topics={safeTOS[config.subject] || []}
             value={pickedTopics(config)}
+            count={config.count}
             onChange={(list) => setConfig({ ...config, ...topicFields(list, safeTOS[config.subject] || []), subtopicId: null })}
           />
         )}

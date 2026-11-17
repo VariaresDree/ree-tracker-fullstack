@@ -77,3 +77,14 @@ describe('TopicPicker', () => {
     expect(await axe(container, { rules: { 'color-contrast': { enabled: false } } })).toHaveNoViolations();
   });
 });
+
+describe('TopicPicker shows each topic’s equal share (2026-11-17)', () => {
+  it('with two or more picked and a session length, it says the share; none otherwise', () => {
+    const { rerender } = render(<TopicPicker topics={MATH} value={['Algebra', 'Trigonometry', 'Complex Numbers']} onChange={() => {}} count={20} />);
+    expect(screen.getByText('Equal share: 6 or 7 questions from each.')).toBeInTheDocument();
+    rerender(<TopicPicker topics={MATH} value={['Algebra']} onChange={() => {}} count={20} />);
+    expect(screen.queryByText(/Equal share/)).toBeNull();
+    rerender(<TopicPicker topics={MATH} value={['Algebra', 'Trigonometry']} onChange={() => {}} />);
+    expect(screen.queryByText(/Equal share/)).toBeNull();
+  });
+});

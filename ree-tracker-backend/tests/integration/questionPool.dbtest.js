@@ -117,3 +117,40 @@ describe('drawn by subtopic', () => {
         expect(q).toEqual({ subtopicId: null });
     });
 });
+
+describe('picked topics share a set equally, however big each is in the bank (2026-11-17)', () => {
+    const TOP = (n) => `${RUN}-top${n}`;
+    const SIZES = [30, 10, 6]; // like Algebra, Trigonometry and Complex Numbers
+    beforeAll(async () => {
+        await prisma.question.createMany({
+            data: SIZES.flatMap((size, t) => Array.from({ length: size }, (_, i) => ({
+                id: `${TOP(t)}-${i}`, subject: 'EE', subtopic: TOP(t), text: `t${t} q${i}`, options: ['A', 'B'], answer: 'A',
+            }))),
+        });
+    });
+    afterAll(async () => {
+        await prisma.question.deleteMany({ where: { subtopic: { in: SIZES.map((_, t) => TOP(t)) } } });
+    });
+
+    it('12 over three topics is 4, 4, 4; 13 is 5, 4, 4 in some order', async () => {
+        const topics = SIZES.map((_, t) => TOP(t));
+        for (let run = 0; run < 5; run += 1) {
+            const twelve = await questionPool.samplePool({ subject: 'EE', topics, limit: 12 });
+            expect(topics.map((t) => twelve.filter((q) => q.subtopic === t).length)).toEqual([4, 4, 4]);
+            const thirteen = await questionPool.samplePool({ subject: 'EE', topics, limit: 13 });
+            expect(topics.map((t) => thirteen.filter((q) => q.subtopic === t).length).sort()).toEqual([4, 4, 5]);
+        }
+    });
+
+    it('a topic that runs out leaves its places to the others, evenly', async () => {
+        const topics = SIZES.map((_, t) => TOP(t));
+        // 21 = 7 each would need 7 from the 6-question topic: it gives 6, the others 8 and 7.
+        const set21 = await questionPool.samplePool({ subject: 'EE', topics, limit: 21 });
+        const c21 = topics.map((t) => set21.filter((q) => q.subtopic === t).length);
+        expect(c21[2]).toBe(6);
+        expect([c21[0], c21[1]].sort()).toEqual([7, 8]);
+        // 30: the 6- and 10-question topics give all they have; the large one fills the rest.
+        const set30 = await questionPool.samplePool({ subject: 'EE', topics, limit: 30 });
+        expect(topics.map((t) => set30.filter((q) => q.subtopic === t).length)).toEqual([14, 10, 6]);
+    });
+});
