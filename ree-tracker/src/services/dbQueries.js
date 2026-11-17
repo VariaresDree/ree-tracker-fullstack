@@ -738,7 +738,25 @@ export const deleteReferenceCard = (id) => thenForgetCards(apiRequest(`/api/refe
 export const intakeReferenceCards = (cards, options) => apiRequest('/api/reference-cards/ai-intake', 'POST', { cards }, options);
 export const renameReferenceTag = (body) => thenForgetCards(apiRequest('/api/reference-cards/tags/rename', 'POST', body));
 // { approved, failed:[{id, reason}] } — same Accept-All contract as questions.
-export const bulkApproveReferenceCards = (ids) => thenForgetCards(apiRequest('/api/reference-cards/approve-bulk', 'POST', { ids }));
+// The server takes at most 200 ids a request, so a queue of hundreds goes in
+// chunks, one after another; `onProgress(done, total)` after each. A chunk that
+// fails outright marks its ids failed and the rest still go (2026-11-17).
+export const CARD_APPROVE_CHUNK = 100;
+export const bulkApproveReferenceCards = (ids, { onProgress } = {}) => thenForgetCards((async () => {
+    const approved = []; const failed = [];
+    for (let i = 0; i < ids.length; i += CARD_APPROVE_CHUNK) {
+        const chunk = ids.slice(i, i + CARD_APPROVE_CHUNK);
+        try {
+            const res = await apiRequest('/api/reference-cards/approve-bulk', 'POST', { ids: chunk }, { timeoutMs: BULK_APPROVE_TIMEOUT_MS });
+            approved.push(...(res?.approved || []));
+            failed.push(...(res?.failed || []));
+        } catch {
+            failed.push(...chunk.map((id) => ({ id, reason: 'request-failed' })));
+        }
+        onProgress?.(Math.min(i + chunk.length, ids.length), ids.length);
+    }
+    return { approved, failed };
+})());
 // Rewrites of live cards waiting for an admin (2026-11-16): approving one changes the card in place.
 export const fetchCardRevisions = async () => (await apiRequest('/api/reference-cards/revisions'))?.items || [];
 export const approveCardRevision = (id) => thenForgetCards(apiRequest(`/api/reference-cards/revisions/${encodeURIComponent(id)}/approve`, 'POST', {}));

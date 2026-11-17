@@ -270,6 +270,7 @@ export default function ReferenceAdminV2() {
     // Bulk accept
     const [showBulkConfirm, setShowBulkConfirm] = useState(false);
     const [isBulkApproving, setIsBulkApproving] = useState(false);
+    const [bulkProgress, setBulkProgress] = useState(null); // { done, total } while Accept all runs
 
     // Sources form
     const [sourceForm, setSourceForm] = useState({ title: '', kind: '', edition: '', section: '', url: '' });
@@ -321,15 +322,16 @@ export default function ReferenceAdminV2() {
         const ids = pending.map((c) => c.id);
         if (ids.length === 0) { setShowBulkConfirm(false); return; }
         setIsBulkApproving(true);
+        setBulkProgress({ done: 0, total: ids.length });
         try {
-            const res = await bulkApproveReferenceCards(ids);
+            const res = await bulkApproveReferenceCards(ids, { onProgress: (done, total) => setBulkProgress({ done, total }) });
             const approvedSet = new Set(res?.approved || []);
             setPending((p) => p.filter((c) => !approvedSet.has(c.id)));
             if (approvedSet.size > 0) toast.success(`${approvedSet.size} card${approvedSet.size === 1 ? '' : 's'} approved and live.`);
             const failedCount = (res?.failed || []).length;
             if (failedCount > 0) toast.error(`${failedCount} card${failedCount === 1 ? '' : 's'} failed and stay in the queue.`);
         } catch { toast.error('Bulk approval failed — nothing was removed.'); }
-        finally { setIsBulkApproving(false); setShowBulkConfirm(false); }
+        finally { setIsBulkApproving(false); setBulkProgress(null); setShowBulkConfirm(false); }
     };
 
     // ── Create / edit / delete ─────────────────────────────────────────────
@@ -774,7 +776,9 @@ export default function ReferenceAdminV2() {
                 footer={
                     <>
                         <Button variant="secondary" onClick={() => setShowBulkConfirm(false)} disabled={isBulkApproving}>Cancel</Button>
-                        <Button tone="success" onClick={handleBulkApprove} loading={isBulkApproving} disabled={isBulkApproving || pending.length === 0}>Approve {pending.length}</Button>
+                        <Button tone="success" onClick={handleBulkApprove} loading={isBulkApproving} disabled={isBulkApproving || pending.length === 0}>
+                            {bulkProgress ? `Approved ${bulkProgress.done} of ${bulkProgress.total}` : `Approve ${pending.length}`}
+                        </Button>
                     </>
                 }>
                 <p className="text-sm text-muted2">
