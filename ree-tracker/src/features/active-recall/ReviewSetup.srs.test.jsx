@@ -117,7 +117,9 @@ describe('ReviewSetup — presets', () => {
 describe('ReviewSetup — Build your own', () => {
   const card = () => screen.getByRole('button', { name: 'Build your own' });
   const builder = () => within(screen.getByRole('dialog', { name: 'Build your own' }));
-const topic = (name) => builder().getByRole('button', { name });
+// The Topics field opens a checklist (2026-11-17); a topic is a checkbox in it.
+const openTopics = () => { const f = builder().getByRole('button', { name: /^Topics/ }); if (f.getAttribute('aria-expanded') !== 'true') fireEvent.click(f); };
+const topic = (name) => { openTopics(); return builder().getByRole('checkbox', { name }); };
   const show = (props = baseProps()) => {
     render(<MemoryRouter><ReviewSetup {...props} /><BackButton /></MemoryRouter>);
     fireEvent.click(card());
@@ -186,14 +188,14 @@ const topic = (name) => builder().getByRole('button', { name });
 
   it('All subjects has no topic to pick, and starts across every subject', () => {
     const props = show();
-    expect(screen.queryByRole('group', { name: 'Topics' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Topics/ })).not.toBeInTheDocument();
     expect(started(props)).toMatchObject({ studyMode: 'interleaved', subject: 'All', subtopic: 'All' });
   });
 
   it('a subject covers all its topics until one is picked, and back', () => {
     const props = show();
     fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
-    expect(topic('All topics')).toHaveAttribute('aria-pressed', 'true');
+    expect(topic('All topics')).toBeChecked();
     expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'EE', subtopic: 'All' });
 
     fireEvent.click(topic('Machines'));
@@ -209,8 +211,8 @@ const topic = (name) => builder().getByRole('button', { name });
     fireEvent.click(builder().getByRole('radio', { name: 'EE' }));
     fireEvent.click(topic('Protection'));
     fireEvent.click(topic('Circuits'));
-    expect(topic('Circuits')).toHaveAttribute('aria-pressed', 'true');
-    expect(builder().getByText('2 of 3 picked')).toBeInTheDocument();
+    expect(topic('Circuits')).toBeChecked();
+    expect(builder().getByText('2 of 3')).toBeInTheDocument();
     expect(builder().getByText('20 choice · Circuits and 1 more · mixed')).toBeInTheDocument();
     expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'EE', subtopic: 'All', topics: ['Circuits', 'Protection'] });
     // Unpicking one leaves a single topic; picking every one is all of them.
@@ -219,7 +221,7 @@ const topic = (name) => builder().getByRole('button', { name });
     expect(started(props).topics).toBeUndefined();
     fireEvent.click(topic('Machines'));
     fireEvent.click(topic('Protection'));
-    expect(topic('All topics')).toHaveAttribute('aria-pressed', 'true');
+    expect(topic('All topics')).toBeChecked();
     expect(started(props)).toMatchObject({ studyMode: 'subject', subtopic: 'All' });
   });
 
@@ -281,14 +283,14 @@ const topic = (name) => builder().getByRole('button', { name });
       render(<MemoryRouter><ReviewSetup {...props} /></MemoryRouter>);
       expect(screen.getByText('100 choice · Machines and 1 more · mixed')).toBeInTheDocument();
       fireEvent.click(card());
-      expect(topic('Machines')).toHaveAttribute('aria-pressed', 'true');
-      expect(topic('Protection')).toHaveAttribute('aria-pressed', 'true');
+      expect(topic('Machines')).toBeChecked();
+      expect(topic('Protection')).toBeChecked();
     });
 
     it('a topic retired since falls back to its whole subject', () => {
       localStorage.setItem('ree:practice-builder', JSON.stringify({ studyMode: 'subtopic', subject: 'EE', subtopic: 'Gone', sessionMode: 'mcq', cognitiveFocus: 'mixed', count: 20, source: 'library' }));
       const props = show();
-      expect(topic('All topics')).toHaveAttribute('aria-pressed', 'true');
+      expect(topic('All topics')).toBeChecked();
       expect(started(props)).toMatchObject({ studyMode: 'subject', subject: 'EE', subtopic: 'All' });
     });
 
