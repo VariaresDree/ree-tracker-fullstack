@@ -81,7 +81,11 @@ describe('copy guard', () => {
     const hits = [];
     // Plus the page title and the PWA manifest: the first words people see.
     const extra = ['index.html', 'vite.config.js'].map((f) => resolve(process.cwd(), f));
-    for (const file of [...sourceFiles(SRC), ...extra]) {
+    // Lesson content is subject matter, not the app's voice (2026-11-17): a
+    // matrix, an electrical clearance or SCADA telemetry are the real terms.
+    // The emoji check below still covers it.
+    const isLesson = (file) => relative(SRC, file).split(/[\\/]/).join('/').startsWith('features/lessons/content/');
+    for (const file of [...sourceFiles(SRC).filter((f) => !isLesson(f)), ...extra]) {
       const lines = withoutComments(readFileSync(file, 'utf8')).split('\n');
       lines.forEach((line, i) => {
         BANNED.forEach((re) => {
