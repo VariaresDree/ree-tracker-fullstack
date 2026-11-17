@@ -33,7 +33,7 @@ describe('formula cards by topic', () => {
             it('names only subtopics its topic has', () => {
                 const names = syllabus.get(`${data.subject}|${data.topic}`);
                 expect(names, `${data.subject} › ${data.topic} is not in the syllabus seed`).toBeTruthy();
-                for (const s of [...data.file.map((f) => f[1]), ...data.drafts.map((d) => d.subtopic)]) {
+                for (const s of [...data.file.map((f) => f[1]), ...(data.move || []).map((f) => f[1]), ...data.drafts.map((d) => d.subtopic)]) {
                     expect(names.has(s.toLowerCase()), s).toBe(true);
                 }
             });
@@ -43,4 +43,27 @@ describe('formula cards by topic', () => {
             });
         });
     }
+});
+
+// Moving cards between topics (2026-11-17): Calculus 2's series cards belong
+// under Advanced Engineering Mathematics › Power Series.
+describe('moving cards to this topic', () => {
+    const base = { subject: 'Mathematics', topic: 'Power Topic', migration: 'x', file: [], revisions: [], retire: [], drafts: [] };
+
+    it('moves and files the card, only within the subject, and only when the topic exists', () => {
+        const sql = buildSql({ ...base, move: [['card-1', 'Power Series', 'Tests']] });
+        expect(sql).toContain('-- Moved here from another topic, and filed.');
+        expect(sql).toMatch(/SET "topicId" = \(SELECT t."id" FROM "Topic" t WHERE t."name" = 'Power Topic'/);
+        expect(sql).toMatch(/"subtopicTag" = 'Tests'/);
+        expect(sql).toMatch(/WHERE "id" = 'card-1' AND "subject" = 'Mathematics' AND "status" IN \('LIVE', 'PENDING'\) AND EXISTS/);
+    });
+
+    it('adds nothing when there is nothing to move, so earlier migrations are unchanged', () => {
+        expect(buildSql(base)).not.toContain('Moved here');
+        expect(buildSql({ ...base, move: [] })).toBe(buildSql(base));
+    });
+
+    it('a card both filed and moved is a problem', () => {
+        expect(problemsIn({ ...base, file: [['card-1', 'Power Series', null]], move: [['card-1', 'Power Series', null]] })).toContain('filed twice: card-1');
+    });
 });
