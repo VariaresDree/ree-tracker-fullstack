@@ -7,13 +7,24 @@
 // flip card with Fronts/Backs, topic chips and fold controls: the same
 // content, much harder to scan. Hide answers makes it a self-test (say each one,
 // tap to check), and Print this sheet opens it on /print/formulas.
+//
+// 2026-11-18: a subject's sheet is up to 900 rows, so rows are typeset 25 at a
+// time as they near the screen (LazyMount), with KaTeX straight from a shared
+// cache (fastMath). Each formula shows one result per line, and the symbol line
+// that repeated the formula's start is gone.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, StatusPill } from '../../components/ui';
 import { Eye, EyeOff, LayoutGrid, Printer } from '../../components/ui/icons';
-import LatexRenderer from '../../components/LatexRenderer';
 import { withMathDelimiters } from '../../utils/mathDelimiters';
 import { GENERAL, groupCards } from './groupCards';
+import { CardMath, FitLines } from './CardBody';
+import { formulaLines } from './fastMathText';
+import LazyMount from './LazyMount';
+import { chunked } from './fastMathText';
+
+const ROWS_PER_CHUNK = 25;
+const ROW_HEIGHT = 72;
 
 const countLabel = (n) => `${n} card${n === 1 ? '' : 's'}`;
 
@@ -29,11 +40,6 @@ function SheetRow({ card, hidden, onReveal }) {
           {card.name}
           {isConstant && <span className="ml-2 text-xs font-normal text-muted2">constant</span>}
         </p>
-        {card.symbol && (
-          <span className="text-xs text-muted2 [&_p]:!m-0">
-            <LatexRenderer inline content={withMathDelimiters(card.symbol)} />
-          </span>
-        )}
       </div>
       {hidden ? (
         <button
@@ -47,15 +53,13 @@ function SheetRow({ card, hidden, onReveal }) {
       ) : (
       <div className="min-w-0 flex flex-col gap-0.5">
         {main ? (
-          <div className="text-fluid-base text-textMain math-scroll-mobile min-w-0 [&_p]:!m-0">
-            <LatexRenderer content={withMathDelimiters(main)} />
-          </div>
+          <FitLines lines={formulaLines(withMathDelimiters(main))} className="text-fluid-base text-textMain [&_.katex-display]:!text-left [&_.katex-display>.katex]:!text-left" />
         ) : card.dimensionless ? (
           <p className="text-sm text-muted2">Dimensionless</p>
         ) : null}
         {unit && (
-          <p className="text-xs text-muted2 [&_p]:!m-0">
-            Unit: <LatexRenderer inline content={withMathDelimiters(unit)} />
+          <p className="text-xs text-muted2">
+            Unit: <CardMath value={unit} inline />
           </p>
         )}
       </div>
@@ -81,6 +85,12 @@ export default function QuickSheet({ cards, scopeLabel, by = 'topic', topicOrder
     setRevealed(new Set());
   };
   const row = (c) => <SheetRow key={c.id} card={c} hidden={hiding && !revealed.has(c.id)} onReveal={reveal} />;
+  // Rows in chunks, each typeset when it nears the screen; the page's first is drawn at once.
+  const rows = (list, top) => chunked(list, ROWS_PER_CHUNK).map((chunk, i) => (
+    <LazyMount key={chunk[0].id} eager={top && i === 0} estimate={chunk.length * ROW_HEIGHT}>
+      <ul className="divide-y divide-border">{chunk.map(row)}</ul>
+    </LazyMount>
+  ));
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,7 +109,7 @@ export default function QuickSheet({ cards, scopeLabel, by = 'topic', topicOrder
           </Button>
         )}
       </div>
-      {groups.map((g) => (
+      {groups.map((g, gi) => (
         <section key={g.label} aria-label={single ? scopeLabel : g.label} className="flex flex-col gap-1">
           {!single && (
             <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
@@ -113,14 +123,14 @@ export default function QuickSheet({ cards, scopeLabel, by = 'topic', topicOrder
             </div>
           )}
           {g.subgroups.length > 1 || (g.subgroups.length === 1 && g.subgroups[0].label !== GENERAL) ? (
-            g.subgroups.map((sg) => (
+            g.subgroups.map((sg, si) => (
               <div key={sg.label} className="flex flex-col">
                 <p className="text-eyebrow pt-3">{sg.label}</p>
-                <ul className="divide-y divide-border">{sg.cards.map(row)}</ul>
+                {rows(sg.cards, gi === 0 && si === 0)}
               </div>
             ))
           ) : (
-            <ul className="divide-y divide-border">{(g.subgroups[0]?.cards || g.cards).map(row)}</ul>
+            rows(g.subgroups[0]?.cards || g.cards, gi === 0)
           )}
         </section>
       ))}

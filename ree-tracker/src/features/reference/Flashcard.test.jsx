@@ -115,14 +115,16 @@ describe('Flashcard — asking', () => {
     expect(front().textContent).toContain('Capacitive Reactance');
     expect(front().textContent).toContain('What’s the formula?');
     expect(front().textContent).not.toContain('1/(2*pi*f*C)');
-    expect(back().textContent).toContain('1/(2*pi*f*C)');
     expect(screen.getByRole('button')).toHaveAccessibleDescription(/What’s the formula\?/);
+    fireEvent.click(screen.getByRole('button'));
+    expect(back().textContent).toContain('1/(2*pi*f*C)');
   });
 
   it('asks for a value, on a constant', () => {
     render(<Flashcard card={{ ...CARD, kind: 'constant', formulaLatex: null, valueUnit: '8.854e-12' }} ask="formula" />);
     expect(front().textContent).toContain('What’s its value?');
     expect(front().textContent).not.toContain('8.854');
+    fireEvent.click(screen.getByRole('button'));
     expect(back().textContent).toContain('8.854');
   });
 
@@ -145,7 +147,16 @@ describe('Flashcard — asking', () => {
 });
 
 describe('Flashcard — the back', () => {
-  const back = () => document.querySelector('.flip-back');
+  // The back is built on the first press, not with every card on the page.
+  const back = () => { const b = document.querySelector('.flip-back'); if (!b.textContent.includes('Board tip') && !b.textContent.includes('Where')) fireEvent.click(screen.getByRole('button')); return b; };
+
+  it('is not built until it is wanted, and a hover or focus builds it ahead of the press', () => {
+    render(<Flashcard card={CARD} />);
+    const b = document.querySelector('.flip-back');
+    expect(b.textContent).not.toContain('Board tip');
+    fireEvent.pointerEnter(screen.getByRole('button'));
+    expect(b.textContent).toContain('Board tip');
+  });
 
   it('stands alone: the name, the formula, each symbol, what it is for, the tip', () => {
     render(<Flashcard card={CARD} />);

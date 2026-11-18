@@ -32,6 +32,8 @@ import UnitsLink from './UnitsLink';
 const FormulaDrill = lazy(() => import('./drill/FormulaDrill'));
 import { GENERAL, groupCards } from './groupCards';
 import ReferenceStudyMode from './ReferenceStudyMode';
+import LazyMount from './LazyMount';
+import { chunked } from './fastMathText';
 import { dueCardIds, useCardReviews } from './useCardReviews';
 import { pickRecallTopic, weakCards } from './weakCards';
 import { normalizeSubject } from '@ree/shared';
@@ -88,18 +90,29 @@ const anchorOf = (g) => `cards-${g.id || 'other'}`;
 // A topic's cards. Under its syllabus subtopics once its cards carry them
 // (2026-11-16): "On this page" jumps to a heading per subtopic, in syllabus
 // order. Before that, under its tag headings with a chip per tag to narrow to one.
+// Cards are typeset a dozen at a time as they near the screen (2026-11-18): a big
+// topic is 150 cards, and drawing them all at once froze phones.
+const CARDS_PER_CHUNK = 12;
+const CARD_HEIGHT = 230;
+const columnsGuess = () => (typeof window === 'undefined' ? 1 : window.innerWidth >= 1280 ? 3 : window.innerWidth >= 700 ? 2 : 1);
 function TopicCards({ cards }) {
-  const groups = groupCards(cards, { by: 'subtopic' });
+  const groups = useMemo(() => groupCards(cards, { by: 'subtopic' }), [cards]);
   const bySyllabus = groups.some((g) => g.id);
   const [only, setOnly] = useState(null);
   const shown = groups.filter((g) => !only || g.label === only);
-  const grid = (list) => (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-      {list.map((card) => (
-        <div key={card.id} className="flex flex-col gap-1 min-w-0">
-          <Flashcard card={card} hideTag />
-          <UnitsLink card={card} />
-        </div>
+  const grid = (list, top = false) => (
+    <div className="flex flex-col gap-4">
+      {chunked(list, CARDS_PER_CHUNK).map((chunk, i) => (
+        <LazyMount key={chunk[0].id} eager={top && i === 0} estimate={Math.ceil(chunk.length / columnsGuess()) * CARD_HEIGHT}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
+            {chunk.map((card) => (
+              <div key={card.id} className="flex flex-col gap-1 min-w-0">
+                <Flashcard card={card} hideTag />
+                <UnitsLink card={card} />
+              </div>
+            ))}
+          </div>
+        </LazyMount>
       ))}
     </div>
   );
@@ -118,25 +131,25 @@ function TopicCards({ cards }) {
             ))}
           </ul>
         </nav>
-        {groups.map((g) => (
+        {groups.map((g, gi) => (
           <section key={anchorOf(g)} id={anchorOf(g)} aria-labelledby={`${anchorOf(g)}-h`} className="flex flex-col gap-3 scroll-mt-20 border-t border-border pt-4">
             <h3 id={`${anchorOf(g)}-h`} className="text-fluid-lg font-bold text-textMain flex items-baseline gap-2 [overflow-wrap:anywhere]">
               {g.label} <span className="text-xs font-normal text-muted2 tabular-nums">{g.cards.length}</span>
             </h3>
             {subgroupHeads(g)
-              ? g.subgroups.map((sg) => (
+              ? g.subgroups.map((sg, si) => (
                 <div key={sg.label} className="flex flex-col gap-2">
                   <p className="text-eyebrow">{sg.label} · {sg.cards.length}</p>
-                  {grid(sg.cards)}
+                  {grid(sg.cards, gi === 0 && si === 0)}
                 </div>
               ))
-              : grid(g.cards)}
+              : grid(g.cards, gi === 0)}
           </section>
         ))}
       </div>
     );
   }
-  if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards);
+  if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards, true);
   return (
     <div className="flex flex-col gap-5">
       <div role="group" aria-label="Show one tag" className="flex gap-2 flex-wrap">
@@ -147,10 +160,10 @@ function TopicCards({ cards }) {
           </Button>
         ))}
       </div>
-      {shown.map((g) => (
+      {shown.map((g, gi) => (
         <section key={g.label} aria-label={g.label} className="flex flex-col gap-3">
           <p className="text-eyebrow">{g.label} · {g.cards.length}</p>
-          {grid(g.cards)}
+          {grid(g.cards, gi === 0)}
         </section>
       ))}
     </div>
