@@ -42,6 +42,17 @@ describe('a handout uploaded to Firebase keeps its file path', () => {
         expect(create.mock.calls[0][0].data.storagePath).toBeNull();
     });
 
+    it('a link must be a web address: javascript: and data: are refused, a bare address gets https', async () => {
+        for (const url of ['javascript:alert(1)', 'data:text/html,hi', 'not a url']) {
+            const res = await request(app).post('/api/materials/upload').set(as('admin')).send({ ...LINK, type: 'link', url });
+            expect(res.status).toBe(400);
+        }
+        expect(create).not.toHaveBeenCalled();
+        const ok = await request(app).post('/api/materials/upload').set(as('admin')).send({ ...LINK, type: 'link', url: 'nptel.ac.in/courses' });
+        expect(ok.status).toBe(201);
+        expect(create.mock.calls[0][0].data.url).toBe('https://nptel.ac.in/courses');
+    });
+
     it('a link with no file has no path', async () => {
         await request(app).post('/api/materials/upload').set(as('admin')).send(LINK);
         expect(create.mock.calls[0][0].data.storagePath).toBeNull();

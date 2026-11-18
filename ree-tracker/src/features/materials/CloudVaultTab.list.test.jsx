@@ -235,3 +235,40 @@ describe('moving', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('1 quiz file inside moves to the top level instead.');
   });
 });
+
+describe('links in the handouts (2026-11-18)', () => {
+  const SITE = { id: 'm9', name: 'NPTEL machines', type: 'link', url: 'https://nptel.ac.in/courses/108', folderId: null, createdAt: '2026-01-09' };
+
+  it('a website tile names the site and opens it in the browser, not the viewer', () => {
+    hook.materials.push(SITE);
+    const onViewMaterial = vi.fn();
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    try {
+      show({ onViewMaterial });
+      expect(screen.getByText('nptel.ac.in')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open NPTEL machines in your browser' })).toHaveAttribute('href', SITE.url);
+      fireEvent.click(screen.getByText('NPTEL machines'));
+      expect(open).toHaveBeenCalledWith(SITE.url, '_blank', 'noopener,noreferrer');
+      expect(onViewMaterial).not.toHaveBeenCalled();
+    } finally {
+      open.mockRestore();
+      hook.materials.pop();
+    }
+  });
+
+  it('the admin sees what a pasted link becomes, and it is saved as that kind', async () => {
+    show({ isAdmin: true });
+    fireEvent.click(screen.getByRole('button', { name: /Add a file or link/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add a link' }));
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Board handouts' } });
+    const link = screen.getByLabelText('Link');
+    fireEvent.change(link, { target: { value: 'javascript:alert(1)' } });
+    expect(screen.getByText('Paste a web address (http or https).')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add link' })).toBeDisabled();
+    fireEvent.change(link, { target: { value: 'drive.google.com/drive/folders/1AbC?usp=sharing' } });
+    expect(screen.getByText(/Google Drive folder: learners see its files here/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add link' }));
+    expect(hook.addMaterialRecord).toHaveBeenCalledWith({ name: 'Board handouts', url: 'https://drive.google.com/drive/folders/1AbC?usp=sharing', type: 'folder' });
+  });
+});
+
