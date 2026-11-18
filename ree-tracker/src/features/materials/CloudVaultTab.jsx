@@ -10,16 +10,21 @@
 // learners instead of deleting it. Hidden items stay in the admin's view,
 // marked, with Show to learners; inside a hidden folder a note says so; and
 // "View as a learner" previews what learners get.
+//
+// Links (2026-11-18): a pasted link is read as what it is (handoutLink.js). A
+// Drive folder lists its files in the app, a Google file shows its preview,
+// YouTube plays, and any other website opens in the browser.
 import React, { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useFileManager } from './useFileManager';
 import { Badge, Button, Card, EmptyState, FormField, Grid, IconChip, Input, Modal, Select, Skeleton, StickyToolbar } from '../../components/ui';
-import { FolderOpen, FolderInput, FileAudio, FileImage, FileText, FileType, FileUp, Link, Pencil, Plus, SquareCheck, Video, Trash2, Eye, EyeOff, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
+import { FolderOpen, FolderInput, FileAudio, FileImage, FileText, FileType, FileUp, Globe, Pencil, Plus, SquareCheck, Video, Trash2, Eye, EyeOff, ExternalLink, Search, TriangleAlert, CloudOff } from '../../components/ui/icons';
 import { hiddenBy, forLearner } from './handoutVisibility';
 import { lazy } from '../../utils/lazyWithRetry';
 import { byName, readSort, sortItems, writeSort } from './sortNames';
 import { readRecentHandouts, rememberHandout } from './recentHandouts';
 import SaveOffline from './SaveOffline';
 import { useMyFiles } from '../my-files/filesStore';
+import { linkHint, linkHost, readHandoutLink } from './handoutLink';
 
 // Actions on a tile: in view on a phone, on hover or keyboard focus otherwise.
 const TILE_ACTIONS = 'flex items-center opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity bg-surface2/80 backdrop-blur rounded-[var(--radius-sm)] p-1';
@@ -36,7 +41,9 @@ const KINDS = {
   image: { icon: FileImage, label: 'Image', tone: 'amber' },
   audio: { icon: FileAudio, label: 'Audio', tone: 'signal' },
   video: { icon: Video, label: 'Video', tone: 'danger' },
-  link: { icon: Link, label: 'Link', tone: 'success' },
+  folder: { icon: FolderOpen, label: 'Drive folder', tone: 'signal' },
+  doc: { icon: FileText, label: 'Google file', tone: 'accent' },
+  link: { icon: Globe, label: 'Website', tone: 'success' },
 };
 const kindOf = (type) => KINDS[type] || { icon: FileType, label: type === 'file' || !type ? 'File' : type, tone: 'muted' };
 const keyOf = (type, id) => `${type}:${id}`;
@@ -119,7 +126,9 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
 
   const openFile = (m) => {
     setRecentIds(rememberHandout(uid, m.id));
-    onViewMaterial(m);
+    // A website can't show inside the app: it opens in the browser.
+    if (m.type === 'link') window.open(m.url, '_blank', 'noopener,noreferrer');
+    else onViewMaterial(m);
   };
 
   // A folder's parent chain as "Machines / Transformers", for a search result.
@@ -173,20 +182,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
     setIsCreatingFolder(false);
   };
 
+  // What the pasted link is (a site, YouTube, a Drive file or folder), so the
+  // admin sees how learners will get it before adding it.
+  const pastedLink = readHandoutLink(newMaterial.url);
   const handleAddMaterialClick = async () => {
-    if (!isAdmin || !newMaterial.name || !newMaterial.url) return;
-    let targetUrl = newMaterial.url;
-    let targetType = newMaterial.type;
-
-    if (uploadMode === 'link') {
-        if (targetUrl.includes('youtube.com') || targetUrl.includes('youtu.be')) {
-            targetType = 'video';
-        } else if (targetUrl.includes('drive.google.com/file/d/')) {
-            targetUrl = targetUrl.replace('/view', '/preview');
-        }
-    }
-
-    await addMaterialRecord({ name: newMaterial.name.trim(), url: targetUrl, type: targetType });
+    if (!isAdmin || !newMaterial.name.trim() || !pastedLink) return;
+    await addMaterialRecord({ name: newMaterial.name.trim(), url: pastedLink.url, type: pastedLink.type });
     setNewMaterial({ name: '', url: '', type: 'pdf' });
     setIsAddingMaterial(false);
   };
@@ -380,7 +381,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
         <Card padding="md" className="flex flex-col gap-4 shadow-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Add from">
             <Button size="sm" variant={uploadMode === 'local' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'local'} onClick={() => setUploadMode('local')}>Upload a file</Button>
-            <Button size="sm" variant={uploadMode === 'link' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'link'} onClick={() => setUploadMode('link')}>Link (YouTube or Google Drive)</Button>
+            <Button size="sm" variant={uploadMode === 'link' ? 'outline' : 'ghost'} aria-pressed={uploadMode === 'link'} onClick={() => setUploadMode('link')}>Add a link</Button>
           </div>
 
 
@@ -400,8 +401,12 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               <FormField label="Title">
                 <Input value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} placeholder="e.g. AC circuits lecture" />
               </FormField>
-              <FormField label="Link" hint="A YouTube link, or a Google Drive link shared with anyone who has it.">
-                <Input type="url" value={newMaterial.url} onChange={e => setNewMaterial({...newMaterial, url: e.target.value})} placeholder="https://" />
+              <FormField
+                label="Link"
+                hint={linkHint(pastedLink) || 'A website, a YouTube video or playlist, or a Google Drive file or folder.'}
+                error={newMaterial.url.trim() && !pastedLink ? 'Paste a web address (http or https).' : undefined}
+              >
+                <Input type="url" inputMode="url" value={newMaterial.url} onChange={e => setNewMaterial({...newMaterial, url: e.target.value})} placeholder="https://" />
               </FormField>
             </div>
           )}
@@ -409,7 +414,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
           <div className="flex flex-wrap justify-end gap-3 mt-2 border-t border-border2 pt-4">
             <Button variant="secondary" onClick={() => setIsAddingMaterial(false)}>Cancel</Button>
             {uploadMode === 'link' && (
-                <Button onClick={handleAddMaterialClick} disabled={!newMaterial.name || !newMaterial.url || isUploading}>Add link</Button>
+                <Button onClick={handleAddMaterialClick} disabled={!newMaterial.name.trim() || !pastedLink || isUploading}>Add link</Button>
             )}
           </div>
         </Card>
@@ -474,7 +479,7 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
             <div className="flex gap-2 flex-wrap">
               {recentFiles.map((m) => (
                 <Button key={m.id} size="sm" variant="secondary" aria-label={`Open ${m.name}`} onClick={() => openFile(m)} className="max-w-full">
-                  <FileText size={14} strokeWidth={1.75} aria-hidden="true" /> <span className="truncate">{m.name}</span>
+                  {React.createElement(kindOf(m.type).icon, { size: 14, strokeWidth: 1.75, 'aria-hidden': true })} <span className="truncate">{m.name}</span>
                 </Button>
               ))}
             </div>
@@ -593,14 +598,21 @@ export default function CloudVaultTab({ currentUser, isAdmin, onViewMaterial, op
               ) : (
                 <div title={m.name} className="font-bold text-sm text-textMain mt-3 leading-relaxed flex-1 min-w-0 line-clamp-2 [overflow-wrap:anywhere]">{m.name}</div>
               )}
+              {m.type === 'link' && <p className="text-xs text-muted2 mt-1 truncate">{linkHost(m.url)}</p>}
               {hidden !== null && <div className="mt-2"><HiddenBadge by={hidden} /></div>}
               {query && m.folderId && <p className="text-xs text-muted2 mt-1 [overflow-wrap:anywhere]">{folderPath(m.folderId)}</p>}
               <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-border2/50">
-                <Button size="sm" variant="secondary" className="flex-1" onClick={(e) => { e.stopPropagation(); openFile(m); }} aria-label={`View ${m.name}`}>
-                  View
-                </Button>
+                {m.type === 'link' ? (
+                  <Button as="a" size="sm" variant="secondary" className="flex-1" href={m.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${m.name} in your browser`} onClick={(e) => { e.stopPropagation(); setRecentIds(rememberHandout(uid, m.id)); }}>
+                    <ExternalLink size={14} strokeWidth={1.75} aria-hidden="true" /> Open site
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="secondary" className="flex-1" onClick={(e) => { e.stopPropagation(); openFile(m); }} aria-label={`View ${m.name}`}>
+                    View
+                  </Button>
+                )}
                 <SaveOffline material={m} uid={uid} saved={savedIds.has(m.id)} />
-                {m.type !== 'video' && (
+                {m.type !== 'video' && m.type !== 'link' && (
                     <Button as="a" size="icon" variant="secondary" href={m.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${m.name} in a new tab`} onClick={(e) => e.stopPropagation()}>
                       <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
                     </Button>

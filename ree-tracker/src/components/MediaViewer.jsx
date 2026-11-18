@@ -2,23 +2,17 @@
 import { useState } from 'react';
 import ZoomableImage from './ZoomableImage';
 import { Button } from './ui';
-import { AudioWaveform, ExternalLink, Minus, Plus } from './ui/icons';
+import { AudioWaveform, ExternalLink, Globe, Minus, Plus } from './ui/icons';
 import { externalPdfUrl, isDriveUrl, normalizePdfUrl } from '../utils/pdfUrl';
-
-const extractYouTubeId = (url) => {
-  if (!url) return null;
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : null;
-};
+import { driveFolderId, folderEmbedUrl, folderOpenUrl, googleDocPreview, linkHost, youtubeEmbed } from '../features/materials/handoutLink';
 
 const ZOOM_MIN = 100;
 const ZOOM_MAX = 250;
 const ZOOM_STEP = 50;
 
-function OpenExternally({ href, label }) {
+function OpenExternally({ href, label, variant = 'secondary' }) {
   return (
-    <Button as="a" size="sm" variant="secondary" href={href} target="_blank" rel="noopener noreferrer">
+    <Button as="a" size="sm" variant={variant} href={href} target="_blank" rel="noopener noreferrer">
       <ExternalLink size={14} strokeWidth={1.75} aria-hidden="true" /> {label}
     </Button>
   );
@@ -29,12 +23,14 @@ function OpenExternally({ href, label }) {
 // foot of the frame or the top (so nothing may clip it). On a phone neither
 // shows any, and Drive refits its page to the frame's width: widening the frame
 // enlarges the page, sharply, and the box around it scrolls.
-function PdfFrame({ url, title }) {
+// Also Google's previews of a Docs file and a Drive folder's file list: each
+// passes its own frame src and its way out.
+function PdfFrame({ url, title, src = normalizePdfUrl(url), openHref = externalPdfUrl(url), openLabel = isDriveUrl(url) ? 'Open in Drive' : 'Open in a new tab', note = null, zoomable = true }) {
   const [zoom, setZoom] = useState(ZOOM_MIN);
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
       <div className="flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-1 sm:hidden">
+        {zoomable && <div className="flex items-center gap-1 sm:hidden">
           <Button size="icon" variant="secondary" aria-label="Zoom out" disabled={zoom <= ZOOM_MIN} onClick={() => setZoom((z) => z - ZOOM_STEP)}>
             <Minus size={16} strokeWidth={1.75} aria-hidden="true" />
           </Button>
@@ -42,14 +38,15 @@ function PdfFrame({ url, title }) {
           <Button size="icon" variant="secondary" aria-label="Zoom in" disabled={zoom >= ZOOM_MAX} onClick={() => setZoom((z) => z + ZOOM_STEP)}>
             <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
           </Button>
-        </div>
+        </div>}
         <div className="ml-auto">
-          <OpenExternally href={externalPdfUrl(url)} label={isDriveUrl(url) ? 'Open in Drive' : 'Open in a new tab'} />
+          <OpenExternally href={openHref} label={openLabel} />
         </div>
       </div>
+      {note && <p className="text-xs text-muted2 shrink-0">{note}</p>}
       <div className="flex-1 min-h-0 overflow-auto rounded-[var(--radius-default)] border border-border2 bg-surface2">
         <iframe
-          src={normalizePdfUrl(url)}
+          src={src}
           className="block h-full border-0"
           style={{ width: `${zoom}%` }}
           title={title}
@@ -61,16 +58,27 @@ function PdfFrame({ url, title }) {
   );
 }
 
+// A website can't be shown inside the app (most refuse to be framed), so it
+// opens in the browser.
+function WebLink({ url }) {
+  return (
+    <div className="p-8 text-center border border-border2 rounded-[var(--radius-lg)] bg-surface mt-8 flex flex-col items-center gap-4">
+      <Globe size={32} strokeWidth={1.5} aria-hidden="true" className="text-muted" />
+      <div className="flex flex-col gap-1 min-w-0 max-w-full">
+        <p className="text-sm font-bold text-textMain [overflow-wrap:anywhere]">{linkHost(url) || url}</p>
+        <p className="text-sm text-muted2">This site opens in your browser.</p>
+      </div>
+      <OpenExternally href={url} label="Open the site" variant="primary" />
+    </div>
+  );
+}
+
 export default function MediaViewer({ item }) {
   if (!item) return null;
 
   switch (item.type) {
     case 'video': {
-      let embedUrl = item.url;
-      if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
-        const videoId = extractYouTubeId(item.url);
-        if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}`;
-      }
+      const embedUrl = youtubeEmbed(item.url) || item.url;
       return (
         <div className="w-full aspect-video rounded-[var(--radius-lg)] overflow-hidden border border-border2 shadow-lg bg-black">
           <iframe
@@ -109,6 +117,23 @@ export default function MediaViewer({ item }) {
 
     case 'pdf':
       return <PdfFrame url={item.url} title={item.title} />;
+
+    case 'folder': {
+      const id = driveFolderId(item.url);
+      if (!id) return <WebLink url={item.url} />;
+      return (
+        <PdfFrame
+          url={item.url} title={item.title} src={folderEmbedUrl(id)} openHref={folderOpenUrl(id)} openLabel="Open in Google Drive" zoomable={false}
+          note="Tap a file to open it. If the list stays empty, open the folder in Google Drive."
+        />
+      );
+    }
+
+    case 'doc':
+      return <PdfFrame url={item.url} title={item.title} src={googleDocPreview(item.url) || item.url} openHref={item.url} openLabel="Open in Google" />;
+
+    case 'link':
+      return <WebLink url={item.url} />;
 
     default:
       return (

@@ -69,4 +69,30 @@ describe('MaterialViewer', () => {
     show({ type: 'file', url: 'https://x.test/a.docx' });
     expect(screen.getByRole('link', { name: 'Open in a new tab' })).toHaveAttribute('href', 'https://x.test/a.docx');
   });
+
+  it('a Drive folder lists its files in the app, with a way out to Drive', () => {
+    show({ type: 'folder', url: 'https://drive.google.com/drive/folders/1AbC?usp=sharing' });
+    expect(screen.getByTitle('AC notes')).toHaveAttribute('src', 'https://drive.google.com/embeddedfolderview?id=1AbC#list');
+    expect(screen.getByRole('link', { name: 'Open in Google Drive' })).toHaveAttribute('href', 'https://drive.google.com/drive/folders/1AbC');
+  });
+
+  it('a Google Slides deck shows its preview', () => {
+    show({ type: 'doc', url: 'https://docs.google.com/presentation/d/1P/edit' });
+    expect(screen.getByTitle('AC notes')).toHaveAttribute('src', 'https://docs.google.com/presentation/d/1P/preview');
+    expect(screen.getByRole('link', { name: 'Open in Google' })).toHaveAttribute('href', 'https://docs.google.com/presentation/d/1P/edit');
+  });
+
+  it('a website opens in the browser, never in a frame', () => {
+    show({ type: 'link', url: 'https://nptel.ac.in/courses/108' });
+    expect(screen.queryByTitle('AC notes')).toBeNull();
+    expect(screen.getByText('nptel.ac.in')).toBeInTheDocument();
+    const open = screen.getByRole('link', { name: 'Open the site' });
+    expect(open).toHaveAttribute('href', 'https://nptel.ac.in/courses/108');
+    expect(open).toHaveAttribute('target', '_blank');
+  });
+
+  it('a YouTube short plays in the embeddable player', () => {
+    show({ type: 'video', url: 'https://youtube.com/shorts/dQw4w9WgXcQ' });
+    expect(screen.getByTitle('AC notes')).toHaveAttribute('src', 'https://www.youtube.com/embed/dQw4w9WgXcQ');
+  });
 });

@@ -172,6 +172,7 @@ export {
   SquareCheck,
   Video,
   Link,
+  Globe,
   // Battle room: removing a player, inviting
   UserMinus,
   Share2,

@@ -1,4 +1,5 @@
 const express = require('express');
+const { linkUrl } = require('@ree/shared');
 const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const { requireAdmin, isAdminUser } = require('../middlewares/roleMiddleware');
@@ -133,7 +134,13 @@ router.post(
             if (!dataBase64 && !url) return res.status(400).json({ error: 'Provide dataBase64 or url.' });
             // folderId is optional now — null/omitted means a root-level material.
 
-            let materialUrl = url;
+            // Learners open the link (in a frame or the browser): only an http(s)
+            // address, never javascript: or data:.
+            let materialUrl = null;
+            if (!dataBase64) {
+                materialUrl = linkUrl(url);
+                if (!materialUrl) return res.status(400).json({ error: 'Paste a web address (http or https).' });
+            }
             // The client uploads straight to Firebase and sends the file's path
             // with the link, so deleting the handout can delete the file.
             let storagePath = isFirebasePath(clientPath) ? clientPath : null;
