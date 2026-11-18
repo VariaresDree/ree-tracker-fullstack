@@ -73,7 +73,8 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 | #326 | EE begins: Electric Circuits 1 in full: the lesson (15 subtopics); its 11 cards filed, 3 moved in from Circuits 2, 23 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
 | #327 | Electric Circuits 2 in full: the lesson (13 subtopics); its 10 cards filed, 2 moved in from Power System Analysis, 20 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
 | #328 | Electromagnetism in full: the lesson (15 subtopics); its 15 cards filed, 28 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
-| this PR | Electrical Transient Analysis in full: the lesson (11 subtopics); its 8 cards filed, 30 new cards in Review. Next: Electronics. Owner: Approve all in Admin › Formula cards › Review |
+| #329 | Electrical Transient Analysis in full: the lesson (11 subtopics); its 8 cards filed, 30 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
+| this PR | Electronics 1 and 2 in full: the lesson (12 subtopics); its 9 cards filed, 44 new cards in Review. Next: Electrical Machinery 1. Owner: Approve all in Admin › Formula cards › Review |
 
 **Your actions:**
 - **Formula cards Accept all (2026-11-17):** with 460 cards waiting, Accept all failed outright (the server takes at most 200 ids a request) and approved them one round trip at a time. It now sends the queue in chunks of 100, shows "Approved 200 of 460" as it goes, and the server approves each chunk in one transaction. All 460 waiting cards were first checked against the tested data files: same content, subtopic and group, every formula rendering. Once this deploys, one press of Accept all approves them.
