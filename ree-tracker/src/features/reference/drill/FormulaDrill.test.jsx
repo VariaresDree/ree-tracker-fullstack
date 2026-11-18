@@ -78,7 +78,8 @@ describe('FormulaDrill, choosing', () => {
     fireEvent.click(choices().find((o) => !o.textContent.includes(right)));
     expect(reviews.rate).toHaveBeenCalledWith(c.id, 'again');
     // The whole card, to learn from the miss.
-    expect(document.querySelector('[data-card-answer]')).toHaveTextContent(right);
+    // Typeset by KaTeX now (fastMath), so its source shows without the $ delimiters.
+    expect(document.querySelector('[data-card-answer]')).toHaveTextContent(right.replace(/\$/g, ''));
     for (let i = 1; i < CARDS.length; i += 1) {
       fireEvent.click(screen.getByRole('button', { name: /Next/ }));
       fireEvent.click(choices().find((o) => o.textContent.includes(answerFor().right)));

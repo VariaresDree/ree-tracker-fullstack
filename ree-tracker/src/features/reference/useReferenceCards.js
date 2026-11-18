@@ -5,8 +5,13 @@
 // [OFFLINE] sentinel path serves the cache transparently. Sources ride along
 // for the card-back citation line. Admin surfaces (pending queue, debt) fetch
 // separately in ReferenceAdminV2 — they are online-only by design.
+//
+// 2026-11-18: the copy kept on this device shows at once, and the server's
+// replaces it when it lands. The tab used to wait for the server on every first
+// open, which on a sleeping free-tier server meant a long spinner on a phone.
 import { useState, useEffect, useCallback } from 'react';
 import { fetchReferenceCards, fetchReferenceSources } from '../../services/dbQueries';
+import { getReferenceCardsCache } from '../../services/offlinePack';
 
 // Formula cards are formulas and constants. The server no longer sends concept
 // cards, but a copy cached on this device before that change may hold some.
@@ -30,11 +35,21 @@ export function useReferenceCards() {
 
     useEffect(() => {
         let ignore = false;
+        let landed = false;
+        if (tick === 0) {
+            getReferenceCardsCache()
+                .then((kept) => {
+                    if (ignore || landed || !kept?.items?.length) return;
+                    setCards(learnerCards(kept.items));
+                    setLoading(false);
+                })
+                .catch(() => {});
+        }
         // Serves the IDB cache transparently when offline; an offline user with
         // no cache yet gets [] (the tab renders its empty state).
         // Try again reads the server again; a remount (a tab switch) uses the kept read.
         fetchReferenceCards({ fresh: tick > 0 })
-            .then((items) => { if (!ignore) { setCards(learnerCards(items)); setLoadError(false); } })
+            .then((items) => { landed = true; if (!ignore) { setCards(learnerCards(items)); setLoadError(false); } })
             .catch(() => { if (!ignore) setLoadError(true); }) // online but failed — keep what we had
             .finally(() => { if (!ignore) setLoading(false); });
         // Sources are decorative (citation line) — fine without them offline.
