@@ -68,7 +68,8 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 | #321 | Computer Programming and Microprocessor Systems and Logic Circuits in full: two lessons (11 + 14 subtopics); neither had cards, so 13 + 33 new cards go to Review. Owner: Approve all in Admin › Formula cards › Review |
 | #322 | Electrical Standards & Practices and Quantities/units/constants in full: two lessons (14 + 8 subtopics); neither had cards, so 23 + 16 new cards go to Review. Owner: Approve all in Admin › Formula cards › Review |
 | #323 | Basic Occupational Safety & Health and EE Laws, Codes & Professional Ethics in full: two lessons (11 + 11 subtopics); 16 + 4 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
-| this PR | Environmental Science & Engineering and Research Methods in full: two lessons (10 + 11 subtopics); 16 + 11 new cards in Review. Next: Technopreneurship & Project Management (last ESAS topic), then EE. Owner: Approve all in Admin › Formula cards › Review |
+| #324 | Environmental Science & Engineering and Research Methods in full: two lessons (10 + 11 subtopics); 16 + 11 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
+| this PR | Technopreneurship & Project Management in full, completing ESAS (17 of 17 topics with lessons): 14 subtopics; 15 new cards in Review. Next: EE, topic by topic. Owner: Approve all in Admin › Formula cards › Review |
 
 **Your actions:**
 - **Formula cards Accept all (2026-11-17):** with 460 cards waiting, Accept all failed outright (the server takes at most 200 ids a request) and approved them one round trip at a time. It now sends the queue in chunks of 100, shows "Approved 200 of 460" as it goes, and the server approves each chunk in one transaction. All 460 waiting cards were first checked against the tested data files: same content, subtopic and group, every formula rendering. Once this deploys, one press of Accept all approves them.
