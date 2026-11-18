@@ -67,7 +67,7 @@ export default {
       ],
       example: {
         problem: r`A ₱800,000 car loan at 12% compounded monthly is repaid in 5 years. Find the monthly payment and the balance after 2 years.`,
-        solution: r`$A = 800\,000\frac{0.01}{1 - 1.01^{-60}} = ₱17{,}796$. After 24 payments: $17\,796\frac{1 - 1.01^{-36}}{0.01} = ₱535{,}780$.`,
+        solution: r`$A = 800\,000 \times \frac{0.01}{1 - 1.01^{-60}} = ₱17{,}796$. After 24 payments: $17\,796 \times \frac{1 - 1.01^{-36}}{0.01} = ₱535{,}780$.`,
       },
       traps: [r`The ordinary annuity's $F$ falls on the date of the LAST payment.`],
     },

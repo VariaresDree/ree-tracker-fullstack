@@ -178,7 +178,7 @@ export default {
       ],
       example: {
         problem: r`A lap joint has four 20 mm rivets in single shear (τ = 100 MPa) through 12 mm plates 200 mm wide (σ_b = 200, σ_t = 140 MPa; two holes in the critical row). Find its strength and efficiency.`,
-        solution: r`Shear $4\frac{\pi(20)^2}{4}(100) = 125.7$ kN; bearing $4(20)(12)(200) = 192$ kN; tearing $(200 - 40)(12)(140) = 268.8$ kN. Strength 125.7 kN; efficiency $\frac{125.7}{336} = 37.4\%$.`,
+        solution: r`Shear $4 \times \frac{\pi(20)^2}{4} \times 100 = 125.7$ kN; bearing $4(20)(12)(200) = 192$ kN; tearing $(200 - 40)(12)(140) = 268.8$ kN. Strength 125.7 kN; efficiency $\frac{125.7}{336} = 37.4\%$.`,
       },
       traps: [r`Butt joints with two cover plates put each rivet in DOUBLE shear.`],
     },
