@@ -10,7 +10,8 @@ import path from 'node:path';
 import katex from 'katex';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import ShapeFigure from '../conversion/shapes/ShapeFigure';
+import LessonFigure from './figures/LessonFigure';
+import { samplesOf } from './figures/figureMath';
 import { lessonFiles, lessonSlug, sectionFor } from './lessonContent';
 
 const LOADERS = import.meta.glob('./content/*/*.js', { import: 'default', eager: true });
@@ -84,9 +85,34 @@ describe('lesson content', () => {
       });
 
       // A figure is a Units and tools › Shapes drawing; a wrong id would draw nothing.
-      it('every figure draws', () => {
+      // A figure is a kit drawing (`type`) or a Units and tools › Shapes drawing (`figure`).
+      it('every figure draws, named by its alt text', () => {
         for (const sec of lesson.subtopics || []) {
-          for (const f of figuresOf(sec)) expect(renderToStaticMarkup(createElement(ShapeFigure, f)), `${sec.name}: ${f.figure}`).toMatch(/^<svg/);
+          for (const f of figuresOf(sec)) {
+            const where = `${sec.name}: ${f.type || f.figure}`;
+            const { caption, ...drawing } = f;
+            const svg = renderToStaticMarkup(createElement(LessonFigure, drawing));
+            expect(svg, where).toMatch(/^<svg/);
+            if (f.type) expect(svg, where).toMatch(/aria-label="[^"]{8,}"/);
+            // A caption and an alt text are read as plain words: no V_R, no $math$.
+            for (const words of [caption, f.alt].filter((w) => w != null)) {
+              expect(typeof words, where).toBe('string');
+              expect(words, where).not.toMatch(/[_$\\]/);
+            }
+          }
+        }
+      });
+
+      // A curve that is mostly undefined over its own range is a typo in its function.
+      it('every plotted curve is defined over its range', () => {
+        for (const sec of lesson.subtopics || []) {
+          for (const f of figuresOf(sec).filter((g) => g.type === 'plot')) {
+            for (const series of f.series) {
+              const pts = samplesOf(series, f.x, f.logX);
+              const defined = pts.filter(([, y]) => Number.isFinite(y)).length;
+              expect(defined / pts.length, `${sec.name}: ${series.label || 'a curve'}`).toBeGreaterThan(0.9);
+            }
+          }
         }
       });
 

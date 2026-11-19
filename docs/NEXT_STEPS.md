@@ -12,7 +12,29 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0h. Handover, round of 2026-11-14 (read this first)
+## 0i. Handover, Library round 2 of 2026-11-19 (read this first)
+
+Four PRs, each from `main` except where stacked (merge in order): Quizzes and My files drop zones on top (#346); Formula cards as a formula sheet (#347); lessons in a module format with a contents rail (#348, stacked on #347); the lesson drawing kit and the Electric Circuits 1 pilot (stacked on #348). The plan: `help-me-functional-book.md` in the owner's Claude plans folder.
+
+**Owner's actions**
+1. Merge #346, #347, #348 and the kit PR in that order, then look at Library › Formula cards and Library › Lessons › EE › Electric Circuits 1 on a phone: the four pilot subtopics are Voltage and Current Laws, Nodal Analysis, RL and RC Circuits, and Phasors and Impedance.
+2. Send the review-center modules in chat, topic by topic or all at once (PDFs or photos). The content round starts when they arrive.
+3. Say whether the pilot's depth is right (three examples, figures, a table, two checks per subtopic) before 631 subtopics are written that way.
+
+**The content round (next)**: one PR per topic, EE first in syllabus order (finish Electric Circuits 1, then Circuits 2, Electromagnetism, Transients, Electronics, Machinery 1 and 2, PSA, Protection, Distribution, Power Plant, SID, Apparatus, Instrumentation, Feedback Control, Industrial Electronics, Electronic Communications, Quantities (EE)), then ESAS, then Mathematics. Each: read the owner's module for coverage, emphasis, figure types and problem styles; write original text; redraw every figure with the kit (never copy one); `body`, figures, `examples` (basic and board), `traps`, `check` for every subtopic; a `<topic>Lesson.test.js` that works every number again; a 375 px look; FEATURES.md and this file.
+
+**Authoring notes**
+- Figures: `{ type: 'plot' | 'phasor' | 'circuit' | 'blocks', alt, caption, … }` in a section's `body`; the shapes in `features/lessons/figures/*.jsx` headers. A caption and an alt text are plain words: no `V_R`, no `$`. Labels inside a figure may use `V_R` (drawn as a subscript).
+- Don't write "Figure 3.2" in the text: a learner who switches subtopics off sees other numbers. Say "the circuit above".
+- Inline math: no number standing straight before a fraction (write ×); the content test enforces it.
+- Proof page for looking at a lesson without a server: `ree-tracker/proof.html` + `src/proof-one.jsx` (render TopicLesson in MemoryRouter and AuthContext.Provider, stub `window.fetch` to `[]`); not committed, recreate it.
+
+**Not done / to watch**
+- Lesson chunks grow about 3× in the content round (each its own lazy chunk; the service worker precaches them all). Watch the precache size; no chunk should near 5 MiB.
+- No tap-to-enlarge on figures yet: a 6-column circuit is readable at 375 px but small.
+- No block diagram in a lesson yet (the kit draws one; Feedback Control will be the first).
+
+## 0h. Handover, round of 2026-11-14
 
 The owner asked again for the ideal review app: track, test, assess, analyze; plan, refactor, revise. Live use was measured first (read-only), and the round follows it. Plan file: `help-me-improve-my-toasty-marble.md` on the owner's machine.
 

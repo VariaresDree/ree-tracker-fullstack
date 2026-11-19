@@ -25,6 +25,7 @@ import toast from 'react-hot-toast';
 import { Badge, Button, Card, Disclosure, Modal, ProgressIndicator, Skeleton } from '../../components/ui';
 import { ArrowRight, BookOpen, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronUp, Lightbulb, ListChecks, RotateCcw, TriangleAlert } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import useMediaQuery from '../../hooks/useMediaQuery';
 import { FormulaList } from '../reference/QuickSheet';
 import { useReferenceCards } from '../reference/useReferenceCards';
@@ -34,8 +35,9 @@ import { useSyllabus } from '../syllabus/useSyllabus';
 import { launchPractice, subtopicDrillPreset } from '../active-recall/presets';
 import { loadLesson, sectionFor } from './lessonContent';
 
-// A lesson's drawings, lazy, so only lessons that show a figure fetch them.
-const ShapeFigure = lazy(() => import('../conversion/shapes/ShapeFigure'));
+// A lesson's drawings (the kit, and the Shapes drawings), lazy, so only lessons
+// that show a figure fetch them.
+const LessonFigure = lazy(() => import('./figures/LessonFigure'));
 
 const anchorOf = (row) => `lesson-${row.id}`;
 const CONTENTS = 'lesson-contents';
@@ -57,7 +59,7 @@ function Figures({ list }) {
     <Suspense fallback={<Skeleton className="h-32 w-full max-w-[15rem]" />}>
       <div className={`${list.length > 1 ? 'grid grid-cols-2' : 'flex'} sm:flex sm:flex-wrap items-end gap-x-4 sm:gap-x-6 gap-y-3 text-textMain`}>
         {list.map((f) => (
-          <div key={`${f.figure}${f.n ?? ''}`} className="min-w-0 w-full max-w-[15rem]"><ShapeFigure {...f} /></div>
+          <div key={`${f.figure}${f.n ?? ''}`} className="min-w-0 w-full max-w-[15rem]"><LessonFigure {...f} /></div>
         ))}
       </div>
     </Suspense>
@@ -69,9 +71,12 @@ function Figure({ spec, number }) {
   const { caption, ...drawing } = spec;
   return (
     <figure className="flex flex-col items-center gap-2 w-full max-w-[36rem] rounded-[var(--radius-default)] border border-border bg-surface2/40 p-3 sm:p-4 text-textMain">
-      <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-        <div className="w-full flex justify-center min-w-0"><ShapeFigure {...drawing} /></div>
-      </Suspense>
+      {/* A drawing that can't be drawn costs the figure, never the lesson. */}
+      <ErrorBoundary name="This figure">
+        <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+          <div className="w-full flex justify-center min-w-0"><LessonFigure {...drawing} /></div>
+        </Suspense>
+      </ErrorBoundary>
       <figcaption className="text-xs text-muted2 text-center">
         <span className="font-semibold text-textMain">Figure {number}</span>{caption && <> · {caption}</>}
       </figcaption>
