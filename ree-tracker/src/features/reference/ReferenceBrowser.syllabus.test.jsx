@@ -54,26 +54,27 @@ describe('groupCards by syllabus subtopic', () => {
 });
 
 describe('a topic under its syllabus subtopics', () => {
-  const open = () => {
+  const open = async () => {
     // As in the Library: its h1, then the tab's h2.
     const view = render(<MemoryRouter><h1>Library</h1><h2>Formula cards</h2><ReferenceBrowser /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /^Mathematics/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Algebra/ }));
+    await screen.findAllByRole('heading', { level: 3 }, { timeout: 5000 });
     return view;
   };
 
-  it('a heading per subtopic in syllabus order, with the smaller groups inside', () => {
-    open();
+  it('a panel per subtopic in syllabus order, with the smaller groups inside', async () => {
+    await open();
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Algebraic Expressions 4', 'Binomial Theorem 1', 'Other cards 1']);
     const expr = screen.getByRole('region', { name: /Algebraic Expressions/ });
     expect(within(expr).getByText('Laws of exponents · 2')).toBeInTheDocument();
-    expect(within(expr).getByText('card Product of Roots')).toBeInTheDocument();
+    expect(within(expr).getByText('Product of Roots')).toBeInTheDocument();
     // One card under Binomial Theorem: no group label over it.
     expect(within(screen.getByRole('region', { name: /Binomial Theorem/ })).queryByText(/·/)).toBeNull();
   });
 
-  it('"On this page" jumps to each heading', () => {
-    open();
+  it('"On this page" jumps to each panel', async () => {
+    await open();
     const nav = screen.getByRole('navigation', { name: 'On this page' });
     const links = within(nav).getAllByRole('link');
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['#cards-s-expr', '#cards-s-bin', '#cards-other']);
@@ -81,7 +82,7 @@ describe('a topic under its syllabus subtopics', () => {
   });
 
   it('reads well: no skipped heading levels, no axe violations', async () => {
-    const { container } = open();
+    const { container } = await open();
     expectNoSkippedLevels(container);
     expect(await axe(container, AXE_OPTS)).toHaveNoViolations();
   });

@@ -107,7 +107,17 @@ describe('Flashcard — asking', () => {
   it('shows the formula up front when it is only a reference', () => {
     render(<Flashcard card={CARD} />);
     expect(front().textContent).toContain('X_c = 1/(2*pi*f*C)');
-    expect(front().textContent).toContain('Tap to flip');
+    // No footer telling you to tap (2026-11-19): the card is for its content.
+    expect(front().textContent).not.toContain('Tap to');
+  });
+
+  it('shows the side its screen asks for', () => {
+    const { rerender } = render(<Flashcard card={CARD} ask="formula" flipped={false} />);
+    expect(back()).toHaveAttribute('aria-hidden', 'true');
+    rerender(<Flashcard card={CARD} ask="formula" flipped />);
+    expect(back()).toHaveAttribute('aria-hidden', 'false');
+    expect(back().textContent).toContain('1/(2*pi*f*C)');
+    expect(back().textContent).not.toContain('Tap to');
   });
 
   it("asks for the formula: the name on the front, the answer only on the back", () => {

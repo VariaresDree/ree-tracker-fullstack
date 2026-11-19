@@ -34,7 +34,7 @@ describe('ReferenceStudyMode', () => {
     const reviews = { rate, rowFor: () => null };
     render(<ReferenceStudyMode cards={CARDS} mode="review" reviews={reviews} onExit={vi.fn()} />);
     expect(screen.queryByRole('group', { name: 'How well did you know it?' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Flip the card, then rate/)).toBeInTheDocument();
+    expect(screen.getByText(/Say it or write it down first/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'card Ohm' }));
     const good = screen.getByRole('button', { name: /Good/ });
@@ -54,6 +54,14 @@ describe('ReferenceStudyMode', () => {
     expect(screen.getByText('Done: 2 cards rated')).toBeInTheDocument();
   });
 
+  it('Show answer turns the card, and then the ratings take its place', () => {
+    render(<ReferenceStudyMode cards={CARDS} reviews={{ rate: vi.fn(() => Promise.resolve()), rowFor: () => null }} onExit={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /Good/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
+    expect(screen.getByRole('button', { name: /Good/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show answer' })).not.toBeInTheDocument();
+  });
+
   it('shows the longer interval a card has earned', () => {
     const row = rateCard(rateCard(NEW_CARD, 'good'), 'good'); // 10 days
     render(<ReferenceStudyMode cards={CARDS} reviews={{ rate: vi.fn(() => Promise.resolve()), rowFor: () => row }} onExit={vi.fn()} />);
@@ -71,7 +79,7 @@ describe('ReferenceStudyMode, with a dialog open over it', () => {
     render(<ReferenceStudyMode cards={[{ id: 'a', name: 'Ohm', valueUnit: '$\\text{V}$', kind: 'formula' }]} reviews={{ rate, rowFor: () => null }} onExit={onExit} />);
     fireEvent.click(screen.getByRole('button', { name: 'card Ohm' }));
     fireEvent.click(screen.getByRole('button', { name: 'Convert these units' }));
-    return screen.findByRole('dialog', { name: 'Calculator and units' }).then((dialog) => {
+    return screen.findByRole('dialog', { name: 'Calculator and units' }, { timeout: 5000 }).then((dialog) => {
       fireEvent.keyDown(dialog, { key: '1' });
       fireEvent.keyDown(dialog, { key: 'Escape' });
       expect(rate).not.toHaveBeenCalled();

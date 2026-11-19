@@ -26,6 +26,8 @@ import { topicsOf } from './practiseTopics';
 // while its scratchpad has the keyboard.
 export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode = 'browse', ask = 'formula', onFinish, tools = null, noteFor, keysPaused = false }) {
   const [index, setIndex] = useState(0);
+  // The card showing its back, if any: Show answer turns it as a tap on the card does.
+  const [flippedId, setFlippedId] = useState(null);
   // Cards whose back has been seen in this session: the ones that can be rated.
   const [seen, setSeen] = useState(() => new Set());
   // The cards rated in this session, for the topics to practise at the end.
@@ -41,6 +43,10 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
   const atStart = index === 0;
   const atEnd = index === cards.length - 1;
   const canRate = !!reviews && !!card && seen.has(card.id);
+  const turn = (flipped) => {
+    setFlippedId(flipped ? card.id : null);
+    if (flipped) setSeen((prev) => (prev.has(card.id) ? prev : new Set(prev).add(card.id)));
+  };
 
   const goPrev = () => setIndex((i) => Math.max(0, i - 1));
   const goNext = () => setIndex((i) => Math.min(cards.length - 1, i + 1));
@@ -109,7 +115,8 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
           key={card.id}
           card={card}
           ask={ask}
-          onFlip={(flipped) => { if (flipped) setSeen((prev) => (prev.has(card.id) ? prev : new Set(prev).add(card.id))); }}
+          flipped={flippedId === card.id}
+          onFlip={turn}
         />
         <div className="flex items-center justify-between gap-2 min-w-0">
           {tools}
@@ -117,14 +124,18 @@ export default function ReferenceStudyMode({ cards, onExit, reviews = null, mode
         </div>
       </div>
 
-      {reviews && (canRate ? (
+      {flippedId !== card.id && !canRate && (
+        <div className="flex flex-col items-center gap-2">
+          <Button variant="secondary" onClick={() => turn(true)}>Show answer</Button>
+          {reviews && <p className="text-xs text-muted2 text-center max-w-md">Say it or write it down first, then rate how well you knew it. It comes back for review when it's due.</p>}
+        </div>
+      )}
+      {canRate && (
         <>
           {noteFor?.(card) && <p className="text-xs text-muted2 text-center max-w-md">{noteFor(card)}</p>}
           <CardRatingButtons row={reviews.rowFor(card.id)} onRate={rateCurrent} />
         </>
-      ) : (
-        <p className="text-xs text-muted2 text-center max-w-md">Say it or write it down first. Flip the card, then rate how well you knew it, and it comes back for review when it's due.</p>
-      ))}
+      )}
 
       <div className="flex items-center gap-3">
         <Button variant="secondary" onClick={goPrev} disabled={atStart} aria-label="Previous card">

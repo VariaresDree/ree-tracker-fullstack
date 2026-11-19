@@ -2,6 +2,7 @@
 // cards, a time sink's prescription), not just start a search for its name.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 const CARDS = [
   { id: 'a', name: 'Slip', kind: 'formula', subject: 'EE', topic: { id: 't-m', name: 'Machines' } },
@@ -19,17 +20,17 @@ vi.mock('./Flashcard', () => ({ default: ({ card }) => <p>card {card.name}</p> }
 const { default: ReferenceBrowser } = await import('./ReferenceBrowser');
 
 describe('ReferenceBrowser — opened at a topic', () => {
-  it("shows that topic's cards straight away, whatever was open before", () => {
+  it("shows that topic's cards straight away, whatever was open before", async () => {
     sessionStorage.setItem('ree.formulaCards.position', JSON.stringify({ subject: 'EE', topic: 'Protection' }));
-    render(<ReferenceBrowser initialSubject="EE" initialTopic="Machines" />);
-    expect(screen.getByText('card Slip')).toBeInTheDocument();
-    expect(screen.getByText('card Torque')).toBeInTheDocument();
-    expect(screen.queryByText('card Fault MVA')).not.toBeInTheDocument();
+    render(<MemoryRouter><ReferenceBrowser initialSubject="EE" initialTopic="Machines" /></MemoryRouter>);
+    expect(await screen.findByText('Slip', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Torque')).toBeInTheDocument();
+    expect(screen.queryByText('Fault MVA')).not.toBeInTheDocument();
   });
 
-  it("finds the topic the server's way, whatever the case or spacing another screen names it in", () => {
-    render(<ReferenceBrowser initialSubject="ee" initialTopic="  machines " />);
-    expect(screen.getByText('card Slip')).toBeInTheDocument();
-    expect(screen.getByText('card Torque')).toBeInTheDocument();
+  it("finds the topic the server's way, whatever the case or spacing another screen names it in", async () => {
+    render(<MemoryRouter><ReferenceBrowser initialSubject="ee" initialTopic="  machines " /></MemoryRouter>);
+    expect(await screen.findByText('Slip', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Torque')).toBeInTheDocument();
   });
 });

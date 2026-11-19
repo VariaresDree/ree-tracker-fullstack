@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import { Badge, Button, Card, Disclosure, ProgressIndicator, Skeleton } from '../../components/ui';
 import { ArrowRight, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronUp, TriangleAlert } from '../../components/ui/icons';
 import LatexRenderer from '../../components/LatexRenderer';
-import Flashcard from '../reference/Flashcard';
+import { FormulaList } from '../reference/QuickSheet';
 import { useReferenceCards } from '../reference/useReferenceCards';
 import { topicCardsLink } from '../reference/topicCards';
 import { useTopicDrills } from '../syllabus/subtopicChoices';
@@ -119,10 +119,8 @@ function SubtopicSection({ index, row, section, cards, questions, onPractise, on
       )}
 
       {cards.length > 0 && (
-        <Disclosure title={`Formula cards · ${cards.length}`} description="Tap a card to flip it.">
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-3">
-            {cards.map((card) => <Flashcard key={card.id} card={card} hideTag />)}
-          </div>
+        <Disclosure title={`Formula cards · ${cards.length}`} description="Tap a formula for its symbols and board tip.">
+          <FormulaList cards={cards} />
         </Disclosure>
       )}
 

@@ -1,11 +1,12 @@
 // src/features/reference/ReferenceBrowser.jsx
 // Library › Formula cards: the formulas and constants for Math, ESAS and EE.
 // Two levels, Subject → Topic, each tile saying how many formulas and
-// constants it holds. A topic shows its cards under subtopic headings (there
-// is no third level to drill into any more), and any subject or topic can
-// switch to its Quick sheet: every formula and constant as one scannable
-// reviewer (QuickSheet). Simplified on 2026-10-31 from three levels, a concept
-// kind, an "All cards" sheet with Fronts/Backs, and a note under every card.
+// constants it holds. A topic is its formula sheet (QuickSheet): a panel per
+// syllabus subtopic, a row per formula, tap a row for its details. Simplified on
+// 2026-10-31 from three levels, a concept kind, an "All cards" sheet with
+// Fronts/Backs, and a note under every card; on 2026-11-19 from a flip-card grid
+// with a Cards / Quick sheet switch, and a toolbar of five buttons (Random topic
+// and Print weak formulas are now in the drill's setup).
 //
 // Search is deliberately NOT part of the hierarchy: typing bypasses browsing
 // entirely and searches every card at once (name/symbol/subtopic tag/
@@ -16,7 +17,7 @@
 // the Library syllabus manager and heatmap use — not a parallel one. Within a
 // topic, cards group on ReferenceCard.subtopicTag, a free-text label.
 //
-// Where you are (subject, topic, which view) is kept for the browser session,
+// Where you are (subject, topic) is kept for the browser session,
 // so leaving the tab and coming back doesn't drop you at the top again.
 import { Suspense, useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { lazy } from '../../utils/lazyWithRetry';
@@ -24,19 +25,15 @@ import { Link } from 'react-router-dom';
 import { formatTimeOfDay } from '../../utils/time';
 import { useStore } from '../../store/useStore';
 import { Input, SegmentedControl, EmptyState, Button, Card, CardWatermark, Grid, IconChip, Skeleton, StatusPill } from '../../components/ui';
-import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Layers, Shuffle, Printer, Target } from '../../components/ui/icons';
+import { BookOpen, Search, RefreshCw, Sparkles, ChevronRight, LayoutGrid, History, Printer, Target, GraduationCap } from '../../components/ui/icons';
 import { useReferenceCards } from './useReferenceCards';
-import Flashcard from './Flashcard';
-import UnitsLink from './UnitsLink';
 
 const FormulaDrill = lazy(() => import('./drill/FormulaDrill'));
-import { GENERAL, groupCards } from './groupCards';
 import ReferenceStudyMode from './ReferenceStudyMode';
-import LazyMount from './LazyMount';
-import { chunked } from './fastMathText';
 import { dueCardIds, useCardReviews } from './useCardReviews';
 import { pickRecallTopic, weakCards } from './weakCards';
 import { normalizeSubject } from '@ree/shared';
+import { hasLesson, topicLessonLink } from '../lessons/lessonContent';
 
 const RESULTS_PAGE = 30;
 
@@ -75,100 +72,7 @@ function writePosition(pos) {
   try { sessionStorage.setItem(POSITION_KEY, JSON.stringify(pos)); } catch { /* storage unavailable */ }
 }
 
-// A subject: its topics, or its quick sheet. A topic: its cards, or its quick sheet.
-const VIEW_OPTIONS = (browseLabel) => [
-  { value: 'browse', label: browseLabel, icon: LayoutGrid },
-  { value: 'sheet', label: 'Quick sheet', icon: Layers },
-];
-
 const sheetPrintPath = (subject, topic) => `/print/formulas?${new URLSearchParams({ subject, ...(topic ? { topic } : {}) })}`;
-
-// The smaller groups inside a section: headed only when there's more than the one.
-const subgroupHeads = (g) => g.subgroups.length > 1 || (g.subgroups.length === 1 && g.subgroups[0].label !== GENERAL);
-const anchorOf = (g) => `cards-${g.id || 'other'}`;
-
-// A topic's cards. Under its syllabus subtopics once its cards carry them
-// (2026-11-16): "On this page" jumps to a heading per subtopic, in syllabus
-// order. Before that, under its tag headings with a chip per tag to narrow to one.
-// Cards are typeset a dozen at a time as they near the screen (2026-11-18): a big
-// topic is 150 cards, and drawing them all at once froze phones.
-const CARDS_PER_CHUNK = 12;
-const CARD_HEIGHT = 230;
-const columnsGuess = () => (typeof window === 'undefined' ? 1 : window.innerWidth >= 1280 ? 3 : window.innerWidth >= 700 ? 2 : 1);
-function TopicCards({ cards }) {
-  const groups = useMemo(() => groupCards(cards, { by: 'subtopic' }), [cards]);
-  const bySyllabus = groups.some((g) => g.id);
-  const [only, setOnly] = useState(null);
-  const shown = groups.filter((g) => !only || g.label === only);
-  const grid = (list, top = false) => (
-    <div className="flex flex-col gap-4">
-      {chunked(list, CARDS_PER_CHUNK).map((chunk, i) => (
-        <LazyMount key={chunk[0].id} eager={top && i === 0} estimate={Math.ceil(chunk.length / columnsGuess()) * CARD_HEIGHT}>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-            {chunk.map((card) => (
-              <div key={card.id} className="flex flex-col gap-1 min-w-0">
-                <Flashcard card={card} hideTag />
-                <UnitsLink card={card} />
-              </div>
-            ))}
-          </div>
-        </LazyMount>
-      ))}
-    </div>
-  );
-  if (bySyllabus) {
-    return (
-      <div className="flex flex-col gap-6">
-        <nav aria-label="On this page" className="flex flex-col gap-2">
-          <p className="text-eyebrow">On this page</p>
-          <ul className="flex gap-2 flex-wrap">
-            {groups.map((g) => (
-              <li key={anchorOf(g)}>
-                <Button as="a" href={`#${anchorOf(g)}`} size="sm" variant="ghost" className="whitespace-nowrap">
-                  {g.label} <span className="tabular-nums text-muted2">{g.cards.length}</span>
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        {groups.map((g, gi) => (
-          <section key={anchorOf(g)} id={anchorOf(g)} aria-labelledby={`${anchorOf(g)}-h`} className="flex flex-col gap-3 scroll-mt-20 border-t border-border pt-4">
-            <h3 id={`${anchorOf(g)}-h`} className="text-fluid-lg font-bold text-textMain flex items-baseline gap-2 [overflow-wrap:anywhere]">
-              {g.label} <span className="text-xs font-normal text-muted2 tabular-nums">{g.cards.length}</span>
-            </h3>
-            {subgroupHeads(g)
-              ? g.subgroups.map((sg, si) => (
-                <div key={sg.label} className="flex flex-col gap-2">
-                  <p className="text-eyebrow">{sg.label} · {sg.cards.length}</p>
-                  {grid(sg.cards, gi === 0 && si === 0)}
-                </div>
-              ))
-              : grid(g.cards, gi === 0)}
-          </section>
-        ))}
-      </div>
-    );
-  }
-  if (groups.length <= 1 && (groups[0]?.label ?? GENERAL) === GENERAL) return grid(cards, true);
-  return (
-    <div className="flex flex-col gap-5">
-      <div role="group" aria-label="Show one tag" className="flex gap-2 flex-wrap">
-        <Button size="sm" variant={only ? 'ghost' : 'secondary'} aria-pressed={!only} onClick={() => setOnly(null)}>All {cards.length}</Button>
-        {groups.map((g) => (
-          <Button key={g.label} size="sm" variant={only === g.label ? 'secondary' : 'ghost'} aria-pressed={only === g.label} onClick={() => setOnly(g.label)}>
-            {g.label} {g.cards.length}
-          </Button>
-        ))}
-      </div>
-      {shown.map((g, gi) => (
-        <section key={g.label} aria-label={g.label} className="flex flex-col gap-3">
-          <p className="text-eyebrow">{g.label} · {g.cards.length}</p>
-          {grid(g.cards, gi === 0)}
-        </section>
-      ))}
-    </div>
-  );
-}
 
 // One clickable browse tile — a Subject, Topic, or Subtopic — showing its name
 // and how many cards it holds. Reused at every hierarchy level so the visual
@@ -244,8 +148,8 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const [kind, setKind] = useState(KINDS.has(initialKind) ? initialKind : 'all');
   const [search, setSearch] = useState(initialSearch);
   const deferredSearch = useDeferredValue(search);
-  // Search results come RESULTS_PAGE at a time: each is a two-faced card with its
-  // own LaTeX, and a short query matched most of the deck. A new search starts over.
+  // Search results come RESULTS_PAGE at a time: a short query matches most of the
+  // deck. A new search starts over.
   const [shown, setShown] = useState({ q: '', n: RESULTS_PAGE });
   const resultsLimit = shown.q === deferredSearch ? shown.n : RESULTS_PAGE;
 
@@ -256,12 +160,9 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   const [saved] = useState(() => deepTopic || (initialSearch ? {} : readPosition()));
   const [selectedSubject, setSelectedSubject] = useState(saved.subject ?? null);
   const [selectedTopic, setSelectedTopic] = useState(saved.subject ? saved.topic ?? null : null);
-  // 'browse' = the topics (or a topic's cards); 'sheet' = the quick sheet.
-  // ('all' is the old name, kept so a saved position still opens.)
-  const [view, setView] = useState(saved.view === 'sheet' || saved.view === 'all' ? 'sheet' : 'browse');
   useEffect(() => {
-    writePosition({ subject: selectedSubject, topic: selectedTopic, view });
-  }, [selectedSubject, selectedTopic, view]);
+    writePosition({ subject: selectedSubject, topic: selectedTopic });
+  }, [selectedSubject, selectedTopic]);
   const [studying, setStudying] = useState(false);
   // Which cards a study session covers. Was hardcoded to `leafCards`, so
   // studying was only ever reachable after drilling all the way to a single
@@ -295,14 +196,15 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   }, [reviews.items, cardById, now]);
   const leaveStudy = () => { setStudying(false); setDrilling(false); setNow(Date.now()); };
 
-  // The CELE tips: a wall of only the formulas you still miss (printed), and
-  // a topic drawn at random whose formulas you recall cold.
+  // The CELE tips, both in the drill's setup: a wall of only the formulas you still
+  // miss (Weak, printable), and a topic drawn at random whose formulas you recall cold.
   const weak = useMemo(() => weakCards(cards, reviews.items), [cards, reviews.items]);
-  const [recall, setRecall] = useState(null);
+  const [drillTopic, setDrillTopic] = useState(null);
   // The draw happens here, in the click, never in a render or a state updater.
-  const drawTopic = () => {
+  const openDrill = () => {
     const roll = Math.random();
-    setRecall((prev) => pickRecallTopic(cards, reviews.items, roll, prev?.key ?? null));
+    setDrillTopic((prev) => pickRecallTopic(cards, reviews.items, roll, prev?.key ?? null));
+    setDrilling(true);
   };
 
   const kindFiltered = useMemo(
@@ -373,19 +275,14 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
     setSelectedTopic(null);
     setStudying(false);
     setDrilling(false);
-    setView('browse');
   };
 
   const handleSelectSubject = (s) => {
     setSelectedSubject(s);
     setSelectedTopic(null);
-    setView('browse');
   };
 
-  const handleSelectTopic = (t) => {
-    setSelectedTopic(t);
-    setView('browse');
-  };
+  const handleSelectTopic = (t) => setSelectedTopic(t);
 
   const breadcrumbItems = [{ label: 'Formula cards' }];
   if (selectedSubject) breadcrumbItems.push({ label: selectedSubject });
@@ -396,14 +293,15 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
       : selectedSubject && cardsInSubject.length > 0 ? [{ id: 'subject', label: 'This subject', cards: cardsInSubject }] : []),
     { id: 'all', label: 'All', cards: kindFiltered },
     ...(dueCards.length > 0 ? [{ id: 'due', label: 'Due', cards: dueCards }] : []),
-    ...(weak.length > 0 ? [{ id: 'weak', label: 'Weak', cards: weak }] : []),
+    ...(weak.length > 0 ? [{ id: 'weak', label: 'Weak', cards: weak, printTo: '/print/formulas' }] : []),
+    ...(drillTopic ? [{ id: 'random', label: 'Random topic', hint: `${drillTopic.topic} · ${drillTopic.cards.length}`, cards: drillTopic.cards }] : []),
   ];
 
   const navigateBreadcrumb = (index) => {
     setStudying(false);
     setDrilling(false);
     if (index === 0) resetHierarchy();
-    else if (index === 1) { setSelectedTopic(null); setView('browse'); }
+    else if (index === 1) setSelectedTopic(null);
   };
 
   const clearFilters = () => { setSearch(''); setKind('all'); };
@@ -440,7 +338,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
   return (
     <div className="flex flex-col gap-4 animate-in fade-in">
       {/* One row of controls: search (bypasses the hierarchy), the kind filter
-          (applies everywhere), and the two ways in that aren't browsing. */}
+          (applies everywhere), and the drill. */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-52">
           <Search size={15} strokeWidth={1.75} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
@@ -454,18 +352,8 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
         </div>
         <SegmentedControl label="Card kind" size="sm" value={kind} onChange={setKind} options={KIND_OPTIONS} />
         {!busy && cards.length > 0 && (
-          <Button size="sm" variant="secondary" onClick={() => setDrilling(true)}>
+          <Button size="sm" variant="secondary" onClick={openDrill}>
             <Target size={14} strokeWidth={1.75} aria-hidden="true" /> Drill
-          </Button>
-        )}
-        {!busy && cards.length > 0 && (
-          <Button size="sm" variant="secondary" onClick={drawTopic}>
-            <Shuffle size={14} strokeWidth={1.75} aria-hidden="true" /> Random topic
-          </Button>
-        )}
-        {!busy && weak.length > 0 && (
-          <Button size="sm" variant="secondary" as={Link} to="/print/formulas">
-            <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print weak formulas ({weak.length})
           </Button>
         )}
       </div>
@@ -478,22 +366,10 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
             <IconChip icon={History} />
             <div className="min-w-0 flex flex-col gap-0.5">
               <p className="text-lg font-semibold text-textMain">{dueCards.length} formula card{dueCards.length === 1 ? '' : 's'} due for review</p>
-              <p className="text-sm text-muted2">Each comes back just before you'd forget it. Flip, then rate how well you knew it.</p>
+              <p className="text-sm text-muted2">Each comes back just before you'd forget it. Recall it, show the answer, then rate how well you knew it.</p>
             </div>
           </div>
           <Button className="shrink-0 w-full sm:w-auto" onClick={() => startStudying(dueCards, 'review')}>Review now</Button>
-        </Card>
-      )}
-      {!busy && recall && (
-        <Card variant="inset" padding="md" className="flex flex-col gap-3" aria-live="polite">
-          <p className="text-eyebrow">Random topic · {recall.subject}</p>
-          <p className="text-lg font-semibold text-textMain">Recall every formula for: {recall.topic}</p>
-          <p className="text-sm text-muted2">Say or write each one before you look: {recall.cards.length} card{recall.cards.length === 1 ? '' : 's'} in this topic.</p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => { const r = recall; setRecall(null); startStudying(r.cards, 'browse'); }}>Check with the cards</Button>
-            <Button size="sm" variant="secondary" onClick={drawTopic}>Another topic</Button>
-            <Button size="sm" variant="ghost" onClick={() => setRecall(null)}>Done</Button>
-          </div>
         </Card>
       )}
       {!busy && dueCards.length === 0 && reviews.items.length > 0 && nextDue && (
@@ -521,14 +397,9 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
         ) : (
           <>
             <p className="text-eyebrow">{countLabel(searchResults.length)} matching "{deferredSearch.trim()}"</p>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-4">
-              {searchResults.slice(0, resultsLimit).map((card) => (
-                <div key={card.id} className="flex flex-col gap-1 min-w-0">
-                  <Flashcard card={card} />
-                  <UnitsLink card={card} />
-                </div>
-              ))}
-            </div>
+            <Suspense fallback={<SheetFallback />}>
+              <QuickSheet cards={searchResults.slice(0, resultsLimit)} scopeLabel={`Matching "${deferredSearch.trim()}"`} by="topic" onStudy={(set) => startStudying(set)} />
+            </Suspense>
             {searchResults.length > resultsLimit && (
               <Button variant="secondary" size="sm" className="self-start" onClick={() => setShown({ q: deferredSearch, n: resultsLimit + RESULTS_PAGE })}>
                 Show {Math.min(RESULTS_PAGE, searchResults.length - resultsLimit)} more of {searchResults.length - resultsLimit}
@@ -554,44 +425,31 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
         ) : (
           <>
             {cardsInSubject.length > 0 && (
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <SegmentedControl label={`How to show ${selectedSubject}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('Topics')} />
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInSubject)}>
                   <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study all {cardsInSubject.length}
                 </Button>
+                <Button size="sm" variant="ghost" as={Link} to={sheetPrintPath(selectedSubject)}>
+                  <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print the {selectedSubject} sheet
+                </Button>
               </div>
             )}
-            {view === 'sheet' && cardsInSubject.length > 0 ? (
-              <Suspense fallback={<SheetFallback />}>
-                <QuickSheet
-                  cards={cardsInSubject}
-                  scopeLabel={selectedSubject}
-                  by="topic"
-                  topicOrder={safeTOS[selectedSubject] || []}
-                  onStudy={(set) => startStudying(set)}
-                  printTo={sheetPrintPath(selectedSubject)}
+            <Grid kind="options">
+              {(safeTOS[selectedSubject] || []).filter((t) => topicCounts[t]).map((t) => (
+                <BrowseTile
+                  key={t}
+                  label={t}
+                  count={topicCounts[t]}
+                  detail={showBreakdown ? kindBreakdown(kindsBy.topic[`${selectedSubject}::${t}`]) : ''}
+                  onClick={() => handleSelectTopic(t)}
                 />
-              </Suspense>
-            ) : (
-              <>
-                <Grid kind="options">
-                  {(safeTOS[selectedSubject] || []).filter((t) => topicCounts[t]).map((t) => (
-                    <BrowseTile
-                      key={t}
-                      label={t}
-                      count={topicCounts[t]}
-                      detail={showBreakdown ? kindBreakdown(kindsBy.topic[`${selectedSubject}::${t}`]) : ''}
-                      onClick={() => handleSelectTopic(t)}
-                    />
-                  ))}
-                </Grid>
-                {/* Named under the ones with cards, with nothing to open or unfold. */}
-                {(() => {
-                  const empty = (safeTOS[selectedSubject] || []).filter((t) => !topicCounts[t]);
-                  return empty.length > 0 && <p className="text-xs text-muted2">No cards yet: {empty.join(', ')}.</p>;
-                })()}
-              </>
-            )}
+              ))}
+            </Grid>
+            {/* Named under the ones with cards, with nothing to open or unfold. */}
+            {(() => {
+              const empty = (safeTOS[selectedSubject] || []).filter((t) => !topicCounts[t]);
+              return empty.length > 0 && <p className="text-xs text-muted2">No cards yet: {empty.join(', ')}.</p>;
+            })()}
           </>
         )
       ) : leafCards.length === 0 ? (
@@ -602,21 +460,27 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
           action={kind === 'all' ? undefined : <Button size="sm" variant="secondary" onClick={() => setKind('all')}>Show formulas and constants</Button>}
         />
       ) : (
-        <>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <SegmentedControl label={`How to show ${selectedTopic}`} size="sm" value={view} onChange={setView} options={VIEW_OPTIONS('Cards')} />
-            <Button size="sm" variant="secondary" onClick={() => startStudying(leafCards)}>
-              <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study these {leafCards.length}
-            </Button>
-          </div>
-          {view === 'sheet' ? (
-            <Suspense fallback={<SheetFallback />}>
-              <QuickSheet cards={leafCards} scopeLabel={selectedTopic} by="subtopic" onStudy={(set) => startStudying(set)} printTo={sheetPrintPath(selectedSubject, selectedTopic)} />
-            </Suspense>
-          ) : (
-            <TopicCards cards={leafCards} />
-          )}
-        </>
+        <Suspense fallback={<SheetFallback />}>
+          <QuickSheet
+            cards={leafCards}
+            scopeLabel={selectedTopic}
+            by="subtopic"
+            onStudy={(set) => startStudying(set)}
+            printTo={sheetPrintPath(selectedSubject, selectedTopic)}
+            actions={(
+              <>
+                <Button size="sm" variant="secondary" onClick={() => startStudying(leafCards)}>
+                  <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study these {leafCards.length}
+                </Button>
+                {hasLesson(selectedSubject, selectedTopic) && (
+                  <Button size="sm" variant="ghost" as={Link} to={topicLessonLink(selectedSubject, selectedTopic)}>
+                    <GraduationCap size={14} strokeWidth={1.75} aria-hidden="true" /> Read the lesson
+                  </Button>
+                )}
+              </>
+            )}
+          />
+        </Suspense>
       )}
     </div>
   );

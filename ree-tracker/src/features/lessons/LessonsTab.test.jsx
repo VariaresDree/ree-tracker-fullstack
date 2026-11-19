@@ -90,9 +90,9 @@ describe('Lessons', () => {
     const expr = screen.getByRole('region', { name: /Algebraic Expressions/ });
     expect(within(expr).getByText('Rules for exponents and radicals.')).toBeInTheDocument();
     // Formula cards fold: the lesson reads first, the cards open on demand.
-    expect(within(expr).queryByText('card Product of Powers')).toBeNull();
+    expect(within(expr).queryByText('Product of Powers')).toBeNull();
     fireEvent.click(within(expr).getByRole('button', { name: /Formula cards · 1/ }));
-    expect(within(expr).getByText('card Product of Powers')).toBeInTheDocument();
+    expect(within(expr).getByText('Product of Powers')).toBeInTheDocument();
     expect(within(expr).getByRole('link', { name: /Contents/ })).toHaveAttribute('href', '#lesson-contents');
     expect(within(expr).getByText('Worked example')).toBeInTheDocument();
     expect(screen.queryByText('card Sine Law')).toBeNull();
