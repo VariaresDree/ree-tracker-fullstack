@@ -23,7 +23,7 @@ const SUBJECT_TONE = { Mathematics: 'signal', ESAS: 'amber', EE: 'accent' };
 
 function SubjectTile({ subject, topics, ready, onClick }) {
   return (
-    <Card as="button" type="button" variant="interactive" padding="md" onClick={onClick} className="text-left flex flex-col gap-3 cursor-pointer w-full">
+    <Card as="button" type="button" variant="interactive" padding="md" onClick={onClick} className="text-left flex flex-col gap-3 cursor-pointer w-full h-full">
       <div className="flex items-center gap-3 min-w-0">
         <IconChip icon={SUBJECT_ICON[subject] || Sigma} tone={SUBJECT_TONE[subject] || 'accent'} />
         <div className="min-w-0 flex-1">
@@ -32,7 +32,7 @@ function SubjectTile({ subject, topics, ready, onClick }) {
         </div>
         <ChevronRight size={18} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0" />
       </div>
-      <ProgressIndicator size="sm" tone="success" value={ready} max={Math.max(1, topics)} label={`${ready} of ${topics} lessons written`} />
+      <div className="mt-auto"><ProgressIndicator size="sm" tone="success" value={ready} max={Math.max(1, topics)} label={`${ready} of ${topics} lessons written`} /></div>
     </Card>
   );
 }
@@ -48,11 +48,11 @@ function TopicTile({ index, topic, ready, read, total, onClick }) {
       className="text-left flex flex-col gap-2 cursor-pointer w-full h-full"
     >
       <div className="flex items-start gap-2 min-w-0">
-        <span className="text-xs text-muted2 tabular-nums mt-1 w-5 shrink-0">{index}.</span>
+        <span className="text-xs text-muted2 tabular-nums mt-1 w-5 shrink-0 whitespace-nowrap">{index}.</span>
         <p className="flex-1 min-w-0 text-fluid-base font-bold text-textMain leading-snug [overflow-wrap:anywhere]">{topic}</p>
         <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
       </div>
-      <div className="flex items-center gap-2 flex-wrap pl-7">
+      <div className="mt-auto flex items-center gap-2 flex-wrap pl-7">
         <StatusPill tone={ready ? 'success' : 'neutral'} dot={false}>{ready ? 'Lesson ready' : 'Lesson coming'}</StatusPill>
         {total > 0 && <span className="text-xs text-muted2 tabular-nums">{read > 0 ? `${read} of ${total} read` : plural(total, 'subtopic')}</span>}
       </div>
@@ -118,7 +118,8 @@ export default function LessonsTab() {
   return (
     <div className="flex flex-col gap-5 animate-in fade-in">
       {!topic && <h2 className="sr-only">Lessons</h2>}
-      <Trail items={trail} />
+      {/* A topic's page carries the trail in its reading column, so they line up. */}
+      {!topic && <Trail items={trail} />}
 
       {!subject && (
         <>
@@ -160,6 +161,7 @@ export default function LessonsTab() {
           actions={subtopics.actions}
           previous={neighbour(at - 1)}
           next={neighbour(at + 1)}
+          trail={<Trail items={trail} />}
         />
       )}
     </div>

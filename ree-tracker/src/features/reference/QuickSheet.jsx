@@ -154,7 +154,10 @@ export default function QuickSheet({ cards, scopeLabel, by = 'topic', topicOrder
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap gap-2">
+      {/* On a phone, two equal buttons a row (an odd last one spans both), not a
+          ragged wrap; one row from sm up. */}
+      <div className="grid grid-cols-2 gap-2 [&>*]:w-full [&>*:last-child:nth-child(odd)]:col-span-2 sm:flex sm:flex-wrap sm:[&>*]:w-auto">
+
         <Button size="sm" variant="secondary" aria-pressed={hiding} onClick={toggleHiding}>
           {hiding
             ? <><Eye size={14} strokeWidth={1.75} aria-hidden="true" /> Show formulas</>
@@ -162,7 +165,7 @@ export default function QuickSheet({ cards, scopeLabel, by = 'topic', topicOrder
         </Button>
         {actions}
         {printTo && (
-          <Button size="sm" variant="ghost" as={Link} to={printTo}>
+          <Button size="sm" variant="secondary" as={Link} to={printTo}>
             <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print this sheet
           </Button>
         )}
