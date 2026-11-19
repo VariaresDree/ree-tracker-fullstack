@@ -43,6 +43,8 @@ vi.mock('../reference/useReferenceCards', () => ({
     { id: 'c2', name: 'Sine Law', subject: 'Mathematics', topic: { name: 'Trigonometry' }, subtopic: { id: 'x', name: 'Laws' } },
   ] }),
 }));
+const saveTopic = vi.fn(() => Promise.resolve('sent'));
+vi.mock('../syllabus/useSyllabus', () => ({ useSyllabus: () => ({ topics: [{ topicId: ALGEBRA, read: false }], saveTopic }) }));
 vi.mock('../syllabus/subtopicChoices', () => ({ useTopicDrills: () => ({ counts: new Map([['s2', 24]]), accuracy: new Map() }) }));
 vi.mock('../reference/Flashcard', () => ({ default: ({ card }) => <p>card {card.name}</p> }));
 vi.mock('../../components/LatexRenderer', () => ({ default: ({ content }) => <span>{content}</span> }));
@@ -63,7 +65,7 @@ const at = (url) => render(
   </MemoryRouter>,
 );
 
-beforeEach(() => { navigated.length = 0; setDone.mockClear(); });
+beforeEach(() => { navigated.length = 0; setDone.mockClear(); saveTopic.mockClear(); });
 
 describe('Lessons', () => {
   it('subjects, then topics with whether each lesson is ready, kept in the URL', () => {
@@ -89,9 +91,8 @@ describe('Lessons', () => {
     expect(within(contents).getByText('1 of 2 read')).toBeInTheDocument();
     const expr = screen.getByRole('region', { name: /Algebraic Expressions/ });
     expect(within(expr).getByText('Rules for exponents and radicals.')).toBeInTheDocument();
-    // Formula cards fold: the lesson reads first, the cards open on demand.
-    expect(within(expr).queryByText('Product of Powers')).toBeNull();
-    fireEvent.click(within(expr).getByRole('button', { name: /Formula cards · 1/ }));
+    // A short list of key formulas is part of the reading (a long one folds).
+    expect(within(expr).getByText('Key formulas')).toBeInTheDocument();
     expect(within(expr).getByText('Product of Powers')).toBeInTheDocument();
     expect(within(expr).getByRole('link', { name: /Contents/ })).toHaveAttribute('href', '#lesson-contents');
     expect(within(expr).getByText('Worked example')).toBeInTheDocument();
@@ -110,8 +111,68 @@ describe('Lessons', () => {
     expect(navigated[0]).toMatchObject({ to: '/practice', opts: { state: { preset: { studyMode: 'subtopic', subtopicId: 's2', subject: 'Mathematics', subtopic: 'Algebra' } } } });
     fireEvent.click(within(fns).getByRole('button', { name: 'Mark as read' }));
     await waitFor(() => expect(setDone).toHaveBeenCalledWith(rows[1], ALGEBRA, true));
+    // The last one read, so the topic is read too, as Progress › Syllabus ticks it.
+    expect(saveTopic).toHaveBeenCalledWith(ALGEBRA, { read: true });
     // Algebraic Expressions has no questions to drill: no Practise there.
     expect(within(screen.getByRole('region', { name: /Algebraic Expressions/ })).queryByRole('button', { name: /Practise/ })).toBeNull();
+  });
+
+  it('ticking one that leaves others unread leaves the topic alone', async () => {
+    at('/library?tab=lessons&subject=Mathematics&topic=Algebra');
+    const expr = await screen.findByRole('region', { name: /Algebraic Expressions/ });
+    fireEvent.click(within(expr).getByRole('button', { name: /Read/ }));
+    await waitFor(() => expect(setDone).toHaveBeenCalledWith(rows[0], ALGEBRA, false));
+    expect(saveTopic).not.toHaveBeenCalled();
+  });
+
+  it('a module section: a discussion with a numbered figure, examples a step at a time, check yourself', async () => {
+    LESSON.subtopics.push({
+      name: 'Functions',
+      inShort: 'Mappings from a domain to a range.',
+      body: ['A function gives each input one output.', { figure: 'parabola', caption: 'The graph of a quadratic' }, '| x | y |\n|---|---|\n| 1 | 1 |'],
+      keyIdeas: ['The vertical line test.'],
+      examples: [{ level: 'board', title: 'A composite', problem: 'Find $f(g(2))$.', steps: ['$g(2) = 5$', '$f(5) = 26$'], answer: '$26$' }],
+      check: [{ q: 'Is $x^2$ one-to-one?', a: 'No: 2 and -2 give 4.' }],
+    });
+    try {
+      const { container } = at('/library?tab=lessons&subject=Mathematics&topic=Algebra');
+      const fns = await screen.findByRole('region', { name: /Functions/ });
+      expect(within(fns).getByText('Figure 2.1')).toBeInTheDocument();
+      expect(within(fns).getByText('Remember')).toBeInTheDocument();
+      expect(within(fns).getByText('Board level')).toBeInTheDocument();
+      expect(within(fns).queryByText('$g(2) = 5$')).toBeNull();
+      fireEvent.click(within(fns).getByRole('button', { name: 'Show step 1 of 2' }));
+      expect(within(fns).getByText('$g(2) = 5$')).toBeInTheDocument();
+      expect(within(fns).queryByText('$26$')).toBeNull();
+      fireEvent.click(within(fns).getByRole('button', { name: 'Show all' }));
+      expect(within(fns).getByText('$f(5) = 26$')).toBeInTheDocument();
+      expect(within(fns).getByText('$26$')).toBeInTheDocument();
+      fireEvent.click(within(fns).getByRole('button', { name: /Try it again/ }));
+      expect(within(fns).queryByText('$g(2) = 5$')).toBeNull();
+      expect(within(fns).queryByText('No: 2 and -2 give 4.')).toBeNull();
+      fireEvent.click(within(fns).getByRole('button', { name: 'Show answer to question 1' }));
+      expect(within(fns).getByText('No: 2 and -2 give 4.')).toBeInTheDocument();
+      expectNoSkippedLevels(container);
+      expect(await axe(container, AXE_OPTS)).toHaveNoViolations();
+    } finally {
+      LESSON.subtopics.pop();
+    }
+  });
+
+  it('on a wide screen, Contents is one rail beside the lesson, marked as you read', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = (q) => ({ matches: q.includes('1280px'), addEventListener() {}, removeEventListener() {} });
+    try {
+      at('/library?tab=lessons&subject=Mathematics&topic=Algebra');
+      await screen.findByText('Algebra is the language of every other topic.');
+      const rails = screen.getAllByRole('navigation', { name: 'Contents' });
+      expect(rails).toHaveLength(1);
+      expect(within(rails[0]).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['#lesson-s1', '#lesson-s2']);
+      // The rail never scrolls away, so no section needs a way back to it.
+      expect(within(screen.getByRole('region', { name: /Algebraic Expressions/ })).queryByRole('link', { name: /Contents/ })).toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it('a topic ends with the previous and next topic', async () => {

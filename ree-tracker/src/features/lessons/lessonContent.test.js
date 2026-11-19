@@ -1,7 +1,9 @@
 // Every lesson file in content/ (2026-11-16): for its topic, every subtopic it
 // writes about is one the syllabus has, no section is empty, and every formula
 // renders. Lessons are code: a wrong name or broken math fails here, not on a
-// learner's screen.
+// learner's screen. Since 2026-11-19 also the module parts: every figure in the
+// discussion draws, every worked example has its steps and answer, every
+// self-check question its answer, and no number sits straight before a fraction.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,10 +32,19 @@ function mathIn(text) {
   for (const m of s.matchAll(/\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g)) out.push({ display: !!m[1], tex: m[1] ?? m[2] });
   return out;
 }
+const isFigure = (item) => typeof item !== 'string';
 const textsOf = (lesson) => [
   lesson.overview,
-  ...(lesson.subtopics || []).flatMap((s) => [s.inShort, ...(s.keyIdeas || []), s.example?.problem, s.example?.solution, ...(s.traps || [])]),
+  ...(lesson.subtopics || []).flatMap((s) => [
+    s.inShort, ...(s.body || []).filter((b) => !isFigure(b)), ...(s.keyIdeas || []), s.example?.problem, s.example?.solution,
+    ...(s.examples || []).flatMap((e) => [e.problem, ...(e.steps || []), e.answer]),
+    ...(s.traps || []), ...(s.check || []).flatMap((c) => [c.q, c.a]),
+  ]),
 ].filter(Boolean);
+const figuresOf = (sec) => [...(sec.figures || []), ...(sec.body || []).filter(isFigure)];
+// A number straight before a fraction reads as a mixed number ("2 1/2"): write × between.
+// A number, that is, standing on its own: not a subscript, power or limit (R_2, r^2, \int_0^1).
+const MIXED = /(?:^|[^\w^_.}\\])\d+(?:\.\d+)?\s*\\[dt]?frac/;
 
 describe('lesson content', () => {
   it('the seed parses into topics (the check below has something to check against)', () => {
@@ -44,6 +55,11 @@ describe('lesson content', () => {
   it('finds a lesson by its topic, by subject and name', () => {
     expect(lessonSlug('Numerical Methods & Analysis')).toBe('numerical-methods-analysis');
     expect(sectionFor({ subtopics: [{ name: 'Functions' }] }, 'functions')).toEqual({ name: 'Functions' });
+  });
+
+  it('the mixed-number rule flags a number standing before a fraction, not an index', () => {
+    for (const tex of [String.raw`= 16\frac{4}{11}`, String.raw`0.2\frac{a}{b}`, String.raw`\sqrt{2\frac{e}{m}}`, String.raw`1000\frac{1}{2}`]) expect(tex).toMatch(MIXED);
+    for (const tex of [String.raw`R_2\frac{a}{b}`, String.raw`r^2\frac{d}{t}`, String.raw`\int_0^1\frac{x}{y}`, String.raw`\sqrt3\frac{1}{2}`, String.raw`10^6\frac{a}{b}`, String.raw`2 \times \frac{a}{b}`]) expect(tex).not.toMatch(MIXED);
   });
 
   for (const file of lessonFiles()) {
@@ -70,7 +86,28 @@ describe('lesson content', () => {
       // A figure is a Units and tools › Shapes drawing; a wrong id would draw nothing.
       it('every figure draws', () => {
         for (const sec of lesson.subtopics || []) {
-          for (const f of sec.figures || []) expect(renderToStaticMarkup(createElement(ShapeFigure, f)), `${sec.name}: ${f.figure}`).toMatch(/^<svg/);
+          for (const f of figuresOf(sec)) expect(renderToStaticMarkup(createElement(ShapeFigure, f)), `${sec.name}: ${f.figure}`).toMatch(/^<svg/);
+        }
+      });
+
+      it('every worked example has its steps and answer, every check its answer', () => {
+        for (const sec of lesson.subtopics || []) {
+          for (const e of sec.examples || []) {
+            expect(String(e.problem || '').trim(), sec.name).not.toBe('');
+            expect((e.steps || []).length, `${sec.name}: steps`).toBeGreaterThan(0);
+            expect(String(e.answer || '').trim(), `${sec.name}: answer`).not.toBe('');
+            if (e.level) expect(['basic', 'board'], sec.name).toContain(e.level);
+          }
+          for (const c of sec.check || []) {
+            expect(String(c.q || '').trim(), sec.name).not.toBe('');
+            expect(String(c.a || '').trim(), sec.name).not.toBe('');
+          }
+        }
+      });
+
+      it('no number sits straight before a fraction', () => {
+        for (const text of textsOf(lesson)) {
+          for (const { tex } of mathIn(text)) expect(tex, tex).not.toMatch(MIXED);
         }
       });
 
