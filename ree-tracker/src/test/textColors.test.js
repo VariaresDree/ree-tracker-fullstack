@@ -46,6 +46,7 @@ const GRAPHIC_ONLY = [
   ['features/notebook/CauseTrend.jsx', 'cause-per-week bar fills and legend swatches'],
   ['features/board-simulator/SimulatorDiagnostics.jsx', 'subject score bar fills', /subjectScores/],
   ['features/conversion/shapes/ShapeFigure.jsx', 'shape strokes and fills; the labels use --text-main', /const INK/],
+  ['features/lessons/figures/figureMath.js', 'lesson figure strokes and fills; their labels use SERIES_TEXT', /export const (INK|SERIES) =/],
 ];
 
 const graphicOnly = (file, line) => GRAPHIC_ONLY.some(([f, , only]) => file === f && (!only || only.test(line)));
