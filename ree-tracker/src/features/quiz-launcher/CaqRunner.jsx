@@ -5,7 +5,7 @@
 // until the whole set is submitted. The run is saved after every change, so leaving
 // is safe. See quizLauncher.isolation.test.js for the proof that nothing here
 // reaches your progress or the server.
-import { useEffect, useEffectEvent, useState } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useState } from 'react';
 import ExamLayout from '../../layouts/ExamLayout';
 import { Page, QuestionSurface } from '../../components/ui';
 import ExamClock from '../../components/exam/ExamClock';
@@ -75,7 +75,11 @@ export default function CaqRunner({ uid, quiz, initialRun, onAgain, onLeave, onD
     if (key === 'm' && !practice) toggleMark(q.id);
     if (key === 'enter' && revealed && !e.target?.closest?.('button, a')) goTo(run.index + 1);
   });
-  useEffect(() => {
+  // A layout effect, so the listener is attached in the same commit that puts
+  // the first question on screen: with a passive effect a key pressed the
+  // moment the run appeared was lost (and the arrow-key test flaked under CI
+  // load, 2026-11-19).
+  useLayoutEffect(() => {
     const handler = (e) => onKey(e);
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
