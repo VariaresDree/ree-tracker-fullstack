@@ -134,6 +134,8 @@ export default function QuizLauncherTab({ shared = null }) {
         </p>
       </div>
 
+      <QuizFilePicker compact={!loaded || entries.length > 0} onFilesSelected={(files) => addQuizFiles(uid, files)} />
+
       {entries.length > 0 ? (
         <div className="flex flex-col gap-2">
           <p id="loaded-quiz-files" className="text-eyebrow">Your quizzes</p>
@@ -148,8 +150,6 @@ export default function QuizLauncherTab({ shared = null }) {
       )}
 
       {shared}
-
-      <QuizFilePicker compact={entries.length > 0} onFilesSelected={(files) => addQuizFiles(uid, files)} />
 
       {/* Persistent, unmissable: not a tooltip a user could miss before starting. */}
       <div className="flex items-start gap-2.5 rounded-[var(--radius-default)] border border-border2 bg-surface2/40 p-3.5">
