@@ -113,8 +113,12 @@ function WhereRows({ variables }) {
   );
 }
 
-/** `compact`, for the sheet: the formula's own well, and no line on what it's for. */
-export default function CardBody({ card, compact = false }) {
+/**
+ * `compact`, for the print sheet: the formula's own well, and no line on what it's for.
+ * `withAnswer={false}`, for a formula sheet row that already shows the formula: only
+ * what's under it (a constant's defining formula, the symbols, what it's for, the tip).
+ */
+export default function CardBody({ card, compact = false, withAnswer = true }) {
   const variables = Array.isArray(card.variables) ? card.variables.filter((v) => v?.symbol) : [];
   const answer = cardAnswer(card);
   const isConstant = card.kind === 'constant';
@@ -124,7 +128,10 @@ export default function CardBody({ card, compact = false }) {
 
   return (
     <div className={cn('flex flex-col min-w-0', compact ? 'gap-2' : 'gap-4')}>
-      {answer && (
+      {!withAnswer && definedBy && (
+        <div className="text-xs text-muted2 min-w-0 [overflow-wrap:anywhere]"><CardMath value={card.formulaLatex} /></div>
+      )}
+      {withAnswer && answer && (
         <div>
           <FormulaWell value={answer} size={compact ? 'sm' : 'lg'} />
           {resultUnit && (

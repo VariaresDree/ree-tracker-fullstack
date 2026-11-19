@@ -1,7 +1,7 @@
-// Formula cards (2026-10-31): formulas and constants only, Subject → Topic,
-// a topic's cards under subtopic headings, and a Quick sheet that shows a
-// subject's or topic's formulas at a glance. The position survives leaving
-// the tab.
+// Formula cards (2026-10-31): formulas and constants only, Subject → Topic.
+// Since 2026-11-19 a topic is its formula sheet: a panel per subtopic (or, before
+// its cards carry one, per family of cards), a row per formula. The position
+// survives leaving the tab.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -46,30 +46,39 @@ describe('ReferenceBrowser — formulas and constants', () => {
     expect(kinds).toEqual(['All', 'Formulas', 'Constants']);
   });
 
-  it('opens a topic straight onto its cards, with no heading over a single card', () => {
-    render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
+  const openTopic = async () => {
+    const view = render(<><h2>Formula cards</h2><MemoryRouter><ReferenceBrowser /></MemoryRouter></>);
     fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
     fireEvent.click(screen.getByRole('button', { name: /^DC Circuits/ }));
-    expect(screen.queryByRole('group', { name: 'Show one tag' })).not.toBeInTheDocument();
-    expect(screen.getByText('card Ohm’s law')).toBeInTheDocument();
-    expect(screen.getByText('card Kirchhoff')).toBeInTheDocument();
+    await screen.findByText('Ohm’s law', {}, { timeout: 5000 });
+    return view;
+  };
+  // A second card in the Resistance family, so it gets a panel of its own.
+  const withFamily = async (fn) => {
+    CARDS.push({ id: 'x', name: 'Power law', kind: 'formula', subject: 'EE', topic: { name: 'DC Circuits' }, subtopicTag: 'Resistance', formulaLatex: 'P = I^2 R' });
+    try { await fn(); } finally { CARDS.pop(); }
+  };
+
+  it('opens a topic straight onto its formulas, with no heading over a single family', async () => {
+    await openTopic();
+    expect(screen.getByText('Kirchhoff')).toBeInTheDocument();
+    expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0);
+    expect(screen.queryByRole('radio', { name: 'Quick sheet' })).not.toBeInTheDocument();
   });
 
-  it('with a family of cards, shows its heading and a chip to narrow down to it', () => {
-    const extra = { id: 'x', name: 'Power law', kind: 'formula', subject: 'EE', topic: { name: 'DC Circuits' }, subtopicTag: 'Resistance', formulaLatex: 'P = I^2 R' };
-    CARDS.push(extra);
-    try {
-      render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
-      fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
-      fireEvent.click(screen.getByRole('button', { name: /^DC Circuits/ }));
-      expect(screen.getByText('Resistance · 2')).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Resistance 2' }));
-      expect(screen.queryByText('card Kirchhoff')).not.toBeInTheDocument();
-      expect(screen.getByText('card Power law')).toBeInTheDocument();
-    } finally {
-      CARDS.pop();
-    }
-  });
+  it('with a family of cards, gives it a panel of its own', () => withFamily(async () => {
+    await openTopic();
+    const family = screen.getByRole('region', { name: 'Resistance 2' });
+    expect(within(family).getByText('Power law')).toBeInTheDocument();
+    expect(within(family).queryByText('Kirchhoff')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'General 1' })).getByText('Kirchhoff')).toBeInTheDocument();
+  }));
+
+  it('a topic’s sheet reads well: no skipped heading levels, no axe violations', () => withFamily(async () => {
+    const { container } = await openTopic();
+    expectNoSkippedLevels(container);
+    expect(await axe(container, AXE_OPTS)).toHaveNoViolations();
+  }));
 
   it('folds topics with no cards away from the ones that have them', () => {
     render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
@@ -79,27 +88,19 @@ describe('ReferenceBrowser — formulas and constants', () => {
     expect(screen.getByRole('button', { name: /^Physics/ })).toBeInTheDocument();
   });
 
-  it('shows a subject as a quick sheet: every formula and constant at a glance', async () => {
-    const { container } = render(<><h2>Formula cards</h2><MemoryRouter><ReferenceBrowser /></MemoryRouter></>);
-    fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Quick sheet' }));
-    expect(await screen.findByRole('heading', { name: 'AC Circuits' }, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'DC Circuits' })).toBeInTheDocument();
-    expect(screen.getByText('Ohm’s law')).toBeInTheDocument();
-    expect(screen.getByText('Permittivity')).toBeInTheDocument();
-    expect(screen.queryByText('Coulomb')).not.toBeInTheDocument();
-    expectNoSkippedLevels(container);
-    expect(await axe(container, AXE_OPTS)).toHaveNoViolations();
-  });
-
-  it('studies one topic from the quick sheet', async () => {
+  it('a subject offers studying all its cards and printing its sheet', () => {
     render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Quick sheet' }));
-    const section = (await screen.findByRole('heading', { name: 'DC Circuits' }, { timeout: 5000 })).closest('section');
-    fireEvent.click(within(section).getByRole('button', { name: 'Study the DC Circuits cards' }));
-    expect(screen.getByText(/1 \/ 2/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Study all 3/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Print the EE sheet/ })).toHaveAttribute('href', '/print/formulas?subject=EE');
   });
+
+  // By its label: naming every button in the panel trips jsdom on KaTeX's MathML.
+  it('studies one panel of a topic', () => withFamily(async () => {
+    await openTopic();
+    fireEvent.click(within(screen.getByRole('region', { name: 'Resistance 2' })).getByLabelText('Study the Resistance cards'));
+    expect(screen.getByText(/1 \/ 2/)).toBeInTheDocument();
+  }));
 
   it('its location trail buttons are touch-sized', () => {
     render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
@@ -109,23 +110,20 @@ describe('ReferenceBrowser — formulas and constants', () => {
     trail.forEach((b) => expect(b.className).toMatch(/pointer-coarse:min-h-11/));
   });
 
-  it('comes back to the same subject and view after leaving the tab', async () => {
-    const { unmount } = render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
-    fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Quick sheet' }));
-    await screen.findByRole('heading', { name: 'AC Circuits' }, { timeout: 5000 });
+  it('comes back to the same topic after leaving the tab', async () => {
+    const { unmount } = await openTopic();
     unmount();
 
     render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
-    expect(await screen.findByRole('heading', { name: 'AC Circuits' }, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Quick sheet' })).toHaveAttribute('aria-checked', 'true');
+    expect(await screen.findByText('Ohm’s law', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Formula cards location' })).getByText('DC Circuits')).toBeInTheDocument();
   });
 
-  it('a deep-linked search starts fresh instead of restoring', () => {
-    sessionStorage.setItem('ree.formulaCards.position', JSON.stringify({ subject: 'EE', view: 'sheet' }));
+  it('a deep-linked search starts fresh instead of restoring', async () => {
+    sessionStorage.setItem('ree.formulaCards.position', JSON.stringify({ subject: 'EE', topic: 'DC Circuits' }));
     render(<ReferenceBrowser initialSearch="Coulomb" />);
-    expect(screen.getByText('card Coulomb')).toBeInTheDocument();
-    expect(screen.queryByText('card Ohm’s law')).not.toBeInTheDocument();
+    expect(await screen.findByText('Coulomb', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByText('Ohm’s law')).not.toBeInTheDocument();
   });
 
   it('a link asking for concepts opens on all cards', () => {

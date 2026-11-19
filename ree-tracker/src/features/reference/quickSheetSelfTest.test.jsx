@@ -1,5 +1,5 @@
-// Quick sheet: Hide answers makes it a self-test, and Print this sheet opens a
-// subject or topic on /print/formulas.
+// The formula sheet: Hide formulas makes it a self-test, a row opens its details,
+// and Print this sheet opens a subject or topic on /print/formulas.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -22,11 +22,11 @@ const sheet = (props = {}) => render(
   <MemoryRouter><QuickSheet cards={CARDS.slice(0, 2)} scopeLabel="EE" onStudy={() => {}} {...props} /></MemoryRouter>,
 );
 
-describe('Hide answers', () => {
-  it('blanks the formulas, reveals one on a tap, and Show all brings them back', () => {
+describe('Hide formulas', () => {
+  it('blanks the formulas, reveals one on a tap, and Show formulas brings them back', () => {
     sheet();
     expect(screen.getByText(/V = IR/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Hide answers/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Hide formulas/ }));
     expect(screen.queryByText(/V = IR/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tap to reveal Ohm’s law' })).toBeInTheDocument();
 
@@ -34,17 +34,38 @@ describe('Hide answers', () => {
     expect(screen.getByText(/V = IR/)).toBeInTheDocument();
     expect(screen.queryByText(/P = VI/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Show all/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Show formulas/ }));
     expect(screen.getByText(/P = VI/)).toBeInTheDocument();
   });
 
   it('hiding again starts over, with nothing revealed', () => {
     sheet();
-    fireEvent.click(screen.getByRole('button', { name: /Hide answers/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Hide formulas/ }));
     fireEvent.click(screen.getByRole('button', { name: /Tap to reveal Ohm’s law/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Show all/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Hide answers/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Show formulas/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Hide formulas/ }));
     expect(screen.queryByText(/V = IR/)).not.toBeInTheDocument();
+  });
+});
+
+describe('A row', () => {
+  it('opens what its symbols mean, what it is for and the board tip, then closes', () => {
+    const card = {
+      id: '9', subject: 'EE', kind: 'formula', name: 'Ohm’s law', formulaLatex: 'V = IR', valueUnit: 'V',
+      description: 'Voltage across a resistor.', purposeExamTip: 'Check the units first.',
+      variables: [{ symbol: 'R', meaning: 'resistance', unit: 'Ω' }], topic: { name: 'Circuits' },
+    };
+    render(<MemoryRouter><QuickSheet cards={[card]} scopeLabel="EE" /></MemoryRouter>);
+    const row = screen.getByRole('button', { name: /Ohm’s law/ });
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Board tip')).toBeNull();
+    fireEvent.click(row);
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Board tip')).toBeInTheDocument();
+    expect(screen.getByText(/Voltage across a resistor/)).toBeInTheDocument();
+    expect(screen.getByText(/resistance/)).toBeInTheDocument();
+    fireEvent.click(row);
+    expect(screen.queryByText('Board tip')).toBeNull();
   });
 });
 

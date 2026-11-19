@@ -46,11 +46,14 @@ import CardBody, { FormulaWell } from './CardBody';
 import { cardAnswer } from './cardAnswer';
 
 // `onFlip(flipped)`: study mode offers the review ratings once the back has
-// been seen. `initialFlipped`: start on the back (read once). `hideTag`: the
-// page already says it (a topic's cards sit under their tag headings), and it
-// was cut short beside "Tap to flip" ("Voltage and Current D…").
-export default function Flashcard({ card, onFlip, initialFlipped = false, hideTag = false, ask = null }) {
-  const [flipped, setFlipped] = useState(initialFlipped);
+// been seen. `initialFlipped`: start on the back (read once). `flipped`: the
+// side to show, when the parent decides it (study mode's Show answer button).
+// `hideTag`: the page already says it. The "Tap to flip" / "Tap to check"
+// footers are gone (2026-11-19): the card is for its content, and the screens
+// that flip it say how (Show answer).
+export default function Flashcard({ card, onFlip, initialFlipped = false, flipped: shownSide, hideTag = false, ask = null }) {
+  const [ownSide, setFlipped] = useState(initialFlipped);
+  const flipped = shownSide ?? ownSide;
   const [backReady, setBackReady] = useState(initialFlipped);
   const warm = () => { if (!backReady) setBackReady(true); };
   // The button's label names the card; the face on show describes it. The
@@ -123,16 +126,13 @@ export default function Flashcard({ card, onFlip, initialFlipped = false, hideTa
           ) : answer && <FormulaWell value={answer} />}
           {ask === 'name' && <p className="text-center text-fluid-base font-semibold text-muted2">{prompt}</p>}
 
-          <div className={`mt-auto flex items-center gap-2 min-w-0 ${hideTag ? 'justify-end' : 'justify-between'}`}>
-            {!hideTag && (
-              // A tag can give the name away ("Voltage and Current Dividers"), so asking
-              // for the name shows only the topic.
-              <span className="text-xs text-muted2 truncate min-w-0" title={[card.subject, card.topic?.name, ask !== 'name' && card.subtopicTag].filter(Boolean).join(' · ')}>
-                {(ask !== 'name' && card.subtopicTag) || card.topic?.name || card.subject}
-              </span>
-            )}
-            <span className="text-eyebrow shrink-0">{ask ? 'Tap to check' : 'Tap to flip'}</span>
-          </div>
+          {!hideTag && (
+            // A tag can give the name away ("Voltage and Current Dividers"), so asking
+            // for the name shows only the topic.
+            <span className="mt-auto text-xs text-muted2 truncate min-w-0" title={[card.subject, card.topic?.name, ask !== 'name' && card.subtopicTag].filter(Boolean).join(' · ')}>
+              {(ask !== 'name' && card.subtopicTag) || card.topic?.name || card.subject}
+            </span>
+          )}
         </div>
 
         {/* BACK */}
@@ -142,16 +142,13 @@ export default function Flashcard({ card, onFlip, initialFlipped = false, hideTa
             {card.kind === 'constant' && <Badge tone="signal" className="shrink-0">Constant</Badge>}
           </div>
 
-          {backReady && <CardBody card={card} />}
+          {(backReady || flipped) && <CardBody card={card} />}
 
-          <div className="mt-auto flex items-center justify-between gap-2 min-w-0">
-            {card.source?.title ? (
-              <span className="text-eyebrow truncate" title={`${card.source.title}${card.source.edition ? ` (${card.source.edition})` : ''}${card.source.section ? ` · ${card.source.section}` : ''}`}>
-                {card.source.title}{card.source.edition ? ` (${card.source.edition})` : ''}{card.source.section ? ` · ${card.source.section}` : ''}
-              </span>
-            ) : <span />}
-            <span className="text-eyebrow shrink-0">Tap to flip back</span>
-          </div>
+          {card.source?.title && (
+            <span className="mt-auto text-eyebrow truncate" title={`${card.source.title}${card.source.edition ? ` (${card.source.edition})` : ''}${card.source.section ? ` · ${card.source.section}` : ''}`}>
+              {card.source.title}{card.source.edition ? ` (${card.source.edition})` : ''}{card.source.section ? ` · ${card.source.section}` : ''}
+            </span>
+          )}
         </div>
       </button>
     </div>

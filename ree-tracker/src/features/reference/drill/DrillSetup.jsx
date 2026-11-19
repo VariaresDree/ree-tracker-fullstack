@@ -1,9 +1,13 @@
 // src/features/reference/drill/DrillSetup.jsx
 //
-// What to drill: which cards, how, which way round, and how many.
+// What to drill: which cards, how, which way round, and how many. A scope can
+// carry its own `hint` (the random topic's name) and `printTo` (the weak cards'
+// print sheet): Random topic and Print weak formulas used to be two more buttons
+// on the Formula cards toolbar (2026-11-19).
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, FormField, Modal, SegmentedControl } from '../../../components/ui';
-import { Target } from '../../../components/ui/icons';
+import { Printer, Target } from '../../../components/ui/icons';
 
 const MODES = [
   { value: 'recall', label: 'Recall', hint: 'Write, check' },
@@ -46,9 +50,14 @@ export default function DrillSetup({ scopes, onStart, onClose }) {
             value={scope.id}
             onChange={setScopeId}
             columns={2}
-            options={scopes.map((s) => ({ value: s.id, label: s.label, hint: `${s.cards.length} card${s.cards.length === 1 ? '' : 's'}` }))}
+            options={scopes.map((s) => ({ value: s.id, label: s.label, hint: s.hint ?? `${s.cards.length} card${s.cards.length === 1 ? '' : 's'}` }))}
           />
         </FormField>
+        {scope.printTo && (
+          <Button size="sm" variant="ghost" as={Link} to={scope.printTo} className="self-start">
+            <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print these {scope.cards.length}
+          </Button>
+        )}
         <FormField label="How">
           <SegmentedControl label="How" value={mode} onChange={setMode} options={MODES} />
         </FormField>

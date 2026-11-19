@@ -1,5 +1,5 @@
-// Formula cards search: results come 30 at a time. Each is a two-faced card with
-// its own LaTeX, and a short query matched most of the deck at once.
+// Formula cards search: results come 30 at a time, as formula sheet rows; a
+// short query matches most of the deck at once.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -23,18 +23,18 @@ const { default: ReferenceBrowser } = await import('./ReferenceBrowser');
 beforeEach(() => sessionStorage.clear());
 
 describe('ReferenceBrowser search', () => {
-  it('shows the first 30 matches, then the rest on request', () => {
+  it('shows the first 30 matches, then the rest on request', async () => {
     render(<MemoryRouter><ReferenceBrowser initialSearch="power" /></MemoryRouter>);
-    expect(screen.getAllByText(/^card Power card/)).toHaveLength(30);
+    expect(await screen.findAllByText(/^Power card/, {}, { timeout: 5000 })).toHaveLength(30);
     fireEvent.click(screen.getByRole('button', { name: 'Show 5 more of 5' }));
-    expect(screen.getAllByText(/^card Power card/)).toHaveLength(35);
+    expect(screen.getAllByText(/^Power card/)).toHaveLength(35);
     expect(screen.queryByRole('button', { name: /^Show \d+ more/ })).not.toBeInTheDocument();
   });
 
-  it('a new search starts over at 30', () => {
+  it('a new search starts over at 30', async () => {
     render(<MemoryRouter><ReferenceBrowser initialSearch="power" /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Show 5 more of 5' }));
     fireEvent.change(screen.getByLabelText('Search reference cards'), { target: { value: 'power card' } });
-    expect(screen.getAllByText(/^card Power card/)).toHaveLength(30);
+    expect(await screen.findAllByText(/^Power card/, {}, { timeout: 5000 })).toHaveLength(30);
   });
 });
