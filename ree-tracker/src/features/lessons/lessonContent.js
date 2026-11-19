@@ -7,8 +7,15 @@
 //
 // A lesson file's default export:
 //   { topic, subject, overview, sources?: [string],
-//     subtopics: [{ name, inShort, keyIdeas: [md], example?: { problem, solution }, traps?: [md] }] }
-// Markdown with $…$ and $$…$$ math. `name` is the syllabus subtopic's name.
+//     subtopics: [{ name, inShort, keyIdeas: [md], traps?: [md],
+//       body?: [md | figure],          the discussion; a figure among the paragraphs
+//       figures?: [figure],            drawings under In short (the first lessons')
+//       examples?: [{ title?, level?: 'basic' | 'board', problem, steps: [md], answer }],
+//       example?: { problem, solution }, the one-example format, when there are no examples
+//       check?: [{ q, a }] }] }        Check yourself
+// Markdown with $…$ and $$…$$ math, and pipe tables in body. `name` is the syllabus
+// subtopic's name. A figure is a drawing's props plus an optional `caption` (plain
+// text). No number straight before a fraction: it reads as a mixed number.
 
 import { normSubtopicKey } from '@ree/shared/subtopics';
 

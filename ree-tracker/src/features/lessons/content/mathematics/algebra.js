@@ -168,7 +168,7 @@ export default {
       ],
       example: {
         problem: r`At what time after 3:00 are the hands of a clock first together?`,
-        solution: r`At 3:00 the hour hand is $90^\circ$ ahead. The minute hand gains $5.5^\circ$ a minute, so it catches up after $\frac{90}{5.5} = 16\frac{4}{11}$ minutes: at about 3:16.36.`,
+        solution: r`At 3:00 the hour hand is $90^\circ$ ahead. The minute hand gains $5.5^\circ$ a minute, so it catches up after $\frac{90}{5.5} = \frac{180}{11} \approx 16.36$ minutes: at about 3:16.36.`,
       },
       traps: [
         r`Convert units first: km/h with minutes gives nonsense.`,

@@ -139,7 +139,7 @@ export default {
       ],
       example: {
         problem: r`An electron starts from rest and is accelerated through 100 V. Find its speed.`,
-        solution: r`$v = \sqrt{2\frac{e}{m_e}V} = \sqrt{2 \times 1.7588 \times 10^{11} \times 100} = 5.93 \times 10^6$ m/s.`,
+        solution: r`$v = \sqrt{2 \times \frac{e}{m_e}V} = \sqrt{2 \times 1.7588 \times 10^{11} \times 100} = 5.93 \times 10^6$ m/s.`,
       },
       traps: [r`Above a few kilovolts electrons get relativistic and this formula overestimates the speed.`],
     },

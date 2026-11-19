@@ -134,7 +134,7 @@ export default {
       inShort: r`Rectifier, battery and inverter that carry critical loads through a supply failure.`,
       keyIdeas: [
         r`Types: offline (standby), line-interactive and online (double conversion, no transfer time).`,
-        r`Size by kVA and kW with margin: $S \ge 1.25\frac{P}{\text{pf}}$; battery current $\frac{P}{\eta V_{dc}}$.`,
+        r`Size by kVA and kW with margin: $S \ge 1.25 \times \frac{P}{\text{pf}}$; battery current $\frac{P}{\eta V_{dc}}$.`,
         r`Cells: $n = \frac{V_{dc,min}}{V_{end}}$ (1.75 V lead-acid); float about 2.25 V per cell.`,
       ],
       example: {

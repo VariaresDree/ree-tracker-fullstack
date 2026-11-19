@@ -119,7 +119,7 @@ export default {
       inShort: r`Assemblies of switching and protective devices with their buses.`,
       keyIdeas: [
         r`Rated voltage, continuous current, short-time withstand and peak withstand.`,
-        r`Busbar force $\frac{F}{\ell} = 0.2\frac{i_p^2}{d}$ N/m (kA, m), ×0.866 for the middle bar.`,
+        r`Busbar force $\frac{F}{\ell} = 0.2 \times \frac{i_p^2}{d}$ N/m (kA, m), ×0.866 for the middle bar.`,
         r`Metal-clad vs metal-enclosed switchgear; panelboards for branch circuits.`,
       ],
       example: {
