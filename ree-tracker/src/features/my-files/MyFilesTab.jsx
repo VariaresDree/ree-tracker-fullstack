@@ -239,6 +239,15 @@ export default function MyFilesTab() {
         </nav>
       )}
 
+      <FileDrop
+        label="Choose files or drag them here"
+        title="Drop files here, or tap to browse"
+        hint={`PDF, image, text or audio, up to ${formatBytes(MAX_FILE_BYTES)} each.`}
+        accept={ACCEPT}
+        compact={!loaded || files.length > 0}
+        onFiles={add}
+      />
+
       {loaded && (
         <div>
           <Button size="sm" variant="secondary" onClick={() => startFolder()}>
@@ -288,17 +297,8 @@ export default function MyFilesTab() {
       ) : loaded && shownFolders.length === 0 && (q
         ? <EmptyState compact icon={Search} title="Nothing matches" description={`No file or folder has “${query.trim()}” in its name.`} />
         : dir !== 'root'
-          ? <EmptyState compact icon={FolderOpen} title="This folder is empty" description="Add a file below, or move one here." />
-          : <EmptyState compact icon={FileText} title="No files yet" description="Add a file below, or save a handout for offline from Handouts." />)}
-
-      <FileDrop
-        label="Choose files or drag them here"
-        title="Drop files here, or tap to browse"
-        hint={`PDF, image, text or audio, up to ${formatBytes(MAX_FILE_BYTES)} each.`}
-        accept={ACCEPT}
-        compact={files.length > 0}
-        onFiles={add}
-      />
+          ? <EmptyState compact icon={FolderOpen} title="This folder is empty" description="Add a file above, or move one here." />
+          : <EmptyState compact icon={FileText} title="No files yet" description="Add a file above, or save a handout for offline from Handouts." />)}
 
       <div className="flex items-start gap-2.5 rounded-[var(--radius-default)] border border-border2 bg-surface2/40 p-3.5">
         <Lock size={15} strokeWidth={1.75} className="shrink-0 mt-0.5 text-muted2" aria-hidden="true" />

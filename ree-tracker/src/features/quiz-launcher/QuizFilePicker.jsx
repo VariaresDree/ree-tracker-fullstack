@@ -11,7 +11,8 @@ function hasAcceptedExtension(name) {
   return ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
-// `compact` once there are quizzes: they matter more than adding another.
+// Sits above the lists (2026-11-19) so adding a file never needs a long scroll;
+// `compact` once there are quizzes, so the box doesn't push them down.
 export default function QuizFilePicker({ onFilesSelected, compact = false }) {
   // Files that aren't .quiz/.caq, named — they used to be dropped silently,
   // so a wrong file looked like the picker had done nothing.
