@@ -81,7 +81,8 @@ The owner asked again for the ideal review app: track, test, assess, analyze; pl
 | #334 | Power System Analysis in full: the lesson (16 subtopics); its 9 cards filed, 45 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
 | #335 | Power System Protection in full: the lesson (15 subtopics); 40 new cards in Review (the topic had none). Owner: Approve all in Admin › Formula cards › Review |
 | #336 | Distribution Systems & Substation Design in full: the lesson (12 subtopics); 3 cards moved in, 29 new cards in Review. Owner: Approve all in Admin › Formula cards › Review |
-| this PR | Power Plant Engineering in full: the lesson (12 subtopics); 35 new cards in Review (the topic had none). Next: System & Illumination Design. Owner: Approve all in Admin › Formula cards › Review |
+| #337 | Power Plant Engineering in full: the lesson (12 subtopics); 35 new cards in Review (the topic had none). Owner: Approve all in Admin › Formula cards › Review |
+| this PR | Electrical System & Illumination Design in full: the lesson (15 subtopics); its 4 cards filed, 27 new cards in Review. Next: Apparatus & Devices. Owner: Approve all in Admin › Formula cards › Review |
 
 **Your actions:**
 - **Formula cards Accept all (2026-11-17):** with 460 cards waiting, Accept all failed outright (the server takes at most 200 ids a request) and approved them one round trip at a time. It now sends the queue in chunks of 100, shows "Approved 200 of 460" as it goes, and the server approves each chunk in one transaction. All 460 waiting cards were first checked against the tested data files: same content, subtopic and group, every formula rendering. Once this deploys, one press of Accept all approves them.
