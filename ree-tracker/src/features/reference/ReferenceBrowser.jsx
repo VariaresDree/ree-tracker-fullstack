@@ -89,7 +89,7 @@ function BrowseTile({ label, count, onClick, eyebrow, detail }) {
       padding="sm"
       onClick={onClick}
       disabled={count === 0}
-      className="text-left flex flex-col gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+      className="text-left flex flex-col gap-2 h-full cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
     >
       <div className="flex items-start justify-between gap-2 min-w-0">
         <div className="min-w-0">
@@ -98,7 +98,7 @@ function BrowseTile({ label, count, onClick, eyebrow, detail }) {
         </div>
         <ChevronRight size={16} strokeWidth={1.75} aria-hidden="true" className="text-muted shrink-0 mt-0.5" />
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="mt-auto flex items-center gap-2 flex-wrap">
         <StatusPill tone="neutral" dot={false}>{countLabel(count)}</StatusPill>
         {detail && <span className="text-xs text-muted2">{detail}</span>}
       </div>
@@ -429,7 +429,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
                 <Button size="sm" variant="secondary" onClick={() => startStudying(cardsInSubject)}>
                   <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study all {cardsInSubject.length}
                 </Button>
-                <Button size="sm" variant="ghost" as={Link} to={sheetPrintPath(selectedSubject)}>
+                <Button size="sm" variant="secondary" as={Link} to={sheetPrintPath(selectedSubject)}>
                   <Printer size={14} strokeWidth={1.75} aria-hidden="true" /> Print the {selectedSubject} sheet
                 </Button>
               </div>
@@ -473,7 +473,7 @@ export default function ReferenceBrowser({ initialSearch = '', initialKind = 'al
                   <LayoutGrid size={14} strokeWidth={1.75} aria-hidden="true" /> Study these {leafCards.length}
                 </Button>
                 {hasLesson(selectedSubject, selectedTopic) && (
-                  <Button size="sm" variant="ghost" as={Link} to={topicLessonLink(selectedSubject, selectedTopic)}>
+                  <Button size="sm" variant="secondary" as={Link} to={topicLessonLink(selectedSubject, selectedTopic)}>
                     <GraduationCap size={14} strokeWidth={1.75} aria-hidden="true" /> Read the lesson
                   </Button>
                 )}

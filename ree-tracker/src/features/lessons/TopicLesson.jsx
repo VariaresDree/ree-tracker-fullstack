@@ -18,6 +18,10 @@
 // are; on a phone a slim bar ("3 / 12 · Nodal Analysis") floats under the header
 // once Contents has scrolled away, and opens it as a sheet. Ticking the last
 // subtopic also ticks the topic's Read, as Progress › Syllabus does.
+//
+// Polish (2026-11-19): one reading column, centred in the page, that every block
+// shares (text, figures, key formulas, examples, traps, checks), so their edges
+// line up; the trail sits in it too. Reading text is the fluid body size.
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { lazy } from '../../utils/lazyWithRetry';
@@ -41,8 +45,8 @@ const LessonFigure = lazy(() => import('./figures/LessonFigure'));
 
 const anchorOf = (row) => `lesson-${row.id}`;
 const CONTENTS = 'lesson-contents';
-// Lesson text at a readable measure, even on a wide screen.
-const MEASURE = 'max-w-[68ch]';
+// The reading column: every block in it shares these edges.
+const COLUMN = 'w-full max-w-[44rem] mx-auto';
 // The rail needs room beside the lesson: the sidebar takes ~20rem at this width.
 const RAIL = '(min-width: 1280px)';
 // A key-formulas list this short is part of the reading; a longer one folds.
@@ -57,7 +61,7 @@ const tint = (colour, fill = 8, edge = 35) => ({
 function Figures({ list }) {
   return (
     <Suspense fallback={<Skeleton className="h-32 w-full max-w-[15rem]" />}>
-      <div className={`${list.length > 1 ? 'grid grid-cols-2' : 'flex'} sm:flex sm:flex-wrap items-end gap-x-4 sm:gap-x-6 gap-y-3 text-textMain`}>
+      <div className={`${list.length > 1 ? 'grid grid-cols-2 justify-items-center' : 'flex justify-center'} sm:flex sm:flex-wrap sm:justify-center items-end gap-x-4 sm:gap-x-6 gap-y-3 text-textMain`}>
         {list.map((f) => (
           <div key={`${f.figure}${f.n ?? ''}`} className="min-w-0 w-full max-w-[15rem]"><LessonFigure {...f} /></div>
         ))}
@@ -70,11 +74,11 @@ function Figures({ list }) {
 function Figure({ spec, number }) {
   const { caption, ...drawing } = spec;
   return (
-    <figure className="flex flex-col items-center gap-2 w-full max-w-[36rem] rounded-[var(--radius-default)] border border-border bg-surface2/40 p-3 sm:p-4 text-textMain">
+    <figure className="flex flex-col items-center gap-2 w-full rounded-[var(--radius-default)] border border-border bg-surface2/40 p-3 sm:p-4 text-textMain">
       {/* A drawing that can't be drawn costs the figure, never the lesson. */}
       <ErrorBoundary name="This figure">
         <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-          <div className="w-full flex justify-center min-w-0"><LessonFigure {...drawing} /></div>
+          <div className="w-full max-w-[34rem] mx-auto flex justify-center min-w-0"><LessonFigure {...drawing} /></div>
         </Suspense>
       </ErrorBoundary>
       <figcaption className="text-xs text-muted2 text-center">
@@ -84,9 +88,10 @@ function Figure({ spec, number }) {
   );
 }
 
-function Markdown({ text, lead = false }) {
+// `lead`: the topic's overview, a size up. `strong`: a section's In short.
+function Markdown({ text, lead = false, strong = false }) {
   return (
-    <div className={`${MEASURE} ${lead ? 'text-fluid-base' : 'text-sm'} text-textMain leading-relaxed min-w-0 math-scroll-mobile [&_p]:my-1.5`}>
+    <div className={`${lead ? 'text-fluid-lg' : 'text-fluid-base'} ${strong ? 'font-semibold' : ''} text-textMain leading-relaxed min-w-0 math-scroll-mobile [&_p]:my-1.5 [&_table]:w-full`}>
       <LatexRenderer content={text} />
     </div>
   );
@@ -102,10 +107,10 @@ function Body({ items, section }) {
 
 function IconList({ items, icon: Icon, iconColor }) {
   return (
-    <ul className={`flex flex-col gap-2 ${MEASURE}`}>
+    <ul className="flex flex-col gap-2">
       {items.map((t, i) => (
-        <li key={i} className="flex items-start gap-2.5 text-sm text-textMain leading-relaxed min-w-0">
-          <Icon size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 mt-0.5" style={{ color: iconColor }} />
+        <li key={i} className="flex items-start gap-2.5 text-fluid-base text-textMain leading-relaxed min-w-0">
+          <Icon size={16} strokeWidth={2} aria-hidden="true" className="shrink-0 mt-1" style={{ color: iconColor }} />
           <div className="min-w-0 flex-1 math-scroll-mobile [&_p]:!m-0"><LatexRenderer content={t} /></div>
         </li>
       ))}
@@ -139,7 +144,7 @@ function Example({ example, number }) {
   const [shown, setShown] = useState(0);
   const all = shown >= steps.length;
   return (
-    <Card variant="inset" padding="md" className={`flex flex-col gap-3 ${MEASURE}`}>
+    <Card variant="inset" padding="md" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-eyebrow">Worked example {number}</p>
         {example.level && <Badge tone={example.level === 'board' ? 'signal' : 'neutral'}>{LEVELS[example.level] || example.level}</Badge>}
@@ -182,7 +187,7 @@ function Example({ example, number }) {
 function LegacyExample({ example }) {
   return (
     <Disclosure title="Worked example" description="Try it first, then open the solution.">
-      <div className={`flex flex-col gap-3 ${MEASURE}`}>
+      <div className="flex flex-col gap-3">
         <Markdown text={example.problem} />
         <div className="border-t border-border pt-3">
           <p className="text-eyebrow mb-1">Solution</p>
@@ -202,7 +207,7 @@ function CheckItem({ item, number }) {
         <Markdown text={item.q} />
       </div>
       {open ? (
-        <div className={`rounded-[var(--radius-default)] border px-3 py-2 ${MEASURE}`} style={tint('var(--accent-success)', 10)}>
+        <div className="rounded-[var(--radius-default)] border px-3 py-2" style={tint('var(--accent-success)', 10)}>
           <Markdown text={item.a} />
         </div>
       ) : (
@@ -246,7 +251,7 @@ function SubtopicSection({ index, row, section, cards, questions, onPractise, on
 
       {section ? (
         <>
-          {section.inShort && <Markdown text={section.inShort} lead />}
+          {section.inShort && <Markdown text={section.inShort} strong />}
           {section.figures?.length > 0 && <Figures list={section.figures} />}
           {section.body?.length > 0 && <Body items={section.body} section={index} />}
           {section.keyIdeas?.length > 0 && (
@@ -259,7 +264,7 @@ function SubtopicSection({ index, row, section, cards, questions, onPractise, on
           {examples.map((ex, i) => <Example key={i} example={ex} number={i + 1} />)}
           {examples.length === 0 && section.example && <LegacyExample example={section.example} />}
           {section.traps?.length > 0 && (
-            <div className={`flex flex-col gap-2 rounded-[var(--radius-default)] border p-3 ${MEASURE}`} style={tint('var(--color-reeAmber)')}>
+            <div className="flex flex-col gap-2 rounded-[var(--radius-default)] border p-3" style={tint('var(--color-reeAmber)')}>
               <p className="text-eyebrow">Board traps</p>
               <IconList items={section.traps} icon={TriangleAlert} iconColor="var(--color-reeAmber-text)" />
             </div>
@@ -379,7 +384,7 @@ function TopicStep({ to, direction }) {
  *   previous?: { topic, ready, go }|null, next?: { topic, ready, go }|null }} props
  * rows: the topic's subtopics as this learner sees them (useSubtopics).
  */
-export default function TopicLesson({ subject, topic, topicId, rows, ready, actions, previous = null, next = null }) {
+export default function TopicLesson({ subject, topic, topicId, rows, ready, actions, previous = null, next = null, trail = null }) {
   const navigate = useNavigate();
   const [lesson, setLesson] = useState({ key: null, value: undefined });
   const key = `${subject}|${topic}`;
@@ -430,6 +435,7 @@ export default function TopicLesson({ subject, topic, topicId, rows, ready, acti
   const cardsTo = topicCardsLink(subject, topic);
   const article = (
     <article aria-labelledby="lesson-title" className="flex flex-col gap-6 min-w-0">
+      {trail}
       <header className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <p className="text-eyebrow">{subject}</p>
@@ -516,9 +522,9 @@ export default function TopicLesson({ subject, topic, topicId, rows, ready, acti
     </article>
   );
 
-  if (!wide || shown.length === 0) return article;
+  if (!wide || shown.length === 0) return <div className={COLUMN}>{article}</div>;
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_16rem] gap-10 items-start">
+    <div className="grid grid-cols-[minmax(0,44rem)_15rem] justify-center gap-10 items-start">
       {article}
       <div className="sticky top-[calc(var(--sticky-top,0.75rem)+0.5rem)] max-h-[calc(100dvh-var(--sticky-top,0.75rem)-2rem)] overflow-y-auto overscroll-contain pr-1">
         <nav aria-label="Contents" className="flex flex-col gap-3">

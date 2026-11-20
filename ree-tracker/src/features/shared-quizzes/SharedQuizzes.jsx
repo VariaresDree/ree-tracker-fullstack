@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Button, Card, Grid, StatusPill } from '../../components/ui';
-import { Download, Play, RefreshCw } from '../../components/ui/icons';
+import { Download, HardDrive, Play, RefreshCw } from '../../components/ui/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { canDownloadFiles, downloadBlob } from '../exam-export/deliver';
 import { addDownloadedQuiz, useQuizSession } from '../quiz-launcher/quizSession';
@@ -46,7 +46,7 @@ export function SharedTile({ file, entries, onStart, where }) {
   });
 
   return (
-    <Card as="li" padding="sm" className="flex flex-col gap-3 min-w-0">
+    <Card as="li" padding="sm" className="flex flex-col gap-3 min-w-0 h-full">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-textMain [overflow-wrap:anywhere]">{file.name}</p>
         {file.description && <p className="text-xs text-muted2 mt-0.5 [overflow-wrap:anywhere]">{file.description}</p>}
@@ -61,24 +61,26 @@ export function SharedTile({ file, entries, onStart, where }) {
         </div>
       )}
       {error && <p role="alert" className="text-xs [overflow-wrap:anywhere]" style={{ color: 'var(--accent-danger)' }}>{error}</p>}
-      <div className="flex items-center gap-1.5">
+      <div className="mt-auto grid grid-cols-2 gap-2 [&>*:only-child]:col-span-2">
         {kind === 'saved' && (
-          <Button size="sm" onClick={() => onStart(entry.id)} aria-label={`Start ${file.name}`}>
+          <Button size="sm" fullWidth onClick={() => onStart(entry.id)} aria-label={`Start ${file.name}`}>
             <Play size={13} strokeWidth={1.75} aria-hidden="true" /> Start
           </Button>
         )}
         {kind === 'update' && (
-          <Button size="sm" loading={busy === 'keep'} disabled={!!busy} onClick={keep} aria-label={`Update ${file.name}`}>
+          <Button size="sm" fullWidth loading={busy === 'keep'} disabled={!!busy} onClick={keep} aria-label={`Update ${file.name}`}>
             <RefreshCw size={13} strokeWidth={1.75} aria-hidden="true" /> Update
           </Button>
         )}
         {kind === 'new' && (
-          <Button size="sm" loading={busy === 'keep'} disabled={!!busy} onClick={keep} aria-label={`Download ${file.name}`}>
+          <Button size="sm" fullWidth loading={busy === 'keep'} disabled={!!busy} onClick={keep} aria-label={`Download ${file.name}`}>
             <Download size={13} strokeWidth={1.75} aria-hidden="true" /> Download
           </Button>
         )}
         {canDownloadFiles() && (
-          <Button size="sm" variant="ghost" className="ml-auto" disabled={!!busy} aria-label={`Save ${file.name} as a file`} onClick={saveFile}>Save file</Button>
+          <Button size="sm" variant="secondary" fullWidth disabled={!!busy} aria-label={`Save ${file.name} as a file`} onClick={saveFile}>
+            <HardDrive size={13} strokeWidth={1.75} aria-hidden="true" /> Save file
+          </Button>
         )}
       </div>
     </Card>
