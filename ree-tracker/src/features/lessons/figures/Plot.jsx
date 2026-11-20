@@ -13,8 +13,9 @@ import { GUIDE, MUTED, SIGNAL, SIGNAL_TEXT, colourOf, formatTick, niceStep, samp
 import { Svg, Text } from './kit';
 
 const W = 360;
-const H = 224;
-const M = { left: 42, right: 14, top: 16, bottom: 34 };
+const H = 236;
+// The top margin leaves room for the y-axis label above the frame.
+const M = { left: 42, right: 14, top: 26, bottom: 44 };
 function ticksFor([a, b], count) {
   const step = niceStep(b - a, count);
   const out = [];
@@ -77,8 +78,8 @@ export default function Plot({ alt, x, y, series = [], marks = [], xLabel, yLabe
       <polyline points={`${M.left},${M.top} ${M.left},${H - M.bottom} ${W - M.right},${H - M.bottom}`} fill="none" stroke={GUIDE} strokeWidth="1.25" />
       {yt.map((v) => <Text key={`ty${v}`} x={M.left - 6} y={sy(v)} anchor="end" size={10.5} colour={MUTED} weight={400}>{formatTick(v)}</Text>)}
       {xt.map((v) => <Text key={`tx${v}`} x={sx(v)} y={H - M.bottom + 12} size={10.5} colour={MUTED} weight={400}>{formatTick(v)}</Text>)}
-      {xLabel && <Text x={W - M.right} y={H - 6} anchor="end" size={11.5} italic>{xLabel}</Text>}
-      {yLabel && <Text x={M.left - 4} y={M.top - 8} anchor="start" size={11.5} italic>{yLabel}</Text>}
+      {xLabel && <Text x={M.left + (W - M.left - M.right) / 2} y={H - 11} size={11.5} italic>{xLabel}</Text>}
+      {yLabel && <Text x={M.left - 4} y={M.top - 13} anchor="start" size={11.5} italic>{yLabel}</Text>}
 
       <g clipPath={`url(#${clipId})`}>
         {curves.filter((c) => c.area).map((c, i) => {

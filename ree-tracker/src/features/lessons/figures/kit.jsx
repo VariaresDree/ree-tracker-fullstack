@@ -8,10 +8,10 @@
 // arithmetic is in figureMath.js.
 import { INK, TEXT, headPoints } from './figureMath';
 
-export function Svg({ alt, x = 0, width, height, children }) {
+export function Svg({ alt, x = 0, y = 0, width, height, children }) {
   if (!alt) throw new Error('A lesson figure needs an alt text.');
   return (
-    <svg viewBox={`${x} 0 ${width} ${height}`} role="img" aria-label={alt} className="w-full h-auto" style={{ maxWidth: `${Math.round(width * 1.25)}px` }}>
+    <svg viewBox={`${x} ${y} ${width} ${height}`} role="img" aria-label={alt} className="w-full h-auto" style={{ maxWidth: `${Math.round(width * 1.25)}px` }}>
       {children}
     </svg>
   );
