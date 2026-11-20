@@ -19,6 +19,8 @@ import { BODY, INK, INK_TEXT, ONE_POINT as ONE, SIGNAL, SIGNAL_TEXT, TEXT, TWO_P
 import { Svg, Text } from './kit';
 
 const G = 48;
+// Between the lines of a two-line label.
+const LINE = 16;
 const PAD_X = 44;
 const PAD_Y = 30;
 const WIRE = { stroke: TEXT, strokeWidth: 1.6, strokeLinecap: 'round', fill: 'none' };
@@ -70,8 +72,8 @@ function TwoPoint({ kind, a, b, label, opts = {}, index }) {
       {lines.map((t, j) => {
         const lx = across ? cx : cx + (flip ? -off : off);
         const ly = across
-          ? cy + (flip ? off + j * 14 : -off - (lines.length - 1 - j) * 14)
-          : cy + (j - (lines.length - 1) / 2) * 14;
+          ? cy + (flip ? off + j * LINE : -off - (lines.length - 1 - j) * LINE)
+          : cy + (j - (lines.length - 1) / 2) * LINE;
         return <Text key={j} x={lx} y={ly} anchor={across ? 'middle' : flip ? 'end' : 'start'} size={12} colour={kind === 'i' ? SIGNAL_TEXT : TEXT}>{t}</Text>;
       })}
     </g>
@@ -194,20 +196,30 @@ export default function Circuit({ alt, parts = [], nodes = [] }) {
     }
     if (kind === 'gnd') maxR = Math.max(maxR, a[1] + 0.5);
   }
-  // A label beside a part down the page can reach past the frame: widen it to fit
-  // (about 7 px a character at this size).
+  // A label beside a part down the page can reach past the frame sideways, and a
+  // stack of label lines over (or under) a part across it past the top (or
+  // bottom): grow the frame to fit (about 7 px a character at this size).
   let left = 0;
   let right = PAD_X * 2 + maxC * G;
+  let top = 0;
+  let bottom = PAD_Y * 2 + maxR * G;
   for (const [kind, a, b, label, opts] of parts) {
-    if (!TWO_POINT.has(kind) || !label || a[0] !== b[0]) continue;
-    const longest = Math.max(...(Array.isArray(label) ? label : [label]).map((t) => String(t).replace(/_/g, '').length));
-    const x = px(a)[0];
-    if (opts?.side === 'left') left = Math.min(left, x - 20 - longest * 7 - 6);
-    else right = Math.max(right, x + 20 + longest * 7 + 6);
+    if (!TWO_POINT.has(kind) || !label) continue;
+    const lines = Array.isArray(label) ? label : [label];
+    if (a[0] === b[0]) {
+      const longest = Math.max(...lines.map((t) => String(t).replace(/_/g, '').length));
+      const x = px(a)[0];
+      if (opts?.side === 'left') left = Math.min(left, x - 20 - longest * 7 - 6);
+      else right = Math.max(right, x + 20 + longest * 7 + 6);
+    } else {
+      const y = px(a)[1];
+      const off = kind === 'i' ? 11 : 20;
+      if (opts?.side === 'below') bottom = Math.max(bottom, y + off + (lines.length - 1) * LINE + 14);
+      else top = Math.min(top, y - off - (lines.length - 1) * LINE - 14);
+    }
   }
-  const height = PAD_Y * 2 + maxR * G;
   return (
-    <Svg alt={alt} x={left} width={right - left} height={height}>
+    <Svg alt={alt} x={left} y={top} width={right - left} height={bottom - top}>
       {parts.map(([kind, a, b, label, opts], i) => {
         if (kind === 'opamp') return <OpAmp key={i} a={a} label={label ?? b} index={i} />;
         if (ONE.has(kind)) return <OnePoint key={i} kind={kind} a={a} label={label ?? b} index={i} />;
