@@ -86,7 +86,9 @@ export const BODY = {
   ammeter: 24, voltmeter: 24, wattmeter: 24, xfmr: 32, cb: 12,
 };
 export const TWO_POINT = new Set([...Object.keys(BODY), 'wire', 'bus', 'i']);
-export const ONE_POINT = new Set(['gnd', 'dot']);
+// gnd and dot at a point; pole is a coil's polarity dot beside it ('left' or 'right');
+// text is a free label there (M between coupled coils).
+export const ONE_POINT = new Set(['gnd', 'dot', 'pole', 'text']);
 export const WITH_LEAD = new Set(['gen', 'motor', 'load']);
 
 const onGrid = (p) => Array.isArray(p) && p.length === 2 && p.every((v) => Number.isFinite(v) && v >= 0 && Math.abs(v * 2 - Math.round(v * 2)) < 1e-9);

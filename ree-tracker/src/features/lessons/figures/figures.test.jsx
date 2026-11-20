@@ -100,13 +100,14 @@ describe('circuit', () => {
     ['xfmr', [1, 4], [3, 4], 'T₁'], ['cb', [3, 4], [4, 4]], ['bus', [4, 3.5], [4, 4.5], 'Bus 1'], ['i', [1, 0], [2, 0], 'I'],
     ['gnd', [0, 2]], ['dot', [5, 0]], ['gen', [0, 4], [1, 4], 'G'], ['motor', [6, 4], [5, 4], 'M₁'], ['load', [4, 4], [4, 5], '5 MW'],
     ['opamp', [9, 4], 'U1'],
+    ['pole', [12, 2], 'left'], ['text', [12, 3], 'M = 0.2 H'],
   ];
 
   it('draws every kind of part, named, in theme colours', () => {
     const svg = draw({ type: 'circuit', alt: 'Every part', parts: ALL, nodes: [{ at: [1, 0], label: 'A' }] });
     expect(svg).toMatch(/^<svg[^>]*aria-label="Every part"/);
     expect(svg.match(/data-part=/g)).toHaveLength(ALL.filter(([k]) => k !== 'wire').length);
-    for (const label of ['12 V', 'R₁', 'T₁', 'Bus 1', '5 MW', '>A<']) expect(svg).toContain(label);
+    for (const label of ['12 V', 'R₁', 'T₁', 'Bus 1', '5 MW', '>A<', 'M = 0.2 H']) expect(svg).toContain(label);
     noLiteralColours(svg);
   });
 

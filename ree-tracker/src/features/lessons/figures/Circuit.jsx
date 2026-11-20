@@ -12,7 +12,8 @@
 //   I (current source, arrow first → second), bat (long plate at the second
 //   point), sw, D (anode first), lamp, fuse, ammeter, voltmeter, wattmeter,
 //   and for one-line diagrams xfmr, cb, bus; i is a current arrow drawn over a wire.
-// One-point kinds: gnd and dot at [col, row]; gen, motor and load at a point
+// One-point kinds: gnd and dot at [col, row]; pole, a coil's polarity dot beside the
+//   point (label 'left' or 'right'); text, a free label there; gen, motor and load at a point
 //   with a lead to the second (load is an arrow ending there); opamp with its
 //   output at the point, − input one row-half up and two columns left, + below.
 import { BODY, INK, INK_TEXT, ONE_POINT as ONE, SIGNAL, SIGNAL_TEXT, TEXT, TWO_POINT, WITH_LEAD as LEAD, checkCircuit, headPoints } from './figureMath';
@@ -121,6 +122,8 @@ function TwoPoint({ kind, a, b, label, opts = {}, index }) {
 function OnePoint({ kind, a, b, label, index }) {
   const [x, y] = px(a);
   if (kind === 'dot') return <circle cx={x} cy={y} r="3.2" fill={TEXT} data-part={index} />;
+  if (kind === 'pole') return <circle cx={x + (label === 'left' ? -9 : 9)} cy={y} r="3" fill={TEXT} data-part={index} />;
+  if (kind === 'text') return <g data-part={index}><Text x={x} y={y} size={12} weight={700} italic>{label}</Text></g>;
   if (kind === 'gnd') {
     return (
       <g {...WIRE} data-part={index}>
