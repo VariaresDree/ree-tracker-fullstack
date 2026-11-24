@@ -18,10 +18,10 @@ import { fetchPaginatedQuestions, fetchVaultQuestions } from '../../../services/
 import { difficultyOf, difficultyTone } from '../../library/difficulty';
 import { plainError } from '../../shared-quizzes/quizFilesApi';
 import { getAdminExam, saveAdminExam } from '../assignedExamsApi';
-import { fromLocalInput, MAX_ITEMS, MIN_ITEMS, paceMinutes, subjectMix, toLocalInput } from '../examMath';
+import { fromLocalInput, MAX_ITEMS, MAX_MINUTES, MIN_ITEMS, paceMinutes, subjectMix, toLocalInput } from '../examMath';
 
 const PAGE = 30;
-const RANDOM_BATCH = 10;
+const RANDOM_SIZES = [10, 25, 50, 100];
 const letter = (i) => String.fromCharCode(65 + i);
 
 function Choices({ q }) {
@@ -189,11 +189,12 @@ export default function ExamBuilder({ examId = null, onDone }) {
   ));
 
   const [addingRandom, setAddingRandom] = useState(false);
+  const [randomSize, setRandomSize] = useState(RANDOM_SIZES[0]);
   const addRandom = async () => {
     setAddingRandom(true);
     try {
-      const pool = await fetchVaultQuestions(subject, topic, RANDOM_BATCH * 3, 'random');
-      const fresh = (pool || []).filter((q) => !pickedIds.has(q.id)).slice(0, Math.min(RANDOM_BATCH, MAX_ITEMS - picked.length));
+      const pool = await fetchVaultQuestions(subject, topic, randomSize * 3, 'random');
+      const fresh = (pool || []).filter((q) => !pickedIds.has(q.id)).slice(0, Math.min(randomSize, MAX_ITEMS - picked.length));
       if (fresh.length === 0) toast('Every question here is already in the exam.');
       else {
         setPicked((prev) => [...prev, ...fresh]);
@@ -206,8 +207,8 @@ export default function ExamBuilder({ examId = null, onDone }) {
   };
 
   const problem = !form.title.trim() ? 'Give the exam a title.'
-    : picked.length < MIN_ITEMS ? `Pick at least ${MIN_ITEMS} questions.`
-      : !(minutes >= 1 && minutes <= 360) ? 'Set a time between 1 and 360 minutes.'
+    : picked.length < MIN_ITEMS ? 'Pick at least one question.'
+      : !(minutes >= 1 && minutes <= MAX_MINUTES) ? `Set a time between 1 and ${MAX_MINUTES} minutes (24 hours).`
         : form.opensAt && form.closesAt && new Date(form.closesAt) <= new Date(form.opensAt) ? 'It has to close after it opens.'
           : null;
 
@@ -261,7 +262,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
 
       <StickyToolbar role="region" aria-label="Save this exam">
         <span className="text-sm text-textMain tabular-nums" aria-live="polite">
-          {picked.length} of {MAX_ITEMS} picked{picked.length < MIN_ITEMS ? ` · at least ${MIN_ITEMS}` : ''}
+          {picked.length} picked · up to {MAX_ITEMS}
         </span>
         <div className="flex flex-wrap gap-2">
           {!published && (
@@ -318,9 +319,16 @@ export default function ExamBuilder({ examId = null, onDone }) {
             <FormField label="Search" hint="Words in the question, or its id.">
               <Input type="search" value={searchDraft} onChange={(e) => setSearchDraft(e.target.value)} placeholder="e.g. synchronous motor" />
             </FormField>
-            <Button variant="secondary" size="sm" className="self-start" onClick={addRandom} loading={addingRandom} disabled={addingRandom || full}>
-              <Shuffle size={14} strokeWidth={1.75} aria-hidden="true" /> Add {RANDOM_BATCH} at random
-            </Button>
+            <div className="flex flex-wrap items-end gap-2">
+              <FormField label="At random" className="w-28">
+                <Select value={randomSize} onChange={(e) => setRandomSize(Number(e.target.value))}>
+                  {RANDOM_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+                </Select>
+              </FormField>
+              <Button variant="secondary" onClick={addRandom} loading={addingRandom} disabled={addingRandom || full}>
+                <Shuffle size={14} strokeWidth={1.75} aria-hidden="true" /> Add {randomSize} at random
+              </Button>
+            </div>
 
             {bank.loading ? (
               <div className="flex flex-col gap-2"><Skeleton className="h-28" /><Skeleton className="h-28" /></div>
@@ -357,7 +365,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
                 type="number"
                 inputMode="numeric"
                 min={1}
-                max={360}
+                max={MAX_MINUTES}
                 className="max-w-32"
                 value={form.minutes === '' ? String(autoMinutes) : form.minutes}
                 onChange={(e) => setForm((f) => ({ ...f, minutes: e.target.value }))}

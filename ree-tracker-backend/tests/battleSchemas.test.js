@@ -60,8 +60,9 @@ describe('battleSubmitSchema', () => {
         expect(r.data.total).toBeUndefined();
     });
 
-    it('caps attempts at 200', () => {
-        const attempts = Array.from({ length: 201 }, (_, i) => ({ questionId: `q${i}`, userAnswer: 'a' }));
+    it('caps attempts at 300, the largest assigned exam', () => {
+        const attempts = Array.from({ length: 301 }, (_, i) => ({ questionId: `q${i}`, userAnswer: 'a' }));
+        expect(battleSubmitSchema.safeParse({ battleId: 'A1B2C3', attempts: attempts.slice(0, 300) }).success).toBe(true);
         expect(battleSubmitSchema.safeParse({ battleId: 'A1B2C3', attempts }).success).toBe(false);
     });
 });

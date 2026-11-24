@@ -7,8 +7,16 @@ const battleIdSchema = z.string().regex(/^[A-Z0-9]{6}$/);
 // POST /api/battles — the client sends a pool SPEC, never the pool itself.
 // The server samples the questions so answer keys never round-trip.
 const { ownCountsBySubject } = require('./userSchemas');
+const { MAX_ITEMS, MAX_SECS } = require('./assignedExamSchemas');
 
-const battleCreateSchema = z.object({
+// A battle the host sets up draws 5 to 100 items in up to 6 hours. A battle on
+// an assigned exam is the exam's size and time (up to 300 items and a day).
+const DRAWN = { minCount: 5, maxCount: 100, maxSecs: 6 * 3600 };
+const drawnCount = (c) => c.mode === 'assigned' || (c.count >= DRAWN.minCount && c.count <= DRAWN.maxCount);
+const drawnTime = (b) => b.config.mode === 'assigned' || b.timeLimitSecs <= DRAWN.maxSecs;
+const TIME_MESSAGE = { message: 'A battle runs at most 6 hours.', path: ['timeLimitSecs'] };
+
+const battleFields = {
     battleId: battleIdSchema,
     config: z.object({
         // 'assigned': an exam the admin published (Exams › Assigned); the server
@@ -25,16 +33,21 @@ const battleCreateSchema = z.object({
         // One order of questions and choices for every player (the host's
         // choice); otherwise each player gets their own (the default).
         sameOrder: z.boolean().optional(),
-        count: z.coerce.number().int().min(5).max(100).default(20),
+        count: z.coerce.number().int().min(1).max(MAX_ITEMS).default(20),
         timeLimitMins: z.coerce.number().int().min(1).max(400).optional(),
         isPrcStandard: z.boolean().default(false),
         // How the questions are picked, the host's choice (services/questionPool).
         drawMode: z.enum(['even', 'board', 'own']).optional(),
         ownCounts: ownCountsBySubject.optional(),
     }).refine((c) => c.mode !== 'assigned' || !!c.assignedExamId, { message: 'Which exam?', path: ['assignedExamId'] })
+        .refine(drawnCount, { message: 'A battle draws 5 to 100 questions.', path: ['count'] })
         .default({ mode: 'custom', count: 20, isPrcStandard: false }),
-    timeLimitSecs: z.coerce.number().int().min(60).max(6 * 3600),
-});
+    timeLimitSecs: z.coerce.number().int().min(60).max(MAX_SECS),
+};
+
+const battleCreateSchema = z.object(battleFields).refine(drawnTime, TIME_MESSAGE);
+// A finished battle's stored settings, read again for its rematch.
+const battleSettingsSchema = z.object(battleFields).omit({ battleId: true }).refine(drawnTime, TIME_MESSAGE);
 
 // Shared per-question attempt shape for socket payloads. userAnswer may be
 // null (blank answers count as wrong, like the real board exam).
@@ -54,7 +67,7 @@ const battleAnswerSchema = battleAttemptItem.extend({
 // the schema: the server computes them.
 const battleSubmitSchema = z.object({
     battleId: battleIdSchema,
-    attempts: z.array(battleAttemptItem).max(200).default([]),
+    attempts: z.array(battleAttemptItem).max(MAX_ITEMS).default([]),
 });
 
-module.exports = { battleCreateSchema, battleAnswerSchema, battleSubmitSchema, battleAttemptItem };
+module.exports = { battleCreateSchema, battleSettingsSchema, battleAnswerSchema, battleSubmitSchema, battleAttemptItem };

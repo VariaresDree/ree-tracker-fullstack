@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const idempotency = require('../middlewares/idempotency');
 const { validate } = require('../middlewares/validate');
-const { battleCreateSchema } = require('../schemas/battleSchemas');
+const { battleCreateSchema, battleSettingsSchema } = require('../schemas/battleSchemas');
 const { sanitizeBattleQuestions } = require('../utils/battleSanitizer');
 const { battleTiming, publicAnswers } = require('../utils/battleLogic');
 const battleLifecycle = require('../services/battleLifecycle');
@@ -21,7 +21,7 @@ const SETTLE_WAIT_MS = 8000;
 
 // A rematch re-checks the old battle's settings with the create rules (minus
 // the id, which the server mints).
-const rematchSettingsSchema = battleCreateSchema.omit({ battleId: true });
+const rematchSettingsSchema = battleSettingsSchema;
 const INVITE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 // Create a battle from a pool SPEC (services/battleCreate). Always uses the

@@ -1,8 +1,11 @@
 // Small pure rules for assigned exams, shared by the builder and its tests.
 import { boardPaceSeconds, normalizeSubject, toDisplaySubject } from '@ree/shared';
 
-export const MIN_ITEMS = 5; // a battle's smallest paper (backend schemas/assignedExamSchemas.js)
-export const MAX_ITEMS = 100; // one PRC subject paper
+// The server's limits (backend schemas/assignedExamSchemas.js): any size up to
+// a full PRC board's worth, any time up to a day.
+export const MIN_ITEMS = 1;
+export const MAX_ITEMS = 300;
+export const MAX_MINUTES = 24 * 60;
 
 /** The board's pace for these questions, in whole minutes (at least one). */
 export function paceMinutes(questions) {

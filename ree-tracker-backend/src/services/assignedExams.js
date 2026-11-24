@@ -153,7 +153,9 @@ async function getForAdmin(id) {
 async function prepare(input, prior = null) {
     const { questions } = await liveQuestions(input.questionIds, { id: true, subject: true });
     if (questions.length < MIN_ITEMS) {
-        throw new AssignedExamError(422, `Only ${questions.length} of those questions are still in the bank. Pick at least ${MIN_ITEMS}.`);
+        throw new AssignedExamError(422, questions.length === 0
+            ? 'None of those questions are still in the bank. Pick others.'
+            : `Only ${questions.length} of those questions are still in the bank. Pick at least ${MIN_ITEMS}.`);
     }
     const publishing = input.status === 'published';
     return {

@@ -21,6 +21,7 @@ The admin builds exams from the question bank; learners take them alone or as a 
 - **Not verified live:** none of the three PRs on production yet. Read-only check: Admin › Assigned exams opens, Exams › Assigned shows its empty state. The JSON-path SQL is proven only by `tests/integration/assignedExams.dbtest.js` in CI.
 - **Owner actions:** create and publish the first real exam (a production write, so it's yours); have two learners take it, one alone and one in a battle, then open Results.
 - **Added 2026-11-25:** the admin can lock an exam (learners see it but can't start it) and give it opening and closing dates. The server enforces both for solo starts and battles; a sitting started before it closes still counts. Times are entered in the admin's device time.
+- **Sizes (2026-11-25):** an assigned exam holds 1 to 300 questions and runs up to 24 hours; battles on one follow it (socket submit takes up to 300 answers).
 - **Known limit:** the device gets the keys when a solo sitting starts (as Practice does), so the first attempt is honest-effort, not proctored.
 - **Next ideas, ranked:** classes and a push on publish or when a scheduled exam opens; a teacher spectate screen for a live class battle (`/:id/spectate` exists); CSV export of results; Today nudging toward EE (45% of the board, Math is 55% of answers).
 

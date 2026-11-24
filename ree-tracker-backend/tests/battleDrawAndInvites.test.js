@@ -11,7 +11,7 @@ firebaseAuth.getAuth = () => ({ verifyIdToken });
 const prisma = require('../src/config/db');
 const questionPool = require('../src/services/questionPool');
 const battleCreate = require('../src/services/battleCreate');
-const { battleCreateSchema } = require('../src/schemas/battleSchemas');
+const { battleCreateSchema, battleSettingsSchema } = require('../src/schemas/battleSchemas');
 
 const UID = 'uid-host';
 const as = (uid) => ({ Authorization: `Bearer ${uid}` });
@@ -92,7 +92,7 @@ describe('createBattle', () => {
         expect(battle.config).toMatchObject({ subtopic: 'Electric Circuits 2', count: 6 });
         expect(create).toHaveBeenCalledTimes(1);
         // The rematch re-reads the stored settings through the create schema.
-        const again = battleCreateSchema.omit({ battleId: true }).parse({ config: battle.config, timeLimitSecs: 600 });
+        const again = battleSettingsSchema.parse({ config: battle.config, timeLimitSecs: 600 });
         expect(again.config.subtopic).toBe('Electric Circuits 2');
     });
 
@@ -109,7 +109,7 @@ describe('createBattle', () => {
         expect(sql).toContain('"subtopicId" = $6');
         expect(params[5]).toBe('sub-ac');
         expect(battle.config).toMatchObject({ subtopicId: 'sub-ac', subtopicName: 'AC Circuits' });
-        const again = battleCreateSchema.omit({ battleId: true }).parse({ config: battle.config, timeLimitSecs: 600 });
+        const again = battleSettingsSchema.parse({ config: battle.config, timeLimitSecs: 600 });
         expect(again.config.subtopicId).toBe('sub-ac');
     });
 
@@ -120,7 +120,7 @@ describe('createBattle', () => {
         expect(battleCreateSchema.safeParse({ ...base, config: { drawMode: 'random' } }).success).toBe(false);
         // One order for everyone is kept, so a rematch plays the same way.
         const same = battleCreateSchema.parse({ ...base, config: { mode: 'subject', subject: 'EE', sameOrder: true } });
-        expect(battleCreateSchema.omit({ battleId: true }).parse({ config: same.config, timeLimitSecs: 600 }).config.sameOrder).toBe(true);
+        expect(battleSettingsSchema.parse({ config: same.config, timeLimitSecs: 600 }).config.sameOrder).toBe(true);
         expect(battleCreateSchema.safeParse({ ...base, config: { sameOrder: 'yes' } }).success).toBe(false);
         // An older battle's stored settings still pass.
         expect(battleCreateSchema.safeParse({ ...base, config: { mode: 'subject', subject: 'EE' } }).success).toBe(true);
