@@ -37,3 +37,34 @@ export function triesLine(mine) {
 
 /** "Class average 64% · 12 took it". The server sends it only once the learner has sat it and 3 have. */
 export const classLine = (c) => (c ? `Class average ${c.average}% · ${c.takers} took it` : null);
+
+/** "Fri, Nov 28, 8:00 AM", in this device's time. */
+export const whenLabel = (at) => new Date(at).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+/** An instant as a datetime-local field's value (this device's time), or ''. */
+export function toLocalInput(at) {
+  if (!at) return '';
+  const d = new Date(at);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** A datetime-local field's value (this device's time) as an instant, or null. */
+export const fromLocalInput = (value) => (value ? new Date(value).toISOString() : null);
+
+// Learners see open exams first, then the ones still to open, then the rest.
+const AVAILABILITY_ORDER = { open: 0, upcoming: 1, locked: 2, closed: 3 };
+export const byAvailability = (a, b) => (AVAILABILITY_ORDER[a.availability] ?? 0) - (AVAILABILITY_ORDER[b.availability] ?? 0);
+
+/**
+ * When an exam can be taken, in a line: null when there is nothing to say
+ * (open, with no closing date).
+ */
+export function availabilityLine(exam) {
+  switch (exam.availability) {
+    case 'locked': return 'Your reviewer has locked it for now.';
+    case 'upcoming': return `Opens ${whenLabel(exam.opensAt)}`;
+    case 'closed': return exam.closesAt ? `Closed ${whenLabel(exam.closesAt)}` : 'Closed';
+    default: return exam.closesAt ? `Closes ${whenLabel(exam.closesAt)}` : null;
+  }
+}

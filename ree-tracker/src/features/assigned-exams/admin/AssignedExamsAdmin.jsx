@@ -7,16 +7,16 @@ import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { toDisplaySubject } from '@ree/shared';
 import { Button, Card, EmptyState, SectionHeader, Skeleton, StatusPill } from '../../../components/ui';
-import { BarChart3, ClipboardList, Pencil, Plus, Trash2 } from '../../../components/ui/icons';
-import { examLength } from '../examMath';
+import { BarChart3, ClipboardList, Lock, LockOpen, Pencil, Plus, Trash2 } from '../../../components/ui/icons';
+import { examLength, whenLabel } from '../examMath';
 import { plainError } from '../../shared-quizzes/quizFilesApi';
-import { deleteAdminExam, listAdminExams, setAdminExamStatus } from '../assignedExamsApi';
+import { deleteAdminExam, listAdminExams, setAdminExamLocked, setAdminExamStatus } from '../assignedExamsApi';
 import ExamBuilder from './ExamBuilder';
 import ExamResults from './ExamResults';
 
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-function ExamRow({ exam, busy, onEdit, onResults, onStatus, onDelete }) {
+function ExamRow({ exam, busy, onEdit, onResults, onStatus, onLock, onDelete }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const published = exam.status === 'published';
   const subject = exam.subject === 'Mixed' ? 'Mixed subjects' : toDisplaySubject(exam.subject);
@@ -27,11 +27,19 @@ function ExamRow({ exam, busy, onEdit, onResults, onStatus, onDelete }) {
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             <h3 className="font-semibold text-textMain break-words min-w-0">{exam.title}</h3>
             <StatusPill tone={published ? 'success' : 'neutral'}>{published ? 'Published' : 'Draft'}</StatusPill>
+            {exam.locked && <StatusPill tone="amber">Locked</StatusPill>}
+            {!exam.locked && exam.availability === 'upcoming' && <StatusPill tone="velocity">Scheduled</StatusPill>}
+            {!exam.locked && exam.availability === 'closed' && <StatusPill tone="neutral">Closed</StatusPill>}
           </div>
           <p className="text-sm text-muted2">
             {exam.itemCount} items · {examLength(exam.timeLimitSecs)} · {subject}
             {' · '}{published ? `posted ${day(exam.publishedAt)}` : `saved ${day(exam.updatedAt)}`}
           </p>
+          {(exam.opensAt || exam.closesAt) && (
+            <p className="text-sm text-muted2">
+              {[exam.opensAt && `Opens ${whenLabel(exam.opensAt)}`, exam.closesAt && `Closes ${whenLabel(exam.closesAt)}`].filter(Boolean).join(' · ')}
+            </p>
+          )}
           {exam.takers > 0 && (
             <p className="text-sm text-textMain">
               {exam.takers} {exam.takers === 1 ? 'learner' : 'learners'} took it · average {exam.average}% on the first try
@@ -52,6 +60,12 @@ function ExamRow({ exam, busy, onEdit, onResults, onStatus, onDelete }) {
               <Button size="sm" variant="secondary" onClick={() => onEdit(exam)} disabled={busy}>
                 <Pencil size={14} strokeWidth={1.75} aria-hidden="true" /> Edit
               </Button>
+              {published && (
+                <Button size="sm" variant="secondary" onClick={() => onLock(exam, !exam.locked)} disabled={busy}>
+                  {exam.locked ? <LockOpen size={14} strokeWidth={1.75} aria-hidden="true" /> : <Lock size={14} strokeWidth={1.75} aria-hidden="true" />}
+                  {exam.locked ? 'Unlock' : 'Lock'}
+                </Button>
+              )}
               <Button size="sm" variant={published ? 'secondary' : 'primary'} onClick={() => onStatus(exam, published ? 'draft' : 'published')} loading={busy} disabled={busy}>
                 {published ? 'Unpublish' : 'Publish'}
               </Button>
@@ -100,6 +114,19 @@ export default function AssignedExamsAdmin() {
     setBusyId(null);
   };
 
+  const onLock = async (exam, locked) => {
+    setBusyId(exam.id);
+    try {
+      const saved = await setAdminExamLocked(exam.id, locked);
+      setState((s) => ({ ...s, items: s.items.map((e) => (e.id === exam.id ? { ...e, ...saved, availability: locked ? 'locked' : undefined } : e)) }));
+      toast.success(locked ? 'Locked. Learners see it but can’t start it.' : 'Unlocked.');
+      if (!locked) load();
+    } catch (err) {
+      toast.error(plainError(err));
+    }
+    setBusyId(null);
+  };
+
   const onDelete = async (exam) => {
     setBusyId(exam.id);
     try {
@@ -137,7 +164,7 @@ export default function AssignedExamsAdmin() {
       ) : (
         <ul className="flex flex-col gap-3">
           {state.items.map((exam) => (
-            <ExamRow key={exam.id} exam={exam} busy={busyId === exam.id} onEdit={(e) => open(e.id)} onResults={(e) => show('results', e.id)} onStatus={onStatus} onDelete={onDelete} />
+            <ExamRow key={exam.id} exam={exam} busy={busyId === exam.id} onEdit={(e) => open(e.id)} onResults={(e) => show('results', e.id)} onStatus={onStatus} onLock={onLock} onDelete={onDelete} />
           ))}
         </ul>
       )}

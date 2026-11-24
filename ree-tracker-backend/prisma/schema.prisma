@@ -533,6 +533,12 @@ model AssignedExam {
   questionIds   String[]
   timeLimitSecs Int
   status        String    @default("draft") // 'draft' | 'published'
+  // When learners may start it (null: no limit either side). A sitting
+  // started before it closes still counts. services/assignedExams.availabilityOf.
+  opensAt       DateTime?
+  closesAt      DateTime?
+  // The admin's lock: learners still see it, but can't start it.
+  locked        Boolean   @default(false)
   createdBy     String?
   publishedAt   DateTime?
   createdAt     DateTime  @default(now())

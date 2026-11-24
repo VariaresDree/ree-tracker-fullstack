@@ -15,6 +15,7 @@ export const saveAdminExam = async (id, exam) => (
   await apiRequest(id ? one(id) : ADMIN, id ? 'PUT' : 'POST', exam, { timeoutMs: SLOW })
 ).item;
 export const setAdminExamStatus = async (id, status) => (await apiRequest(one(id), 'PATCH', { status }, { timeoutMs: SLOW })).item;
+export const setAdminExamLocked = async (id, locked) => (await apiRequest(one(id), 'PATCH', { locked }, { timeoutMs: SLOW })).item;
 export const deleteAdminExam = (id) => apiRequest(one(id), 'DELETE', null, { timeoutMs: SLOW });
 
 // Learners (backend routes/assignedExamRoutes.js). The published list is shared

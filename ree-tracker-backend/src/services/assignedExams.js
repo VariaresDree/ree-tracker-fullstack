@@ -26,8 +26,31 @@ class AssignedExamError extends Error {
 
 const LIST_SELECT = {
     id: true, title: true, description: true, subject: true, questionIds: true, timeLimitSecs: true,
-    status: true, publishedAt: true, createdAt: true, updatedAt: true,
+    status: true, publishedAt: true, createdAt: true, updatedAt: true, opensAt: true, closesAt: true, locked: true,
 };
+
+/**
+ * Whether learners may start it now: 'open', 'locked' (the admin's lock),
+ * 'upcoming' (before it opens) or 'closed' (from when it closes).
+ */
+function availabilityOf(exam, now = new Date()) {
+    if (exam.locked) return 'locked';
+    if (exam.opensAt && new Date(exam.opensAt) > now) return 'upcoming';
+    if (exam.closesAt && new Date(exam.closesAt) <= now) return 'closed';
+    return 'open';
+}
+
+const NOT_OPEN = {
+    locked: 'Your reviewer has locked this exam for now.',
+    upcoming: 'This exam isn’t open yet.',
+    closed: 'This exam has closed.',
+};
+
+/** Refuses a start (alone or as a battle) unless the exam is open now. */
+function assertOpen(exam) {
+    const state = availabilityOf(exam);
+    if (state !== 'open') throw new AssignedExamError(409, NOT_OPEN[state]);
+}
 
 // What the builder shows of each picked question (the admin sees the key).
 const ADMIN_QUESTION_SELECT = {
@@ -111,7 +134,7 @@ async function listForAdmin() {
     const exams = await prisma.assignedExam.findMany({ orderBy: { updatedAt: 'desc' }, select: LIST_SELECT });
     const stats = summarize(await sittingsFor(exams.map((e) => e.id)));
     return exams.map((e) => ({
-        ...e, itemCount: e.questionIds.length, takers: stats[e.id]?.takers || 0, average: stats[e.id]?.average ?? null,
+        ...e, itemCount: e.questionIds.length, availability: availabilityOf(e), takers: stats[e.id]?.takers || 0, average: stats[e.id]?.average ?? null,
     }));
 }
 
@@ -140,6 +163,8 @@ async function prepare(input, prior = null) {
         subject: subjectOf(questions),
         timeLimitSecs: input.timeLimitSecs,
         status: input.status,
+        opensAt: input.opensAt ?? null,
+        closesAt: input.closesAt ?? null,
         // Posted once: re-saving a published exam keeps its date in learners' lists.
         publishedAt: publishing ? (prior?.publishedAt || new Date()) : null,
     };
@@ -156,11 +181,13 @@ async function update(id, input) {
     return prisma.assignedExam.update({ where: { id }, data: await prepare(input, prior), select: LIST_SELECT });
 }
 
-/** Publish or take back to draft, without resending the questions. */
-async function setStatus(id, status) {
+/** Publish or take back to draft, lock or unlock, without resending the questions. */
+async function setStatus(id, { status, locked }) {
     const exam = await prisma.assignedExam.findUnique({ where: { id }, select: LIST_SELECT });
     if (!exam) throw new AssignedExamError(404, 'That exam isn’t there any more.');
-    return update(id, { ...exam, status });
+    if (status === undefined) return prisma.assignedExam.update({ where: { id }, data: { locked }, select: LIST_SELECT });
+    const saved = await update(id, { ...exam, status });
+    return locked === undefined ? saved : prisma.assignedExam.update({ where: { id }, data: { locked }, select: LIST_SELECT });
 }
 
 async function remove(id) {
@@ -173,7 +200,7 @@ async function listForLearner(userId) {
     const exams = await prisma.assignedExam.findMany({
         where: { status: 'published' },
         orderBy: { publishedAt: 'desc' },
-        select: { id: true, title: true, description: true, subject: true, questionIds: true, timeLimitSecs: true, publishedAt: true },
+        select: { id: true, title: true, description: true, subject: true, questionIds: true, timeLimitSecs: true, publishedAt: true, opensAt: true, closesAt: true, locked: true },
     });
     const stats = summarize(await sittingsFor(exams.map((e) => e.id)));
     return exams.map(({ questionIds, ...e }) => {
@@ -182,6 +209,7 @@ async function listForLearner(userId) {
         return {
             ...e,
             itemCount: questionIds.length,
+            availability: availabilityOf(e),
             mine: me ? { attempts: me.attempts, best: me.best, first: me.first } : null,
             class: me && s.takers >= CLASS_MIN ? { average: s.average, takers: s.takers } : null,
         };
@@ -196,9 +224,10 @@ async function listForLearner(userId) {
 async function questionsForLearner(id, userId) {
     const exam = await prisma.assignedExam.findFirst({
         where: { id, status: 'published' },
-        select: { id: true, title: true, questionIds: true, timeLimitSecs: true },
+        select: { id: true, title: true, questionIds: true, timeLimitSecs: true, opensAt: true, closesAt: true, locked: true },
     });
     if (!exam) throw new AssignedExamError(404, 'That exam isn’t available any more.');
+    assertOpen(exam);
     if ((await lockedQuestionIds(userId, exam.questionIds)).size > 0) {
         throw new AssignedExamError(409, 'You’re in a battle with some of these questions. Finish it first.');
     }
@@ -206,13 +235,18 @@ async function questionsForLearner(id, userId) {
     return { id: exam.id, title: exam.title, timeLimitSecs: exam.timeLimitSecs, questions };
 }
 
-/** A published exam's questions and time, for a battle on it; null otherwise. */
+/**
+ * A published exam's questions and time, for a battle on it; null when there
+ * is no such exam. Refused (AssignedExamError) while it isn't open.
+ */
 async function publishedForBattle(id) {
     if (!id) return null;
-    return prisma.assignedExam.findFirst({
+    const exam = await prisma.assignedExam.findFirst({
         where: { id, status: 'published' },
-        select: { id: true, title: true, subject: true, questionIds: true, timeLimitSecs: true },
+        select: { id: true, title: true, subject: true, questionIds: true, timeLimitSecs: true, opensAt: true, closesAt: true, locked: true },
     });
+    if (exam) assertOpen(exam);
+    return exam;
 }
 
 /**
@@ -267,6 +301,6 @@ async function results(id) {
 }
 
 module.exports = {
-    AssignedExamError, LIST_SELECT, CLASS_MIN, subjectOf, summarize, listForAdmin, getForAdmin, create, update, setStatus, remove,
+    AssignedExamError, LIST_SELECT, CLASS_MIN, availabilityOf, subjectOf, summarize, listForAdmin, getForAdmin, create, update, setStatus, remove,
     listForLearner, questionsForLearner, publishedForBattle, tagFor, results,
 };

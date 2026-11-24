@@ -72,7 +72,7 @@ describe('Exams', () => {
     });
 
     it('Assigned says how many posted exams are new to this learner', async () => {
-        listAssignedExams.mockResolvedValueOnce([{ id: 'a', mine: null }, { id: 'b', mine: null }, { id: 'c', mine: { attempts: 1 } }]);
+        listAssignedExams.mockResolvedValueOnce([{ id: 'a', mine: null }, { id: 'b', mine: null, availability: 'open' }, { id: 'c', mine: { attempts: 1 } }, { id: 'd', mine: null, availability: 'locked' }]);
         at('/exams', Exams);
         expect(await screen.findByRole('tab', { name: 'Assigned 2 new' })).toBeInTheDocument();
     });

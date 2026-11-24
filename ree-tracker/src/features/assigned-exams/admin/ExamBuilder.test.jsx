@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { fetchPaginatedQuestions, fetchVaultQuestions, apiRequest } from '../../../services/dbQueries';
 import ExamBuilder from './ExamBuilder';
-import { examLength, paceMinutes, subjectMix } from '../examMath';
+import { availabilityLine, byAvailability, examLength, fromLocalInput, paceMinutes, subjectMix, toLocalInput } from '../examMath';
 
 const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }));
 vi.mock('react-hot-toast', () => ({ default: toast }));
@@ -46,6 +46,23 @@ describe('the exam rules', () => {
     expect(examLength(1320)).toBe('22 min');
     expect(examLength(7200)).toBe('2 h');
     expect(examLength(8640)).toBe('2 h 24 min');
+  });
+
+  it('turns a date field’s local time into an instant and back', () => {
+    const iso = fromLocalInput('2026-11-28T08:00');
+    expect(toLocalInput(iso)).toBe('2026-11-28T08:00');
+    expect(fromLocalInput('')).toBeNull();
+    expect(toLocalInput(null)).toBe('');
+  });
+
+  it('says when an exam can be taken, and lists open ones first', () => {
+    expect(availabilityLine({ availability: 'open' })).toBeNull();
+    expect(availabilityLine({ availability: 'open', closesAt: '2026-11-30T09:00:00Z' })).toMatch(/^Closes /);
+    expect(availabilityLine({ availability: 'upcoming', opensAt: '2026-11-28T00:00:00Z' })).toMatch(/^Opens /);
+    expect(availabilityLine({ availability: 'locked' })).toBe('Your reviewer has locked it for now.');
+    expect(availabilityLine({ availability: 'closed' })).toBe('Closed');
+    const sorted = ['closed', 'locked', 'open', 'upcoming'].map((availability) => ({ availability })).sort(byAvailability);
+    expect(sorted.map((e) => e.availability)).toEqual(['open', 'upcoming', 'locked', 'closed']);
   });
 
   it('counts each subject, under its short name', () => {
@@ -114,9 +131,26 @@ describe('ExamBuilder', () => {
     fireEvent.click(within(toolbar()).getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(apiRequest).toHaveBeenCalledWith('/api/admin/assigned-exams', 'POST', {
-      title: 'EE prelim', description: null, questionIds: ['b1', 'b2', 'b3', 'b4', 'b5'], timeLimitSecs: 1080, status: 'draft',
+      title: 'EE prelim', description: null, questionIds: ['b1', 'b2', 'b3', 'b4', 'b5'], timeLimitSecs: 1080, status: 'draft', opensAt: null, closesAt: null,
     }, expect.anything());
     expect(toast.success).toHaveBeenCalledWith('Draft saved.');
+  });
+
+  it('sends the dates it opens and closes, and won’t close before it opens', async () => {
+    render(<ExamBuilder onDone={vi.fn()} />);
+    await screen.findByText('Question b1');
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Scheduled' } });
+    ['b1', 'b2', 'b3', 'b4', 'b5'].forEach(pick);
+    fireEvent.change(screen.getByLabelText('Opens'), { target: { value: '2026-11-28T08:00' } });
+    fireEvent.change(screen.getByLabelText('Closes'), { target: { value: '2026-11-28T07:00' } });
+    fireEvent.click(within(toolbar()).getByRole('button', { name: 'Publish' }));
+    expect(toast.error).toHaveBeenLastCalledWith('It has to close after it opens.');
+    expect(apiRequest).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Closes'), { target: { value: '2026-11-30T17:00' } });
+    fireEvent.click(within(toolbar()).getByRole('button', { name: 'Publish' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalled());
+    expect(apiRequest.mock.calls[0][2]).toMatchObject({ opensAt: fromLocalInput('2026-11-28T08:00'), closesAt: fromLocalInput('2026-11-30T17:00') });
   });
 
   it('keeps the time the admin set', async () => {
