@@ -18,9 +18,10 @@
 const prisma = require('../config/db');
 const { gradeBoardExam, deriveVerdict, OPTION_ORDER_VERSION } = require('@ree/shared');
 const { subjectScoresBySession } = require('./deepAnalyticsHelpers');
+const assignedExams = require('./assignedExams');
 
 const HISTORY_MODES = ['BOARD_SIM', 'BATTLE'];
-const KINDS = new Set(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake', 'mistakes']);
+const KINDS = new Set(['subject', 'blended', 'custom', 'full-board', 'battle', 'retake', 'mistakes', 'assigned']);
 const MAX_MARKED = 300;
 
 class ExamHistoryError extends Error {
@@ -81,6 +82,11 @@ async function finalizeSession({ userId, sessionId, meta = {} }) {
     const { generalAverage, verdict } = gradeBoardExam(subjects);
     const prior = session.config && typeof session.config === 'object' ? session.config : {};
     const described = sanitizeMeta(meta);
+    // A sitting of an assigned exam is tagged only once its answers prove it,
+    // and a tag already stored stays (finalising again is a replay).
+    const tag = !prior.assignedExamId && typeof meta.assignedExamId === 'string'
+        ? await assignedExams.tagFor(meta.assignedExamId, userId, sessionId)
+        : null;
     // The choices were shown in the seeded order only if every finalise of the
     // sitting says so: a full board's earlier section finalised without the
     // tag (an older version of the app) showed its own order.
@@ -91,6 +97,7 @@ async function finalizeSession({ userId, sessionId, meta = {} }) {
     const config = {
         ...priorRest,
         ...describedRest,
+        ...(tag || {}),
         ...(seeded ? { optionOrder: OPTION_ORDER_VERSION } : {}),
         // A union, so finalising again (a replayed request) never drops marks.
         ...(described.markedQuestionIds || prior.markedQuestionIds
@@ -137,6 +144,8 @@ function buildMockHistory(sessions, derivedSubjects = {}) {
                 generalAverage: cfg.generalAverage ?? graded?.generalAverage ?? null,
                 verdict: stored || graded?.verdict || deriveVerdict(pct),
                 finalized: !!cfg.finalizedAt,
+                assignedExamId: cfg.assignedExamId || null,
+                assignedExamTitle: cfg.assignedExamTitle || null,
             };
         });
 }

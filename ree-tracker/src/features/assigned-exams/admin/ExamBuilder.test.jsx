@@ -132,12 +132,13 @@ describe('ExamBuilder', () => {
 
   it('opens a saved exam, says which questions left the bank, and saves it in place', async () => {
     apiRequest.mockImplementation(async (url, method, body) => (method === 'GET'
-      ? { item: { id: 'x1', title: 'Saved', description: 'Week 3', timeLimitSecs: 1800, status: 'published', questions: [q('s1'), q('s2'), q('s3'), q('s4'), q('s5')], missing: 2 } }
+      ? { item: { id: 'x1', title: 'Saved', description: 'Week 3', timeLimitSecs: 1800, status: 'published', questions: [q('s1'), q('s2'), q('s3'), q('s4'), q('s5')], missing: 2, takers: 6 } }
       : { item: { id: 'x1', ...body } }));
     const onDone = vi.fn();
     render(<ExamBuilder examId="x1" onDone={onDone} />);
     expect(await screen.findByDisplayValue('Saved')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('2 questions were deleted from the bank');
+    expect(screen.getByText(/Changes apply to new sittings/)).toHaveTextContent('6 took it');
     expect(screen.getByLabelText(/Time \(minutes\)/)).toHaveValue(30);
     expect(within(toolbar()).queryByRole('button', { name: 'Save draft' })).toBeNull();
     fireEvent.click(within(toolbar()).getByRole('button', { name: 'Save changes' }));

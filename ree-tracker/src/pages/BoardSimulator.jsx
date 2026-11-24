@@ -109,7 +109,8 @@ export default function BoardSimulator() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // A retake of a past sitting's misses (pages/SittingReview): the questions
+  // A retake of a past sitting's misses (pages/SittingReview), the Notebook's
+  // Mistakes mock, or an assigned exam (Exams › Assigned): the questions
   // come in router state, checked against the signed-in account, then the
   // state is cleared so Back doesn't start it again.
   const retakeStarted = useRef(false);
@@ -119,7 +120,7 @@ export default function BoardSimulator() {
     retakeStarted.current = true;
     navigate(location.pathname, { replace: true, state: null });
     if (!currentUser?.uid || retake.ownerUid !== currentUser.uid || !Array.isArray(retake.questions) || retake.questions.length === 0) return;
-    engine.startSimulation(retakeConfig(engine.config, { questions: retake.questions, sourceSessionId: retake.sourceSessionId || null, kind: retake.kind }));
+    engine.startSimulation(retakeConfig(engine.config, { questions: retake.questions, sourceSessionId: retake.sourceSessionId || null, kind: retake.kind, assigned: retake.assigned }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 

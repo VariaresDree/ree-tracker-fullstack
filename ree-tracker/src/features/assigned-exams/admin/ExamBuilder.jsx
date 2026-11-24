@@ -141,6 +141,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
   const [picked, setPicked] = useState([]);
   const [status, setStatus] = useState('draft');
   const [missing, setMissing] = useState(0);
+  const [takers, setTakers] = useState(0);
   const [saving, setSaving] = useState(null);
   const [view, setView] = useState('bank');
 
@@ -164,6 +165,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
         setPicked(item.questions || []);
         setStatus(item.status);
         setMissing(item.missing || 0);
+        setTakers(item.takers || 0);
         setLoading(false);
       },
       (err) => { if (live) { setLoadError(plainError(err)); setLoading(false); } },
@@ -261,6 +263,13 @@ export default function ExamBuilder({ examId = null, onDone }) {
           </Button>
         </div>
       </StickyToolbar>
+
+      {takers > 0 && (
+        <p className="text-sm text-textMain">
+          <StatusPill tone="amber">{takers} took it</StatusPill>{' '}
+          Changes apply to new sittings. The results so far stay as they were taken.
+        </p>
+      )}
 
       {missing > 0 && (
         <p role="status" className="text-sm text-textMain">

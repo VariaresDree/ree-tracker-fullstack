@@ -15,7 +15,7 @@ const tabs = (path: string, ids: string[]) => ids.map((id) => `${path}?tab=${id}
 export const SCREENS = [
   '/',
   '/practice',
-  ...tabs('/exams', ['mock', 'gauntlet', 'battles', 'rankings', 'history', 'paper']),
+  ...tabs('/exams', ['mock', 'assigned', 'gauntlet', 'battles', 'rankings', 'history', 'paper']),
   ...tabs('/progress', ['overview', 'topics', 'weak-spots', 'confidence', 'habits', 'syllabus', 'plan']),
   ...tabs('/library', ['handouts', 'files', 'quizzes', 'lessons', 'formulas', 'conversion', 'notebook', 'bookmarks']),
   '/account',

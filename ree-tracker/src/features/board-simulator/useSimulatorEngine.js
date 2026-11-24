@@ -213,7 +213,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
           // questions come with the config, so this works offline; the time is
           // the board's pace for each item's subject.
           pool = Array.isArray(config.retakeQuestions) ? config.retakeQuestions.filter((q) => q?.id) : [];
-          timeLimitSecs = Math.round(pool.reduce((acc, q) => acc + (boardPaceSeconds(q.subject) || 180), 0));
+          // An assigned exam keeps the time its reviewer set.
+          timeLimitSecs = config.retake?.timeLimitSecs
+              || Math.round(pool.reduce((acc, q) => acc + (boardPaceSeconds(q.subject) || 180), 0));
           if (pool.length === 0) throw new Error("There's nothing to retake from that sitting.");
       } else if (config.source === 'library') {
           // The learner's choice (drawModes); null is an even spread across topics.
@@ -637,10 +639,12 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
                 ? Array.from(new Set([...(loadFullBoard()?.sections || []).flatMap((sec) => sec?.markedQuestionIds || []), ...sectionMarkedIds]))
                 : sectionMarkedIds;
             const examMeta = {
-                kind: isFullBoard ? 'full-board' : isRetake ? (config.retake?.kind === 'mistakes' ? 'mistakes' : 'retake') : config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
+                kind: isFullBoard ? 'full-board' : isRetake ? (['mistakes', 'assigned'].includes(config.retake?.kind) ? config.retake.kind : 'retake') : config.mode === 'blended' ? 'blended' : (config.isPrcStandard ? 'subject' : 'custom'),
                 isPrcStandard: !!config.isPrcStandard,
                 targetSubject: isFullBoard ? 'Full board' : String(config.subject || '').slice(0, 32),
                 ...(markedIds.length > 0 ? { markedQuestionIds: markedIds.slice(0, 300) } : {}),
+                // The server tags the sitting with the exam once its answers prove it.
+                ...(isRetake && config.retake?.assignedExamId ? { assignedExamId: config.retake.assignedExamId } : {}),
                 // The choices were shown in the order keyed on this id, so the
                 // review shows them that way.
                 ...(sittingIdRef.current && sittingIdRef.current === sessionId ? { optionOrder: OPTION_ORDER_VERSION } : {}),

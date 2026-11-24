@@ -17,6 +17,17 @@ describe('sittingChange', () => {
     expect(sittingChange([...history].reverse(), 'new').overall).toBe(4.2);
   });
 
+  it('an assigned exam compares with the last try at the same exam, never another exam', () => {
+    const assigned = (id, date, examId, generalAverage) => row(id, date, { kind: 'assigned', targetSubject: 'EE', assignedExamId: examId, generalAverage });
+    const tries = [
+      assigned('a2', '2026-11-20T02:00:00Z', 'x1', 80),
+      assigned('b1', '2026-11-19T02:00:00Z', 'x2', 30),
+      assigned('a1', '2026-11-18T02:00:00Z', 'x1', 60),
+    ];
+    expect(sittingChange(tries, 'a2').overall).toBe(20);
+    expect(sittingChange(tries, 'b1')).toBeNull();
+  });
+
   it('the first of its format, or a sitting not in the history yet, has nothing to compare', () => {
     expect(sittingChange(history, 'ee-paper')).toBeNull();
     expect(sittingChange(history, 'oldest')).toBeNull();

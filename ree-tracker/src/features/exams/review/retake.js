@@ -36,16 +36,16 @@ export function reviewItemToQuestion(item, opts) {
   };
 }
 
+const RETAKE_KINDS = ['retake', 'mistakes', 'assigned'];
+
 /**
- * Router state that starts a timed retake in the simulator. `kind` names what
- * it is in the history: 'retake' (a sitting's misses) or 'mistakes' (the
- * Notebook's Mistakes mock).
+ * The simulator config for running `questions` as a timed sitting, from the
+ * setup `base`. Their answers from the last sitting don't come along. `kind`
+ * names it in the history: 'retake' (a sitting's misses), 'mistakes' (the
+ * Notebook's Mistakes mock) or 'assigned' (an exam the reviewer posted, with
+ * `assigned`: its id, title and time, which replaces the board's pace).
  */
-/**
- * The simulator config for retaking `questions`, from the setup `base`. Their
- * answers from the last sitting don't come along.
- */
-export function retakeConfig(base, { questions, sourceSessionId = null, kind = 'retake' }) {
+export function retakeConfig(base, { questions, sourceSessionId = null, kind = 'retake', assigned = null }) {
   const subjects = new Set(questions.map((q) => q.subject));
   return {
     ...setupConfig(base),
@@ -55,7 +55,11 @@ export function retakeConfig(base, { questions, sourceSessionId = null, kind = '
     count: questions.length,
     source: 'retake',
     cognitiveFocus: 'mixed',
-    retake: { sourceSessionId, kind: kind === 'mistakes' ? 'mistakes' : 'retake' },
+    retake: {
+      sourceSessionId,
+      kind: RETAKE_KINDS.includes(kind) ? kind : 'retake',
+      ...(kind === 'assigned' && assigned?.id ? { assignedExamId: assigned.id, title: assigned.title, timeLimitSecs: assigned.timeLimitSecs } : {}),
+    },
     // eslint-disable-next-line no-unused-vars
     retakeQuestions: questions.map(({ userAnswer, userConf, ...q }) => q),
   };

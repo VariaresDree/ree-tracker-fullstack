@@ -14,6 +14,9 @@ vi.mock('../../components/NotificationOptIn', () => ({ default: () => null }));
 const fetchMockHistory = vi.fn(() => Promise.resolve([]));
 vi.mock('../../services/dbQueries', async (importOriginal) => ({ ...(await importOriginal()), fetchMockHistory: (...a) => fetchMockHistory(...a) }));
 
+const listAssignedExams = vi.fn(() => Promise.resolve([]));
+vi.mock('../assigned-exams/assignedExamsApi', () => ({ listAssignedExams: (...a) => listAssignedExams(...a) }));
+
 const { default: SimulatorDiagnostics } = await import('./SimulatorDiagnostics');
 
 describe('what comes next', () => {
@@ -37,6 +40,14 @@ describe('what comes next', () => {
     expect(cfg).toMatchObject({ source: 'retake', count: 2, subject: 'EE', retake: { sourceSessionId: 's1' } });
     expect(cfg.retakeQuestions.map((q) => q.id)).toEqual(['a', 'c']);
     expect(cfg.retakeQuestions[0].userAnswer).toBeUndefined();
+  });
+
+  it('an assigned exam is titled by its name and says how the class did', async () => {
+    listAssignedExams.mockResolvedValueOnce([{ id: 'x1', class: { average: 64, takers: 12 } }]);
+    results({ ...engine(), config: { retake: { kind: 'assigned', assignedExamId: 'x1', title: 'EE prelim, week 3' } } });
+    expect(screen.getByRole('heading', { level: 1, name: 'EE prelim, week 3' })).toBeInTheDocument();
+    expect(await screen.findByText('Class average 64% · 12 took it.')).toBeInTheDocument();
+    expect(listAssignedExams).toHaveBeenCalledWith({ fresh: true });
   });
 
   it('takes another from setup', () => {

@@ -32,6 +32,8 @@ import { formatDuration, formatTimeOfDay } from '../../utils/time';
 import { drillPreset, launchPractice } from '../active-recall/presets';
 import { fetchMockHistory } from '../../services/dbQueries';
 import { changeWords, halvesLine, sittingChange } from '../exams/sittingDelta';
+import { listAssignedExams } from '../assigned-exams/assignedExamsApi';
+import { classLine } from '../assigned-exams/examMath';
 import { scoreTone } from '../../utils/scoreTone';
 
 const VERDICT_TONE = { [VERDICT.PASSED]: 'success', [VERDICT.CONDITIONAL]: 'amber', [VERDICT.FAILED]: 'danger' };
@@ -54,6 +56,21 @@ function useSittingChange(sessionId, enabled) {
     return () => { live = false; };
   }, [sessionId, enabled]);
   return loaded && loaded.sessionId === sessionId && enabled ? sittingChange(loaded.history, sessionId) : null;
+}
+
+// An assigned exam's class average (the learner has just sat it), once the
+// server sends one: from 3 learners up.
+function useClassLine(examId, enabled) {
+  const [loaded, setLoaded] = useState(null);
+  useEffect(() => {
+    if (!examId || !enabled) return undefined;
+    let live = true;
+    listAssignedExams({ fresh: true })
+      .then((items) => { if (live) setLoaded({ examId, line: classLine(items.find((e) => e.id === examId)?.class) }); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [examId, enabled]);
+  return examId && loaded?.examId === examId ? loaded.line : null;
 }
 
 // A battle's results are due by `resultsBy` at the latest: the server
@@ -90,12 +107,14 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
   const resultsBy = diagnostics?.pending ? diagnostics.resultsBy : null;
   const resultsDue = useIsPast(resultsBy);
   const change = useSittingChange(diagnostics?.sessionId, isOnline && !isBattle && !!diagnostics && !diagnostics.pending);
+  const assigned = engine?.config?.retake?.kind === 'assigned' ? engine.config.retake : null;
+  const classAverage = useClassLine(assigned?.assignedExamId, isOnline && !!diagnostics && !diagnostics.pending);
   if (!diagnostics) return null;
 
   const pending = !!diagnostics.pending;
   const hasGwa = typeof diagnostics.generalAverage === 'number';
   const tone = VERDICT_TONE[diagnostics.verdict] || 'neutral';
-  const title = headingLevel === 1 ? (isBattle ? 'Battle results' : 'Mock board results') : 'Last section';
+  const title = headingLevel === 1 ? (isBattle ? 'Battle results' : assigned?.title || 'Mock board results') : 'Last section';
 
   // A retake or another mock, from the results of an ordinary one. A battle has its
   // room for what comes next, and the full board's result has its own way out.
@@ -170,6 +189,7 @@ export default function SimulatorDiagnostics({ session, engine, isBattle = false
         <>
           <Card padding="md" className="flex flex-col gap-4">
             <Section className="text-base font-semibold text-textMain">By subject</Section>
+            {classAverage && <p className="text-sm text-muted2">{classAverage}.</p>}
             {change && (
               <p className="text-sm text-muted2">
                 Against your last sitting like this, on {shortDate(change.date)}: <span className="text-textMain tabular-nums">{changeWords(change.overall).toLowerCase()}{change.overall !== 0 && ' points'} overall</span>.

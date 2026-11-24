@@ -9,8 +9,9 @@ const SUBJECTS = ['Mathematics', 'ESAS', 'EE'];
 // The PRC weighted average when the sitting has one, else the raw share right
 // (the same headline Past sittings shows).
 const headline = (r) => (typeof r.generalAverage === 'number' ? r.generalAverage : (r.score ?? 0));
-// Like with like: a full board against a full board, an EE paper against an EE paper.
-const formatOf = (r) => [r.kind || '', r.isPrcStandard ? 1 : 0, r.targetSubject || ''].join('|');
+// Like with like: a full board against a full board, an EE paper against an EE
+// paper, an assigned exam against your last try at the same exam.
+const formatOf = (r) => [r.kind || '', r.isPrcStandard ? 1 : 0, r.targetSubject || '', r.assignedExamId || ''].join('|');
 
 /**
  * This sitting against the newest earlier one of the same format.
