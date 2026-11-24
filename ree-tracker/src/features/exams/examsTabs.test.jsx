@@ -169,6 +169,8 @@ describe('battleLabel', () => {
     expect(battleLabel({ mode: 'subject', subject: 'EE' })).toBe('EE');
     expect(battleLabel({ mode: 'blended', subject: 'Blended' })).toBe('Full mock');
     expect(battleLabel(null)).toBe('Battle');
+    expect(battleLabel({ mode: 'assigned', subject: 'EE', title: 'EE prelim' })).toBe('Assigned · EE prelim');
+    expect(battleLabel({ mode: 'assigned' })).toBe('Assigned exam');
     expect(battleLabel({ mode: 'subject', subject: 'Mathematics', subtopic: 'All', topics: ['Algebra', 'Complex Numbers', 'Trigonometry'] })).toBe('Mathematics · Algebra and 2 more');
   });
 });

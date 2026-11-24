@@ -263,6 +263,9 @@ function BattleRoom({ battleId }) {
 
                     {battleConfig && (
                         <div className="flex flex-wrap justify-center gap-2 mt-6">
+                            {battleConfig.config?.mode === 'assigned' && battleConfig.config.title && (
+                                <Badge tone="neutral" className="max-w-full truncate">Assigned: {battleConfig.config.title}</Badge>
+                            )}
                             <Badge tone="signal">
                                 Subject: {battleConfig.config?.mode === 'blended' ? 'Full mock' : battleConfig.config?.subject}
                             </Badge>

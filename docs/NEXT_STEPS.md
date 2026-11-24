@@ -12,7 +12,18 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0i. Handover, Library round 2 of 2026-11-19 (read this first)
+## 0j. Handover, Assigned exams round of 2026-11-24 (read this first)
+
+The admin builds exams from the question bank; learners take them alone or as a battle. Plan: `help-me-improve-my-sparkling-wilkinson.md` (owner's machine).
+
+- **Shipped:** #361 (model `AssignedExam`, migration `20270112000000`, Admin › Assigned exams builder), #362 (Exams › Assigned, solo sitting via the retake path, finalize tag `config.assignedExamId`, Results with item analysis, class average from 3 takers), and the battle PR (mode `assigned`, ranked, rematch = same exam).
+- **Owner's decisions:** unlimited retakes, the reviewer sees each learner's FIRST sitting; keys right after submitting; class average shown; assigned battles are ranked.
+- **Not verified live:** none of the three PRs on production yet. Read-only check: Admin › Assigned exams opens, Exams › Assigned shows its empty state. The JSON-path SQL is proven only by `tests/integration/assignedExams.dbtest.js` in CI.
+- **Owner actions:** create and publish the first real exam (a production write, so it's yours); have two learners take it, one alone and one in a battle, then open Results.
+- **Known limit:** the device gets the keys when a solo sitting starts (as Practice does), so the first attempt is honest-effort, not proctored.
+- **Next ideas, ranked:** classes and due dates with a push on publish; a teacher spectate screen for a live class battle (`/:id/spectate` exists); CSV export of results; Today nudging toward EE (45% of the board, Math is 55% of answers).
+
+## 0i. Handover, Library round 2 of 2026-11-19
 
 Four PRs, each from `main` except where stacked (merge in order): Quizzes and My files drop zones on top (#346); Formula cards as a formula sheet (#347); lessons in a module format with a contents rail (#348, stacked on #347); the lesson drawing kit and the Electric Circuits 1 pilot (stacked on #348). The plan: `help-me-functional-book.md` in the owner's Claude plans folder.
 

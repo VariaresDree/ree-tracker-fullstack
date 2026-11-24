@@ -149,6 +149,21 @@ describe('settling a battle whose time is up', () => {
         expect(db.state.users.get('done').eloRating).toBeGreaterThan(1200);
     });
 
+    it('a battle on an assigned exam tags each player’s sitting with the exam', async () => {
+        const id = 'ASSGN1';
+        runningBattle(id, PAST_DEADLINE, { ana: { answers: answered({ q1: 'A' }) } });
+        db.state.battles.get(id).config = { mode: 'assigned', assignedExamId: 'x1', title: 'EE prelim' };
+        expect(await __test.finishAtDeadline(ns, id)).toBe('completed');
+        expect(examHistory.finalizeSession).toHaveBeenCalledWith({ userId: 'ana', sessionId: `${id}:ana`, meta: { kind: 'battle', assignedExamId: 'x1' } });
+    });
+
+    it('an ordinary battle’s sitting carries no exam', async () => {
+        const id = 'PLAIN1';
+        runningBattle(id, PAST_DEADLINE, { ben: { answers: answered({ q1: 'A' }) } });
+        await __test.finishAtDeadline(ns, id);
+        expect(examHistory.finalizeSession).toHaveBeenCalledWith({ userId: 'ben', sessionId: `${id}:ben`, meta: { kind: 'battle' } });
+    });
+
     it('completes after the lobby was dropped (a restart or the idle clean-up)', async () => {
         const id = 'DEADL2';
         runningBattle(id, PAST_DEADLINE, {

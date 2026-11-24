@@ -206,6 +206,15 @@ async function questionsForLearner(id, userId) {
     return { id: exam.id, title: exam.title, timeLimitSecs: exam.timeLimitSecs, questions };
 }
 
+/** A published exam's questions and time, for a battle on it; null otherwise. */
+async function publishedForBattle(id) {
+    if (!id) return null;
+    return prisma.assignedExam.findFirst({
+        where: { id, status: 'published' },
+        select: { id: true, title: true, subject: true, questionIds: true, timeLimitSecs: true },
+    });
+}
+
 /**
  * The tag for a sitting of `examId`, or null: only when every question the
  * learner answered in it is one of the exam's, so no other sitting lands in
@@ -259,5 +268,5 @@ async function results(id) {
 
 module.exports = {
     AssignedExamError, LIST_SELECT, CLASS_MIN, subjectOf, summarize, listForAdmin, getForAdmin, create, update, setStatus, remove,
-    listForLearner, questionsForLearner, tagFor, results,
+    listForLearner, questionsForLearner, publishedForBattle, tagFor, results,
 };

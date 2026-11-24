@@ -4,12 +4,16 @@
 // sitting (the retake path, features/exams/review/retake.js), so its results,
 // review and Past sittings entry are a mock's. The server tags the sitting with
 // the exam when it finalises it, which is what the reviewer's results read.
+// Battle with friends hosts a battle on the exam (its questions and time, set
+// by the server) and opens its lobby, where friends join with the code.
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { toDisplaySubject } from '@ree/shared';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge, Button, Card, EmptyState, Modal, Skeleton, StatusPill } from '../../components/ui';
-import { ClipboardList, Clock, FileText, Play } from '../../components/ui/icons';
+import { ClipboardList, Clock, FileText, Play, Swords } from '../../components/ui/icons';
+import { createMultiplayerBattle } from '../../services/dbQueries';
 import { plainError } from '../shared-quizzes/quizFilesApi';
 import { getAssignedExamRun, listAssignedExams } from './assignedExamsApi';
 import { classLine, examLength, PASS, triesLine } from './examMath';
@@ -17,7 +21,7 @@ import { classLine, examLength, PASS, triesLine } from './examMath';
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const subjectLabel = (s) => (s === 'Mixed' ? 'Mixed subjects' : toDisplaySubject(s));
 
-function ExamCard({ exam, onTake }) {
+function ExamCard({ exam, onTake, onBattle, hosting }) {
   return (
     <li className="min-w-0">
       <Card as="article" padding="md" aria-labelledby={`exam-${exam.id}`} className="flex flex-col gap-3 h-full">
@@ -33,9 +37,12 @@ function ExamCard({ exam, onTake }) {
           {exam.description && <p className="text-sm text-muted2 line-clamp-2 break-words">{exam.description}</p>}
           {exam.class && <p className="text-sm text-muted2">{classLine(exam.class)}</p>}
         </div>
-        <div className="mt-auto pt-1">
-          <Button onClick={() => onTake(exam)} className="w-full sm:w-auto">
+        <div className="mt-auto pt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button onClick={() => onTake(exam)} className="w-full" disabled={hosting}>
             <Play size={16} strokeWidth={1.75} aria-hidden="true" /> {exam.mine ? 'Take again' : 'Take exam'}
+          </Button>
+          <Button variant="secondary" onClick={() => onBattle(exam)} className="w-full" loading={hosting} disabled={hosting}>
+            <Swords size={16} strokeWidth={1.75} aria-hidden="true" /> Battle with friends
           </Button>
         </div>
       </Card>
@@ -97,8 +104,22 @@ export function StartSheet({ exam, onClose }) {
 }
 
 export default function AssignedExamsTab() {
+  const navigate = useNavigate();
   const [state, setState] = useState({ items: null, error: '' });
   const [taking, setTaking] = useState(null);
+  const [hosting, setHosting] = useState(null);
+
+  // The server takes the exam's questions and time; the lobby shows the code to share.
+  const battle = async (exam) => {
+    setHosting(exam.id);
+    try {
+      const id = await createMultiplayerBattle({ mode: 'assigned', assignedExamId: exam.id }, exam.timeLimitSecs);
+      navigate(`/battle/${id}`);
+    } catch (err) {
+      toast.error(plainError(err));
+      setHosting(null);
+    }
+  };
 
   const load = useCallback((fresh = false) => listAssignedExams({ fresh }).then(
     (items) => setState({ items, error: '' }),
@@ -118,7 +139,7 @@ export default function AssignedExamsTab() {
     <>
       <h2 className="sr-only">Assigned exams</h2>
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {state.items.map((exam) => <ExamCard key={exam.id} exam={exam} onTake={setTaking} />)}
+        {state.items.map((exam) => <ExamCard key={exam.id} exam={exam} onTake={setTaking} onBattle={battle} hosting={hosting === exam.id} />)}
       </ul>
       {taking && <StartSheet exam={taking} onClose={() => setTaking(null)} />}
     </>
