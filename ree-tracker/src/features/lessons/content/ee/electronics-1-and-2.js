@@ -261,7 +261,7 @@ export default {
           y: [0, 12],
           xLabel: 'V_{in} (V)',
           yLabel: 'V_{out} (V)',
-          series: [{ f: (v) => Math.min((v * 455) / 655, 9.1), label: 'V_out' }],
+          series: [{ f: (v) => Math.min((v * 455) / 655, 9.1), label: 'V_{out}' }],
           marks: [{ at: [13.1, 9.1], label: 'regulates from 13.1 V' }],
         },
         r`Design for both extremes: the Zener must keep its minimum current at the LOWEST input and HEAVIEST load, and must not overheat at the HIGHEST input with NO load.`,

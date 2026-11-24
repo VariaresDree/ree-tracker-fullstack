@@ -99,6 +99,12 @@ describe('lesson content', () => {
               expect(typeof words, where).toBe('string');
               expect(words, where).not.toMatch(/[_$\\]/);
             }
+            // A label's subscript takes one character unless braced: V_dc draws as V subscript d, then c.
+            const labels = [f.xLabel, f.yLabel, ...(f.series || []).map((x) => x.label), ...(f.marks || []).map((m) => m.label),
+              ...(f.parts || []).map((p) => p[3]), ...(f.vectors || []).map((v) => v.label), ...(f.blocks || []).map((b) => b.label)];
+            for (const label of labels.filter((l) => typeof l === 'string')) {
+              expect(label, where).not.toMatch(/_[A-Za-z0-9]{2,}/);
+            }
           }
         }
       });

@@ -496,8 +496,8 @@ export default {
           alt: 'A Thévenin equivalent: one voltage source in series with one resistance, connected at terminals a and b to a load resistor.',
           caption: 'The whole circuit, seen from a and b, as one source and one resistance.',
           parts: [
-            ['V', [0, 2], [0, 0], 'V_th'],
-            ['R', [0, 0], [2, 0], 'R_th'],
+            ['V', [0, 2], [0, 0], 'V_{th}'],
+            ['R', [0, 0], [2, 0], 'R_{th}'],
             ['wire', [2, 0], [3.5, 0]],
             ['R', [3.5, 0], [3.5, 2], 'R_L'],
             ['wire', [3.5, 2], [0, 2]],
