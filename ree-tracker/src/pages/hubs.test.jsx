@@ -33,6 +33,7 @@ vi.mock('../features/my-files/MyFilesTab', () => ({ default: () => <p>files</p> 
 vi.mock('../features/lessons/LessonsTab', () => ({ default: () => <section><h2>Lessons</h2><p>lessons</p></section> }));
 vi.mock('../features/links/LinksTab', () => ({ default: ({ embedded }) => <><h2>{embedded ? 'Your links' : 'Links'}</h2><p>links</p></> }));
 vi.mock('./admin/QuestionBank', () => ({ default: () => <p>question-bank</p> }));
+vi.mock('../features/assigned-exams/admin/AssignedExamsAdmin', () => ({ default: () => <p>assigned-exams</p> }));
 vi.mock('../features/analytics/ExplanationReview', () => ({ default: () => <p>explanation-review</p> }));
 vi.mock('../features/reference/ReferenceAdminV2', () => ({ default: () => <p>reference-admin</p> }));
 
@@ -168,7 +169,12 @@ describe('Admin', () => {
         expect(screen.getByRole('heading', { level: 1, name: 'Admin' })).toBeInTheDocument();
         expect(await screen.findByText('question-bank')).toBeInTheDocument();
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Question bank', 'Explanation review', 'Formula cards', 'Syllabus', 'Handouts', 'AI models', 'App health']);
+        expect(tabs).toEqual(['Question bank', 'Assigned exams', 'Explanation review', 'Formula cards', 'Syllabus', 'Handouts', 'AI models', 'App health']);
+    });
+
+    it('?tab=exams gives the assigned exams', async () => {
+        at('/admin?tab=exams', Admin);
+        expect(await screen.findByText('assigned-exams')).toBeInTheDocument();
     });
 
     it('?tab=handouts gives the editable handouts', async () => {
