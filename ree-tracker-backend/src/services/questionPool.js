@@ -136,9 +136,13 @@ async function samplePool({ subject = null, subtopic = null, topics = null, limi
         // Everything else is already in: the top-up can only be avoided ones.
         idList = [...idList, ...await sampleQuestionIds({ ...spec, limit: short, excludeIds: idList })];
     }
-    if (idList.length === 0) return [];
+    return byIds(idList);
+}
 
-    const questions = await prisma.question.findMany({ where: { id: { in: idList } } });
+/** Question rows for `idList`, in that order; ids no longer in the bank drop out. */
+async function byIds(idList, select = undefined) {
+    if (!idList?.length) return [];
+    const questions = await prisma.question.findMany({ where: { id: { in: idList } }, ...(select ? { select } : {}) });
     const orderMap = new Map(idList.map((id, i) => [id, i]));
     questions.sort((a, b) => orderMap.get(a.id) - orderMap.get(b.id));
     return questions;
@@ -185,6 +189,6 @@ async function sampleBlendedPool(totalCount = 100, { avoidIds = null, groups = n
 }
 
 module.exports = {
-    getSubjectFilter, sampleQuestionIds, samplePool, topicList, TOPICS_MAX, sampleBlendedPool, groupsForDraw,
+    getSubjectFilter, sampleQuestionIds, samplePool, byIds, topicList, TOPICS_MAX, sampleBlendedPool, groupsForDraw,
     getSyllabusWeights, normalizeSyllabusWeights, DEFAULT_SYLLABUS_WEIGHTS,
 };

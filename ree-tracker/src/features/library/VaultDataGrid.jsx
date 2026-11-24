@@ -7,6 +7,7 @@ import { fetchFlaggedQuestions } from '../../services/dbQueries';
 import { Button, Modal, FormField, Select, Input, Badge, StatusPill, EmptyState } from '../../components/ui';
 import { Calculator, Brain, Pencil, X, Check, Shield, TriangleAlert, Search } from '../../components/ui/icons';
 import QuestionEditModal from './QuestionEditModal';
+import { difficultyOf, difficultyTone } from './difficulty';
 
 export default function VaultDataGrid({
   filteredQuestions,
@@ -196,12 +197,7 @@ export default function VaultDataGrid({
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const q = finalQuestions[virtualRow.index];
 
-                let diff = q.type === 'calculation' ? 'MEDIUM' : 'EASY';
-                if (typeof q.difficulty === 'string' && q.difficulty.trim() !== '') {
-                    diff = q.difficulty.toUpperCase();
-                } else if (typeof q.difficulty === 'number') {
-                    diff = q.difficulty > 2 ? 'HARD' : (q.difficulty > 1 ? 'MEDIUM' : 'EASY');
-                }
+                const diff = difficultyOf(q);
 
                 const TypeIcon = q.type === 'conceptual' ? Brain : Calculator;
 
@@ -234,7 +230,7 @@ export default function VaultDataGrid({
                           <div className="flex flex-wrap items-center gap-2 mb-2">
                               <Badge tone="signal">{q.subject}</Badge>
                               <span className="text-xs font-bold text-textMain truncate">{q.subtopic || 'Uncategorized'}</span>
-                              <StatusPill dot={false} tone={diff === 'HARD' ? 'danger' : diff === 'MEDIUM' ? 'amber' : 'success'}>{diff.toLowerCase()}</StatusPill>
+                              <StatusPill dot={false} tone={difficultyTone(diff)}>{diff.toLowerCase()}</StatusPill>
 
                               {q.fixedExplanation && (
                                   <Badge tone="neutral" className="hidden sm:inline-flex">offline solution</Badge>

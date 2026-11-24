@@ -344,6 +344,7 @@ async function bootstrap() {
     app.use('/api/reference-cards', require('./src/routes/referenceCardRoutes'));
     app.use('/api/admin/subtopics', require('./src/routes/adminSubtopicRoutes'));
     app.use('/api/admin/quiz-files', require('./src/routes/adminQuizFileRoutes'));
+    app.use('/api/admin/assigned-exams', require('./src/routes/adminAssignedExamRoutes'));
     app.use('/api/admin', require('./src/routes/adminRoutes'));
     app.use('/api/review', require('./src/routes/reviewRoutes'));
 

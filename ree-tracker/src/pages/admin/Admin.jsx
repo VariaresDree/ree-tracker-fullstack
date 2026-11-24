@@ -1,7 +1,8 @@
 // src/pages/admin/Admin.jsx
 //
 // Content tools, in one place and out of the learners' way: the question bank
-// (AI/PDF ingestion, manual entry, review queue, syllabus), the explanation
+// (AI/PDF ingestion, manual entry, review queue, syllabus), assigned exams
+// (papers put together from the bank for every learner), the explanation
 // review queue, formula-card management, the syllabus (topics, the board's items
 // per topic, suggested subtopics), handout uploads, and the AI model
 // status (which model answers each AI feature, and whether it is healthy), and
@@ -15,7 +16,7 @@ import { lazy } from '../../utils/lazyWithRetry';
 import { useAuth } from '../../contexts/AuthContext';
 import useTabParam from '../../hooks/useTabParam';
 import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../../components/ui';
-import { Library, ClipboardList, BookOpen, Cloud, Activity, ShieldCheck, ListChecks } from '../../components/ui/icons';
+import { Library, ClipboardList, BookOpen, Cloud, Activity, ShieldCheck, ListChecks, FileText } from '../../components/ui/icons';
 import ErrorBoundary from '../../components/ErrorBoundary';
 
 const QuestionBank = lazy(() => import('./QuestionBank'));
@@ -26,9 +27,11 @@ const MaterialViewer = lazy(() => import('../../features/materials/MaterialViewe
 const SyllabusAdmin = lazy(() => import('../../features/admin/syllabus/SyllabusAdmin'));
 const AiStatusPanel = lazy(() => import('../../features/admin/ai/AiStatusPanel'));
 const AppHealthPanel = lazy(() => import('../../features/admin/health/AppHealthPanel'));
+const AssignedExamsAdmin = lazy(() => import('../../features/assigned-exams/admin/AssignedExamsAdmin'));
 
 const TABS = [
   { id: 'questions', label: 'Question bank', icon: Library },
+  { id: 'exams', label: 'Assigned exams', icon: FileText },
   { id: 'explanations', label: 'Explanation review', icon: ClipboardList },
   { id: 'references', label: 'Formula cards', icon: BookOpen },
   { id: 'syllabus', label: 'Syllabus', icon: ListChecks },
@@ -55,6 +58,8 @@ export default function Admin() {
       <ErrorBoundary name="Admin">
         <Suspense fallback={<TabFallback />}>
           {tab === 'questions' && <QuestionBank />}
+
+          {tab === 'exams' && <AssignedExamsAdmin />}
 
           {tab === 'explanations' && <ExplanationReview />}
 

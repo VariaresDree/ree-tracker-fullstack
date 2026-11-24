@@ -19,6 +19,7 @@ enum Role {
 model User {
   id               String   @id
   quizFiles        QuizFile[]
+  assignedExams    AssignedExam[]
   email            String?  @unique
   displayName      String?
   photoURL         String?
@@ -517,6 +518,29 @@ model FeatureFlag {
   payload     Json?
   description String?
   updatedAt   DateTime @updatedAt
+}
+
+// An exam the admin puts together from the question bank (Admin › Assigned
+// exams) for every learner to take on Exams › Assigned, alone or as a battle.
+// Questions by id, not copied: a key fixed in the bank is fixed here too. A
+// question deleted from the bank simply drops out (services/assignedExams.js).
+model AssignedExam {
+  id            String    @id @default(uuid())
+  title         String
+  description   String?
+  // 'Mathematics' | 'ESAS' | 'EE', or 'Mixed' when the questions span several.
+  subject       String
+  questionIds   String[]
+  timeLimitSecs Int
+  status        String    @default("draft") // 'draft' | 'published'
+  createdBy     String?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  creator       User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@index([createdBy])
 }
 
 // 9. 'battles' collection
