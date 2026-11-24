@@ -74,3 +74,42 @@ export function availabilityLine(exam) {
 
 /** The exams a learner can start now and hasn't taken (Today's line, the tab's badge). */
 export const newExams = (items) => (items || []).filter((e) => !e.mine && (e.availability ?? 'open') === 'open');
+
+// What kind of set an exam is (backend schemas/assignedExamSchemas.EXAM_KINDS),
+// in the order the lists show them.
+export const EXAM_KINDS = [
+  { value: 'exam', label: 'Exam', plural: 'Exams' },
+  { value: 'quiz', label: 'Quiz', plural: 'Quizzes' },
+  { value: 'problem-set', label: 'Problem set', plural: 'Problem sets' },
+  { value: 'practice-set', label: 'Practice set', plural: 'Practice sets' },
+];
+export const kindOf = (value) => EXAM_KINDS.find((k) => k.value === value) || EXAM_KINDS[0];
+
+/** The kinds present in `items`, in list order, each with how many. */
+export function kindCounts(items) {
+  const n = {};
+  for (const e of items || []) { const k = kindOf(e.kind).value; n[k] = (n[k] || 0) + 1; }
+  return EXAM_KINDS.filter((k) => n[k.value]).map((k) => ({ ...k, count: n[k.value] }));
+}
+
+// The learner's list in four parts: what to take now, what they've taken,
+// what opens later, and what they can't start.
+export const LEARNER_SECTIONS = [
+  { id: 'todo', title: 'To take' },
+  { id: 'taken', title: 'Taken' },
+  { id: 'upcoming', title: 'Coming up' },
+  { id: 'shut', title: 'Locked or closed' },
+];
+export function learnerSection(exam) {
+  const state = exam.availability ?? 'open';
+  if (state === 'upcoming') return 'upcoming';
+  if (state !== 'open') return 'shut';
+  return exam.mine ? 'taken' : 'todo';
+}
+
+/** Order inside a part of the learner's list: what opens soonest first; locked before closed. */
+export function sectionOrder(a, b) {
+  const state = (e) => e.availability ?? 'open';
+  if (state(a) === 'upcoming' && state(b) === 'upcoming') return new Date(a.opensAt) - new Date(b.opensAt);
+  return (state(a) === 'closed') - (state(b) === 'closed');
+}

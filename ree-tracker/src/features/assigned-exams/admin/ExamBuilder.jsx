@@ -18,7 +18,7 @@ import { fetchPaginatedQuestions, fetchVaultQuestions } from '../../../services/
 import { difficultyOf, difficultyTone } from '../../library/difficulty';
 import { plainError } from '../../shared-quizzes/quizFilesApi';
 import { getAdminExam, saveAdminExam } from '../assignedExamsApi';
-import { fromLocalInput, MAX_ITEMS, MAX_MINUTES, MIN_ITEMS, paceMinutes, subjectMix, toLocalInput } from '../examMath';
+import { EXAM_KINDS, fromLocalInput, MAX_ITEMS, MAX_MINUTES, MIN_ITEMS, paceMinutes, subjectMix, toLocalInput } from '../examMath';
 
 const PAGE = 30;
 const RANDOM_SIZES = [10, 25, 50, 100];
@@ -140,6 +140,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
   const [form, setForm] = useState({ title: '', description: '', minutes: '', opensAt: '', closesAt: '' });
   const [picked, setPicked] = useState([]);
   const [status, setStatus] = useState('draft');
+  const [kind, setKind] = useState('exam');
   const [missing, setMissing] = useState(0);
   const [takers, setTakers] = useState(0);
   const [saving, setSaving] = useState(null);
@@ -170,6 +171,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
         });
         setPicked(item.questions || []);
         setStatus(item.status);
+        setKind(item.kind || 'exam');
         setMissing(item.missing || 0);
         setTakers(item.takers || 0);
         setLoading(false);
@@ -222,6 +224,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
         questionIds: picked.map((q) => q.id),
         timeLimitSecs: Math.round(minutes * 60),
         status: nextStatus,
+        kind,
         opensAt: fromLocalInput(form.opensAt),
         closesAt: fromLocalInput(form.closesAt),
       });
@@ -354,6 +357,16 @@ export default function ExamBuilder({ examId = null, onDone }) {
         <div className={view === 'exam' ? 'min-w-0' : 'min-w-0 max-lg:hidden'}>
           <section aria-labelledby="exam-own" className="flex flex-col gap-3 min-w-0">
             <h3 id="exam-own" className="text-eyebrow text-muted2">Your exam</h3>
+            <p className="text-label -mb-1" aria-hidden="true">Type</p>
+            <SegmentedControl
+              label="Type"
+              size="sm"
+              fullWidth
+              columns={2}
+              value={kind}
+              onChange={setKind}
+              options={EXAM_KINDS.map((k) => ({ value: k.value, label: k.label }))}
+            />
             <FormField label="Title" required>
               <Input value={form.title} maxLength={120} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
             </FormField>

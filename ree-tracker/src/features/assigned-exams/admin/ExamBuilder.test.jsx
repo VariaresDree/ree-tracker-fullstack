@@ -131,7 +131,7 @@ describe('ExamBuilder', () => {
     fireEvent.click(within(toolbar()).getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(apiRequest).toHaveBeenCalledWith('/api/admin/assigned-exams', 'POST', {
-      title: 'EE prelim', description: null, questionIds: ['b1', 'b2', 'b3', 'b4', 'b5'], timeLimitSecs: 1080, status: 'draft', opensAt: null, closesAt: null,
+      title: 'EE prelim', description: null, questionIds: ['b1', 'b2', 'b3', 'b4', 'b5'], timeLimitSecs: 1080, status: 'draft', kind: 'exam', opensAt: null, closesAt: null,
     }, expect.anything());
     expect(toast.success).toHaveBeenCalledWith('Draft saved.');
   });
@@ -151,6 +151,17 @@ describe('ExamBuilder', () => {
     fireEvent.click(within(toolbar()).getByRole('button', { name: 'Publish' }));
     await waitFor(() => expect(apiRequest).toHaveBeenCalled());
     expect(apiRequest.mock.calls[0][2]).toMatchObject({ opensAt: fromLocalInput('2026-11-28T08:00'), closesAt: fromLocalInput('2026-11-30T17:00') });
+  });
+
+  it('saves the kind of set the admin picks', async () => {
+    render(<ExamBuilder onDone={vi.fn()} />);
+    await screen.findByText('Question b1');
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'Trig problems' } });
+    pick('b1');
+    fireEvent.click(screen.getByRole('radio', { name: 'Problem set' }));
+    fireEvent.click(within(toolbar()).getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalled());
+    expect(apiRequest.mock.calls[0][2]).toMatchObject({ kind: 'problem-set' });
   });
 
   it('keeps the time the admin set', async () => {

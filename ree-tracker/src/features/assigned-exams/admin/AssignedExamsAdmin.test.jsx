@@ -39,11 +39,50 @@ describe('AssignedExamsAdmin', () => {
     renderAt();
     const draft = (await screen.findByText('EE prelim')).closest('li');
     expect(within(draft).getByText('Draft')).toBeInTheDocument();
-    expect(draft).toHaveTextContent('40 items · 2 h 24 min · EE');
+    expect(draft).toHaveTextContent('EE · 40 items · 2 h 24 min');
     const live = screen.getByText('Mixed mock').closest('li');
     expect(within(live).getByText('Published')).toBeInTheDocument();
     expect(live).toHaveTextContent('Mixed subjects');
+    // Unpublish waits under More; Results is on the row.
+    expect(within(live).queryByRole('button', { name: 'Unpublish' })).toBeNull();
+    expect(within(live).getByRole('button', { name: 'Results' })).toBeInTheDocument();
+    fireEvent.click(within(live).getByRole('button', { name: 'More for Mixed mock' }));
     expect(within(live).getByRole('button', { name: 'Unpublish' })).toBeInTheDocument();
+  });
+
+  it('groups exams under their kind, with counts', async () => {
+    items = [exam(), exam({ id: 'q1', title: 'Quiz 1', kind: 'quiz' }), exam({ id: 'q2', title: 'Quiz 2', kind: 'quiz' }), exam({ id: 'p1', title: 'Trig problems', kind: 'problem-set' })];
+    renderAt();
+    await screen.findByText('Quiz 1');
+    const groups = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(groups).toEqual(['Exams 1', 'Quizzes 2', 'Problem sets 1']);
+  });
+
+  it('finds exams by words, type and status, and clears the filters', async () => {
+    items = [exam(), exam({ id: 'q1', title: 'Trig quiz', kind: 'quiz', status: 'published', publishedAt: '2026-11-18T03:00:00Z' }), exam({ id: 'q2', title: 'Algebra quiz', kind: 'quiz' })];
+    renderAt();
+    await screen.findByText('Trig quiz');
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'quiz' } });
+    expect(screen.queryByText('EE prelim')).toBeNull();
+    expect(screen.getByText('Algebra quiz')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Published' }));
+    expect(screen.queryByText('Algebra quiz')).toBeNull();
+    expect(screen.getByText('Trig quiz')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'algebra' } });
+    expect(screen.getByText('No exams match')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByText('EE prelim')).toBeInTheDocument();
+    expect(screen.getByText('Algebra quiz')).toBeInTheDocument();
+  });
+
+  it('moves an exam to another kind from More', async () => {
+    renderAt();
+    const draft = (await screen.findByText('EE prelim')).closest('li');
+    fireEvent.click(within(draft).getByRole('button', { name: 'More for EE prelim' }));
+    fireEvent.change(within(draft).getByLabelText('Type'), { target: { value: 'practice-set' } });
+    await waitFor(() => expect(apiRequest).toHaveBeenCalledWith('/api/admin/assigned-exams/x1', 'PATCH', { kind: 'practice-set' }, expect.anything()));
+    expect(toast.success).toHaveBeenCalledWith('Moved to Practice sets.');
+    expect(await screen.findByRole('heading', { level: 3, name: /Practice sets/ })).toBeInTheDocument();
   });
 
   it('publishes a draft for every learner', async () => {
@@ -58,7 +97,10 @@ describe('AssignedExamsAdmin', () => {
   it('locks a published exam so learners see it but can’t start it, and unlocks it', async () => {
     renderAt();
     const live = (await screen.findByText('Mixed mock')).closest('li');
-    expect(within((await screen.findByText('EE prelim')).closest('li')).queryByRole('button', { name: 'Lock' })).toBeNull();
+    const draft = (await screen.findByText('EE prelim')).closest('li');
+    fireEvent.click(within(draft).getByRole('button', { name: 'More for EE prelim' }));
+    expect(within(draft).queryByRole('button', { name: 'Lock' })).toBeNull();
+    fireEvent.click(within(live).getByRole('button', { name: 'More for Mixed mock' }));
     fireEvent.click(within(live).getByRole('button', { name: 'Lock' }));
     await waitFor(() => expect(within(live).getByText('Locked')).toBeInTheDocument());
     expect(apiRequest).toHaveBeenCalledWith('/api/admin/assigned-exams/x2', 'PATCH', { locked: true }, expect.anything());
@@ -76,7 +118,8 @@ describe('AssignedExamsAdmin', () => {
   it('deletes only after a second, plainer press', async () => {
     renderAt();
     const draft = (await screen.findByText('EE prelim')).closest('li');
-    fireEvent.click(within(draft).getByRole('button', { name: 'Delete EE prelim' }));
+    fireEvent.click(within(draft).getByRole('button', { name: 'More for EE prelim' }));
+    fireEvent.click(within(draft).getByRole('button', { name: 'Delete' }));
     expect(apiRequest).not.toHaveBeenCalledWith(expect.anything(), 'DELETE', null, expect.anything());
     fireEvent.click(within(draft).getByRole('button', { name: 'Delete for good' }));
     await waitFor(() => expect(screen.queryByText('EE prelim')).toBeNull());

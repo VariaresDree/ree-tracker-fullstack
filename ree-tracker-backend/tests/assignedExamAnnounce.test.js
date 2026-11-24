@@ -69,3 +69,11 @@ describe('announcing an assigned exam', () => {
         await flush();
     });
 });
+
+describe('a push names the kind of set', () => {
+    it('says quiz, problem set or practice set', async () => {
+        await assignedExams.create(input({ kind: 'problem-set' }), 'admin');
+        await flush();
+        expect(send.mock.calls[0][1].title).toBe('New problem set from your reviewer');
+    });
+});

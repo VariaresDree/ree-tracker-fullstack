@@ -28,8 +28,11 @@ class AssignedExamError extends Error {
 
 const LIST_SELECT = {
     id: true, title: true, description: true, subject: true, questionIds: true, timeLimitSecs: true,
-    status: true, publishedAt: true, createdAt: true, updatedAt: true, opensAt: true, closesAt: true, locked: true,
+    status: true, publishedAt: true, createdAt: true, updatedAt: true, opensAt: true, closesAt: true, locked: true, kind: true,
 };
+
+// What a push calls each kind of set.
+const KIND_NAME = { exam: 'exam', quiz: 'quiz', 'problem-set': 'problem set', 'practice-set': 'practice set' };
 
 /**
  * Whether learners may start it now: 'open', 'locked' (the admin's lock),
@@ -167,6 +170,7 @@ async function prepare(input, prior = null) {
         subject: subjectOf(questions),
         timeLimitSecs: input.timeLimitSecs,
         status: input.status,
+        kind: input.kind ?? 'exam',
         opensAt: input.opensAt ?? null,
         closesAt: input.closesAt ?? null,
         // Posted once: re-saving a published exam keeps its date in learners' lists.
@@ -193,7 +197,7 @@ function announce(exam) {
         : `${exam.title} · ${items}. Take it on Exams › Assigned.`;
     return prisma.deviceToken.findMany({ where: { user: { role: 'USER' } }, distinct: ['userId'], select: { userId: true } })
         .then((rows) => Promise.all(rows.map((r) => pushService.sendToUser(r.userId, {
-            title: 'New exam from your reviewer',
+            title: `New ${KIND_NAME[exam.kind] || 'exam'} from your reviewer`,
             body,
             data: { route: '/exams?tab=assigned' },
         }))))
@@ -216,12 +220,13 @@ async function update(id, input) {
     return exam;
 }
 
-/** Publish or take back to draft, lock or unlock, without resending the questions. */
-async function setStatus(id, { status, locked }) {
+/** Publish or take back to draft, lock or unlock, re-sort, without resending the questions. */
+async function setStatus(id, { status, locked, kind }) {
     const exam = await prisma.assignedExam.findUnique({ where: { id }, select: LIST_SELECT });
     if (!exam) throw new AssignedExamError(404, 'That exam isn’t there any more.');
-    if (status === undefined) return prisma.assignedExam.update({ where: { id }, data: { locked }, select: LIST_SELECT });
-    const saved = await update(id, { ...exam, status });
+    const rest = { ...(locked !== undefined ? { locked } : {}), ...(kind !== undefined ? { kind } : {}) };
+    if (status === undefined) return prisma.assignedExam.update({ where: { id }, data: rest, select: LIST_SELECT });
+    const saved = await update(id, { ...exam, ...(kind !== undefined ? { kind } : {}), status });
     return locked === undefined ? saved : prisma.assignedExam.update({ where: { id }, data: { locked }, select: LIST_SELECT });
 }
 
@@ -235,7 +240,7 @@ async function listForLearner(userId) {
     const exams = await prisma.assignedExam.findMany({
         where: { status: 'published' },
         orderBy: { publishedAt: 'desc' },
-        select: { id: true, title: true, description: true, subject: true, questionIds: true, timeLimitSecs: true, publishedAt: true, opensAt: true, closesAt: true, locked: true },
+        select: { id: true, title: true, description: true, subject: true, questionIds: true, timeLimitSecs: true, publishedAt: true, opensAt: true, closesAt: true, locked: true, kind: true },
     });
     const stats = summarize(await sittingsFor(exams.map((e) => e.id)));
     return exams.map(({ questionIds, ...e }) => {
