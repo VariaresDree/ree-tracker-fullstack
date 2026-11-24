@@ -29,16 +29,18 @@ describe('subjectOf', () => {
 
 describe('assignedExamSchema', () => {
     const parse = (over) => assignedExamSchema.safeParse(body(over));
-    it('takes 5 to 100 different questions', () => {
-        expect(parse({ questionIds: ids(4) }).success).toBe(false);
-        expect(parse({ questionIds: ids(5) }).success).toBe(true);
-        expect(parse({ questionIds: ids(100) }).success).toBe(true);
-        expect(parse({ questionIds: ids(101) }).success).toBe(false);
+    it('takes 1 to 300 different questions', () => {
+        expect(parse({ questionIds: [] }).success).toBe(false);
+        expect(parse({ questionIds: ids(1) }).success).toBe(true);
+        expect(parse({ questionIds: ids(150) }).success).toBe(true);
+        expect(parse({ questionIds: ids(300) }).success).toBe(true);
+        expect(parse({ questionIds: ids(301) }).success).toBe(false);
         expect(parse({ questionIds: ['q1', 'q2', 'q3', 'q4', 'q1'] }).success).toBe(false);
     });
-    it('keeps the time between a minute and six hours, and drafts by default', () => {
+    it('keeps the time between a minute and a day, and drafts by default', () => {
         expect(parse({ timeLimitSecs: 59 }).success).toBe(false);
-        expect(parse({ timeLimitSecs: 6 * 3600 + 1 }).success).toBe(false);
+        expect(parse({ timeLimitSecs: 18 * 3600 }).success).toBe(true);
+        expect(parse({ timeLimitSecs: 24 * 3600 + 1 }).success).toBe(false);
         expect(parse({}).data.status).toBe('draft');
     });
     it('won’t take a subject or anything else it doesn’t know', () => {
@@ -111,11 +113,11 @@ describe('admin assigned-exam routes', () => {
         expect(exam.create.mock.calls[0][0].data.questionIds).toEqual(['q3', 'q1', 'q2', 'q5', 'q4']);
     });
 
-    it('refuses an exam left with fewer than 5 questions still in the bank', async () => {
+    it('refuses an exam left with none of its questions in the bank', async () => {
         const res = await request(app).post('/api/admin/assigned-exams').set(as('admin'))
-            .send(body({ questionIds: ['q1', 'q2', 'q3', 'q4', 'gone1'] }));
+            .send(body({ questionIds: ['gone1', 'gone2'] }));
         expect(res.status).toBe(422);
-        expect(res.body.error).toMatch(/Only 4 of those questions/);
+        expect(res.body.error).toMatch(/None of those questions/);
         expect(exam.create).not.toHaveBeenCalled();
     });
 

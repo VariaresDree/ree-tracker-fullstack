@@ -74,17 +74,17 @@ describe('ExamBuilder', () => {
   it('lists the bank and puts ticked questions in the exam', async () => {
     render(<ExamBuilder onDone={vi.fn()} />);
     await screen.findByText('Question b1');
-    expect(within(toolbar()).getByText(/0 of 100 picked · at least 5/)).toBeInTheDocument();
+    expect(within(toolbar()).getByText(/0 picked · up to 300/)).toBeInTheDocument();
 
     pick('b1');
     pick('b2');
-    expect(within(toolbar()).getByText(/2 of 100 picked/)).toBeInTheDocument();
+    expect(within(toolbar()).getByText(/2 picked/)).toBeInTheDocument();
     const exam = screen.getByRole('region', { name: 'Your exam' });
     expect(within(exam).getAllByRole('listitem')).toHaveLength(2);
     expect(within(exam).getByText('EE 2')).toBeInTheDocument();
 
     pick('b1');
-    expect(within(toolbar()).getByText(/1 of 100 picked/)).toBeInTheDocument();
+    expect(within(toolbar()).getByText(/1 picked/)).toBeInTheDocument();
   });
 
   it('shows a question’s choices, its key and its explanation on request', async () => {
@@ -96,15 +96,14 @@ describe('ExamBuilder', () => {
     expect(within(row).getByText('Because b1')).toBeInTheDocument();
   });
 
-  it('won’t save with fewer than five questions or no title', async () => {
+  it('won’t save with no questions or no title', async () => {
     render(<ExamBuilder onDone={vi.fn()} />);
     await screen.findByText('Question b1');
     fireEvent.click(within(toolbar()).getByRole('button', { name: 'Publish' }));
     expect(toast.error).toHaveBeenCalledWith('Give the exam a title.');
     fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'EE prelim' } });
-    ['b1', 'b2', 'b3', 'b4'].forEach(pick);
     fireEvent.click(within(toolbar()).getByRole('button', { name: 'Publish' }));
-    expect(toast.error).toHaveBeenLastCalledWith('Pick at least 5 questions.');
+    expect(toast.error).toHaveBeenLastCalledWith('Pick at least one question.');
     expect(apiRequest).not.toHaveBeenCalled();
   });
 
@@ -115,9 +114,10 @@ describe('ExamBuilder', () => {
     pick('b1');
     fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'EE' } });
     fireEvent.change(screen.getByLabelText('Topic'), { target: { value: 'Power System Analysis' } });
-    fireEvent.click(screen.getByRole('button', { name: /Add 10 at random/ }));
-    await waitFor(() => expect(within(toolbar()).getByText(/3 of 100 picked/)).toBeInTheDocument());
-    expect(fetchVaultQuestions).toHaveBeenCalledWith('EE', 'Power System Analysis', 30, 'random');
+    fireEvent.change(screen.getByLabelText('At random'), { target: { value: '25' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add 25 at random/ }));
+    await waitFor(() => expect(within(toolbar()).getByText(/3 picked/)).toBeInTheDocument());
+    expect(fetchVaultQuestions).toHaveBeenCalledWith('EE', 'Power System Analysis', 75, 'random');
     expect(toast.success).toHaveBeenCalledWith('Added 2 at random.');
   });
 

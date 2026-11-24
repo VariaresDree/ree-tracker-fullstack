@@ -2,11 +2,14 @@ const { z } = require('zod');
 
 // Admin › Assigned exams. The subject isn't sent: the server reads it off the
 // questions (services/assignedExams.subjectOf).
-const MIN_ITEMS = 5; // a battle's smallest paper
-const MAX_ITEMS = 100; // one PRC subject paper
+// Any size the admin likes, up to a full PRC board's worth (3 × 100), and any
+// time up to a day: a 300-item EE paper at the board's pace is 18 hours.
+const MIN_ITEMS = 1;
+const MAX_ITEMS = 300;
+const MAX_SECS = 24 * 3600;
 
 const questionIds = z.array(z.string().trim().min(1).max(100))
-    .min(MIN_ITEMS, `Pick at least ${MIN_ITEMS} questions.`)
+    .min(MIN_ITEMS, 'Pick at least one question.')
     .max(MAX_ITEMS, `An exam holds up to ${MAX_ITEMS} questions.`)
     .refine((ids) => new Set(ids).size === ids.length, 'A question is in the list twice.');
 
@@ -17,7 +20,7 @@ const assignedExamSchema = z.object({
     title: z.string().trim().min(1, 'Give the exam a title.').max(120),
     description: z.string().trim().max(500).nullish().transform((v) => v || null),
     questionIds,
-    timeLimitSecs: z.coerce.number().int().min(60).max(6 * 3600),
+    timeLimitSecs: z.coerce.number().int().min(60).max(MAX_SECS),
     status: z.enum(['draft', 'published']).default('draft'),
     opensAt: when,
     closesAt: when,
@@ -31,4 +34,4 @@ const assignedExamStatusSchema = z.object({
     locked: z.boolean().optional(),
 }).strict().refine((p) => p.status !== undefined || p.locked !== undefined, 'Nothing to change.');
 
-module.exports = { assignedExamSchema, assignedExamStatusSchema, MIN_ITEMS, MAX_ITEMS };
+module.exports = { assignedExamSchema, assignedExamStatusSchema, MIN_ITEMS, MAX_ITEMS, MAX_SECS };

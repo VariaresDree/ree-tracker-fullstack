@@ -11,7 +11,7 @@ firebaseAuth.getAuth = () => ({ verifyIdToken });
 
 const prisma = require('../src/config/db');
 const battleRoutes = require('../src/routes/battleRoutes');
-const { battleCreateSchema } = require('../src/schemas/battleSchemas');
+const { battleCreateSchema, battleSettingsSchema } = require('../src/schemas/battleSchemas');
 const { createBattle } = require('../src/services/battleCreate');
 
 const as = (uid) => ({ Authorization: `Bearer ${uid}` });
@@ -36,9 +36,18 @@ describe('battleCreateSchema', () => {
     });
     it('a finished battle’s stored settings pass again, so it can have a rematch', () => {
         const stored = { mode: 'assigned', assignedExamId: 'x1', title: 'EE prelim', subject: 'EE', isPrcStandard: false, count: 5, optionOrder: 'seeded-v1' };
-        const settings = battleCreateSchema.omit({ battleId: true }).safeParse({ config: stored, timeLimitSecs: 1800 });
+        const settings = battleSettingsSchema.safeParse({ config: stored, timeLimitSecs: 1800 });
         expect(settings.success).toBe(true);
         expect(settings.data.config).toMatchObject({ mode: 'assigned', assignedExamId: 'x1' });
+    });
+    it('an assigned exam may be any size up to 300, and run up to a day', () => {
+        expect(parse({ mode: 'assigned', assignedExamId: 'x1', count: 250 }).success).toBe(true);
+        expect(battleCreateSchema.safeParse({ battleId: 'ABC123', timeLimitSecs: 18 * 3600, config: { mode: 'assigned', assignedExamId: 'x1' } }).success).toBe(true);
+    });
+    it('a battle the host sets up still draws 5 to 100 in up to 6 hours', () => {
+        expect(parse({ mode: 'subject', subject: 'EE', count: 4 }).success).toBe(false);
+        expect(parse({ mode: 'subject', subject: 'EE', count: 101 }).success).toBe(false);
+        expect(battleCreateSchema.safeParse({ battleId: 'ABC123', timeLimitSecs: 6 * 3600 + 1, config: { mode: 'subject', subject: 'EE' } }).success).toBe(false);
     });
     it('leaves the other modes as they were', () => {
         expect(parse({ mode: 'subject', subject: 'EE', count: 20 }).success).toBe(true);
