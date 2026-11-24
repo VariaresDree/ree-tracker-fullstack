@@ -7,13 +7,15 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { toDisplaySubject, normalizeSubject } from '@ree/shared';
 import { Button, Card, DataTable, EmptyState, Grid, KpiTile, SectionHeader, Skeleton, StatusPill } from '../../../components/ui';
-import { ChevronLeft, Pencil, TriangleAlert } from '../../../components/ui/icons';
+import { ChevronLeft, Download, Pencil, TriangleAlert } from '../../../components/ui/icons';
 import LatexRenderer from '../../../components/LatexRenderer';
 import QuestionEditModal from '../../library/QuestionEditModal';
 import { fetchQuestionById, updateQuestionInBank } from '../../../services/dbQueries';
 import { plainError } from '../../shared-quizzes/quizFilesApi';
 import { getAdminExamResults } from '../assignedExamsApi';
 import { PASS } from '../examMath';
+import { canDownloadFiles, copyText, downloadBlob } from '../../exam-export/deliver';
+import { examResultsCsv, resultsFileName } from './resultsCsv';
 
 const HARD = 30;
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -99,6 +101,18 @@ export default function ExamResults({ examId, onBack }) {
     }
   };
 
+  const [saved, setSaved] = useState('');
+  const deliver = async () => {
+    const csv = examResultsCsv(state.data);
+    const name = resultsFileName(state.data.exam);
+    if (canDownloadFiles()) {
+      downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), name);
+      setSaved(`Downloaded ${name}.`);
+    } else {
+      setSaved((await copyText(csv)) ? `Copied ${name}. Paste it into a spreadsheet.` : `Couldn’t copy ${name}.`);
+    }
+  };
+
   const back = (
     <Button variant="ghost" size="sm" onClick={onBack}>
       <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" /> All assigned exams
@@ -113,8 +127,18 @@ export default function ExamResults({ examId, onBack }) {
       <SectionHeader
         title={exam.title}
         description={`Results · ${exam.itemCount} items. Each learner’s first try counts; best and tries are beside it.`}
-        actions={back}
+        actions={(
+          <>
+            {takers > 0 && (
+              <Button variant="secondary" size="sm" onClick={deliver}>
+                <Download size={14} strokeWidth={1.75} aria-hidden="true" /> {canDownloadFiles() ? 'Download CSV' : 'Copy as CSV'}
+              </Button>
+            )}
+            {back}
+          </>
+        )}
       />
+      {saved && <p role="status" className="text-sm text-muted2">{saved}</p>}
       {takers === 0 ? (
         <EmptyState title="No one has taken it yet" description={exam.status === 'published' ? 'Results show here as learners finish it.' : 'It’s a draft: publish it so learners can take it.'} />
       ) : (

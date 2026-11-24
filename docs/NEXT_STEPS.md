@@ -21,8 +21,9 @@ The admin builds exams from the question bank; learners take them alone or as a 
 - **Not verified live:** none of the three PRs on production yet. Read-only check: Admin › Assigned exams opens, Exams › Assigned shows its empty state. The JSON-path SQL is proven only by `tests/integration/assignedExams.dbtest.js` in CI.
 - **Owner actions:** create and publish the first real exam (a production write, so it's yours); have two learners take it, one alone and one in a battle, then open Results.
 - **Added 2026-11-25:** the admin can lock an exam (learners see it but can't start it) and give it opening and closing dates. The server enforces both for solo starts and battles; a sitting started before it closes still counts. Times are entered in the admin's device time.
+- **Added 2026-11-25 (later):** a push to learners with notifications on when an exam is first published; Today's "New exam" line; Results as CSV. Not sent: when a scheduled exam opens, or when a locked one is unlocked (those need the scheduled-jobs runner). Push delivery itself was not observed.
 - **Known limit:** the device gets the keys when a solo sitting starts (as Practice does), so the first attempt is honest-effort, not proctored.
-- **Next ideas, ranked:** classes and a push on publish or when a scheduled exam opens; a teacher spectate screen for a live class battle (`/:id/spectate` exists); CSV export of results; Today nudging toward EE (45% of the board, Math is 55% of answers).
+- **Next ideas, ranked:** classes; a push when a scheduled exam opens (pg_cron job); a teacher spectate screen for a live class battle (`/:id/spectate` exists); CSV export of results; Today nudging toward EE (45% of the board, Math is 55% of answers).
 
 ## 0i. Handover, Library round 2 of 2026-11-19
 

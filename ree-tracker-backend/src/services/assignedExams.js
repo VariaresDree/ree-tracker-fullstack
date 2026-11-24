@@ -15,6 +15,8 @@ const prisma = require('../config/db');
 const { normalizeSubject, fallbackDisplayName } = require('@ree/shared');
 const questionPool = require('./questionPool');
 const { lockedQuestionIds } = require('./answerGate');
+const pushService = require('./pushService');
+const logger = require('../utils/logger');
 const { MIN_ITEMS } = require('../schemas/assignedExamSchemas');
 
 class AssignedExamError extends Error {
@@ -170,15 +172,46 @@ async function prepare(input, prior = null) {
     };
 }
 
+/** "Fri, Nov 28, 8:00 AM", Philippine time: a push is read away from the app. */
+const manilaWhen = (at) => new Date(at).toLocaleString('en-US', {
+    timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+});
+
+/**
+ * Learners who turned on notifications hear of an exam the first time it is
+ * published. Best effort and not awaited. A locked or already closed exam says
+ * nothing: there would be nothing to start.
+ */
+function announce(exam) {
+    const state = availabilityOf(exam);
+    if (state === 'locked' || state === 'closed') return Promise.resolve();
+    const items = `${exam.questionIds.length} items`;
+    const body = state === 'upcoming'
+        ? `${exam.title} · ${items}. Opens ${manilaWhen(exam.opensAt)}.`
+        : `${exam.title} · ${items}. Take it on Exams › Assigned.`;
+    return prisma.deviceToken.findMany({ where: { user: { role: 'USER' } }, distinct: ['userId'], select: { userId: true } })
+        .then((rows) => Promise.all(rows.map((r) => pushService.sendToUser(r.userId, {
+            title: 'New exam from your reviewer',
+            body,
+            data: { route: '/exams?tab=assigned' },
+        }))))
+        .catch((err) => logger.warn('assigned exam announce failed', { examId: exam.id, error: err.message }));
+}
+
 async function create(input, userId) {
     const data = await prepare(input);
-    return prisma.assignedExam.create({ data: { ...data, createdBy: userId }, select: LIST_SELECT });
+    const exam = await prisma.assignedExam.create({ data: { ...data, createdBy: userId }, select: LIST_SELECT });
+    if (exam.status === 'published') announce(exam);
+    return exam;
 }
 
 async function update(id, input) {
     const prior = await prisma.assignedExam.findUnique({ where: { id }, select: { publishedAt: true } });
     if (!prior) throw new AssignedExamError(404, 'That exam isn’t there any more.');
-    return prisma.assignedExam.update({ where: { id }, data: await prepare(input, prior), select: LIST_SELECT });
+    const exam = await prisma.assignedExam.update({ where: { id }, data: await prepare(input, prior), select: LIST_SELECT });
+    // Published for the first time: a re-save or a republish after a draft spell keeps its date and stays quiet.
+    if (exam.status === 'published' && !prior.publishedAt) announce(exam);
+    return exam;
 }
 
 /** Publish or take back to draft, lock or unlock, without resending the questions. */
@@ -302,5 +335,5 @@ async function results(id) {
 
 module.exports = {
     AssignedExamError, LIST_SELECT, CLASS_MIN, availabilityOf, subjectOf, summarize, listForAdmin, getForAdmin, create, update, setStatus, remove,
-    listForLearner, questionsForLearner, publishedForBattle, tagFor, results,
+    listForLearner, questionsForLearner, publishedForBattle, tagFor, results, announce,
 };

@@ -68,6 +68,15 @@ describe('ExamResults', () => {
     expect(toast.success).toHaveBeenCalledWith('Question saved. New sittings get the change.');
   });
 
+  it('downloads the results as CSV', async () => {
+    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    render(<ExamResults examId="x1" onBack={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Download CSV' }));
+    expect(created).toHaveBeenCalledWith(expect.any(Blob));
+    expect(screen.getByRole('status')).toHaveTextContent('Downloaded EE-prelim-results.csv.');
+  });
+
   it('says when no one has taken it yet', async () => {
     apiRequest.mockResolvedValue({ ...results, takers: 0, average: null, passed: 0, learners: [], items: [] });
     render(<ExamResults examId="x1" onBack={vi.fn()} />);
