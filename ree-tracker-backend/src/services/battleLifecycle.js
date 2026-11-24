@@ -179,6 +179,8 @@ function applyBattleRow(lobby, battle) {
         lobby.questionCount = battle.questions.length;
     }
     if (battle.timeLimitSecs != null) lobby.timeLimitSecs = battle.timeLimitSecs;
+    // A battle on an assigned exam: each player's sitting is tagged with it.
+    if (battle.config?.assignedExamId) lobby.assignedExamId = battle.config.assignedExamId;
     // Restored too — without it every post-restart submit was timed at 0s and
     // the score-tie placement (which feeds Elo) became arbitrary. A battle row
     // from before startedAt was stored counts from its creation.
@@ -463,7 +465,11 @@ async function runFinish(battleId, lobby, participant, clientAttempts, { timedOu
         const persist = async () => {
             const recorded = await record();
             try {
-                await examHistory.finalizeSession({ userId, sessionId: battleSessionId, meta: { kind: 'battle' } });
+                await examHistory.finalizeSession({
+                    userId,
+                    sessionId: battleSessionId,
+                    meta: { kind: 'battle', ...(lobby.assignedExamId ? { assignedExamId: lobby.assignedExamId } : {}) },
+                });
             } catch (finErr) {
                 logger.warn('battle session finalise failed', { battleId, userId, error: finErr.message });
             }

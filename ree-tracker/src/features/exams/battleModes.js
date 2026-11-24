@@ -19,10 +19,11 @@ export const BATTLE_MODES = [
   description: m.description || profile(m.profile).description,
 }));
 
-/** A battle's format in a few words, from its saved config: "EE", "EE · Electric Circuits 2", "Mathematics · Algebra and 2 more", "Full mock". */
+/** A battle's format in a few words, from its saved config: "EE", "EE · Electric Circuits 2", "Mathematics · Algebra and 2 more", "Full mock", "Assigned · EE prelim". */
 export function battleLabel(config) {
   if (!config) return 'Battle';
   if (config.mode === 'blended') return 'Full mock';
+  if (config.mode === 'assigned') return config.title ? `Assigned · ${config.title}` : 'Assigned exam';
   const subject = config.subject || 'Battle';
   const topics = pickedTopics(config);
   return topics.length ? `${subject} · ${topicsLabel(topics, 1)}` : subject;

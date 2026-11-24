@@ -2,12 +2,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { apiRequest } from '../../services/dbQueries';
+import { apiRequest, createMultiplayerBattle } from '../../services/dbQueries';
 import AssignedExamsTab from './AssignedExamsTab';
 import { __resetAssignedExamList } from './assignedExamsApi';
 import { retakeConfig } from '../exams/review/retake';
 
-vi.mock('../../services/dbQueries', () => ({ apiRequest: vi.fn() }));
+vi.mock('../../services/dbQueries', () => ({ apiRequest: vi.fn(), createMultiplayerBattle: vi.fn() }));
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toast }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid: 'u1' } }) }));
 
 const exam = (over = {}) => ({
@@ -26,6 +28,7 @@ const renderTab = () => render(
     <Routes>
       <Route path="/exams" element={<AssignedExamsTab />} />
       <Route path="/simulator" element={<Simulator />} />
+      <Route path="/battle/:id" element={<p>battle lobby</p>} />
     </Routes>
   </MemoryRouter>,
 );
@@ -81,6 +84,24 @@ describe('Exams › Assigned', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Finish it first');
     expect(screen.queryByTestId('simulator-state')).toBeNull();
+  });
+
+  it('hosts a battle on the exam and opens its lobby', async () => {
+    createMultiplayerBattle.mockResolvedValue('ABC123');
+    renderTab();
+    const card = (await screen.findByText('EE prelim, week 3')).closest('article');
+    fireEvent.click(within(card).getByRole('button', { name: 'Battle with friends' }));
+    expect(await screen.findByText('battle lobby')).toBeInTheDocument();
+    expect(createMultiplayerBattle).toHaveBeenCalledWith({ mode: 'assigned', assignedExamId: 'x1' }, 8640);
+  });
+
+  it('says why a battle couldn’t be hosted', async () => {
+    createMultiplayerBattle.mockRejectedValue(new Error('Question pool unavailable for that configuration.'));
+    renderTab();
+    const card = (await screen.findByText('EE prelim, week 3')).closest('article');
+    fireEvent.click(within(card).getByRole('button', { name: 'Battle with friends' }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Question pool unavailable for that configuration.'));
+    expect(within(card).getByRole('button', { name: 'Battle with friends' })).toBeEnabled();
   });
 
   it('says so when nothing is posted yet', async () => {

@@ -17,6 +17,7 @@ const { OPTION_ORDER_VERSION } = require('@ree/shared');
 const prisma = require('../config/db');
 // Called through the module object (not destructured) so tests can patch it.
 const questionPool = require('./questionPool');
+const assignedExams = require('./assignedExams');
 
 // The invite-code shape battleSchemas.battleIdSchema accepts.
 const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -52,6 +53,7 @@ async function mintBattleId() {
  * rematch: the last battle's questions) are drawn only to fill a short pool.
  */
 async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOfId = null, avoidIds = null }) {
+    if (config.mode === 'assigned') return createAssignedBattle({ hostId, battleId, config, rematchOfId });
     const groups = await questionPool.groupsForDraw(config);
     const avoid = { ...(avoidIds?.length ? { avoidIds } : {}), ...(groups ? { groups } : {}) };
     const pool = config.mode === 'blended'
@@ -70,6 +72,38 @@ async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOf
             config: { ...config, count: pool.length, optionOrder: OPTION_ORDER_VERSION },
             questions: pool,
             timeLimitSecs,
+            ...(rematchOfId ? { rematchOfId } : {}),
+        },
+    });
+}
+
+/**
+ * A battle on an exam the admin published: its questions (in its order; each
+ * player still gets their own unless the host chose one order) and its time,
+ * whatever the client sent. A rematch is the same exam again. Null when the
+ * exam isn't published or has no questions left.
+ */
+async function createAssignedBattle({ hostId, battleId, config, rematchOfId }) {
+    const exam = await assignedExams.publishedForBattle(config.assignedExamId);
+    if (!exam) return null;
+    const pool = await questionPool.byIds(exam.questionIds);
+    if (pool.length === 0) return null;
+    return prisma.battle.create({
+        data: {
+            id: battleId,
+            hostId,
+            config: {
+                mode: 'assigned',
+                assignedExamId: exam.id,
+                title: exam.title,
+                subject: exam.subject,
+                isPrcStandard: false,
+                ...(config.sameOrder ? { sameOrder: true } : {}),
+                count: pool.length,
+                optionOrder: OPTION_ORDER_VERSION,
+            },
+            questions: pool,
+            timeLimitSecs: exam.timeLimitSecs,
             ...(rematchOfId ? { rematchOfId } : {}),
         },
     });

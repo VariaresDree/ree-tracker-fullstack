@@ -11,7 +11,10 @@ const { ownCountsBySubject } = require('./userSchemas');
 const battleCreateSchema = z.object({
     battleId: battleIdSchema,
     config: z.object({
-        mode: z.enum(['custom', 'prc', 'blended', 'subject']).default('custom'),
+        // 'assigned': an exam the admin published (Exams › Assigned); the server
+        // takes its questions and time from the exam, not from these fields.
+        mode: z.enum(['custom', 'prc', 'blended', 'subject', 'assigned']).default('custom'),
+        assignedExamId: z.string().min(1).max(100).optional(),
         subject: z.string().max(64).optional(),
         subtopic: z.string().max(128).optional(),
         // Two or more topics to draw from instead of one (2026-11-16).
@@ -28,7 +31,8 @@ const battleCreateSchema = z.object({
         // How the questions are picked, the host's choice (services/questionPool).
         drawMode: z.enum(['even', 'board', 'own']).optional(),
         ownCounts: ownCountsBySubject.optional(),
-    }).default({ mode: 'custom', count: 20, isPrcStandard: false }),
+    }).refine((c) => c.mode !== 'assigned' || !!c.assignedExamId, { message: 'Which exam?', path: ['assignedExamId'] })
+        .default({ mode: 'custom', count: 20, isPrcStandard: false }),
     timeLimitSecs: z.coerce.number().int().min(60).max(6 * 3600),
 });
 
