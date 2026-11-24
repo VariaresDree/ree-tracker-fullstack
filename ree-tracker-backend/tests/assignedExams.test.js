@@ -64,6 +64,7 @@ describe('admin assigned-exam routes', () => {
         const role = (id) => ({ id, role: id === 'admin' ? 'ADMIN' : 'USER' });
         vi.spyOn(prisma.user, 'upsert').mockImplementation(async ({ where }) => role(where.id));
         vi.spyOn(prisma.user, 'findUnique').mockImplementation(async ({ where }) => role(where.id));
+        vi.spyOn(prisma.deviceToken, 'findMany').mockResolvedValue([]); // no one to notify
         // Every id asked for is in the bank unless it starts with "gone".
         vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => (
             where.id.in.filter((id) => !id.startsWith('gone')).map(bankRow)

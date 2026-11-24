@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import TodayPanel from '../features/today/TodayPanel';
 import SyllabusCoverageLink from '../features/syllabus/SyllabusCoverageLink';
+import NewExamLink from '../features/assigned-exams/NewExamLink';
 import { daysToExam } from '../features/today/todayActions';
 import { usePlanCalendar } from '../features/study-plan/usePlanCalendar';
 import { inDaysLabel } from '../features/study-plan/keyDateLabels';
@@ -111,6 +112,7 @@ export default function Today() {
           <>
             <ExamCountdown examDate={activeStats.examDate} next={nextDateText(nextKeyDate(calendar.items, today || todayManila()))} reviewMode={calendar.prefs.reviewMode} />
             <SyllabusCoverageLink />
+            <NewExamLink />
             {kpi.streak > 0 && (
               <StatusPill tone="amber" dot={false}>
                 <Flame size={13} strokeWidth={2} aria-hidden="true" /> {kpi.streak}-day streak

@@ -14,6 +14,7 @@ import { Page, PageHeader, Tabs, TabPanel, Skeleton } from '../components/ui';
 import ModeGuide from '../features/exams/ModeGuide';
 import { Zap, Shield, Swords, Trophy, History, ScanLine, FileText } from '../components/ui/icons';
 import { listAssignedExams } from '../features/assigned-exams/assignedExamsApi';
+import { newExams } from '../features/assigned-exams/examMath';
 import ErrorBoundary from '../components/ErrorBoundary';
 import MockBoardTab from '../features/exams/MockBoardTab';
 
@@ -48,7 +49,7 @@ function useNewAssigned() {
   const [count, setCount] = useState(0);
   useEffect(() => {
     let live = true;
-    listAssignedExams().then((items) => { if (live) setCount(items.filter((e) => !e.mine && (e.availability ?? 'open') === 'open').length); }, () => {});
+    listAssignedExams().then((items) => { if (live) setCount(newExams(items).length); }, () => {});
     return () => { live = false; };
   }, []);
   return count;

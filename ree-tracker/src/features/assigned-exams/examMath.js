@@ -71,3 +71,6 @@ export function availabilityLine(exam) {
     default: return exam.closesAt ? `Closes ${whenLabel(exam.closesAt)}` : null;
   }
 }
+
+/** The exams a learner can start now and hasn't taken (Today's line, the tab's badge). */
+export const newExams = (items) => (items || []).filter((e) => !e.mine && (e.availability ?? 'open') === 'open');

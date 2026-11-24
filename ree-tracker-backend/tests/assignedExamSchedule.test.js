@@ -36,6 +36,7 @@ beforeEach(() => {
     const role = (id) => ({ id, role: id === 'admin' ? 'ADMIN' : 'USER' });
     vi.spyOn(prisma.user, 'upsert').mockImplementation(async ({ where }) => role(where.id));
     vi.spyOn(prisma.user, 'findUnique').mockImplementation(async ({ where }) => role(where.id));
+        vi.spyOn(prisma.deviceToken, 'findMany').mockResolvedValue([]); // no one to notify
     vi.spyOn(prisma.battleParticipant, 'findMany').mockResolvedValue([]);
     vi.spyOn(prisma.question, 'findMany').mockImplementation(async ({ where }) => where.id.in.map((id) => ({ id, subject: 'EE' })));
     vi.spyOn(prisma.battle, 'create').mockImplementation(async ({ data }) => data);
