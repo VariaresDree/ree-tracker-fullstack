@@ -44,7 +44,8 @@ const toneOf = (verdict) => VERDICT_TONE_KEY[verdict] || 'danger';
 const TONE_TEXT = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber-text)', danger: 'var(--accent-danger)' };
 const barFill = { success: 'var(--accent-success)', amber: 'var(--color-reeAmber)', danger: 'var(--accent-danger)' };
 const toneText = (verdict) => TONE_TEXT[toneOf(verdict)];
-const kindLabel = (r) => sittingKindLabel(r.kind) || (r.isPrcStandard ? 'One subject (PRC clock)' : 'Mock board');
+const kindLabel = (r) => (r.assignedExamTitle ? `Assigned · ${r.assignedExamTitle}` : null)
+  || sittingKindLabel(r.kind) || (r.isPrcStandard ? 'One subject (PRC clock)' : 'Mock board');
 
 // The chart's hover card. Module level: defined inside the component it was a
 // new component type every render, so recharts remounted it on each one.

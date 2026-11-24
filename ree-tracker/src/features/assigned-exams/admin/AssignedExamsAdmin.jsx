@@ -1,20 +1,22 @@
 // Admin › Assigned exams: the exams the admin has put together from the bank,
-// drafts and published, and the builder for a new one or an edit (?exam=new
-// or ?exam=<id>, so Back leaves the builder). Learners see only published ones.
+// drafts and published, the builder for a new one or an edit (?exam=new or
+// ?exam=<id>, so Back leaves it) and one exam's results (?results=<id>).
+// Learners see only published ones.
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { toDisplaySubject } from '@ree/shared';
 import { Button, Card, EmptyState, SectionHeader, Skeleton, StatusPill } from '../../../components/ui';
-import { ClipboardList, Pencil, Plus, Trash2 } from '../../../components/ui/icons';
+import { BarChart3, ClipboardList, Pencil, Plus, Trash2 } from '../../../components/ui/icons';
 import { examLength } from '../examMath';
 import { plainError } from '../../shared-quizzes/quizFilesApi';
 import { deleteAdminExam, listAdminExams, setAdminExamStatus } from '../assignedExamsApi';
 import ExamBuilder from './ExamBuilder';
+import ExamResults from './ExamResults';
 
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-function ExamRow({ exam, busy, onEdit, onStatus, onDelete }) {
+function ExamRow({ exam, busy, onEdit, onResults, onStatus, onDelete }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const published = exam.status === 'published';
   const subject = exam.subject === 'Mixed' ? 'Mixed subjects' : toDisplaySubject(exam.subject);
@@ -30,6 +32,11 @@ function ExamRow({ exam, busy, onEdit, onStatus, onDelete }) {
             {exam.itemCount} items · {examLength(exam.timeLimitSecs)} · {subject}
             {' · '}{published ? `posted ${day(exam.publishedAt)}` : `saved ${day(exam.updatedAt)}`}
           </p>
+          {exam.takers > 0 && (
+            <p className="text-sm text-textMain">
+              {exam.takers} {exam.takers === 1 ? 'learner' : 'learners'} took it · average {exam.average}% on the first try
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
           {confirmDelete ? (
@@ -39,6 +46,9 @@ function ExamRow({ exam, busy, onEdit, onStatus, onDelete }) {
             </>
           ) : (
             <>
+              <Button size="sm" variant="secondary" onClick={() => onResults(exam)} disabled={busy}>
+                <BarChart3 size={14} strokeWidth={1.75} aria-hidden="true" /> Results
+              </Button>
               <Button size="sm" variant="secondary" onClick={() => onEdit(exam)} disabled={busy}>
                 <Pencil size={14} strokeWidth={1.75} aria-hidden="true" /> Edit
               </Button>
@@ -59,6 +69,7 @@ function ExamRow({ exam, busy, onEdit, onStatus, onDelete }) {
 export default function AssignedExamsAdmin() {
   const [params, setParams] = useSearchParams();
   const editing = params.get('exam');
+  const viewing = params.get('results');
   const [state, setState] = useState({ items: null, error: '' });
   const [busyId, setBusyId] = useState(null);
 
@@ -66,13 +77,16 @@ export default function AssignedExamsAdmin() {
     (items) => setState({ items, error: '' }),
     (err) => setState({ items: null, error: plainError(err) }),
   ), []);
-  useEffect(() => { if (!editing) load(); }, [editing, load]);
+  useEffect(() => { if (!editing && !viewing) load(); }, [editing, viewing, load]);
 
-  const open = (id) => setParams((prev) => {
+  const show = (key, id) => setParams((prev) => {
     const next = new URLSearchParams(prev);
-    if (id) next.set('exam', id); else next.delete('exam');
+    next.delete('exam');
+    next.delete('results');
+    if (id) next.set(key, id);
     return next;
   });
+  const open = (id) => show('exam', id);
 
   const onStatus = async (exam, status) => {
     setBusyId(exam.id);
@@ -98,6 +112,7 @@ export default function AssignedExamsAdmin() {
     setBusyId(null);
   };
 
+  if (viewing) return <ExamResults key={viewing} examId={viewing} onBack={() => show('results', null)} />;
   if (editing) return <ExamBuilder key={editing} examId={editing === 'new' ? null : editing} onDone={() => open(null)} />;
 
   const newButton = (
@@ -122,7 +137,7 @@ export default function AssignedExamsAdmin() {
       ) : (
         <ul className="flex flex-col gap-3">
           {state.items.map((exam) => (
-            <ExamRow key={exam.id} exam={exam} busy={busyId === exam.id} onEdit={(e) => open(e.id)} onStatus={onStatus} onDelete={onDelete} />
+            <ExamRow key={exam.id} exam={exam} busy={busyId === exam.id} onEdit={(e) => open(e.id)} onResults={(e) => show('results', e.id)} onStatus={onStatus} onDelete={onDelete} />
           ))}
         </ul>
       )}

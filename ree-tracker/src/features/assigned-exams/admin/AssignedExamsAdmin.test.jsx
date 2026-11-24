@@ -9,6 +9,7 @@ const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success:
 vi.mock('react-hot-toast', () => ({ default: toast }));
 vi.mock('../../../services/dbQueries', () => ({ apiRequest: vi.fn() }));
 vi.mock('./ExamBuilder', () => ({ default: ({ examId }) => <p>builder {String(examId)}</p> }));
+vi.mock('./ExamResults', () => ({ default: ({ examId }) => <p>results {examId}</p> }));
 
 const exam = (over = {}) => ({
   id: 'x1', title: 'EE prelim', subject: 'EE', itemCount: 40, timeLimitSecs: 8640, status: 'draft',
@@ -69,6 +70,16 @@ describe('AssignedExamsAdmin', () => {
     fireEvent.click(await screen.findByRole('button', { name: /New exam/ }));
     expect(screen.getByText('builder null')).toBeInTheDocument();
     expect(screen.getByTestId('where')).toHaveTextContent('?tab=exams&exam=new');
+  });
+
+  it('says how many took an exam and opens its results', async () => {
+    items = [exam({ status: 'published', publishedAt: '2026-11-18T03:00:00Z', takers: 4, average: 63 })];
+    renderAt();
+    const row = (await screen.findByText('EE prelim')).closest('li');
+    expect(row).toHaveTextContent('4 learners took it · average 63% on the first try');
+    fireEvent.click(within(row).getByRole('button', { name: 'Results' }));
+    expect(screen.getByTestId('where')).toHaveTextContent('?tab=exams&results=x1');
+    expect(screen.getByText('results x1')).toBeInTheDocument();
   });
 
   it('opens a saved exam for editing', () => {

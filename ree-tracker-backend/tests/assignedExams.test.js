@@ -69,6 +69,7 @@ describe('admin assigned-exam routes', () => {
         for (const fn of ['findMany', 'findUnique', 'create', 'update', 'deleteMany']) {
             exam[fn] = vi.spyOn(prisma.assignedExam, fn);
         }
+        vi.spyOn(prisma, '$queryRaw').mockResolvedValue([]); // no sittings yet
         exam.create.mockImplementation(async ({ data }) => ({ id: 'x1', ...data }));
         exam.update.mockImplementation(async ({ where, data }) => ({ id: where.id, ...data }));
     });
@@ -159,6 +160,6 @@ describe('admin assigned-exam routes', () => {
     it('lists every exam with its item count', async () => {
         exam.findMany.mockResolvedValue([{ id: 'x1', title: 'A', questionIds: ids(7) }]);
         const res = await request(app).get('/api/admin/assigned-exams').set(as('admin'));
-        expect(res.body.items).toEqual([{ id: 'x1', title: 'A', questionIds: ids(7), itemCount: 7 }]);
+        expect(res.body.items).toEqual([{ id: 'x1', title: 'A', questionIds: ids(7), itemCount: 7, takers: 0, average: null }]);
     });
 });

@@ -7,6 +7,9 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { expectNoSkippedLevels } from '../test/headings';
 
 vi.mock('../features/exams/GauntletTab', () => ({ default: () => <p>exams:gauntlet</p> }));
+vi.mock('../features/assigned-exams/AssignedExamsTab', () => ({ default: () => <p>exams:assigned</p> }));
+const listAssignedExams = vi.hoisted(() => vi.fn(async () => []));
+vi.mock('../features/assigned-exams/assignedExamsApi', () => ({ listAssignedExams }));
 vi.mock('../features/exams/BattlesTab', () => ({ default: () => <p>exams:battles</p> }));
 vi.mock('../features/exams/RankingsTab', () => ({ default: () => <p>exams:rankings</p> }));
 vi.mock('../components/MockBoardAnalytics', () => ({ default: () => <p>past-sittings</p> }));
@@ -57,7 +60,7 @@ describe('Exams', () => {
         ]);
     });
 
-    it.each(['gauntlet', 'battles', 'rankings', 'paper'])('?tab=%s shows that section', async (tab) => {
+    it.each(['assigned', 'gauntlet', 'battles', 'rankings', 'paper'])('?tab=%s shows that section', async (tab) => {
         at(`/exams?tab=${tab}`, Exams);
         expect(await screen.findByText(`exams:${tab}`)).toBeInTheDocument();
     });
@@ -68,10 +71,16 @@ describe('Exams', () => {
         expectNoSkippedLevels(container);
     });
 
+    it('Assigned says how many posted exams are new to this learner', async () => {
+        listAssignedExams.mockResolvedValueOnce([{ id: 'a', mine: null }, { id: 'b', mine: null }, { id: 'c', mine: { attempts: 1 } }]);
+        at('/exams', Exams);
+        expect(await screen.findByRole('tab', { name: 'Assigned 2 new' })).toBeInTheDocument();
+    });
+
     it('past sittings (the mock-board ledger, from the old dashboard) is its own tab', async () => {
         at('/exams?tab=history', Exams);
         const tabs = within(screen.getByRole('tablist')).getAllByRole('tab').map((t) => t.textContent);
-        expect(tabs).toEqual(['Mock board', 'Gauntlet', 'Battles', 'Rankings', 'Past sittings', 'Paper sets']);
+        expect(tabs).toEqual(['Mock board', 'Assigned', 'Gauntlet', 'Battles', 'Rankings', 'Past sittings', 'Paper sets']);
         expect(await screen.findByText('past-sittings')).toBeInTheDocument();
     });
 

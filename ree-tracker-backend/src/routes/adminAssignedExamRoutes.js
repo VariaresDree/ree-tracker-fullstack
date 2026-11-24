@@ -26,6 +26,8 @@ router.get('/', handle('list', async (req, res) => res.status(200).json({ items:
 
 router.get('/:id', handle('load', async (req, res) => res.status(200).json({ item: await assignedExams.getForAdmin(req.params.id) })));
 
+router.get('/:id/results', handle('load the results of', async (req, res) => res.status(200).json(await assignedExams.results(req.params.id))));
+
 router.post('/', validate(assignedExamSchema), handle('save', async (req, res) => (
     res.status(201).json({ item: await assignedExams.create(req.body, req.user.id) })
 )));

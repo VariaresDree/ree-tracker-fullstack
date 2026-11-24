@@ -26,3 +26,14 @@ export function subjectMix(questions) {
   }
   return Object.entries(counts).map(([s, n]) => `${s} ${n}`).join(' · ');
 }
+
+export const PASS = 70; // the board's passing general average
+
+/** "Best 78% · 2 tries"; null before the first. */
+export function triesLine(mine) {
+  if (!mine) return null;
+  return `Best ${mine.best}% · ${mine.attempts} ${mine.attempts === 1 ? 'try' : 'tries'}`;
+}
+
+/** "Class average 64% · 12 took it". The server sends it only once the learner has sat it and 3 have. */
+export const classLine = (c) => (c ? `Class average ${c.average}% · ${c.takers} took it` : null);

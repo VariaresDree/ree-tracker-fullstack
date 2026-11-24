@@ -307,6 +307,7 @@ async function bootstrap() {
     app.use('/api/questions', require('./src/routes/questionRoutes'));
     app.use('/api/materials', require('./src/routes/materialRoutes'));
     app.use('/api/quiz-files', require('./src/routes/quizFileRoutes'));
+    app.use('/api/assigned-exams', require('./src/routes/assignedExamRoutes'));
     app.use('/api/metadata', require('./src/routes/metadataRoutes'));
     app.use('/api/leaderboard/me', meRateLimiter);
     app.use('/api/leaderboard', require('./src/routes/leaderboardRoutes'));

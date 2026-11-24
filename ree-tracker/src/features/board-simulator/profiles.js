@@ -45,7 +45,7 @@ export const SIM_PROFILES = [
 // the learner chose it by. Past sittings used its own labels ("Full blended",
 // "Custom drill") that matched none of the format names.
 const PROFILE_BY_KIND = { custom: 'custom', subject: 'prc_subject', blended: 'prc_blended', 'full-board': 'prc_full' };
-const OTHER_KINDS = { battle: 'Battle', retake: 'Retake', mistakes: 'Mistakes mock', placement: 'Placement test', gauntlet: 'Gauntlet run' };
+const OTHER_KINDS = { battle: 'Battle', retake: 'Retake', mistakes: 'Mistakes mock', assigned: 'Assigned exam', placement: 'Placement test', gauntlet: 'Gauntlet run' };
 
 /** "Mixed paper", "Full PRC board", "Battle"… for a sitting kind; null when unknown. */
 export function sittingKindLabel(kind) {
