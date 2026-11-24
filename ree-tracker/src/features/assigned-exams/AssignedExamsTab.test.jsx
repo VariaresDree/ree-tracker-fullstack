@@ -104,6 +104,26 @@ describe('Exams › Assigned', () => {
     expect(within(card).getByRole('button', { name: 'Battle with friends' })).toBeEnabled();
   });
 
+  it('shows exams it can’t start yet, or any more, after the open ones, without a way in', async () => {
+    items = [
+      exam({ id: 'c', title: 'Closed one', availability: 'closed', closesAt: '2026-11-20T09:00:00Z', mine: { attempts: 1, best: 55, first: 55 } }),
+      exam({ id: 'l', title: 'Locked one', availability: 'locked' }),
+      exam({ id: 'u', title: 'Upcoming one', availability: 'upcoming', opensAt: '2026-11-28T00:00:00Z' }),
+      exam({ id: 'o', title: 'Open one', availability: 'open', closesAt: '2026-11-30T09:00:00Z' }),
+    ];
+    renderTab();
+    await screen.findByText('Open one');
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Open one', 'Upcoming one', 'Locked one', 'Closed one']);
+    const card = (title) => screen.getByText(title).closest('article');
+    expect(card('Open one')).toHaveTextContent(/Closes /);
+    expect(within(card('Upcoming one')).getByText('Not open yet')).toBeInTheDocument();
+    expect(card('Upcoming one')).toHaveTextContent(/Opens /);
+    expect(within(card('Locked one')).getByText('Your reviewer has locked it for now.')).toBeInTheDocument();
+    expect(within(card('Closed one')).getByText('Best 55% · 1 try')).toBeInTheDocument();
+    for (const t of ['Upcoming one', 'Locked one', 'Closed one']) expect(within(card(t)).queryByRole('button')).toBeNull();
+    expect(within(card('Open one')).getByRole('button', { name: 'Take exam' })).toBeInTheDocument();
+  });
+
   it('says so when nothing is posted yet', async () => {
     items = [];
     renderTab();

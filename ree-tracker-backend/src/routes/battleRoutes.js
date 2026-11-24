@@ -9,6 +9,7 @@ const { battleTiming, publicAnswers } = require('../utils/battleLogic');
 const battleLifecycle = require('../services/battleLifecycle');
 // Called through the module objects (not destructured) so tests can patch them.
 const battleCreate = require('../services/battleCreate');
+const { AssignedExamError } = require('../services/assignedExams');
 const pushService = require('../services/pushService');
 const { lockedQuestionIds } = require('../services/answerGate');
 const prisma = require('../config/db');
@@ -39,6 +40,8 @@ router.post('/', authMiddleware, validate(battleCreateSchema), idempotency(), as
         if (error.code === 'P2002') {
             return res.status(409).json({ error: 'Battle ID already exists.' });
         }
+        // An assigned exam that is locked, not open yet or closed: its reason.
+        if (error instanceof AssignedExamError) return res.status(error.status).json({ error: error.message });
         logger.error('Battle create error', { error: error.message, stack: error.stack });
         res.status(500).json({ error: 'Failed to create battle.' });
     }
@@ -423,6 +426,7 @@ router.post('/:battleId/rematch', authMiddleware, async (req, res) => {
 
         return res.status(201).json({ battleId: created.id, created: true });
     } catch (error) {
+        if (error instanceof AssignedExamError) return res.status(error.status).json({ error: error.message });
         logger.error('battle rematch failed', { error: error.message });
         return res.status(500).json({ error: 'Couldn’t start a rematch.' });
     }

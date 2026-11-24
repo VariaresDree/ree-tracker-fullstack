@@ -18,7 +18,7 @@ import { fetchPaginatedQuestions, fetchVaultQuestions } from '../../../services/
 import { difficultyOf, difficultyTone } from '../../library/difficulty';
 import { plainError } from '../../shared-quizzes/quizFilesApi';
 import { getAdminExam, saveAdminExam } from '../assignedExamsApi';
-import { MAX_ITEMS, MIN_ITEMS, paceMinutes, subjectMix } from '../examMath';
+import { fromLocalInput, MAX_ITEMS, MIN_ITEMS, paceMinutes, subjectMix, toLocalInput } from '../examMath';
 
 const PAGE = 30;
 const RANDOM_BATCH = 10;
@@ -137,7 +137,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
   const dynamicTOS = useStore((s) => s.dynamicTOS) || {};
   const [loading, setLoading] = useState(!!examId);
   const [loadError, setLoadError] = useState('');
-  const [form, setForm] = useState({ title: '', description: '', minutes: '' });
+  const [form, setForm] = useState({ title: '', description: '', minutes: '', opensAt: '', closesAt: '' });
   const [picked, setPicked] = useState([]);
   const [status, setStatus] = useState('draft');
   const [missing, setMissing] = useState(0);
@@ -161,7 +161,13 @@ export default function ExamBuilder({ examId = null, onDone }) {
     getAdminExam(examId).then(
       (item) => {
         if (!live) return;
-        setForm({ title: item.title, description: item.description || '', minutes: String(Math.round(item.timeLimitSecs / 60)) });
+        setForm({
+          title: item.title,
+          description: item.description || '',
+          minutes: String(Math.round(item.timeLimitSecs / 60)),
+          opensAt: toLocalInput(item.opensAt),
+          closesAt: toLocalInput(item.closesAt),
+        });
         setPicked(item.questions || []);
         setStatus(item.status);
         setMissing(item.missing || 0);
@@ -202,7 +208,8 @@ export default function ExamBuilder({ examId = null, onDone }) {
   const problem = !form.title.trim() ? 'Give the exam a title.'
     : picked.length < MIN_ITEMS ? `Pick at least ${MIN_ITEMS} questions.`
       : !(minutes >= 1 && minutes <= 360) ? 'Set a time between 1 and 360 minutes.'
-        : null;
+        : form.opensAt && form.closesAt && new Date(form.closesAt) <= new Date(form.opensAt) ? 'It has to close after it opens.'
+          : null;
 
   const save = async (nextStatus) => {
     if (problem) { toast.error(problem); return; }
@@ -214,6 +221,8 @@ export default function ExamBuilder({ examId = null, onDone }) {
         questionIds: picked.map((q) => q.id),
         timeLimitSecs: Math.round(minutes * 60),
         status: nextStatus,
+        opensAt: fromLocalInput(form.opensAt),
+        closesAt: fromLocalInput(form.closesAt),
       });
       toast.success(nextStatus === 'published' ? (status === 'published' ? 'Changes saved.' : 'Published for every learner.') : 'Draft saved.');
       onDone(saved);
@@ -354,6 +363,18 @@ export default function ExamBuilder({ examId = null, onDone }) {
                 onChange={(e) => setForm((f) => ({ ...f, minutes: e.target.value }))}
               />
             </FormField>
+            <fieldset className="flex flex-col gap-2 min-w-0">
+              <legend className="text-label mb-1">When learners can take it</legend>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField label="Opens">
+                  <Input type="datetime-local" value={form.opensAt} onChange={(e) => setForm((f) => ({ ...f, opensAt: e.target.value }))} />
+                </FormField>
+                <FormField label="Closes">
+                  <Input type="datetime-local" value={form.closesAt} min={form.opensAt || undefined} onChange={(e) => setForm((f) => ({ ...f, closesAt: e.target.value }))} />
+                </FormField>
+              </div>
+              <p className="text-xs text-muted2">Leave either empty for no limit. Learners see it before it opens and after it closes, but can only start it in between; a sitting started before it closes still counts. Lock it from the list to stop it at any time.</p>
+            </fieldset>
             {picked.length > 0 && <p className="text-sm text-muted2">{subjectMix(picked)}</p>}
             {picked.length === 0 ? (
               <EmptyState compact title="No questions yet" description="Tick questions in the bank, or add some at random." />

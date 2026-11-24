@@ -16,12 +16,17 @@ import { ClipboardList, Clock, FileText, Play, Swords } from '../../components/u
 import { createMultiplayerBattle } from '../../services/dbQueries';
 import { plainError } from '../shared-quizzes/quizFilesApi';
 import { getAssignedExamRun, listAssignedExams } from './assignedExamsApi';
-import { classLine, examLength, PASS, triesLine } from './examMath';
+import { availabilityLine, byAvailability, classLine, examLength, PASS, triesLine } from './examMath';
 
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const subjectLabel = (s) => (s === 'Mixed' ? 'Mixed subjects' : toDisplaySubject(s));
 
+// The pill for an exam a learner can't start now.
+const SHUT = { locked: { tone: 'amber', label: 'Locked' }, upcoming: { tone: 'velocity', label: 'Not open yet' }, closed: { tone: 'neutral', label: 'Closed' } };
+
 function ExamCard({ exam, onTake, onBattle, hosting }) {
+  const shut = SHUT[exam.availability];
+  const when = availabilityLine(exam);
   return (
     <li className="min-w-0">
       <Card as="article" padding="md" aria-labelledby={`exam-${exam.id}`} className="flex flex-col gap-3 h-full">
@@ -29,14 +34,17 @@ function ExamCard({ exam, onTake, onBattle, hosting }) {
           <Badge tone="signal">{subjectLabel(exam.subject)}</Badge>
           {exam.mine
             ? <StatusPill tone={exam.mine.best >= PASS ? 'success' : 'amber'}>{triesLine(exam.mine)}</StatusPill>
-            : <StatusPill tone="velocity">New</StatusPill>}
+            : !shut && <StatusPill tone="velocity">New</StatusPill>}
+          {shut && <StatusPill tone={shut.tone}>{shut.label}</StatusPill>}
         </div>
         <div className="flex flex-col gap-1 min-w-0">
           <h3 id={`exam-${exam.id}`} className="font-semibold text-textMain break-words">{exam.title}</h3>
           <p className="text-sm text-muted2">{exam.itemCount} items · {examLength(exam.timeLimitSecs)} · posted {day(exam.publishedAt)}</p>
           {exam.description && <p className="text-sm text-muted2 line-clamp-2 break-words">{exam.description}</p>}
           {exam.class && <p className="text-sm text-muted2">{classLine(exam.class)}</p>}
+          {when && <p className={shut ? 'text-sm text-textMain' : 'text-sm text-muted2'}>{when}</p>}
         </div>
+        {!shut && (
         <div className="mt-auto pt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Button onClick={() => onTake(exam)} className="w-full" disabled={hosting}>
             <Play size={16} strokeWidth={1.75} aria-hidden="true" /> {exam.mine ? 'Take again' : 'Take exam'}
@@ -45,6 +53,7 @@ function ExamCard({ exam, onTake, onBattle, hosting }) {
             <Swords size={16} strokeWidth={1.75} aria-hidden="true" /> Battle with friends
           </Button>
         </div>
+        )}
       </Card>
     </li>
   );
@@ -139,7 +148,7 @@ export default function AssignedExamsTab() {
     <>
       <h2 className="sr-only">Assigned exams</h2>
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {state.items.map((exam) => <ExamCard key={exam.id} exam={exam} onTake={setTaking} onBattle={battle} hosting={hosting === exam.id} />)}
+        {[...state.items].sort(byAvailability).map((exam) => <ExamCard key={exam.id} exam={exam} onTake={setTaking} onBattle={battle} hosting={hosting === exam.id} />)}
       </ul>
       {taking && <StartSheet exam={taking} onClose={() => setTaking(null)} />}
     </>

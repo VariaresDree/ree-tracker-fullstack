@@ -37,7 +37,7 @@ router.put('/:id', validate(assignedExamSchema), handle('save', async (req, res)
 )));
 
 router.patch('/:id', validate(assignedExamStatusSchema), handle('update', async (req, res) => (
-    res.status(200).json({ item: await assignedExams.setStatus(req.params.id, req.body.status) })
+    res.status(200).json({ item: await assignedExams.setStatus(req.params.id, req.body) })
 )));
 
 router.delete('/:id', handle('delete', async (req, res) => {

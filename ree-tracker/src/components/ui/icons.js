@@ -79,6 +79,7 @@ export {
   Users,
   Shield,
   Lock,
+  LockOpen,
   LogOut,
   // Files, sync, viewers
   Cloud,

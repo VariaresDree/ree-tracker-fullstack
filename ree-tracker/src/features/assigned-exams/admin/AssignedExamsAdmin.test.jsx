@@ -29,7 +29,7 @@ beforeEach(() => {
   items = [exam(), exam({ id: 'x2', title: 'Mixed mock', subject: 'Mixed', status: 'published', publishedAt: '2026-11-18T03:00:00Z' })];
   apiRequest.mockImplementation(async (url, method, body) => {
     if (method === 'GET') return { items };
-    if (method === 'PATCH') return { item: { status: body.status } };
+    if (method === 'PATCH') return { item: body };
     return { success: true };
   });
 });
@@ -53,6 +53,24 @@ describe('AssignedExamsAdmin', () => {
     await waitFor(() => expect(within(draft).getByText('Published')).toBeInTheDocument());
     expect(apiRequest).toHaveBeenCalledWith('/api/admin/assigned-exams/x1', 'PATCH', { status: 'published' }, expect.anything());
     expect(toast.success).toHaveBeenCalledWith('Published for every learner.');
+  });
+
+  it('locks a published exam so learners see it but can’t start it, and unlocks it', async () => {
+    renderAt();
+    const live = (await screen.findByText('Mixed mock')).closest('li');
+    expect(within((await screen.findByText('EE prelim')).closest('li')).queryByRole('button', { name: 'Lock' })).toBeNull();
+    fireEvent.click(within(live).getByRole('button', { name: 'Lock' }));
+    await waitFor(() => expect(within(live).getByText('Locked')).toBeInTheDocument());
+    expect(apiRequest).toHaveBeenCalledWith('/api/admin/assigned-exams/x2', 'PATCH', { locked: true }, expect.anything());
+    expect(within(live).getByRole('button', { name: 'Unlock' })).toBeInTheDocument();
+  });
+
+  it('shows when a scheduled exam opens and closes', async () => {
+    items = [exam({ status: 'published', publishedAt: '2026-11-18T03:00:00Z', availability: 'upcoming', opensAt: '2026-11-28T00:00:00Z', closesAt: '2026-11-30T09:00:00Z' })];
+    renderAt();
+    const row = (await screen.findByText('EE prelim')).closest('li');
+    expect(within(row).getByText('Scheduled')).toBeInTheDocument();
+    expect(row).toHaveTextContent(/Opens .* · Closes /);
   });
 
   it('deletes only after a second, plainer press', async () => {

@@ -43,12 +43,12 @@ const TABS = [
 // "You're here".
 const GUIDE_HERE = { mock: 'mock', gauntlet: 'gauntlet', battles: 'battles' };
 
-// How many posted exams this learner hasn't sat yet, for the tab's badge.
+// How many posted exams this learner hasn't sat yet and can start now, for the tab's badge.
 function useNewAssigned() {
   const [count, setCount] = useState(0);
   useEffect(() => {
     let live = true;
-    listAssignedExams().then((items) => { if (live) setCount(items.filter((e) => !e.mine).length); }, () => {});
+    listAssignedExams().then((items) => { if (live) setCount(items.filter((e) => !e.mine && (e.availability ?? 'open') === 'open').length); }, () => {});
     return () => { live = false; };
   }, []);
   return count;

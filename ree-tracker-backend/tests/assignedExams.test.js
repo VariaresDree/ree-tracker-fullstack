@@ -160,6 +160,6 @@ describe('admin assigned-exam routes', () => {
     it('lists every exam with its item count', async () => {
         exam.findMany.mockResolvedValue([{ id: 'x1', title: 'A', questionIds: ids(7) }]);
         const res = await request(app).get('/api/admin/assigned-exams').set(as('admin'));
-        expect(res.body.items).toEqual([{ id: 'x1', title: 'A', questionIds: ids(7), itemCount: 7, takers: 0, average: null }]);
+        expect(res.body.items).toEqual([{ id: 'x1', title: 'A', questionIds: ids(7), itemCount: 7, availability: 'open', takers: 0, average: null }]);
     });
 });
