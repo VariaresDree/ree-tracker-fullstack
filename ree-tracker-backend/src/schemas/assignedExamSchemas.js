@@ -7,6 +7,8 @@ const { z } = require('zod');
 const MIN_ITEMS = 1;
 const MAX_ITEMS = 300;
 const MAX_SECS = 24 * 3600;
+// What kind of set it is, for sorting the admin's and the learners' lists.
+const EXAM_KINDS = ['exam', 'quiz', 'problem-set', 'practice-set'];
 
 const questionIds = z.array(z.string().trim().min(1).max(100))
     .min(MIN_ITEMS, 'Pick at least one question.')
@@ -22,16 +24,18 @@ const assignedExamSchema = z.object({
     questionIds,
     timeLimitSecs: z.coerce.number().int().min(60).max(MAX_SECS),
     status: z.enum(['draft', 'published']).default('draft'),
+    kind: z.enum(EXAM_KINDS).default('exam'),
     opensAt: when,
     closesAt: when,
 }).strict().refine((e) => !e.opensAt || !e.closesAt || e.closesAt > e.opensAt, {
     message: 'It has to close after it opens.', path: ['closesAt'],
 });
 
-// Publish or unpublish, lock or unlock, without resending the questions.
+// Publish or unpublish, lock or unlock, re-sort, without resending the questions.
 const assignedExamStatusSchema = z.object({
     status: z.enum(['draft', 'published']).optional(),
     locked: z.boolean().optional(),
-}).strict().refine((p) => p.status !== undefined || p.locked !== undefined, 'Nothing to change.');
+    kind: z.enum(EXAM_KINDS).optional(),
+}).strict().refine((p) => p.status !== undefined || p.locked !== undefined || p.kind !== undefined, 'Nothing to change.');
 
-module.exports = { assignedExamSchema, assignedExamStatusSchema, MIN_ITEMS, MAX_ITEMS, MAX_SECS };
+module.exports = { assignedExamSchema, assignedExamStatusSchema, MIN_ITEMS, MAX_ITEMS, MAX_SECS, EXAM_KINDS };

@@ -6,7 +6,11 @@
 // the exam when it finalises it, which is what the reviewer's results read.
 // Battle with friends hosts a battle on the exam (its questions and time, set
 // by the server) and opens its lobby, where friends join with the code.
-import { useCallback, useEffect, useState } from 'react';
+//
+// The list (2026-11-25): chips for each kind the reviewer posted (Exams,
+// Quizzes, Problem sets, Practice sets) with counts, then four parts: To take,
+// Taken, Coming up, Locked or closed. Each exam is a compact row.
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { toDisplaySubject } from '@ree/shared';
@@ -16,7 +20,7 @@ import { ClipboardList, Clock, FileText, Play, Swords } from '../../components/u
 import { createMultiplayerBattle } from '../../services/dbQueries';
 import { plainError } from '../shared-quizzes/quizFilesApi';
 import { getAssignedExamRun, listAssignedExams } from './assignedExamsApi';
-import { availabilityLine, byAvailability, classLine, examLength, PASS, triesLine } from './examMath';
+import { availabilityLine, classLine, examLength, kindCounts, kindOf, learnerSection, LEARNER_SECTIONS, PASS, sectionOrder, triesLine } from './examMath';
 
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const subjectLabel = (s) => (s === 'Mixed' ? 'Mixed subjects' : toDisplaySubject(s));
@@ -24,35 +28,37 @@ const subjectLabel = (s) => (s === 'Mixed' ? 'Mixed subjects' : toDisplaySubject
 // The pill for an exam a learner can't start now.
 const SHUT = { locked: { tone: 'amber', label: 'Locked' }, upcoming: { tone: 'velocity', label: 'Not open yet' }, closed: { tone: 'neutral', label: 'Closed' } };
 
-function ExamCard({ exam, onTake, onBattle, hosting }) {
+function ExamRow({ exam, onTake, onBattle, hosting }) {
   const shut = SHUT[exam.availability];
   const when = availabilityLine(exam);
+  const kind = kindOf(exam.kind);
   return (
     <li className="min-w-0">
-      <Card as="article" padding="md" aria-labelledby={`exam-${exam.id}`} className="flex flex-col gap-3 h-full">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="signal">{subjectLabel(exam.subject)}</Badge>
-          {exam.mine
-            ? <StatusPill tone={exam.mine.best >= PASS ? 'success' : 'amber'}>{triesLine(exam.mine)}</StatusPill>
-            : !shut && <StatusPill tone="velocity">New</StatusPill>}
-          {shut && <StatusPill tone={shut.tone}>{shut.label}</StatusPill>}
-        </div>
-        <div className="flex flex-col gap-1 min-w-0">
-          <h3 id={`exam-${exam.id}`} className="font-semibold text-textMain break-words">{exam.title}</h3>
+      <Card as="article" padding="sm" aria-labelledby={`exam-${exam.id}`} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge tone="neutral">{kind.label}</Badge>
+            <Badge tone="signal">{subjectLabel(exam.subject)}</Badge>
+            {exam.mine
+              ? <StatusPill tone={exam.mine.best >= PASS ? 'success' : 'amber'}>{triesLine(exam.mine)}</StatusPill>
+              : !shut && <StatusPill tone="velocity">New</StatusPill>}
+            {shut && <StatusPill tone={shut.tone}>{shut.label}</StatusPill>}
+          </div>
+          <p id={`exam-${exam.id}`} className="font-semibold text-textMain break-words">{exam.title}</p>
           <p className="text-sm text-muted2">{exam.itemCount} items · {examLength(exam.timeLimitSecs)} · posted {day(exam.publishedAt)}</p>
           {exam.description && <p className="text-sm text-muted2 line-clamp-2 break-words">{exam.description}</p>}
           {exam.class && <p className="text-sm text-muted2">{classLine(exam.class)}</p>}
           {when && <p className={shut ? 'text-sm text-textMain' : 'text-sm text-muted2'}>{when}</p>}
         </div>
         {!shut && (
-        <div className="mt-auto pt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Button onClick={() => onTake(exam)} className="w-full" disabled={hosting}>
-            <Play size={16} strokeWidth={1.75} aria-hidden="true" /> {exam.mine ? 'Take again' : 'Take exam'}
-          </Button>
-          <Button variant="secondary" onClick={() => onBattle(exam)} className="w-full" loading={hosting} disabled={hosting}>
-            <Swords size={16} strokeWidth={1.75} aria-hidden="true" /> Battle with friends
-          </Button>
-        </div>
+          <div className="grid grid-cols-1 gap-2 shrink-0 sm:grid-cols-2 sm:w-auto">
+            <Button size="sm" onClick={() => onTake(exam)} className="w-full" disabled={hosting}>
+              <Play size={14} strokeWidth={1.75} aria-hidden="true" /> {exam.mine ? 'Take again' : `Take ${kind.label.toLowerCase()}`}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => onBattle(exam)} className="w-full" loading={hosting} disabled={hosting}>
+              <Swords size={14} strokeWidth={1.75} aria-hidden="true" /> Battle with friends
+            </Button>
+          </div>
         )}
       </Card>
     </li>
@@ -117,6 +123,7 @@ export default function AssignedExamsTab() {
   const [state, setState] = useState({ items: null, error: '' });
   const [taking, setTaking] = useState(null);
   const [hosting, setHosting] = useState(null);
+  const [kindFilter, setKindFilter] = useState('all');
 
   // The server takes the exam's questions and time; the lobby shows the code to share.
   const battle = async (exam) => {
@@ -136,6 +143,15 @@ export default function AssignedExamsTab() {
   ), []);
   useEffect(() => { load(); }, [load]);
 
+  const items = state.items;
+  const kinds = kindCounts(items);
+  const sections = useMemo(() => {
+    const shown = (items || []).filter((e) => kindFilter === 'all' || kindOf(e.kind).value === kindFilter);
+    return LEARNER_SECTIONS
+      .map((sec) => ({ ...sec, exams: shown.filter((e) => learnerSection(e) === sec.id).sort(sectionOrder) }))
+      .filter((sec) => sec.exams.length > 0);
+  }, [items, kindFilter]);
+
   if (state.error) {
     return <EmptyState title="Couldn’t load the assigned exams" description={state.error} action={<Button variant="secondary" onClick={() => load(true)}>Try again</Button>} />;
   }
@@ -145,12 +161,34 @@ export default function AssignedExamsTab() {
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-5">
       <h2 className="sr-only">Assigned exams</h2>
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {[...state.items].sort(byAvailability).map((exam) => <ExamCard key={exam.id} exam={exam} onTake={setTaking} onBattle={battle} hosting={hosting === exam.id} />)}
-      </ul>
+      {kinds.length > 1 && (
+        <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
+          {[{ value: 'all', plural: 'All', count: items.length }, ...kinds].map((k) => (
+            <Button
+              key={k.value}
+              size="sm"
+              variant={kindFilter === k.value ? 'primary' : 'secondary'}
+              aria-pressed={kindFilter === k.value}
+              onClick={() => setKindFilter(k.value)}
+            >
+              {k.plural} <span className="tabular-nums opacity-80">{k.count}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+      {sections.map((sec) => (
+        <section key={sec.id} aria-labelledby={`section-${sec.id}`} className="flex flex-col gap-2">
+          <h3 id={`section-${sec.id}`} className="text-eyebrow text-muted2 flex items-center gap-2">
+            {sec.title} <Badge tone="neutral">{sec.exams.length}</Badge>
+          </h3>
+          <ul className="flex flex-col gap-2">
+            {sec.exams.map((exam) => <ExamRow key={exam.id} exam={exam} onTake={setTaking} onBattle={battle} hosting={hosting === exam.id} />)}
+          </ul>
+        </section>
+      ))}
       {taking && <StartSheet exam={taking} onClose={() => setTaking(null)} />}
-    </>
+    </div>
   );
 }

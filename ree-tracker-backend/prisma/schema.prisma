@@ -533,6 +533,9 @@ model AssignedExam {
   questionIds   String[]
   timeLimitSecs Int
   status        String    @default("draft") // 'draft' | 'published'
+  // What kind of set it is, for sorting the lists: 'exam' | 'quiz' |
+  // 'problem-set' | 'practice-set' (schemas/assignedExamSchemas.EXAM_KINDS).
+  kind          String    @default("exam")
   // When learners may start it (null: no limit either side). A sitting
   // started before it closes still counts. services/assignedExams.availabilityOf.
   opensAt       DateTime?

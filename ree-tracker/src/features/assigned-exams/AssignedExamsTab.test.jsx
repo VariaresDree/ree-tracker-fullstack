@@ -113,7 +113,8 @@ describe('Exams › Assigned', () => {
     ];
     renderTab();
     await screen.findByText('Open one');
-    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['Open one', 'Upcoming one', 'Locked one', 'Closed one']);
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['To take 1', 'Coming up 1', 'Locked or closed 2']);
+    expect(screen.getAllByRole('article', { name: /one$/ }).map((a) => a.getAttribute('aria-labelledby')).map((id) => document.getElementById(id).textContent)).toEqual(['Open one', 'Upcoming one', 'Locked one', 'Closed one']);
     const card = (title) => screen.getByText(title).closest('article');
     expect(card('Open one')).toHaveTextContent(/Closes /);
     expect(within(card('Upcoming one')).getByText('Not open yet')).toBeInTheDocument();
@@ -122,6 +123,31 @@ describe('Exams › Assigned', () => {
     expect(within(card('Closed one')).getByText('Best 55% · 1 try')).toBeInTheDocument();
     for (const t of ['Upcoming one', 'Locked one', 'Closed one']) expect(within(card(t)).queryByRole('button')).toBeNull();
     expect(within(card('Open one')).getByRole('button', { name: 'Take exam' })).toBeInTheDocument();
+  });
+
+  it('sorts the list into what to take, what’s taken, and the rest', async () => {
+    items = [exam({ id: 't', title: 'Taken one', mine: { attempts: 1, best: 80, first: 80 } }), exam({ id: 'n', title: 'New one' })];
+    renderTab();
+    await screen.findByText('New one');
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['To take 1', 'Taken 1']);
+  });
+
+  it('filters by kind with chips, when there is more than one kind', async () => {
+    items = [exam({ id: 'e1', title: 'Big exam' }), exam({ id: 'q1', title: 'Quiz one', kind: 'quiz' }), exam({ id: 'q2', title: 'Quiz two', kind: 'quiz' })];
+    renderTab();
+    await screen.findByText('Quiz one');
+    const chips = within(screen.getByRole('group', { name: 'Show' }));
+    expect(chips.getAllByRole('button').map((b) => b.textContent)).toEqual(['All 3', 'Exams 1', 'Quizzes 2']);
+    fireEvent.click(chips.getByRole('button', { name: /Quizzes/ }));
+    expect(chips.getByRole('button', { name: /Quizzes/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText('Big exam')).toBeNull();
+    expect(within(screen.getByText('Quiz one').closest('article')).getByRole('button', { name: 'Take quiz' })).toBeInTheDocument();
+  });
+
+  it('shows no chips when everything is one kind', async () => {
+    renderTab();
+    await screen.findByText('Mixed mock');
+    expect(screen.queryByRole('group', { name: 'Show' })).toBeNull();
   });
 
   it('says so when nothing is posted yet', async () => {

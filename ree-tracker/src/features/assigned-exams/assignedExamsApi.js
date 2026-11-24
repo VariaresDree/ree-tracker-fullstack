@@ -49,3 +49,4 @@ export const getAssignedExamRun = async (id) => {
 };
 
 export const getAdminExamResults = (id) => apiRequest(`${one(id)}/results`, 'GET', null, { timeoutMs: SLOW });
+export const setAdminExamKind = async (id, kind) => (await apiRequest(one(id), 'PATCH', { kind }, { timeoutMs: SLOW })).item;

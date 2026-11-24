@@ -138,3 +138,20 @@ describe('the admin', () => {
         expect((await request(makeApp()).patch('/api/admin/assigned-exams/x1').set(as('admin')).send({})).status).toBe(400);
     });
 });
+
+describe('the kind of set', () => {
+    const base = { title: 'T', questionIds: ids, timeLimitSecs: 600 };
+    it('is an exam unless the admin says quiz, problem set or practice set', () => {
+        expect(assignedExamSchema.parse(base).kind).toBe('exam');
+        expect(assignedExamSchema.parse({ ...base, kind: 'problem-set' }).kind).toBe('problem-set');
+        expect(assignedExamSchema.safeParse({ ...base, kind: 'homework' }).success).toBe(false);
+    });
+
+    it('can be changed from the list without touching anything else', async () => {
+        vi.spyOn(prisma.assignedExam, 'findUnique').mockResolvedValue({ ...exam(), description: null, status: 'published', publishedAt: ago(24) });
+        vi.spyOn(prisma.assignedExam, 'update').mockImplementation(async ({ data }) => ({ id: 'x1', ...data }));
+        const res = await request(makeApp()).patch('/api/admin/assigned-exams/x1').set(as('admin')).send({ kind: 'quiz' });
+        expect(res.status).toBe(200);
+        expect(prisma.assignedExam.update.mock.calls[0][0].data).toEqual({ kind: 'quiz' });
+    });
+});
