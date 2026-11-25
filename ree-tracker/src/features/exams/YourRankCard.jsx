@@ -19,10 +19,15 @@ export default function YourRankCard({ listRank = null }) {
   useEffect(() => {
     if (!isOnline) return undefined;
     let live = true;
-    fetchLeaderboardMe()
+    const load = () => fetchLeaderboardMe()
       .then((r) => { if (live) setMe(r || null); })
       .catch(() => { if (live) setMe(null); });
-    return () => { live = false; };
+    load();
+    // Back from answering in another tab or app: read the rank again. It used
+    // to load once per visit to the tab.
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { live = false; document.removeEventListener('visibilitychange', onVisible); };
   }, [isOnline]);
 
   const rank = listRank || (typeof me?.rank === 'number' && me.rank > 0 ? me.rank : null);
@@ -44,7 +49,15 @@ export default function YourRankCard({ listRank = null }) {
       </p>
     );
   } else if (me) {
-    body = <p className="text-sm text-muted2">Not ranked yet. Answer a few questions to join the rankings.</p>;
+    // `needed` comes from the server (20 answers to be ranked).
+    const left = me.needed > 0 ? me.needed : null;
+    body = (
+      <p className="text-sm text-muted2">
+        {left
+          ? `Not ranked yet. Answer ${left} more question${left === 1 ? '' : 's'} to join the rankings.`
+          : 'Not ranked yet. Your rank appears at the next refresh, within a minute.'}
+      </p>
+    );
   } else {
     body = <p className="text-sm text-muted2">Your rank isn’t available right now.</p>;
   }

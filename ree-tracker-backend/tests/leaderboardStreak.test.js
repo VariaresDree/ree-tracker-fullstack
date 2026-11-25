@@ -96,12 +96,69 @@ describe('GET /leaderboard/paginated — the off-board self row', () => {
     it('serves the requester\'s streak as it stands today', async () => {
         vi.spyOn(prisma.leaderboardEntry, 'findFirst').mockResolvedValue({ snapshotAt: new Date() });
         vi.spyOn(prisma.leaderboardEntry, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.leaderboardEntry, 'findUnique').mockResolvedValue(null);
         vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(liveUser(UID, []));
 
         const res = await request(app).get('/api/leaderboard/paginated').set('Authorization', `Bearer ${UID}`);
 
         expect(res.status).toBe(200);
-        expect(res.body.items[0]).toMatchObject({ uid: UID, isSelf: true, streak: 0 });
+        expect(res.body.items[0]).toMatchObject({ uid: UID, isSelf: true, streak: 0, rank: null, needed: 20 });
+    });
+
+    // A learner below the first page read "—" on their own row: it carried no rank.
+    it('carries your snapshot rank when you are below the first page', async () => {
+        vi.spyOn(prisma.leaderboardEntry, 'findFirst').mockResolvedValue({ snapshotAt: new Date() });
+        vi.spyOn(prisma.leaderboardEntry, 'findMany').mockResolvedValue([]);
+        vi.spyOn(prisma.leaderboardEntry, 'findUnique').mockResolvedValue({ rank: 27 });
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(liveUser(UID, []));
+        prisma.questionAttempt.groupBy.mockResolvedValue([
+            { isCorrect: true, _count: { _all: 1600 } }, { isCorrect: false, _count: { _all: 2347 } },
+        ]);
+
+        const res = await request(app).get('/api/leaderboard/paginated').set('Authorization', `Bearer ${UID}`);
+
+        expect(res.body.items[0]).toMatchObject({ uid: UID, offBoard: true, rank: 27, needed: 0, questionsAnswered: 3947 });
+    });
+});
+
+// θ is centred on 0, so "θ at or below 0" is not "no score": an account with
+// 3,947 answers at θ −0.8 read "Not ranked yet" (2026-11-26). Unranked now
+// means "not in the snapshot", which needs 20 answers.
+describe('GET /leaderboard/me — who is ranked', () => {
+    beforeEach(() => {
+        vi.spyOn(prisma.leaderboardEntry, 'findFirst').mockResolvedValue({ snapshotAt: new Date() });
+        vi.spyOn(prisma.leaderboardEntry, 'count').mockResolvedValue(12);
+        vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({ ...liveUser(UID, []), thetaRating: -0.8 });
+    });
+
+    it('a negative θ in the snapshot has a rank', async () => {
+        vi.spyOn(prisma.leaderboardEntry, 'findUnique').mockResolvedValue({
+            userId: UID, rank: 9, thetaRating: -0.8, activeDays: 50, questionsAnswered: 3947, accuracy: 0.41,
+        });
+        const res = await request(app).get('/api/leaderboard/me').set('Authorization', `Bearer ${UID}`);
+        expect(res.body).toMatchObject({ rank: 9, total: 12, unranked: false, answered: 3947, needed: 0 });
+    });
+
+    it('a learner not yet in the snapshot is told how many answers are left', async () => {
+        vi.spyOn(prisma.leaderboardEntry, 'findUnique').mockResolvedValue(null);
+        prisma.questionAttempt.groupBy.mockResolvedValue([{ isCorrect: true, _count: { _all: 13 } }]);
+        const res = await request(app).get('/api/leaderboard/me').set('Authorization', `Bearer ${UID}`);
+        expect(res.body).toMatchObject({ rank: null, unranked: true, answered: 13, needed: 7 });
+    });
+
+    it('while the snapshot is stale, ranks you live among learners with 20 answers', async () => {
+        prisma.leaderboardEntry.findFirst.mockResolvedValue(null);
+        vi.spyOn(prisma.activityLog, 'groupBy').mockResolvedValue([]);
+        vi.spyOn(prisma, '$transaction').mockResolvedValue([]);
+        prisma.questionAttempt.groupBy.mockImplementation(async (args) => (args.having
+            ? [{ userId: UID }, { userId: 'a' }, { userId: 'b' }]
+            : [{ isCorrect: true, _count: { _all: 30 } }]));
+        const count = vi.spyOn(prisma.user, 'count').mockImplementation(async ({ where }) => (where.thetaRating ? 2 : 3));
+
+        const res = await request(app).get('/api/leaderboard/me').set('Authorization', `Bearer ${UID}`);
+
+        expect(res.body).toMatchObject({ rank: 3, total: 3, unranked: false, needed: 0 });
+        expect(count.mock.calls[0][0].where.id).toEqual({ in: [UID, 'a', 'b'] });
     });
 });
 

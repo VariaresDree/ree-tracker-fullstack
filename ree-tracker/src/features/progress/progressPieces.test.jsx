@@ -70,10 +70,27 @@ describe('YourRankCard', () => {
     expect(screen.queryByText('#2')).not.toBeInTheDocument();
   });
 
-  it('unranked says how to join', async () => {
-    fetchLeaderboardMe.mockResolvedValue({ rank: null, total: 37, unranked: true });
+  it('unranked says how many answers are left to join', async () => {
+    fetchLeaderboardMe.mockResolvedValue({ rank: null, total: 37, unranked: true, answered: 13, needed: 7 });
     render(<YourRankCard />);
-    expect(await screen.findByText(/Not ranked yet/)).toBeInTheDocument();
+    expect(await screen.findByText('Not ranked yet. Answer 7 more questions to join the rankings.')).toBeInTheDocument();
+  });
+
+  // The old stand-in for a failed request, { rank: null }, read as "Not
+  // ranked yet" whenever the server was asleep.
+  it('a failed request says the rank is unavailable, not "Not ranked yet"', async () => {
+    fetchLeaderboardMe.mockResolvedValue(null);
+    render(<YourRankCard />);
+    expect(await screen.findByText('Your rank isn’t available right now.')).toBeInTheDocument();
+    expect(screen.queryByText(/Not ranked yet/)).toBeNull();
+  });
+
+  it('reads the rank again when the app comes back into view', async () => {
+    fetchLeaderboardMe.mockResolvedValueOnce({ rank: 9, total: 12 }).mockResolvedValueOnce({ rank: 8, total: 12 });
+    render(<YourRankCard />);
+    expect(await screen.findByText('#9')).toBeInTheDocument();
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(await screen.findByText('#8')).toBeInTheDocument();
   });
 
   it('offline asks to reconnect, without a request', () => {

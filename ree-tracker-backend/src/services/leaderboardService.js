@@ -19,6 +19,11 @@ const { effectiveStreak, manilaDateOf } = require('@ree/shared');
 // Same "active" window the legacy live queries used.
 const ACTIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+// Server-graded answers before a learner is ranked. θ from a handful of
+// answers is noise, and an account that never answered sat at θ 0 (50%),
+// above every real learner whose estimate was below the middle.
+const RANK_MIN_ANSWERS = 20;
+
 // Snapshot older than this (interval died, first boot pre-refresh) → routes
 // fall back to the legacy live query once and fire a refresh.
 const STALE_AFTER_MS = 5 * 60 * 1000;
@@ -35,7 +40,9 @@ const USER_SELECT = {
 };
 
 /**
- * Pure: rank the active users into snapshot rows.
+ * Pure: rank the active users with at least RANK_MIN_ANSWERS answers into
+ * snapshot rows. θ is centred on 0, so a negative one is an estimate like any
+ * other, ranked below the positive ones.
  * Order: thetaRating desc, then lastActive desc, then id (stable determinism —
  * equal-theta users don't shuffle ranks between refreshes).
  *
@@ -59,6 +66,7 @@ function buildEntries(users, stats = {}, now = new Date()) {
     const today = manilaDateOf(now);
     return (users || [])
         .filter((u) => u.lastActive && new Date(u.lastActive).getTime() >= cutoff)
+        .filter((u) => (attempts.get(u.id)?.total ?? 0) >= RANK_MIN_ANSWERS)
         .sort((a, b) =>
             (b.thetaRating ?? 0) - (a.thetaRating ?? 0) ||
             new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime() ||
@@ -202,4 +210,5 @@ module.exports = {
     isStale,
     ACTIVE_WINDOW_MS,
     STALE_AFTER_MS,
+    RANK_MIN_ANSWERS,
 };

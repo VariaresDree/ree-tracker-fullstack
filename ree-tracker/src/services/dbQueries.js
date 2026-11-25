@@ -500,8 +500,10 @@ const normalizeAgent = (a) => ({
     accuracy: typeof a.accuracy === 'number' ? a.accuracy : 0,
     lastActive: a.lastActive || null,
     // The paginated first page leads with your own row when you're outside it
-    // (the server's "you are here"). It has no place in the order.
+    // (the server's "you are here"). It has no place in the list's order, but
+    // carries your rank (null until you have 20 answers) and the answers left.
     offBoard: !!a.offBoard,
+    ...(a.offBoard ? { rank: typeof a.rank === 'number' ? a.rank : null, needed: typeof a.needed === 'number' ? a.needed : null } : {}),
 });
 
 // Rankings requests name today's Manila day. The server ignores it; the
@@ -519,8 +521,11 @@ export const fetchPaginatedLeaderboard = async (limitCount = 20, cursor = null) 
     return { agents: items, lastDoc: data?.nextCursor || null };
 };
 
+// Null when the request fails: the card says the rank isn't available. Its
+// old stand-in, { rank: null }, read as "Not ranked yet" whenever the server
+// was asleep.
 export const fetchLeaderboardMe = async () =>
-    safeApiRequest(`/api/leaderboard/me?day=${todayManila()}`, 'GET', null, { rank: null, total: 0 });
+    safeApiRequest(`/api/leaderboard/me?day=${todayManila()}`, 'GET', null, null);
 
 export const updateUserProfile = async (payload) => apiRequest('/api/user/profile', 'PUT', payload);
 

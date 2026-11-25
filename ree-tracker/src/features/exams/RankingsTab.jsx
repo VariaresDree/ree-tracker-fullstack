@@ -294,7 +294,7 @@ function Rankings() {
                 <LeaderboardRow
                   key={agent.uid}
                   agent={agent}
-                  rank={agent.offBoard ? null : idx + 1 - offBoardLead}
+                  rank={agent.offBoard ? agent.rank ?? null : idx + 1 - offBoardLead}
                   isMe={agent.uid === currentUser?.uid}
                   rowRef={idx === (leaderboard || []).length - 1 ? lastElementRef : null}
                 />
