@@ -371,4 +371,18 @@ describe('RankingsTab', () => {
     expect(rows[1]).toMatch(/^1A/);
     expect(await screen.findByText('#41')).toBeInTheDocument();
   });
+
+  // Below the first page your own row read "—" even when you were ranked.
+  it('the "you are here" row shows your rank when you have one', async () => {
+    fetchPaginatedLeaderboard.mockResolvedValue({
+      agents: [agent('me', -0.8, { offBoard: true, rank: 27 }), agent('a', 0.9)],
+      lastDoc: null,
+    });
+    fetchLeaderboardMe.mockResolvedValue({ rank: 27, total: 30 });
+    renderTab(<RankingsTab />);
+    await screen.findByText('ME');
+    const rows = screen.getAllByRole('button', { expanded: false }).map((b) => b.textContent);
+    expect(rows[0]).toMatch(/^27ME/);
+    expect(rows[1]).toMatch(/^1A/);
+  });
 });

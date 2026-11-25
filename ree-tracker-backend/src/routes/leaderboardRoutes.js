@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const prisma = require('../config/db');
 const logger = require('../utils/logger');
-const { isStale, refreshLeaderboard, noteLeaderboardDemand } = require('../services/leaderboardService');
+const { isStale, refreshLeaderboard, noteLeaderboardDemand, RANK_MIN_ANSWERS } = require('../services/leaderboardService');
 const { fallbackDisplayName, effectiveStreak, dayBefore, todayManila } = require('@ree/shared');
 
 // Phase 4.1: reads are served from the materialized LeaderboardEntry snapshot
@@ -128,11 +128,43 @@ async function computeUserStats(userId) {
     return { activeDays: days, questionsAnswered: total, accuracy: total > 0 ? correct / total : 0 };
 }
 
+// Answers still to give before a learner is ranked (0 once they qualify).
+const neededFor = (answered) => Math.max(0, RANK_MIN_ANSWERS - (answered || 0));
+
+// Your own row, read live, for the top of the first page when the page doesn't
+// already hold you ("you are here"). It carries your snapshot rank when you
+// have one: it used to carry none, so a learner below the first page read "—".
+async function selfRow(userId, entry = null) {
+    const [me, s] = await Promise.all([
+        prisma.user.findUnique({ where: { id: userId }, select: liveSelect(todayManila()) }),
+        computeUserStats(userId),
+    ]);
+    if (!me) return null;
+    return {
+        ...toAgent({ ...me, ...s }),
+        isSelf: true,
+        offBoard: true,
+        rank: entry?.rank ?? null,
+        needed: neededFor(s.questionsAnswered),
+    };
+}
+
 // "Active" = touched the app in the last 30 days. We surface this as the
 // denominator so a brand-new install isn't stuck on "Out of 0 Agents".
 // (The snapshot builder applies the same window.)
 const ACTIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 const activeWindow = () => ({ lastActive: { gte: new Date(Date.now() - ACTIVE_WINDOW_MS) } });
+
+// The snapshot's rule, live, for the stale-snapshot fallbacks: active in 30
+// days and at least RANK_MIN_ANSWERS answers. One grouped read of attempts.
+async function rankedWhere() {
+    const rows = await prisma.questionAttempt.groupBy({
+        by: ['userId'],
+        _count: { _all: true },
+        having: { userId: { _count: { gte: RANK_MIN_ANSWERS } } },
+    });
+    return { ...activeWindow(), id: { in: (rows || []).map((r) => r.userId) } };
+}
 
 // One newest row tells us whether the whole snapshot is fresh (all rows share
 // a snapshotAt). Returns null when the table is empty.
@@ -167,24 +199,25 @@ router.get('/me', authMiddleware, async (req, res) => {
             prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
         ]);
 
-        // Unranked = the user exists but hasn't earned a theta score yet
-        // (zero or default), or isn't in the active snapshot at all.
-        const unranked = !entry || (entry.thetaRating ?? 0) <= 0;
+        // Unranked = not in the snapshot: fewer than RANK_MIN_ANSWERS answers,
+        // or not active in 30 days. Never "θ at or below 0": θ is centred on 0,
+        // so that called every below-middle learner unranked (2026-11-26, an
+        // account with 3,947 answers at θ −0.8 read "Not ranked yet").
+        const unranked = !entry;
 
         // Self stats: reuse the snapshot row if present, else a cheap live count.
-        let self = null;
-        if (me) {
-            const s = entry
-                ? { activeDays: entry.activeDays, questionsAnswered: entry.questionsAnswered, accuracy: entry.accuracy }
-                : await computeUserStats(req.user.id);
-            self = toAgent({ id: req.user.id, ...me, ...s });
-        }
+        const s = entry
+            ? { activeDays: entry.activeDays, questionsAnswered: entry.questionsAnswered, accuracy: entry.accuracy }
+            : await computeUserStats(req.user.id);
+        const self = me ? toAgent({ id: req.user.id, ...me, ...s }) : null;
 
         res.status(200).json({
             rank: unranked ? null : entry.rank,
             total,
             thetaRating: entry?.thetaRating ?? me?.thetaRating ?? 0,
             unranked,
+            answered: s.questionsAnswered,
+            needed: neededFor(s.questionsAnswered),
             self,
         });
     } catch (error) {
@@ -240,16 +273,10 @@ router.get('/paginated', authMiddleware, async (req, res) => {
         // top slice (Discord-style "you are here"). Lets users always find
         // themselves without scrolling through thousands of rows.
         let items = await entriesToAgents(entries);
-        if (!afterRank) {
-            const meVisible = items.some((u) => u.uid === req.user.id);
-            if (!meVisible) {
-                const today = todayManila();
-                const [me, meStats] = await Promise.all([
-                    prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
-                    computeUserStats(req.user.id),
-                ]);
-                if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
-            }
+        if (!afterRank && !items.some((u) => u.uid === req.user.id)) {
+            const entry = await prisma.leaderboardEntry.findUnique({ where: { userId: req.user.id }, select: { rank: true } });
+            const self = await selfRow(req.user.id, entry);
+            if (self) items = [self, ...items];
         }
 
         res.status(200).json({
@@ -271,27 +298,27 @@ router.get('/paginated', authMiddleware, async (req, res) => {
 async function liveFallbackMe(req, res) {
     try {
         const today = todayManila();
-        const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) });
-
-        const [total, above] = await Promise.all([
-            prisma.user.count({ where: activeWindow() }),
-            me ? prisma.user.count({
-                where: { ...activeWindow(), thetaRating: { gt: me.thetaRating } },
-            }) : Promise.resolve(0),
+        const [me, stats, ranked] = await Promise.all([
+            prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
+            computeUserStats(req.user.id),
+            rankedWhere(),
         ]);
 
-        const unranked = !me || (me.thetaRating ?? 0) <= 0;
+        const [total, above] = await Promise.all([
+            prisma.user.count({ where: ranked }),
+            me ? prisma.user.count({ where: { ...ranked, thetaRating: { gt: me.thetaRating } } }) : Promise.resolve(0),
+        ]);
 
-        const self = me
-            ? toAgent({ id: req.user.id, ...me, ...(await computeUserStats(req.user.id)) })
-            : null;
+        const unranked = !me || stats.questionsAnswered < RANK_MIN_ANSWERS;
 
         res.status(200).json({
             rank: unranked ? null : above + 1,
             total,
             thetaRating: me?.thetaRating ?? 0,
             unranked,
-            self,
+            answered: stats.questionsAnswered,
+            needed: neededFor(stats.questionsAnswered),
+            self: me ? toAgent({ id: req.user.id, ...me, ...stats }) : null,
         });
     } catch (error) {
         logger.error('leaderboard/me fallback error', { error: error.message });
@@ -303,7 +330,7 @@ async function liveFallbackList(req, res, limit) {
     try {
         const today = todayManila();
         const users = await prisma.user.findMany({
-            where: activeWindow(),
+            where: await rankedWhere(),
             orderBy: { thetaRating: 'desc' },
             take: limit,
             select: liveSelect(today),
@@ -322,7 +349,7 @@ async function liveFallbackPaginated(req, res, limit) {
         // rebuilt snapshot.
         const today = todayManila();
         const users = await prisma.user.findMany({
-            where: activeWindow(),
+            where: await rankedWhere(),
             orderBy: { thetaRating: 'desc' },
             take: limit + 1,
             select: liveSelect(today),
@@ -331,13 +358,9 @@ async function liveFallbackPaginated(req, res, limit) {
         if (hasMore) users.pop();
 
         let items = users.map((u) => toAgent(u));
-        const meVisible = items.some((u) => u.uid === req.user.id);
-        if (!meVisible) {
-            const [me, meStats] = await Promise.all([
-                prisma.user.findUnique({ where: { id: req.user.id }, select: liveSelect(today) }),
-                computeUserStats(req.user.id),
-            ]);
-            if (me) items = [{ ...toAgent({ ...me, ...meStats }), isSelf: true, offBoard: true }, ...items];
+        if (!items.some((u) => u.uid === req.user.id)) {
+            const self = await selfRow(req.user.id);
+            if (self) items = [self, ...items];
         }
 
         res.status(200).json({

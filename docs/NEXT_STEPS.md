@@ -12,7 +12,13 @@ section 1).
 
 Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mode, engineering economics and more are listed, with how to add them, in [`UNITS_AND_TOOLS.md`](UNITS_AND_TOOLS.md).
 
-## 0j. Handover, Assigned exams round of 2026-11-24 (read this first)
+## 0k. Round of 2026-11-26 (read this first)
+
+Plan: `pasted-content-id-8a6f-help-me-functional-book.md` (owner's machine): ranking fix, deleted assigned-exam sittings, then Mathematics in full module form (Coach G Math 2–11 and Powerline 1–8), then a ranked list of improvements.
+
+- **Rankings (PR 1):** ranked = 20+ server-graded answers, by ability; a negative θ is ranked. `/me` sends `answered` and `needed`. The "you are here" row carries its rank. Not verified live: open Exams › Rankings signed in as the owner after deploy, and check the card and the row agree.
+
+## 0j. Handover, Assigned exams round of 2026-11-24
 
 The admin builds exams from the question bank; learners take them alone or as a battle. Plan: `help-me-improve-my-sparkling-wilkinson.md` (owner's machine).
 
