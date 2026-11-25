@@ -534,7 +534,7 @@ export default {
           x: [0, 360],
           y: [0, 1.15],
           xLabel: 'rotation (°)',
-          yLabel: 'e / E_max',
+          yLabel: 'e / E_{max}',
           series: [
             { f: (t) => Math.max(Math.abs(Math.sin(t * deg)), Math.abs(Math.cos(t * deg))), label: 'two coils' },
             { f: (t) => Math.abs(Math.sin(t * deg)), label: 'one coil', dashed: true },
