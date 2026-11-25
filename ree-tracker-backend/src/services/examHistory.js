@@ -113,9 +113,19 @@ async function finalizeSession({ userId, sessionId, meta = {} }) {
 
 /** Hide a sitting from mock history WITHOUT deleting it — its answers still count. */
 async function hideSession({ userId, sessionId }) {
+    return setHidden({ userId, sessionId, hidden: true });
+}
+
+/** Undo of hideSession: the sitting is back in history and, if it was one, an assigned exam's try. */
+async function unhideSession({ userId, sessionId }) {
+    return setHidden({ userId, sessionId, hidden: false });
+}
+
+async function setHidden({ userId, sessionId, hidden }) {
     const session = await prisma.examSession.findFirst({ where: { id: sessionId, userId }, select: { config: true } });
     if (!session) throw new ExamHistoryError(404, 'Exam session not found.');
-    const config = { ...(session.config && typeof session.config === 'object' ? session.config : {}), hiddenFromHistory: true };
+    const { hiddenFromHistory: _was, ...rest } = session.config && typeof session.config === 'object' ? session.config : {};
+    const config = hidden ? { ...rest, hiddenFromHistory: true } : rest;
     await prisma.examSession.updateMany({ where: { id: sessionId, userId }, data: { config } });
     return { success: true };
 }
@@ -163,6 +173,6 @@ async function mockHistory(userId, limit = 20) {
 }
 
 module.exports = {
-    finalizeSession, hideSession, mockHistory, buildMockHistory, sanitizeMeta, subjectRowsFor, mergeMarked,
+    finalizeSession, hideSession, unhideSession, mockHistory, buildMockHistory, sanitizeMeta, subjectRowsFor, mergeMarked,
     ExamHistoryError, HISTORY_MODES,
 };

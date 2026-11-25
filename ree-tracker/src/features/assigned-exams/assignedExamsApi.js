@@ -32,10 +32,12 @@ export const listAssignedExams = ({ fresh = false } = {}) => {
   }
   return listing.promise;
 };
-/** Test seam. */
-export function __resetAssignedExamList() {
+/** Ask the server again next time: a sitting deleted from Past sittings changes the list. */
+export function forgetAssignedExams() {
   listing = null;
 }
+/** Test seam. */
+export const __resetAssignedExamList = forgetAssignedExams;
 
 /** An exam's questions in the shape the simulator runs (features/exams/review/retake.js). */
 export const getAssignedExamRun = async (id) => {

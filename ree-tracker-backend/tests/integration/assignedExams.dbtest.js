@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 // list and the reviewer's results find the tagged sittings.
 
 const prisma = require('../../src/config/db');
-const { finalizeSession } = require('../../src/services/examHistory');
+const { finalizeSession, hideSession, unhideSession } = require('../../src/services/examHistory');
 const assignedExams = require('../../src/services/assignedExams');
 
 const RUN = `ax${Date.now().toString(36)}`;
@@ -85,5 +85,22 @@ describe('assigned exam sittings', () => {
     it('the admin list carries how many took it and their average', async () => {
         const row = (await assignedExams.listForAdmin()).find((e) => e.id === examId);
         expect(row).toMatchObject({ takers: 3, average: 60, topics: [{ subject: 'EE', topic: 'Circuits', count: 5 }] });
+    });
+
+    // Delete in Past sittings (a hide) takes a sitting out of the exam's tries
+    // and results; Undo puts it back (owner's decision, 2026-11-26).
+    it('a deleted sitting is no longer a try, a first score or a taker, until Undo', async () => {
+        await hideSession({ userId: U(3), sessionId: S(4) });
+        const mine = (await assignedExams.listForLearner(U(3))).find((e) => e.id === examId);
+        expect(mine.mine).toBeNull();
+        expect((await assignedExams.results(examId)).takers).toBe(2);
+        await hideSession({ userId: U(1), sessionId: S(1) });
+        const one = (await assignedExams.listForLearner(U(1))).find((e) => e.id === examId);
+        expect(one.mine).toEqual({ attempts: 1, first: 100, best: 100 });
+
+        await unhideSession({ userId: U(3), sessionId: S(4) });
+        await unhideSession({ userId: U(1), sessionId: S(1) });
+        const row = (await assignedExams.listForAdmin()).find((e) => e.id === examId);
+        expect(row).toMatchObject({ takers: 3, average: 60 });
     });
 });

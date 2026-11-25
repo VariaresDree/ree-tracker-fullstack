@@ -17,6 +17,7 @@ Thermodynamics tools, fluids and mechanics tools, a complex-number calculator mo
 Plan: `pasted-content-id-8a6f-help-me-functional-book.md` (owner's machine): ranking fix, deleted assigned-exam sittings, then Mathematics in full module form (Coach G Math 2–11 and Powerline 1–8), then a ranked list of improvements.
 
 - **Rankings (PR 1):** ranked = 20+ server-graded answers, by ability; a negative θ is ranked. `/me` sends `answered` and `needed`. The "you are here" row carries its rank. Not verified live: open Exams › Rankings signed in as the owner after deploy, and check the card and the row agree.
+- **Deleted sittings (PR 2):** a try at an assigned exam deleted from Past sittings leaves its tries, best, first score, Taken and the reviewer's results (`sittingsFor` filters `hiddenFromHistory`); Undo (`/sessions/:id/unhide`) restores it. Answers still count. Proven against Postgres only in CI (`assignedExams.dbtest.js`). Not verified live: delete the owner's own test try, check Exams › Assigned and Results, then Undo.
 
 ## 0j. Handover, Assigned exams round of 2026-11-24
 

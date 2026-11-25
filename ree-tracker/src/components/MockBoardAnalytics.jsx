@@ -5,7 +5,8 @@ import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine, Cell,
 } from 'recharts';
-import { fetchMockHistory, hideExamSession } from '../services/dbQueries';
+import { fetchMockHistory, hideExamSession, unhideExamSession } from '../services/dbQueries';
+import { forgetAssignedExams } from '../features/assigned-exams/assignedExamsApi';
 import { cachedMockHistory, rememberMockHistory } from '../services/mockHistoryCache';
 import { changeWords, sittingChange } from '../features/exams/sittingDelta';
 import { purgeSimulationLedger, dropLegacyLedger } from '../services/simulationLedger';
@@ -79,7 +80,7 @@ export default function MockBoardAnalytics() {
   const { currentUser } = useAuth();
   const [history, setHistory] = useState(cachedFor(currentUser?.uid) || []);
   const [loading, setLoading] = useState(!cachedFor(currentUser?.uid));
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '' });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: '', examTitle: null });
 
   // An error is not an empty history: it says so and offers Try again.
   const [loadError, setLoadError] = useState(false);
@@ -127,20 +128,42 @@ export default function MockBoardAnalytics() {
     return () => { live = false; };
   }, [uid]);
 
-  const requestDelete = (id, name) => setDeleteModal({ isOpen: true, id, name });
+  // `examTitle`: the sitting was a try at an assigned exam. Deleting it takes
+  // it out of that exam's tries and the reviewer's results too.
+  const requestDelete = (id, name, examTitle = null) => setDeleteModal({ isOpen: true, id, name, examTitle });
+  const closeDelete = () => setDeleteModal({ isOpen: false, id: null, name: '', examTitle: null });
+
+  // Undo: the server clears the flag, then the list is read again.
+  const undoDelete = async (id, examTitle) => {
+    try {
+      await unhideExamSession(id);
+      if (examTitle) forgetAssignedExams();
+      applyHistory(uid, await fetchMockHistory(20));
+      toast.success('Sitting restored.');
+    } catch {
+      toast.error('Couldn’t restore the sitting. Try again.');
+    }
+  };
 
   const confirmDelete = async () => {
-    const { id, name } = deleteModal;
+    const { id, name, examTitle } = deleteModal;
     try {
       await hideExamSession(id);
       const updated = history.filter((h) => h.id !== id);
       rememberMockHistory(uid, updated);
       setHistory(updated);
-      toast.success(`Removed the ${name} sitting from history.`);
+      // The Assigned tab's list is kept 30 s: ask again so the exam moves back to To take.
+      if (examTitle) forgetAssignedExams();
+      toast((t) => (
+        <span className="flex items-center gap-3">
+          {examTitle ? `Removed the ${name} try at ${examTitle}.` : `Removed the ${name} sitting from history.`}
+          <Button size="sm" variant="secondary" onClick={() => { toast.dismiss(t.id); undoDelete(id, examTitle); }}>Undo</Button>
+        </span>
+      ), { duration: 6000 });
     } catch {
       toast.error('Could not update the history. Try again.');
     } finally {
-      setDeleteModal({ isOpen: false, id: null, name: '' });
+      closeDelete();
     }
   };
 
@@ -218,7 +241,7 @@ export default function MockBoardAnalytics() {
             size="icon"
             variant="ghost"
             tone="danger"
-            onClick={(e) => { e.stopPropagation(); requestDelete(r.id, new Date(r.date).toLocaleDateString()); }}
+            onClick={(e) => { e.stopPropagation(); requestDelete(r.id, new Date(r.date).toLocaleDateString(), r.assignedExamTitle || null); }}
             aria-label="Remove from history"
             className="text-muted"
           >
@@ -352,20 +375,22 @@ export default function MockBoardAnalytics() {
 
       <Modal
         open={deleteModal.isOpen}
-        onClose={() => setDeleteModal({ isOpen: false, id: null, name: '' })}
+        onClose={closeDelete}
         title="Remove from history?"
         icon={ShieldAlert}
         tone="danger"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setDeleteModal({ isOpen: false, id: null, name: '' })}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={closeDelete}>Cancel</Button>
             <Button variant="danger" size="sm" onClick={confirmDelete}>Remove</Button>
           </>
         }
       >
         <p className="text-sm text-muted2 leading-relaxed">
-          Remove the <strong className="text-textMain">{deleteModal.name}</strong> sitting from this history? Its answers still count toward your analytics.
+          Remove the <strong className="text-textMain">{deleteModal.name}</strong> sitting from this history?
+          {deleteModal.examTitle && <> It also stops counting as a try at <strong className="text-textMain">{deleteModal.examTitle}</strong>, and leaves its results.</>}
+          {' '}Its answers still count toward your analytics.
         </p>
       </Modal>
     </div>
