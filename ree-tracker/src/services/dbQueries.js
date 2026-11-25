@@ -618,6 +618,9 @@ export const fetchMockHistory = async (limit = 20) => {
 };
 export const hideExamSession = async (sessionId) =>
     apiRequest(`/api/exams/sessions/${encodeURIComponent(sessionId)}/hide`, 'POST', {});
+// Undo of hideExamSession (Past sittings' Delete).
+export const unhideExamSession = async (sessionId) =>
+    apiRequest(`/api/exams/sessions/${encodeURIComponent(sessionId)}/unhide`, 'POST', {});
 // One finished sitting item by item (pages/SittingReview.jsx). A 409 carries
 // `code`: IN_PROGRESS (still open) or SYNCING (answers still queued).
 export const fetchSittingReview = async (sessionId) =>

@@ -72,6 +72,8 @@ describe('GET /api/assigned-exams (learner)', () => {
         const raw = vi.spyOn(prisma, '$queryRaw').mockResolvedValue([sitting('a1', 'ana', 6, 1), sitting('b1', 'ben', 8, 2)]);
         let res = await request(makeApp()).get('/api/assigned-exams').set(as('ana'));
         expect(res.body.items[0]).toMatchObject({ mine: { attempts: 1, best: 60, first: 60 }, class: null });
+        // A sitting deleted from Past sittings is no longer a try (proven against Postgres in assignedExams.dbtest.js).
+        expect(raw.mock.calls[0][0].join('?')).toMatch(/COALESCE\("config"->>'hiddenFromHistory', 'false'\) <> 'true'/);
 
         raw.mockResolvedValue([sitting('a1', 'ana', 6, 1), sitting('b1', 'ben', 8, 2), sitting('c1', 'cy', 7, 3)]);
         res = await request(makeApp()).get('/api/assigned-exams').set(as('ana'));

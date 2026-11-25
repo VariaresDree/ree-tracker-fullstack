@@ -383,13 +383,26 @@ router.post('/sessions/:id/finalize', authMiddleware, validate(finalizeSchema), 
 
 // HIDE A SITTING FROM MOCK HISTORY — never a delete: deleting an ExamSession
 // cascades to its attempts, which would rewrite every tally and mastery
-// estimate the sitting fed.
+// estimate the sitting fed. A hidden assigned-exam sitting also stops counting
+// as a try (assignedExams.sittingsFor).
 router.post('/sessions/:id/hide', authMiddleware, async (req, res) => {
     try {
         return res.status(200).json(await examHistory.hideSession({ userId: req.user.id, sessionId: req.params.id }));
     } catch (error) {
         if (error instanceof examHistory.ExamHistoryError) return res.status(error.status).json({ error: error.message });
         logger.error('exam hide failed', { error: error.message });
+        return res.status(500).json({ error: 'Could not update the history.' });
+    }
+});
+
+// UNDO A HIDE — the sitting returns to history and, for an assigned exam, to
+// its tries and the reviewer's results.
+router.post('/sessions/:id/unhide', authMiddleware, async (req, res) => {
+    try {
+        return res.status(200).json(await examHistory.unhideSession({ userId: req.user.id, sessionId: req.params.id }));
+    } catch (error) {
+        if (error instanceof examHistory.ExamHistoryError) return res.status(error.status).json({ error: error.message });
+        logger.error('exam unhide failed', { error: error.message });
         return res.status(500).json({ error: 'Could not update the history.' });
     }
 });

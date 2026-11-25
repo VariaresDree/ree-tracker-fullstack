@@ -1,7 +1,7 @@
 // Mock history comes from the server, headlines the PRC weighted average, and
 // "removing" a sitting hides it — it never deletes the answers behind it.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 // Rows link to their review page, so the list renders inside a router.
@@ -19,10 +19,16 @@ vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ currentUser: { uid
 
 const fetchMockHistory = vi.fn();
 const hideExamSession = vi.fn();
+const unhideExamSession = vi.fn();
 vi.mock('../services/dbQueries', () => ({
   fetchMockHistory: (...a) => fetchMockHistory(...a),
   hideExamSession: (...a) => hideExamSession(...a),
+  unhideExamSession: (...a) => unhideExamSession(...a),
 }));
+const toast = Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() });
+vi.mock('react-hot-toast', () => ({ default: toast }));
+const forgetAssignedExams = vi.fn();
+vi.mock('../features/assigned-exams/assignedExamsApi', () => ({ forgetAssignedExams: () => forgetAssignedExams() }));
 const purgeSimulationLedger = vi.fn().mockResolvedValue();
 vi.mock('../services/simulationLedger', () => ({
   purgeSimulationLedger: (...a) => purgeSimulationLedger(...a),
@@ -41,6 +47,9 @@ beforeEach(() => {
   forgetMockHistory();
   fetchMockHistory.mockReset();
   hideExamSession.mockReset();
+  unhideExamSession.mockReset();
+  forgetAssignedExams.mockReset();
+  toast.mockClear();
   purgeSimulationLedger.mockClear();
 });
 
@@ -68,6 +77,31 @@ describe('MockBoardAnalytics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(hideExamSession).toHaveBeenCalledTimes(1));
     expect(['s1', 'b1']).toContain(hideExamSession.mock.calls[0][0]);
+  });
+
+  // Owner's decision, 2026-11-26: a deleted try at an assigned exam is gone
+  // from its tries and results too, and Undo brings it back.
+  it('deleting a try at an assigned exam says so, refreshes the Assigned list, and Undo restores it', async () => {
+    const assigned = { ...ROWS[1], id: 'a1', kind: 'assigned', assignedExamId: 'x1', assignedExamTitle: 'EE prelim' };
+    fetchMockHistory.mockResolvedValue([assigned]);
+    hideExamSession.mockResolvedValue({ success: true });
+    unhideExamSession.mockResolvedValue({ success: true });
+    render(<MockBoardAnalytics />);
+    const [remove] = await screen.findAllByRole('button', { name: 'Remove from history' });
+    fireEvent.click(remove);
+    expect(await screen.findByText(/stops counting as a try at/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(hideExamSession).toHaveBeenCalledWith('a1'));
+    expect(forgetAssignedExams).toHaveBeenCalledTimes(1);
+
+    const content = toast.mock.calls.at(-1)[0]({ id: 't1' });
+    const { getByRole, getByText } = rtlRender(content);
+    expect(getByText(/Removed the .* try at EE prelim\./)).toBeInTheDocument();
+    await act(async () => { fireEvent.click(getByRole('button', { name: 'Undo' })); });
+    expect(toast.dismiss).toHaveBeenCalledWith('t1');
+    await waitFor(() => expect(unhideExamSession).toHaveBeenCalledWith('a1'));
+    await waitFor(() => expect(fetchMockHistory).toHaveBeenCalledTimes(2));
+    expect(forgetAssignedExams).toHaveBeenCalledTimes(2);
   });
 
   it('links every sitting to its review', async () => {

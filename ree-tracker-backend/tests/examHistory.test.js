@@ -86,6 +86,23 @@ describe('POST /api/exams/sessions/:id/hide', () => {
     });
 });
 
+// Undo for Delete in Past sittings: the flag goes, everything else stays.
+describe('POST /api/exams/sessions/:id/unhide', () => {
+    it('brings a hidden sitting back, keeping the rest of its config', async () => {
+        session.config = { count: 100, assignedExamId: 'exam-1', hiddenFromHistory: true };
+        const res = await request(makeApp()).post('/api/exams/sessions/sess-1/unhide').set(as(UID)).send({});
+        expect(res.status).toBe(200);
+        expect(prisma.examSession.updateMany.mock.calls[0][0]).toMatchObject({ where: { id: 'sess-1', userId: UID } });
+        expect(prisma.examSession.updateMany.mock.calls[0][0].data.config).toEqual({ count: 100, assignedExamId: 'exam-1' });
+    });
+
+    it("refuses another learner's sitting", async () => {
+        const res = await request(makeApp()).post('/api/exams/sessions/sess-1/unhide').set(as('someone-else')).send({});
+        expect(res.status).toBe(404);
+        expect(prisma.examSession.updateMany).not.toHaveBeenCalled();
+    });
+});
+
 describe('GET /api/analytics/deep/mock-history', () => {
     it('serves sittings with per-subject scores, deriving them for unfinalised sessions', async () => {
         vi.spyOn(prisma.examSession, 'findMany').mockResolvedValue([
