@@ -243,7 +243,7 @@ describe('Units', () => {
 
   it('recent conversions stay on the device, and clear', async () => {
     const view = at('&cat=power&from=hp&to=kW&v=2');
-    await waitFor(() => expect(localStorage.getItem('ree:units')).toContain('"v":"2"'), { timeout: 3000 });
+    await waitFor(() => expect(localStorage.getItem('ree:units')).toContain('"v":"2"'));
     view.unmount();
     at();
     expect(screen.getByRole('button', { name: '2 hp = 1.492 kW' })).toBeInTheDocument();
@@ -296,7 +296,7 @@ describe('Units', () => {
     it('adds Favourites and Recent when there are some', async () => {
       const view = at('&cat=power&from=hp&to=kW&v=2');
       fireEvent.click(screen.getByRole('button', { name: 'Add hp to kW to favourites' }));
-      await waitFor(() => expect(localStorage.getItem('ree:units')).toContain('"v":"2"'), { timeout: 3000 });
+      await waitFor(() => expect(localStorage.getItem('ree:units')).toContain('"v":"2"'));
       view.unmount();
       at();
       expect(links()).toEqual(['Favourites', 'Mechanics', 'Thermodynamics', 'Fluids', 'Electrical', 'General', 'Recent']);
@@ -462,7 +462,7 @@ describe('Board tools', () => {
 });
 
 // Each test renders the whole page, about 100 formulas: give a loaded parallel run room.
-describe('Shapes', { timeout: 20000 }, () => {
+describe('Shapes', () => {
   const open = async () => {
     at('&view=shapes');
     return screen.findByRole('navigation', { name: 'On this page' }, { timeout: 15000 });

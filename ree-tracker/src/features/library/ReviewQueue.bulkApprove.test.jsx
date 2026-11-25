@@ -197,19 +197,19 @@ describe('ReviewQueue — Accept All chunking', () => {
 
     // Exactly 2 calls — a 409 does NOT get the one-retry treatment (that
     // would just get another 409 from the same still-in-flight original).
-    // The wait-then-reconcile step takes a few real seconds, hence the
-    // longer timeout here rather than fake timers (which don't compose
-    // cleanly with userEvent's own internal timer usage).
-    await waitFor(() => expect(bulkApproveReviewItems).toHaveBeenCalledTimes(2), { timeout: 6000 });
+    // The wait-then-reconcile step takes 3 real seconds (within the suite's
+    // 10 s waitFor default) rather than fake timers, which don't compose
+    // cleanly with userEvent's own internal timer usage.
+    await waitFor(() => expect(bulkApproveReviewItems).toHaveBeenCalledTimes(2));
 
     // Reconciliation found chunk 2's items already resolved server-side —
     // removed from view, no "connection dropped" error for them. Both
-    // checks need the long timeout: chunk 1's effect (Question 0 gone) is
+    // checks wait in their own right: chunk 1's effect (Question 0 gone) is
     // near-instant, but chunk 2 only STARTS its 3s wait+reconcile AFTER
     // chunk 1 finishes, so reaching this point doesn't mean chunk 2 is done
     // yet — waiting for Question 0 first is not a proxy for chunk 2's state.
-    await waitFor(() => expect(screen.queryByText(/^Question 0$/)).not.toBeInTheDocument(), { timeout: 6000 });
-    await waitFor(() => expect(screen.queryByText(/^Question 25$/)).not.toBeInTheDocument(), { timeout: 6000 });
+    await waitFor(() => expect(screen.queryByText(/^Question 0$/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/^Question 25$/)).not.toBeInTheDocument());
     expect(screen.queryByText(/connection dropped/i)).not.toBeInTheDocument();
-  }, 10000);
+  });
 });

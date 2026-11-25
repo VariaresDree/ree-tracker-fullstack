@@ -23,14 +23,14 @@ describe('ReferenceBrowser — opened at a topic', () => {
   it("shows that topic's cards straight away, whatever was open before", async () => {
     sessionStorage.setItem('ree.formulaCards.position', JSON.stringify({ subject: 'EE', topic: 'Protection' }));
     render(<MemoryRouter><ReferenceBrowser initialSubject="EE" initialTopic="Machines" /></MemoryRouter>);
-    expect(await screen.findByText('Slip', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Slip')).toBeInTheDocument();
     expect(screen.getByText('Torque')).toBeInTheDocument();
     expect(screen.queryByText('Fault MVA')).not.toBeInTheDocument();
   });
 
   it("finds the topic the server's way, whatever the case or spacing another screen names it in", async () => {
     render(<MemoryRouter><ReferenceBrowser initialSubject="ee" initialTopic="  machines " /></MemoryRouter>);
-    expect(await screen.findByText('Slip', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Slip')).toBeInTheDocument();
     expect(screen.getByText('Torque')).toBeInTheDocument();
   });
 });

@@ -76,7 +76,7 @@ describe('web push', () => {
     expect(wake).toHaveBeenCalled();
     expect(registerDeviceToken).toHaveBeenCalledTimes(2);
     expect(registerDeviceToken.mock.calls[0][2]).toEqual({ timeoutMs: m.REGISTER_TIMEOUT_MS });
-  }, 10_000);
+  });
 
   it('a push sign-up that fails twice throws a browser-step error worded for App health', async () => {
     const m = await load();
@@ -87,7 +87,7 @@ describe('web push', () => {
     expect(getToken).toHaveBeenCalledTimes(2);
     expect(registerDeviceToken).not.toHaveBeenCalled();
     getToken.mockReset().mockResolvedValue('web-token-123');
-  }, 10_000);
+  });
 
   it('says which step failed', async () => {
     const m = await load();
@@ -108,5 +108,5 @@ describe('web push', () => {
     expect(m.isPushServiceError(err)).toBe(true);
     expect(m.webFailureText(err, true)).toMatch(/Google’s push service/);
     getToken.mockReset().mockResolvedValue('web-token-123');
-  }, 10_000);
+  });
 });

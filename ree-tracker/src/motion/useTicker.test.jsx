@@ -35,14 +35,14 @@ describe('useTicker', () => {
   // the destination is genuinely reached without coupling to frame timing.
   it('reaches the target value once the animation completes', async () => {
     render(<Probe value={960} animateOnMount />);
-    await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('960'), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('960'));
   });
 
   it('animates between values on update regardless of the mount option', async () => {
     const { rerender } = render(<Probe value={10} />);
     expect(screen.getByTestId('v')).toHaveTextContent('10');
     rerender(<Probe value={90} />);
-    await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('90'), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('90'));
   });
 
   it('still settles on the real value when requestAnimationFrame never fires', async () => {
@@ -55,7 +55,7 @@ describe('useTicker', () => {
     globalThis.requestAnimationFrame = () => 0; // queued, never serviced
     try {
       render(<Probe value={977} animateOnMount />);
-      await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('977'), { timeout: 4000 });
+      await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('977'));
     } finally {
       globalThis.requestAnimationFrame = realRaf;
     }
@@ -72,6 +72,6 @@ describe('useTicker', () => {
         <Probe value={977} animateOnMount />
       </StrictMode>,
     );
-    await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('977'), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByTestId('v')).toHaveTextContent('977'));
   });
 });

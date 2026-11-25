@@ -59,7 +59,7 @@ describe('a topic under its syllabus subtopics', () => {
     const view = render(<MemoryRouter><h1>Library</h1><h2>Formula cards</h2><ReferenceBrowser /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: /^Mathematics/ }));
     fireEvent.click(screen.getByRole('button', { name: /^Algebra/ }));
-    await screen.findAllByRole('heading', { level: 3 }, { timeout: 5000 });
+    await screen.findAllByRole('heading', { level: 3 });
     return view;
   };
 

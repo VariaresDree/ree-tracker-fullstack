@@ -117,7 +117,7 @@ describe('usePrintedSet', () => {
     expect(result.current.draw.items[1].answerLetter).toBe('D');
     expect(result.current.syncState).toBe('saving');
     expect(patches()).toHaveLength(0);
-    await waitFor(() => expect(result.current.syncState).toBe('saved'), { timeout: 2000 });
+    await waitFor(() => expect(result.current.syncState).toBe('saved'));
     expect(patches()).toEqual([[SET_URL, 'PATCH', { edits: { 1: { text: 'Edited: $\\frac{1}{2}$' }, 2: { answerIndex: 3 } } }]]);
     expect(result.current.set.edits).toEqual({ 1: { text: 'Edited: $\\frac{1}{2}$' }, 2: { answerIndex: 3 } });
     // Kept on this device too.
@@ -154,7 +154,7 @@ describe('usePrintedSet', () => {
     act(() => { result.current.setPrefs({ docs: { key: false } }); });
     expect(localStorage.getItem('ree-print-paper')).toBe('long');
     expect(result.current.set.prefs).toEqual({ paper: 'long', docs: { paper: true, sheet: true, key: false }, solutions: true });
-    await waitFor(() => expect(patches()).toHaveLength(2), { timeout: 2000 });
+    await waitFor(() => expect(patches()).toHaveLength(2));
     expect(patches()[1][2]).toEqual({ prefs: { paper: 'long', docs: { paper: true, sheet: true, key: false }, solutions: true } });
   });
 });

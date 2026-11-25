@@ -166,7 +166,7 @@ describe('useSimulatorEngine — coming back to a battle', () => {
     api.fetchMultiplayerBattle.mockResolvedValue(data);
     const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
     await act(() => result.current.startMultiplayerBattle('ABC123'));
-    await waitFor(() => expect(result.current.session.isFinished).toBe(true), { timeout: 3000 });
+    await waitFor(() => expect(result.current.session.isFinished).toBe(true));
     expect(result.current.session.diagnostics.pendingAttempts.filter((a) => a.userAnswer != null)).toHaveLength(2);
     expect(result.current.session.diagnostics.timedOut).toBe(true);
   });
