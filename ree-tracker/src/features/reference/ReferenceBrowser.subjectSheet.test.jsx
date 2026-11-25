@@ -50,7 +50,7 @@ describe('ReferenceBrowser — formulas and constants', () => {
     const view = render(<><h2>Formula cards</h2><MemoryRouter><ReferenceBrowser /></MemoryRouter></>);
     fireEvent.click(screen.getByRole('button', { name: /^EE/ }));
     fireEvent.click(screen.getByRole('button', { name: /^DC Circuits/ }));
-    await screen.findByText('Ohm’s law', {}, { timeout: 5000 });
+    await screen.findByText('Ohm’s law');
     return view;
   };
   // A second card in the Resistance family, so it gets a panel of its own.
@@ -115,14 +115,14 @@ describe('ReferenceBrowser — formulas and constants', () => {
     unmount();
 
     render(<MemoryRouter><ReferenceBrowser /></MemoryRouter>);
-    expect(await screen.findByText('Ohm’s law', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Ohm’s law')).toBeInTheDocument();
     expect(within(screen.getByRole('navigation', { name: 'Formula cards location' })).getByText('DC Circuits')).toBeInTheDocument();
   });
 
   it('a deep-linked search starts fresh instead of restoring', async () => {
     sessionStorage.setItem('ree.formulaCards.position', JSON.stringify({ subject: 'EE', topic: 'DC Circuits' }));
     render(<ReferenceBrowser initialSearch="Coulomb" />);
-    expect(await screen.findByText('Coulomb', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Coulomb')).toBeInTheDocument();
     expect(screen.queryByText('Ohm’s law')).not.toBeInTheDocument();
   });
 

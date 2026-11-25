@@ -77,6 +77,14 @@ export default defineConfig(async ({ mode, command }) => {
     setupFiles: ['./src/test/setup.js'],
     globals: false,
     css: false,
+    // The time limits only exist to catch a hang, so they're set for a loaded
+    // machine, not an idle one. KaTeX/axe-heavy tests take 3-5 s alone and 2-3x
+    // that when the run's workers (or another suite on the same machine, or
+    // CI's 4 vCPUs) compete for CPU; vitest's 5 s default failed a different
+    // dozen of them every full run. The RTL findBy/waitFor default is raised
+    // to match in src/test/setup.js.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
   resolve: {
     alias: {

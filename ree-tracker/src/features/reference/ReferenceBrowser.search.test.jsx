@@ -25,7 +25,7 @@ beforeEach(() => sessionStorage.clear());
 describe('ReferenceBrowser search', () => {
   it('shows the first 30 matches, then the rest on request', async () => {
     render(<MemoryRouter><ReferenceBrowser initialSearch="power" /></MemoryRouter>);
-    expect(await screen.findAllByText(/^Power card/, {}, { timeout: 5000 })).toHaveLength(30);
+    expect(await screen.findAllByText(/^Power card/)).toHaveLength(30);
     fireEvent.click(screen.getByRole('button', { name: 'Show 5 more of 5' }));
     expect(screen.getAllByText(/^Power card/)).toHaveLength(35);
     expect(screen.queryByRole('button', { name: /^Show \d+ more/ })).not.toBeInTheDocument();
@@ -35,6 +35,6 @@ describe('ReferenceBrowser search', () => {
     render(<MemoryRouter><ReferenceBrowser initialSearch="power" /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Show 5 more of 5' }));
     fireEvent.change(screen.getByLabelText('Search reference cards'), { target: { value: 'power card' } });
-    expect(await screen.findAllByText(/^Power card/, {}, { timeout: 5000 })).toHaveLength(30);
+    expect(await screen.findAllByText(/^Power card/)).toHaveLength(30);
   });
 });

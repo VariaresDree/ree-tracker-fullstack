@@ -79,7 +79,7 @@ describe('ReferenceStudyMode, with a dialog open over it', () => {
     render(<ReferenceStudyMode cards={[{ id: 'a', name: 'Ohm', valueUnit: '$\\text{V}$', kind: 'formula' }]} reviews={{ rate, rowFor: () => null }} onExit={onExit} />);
     fireEvent.click(screen.getByRole('button', { name: 'card Ohm' }));
     fireEvent.click(screen.getByRole('button', { name: 'Convert these units' }));
-    return screen.findByRole('dialog', { name: 'Calculator and units' }, { timeout: 5000 }).then((dialog) => {
+    return screen.findByRole('dialog', { name: 'Calculator and units' }).then((dialog) => {
       fireEvent.keyDown(dialog, { key: '1' });
       fireEvent.keyDown(dialog, { key: 'Escape' });
       expect(rate).not.toHaveBeenCalled();

@@ -166,7 +166,7 @@ describe('Print preview', () => {
     expect(screen.getByRole('checkbox', { name: 'Worked solutions' })).toBeDisabled();
     expect(sheets().querySelector('.ree-key-row')).toBeNull();
     expect(screen.getByRole('status')).toHaveTextContent('Saving\u2026');
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved$/), { timeout: 2000 });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved$/));
     expect(calls('PATCH', SET_URL).at(-1)[2]).toEqual({ prefs: { paper: 'long', docs: { paper: true, sheet: true, key: false }, solutions: true } });
     expect(localStorage.getItem('ree-print-paper')).toBe('long');
   });
@@ -257,11 +257,10 @@ describe('Print preview', () => {
     const item = sheets().querySelector('.ree-item[data-item="1"]');
     expect(item.textContent).toContain('E2E edited:');
     expect(item.querySelector('.katex .mfrac')).not.toBeNull();
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved$/), { timeout: 2000 });
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Saved$/));
     expect(calls('PATCH', SET_URL)[0][2]).toEqual({ edits: { 1: { text: 'E2E edited: $\\frac{1}{2}$' } } });
     expect(within(sheets()).getByRole('button', { name: 'Edit item 1' })).toHaveTextContent('Edited');
-    // An axe scan plus typing a whole stem: too slow for 5 s under full-suite load.
-  }, 20_000);
+  });
 
   it('downloads one .tex of the edited set, and opens it in Overleaf', async () => {
     const user = userEvent.setup();

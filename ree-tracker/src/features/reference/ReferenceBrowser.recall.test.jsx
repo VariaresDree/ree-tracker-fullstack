@@ -23,7 +23,7 @@ const { default: ReferenceBrowser } = await import('./ReferenceBrowser');
 const later = new Date(Date.now() + 5 * 86400_000).toISOString();
 const openDrill = async () => {
   fireEvent.click(screen.getByRole('button', { name: /Drill/ }));
-  return screen.findByRole('dialog', {}, { timeout: 5000 });
+  return screen.findByRole('dialog');
 };
 
 afterEach(() => vi.restoreAllMocks());
@@ -41,7 +41,7 @@ describe('ReferenceBrowser — random topic and the weak-formula sheet', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Random topic/ }));
     expect(screen.getByRole('radio', { name: /Random topic/ })).toHaveTextContent('Illumination · 1');
     fireEvent.click(screen.getByRole('button', { name: 'Start drill' }));
-    expect(await screen.findByText('card Lumen', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('card Lumen')).toBeInTheDocument();
   });
 
   it('offers the weak cards and their print sheet only once a card is rated Again or Hard', async () => {
