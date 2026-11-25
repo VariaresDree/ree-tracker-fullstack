@@ -132,6 +132,34 @@ describe('Exams › Assigned', () => {
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['To take 1', 'Taken 1']);
   });
 
+  it('filters by subject and topic, names each exam’s topics, and clears the filters', async () => {
+    items = [
+      exam({ id: 'm1', title: 'Trig test', subject: 'Mathematics', topics: [{ subject: 'Mathematics', topic: 'Trigonometry', count: 30 }] }),
+      exam({ id: 'm2', title: 'Algebra quiz', subject: 'Mathematics', topics: [{ subject: 'Mathematics', topic: 'Algebra', count: 20 }] }),
+      exam({ id: 'e1', title: 'Circuits drill', subject: 'EE', topics: [{ subject: 'EE', topic: 'Circuits', count: 10 }] }),
+    ];
+    renderTab();
+    await screen.findByText('Trig test');
+    expect(screen.getByText('Trig test').closest('article')).toHaveTextContent('Trigonometry');
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'Mathematics' } });
+    expect(screen.queryByText('Circuits drill')).toBeNull();
+    expect([...screen.getByLabelText('Topic').options].map((o) => o.value)).toEqual(['all', 'Algebra', 'Trigonometry']);
+    fireEvent.change(screen.getByLabelText('Topic'), { target: { value: 'Algebra' } });
+    expect(screen.queryByText('Trig test')).toBeNull();
+    expect(screen.getByText('Algebra quiz')).toBeInTheDocument();
+    // A new subject starts from every topic.
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'EE' } });
+    expect(screen.getByText('Circuits drill')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Topic')).toBeNull();
+  });
+
+  it('offers no subject or topic picker when there is nothing to choose', async () => {
+    renderTab();
+    await screen.findByText('Mixed mock');
+    expect(screen.queryByLabelText('Subject')).toBeNull();
+    expect(screen.queryByLabelText('Topic')).toBeNull();
+  });
+
   it('filters by kind with chips, when there is more than one kind', async () => {
     items = [exam({ id: 'e1', title: 'Big exam' }), exam({ id: 'q1', title: 'Quiz one', kind: 'quiz' }), exam({ id: 'q2', title: 'Quiz two', kind: 'quiz' })];
     renderTab();

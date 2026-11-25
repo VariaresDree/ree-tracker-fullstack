@@ -9,7 +9,9 @@
 //
 // The list (2026-11-25): chips for each kind the reviewer posted (Exams,
 // Quizzes, Problem sets, Practice sets) with counts, then four parts: To take,
-// Taken, Coming up, Locked or closed. Each exam is a compact row.
+// Taken, Coming up, Locked or closed. Each exam is a compact row. Subject and
+// Topic pickers narrow it further (SubjectTopicFilters), and each row names
+// the topics it covers.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -20,7 +22,8 @@ import { ClipboardList, Clock, FileText, Play, Swords } from '../../components/u
 import { createMultiplayerBattle } from '../../services/dbQueries';
 import { plainError } from '../shared-quizzes/quizFilesApi';
 import { getAssignedExamRun, listAssignedExams } from './assignedExamsApi';
-import { availabilityLine, classLine, examLength, kindCounts, kindOf, learnerSection, LEARNER_SECTIONS, PASS, sectionOrder, triesLine } from './examMath';
+import { availabilityLine, classLine, coversFilter, examLength, kindCounts, kindOf, learnerSection, LEARNER_SECTIONS, PASS, sectionOrder, topicsLine, triesLine } from './examMath';
+import SubjectTopicFilters from './SubjectTopicFilters';
 
 const day = (at) => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const subjectLabel = (s) => (s === 'Mixed' ? 'Mixed subjects' : toDisplaySubject(s));
@@ -46,6 +49,7 @@ function ExamRow({ exam, onTake, onBattle, hosting }) {
           </div>
           <p id={`exam-${exam.id}`} className="font-semibold text-textMain break-words">{exam.title}</p>
           <p className="text-sm text-muted2">{exam.itemCount} items · {examLength(exam.timeLimitSecs)} · posted {day(exam.publishedAt)}</p>
+          {exam.topics?.length > 0 && <p className="text-sm text-muted2 break-words">{topicsLine(exam.topics)}</p>}
           {exam.description && <p className="text-sm text-muted2 line-clamp-2 break-words">{exam.description}</p>}
           {exam.class && <p className="text-sm text-muted2">{classLine(exam.class)}</p>}
           {when && <p className={shut ? 'text-sm text-textMain' : 'text-sm text-muted2'}>{when}</p>}
@@ -124,6 +128,8 @@ export default function AssignedExamsTab() {
   const [taking, setTaking] = useState(null);
   const [hosting, setHosting] = useState(null);
   const [kindFilter, setKindFilter] = useState('all');
+  const [subject, setSubject] = useState('all');
+  const [topic, setTopic] = useState('all');
 
   // The server takes the exam's questions and time; the lobby shows the code to share.
   const battle = async (exam) => {
@@ -146,11 +152,12 @@ export default function AssignedExamsTab() {
   const items = state.items;
   const kinds = kindCounts(items);
   const sections = useMemo(() => {
-    const shown = (items || []).filter((e) => kindFilter === 'all' || kindOf(e.kind).value === kindFilter);
+    const shown = (items || []).filter((e) => (kindFilter === 'all' || kindOf(e.kind).value === kindFilter) && coversFilter(e, subject, topic));
     return LEARNER_SECTIONS
       .map((sec) => ({ ...sec, exams: shown.filter((e) => learnerSection(e) === sec.id).sort(sectionOrder) }))
       .filter((sec) => sec.exams.length > 0);
-  }, [items, kindFilter]);
+  }, [items, kindFilter, subject, topic]);
+  const clear = () => { setKindFilter('all'); setSubject('all'); setTopic('all'); };
 
   if (state.error) {
     return <EmptyState title="Couldn’t load the assigned exams" description={state.error} action={<Button variant="secondary" onClick={() => load(true)}>Try again</Button>} />;
@@ -177,6 +184,17 @@ export default function AssignedExamsTab() {
             </Button>
           ))}
         </div>
+      )}
+      <div className="grid grid-cols-1 gap-3 empty:hidden min-[400px]:grid-cols-2 sm:max-w-xl">
+        <SubjectTopicFilters items={items} subject={subject} topic={topic} onSubject={setSubject} onTopic={setTopic} />
+      </div>
+      {sections.length === 0 && (
+        <EmptyState
+          compact
+          title="No exams match"
+          description="Try another subject, topic or type."
+          action={<Button variant="secondary" size="sm" onClick={clear}>Clear filters</Button>}
+        />
       )}
       {sections.map((sec) => (
         <section key={sec.id} aria-labelledby={`section-${sec.id}`} className="flex flex-col gap-2">

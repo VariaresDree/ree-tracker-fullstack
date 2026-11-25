@@ -4,7 +4,8 @@
 // Learners see only published ones.
 //
 // The list (2026-11-25): search by title, filter by kind (Exam, Quiz, Problem
-// set, Practice set) and by draft or published, grouped under each kind with
+// set, Practice set), by subject and topic (SubjectTopicFilters) and by draft
+// or published, grouped under each kind with
 // its count. A row shows what it is and how it went; Results and Edit (and
 // Publish, for a draft) are on it, and More holds the rest: the kind, Lock,
 // Unpublish and Delete.
@@ -14,7 +15,8 @@ import toast from 'react-hot-toast';
 import { toDisplaySubject } from '@ree/shared';
 import { Badge, Button, Card, EmptyState, FormField, Input, SectionHeader, SegmentedControl, Select, Skeleton, StatusPill } from '../../../components/ui';
 import { BarChart3, ClipboardList, Lock, LockOpen, Ellipsis, Pencil, Plus, Trash2 } from '../../../components/ui/icons';
-import { EXAM_KINDS, examLength, kindCounts, kindOf, whenLabel } from '../examMath';
+import { coversFilter, EXAM_KINDS, examLength, kindCounts, kindOf, topicsLine, whenLabel } from '../examMath';
+import SubjectTopicFilters from '../SubjectTopicFilters';
 import { plainError } from '../../shared-quizzes/quizFilesApi';
 import { deleteAdminExam, listAdminExams, setAdminExamKind, setAdminExamLocked, setAdminExamStatus } from '../assignedExamsApi';
 import ExamBuilder from './ExamBuilder';
@@ -45,6 +47,7 @@ function ExamRow({ exam, busy, onEdit, onResults, onStatus, onLock, onKind, onDe
               {subject} · {exam.itemCount} items · {examLength(exam.timeLimitSecs)}
               {' · '}{published ? `posted ${day(exam.publishedAt)}` : `saved ${day(exam.updatedAt)}`}
             </p>
+            {exam.topics?.length > 0 && <p className="text-sm text-muted2 break-words">{topicsLine(exam.topics)}</p>}
             {(exam.opensAt || exam.closesAt) && (
               <p className="text-sm text-muted2">
                 {[exam.opensAt && `Opens ${whenLabel(exam.opensAt)}`, exam.closesAt && `Closes ${whenLabel(exam.closesAt)}`].filter(Boolean).join(' · ')}
@@ -115,6 +118,8 @@ export default function AssignedExamsAdmin() {
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState('all');
   const [status, setStatus] = useState('all');
+  const [subject, setSubject] = useState('all');
+  const [topic, setTopic] = useState('all');
 
   const load = useCallback(() => listAdminExams().then(
     (items) => setState({ items, error: '' }),
@@ -166,8 +171,9 @@ export default function AssignedExamsAdmin() {
     const words = search.trim().toLowerCase();
     return (items || []).filter((e) => (kind === 'all' || kindOf(e.kind).value === kind)
       && (status === 'all' || e.status === status)
+      && coversFilter(e, subject, topic)
       && (!words || e.title.toLowerCase().includes(words)));
-  }, [items, search, kind, status]);
+  }, [items, search, kind, status, subject, topic]);
   const groups = kindCounts(shown).map((k) => ({ ...k, exams: shown.filter((e) => kindOf(e.kind).value === k.value) }));
   const counts = kindCounts(items);
 
@@ -179,7 +185,8 @@ export default function AssignedExamsAdmin() {
       <Plus size={16} strokeWidth={2} aria-hidden="true" /> New exam
     </Button>
   );
-  const filtering = search.trim() || kind !== 'all' || status !== 'all';
+  const filtering = search.trim() || kind !== 'all' || status !== 'all' || subject !== 'all' || topic !== 'all';
+  const clear = () => { setSearch(''); setKind('all'); setStatus('all'); setSubject('all'); setTopic('all'); };
 
   return (
     <div className="flex flex-col gap-5">
@@ -196,16 +203,17 @@ export default function AssignedExamsAdmin() {
         <EmptyState icon={ClipboardList} title="No exams yet" description="Pick questions from the bank, set the time, and publish it for your learners." action={newButton} />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end" role="search" aria-label="Find an exam">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] sm:items-end" role="search" aria-label="Find an exam">
             <FormField label="Search">
               <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Title" />
             </FormField>
-            <FormField label="Type" className="sm:w-48">
+            <FormField label="Type">
               <Select value={kind} onChange={(e) => setKind(e.target.value)}>
                 <option value="all">All types · {items.length}</option>
                 {counts.map((k) => <option key={k.value} value={k.value}>{k.plural} · {k.count}</option>)}
               </Select>
             </FormField>
+            <SubjectTopicFilters items={items} subject={subject} topic={topic} onSubject={setSubject} onTopic={setTopic} />
             <SegmentedControl label="Show" size="sm" value={status} onChange={setStatus} options={STATUS_FILTERS} />
           </div>
 
@@ -213,8 +221,8 @@ export default function AssignedExamsAdmin() {
             <EmptyState
               compact
               title="No exams match"
-              description="Try another type, or fewer words."
-              action={filtering && <Button variant="secondary" size="sm" onClick={() => { setSearch(''); setKind('all'); setStatus('all'); }}>Clear filters</Button>}
+              description="Try another type, subject or topic, or fewer words."
+              action={filtering && <Button variant="secondary" size="sm" onClick={clear}>Clear filters</Button>}
             />
           ) : groups.map((g) => (
             <section key={g.value} aria-labelledby={`kind-${g.value}`} className="flex flex-col gap-2">

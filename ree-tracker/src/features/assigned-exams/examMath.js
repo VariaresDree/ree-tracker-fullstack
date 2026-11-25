@@ -113,3 +113,51 @@ export function sectionOrder(a, b) {
   if (state(a) === 'upcoming' && state(b) === 'upcoming') return new Date(a.opensAt) - new Date(b.opensAt);
   return (state(a) === 'closed') - (state(b) === 'closed');
 }
+
+// Subjects and topics (2026-11-25): the server lists each exam's
+// `topics`, [{ subject, topic, count }], biggest first; the lists filter by them.
+const SUBJECT_ORDER = ['Mathematics', 'ESAS', 'EE'];
+const subjectRank = (s) => (SUBJECT_ORDER.includes(s) ? SUBJECT_ORDER.indexOf(s) : SUBJECT_ORDER.length);
+
+/** The subjects an exam covers; its own subject when the server sent no topics. */
+export function subjectsOf(exam) {
+  const covered = [...new Set((exam.topics || []).map((t) => t.subject))];
+  if (covered.length) return covered;
+  return exam.subject && exam.subject !== 'Mixed' ? [exam.subject] : [];
+}
+
+/** The subjects in `items`, board order (Math, ESAS, EE), each with how many exams cover it. */
+export function subjectCounts(items) {
+  const n = {};
+  for (const e of items || []) for (const s of subjectsOf(e)) n[s] = (n[s] || 0) + 1;
+  return Object.keys(n)
+    .sort((a, b) => subjectRank(a) - subjectRank(b) || a.localeCompare(b))
+    .map((value) => ({ value, label: toDisplaySubject(value), count: n[value] }));
+}
+
+/** The topics in `items` (only `subject`'s, unless 'all'), by subject then name, each with how many exams hold it. */
+export function topicCounts(items, subject = 'all') {
+  const n = new Map();
+  for (const e of items || []) {
+    for (const t of e.topics || []) {
+      if (subject !== 'all' && t.subject !== subject) continue;
+      const key = `${t.subject}\u0000${t.topic}`;
+      if (n.has(key)) n.get(key).count += 1;
+      else n.set(key, { subject: t.subject, topic: t.topic, count: 1 });
+    }
+  }
+  return [...n.values()].sort((a, b) => subjectRank(a.subject) - subjectRank(b.subject) || a.topic.localeCompare(b.topic));
+}
+
+/** Whether an exam passes the subject and topic filters ('all' lets everything through). */
+export function coversFilter(exam, subject, topic) {
+  if (subject !== 'all' && !subjectsOf(exam).includes(subject)) return false;
+  return topic === 'all' || (exam.topics || []).some((t) => t.topic === topic && (subject === 'all' || t.subject === subject));
+}
+
+/** "Trigonometry, Algebra and 2 more": what an exam covers, biggest share first. */
+export function topicsLine(topics, max = 2) {
+  const names = (topics || []).map((t) => t.topic);
+  if (names.length <= max + 1) return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] || '');
+  return `${names.slice(0, max).join(', ')} and ${names.length - max} more`;
+}

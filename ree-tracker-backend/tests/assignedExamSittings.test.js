@@ -54,6 +54,7 @@ describe('summarize', () => {
 });
 
 describe('GET /api/assigned-exams (learner)', () => {
+    beforeEach(() => { vi.spyOn(prisma.question, 'findMany').mockResolvedValue([]); });
     const published = [{ id: 'x1', title: 'EE prelim', description: null, subject: 'EE', questionIds: ['q1', 'q2', 'q3', 'q4', 'q5'], timeLimitSecs: 1080, publishedAt: at(0) }];
 
     it('lists published exams only, with no question ids', async () => {
