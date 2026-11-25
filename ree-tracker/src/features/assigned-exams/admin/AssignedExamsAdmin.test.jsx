@@ -75,6 +75,26 @@ describe('AssignedExamsAdmin', () => {
     expect(screen.getByText('Algebra quiz')).toBeInTheDocument();
   });
 
+  it('finds exams by subject and topic, mixed ones under each of their subjects', async () => {
+    const t = (subject, topic, count) => ({ subject, topic, count });
+    items = [
+      exam({ id: 'm1', title: 'Trig test', subject: 'Mathematics', topics: [t('Mathematics', 'Trigonometry', 30)] }),
+      exam({ id: 'x3', title: 'Week 3 mix', subject: 'Mixed', topics: [t('EE', 'Circuits', 20), t('Mathematics', 'Algebra', 10)] }),
+      exam({ id: 'e1', title: 'Machines drill', subject: 'EE', topics: [t('EE', 'Machines', 10)] }),
+    ];
+    renderAt();
+    await screen.findByText('Trig test');
+    expect(screen.getByText('Week 3 mix').closest('li')).toHaveTextContent('Circuits and Algebra');
+    const topics = screen.getByLabelText('Topic');
+    expect([...topics.querySelectorAll('optgroup')].map((g) => g.label)).toEqual(['Math', 'EE']);
+    fireEvent.change(screen.getByLabelText('Subject'), { target: { value: 'EE' } });
+    expect(screen.queryByText('Trig test')).toBeNull();
+    expect(screen.getByText('Week 3 mix')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Topic'), { target: { value: 'Machines' } });
+    expect(screen.queryByText('Week 3 mix')).toBeNull();
+    expect(screen.getByText('Machines drill')).toBeInTheDocument();
+  });
+
   it('moves an exam to another kind from More', async () => {
     renderAt();
     const draft = (await screen.findByText('EE prelim')).closest('li');

@@ -9,14 +9,14 @@ firebaseAuth.getAuth = () => ({ verifyIdToken });
 
 const prisma = require('../src/config/db');
 const adminRoutes = require('../src/routes/adminAssignedExamRoutes');
-const { subjectOf } = require('../src/services/assignedExams');
+const { subjectOf, topicsOf } = require('../src/services/assignedExams');
 const { assignedExamSchema } = require('../src/schemas/assignedExamSchemas');
 
 const as = (uid) => ({ Authorization: `Bearer ${uid}` });
 const ids = (n, prefix = 'q') => Array.from({ length: n }, (_, i) => `${prefix}${i + 1}`);
 const body = (over = {}) => ({ title: 'EE prelim', questionIds: ids(6), timeLimitSecs: 1800, ...over });
 // The bank: q1…q20 are EE, m1…m20 Mathematics (stored under its old spelling).
-const bankRow = (id) => ({ id, subject: id.startsWith('m') ? 'Math' : 'EE' });
+const bankRow = (id) => ({ id, subject: id.startsWith('m') ? 'Math' : 'EE', subtopic: 'Circuits' });
 
 describe('subjectOf', () => {
     it('names the one subject every question shares, in its canonical spelling', () => {
@@ -24,6 +24,21 @@ describe('subjectOf', () => {
     });
     it('is Mixed when the questions span subjects', () => {
         expect(subjectOf([{ subject: 'EE' }, { subject: 'ESAS' }])).toBe('Mixed');
+    });
+});
+
+describe('topicsOf', () => {
+    it('counts each subject and topic, biggest first, skipping questions gone from the bank', () => {
+        const rows = new Map([
+            ['a', { id: 'a', subject: 'Math', subtopic: 'Trigonometry' }],
+            ['b', { id: 'b', subject: 'Mathematics', subtopic: 'Trigonometry' }],
+            ['c', { id: 'c', subject: 'EE', subtopic: 'Circuits' }],
+        ]);
+        expect(topicsOf(['c', 'a', 'gone', 'b'], rows)).toEqual([
+            { subject: 'Mathematics', topic: 'Trigonometry', count: 2 },
+            { subject: 'EE', topic: 'Circuits', count: 1 },
+        ]);
+        expect(topicsOf([], rows)).toEqual([]);
     });
 });
 
@@ -163,6 +178,6 @@ describe('admin assigned-exam routes', () => {
     it('lists every exam with its item count', async () => {
         exam.findMany.mockResolvedValue([{ id: 'x1', title: 'A', questionIds: ids(7) }]);
         const res = await request(app).get('/api/admin/assigned-exams').set(as('admin'));
-        expect(res.body.items).toEqual([{ id: 'x1', title: 'A', questionIds: ids(7), itemCount: 7, availability: 'open', takers: 0, average: null }]);
+        expect(res.body.items).toEqual([{ id: 'x1', title: 'A', questionIds: ids(7), itemCount: 7, availability: 'open', topics: [{ subject: 'EE', topic: 'Circuits', count: 7 }], takers: 0, average: null }]);
     });
 });

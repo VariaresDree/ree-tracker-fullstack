@@ -66,6 +66,7 @@ describe('assigned exam sittings', () => {
     it('gives the learner their tries and the class average of first sittings', async () => {
         const mine = (await assignedExams.listForLearner(U(1))).find((e) => e.id === examId);
         expect(mine).toMatchObject({ itemCount: 5, mine: { attempts: 2, first: 40, best: 100 }, class: { average: 60, takers: 3 } });
+        expect(mine.topics).toEqual([{ subject: 'EE', topic: 'Circuits', count: 5 }]);
     });
 
     it('gives the reviewer every learner’s first sitting and the questions from first sittings', async () => {
@@ -83,6 +84,6 @@ describe('assigned exam sittings', () => {
 
     it('the admin list carries how many took it and their average', async () => {
         const row = (await assignedExams.listForAdmin()).find((e) => e.id === examId);
-        expect(row).toMatchObject({ takers: 3, average: 60 });
+        expect(row).toMatchObject({ takers: 3, average: 60, topics: [{ subject: 'EE', topic: 'Circuits', count: 5 }] });
     });
 });
