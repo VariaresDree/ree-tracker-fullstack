@@ -7,15 +7,20 @@
 //
 //   { type: 'plot', alt, x: [0, 5], y?: [0, 13], xLabel, yLabel, logX?,
 //     series: [{ f: (t) => 12 * (1 - Math.exp(-t)), label?, dashed?, area?, colour? } | { points: [[x, y], …], … }],
-//     marks?: [{ x?, y?, at?: [x, y], label }] }
+//     marks?: [{ x?, y?, at?: [x, y], label }], equal? }
+//
+// `equal` (with a y range) keeps one unit the same length on both axes, so a
+// circle draws round and a right angle looks square: the shorter range widens.
 import { useId } from 'react';
-import { GUIDE, MUTED, SIGNAL, SIGNAL_TEXT, colourOf, formatTick, niceStep, samplesOf } from './figureMath';
+import { GUIDE, MUTED, SIGNAL, SIGNAL_TEXT, colourOf, equalRanges, formatTick, niceStep, samplesOf } from './figureMath';
 import { Svg, Text } from './kit';
 
 const W = 360;
 const H = 236;
 // The top margin leaves room for the y-axis label above the frame.
 const M = { left: 42, right: 14, top: 26, bottom: 44 };
+const iw = W - M.left - M.right;
+const ih = H - M.top - M.bottom;
 function ticksFor([a, b], count) {
   const step = niceStep(b - a, count);
   const out = [];
@@ -29,9 +34,10 @@ function logTicks([a, b]) {
   return out;
 }
 
-export default function Plot({ alt, x, y, series = [], marks = [], xLabel, yLabel, logX = false, legend }) {
+export default function Plot({ alt, x: xGiven, y: yGiven, series = [], marks = [], xLabel, yLabel, logX = false, legend, equal = false }) {
   const uid = useId();
-  if (!Array.isArray(x) || !(x[1] > x[0]) || series.length === 0) throw new Error('A plot needs an x range and a series.');
+  if (!Array.isArray(xGiven) || !(xGiven[1] > xGiven[0]) || series.length === 0) throw new Error('A plot needs an x range and a series.');
+  const [x, y] = equal && yGiven && !logX ? equalRanges(xGiven, yGiven, iw / ih) : [xGiven, yGiven];
   const curves = series.map((s, i) => ({ ...s, colour: s.colour ?? colourOf(i), pts: samplesOf(s, x, logX) }));
   let range = y;
   if (!range) {
@@ -43,8 +49,6 @@ export default function Plot({ alt, x, y, series = [], marks = [], xLabel, yLabe
     range = [lo < 0 ? lo - pad : lo, hi + pad];
   }
   const [y0, y1] = range;
-  const iw = W - M.left - M.right;
-  const ih = H - M.top - M.bottom;
   const sx = (v) => M.left + (logX ? (Math.log10(v) - Math.log10(x[0])) / (Math.log10(x[1]) - Math.log10(x[0])) : (v - x[0]) / (x[1] - x[0])) * iw;
   const sy = (v) => M.top + (1 - (v - y0) / (y1 - y0)) * ih;
   const clipId = `plot${uid.replace(/[^a-zA-Z0-9_-]/g, '')}`;

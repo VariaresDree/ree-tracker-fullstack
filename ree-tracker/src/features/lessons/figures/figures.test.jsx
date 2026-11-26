@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import LessonFigure from './LessonFigure';
-import { FIGURE_TYPES, checkBlocks, checkCircuit, formatTick, phasorEnds, samplesOf } from './figureMath';
+import { FIGURE_TYPES, checkBlocks, checkCircuit, equalRanges, formatTick, phasorEnds, samplesOf } from './figureMath';
 
 const draw = (spec) => renderToStaticMarkup(createElement(LessonFigure, spec));
 // No colour literal may reach a figure: 13 themes depend on the variables.
@@ -54,6 +54,13 @@ describe('plot', () => {
     expect(draw({ type: 'plot', alt: 'Bode', x: [1, 1000], logX: true, series: [{ f: (w) => -20 * Math.log10(w) }] })).toContain('>1000<');
     expect(formatTick(20000)).toBe('20k');
     expect(formatTick(-0.5)).toBe('−0.5');
+  });
+
+  it('keeps one unit equal on both axes when asked, widening the shorter range', () => {
+    expect(equalRanges([0, 4], [0, 4], 2)).toEqual([[-2, 6], [0, 4]]);
+    expect(equalRanges([0, 10], [0, 2], 2)).toEqual([[0, 10], [-1.5, 3.5]]);
+    const svg = draw({ type: 'plot', alt: 'Circle', x: [-1, 1], y: [-1, 1], equal: true, series: [{ f: (t) => t }] });
+    expect(svg).toMatch(/^<svg/);
   });
 
   it('needs a range and a curve', () => {
