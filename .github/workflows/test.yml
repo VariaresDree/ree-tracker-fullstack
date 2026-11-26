@@ -258,6 +258,21 @@ jobs:
           npx playwright install chromium
         working-directory: ree-tracker
 
+      # The Auth emulator comes from `npx --yes firebase-tools@14`, which the
+      # webServer used to download inside its 120 s start timeout. On
+      # 2026-11-27 a slow npm registry made the download alone run past it and
+      # no spec ran. Fetch the CLI here first (retried), so the webServer only
+      # has to start it from the npx cache.
+      - name: Fetch the Firebase CLI
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 npx --yes firebase-tools@14 --version; then exit 0; fi
+            echo "Fetching firebase-tools failed (attempt $attempt)."
+            sleep 20
+          done
+          exit 1
+        working-directory: ree-tracker
+
       - name: Signed-in specs
         run: npm run e2e:authed --workspace=ree-tracker
 

@@ -61,6 +61,14 @@ export function samplesOf(series, [x0, x1], logX = false) {
   });
 }
 
+/** Ranges with one unit as long on both axes of a box `ratio` times wider than tall: the shorter range widens about its centre. */
+export function equalRanges([x0, x1], [y0, y1], ratio) {
+  const grow = ([a, b], span) => [(a + b - span) / 2, (a + b + span) / 2];
+  return (x1 - x0) / (y1 - y0) < ratio
+    ? [grow([x0, x1], (y1 - y0) * ratio), [y0, y1]]
+    : [[x0, x1], grow([y0, y1], (x1 - x0) / ratio)];
+}
+
 const rad = (deg) => (deg * Math.PI) / 180;
 
 /** Each phasor's start and end, chained by `from` (tip to tail). */
